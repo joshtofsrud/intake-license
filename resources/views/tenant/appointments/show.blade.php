@@ -23,7 +23,6 @@
   $updateUrl = route('tenant.appointments.update', $appointment->id);
 @endphp
 
-@push('styles')
 <style>
 .appt-layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
 .appt-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; font-weight: 500; opacity: .45; margin-bottom: 10px; }
@@ -47,13 +46,9 @@
 .add-charge-form.open { display: block; }
 @media (max-width: 900px) { .appt-layout { grid-template-columns: 1fr; } }
 </style>
-@endpush
 
 @section('content')
 
-{{-- ============================================================ --}}
-{{-- Header                                                        --}}
-{{-- ============================================================ --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">
@@ -73,7 +68,6 @@
   <div class="ia-page-actions">
     <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
 
-    {{-- Status transitions --}}
     @foreach($transitions as $toStatus)
       @php $isDestructive = in_array($toStatus, $destructive); @endphp
       <form method="POST" action="{{ $updateUrl }}" style="display:inline">
@@ -90,14 +84,8 @@
   </div>
 </div>
 
-{{-- ============================================================ --}}
-{{-- Two-column layout                                             --}}
-{{-- ============================================================ --}}
 <div class="appt-layout">
 
-  {{-- ============================================================
-       Left column: items, responses, charges
-       ============================================================ --}}
   <div style="display:flex;flex-direction:column;gap:20px">
 
     {{-- Line items --}}
@@ -161,7 +149,6 @@
         </button>
       </div>
 
-      {{-- Add charge form --}}
       <form method="POST" action="{{ $updateUrl }}" class="add-charge-form" id="add-charge-form">
         @csrf @method('PATCH')
         <input type="hidden" name="op" value="add_charge">
@@ -208,9 +195,6 @@
 
   </div>
 
-  {{-- ============================================================
-       Right column: customer, payment, notes
-       ============================================================ --}}
   <div style="display:flex;flex-direction:column;gap:16px">
 
     {{-- Customer --}}
@@ -315,7 +299,6 @@
       </div>
       @endif
 
-      {{-- Payment status update --}}
       <form method="POST" action="{{ $updateUrl }}" style="margin-top:12px">
         @csrf @method('PATCH')
         <input type="hidden" name="op" value="payment">
@@ -336,7 +319,6 @@
     <div class="ia-card ia-card--tight">
       <div class="appt-section-label">Notes</div>
 
-      {{-- Add note --}}
       <div class="ia-note-add">
         <textarea id="note-input" rows="3" maxlength="500"
           data-maxlength="500" data-counter="note-chars"
@@ -351,7 +333,6 @@
         <p id="note-error" style="font-size:12px;color:#E24B4A;margin-top:4px;display:none"></p>
       </div>
 
-      {{-- Notes list --}}
       <div class="ia-notes" id="notes-list">
         @forelse($appointment->notes->sortByDesc('created_at') as $note)
           <div class="ia-note" data-note-id="{{ $note->id }}">
@@ -388,9 +369,6 @@
   var updateUrl = '{{ $updateUrl }}';
   var csrf      = window.IntakeAdmin.csrfToken;
 
-  // ----------------------------------------------------------------
-  // Add charge form toggle
-  // ----------------------------------------------------------------
   var toggle  = document.getElementById('add-charge-toggle');
   var form    = document.getElementById('add-charge-form');
   var cancel  = document.getElementById('add-charge-cancel');
@@ -409,9 +387,6 @@
     amtCents.value = Math.round(parseFloat(amtDisp.value || 0) * 100);
   });
 
-  // ----------------------------------------------------------------
-  // Add note
-  // ----------------------------------------------------------------
   var noteInput  = document.getElementById('note-input');
   var noteSubmit = document.getElementById('note-submit');
   var noteError  = document.getElementById('note-error');
@@ -447,11 +422,9 @@
           noteSubmit.textContent = 'Add note';
           if (!resp.success) { showErr(resp.message || 'Error.'); return; }
 
-          // Remove empty state
           var empty = notesList.querySelector('.ia-notes-empty');
           if (empty) empty.remove();
 
-          // Prepend new note
           var el = document.createElement('div');
           el.className = 'ia-note';
           el.setAttribute('data-note-id', resp.id);
@@ -477,9 +450,6 @@
     });
   }
 
-  // ----------------------------------------------------------------
-  // Delete note
-  // ----------------------------------------------------------------
   document.querySelectorAll('.ia-note-delete').forEach(bindDeleteOnEl);
 
   function bindDeleteOnEl(btn) {

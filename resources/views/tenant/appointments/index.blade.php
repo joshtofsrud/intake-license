@@ -21,16 +21,16 @@
     <p class="ia-page-subtitle">Every booking, every status.</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.appointments.index') }}?view=new" class="ia-btn ia-btn--primary">
+    <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
       + New appointment
-    </a>
+    </button>
   </div>
 </div>
 
 {{-- Filter toolbar --}}
 <form method="get" action="{{ route('tenant.appointments.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
-    placeholder="Search RA#, name, email…" style="max-width:260px">
+    placeholder="Search ITO#, name, email…" style="max-width:260px">
 
   <select name="status" class="ia-input" style="width:auto">
     <option value="">All statuses</option>
@@ -78,9 +78,9 @@
       @endif
     </div>
     @if(!$search && !$status && !$payment)
-      <a href="{{ route('tenant.appointments.index') }}?view=new" class="ia-btn ia-btn--primary">
+      <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
         + New appointment
-      </a>
+      </button>
     @endif
   </div>
 
@@ -90,7 +90,7 @@
     <table class="ia-table">
       <thead>
         <tr>
-          <th>RA #</th>
+          <th>ITO #</th>
           <th>Customer</th>
           <th>Date</th>
           <th>Status</th>
@@ -144,5 +144,7 @@
   @endif
 
 @endif
+
+@include('tenant.appointments._create_modal')
 
 @endsection

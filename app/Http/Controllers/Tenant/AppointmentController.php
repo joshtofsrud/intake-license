@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentNote;
 use App\Models\Tenant\TenantAppointmentCharge;
+use App\Models\Tenant\TenantCustomer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
 {
@@ -72,6 +74,79 @@ class AppointmentController extends Controller
             'appointments', 'total', 'page', 'totalPages',
             'search', 'status', 'payment', 'dateFrom', 'dateTo'
         ));
+    }
+
+    // ----------------------------------------------------------------
+    // Store (create new appointment via AJAX modal)
+    // ----------------------------------------------------------------
+    public function store(Request $request)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'customer_first_name' => ['required', 'string', 'max:100'],
+            'customer_last_name'  => ['required', 'string', 'max:100'],
+            'customer_email'      => ['required', 'email', 'max:255'],
+            'customer_phone'      => ['nullable', 'string', 'max:32'],
+            'appointment_date'    => ['required', 'date'],
+            'staff_notes'         => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        // Find or create the customer record
+        $customer = TenantCustomer::firstOrCreate(
+            [
+                'tenant_id' => $tenant->id,
+                'email'     => strtolower($data['customer_email']),
+            ],
+            [
+                'first_name' => $data['customer_first_name'],
+                'last_name'  => $data['customer_last_name'],
+                'phone'      => $data['customer_phone'] ?? null,
+            ]
+        );
+
+        // Generate ITO number: ITO-{sequential}-{random}
+        $seq = TenantAppointment::where('tenant_id', $tenant->id)->count() + 1;
+        $itoNumber = 'ITO-' . str_pad($seq, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(Str::random(4));
+
+        $appointment = TenantAppointment::create([
+            'tenant_id'           => $tenant->id,
+            'customer_id'         => $customer->id,
+            'ra_number'           => $itoNumber,
+            'customer_first_name' => $data['customer_first_name'],
+            'customer_last_name'  => $data['customer_last_name'],
+            'customer_email'      => strtolower($data['customer_email']),
+            'customer_phone'      => $data['customer_phone'] ?? null,
+            'appointment_date'    => $data['appointment_date'],
+            'status'              => 'pending',
+            'payment_status'      => 'unpaid',
+            'payment_method'      => 'manual',
+            'subtotal_cents'      => 0,
+            'tax_cents'           => 0,
+            'total_cents'         => 0,
+            'paid_cents'          => 0,
+            'staff_notes'         => $data['staff_notes'] ?? null,
+        ]);
+
+        // Add a system note
+        TenantAppointmentNote::create([
+            'appointment_id'      => $appointment->id,
+            'user_id'             => Auth::guard('tenant')->id(),
+            'note_type'           => 'system',
+            'is_customer_visible' => false,
+            'note_content'        => 'Appointment created manually by staff.',
+            'created_at'          => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok'       => true,
+                'redirect' => route('tenant.appointments.show', $appointment->id),
+            ]);
+        }
+
+        return redirect()->route('tenant.appointments.show', $appointment->id)
+            ->with('success', 'Appointment created.');
     }
 
     // ----------------------------------------------------------------

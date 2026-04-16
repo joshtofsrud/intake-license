@@ -7,7 +7,7 @@
     <p class="ia-page-subtitle">{{ $currentTenant->name }} · {{ now()->format('l, F j') }}</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.appointments.index') }}?view=new" class="ia-btn ia-btn--primary">
+    <a href="{{ route(.tenant.appointments.index.) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
   </div>
@@ -60,7 +60,7 @@
     <div class="ia-empty">
       <div class="ia-empty-title">No appointments yet</div>
       <div class="ia-empty-desc">When customers book, they'll appear here.</div>
-      <a href="{{ route('tenant.appointments.index') }}?view=new" class="ia-btn ia-btn--primary">
+      <a href="{{ route(.tenant.appointments.index.) }}" class="ia-btn ia-btn--primary">
         + New appointment
       </a>
     </div>
