@@ -6,7 +6,6 @@
   $textColor  = $c['text_color'] ?? '#ffffff';
 @endphp
 
-@push('styles')
 <style>
 .p-hero {
   min-height: {{ $height }};
@@ -52,7 +51,6 @@
 }
 .p-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 </style>
-@endpush
 
 <section class="p-hero">
   <div class="p-container">

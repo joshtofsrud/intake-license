@@ -1,4 +1,3 @@
-@push('styles')
 <style>
 .p-nav {
   position: sticky;
@@ -56,15 +55,12 @@
 @media (max-width: 768px) {
   .p-nav-links { display: none; }
   .p-hamburger { display: flex; }
-  @if(empty($c['cta_label'])) .p-nav-end .p-btn { display: none; } @endif
 }
 </style>
-@endpush
 
 <nav class="p-nav">
   <div class="p-container">
     <div class="p-nav-inner">
-      {{-- Logo --}}
       @if($c['show_logo'] ?? true)
         <a href="/" class="p-nav-logo">
           @if($tenant->logo_url)
@@ -75,14 +71,12 @@
         </a>
       @endif
 
-      {{-- Nav links --}}
       <div class="p-nav-links">
         @foreach($navItems as $item)
           <a href="{{ $item->url }}" class="p-nav-link">{{ $item->label }}</a>
         @endforeach
       </div>
 
-      {{-- CTA + hamburger --}}
       <div class="p-nav-end">
         @if(!empty($c['cta_label']))
           <a href="{{ $c['cta_url'] ?? '/book' }}" class="p-btn p-btn--primary p-btn--sm">

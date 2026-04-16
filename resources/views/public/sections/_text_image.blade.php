@@ -2,7 +2,6 @@
   $imgRight = ($c['image_position'] ?? 'right') === 'right';
 @endphp
 
-@push('styles')
 <style>
 .p-text-image-grid {
   display: grid;
@@ -33,11 +32,10 @@
   white-space: pre-line;
 }
 @media (max-width: 768px) {
-  .p-text-image-grid { grid-template-columns: 1fr; direction: ltr !important; }
+  .p-text-image-grid { grid-template-columns: 1fr; direction: ltr; }
   .p-text-image-grid.img-left .p-text-image-img { order: -1; }
 }
 </style>
-@endpush
 
 <section class="p-section">
   <div class="p-container">

@@ -3,7 +3,6 @@
   $showPrices = (bool)($c['show_prices'] ?? true);
 @endphp
 
-@push('styles')
 <style>
 .p-services-grid {
   display: grid;
@@ -44,13 +43,15 @@
 @media (max-width: 900px) { .p-services-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .p-services-grid { grid-template-columns: 1fr; } }
 </style>
-@endpush
 
-<section class="p-section">
+<section class="p-section" id="services">
   <div class="p-container">
     @if(!empty($c['heading']))
       <div class="p-section-head-wrap">
         <h2 class="p-section-heading">{{ $c['heading'] }}</h2>
+        @if(!empty($c['subheading']))
+          <p class="p-section-sub">{{ $c['subheading'] }}</p>
+        @endif
       </div>
     @endif
 

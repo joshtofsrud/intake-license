@@ -3,7 +3,6 @@
   $images = $c['images'] ?? [];
 @endphp
 
-@push('styles')
 <style>
 .p-gallery-grid {
   display: grid;
@@ -25,7 +24,6 @@
 @media (max-width: 768px) { .p-gallery-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 480px) { .p-gallery-grid { grid-template-columns: 1fr; } }
 </style>
-@endpush
 
 <section class="p-section--tight">
   <div class="p-container">

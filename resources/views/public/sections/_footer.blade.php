@@ -1,4 +1,3 @@
-@push('styles')
 <style>
 .p-footer {
   border-top: 1px solid rgba(0,0,0,.08);
@@ -53,12 +52,10 @@
 }
 @media (max-width: 600px) { .p-footer-inner { flex-direction: column; } }
 </style>
-@endpush
 
 <footer class="p-footer">
   <div class="p-container">
     <div class="p-footer-inner">
-      {{-- Brand --}}
       <div class="p-footer-brand">
         @if($c['show_logo'] ?? true)
           <div class="p-footer-logo">
@@ -74,7 +71,6 @@
         @endif
       </div>
 
-      {{-- Nav links --}}
       @if($navItems->isNotEmpty())
         <div class="p-footer-nav">
           <div class="p-footer-nav-label">Navigation</div>
@@ -84,7 +80,6 @@
         </div>
       @endif
 
-      {{-- Quick links --}}
       <div class="p-footer-nav">
         <div class="p-footer-nav-label">Book</div>
         <a href="/book" class="p-footer-link">Book online</a>
