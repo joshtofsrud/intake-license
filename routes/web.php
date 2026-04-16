@@ -8,27 +8,13 @@ use App\Http\Controllers\Tenant as TenantControllers;
 |--------------------------------------------------------------------------
 | Intake — Web Routes
 |--------------------------------------------------------------------------
-|
-| Four distinct route groups, separated by domain pattern:
-|
-|   1. Platform routes     — intake.works, app.intake.works
-|   2. License API         — license.intake.works (see routes/api.php)
-|   3. Tenant public       — {slug}.intake.works or custom domain
-|   4. Tenant admin        — {slug}.intake.works/admin (authenticated)
-|
-| The Filament master admin lives at intake.works/admin (handled by
-| AdminPanelProvider — no route definition needed here).
-|
-| Tenant subdomain routing uses Laravel's domain() constraint.
-| Custom domains are handled via the ResolveTenant middleware fallback.
-|
 */
 
 $domain     = config('intake.domain', 'intake.works');
 $tenantHost = '{subdomain}.' . $domain;
 
 // =========================================================================
-// Platform routes — intake.works + app.intake.works
+// Platform routes — intake.works (marketing site + Filament admin)
 // =========================================================================
 
 Route::domain($domain)->group(function () {
@@ -63,108 +49,92 @@ Route::domain($domain)->group(function () {
 
 });
 
+// =========================================================================
+// Platform routes — app.intake.works (signup + tenant discovery)
+// =========================================================================
+
 Route::domain('app.' . $domain)->group(function () {
 
-    // Tenant onboarding + signup
     Route::get('/',         [Platform\OnboardingController::class, 'index'])->name('platform.home');
     Route::get('/signup',   [Platform\OnboardingController::class, 'signup'])->name('platform.signup');
     Route::post('/signup',  [Platform\OnboardingController::class, 'processSignup'])->name('platform.signup.process');
     Route::get('/checkout', [Platform\OnboardingController::class, 'checkout'])->name('platform.checkout');
     Route::post('/subdomain/check', [Platform\OnboardingController::class, 'checkSubdomain'])->name('platform.subdomain.check');
 
-    // Tenant login (redirects to their subdomain after auth)
     Route::get('/login',    [Platform\OnboardingController::class, 'login'])->name('platform.login');
 
 });
 
 // =========================================================================
-// Tenant routes — {slug}.intake.works  (and custom domains via middleware)
+// Tenant routes — {slug}.intake.works
 // =========================================================================
 
 Route::middleware(['App\Http\Middleware\ResolveTenant'])
     ->group(function () use ($tenantHost, $domain) {
 
-    // ------------------------------------------------------------------
-    // Public routes — no auth required
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // Public pages — no auth required
+    // ----------------------------------------------------------------
     Route::domain($tenantHost)->group(function () {
 
-        // Public website pages (served by page builder)
         Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
         Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
         Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
-        // Booking form
         Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
         Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
         Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
         Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
 
-        // Payment webhooks
         Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
         Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
-        // Dynamic page builder pages
         Route::get('/{slug}',    [TenantControllers\PublicController::class, 'page'])->name('tenant.page');
         Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
 
     });
 
-    // Also handle custom domains (no subdomain constraint — ResolveTenant
-    // already resolved the tenant from the custom domain)
+    // Custom domains (ResolveTenant already set the tenant)
     Route::get('/',         [TenantControllers\PublicController::class, 'home'])->name('tenant.home.custom');
     Route::get('/book',     [TenantControllers\PublicController::class, 'booking'])->name('tenant.booking.custom');
     Route::get('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.custom');
     Route::get('/{slug}',   [TenantControllers\PublicController::class, 'page'])->name('tenant.page.custom');
 
-    // ------------------------------------------------------------------
-    // Tenant admin routes — authenticated + onboarded
-    // ------------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // Tenant admin — authenticated
+    // ----------------------------------------------------------------
     Route::domain($tenantHost)
         ->prefix('admin')
         ->name('tenant.')
         ->group(function () {
 
-        // Auth (no tenant auth guard needed for these)
-        Route::get('/login', function () {
-            $request = request();
-            if ($request->query('forgot')) return app(\App\Http\Controllers\Tenant\AuthController::class)->showForgot();
-            if ($request->query('reset')) return app(\App\Http\Controllers\Tenant\AuthController::class)->showReset($request);
-            return app(\App\Http\Controllers\Tenant\AuthController::class)->showLogin();
-        })->name('login');
-        Route::post('/login', function (\Illuminate\Http\Request $request) {
-            $op = $request->query('forgot') ? 'sendReset'
-                : ($request->query('reset') ? 'resetPassword' : 'login');
-            return app(\App\Http\Controllers\Tenant\AuthController::class)->$op($request);
-        })->name('login.submit');
-        Route::post('/logout', [TenantControllers\AuthController::class, 'logout'])->name('logout');
+        // Auth routes — explicit controller bindings (no closures)
+        Route::get('/login',            [TenantControllers\AuthController::class, 'showLogin'])->name('login');
+        Route::post('/login',           [TenantControllers\AuthController::class, 'login'])->name('login.submit');
+        Route::get('/forgot-password',  [TenantControllers\AuthController::class, 'showForgot'])->name('forgot');
+        Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit');
+        Route::get('/reset-password',   [TenantControllers\AuthController::class, 'showReset'])->name('reset');
+        Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
+        Route::post('/logout',          [TenantControllers\AuthController::class, 'logout'])->name('logout');
 
-        // Onboarding wizard — auth required but not onboarded check
-        // ConsumeOnboardingToken runs first so a `?token=` from signup
-        // auto-logs the user in before RequireTenantAuth checks them.
+        // ConsumeOnboardingToken auto-logs in newly-signed-up users who
+        // arrived from app.intake.works with a one-time ?token= param.
+        // Everything else is gated by RequireTenantAuth only — no onboarding
+        // gate, because onboarding is now a dashboard modal, not a wizard.
         Route::middleware([
             'App\Http\Middleware\ConsumeOnboardingToken',
             'App\Http\Middleware\RequireTenantAuth',
-        ])
-            ->prefix('onboarding')
-            ->name('onboarding.')
-            ->group(function () {
-                Route::get('/',         [TenantControllers\OnboardingController::class, 'index'])->name('index');
-                Route::get('/branding', [TenantControllers\OnboardingController::class, 'branding'])->name('branding');
-                Route::post('/branding',[TenantControllers\OnboardingController::class, 'saveBranding'])->name('branding.save');
-                Route::get('/services', [TenantControllers\OnboardingController::class, 'services'])->name('services');
-                Route::post('/services',[TenantControllers\OnboardingController::class, 'saveServices'])->name('services.save');
-                Route::get('/complete', [TenantControllers\OnboardingController::class, 'complete'])->name('complete');
-            });
-
-        // Main admin — auth + onboarded required
-        Route::middleware([
-            'App\Http\Middleware\RequireTenantAuth',
-            'App\Http\Middleware\RequireOnboarded',
             'App\Http\Middleware\ApplyTenantTheme',
         ])->group(function () {
 
             Route::get('/',                 [TenantControllers\DashboardController::class, 'index'])->name('dashboard');
+
+            // Onboarding modal save endpoints (JSON)
+            Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
+            Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');
+            Route::post('/onboarding/hours',    [TenantControllers\OnboardingModalController::class, 'saveHours'])->name('onboarding.hours');
+            Route::post('/onboarding/dismiss',  [TenantControllers\OnboardingModalController::class, 'dismiss'])->name('onboarding.dismiss');
+            Route::post('/onboarding/complete', [TenantControllers\OnboardingModalController::class, 'complete'])->name('onboarding.complete');
 
             // Appointments
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
@@ -183,7 +153,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::patch('/services/{id}',      [TenantControllers\ServiceController::class, 'update'])->name('services.update');
             Route::delete('/services/{id}',     [TenantControllers\ServiceController::class, 'destroy'])->name('services.destroy');
 
-            // Capacity
+            // Capacity / hours
             Route::get('/capacity',             [TenantControllers\CapacityController::class, 'index'])->name('capacity.index');
             Route::post('/capacity',            [TenantControllers\CapacityController::class, 'store'])->name('capacity.store');
 
@@ -193,8 +163,6 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/pages',               [TenantControllers\PageBuilderController::class, 'store'])->name('pages.store');
             Route::patch('/pages/{id}',         [TenantControllers\PageBuilderController::class, 'update'])->name('pages.update');
             Route::delete('/pages/{id}',        [TenantControllers\PageBuilderController::class, 'destroy'])->name('pages.destroy');
-
-            // Page sections (AJAX)
             Route::post('/pages/{id}/sections',           [TenantControllers\PageBuilderController::class, 'addSection'])->name('pages.sections.add');
             Route::patch('/pages/{id}/sections/{sid}',    [TenantControllers\PageBuilderController::class, 'updateSection'])->name('pages.sections.update');
             Route::delete('/pages/{id}/sections/{sid}',   [TenantControllers\PageBuilderController::class, 'deleteSection'])->name('pages.sections.delete');

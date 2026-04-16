@@ -1,6 +1,7 @@
 @php
-  $bgColor   = $c['bg_color']   ?: 'var(--p-accent)';
-  $textColor = $c['text_color'] ?: 'var(--p-accent-text)';
+  $c = $c ?? [];
+  $bgColor   = ($c['bg_color']   ?? null) ?: 'var(--p-accent)';
+  $textColor = ($c['text_color'] ?? null) ?: 'var(--p-accent-text)';
 @endphp
 
 <section style="background:{{ $bgColor }};padding:clamp(40px,6vw,72px) 0">
@@ -17,7 +18,7 @@
     @endif
     @if(!empty($c['cta_label']))
       @php
-        $isAccentBg = !$c['bg_color'] || $c['bg_color'] === 'var(--p-accent)';
+        $isAccentBg = !($c['bg_color'] ?? null) || ($c['bg_color'] ?? null) === 'var(--p-accent)';
         $btnBg      = $isAccentBg ? 'rgba(0,0,0,.15)' : 'var(--p-accent)';
         $btnColor   = $isAccentBg ? $textColor : 'var(--p-accent-text)';
       @endphp

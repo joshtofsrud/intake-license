@@ -49,6 +49,51 @@
   </div>
 </div>
 
+{{-- Finish setup cards (deferred items from onboarding: home page, team, payment) --}}
+@php
+  // Show these cards even after onboarding is complete if the user hasn't
+  // done them — they're "nice to have" rather than blocking.
+  $hasPages   = \App\Models\Tenant\TenantPage::where('tenant_id', $currentTenant->id)->where('is_home', true)->exists();
+  $hasTeam    = \App\Models\Tenant\TenantUser::where('tenant_id', $currentTenant->id)->count() > 1;
+  $hasPayment = !empty($currentTenant->settings['payment_methods'] ?? null);
+  $showFinish = !$hasPages || !$hasTeam || !$hasPayment;
+@endphp
+
+@if($showFinish)
+<div class="ia-card" style="margin-bottom:20px">
+  <div class="ia-card-head">
+    <span class="ia-card-title">Finish setting up</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:4px 0">
+
+    @if(!$hasPages)
+      <a href="{{ route('tenant.pages.index') }}" style="display:block;padding:16px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);text-decoration:none;color:inherit;transition:border-color .12s" onmouseover="this.style.borderColor='var(--ia-accent)'" onmouseout="this.style.borderColor='var(--ia-border)'">
+        <div style="font-size:24px;margin-bottom:8px">🏠</div>
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">Customize your home page</div>
+        <div style="font-size:12px;opacity:.55">Add a hero, services section, CTA.</div>
+      </a>
+    @endif
+
+    @if(!$hasTeam)
+      <a href="{{ route('tenant.team.index') }}" style="display:block;padding:16px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);text-decoration:none;color:inherit;transition:border-color .12s" onmouseover="this.style.borderColor='var(--ia-accent)'" onmouseout="this.style.borderColor='var(--ia-border)'">
+        <div style="font-size:24px;margin-bottom:8px">👥</div>
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">Invite your team</div>
+        <div style="font-size:12px;opacity:.55">Add staff who can manage appointments.</div>
+      </a>
+    @endif
+
+    @if(!$hasPayment)
+      <a href="{{ route('tenant.settings.index') }}" style="display:block;padding:16px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);text-decoration:none;color:inherit;transition:border-color .12s" onmouseover="this.style.borderColor='var(--ia-accent)'" onmouseout="this.style.borderColor='var(--ia-border)'">
+        <div style="font-size:24px;margin-bottom:8px">💳</div>
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">Set up payments</div>
+        <div style="font-size:12px;opacity:.55">Cash, check, bank transfer — you choose.</div>
+      </a>
+    @endif
+
+  </div>
+</div>
+@endif
+
 {{-- Recent appointments --}}
 <div class="ia-card">
   <div class="ia-card-head">
@@ -102,5 +147,8 @@
     </div>
   @endif
 </div>
+
+{{-- Onboarding modal — only renders if progress is incomplete AND user hasn't dismissed --}}
+@include('tenant._onboarding_modal')
 
 @endsection
