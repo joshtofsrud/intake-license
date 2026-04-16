@@ -80,7 +80,7 @@ class OnboardingController extends Controller
         );
 
         $tenantUrl = 'https://' . $tenant->subdomain . '.' . config('intake.domain')
-            . '/admin/onboarding?token=' . $token;
+            . '/admin?token=' . $token;
 
         return redirect($tenantUrl);
     }
