@@ -105,7 +105,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
         Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
         // Dynamic page builder pages
-        Route::get('/{slug}',    [TenantControllers\PublicController::class, 'page'])->name('tenant.page');
+        Route::get('/{slug}',    [TenantControllers\PublicController::class, 'page'])->where('slug', '^(?\!admin).*$')->name('tenant.page');
         Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
 
     });
