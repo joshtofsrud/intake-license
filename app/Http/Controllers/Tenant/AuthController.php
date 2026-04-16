@@ -6,11 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
@@ -27,12 +26,6 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        Log::info('LOGIN_ATTEMPT', [
-            'host'   => $request->getHost(),
-            'email'  => $request->input('email'),
-            'tenant' => tenant()?->subdomain,
-        ]);
-
         $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -56,8 +49,8 @@ class AuthController extends Controller
         }
 
         Auth::guard('tenant')->login($user, $request->boolean('remember'));
-        $request->session()->regenerate();
-        $user->forceFill(['last_login_at' => now()])->save();
+
+        $user->update(['last_login_at' => now()]);
 
         return redirect()->intended(route('tenant.dashboard'));
     }
@@ -91,20 +84,21 @@ class AuthController extends Controller
         if ($user) {
             $token = Str::random(64);
 
+            // Store token in cache for 60 minutes
             Cache::put(
                 'pwd_reset_' . $token,
                 ['tenant_id' => $tenant->id, 'user_id' => $user->id],
                 now()->addMinutes(60)
             );
 
-            $resetUrl = route('tenant.reset') . '?token=' . $token;
+            $resetUrl = route('tenant.login') . '?reset=' . $token;
 
             try {
-                Mail::to($user->email)->send(
+                \Illuminate\Support\Facades\Mail::to($user->email)->send(
                     new \App\Mail\PasswordReset($tenant, $user, $resetUrl)
                 );
             } catch (\Throwable $e) {
-                Log::error('Password reset mail failed: ' . $e->getMessage());
+                logger()->error('Password reset mail failed: ' . $e->getMessage());
             }
         }
 

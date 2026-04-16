@@ -7,6 +7,7 @@ use App\Filament\Resources\CustomerResource;
 use App\Filament\Resources\LicenseResource;
 use App\Filament\Resources\TenantResource;
 use App\Filament\Widgets\PlatformStatsWidget;
+use App\Filament\Widgets\RecentInstalls;
 use App\Filament\Widgets\StatsOverview;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -30,7 +31,6 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->domain(env('APP_DOMAIN', 'intake.works')) // Scope Filament to root domain only
             ->login()
             ->colors(['primary' => Color::Violet])
             ->brandName('Intake')
