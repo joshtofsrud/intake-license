@@ -1,159 +1,103 @@
-# Intake — onboarding modal rewrite
+# Intake — minimal dashboard reset
 
-Complete drop-in zip. Extract over `/var/www/intake/` on the server, or into
-your local repo folder and push via GitHub Desktop.
-
----
-
-## What's new / changed
-
-### Architecture changes
-
-**Killed the multi-page onboarding wizard.** No more `/admin/onboarding/branding`,
-`/admin/onboarding/services`, `/admin/onboarding/complete` — all gone. New
-tenants drop straight into the dashboard.
-
-**In-dashboard onboarding modal.** On their first visit to `/admin` (and any
-visit afterward until complete), a blurred modal covers the dashboard and
-walks them through three short steps:
-
-1. **Branding** — business name, tagline, accent color
-2. **Services** — tier + category + first service + price
-3. **Hours** — weekly schedule OR "always available"
-
-All three are stored in the real tables (`tenants`, `tenant_service_*`,
-`tenant_capacity_rules`) — no fake "step tracker." Completion is derived
-from whether the data actually exists.
-
-**Soft block, not hard.** Users can "Skip for now." A cookie hides the modal
-for the session; it reopens next login. The DB is the source of truth, so
-a user who manually fills in Services from the Services page will have that
-step checked off when they next see the modal.
-
-**Deferred items become dashboard cards.** Home page customization, team
-invites, and payment setup show as "Finish setting up" cards on the
-dashboard until done — a gentler nudge, not a blocker.
-
-### Files changed
-
-**New:**
-- `app/Http/Controllers/Tenant/OnboardingModalController.php` — JSON endpoints
-  for each step + dismiss + complete
-- `resources/views/tenant/_onboarding_modal.blade.php` — the modal itself,
-  self-contained HTML/CSS/JS, no Livewire (avoids the hijacking bug from
-  the old flow)
-
-**Deleted:**
-- `app/Http/Controllers/Tenant/OnboardingController.php`
-- `app/Http/Middleware/RequireOnboarded.php`
-- `resources/views/tenant/onboarding/` (entire directory)
-
-**Rewritten:**
-- `app/Http/Controllers/Tenant/DashboardController.php` — computes `$progress`
-- `app/Http/Controllers/Platform/OnboardingController.php` — signup now
-  redirects to `/admin` (not `/admin/onboarding`) and seeds a basic home
-  page so the public tenant URL doesn't 404
-- `app/Http/Controllers/Tenant/AuthController.php` — cleaner, with debug
-  Log::info calls so we can see auth attempts in the log
-- `app/Providers/Filament/AdminPanelProvider.php` — adds
-  `->domain(env('APP_DOMAIN'))` scoping so Filament only serves admin at
-  `intake.works`, not subdomain collisions
-- `app/Models/Tenant/TenantItemTierPrice.php` — adds missing `tier()` and
-  `item()` relationships
-- `app/Models/Tenant/TenantCapacityRule.php` — fillable matches real schema
-  (includes `open_time`, `close_time`, `slot_interval_minutes`)
-- `app/Models/User.php` — safer `canAccessPanel()` with env-email fallback
-- `app/Http/Middleware/ResolveTenant.php` — injects `URL::defaults(['subdomain'])`
-- `resources/views/tenant/dashboard.blade.php` — includes modal + deferred-
-  item cards
-- `resources/views/public/sections/_cta_banner.blade.php` — null-safe defaults
-  so the public home page doesn't crash on missing `bg_color`
-- `routes/web.php` — explicit controller bindings throughout, modal endpoints
-  wired in
-
-**Preserved (unchanged from server):**
-- `.env`, `vendor/`, `.git/`, `storage/logs/`, `storage/framework/sessions/` —
-  none of these are in the zip, so your existing state stays put.
+Complete drop-in zip. Purpose: strip the tenant dashboard down to bare
+"Welcome" text so we can confirm the page loads at all, then add features
+back one at a time.
 
 ---
 
-## Deploy
+## What this does
 
-### Option A — via GitHub (preferred)
+**Dashboard is now minimal.** No stats cards, no appointments table, no
+onboarding modal, no "finish setting up" cards. Just a header + a welcome
+message + the sidebar so you can navigate.
 
-1. Extract this zip into your local `intake-license` repo folder
-2. GitHub Desktop shows changes
-3. Commit: `Rewrite onboarding as dashboard modal`
-4. Push — GitHub Actions deploys automatically
+**Why:** we've been chasing a ghost where features cascade-crash each
+other. Starting with known-good is faster than bisecting.
 
-### Option B — direct server drop
+**What's still in the zip** (from the previous build, untouched):
+- OnboardingModalController and onboarding modal view — exist but unwired,
+  ready to add back later
+- All other controllers (customers, services, pages, etc.)
+- All routes
+- All middleware
+
+**What this zip does NOT delete** — extracting a zip can only ADD or
+OVERWRITE files, not delete. So if your server has stale files from
+before (old OnboardingController, RequireOnboarded middleware, old
+onboarding views), they'll still be there after deploy.
+
+---
+
+## Critical: clean the server BEFORE deploying
+
+Because the last deploy added new files without deleting old ones, the
+server has two sets of onboarding code — old and new — and Laravel loads
+both. We need to nuke the old ones first.
+
+SSH into the server and run this BEFORE pushing the new code:
 
 ```bash
-scp intake-complete.zip root@142.93.50.209:/tmp/
 ssh root@142.93.50.209
+
 cd /var/www/intake
-unzip -o /tmp/intake-complete.zip
-chown -R www-data:www-data /var/www/intake
-sudo -u www-data composer install --no-dev --optimize-autoloader
+
+# Delete stale files that shouldn't be here
+rm -fv app/Http/Controllers/Tenant/OnboardingController.php
+rm -fv app/Http/Middleware/RequireOnboarded.php
+rm -rfv resources/views/tenant/onboarding
+
+# Clear caches
 sudo -u www-data php artisan optimize:clear
-sudo -u www-data php artisan migrate --force
-sudo -u www-data php artisan config:cache
-sudo -u www-data php artisan route:cache
 systemctl restart php8.3-fpm
 ```
 
+Then extract this zip into your local repo, commit, push.
+
 ---
 
-## Clean out the test tenants (optional but recommended)
+## Deploy (via GitHub)
 
-The `the-bike-hub` and `velonw` tenants were created during debugging and
-are in weird half-onboarded states. They'll work under the new flow if you
-keep them (the modal will reappear for any missing steps), but a clean
-slate is easier for testing.
-
-See `cleanup.sql` in this zip. Run it on the server:
-
-```bash
-mysql -u intake -pdeorext1 intake < /tmp/cleanup.sql
-```
-
-Then do a fresh signup at `https://app.intake.works/signup` to test the
-full flow end-to-end.
+1. Extract this zip into your local `intake-license` folder (overwrite all)
+2. GitHub Desktop shows changes — mostly the dashboard view + controller
+3. Commit: `Minimal dashboard — strip features for clean reset`
+4. Push to main
+5. Wait for GitHub Actions to go green
 
 ---
 
 ## Verify
 
-1. **Site still loads:** `https://intake.works` → marketing page
-2. **Master admin login:** `https://intake.works/admin` → Filament dashboard
-   for `joshtofsrud@gmail.com`
-3. **Fresh tenant signup:**
-   - Go to `https://app.intake.works/signup`
-   - Fill form with a new subdomain (e.g. `testco`)
-   - Submit
-   - **Expected:** Lands on `https://testco.intake.works/admin`, already
-     logged in, with the onboarding modal covering the dashboard
-   - Click through branding → services → hours
-   - **Expected:** Modal closes with a brief "🎉 All set!" and reloads into
-     the clean dashboard with the deferred-item cards visible
-4. **Skip flow:**
-   - New signup → in modal, click "Skip for now"
-   - **Expected:** Modal closes, dashboard visible, no errors
-   - Log out and back in — modal reappears
-5. **Public tenant URL:** `https://testco.intake.works` should render a
-   basic home page (hero + services placeholder + CTA banner + footer),
-   not 404 or 500
+After deploy completes:
+
+1. Log in to a tenant admin, e.g. `https://<your-tenant>.intake.works/admin/login`
+2. Should land on the dashboard
+3. Expected page content:
+
+> **Dashboard**
+> <tenant name>
+>
+> *[card]*
+> Welcome, <your name>.
+> Your dashboard is loading. Features are being rebuilt one at a time...
+
+4. Sidebar should still work — click around to Appointments, Customers, etc.
+   Those sections have their own implementations and aren't affected by
+   this reset.
+
+**If any of that fails**, tell me the exact URL and what you see. Don't
+guess — share the error.
 
 ---
 
-## Rollback
+## Next steps
 
-If something catastrophic breaks, the previous state is in git history.
-Either:
+Once the minimal dashboard loads, we add features back one at a time:
 
-- In GitHub Desktop: revert the commit
-- On the server: `cd /var/www/intake && git reset --hard HEAD~1` (if you
-  deployed via server-side git pull)
+1. Stats row (today's jobs, this week, revenue, open jobs)
+2. Recent appointments table
+3. Finish-setup cards (home page / team / payment)
+4. Onboarding modal (only if you want it — a checklist-in-dashboard is
+   simpler and might be the better design)
 
-The DB migrations added in this change are all additive — nothing drops
-tables or columns.
+Each addition gets tested independently before moving to the next.
