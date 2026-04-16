@@ -89,7 +89,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
         Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
         Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
-        Route::get('/{slug}',    [TenantControllers\PublicController::class, 'page'])->name('tenant.page');
+        Route::get('/{slug}',    [TenantControllers\PublicController::class, 'page'])->where('slug', '^(?!admin).*$')->name('tenant.page');
         Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
 
     });
@@ -98,7 +98,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
     Route::get('/',         [TenantControllers\PublicController::class, 'home'])->name('tenant.home.custom');
     Route::get('/book',     [TenantControllers\PublicController::class, 'booking'])->name('tenant.booking.custom');
     Route::get('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.custom');
-    Route::get('/{slug}',   [TenantControllers\PublicController::class, 'page'])->name('tenant.page.custom');
+    Route::get('/{slug}',   [TenantControllers\PublicController::class, 'page'])->where('slug', '^(?!admin).*$')->name('tenant.page.custom');
 
     // ----------------------------------------------------------------
     // Tenant admin — authenticated
