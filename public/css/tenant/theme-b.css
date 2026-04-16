@@ -1,0 +1,179 @@
+/* ==========================================================================
+   Theme B — Top Nav + Airy
+   All-white, borderless, spacious. Top navigation bar.
+   ========================================================================== */
+
+body.ia-theme-b {
+  --ia-bg:           #ffffff;
+  --ia-surface:      #f8f8f6;
+  --ia-surface-2:    #f2f2ef;
+  --ia-border:       rgba(0,0,0,.09);
+  --ia-border-strong: rgba(0,0,0,.16);
+  --ia-text:         #111111;
+  --ia-text-muted:   #888880;
+  --ia-text-dim:     #bbbbb5;
+  --ia-hover:        rgba(0,0,0,.04);
+  --ia-input-bg:     #f8f8f6;
+}
+
+body.ia-theme-b {
+  background: var(--ia-bg);
+  color: var(--ia-text);
+}
+
+/* --------------------------------------------------------------------------
+   Shell — single column, topbar spans full width
+   -------------------------------------------------------------------------- */
+.ia-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.ia-sidebar { display: none; }
+
+/* --------------------------------------------------------------------------
+   Top bar
+   -------------------------------------------------------------------------- */
+.ia-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 54px;
+  padding: 0 28px;
+  background: #ffffff;
+  border-bottom: 0.5px solid var(--ia-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.ia-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 32px;
+  flex-shrink: 0;
+}
+.ia-topbar-logo-mark {
+  width: 26px;
+  height: 26px;
+  background: #111;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ia-accent);
+}
+.ia-topbar-logo-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #111;
+  letter-spacing: -.01em;
+}
+
+.ia-topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ia-topbar-nav::-webkit-scrollbar { display: none; }
+
+.ia-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  height: 54px;
+  font-size: 13px;
+  color: var(--ia-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--ia-t);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ia-nav-item svg { display: none; } /* Icons hidden in topnav to save space */
+.ia-nav-item:hover { color: var(--ia-text); }
+.ia-nav-item.active { color: var(--ia-text); border-bottom-color: var(--ia-text); }
+
+.ia-topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.ia-user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ia-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ia-accent-text);
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Main content
+   -------------------------------------------------------------------------- */
+.ia-main {
+  flex: 1;
+  min-width: 0;
+}
+.ia-content {
+  padding: 32px 36px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Cards (airy — no border, just background fill)
+   -------------------------------------------------------------------------- */
+.ia-card {
+  background: var(--ia-surface);
+  border: none;
+}
+.ia-card-head { border-bottom: 0.5px solid var(--ia-border); }
+
+.ia-stat {
+  background: var(--ia-surface);
+  border: none;
+}
+.ia-stat-label { color: var(--ia-text-muted); }
+.ia-stat-value { color: var(--ia-text); }
+
+/* Tables */
+.ia-table-wrap { background: var(--ia-surface); border: none; }
+.ia-table th {
+  background: var(--ia-surface-2);
+  color: var(--ia-text-muted);
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ia-table td { border-bottom: 0.5px solid var(--ia-border); color: var(--ia-text); }
+.ia-table tbody tr:last-child td { border-bottom: none; }
+.ia-table tbody tr:hover { background: rgba(0,0,0,.025); }
+
+/* Notes */
+.ia-note { background: var(--ia-surface); }
+
+/* Empty */
+.ia-empty { background: var(--ia-surface); }
+
+/* --------------------------------------------------------------------------
+   Mobile
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .ia-topbar { padding: 0 16px; }
+  .ia-content { padding: 20px 16px; }
+  .ia-topbar-logo-name { display: none; }
+}

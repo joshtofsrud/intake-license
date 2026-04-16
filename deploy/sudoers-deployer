@@ -1,0 +1,11 @@
+# /etc/sudoers.d/intake-deployer
+#
+# Allows the deployer user to reload PHP-FPM and Nginx
+# without a password prompt — needed for GitHub Actions deploys.
+#
+# Install: sudo cp deploy/sudoers-deployer /etc/sudoers.d/intake-deployer
+#          sudo chmod 440 /etc/sudoers.d/intake-deployer
+
+deployer ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.3-fpm
+deployer ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
+deployer ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart intake-worker:*

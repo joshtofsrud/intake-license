@@ -1,0 +1,128 @@
+name: Deploy to production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow manual trigger from the GitHub UI
+
+# Only run one deploy at a time — cancel any in-progress run if a new push
+# comes in before it finishes.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout — needed for any pre-deploy steps run on the runner
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Run tests (add your test suite here — skip if none yet)
+      # -----------------------------------------------------------------------
+      # - name: Run tests
+      #   run: |
+      #     composer install --no-interaction
+      #     php artisan test
+
+      # -----------------------------------------------------------------------
+      # 3. SSH deploy
+      #
+      # Secrets to add in GitHub → Settings → Secrets → Actions:
+      #   DEPLOY_HOST      — server IP or hostname
+      #   DEPLOY_USER      — deploy user (e.g. deployer)
+      #   DEPLOY_SSH_KEY   — private SSH key (the one authorized on the server)
+      #   APP_KEY          — Laravel APP_KEY (output of: php artisan key:generate --show)
+      #   DB_PASSWORD      — MySQL intake user password
+      #   REDIS_PASSWORD   — Redis requirepass value
+      #   CF_API_TOKEN     — Cloudflare API token (for cert renewal, optional here)
+      #
+      # Optional secrets (add when you're ready):
+      #   STRIPE_KEY, PAYPAL_CLIENT_ID, MAIL_USERNAME, etc.
+      # -----------------------------------------------------------------------
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          APP_DIR: /var/www/intake
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" \
+              "bash -s" << 'ENDSSH'
+
+            set -euo pipefail
+
+            APP_DIR="/var/www/intake"
+            PHP="php${PHP_VERSION:-8.3}"
+            ARTISAN="php $APP_DIR/artisan"
+
+            echo "→ Pulling latest code..."
+            git -C "$APP_DIR" fetch --all
+            git -C "$APP_DIR" reset --hard origin/main
+
+            echo "→ Installing Composer dependencies..."
+            composer install \
+              --no-dev \
+              --optimize-autoloader \
+              --no-interaction \
+              --working-dir="$APP_DIR"
+
+            echo "→ Putting app into maintenance mode..."
+            $ARTISAN down --refresh=15 --secret="intake-deploy-bypass"
+
+            echo "→ Running database migrations..."
+            $ARTISAN migrate --force
+
+            echo "→ Clearing and rebuilding caches..."
+            $ARTISAN config:clear
+            $ARTISAN route:clear
+            $ARTISAN view:clear
+            $ARTISAN config:cache
+            $ARTISAN route:cache
+            $ARTISAN view:cache
+            $ARTISAN event:cache
+
+            echo "→ Restarting queue workers..."
+            $ARTISAN queue:restart
+
+            echo "→ Taking app out of maintenance mode..."
+            $ARTISAN up
+
+            echo "→ Reloading PHP-FPM..."
+            sudo systemctl reload php8.3-fpm
+
+            echo "✓ Deploy complete."
+
+          ENDSSH
+
+      # -----------------------------------------------------------------------
+      # 4. Post-deploy: notify (optional — add Slack/Discord webhook later)
+      # -----------------------------------------------------------------------
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Deploy to production succeeded — $(date -u '+%Y-%m-%d %H:%M UTC')"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Deploy to production FAILED — check the logs above."
+          # Add Slack/Discord notification here:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"❌ Intake deploy failed on main"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
