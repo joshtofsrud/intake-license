@@ -132,6 +132,9 @@ class OnboardingController extends Controller
             'nav_order'    => 0,
         ]);
 
+        $accent = $tenant->accent_color ?: '#BEF264';
+        $accentText = \App\Support\ColorHelper::accentTextColor($accent);
+
         $defaults = [
             'nav' => [
                 'show_logo' => true,
@@ -140,26 +143,29 @@ class OnboardingController extends Controller
                 'bg_style'  => 'solid',
             ],
             'hero' => [
-                'headline'          => $tenant->name,
-                'subheading'        => $tenant->tagline ?? 'Book online today.',
-                'bg_color'          => '#1a1a1a',
-                'text_color'        => '#ffffff',
-                'cta_primary_label' => 'Book Now',
-                'cta_primary_url'   => '/book',
-                'height'            => 'large',
+                'headline'            => $tenant->name,
+                'subheading'          => $tenant->tagline ?: 'Professional service you can count on. Book your appointment online in seconds.',
+                'bg_color'            => '#111111',
+                'text_color'          => '#ffffff',
+                'cta_primary_label'   => 'Book an Appointment',
+                'cta_primary_url'     => '/book',
+                'cta_secondary_label' => 'View Services',
+                'cta_secondary_url'   => '#services',
+                'height'              => 'medium',
             ],
             'services' => [
-                'heading'     => 'Our services',
+                'heading'     => 'What we offer',
+                'subheading'  => 'Browse our services and book online.',
                 'show_prices' => true,
                 'columns'     => 3,
             ],
             'cta_banner' => [
-                'headline'   => 'Ready to book?',
-                'subheading' => '',
-                'cta_label'  => 'Schedule now',
+                'headline'   => 'Ready to get started?',
+                'subheading' => 'Book your appointment today — it only takes a minute.',
+                'cta_label'  => 'Book Now',
                 'cta_url'    => '/book',
-                'bg_color'   => '',
-                'text_color' => '',
+                'bg_color'   => $accent,
+                'text_color' => $accentText,
             ],
             'footer' => [
                 'show_logo'      => true,
