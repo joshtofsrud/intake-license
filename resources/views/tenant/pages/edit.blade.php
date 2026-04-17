@@ -1,4 +1,3 @@
-@extends('layouts.tenant.app')
 @php
   $pageTitle = 'Edit: ' . $page->title;
   // Marketing-aware URL helpers. When editing a platform tenant page from
@@ -6,6 +5,7 @@
   // tenant_url() points to a tenant subdomain we don't have. Swap for the
   // admin routes + root-domain URLs when $isMarketing is true.
   $isMarketing = $isMarketing ?? false;
+  $layoutName = $isMarketing ? 'layouts.admin.page-editor' : 'layouts.tenant.app';
   $backUrl = $isMarketing
       ? url('/admin/marketing-pages')
       : route('tenant.pages.index');
@@ -16,6 +16,8 @@
       ? url('/admin/marketing-pages/store')
       : route('tenant.pages.store');
 @endphp
+
+@extends($layoutName)
 
 @push('styles')
 <style>
