@@ -4,7 +4,6 @@ namespace App\Filament\Resources\DebugLogResource\Pages;
 
 use App\Filament\Resources\DebugLogResource;
 use App\Filament\Widgets\DebugLogHeaderStats;
-use App\Filament\Widgets\DebugLogErrorsChart;
 use Filament\Resources\Pages\ListRecords;
 
 class ListDebugLogs extends ListRecords
@@ -15,7 +14,7 @@ class ListDebugLogs extends ListRecords
     {
         return [
             DebugLogHeaderStats::class,
-            DebugLogErrorsChart::class,
+            // DebugLogErrorsChart::class,  // temporarily disabled — investigating Livewire registration issue
         ];
     }
 }
