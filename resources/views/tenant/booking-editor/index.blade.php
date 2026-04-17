@@ -71,7 +71,6 @@
     <p class="ia-page-subtitle" style="font-size:12px">Customize how your booking form looks and feels.</p>
   </div>
   <div class="ia-page-actions">
-    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="resetDefaults()">Reset to defaults</button>
     <a href="{{ tenant_url('book') }}" target="_blank" class="ia-btn ia-btn--secondary ia-btn--sm">Open in new tab ↗</a>
     <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick="saveBookingSettings()">Save changes</button>
   </div>
@@ -162,6 +161,7 @@
           onchange="syncSwatch('booking_body_text',this.value)">
       </div>
     </div>
+
     <div class="bke-section-divider"></div>
     <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" style="width:100%" onclick="resetDefaults()">Reset to defaults</button>
   </div>
@@ -233,22 +233,17 @@ var refreshTimer = null;
 
 var themeDefaults = {!! json_encode($defaults) !!};
 
-// Sync color swatch → text input
 function syncColor(field, value) {
   document.getElementById('bke-' + field).value = value;
   autoSave();
 }
 
-// Sync text input → color swatch
 function syncSwatch(field, value) {
   var swatch = document.getElementById('bke-' + field + '-swatch');
-  if (swatch && /^#[0-9a-fA-F]{6}$/.test(value)) {
-    swatch.value = value;
-  }
+  if (swatch && /^#[0-9a-fA-F]{6}$/.test(value)) swatch.value = value;
   autoSave();
 }
 
-// When theme changes, update color fields to match theme defaults
 function onThemeChange() {
   var theme = document.getElementById('bke-booking_theme').value;
   var defs = themeDefaults[theme] || themeDefaults['light'];
@@ -262,7 +257,6 @@ function onThemeChange() {
     if (swatch && val && /^#[0-9a-fA-F]{6}$/.test(val)) swatch.value = val;
   });
 
-  // Update opacity
   var opInput = document.getElementById('bke-booking_bg_opacity');
   var opRange = document.getElementById('bke-booking_bg_opacity-range');
   var opVal = document.getElementById('bke-opacity-val');
@@ -274,13 +268,11 @@ function onThemeChange() {
   autoSave();
 }
 
-// Reset all fields to defaults for current theme
 function resetDefaults() {
   if (!confirm('Reset all booking form settings to defaults?')) return;
   var theme = document.getElementById('bke-booking_theme').value;
   var defs = themeDefaults[theme] || themeDefaults['light'];
 
-  // Reset color fields
   var colorFields = ['booking_accent', 'booking_bg_tint', 'booking_progress_bg', 'booking_progress_text', 'booking_body_text'];
   colorFields.forEach(function(field) {
     var input = document.getElementById('bke-' + field);
@@ -291,7 +283,6 @@ function resetDefaults() {
     else if (swatch) swatch.value = '#000000';
   });
 
-  // Reset opacity
   var opInput = document.getElementById('bke-booking_bg_opacity');
   var opRange = document.getElementById('bke-booking_bg_opacity-range');
   var opVal = document.getElementById('bke-opacity-val');
@@ -299,7 +290,6 @@ function resetDefaults() {
   if (opRange) opRange.value = '100';
   if (opVal) opVal.textContent = '100%';
 
-  // Reset labels and headings
   var labelDefaults = {
     booking_step1_label: 'Services', booking_step2_label: 'Schedule',
     booking_step3_label: 'Details', booking_step4_label: 'Review',
@@ -316,7 +306,6 @@ function resetDefaults() {
   saveBookingSettings();
 }
 
-// Auto-save on any input change
 document.querySelectorAll('[data-bke]').forEach(function(el) {
   el.addEventListener('input', function() { autoSave(); });
   el.addEventListener('change', function() { autoSave(); });
