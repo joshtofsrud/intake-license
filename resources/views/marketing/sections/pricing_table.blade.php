@@ -1,16 +1,42 @@
 {{--
-    Pricing table. Content: heading, subheading, source, featured, plans
+    Pricing. Content: eyebrow, heading, subheading, source ('config'|'manual'),
+                      featured (slug), plans[] (manual), footnote
 
-    When source='config' (default), pulls plans + prices from config('intake.plan_prices').
-    When source='manual', renders $c['plans'] — each entry: name, price_cents, period, features[], cta_label, cta_url.
+    When source='config' (default), pulls plan prices from config('intake.plan_prices')
+    and uses the old design's plan descriptions/features. Matches the old pricing
+    card visual style exactly — dark cards, lime-accented featured plan, pill badge.
 --}}
 @php
     if (($c['source'] ?? 'config') === 'config') {
         $prices = config('intake.plan_prices', []);
         $plans = [
-            ['slug'=>'basic',   'name'=>'Basic',   'price_cents'=>$prices['basic']   ?? 2900,  'period'=>'/mo', 'blurb'=>'For getting started',   'features'=>['Custom booking site','Unlimited appointments','Email notifications','Stripe & PayPal','Customer database']],
-            ['slug'=>'branded', 'name'=>'Branded', 'price_cents'=>$prices['branded'] ?? 7900,  'period'=>'/mo', 'blurb'=>'For growing businesses','features'=>['Everything in Basic','Custom branding & colors','Email campaigns','Review system','SMS reminders (add-on)','Priority support']],
-            ['slug'=>'custom',  'name'=>'Custom',  'price_cents'=>$prices['custom']  ?? 19900, 'period'=>'/mo', 'blurb'=>'For established shops','features'=>['Everything in Branded','Custom HTML blocks','Custom domain','API access','White-glove onboarding','Dedicated support']],
+            [
+                'slug'  => 'basic',
+                'name'  => 'Basic',
+                'price_cents' => $prices['basic'] ?? 2900,
+                'period' => '/mo',
+                'desc'   => 'Everything you need to start taking bookings online.',
+                'features' => ['Booking form','Customer CRM','Work orders','intake.works subdomain','Stripe + PayPal'],
+                'cta_label' => 'Get started',
+            ],
+            [
+                'slug'  => 'branded',
+                'name'  => 'Branded',
+                'price_cents' => $prices['branded'] ?? 7900,
+                'period' => '/mo',
+                'desc'   => 'Your own domain and brand — nothing that says "Intake".',
+                'features' => ['Everything in Basic','Custom domain','Remove Intake branding','Priority support','Email campaigns'],
+                'cta_label' => 'Get started',
+            ],
+            [
+                'slug'  => 'custom',
+                'name'  => 'Custom',
+                'price_cents' => $prices['custom'] ?? 19900,
+                'period' => '/mo',
+                'desc'   => 'Multiple locations, full white-label, and custom integrations.',
+                'features' => ['Everything in Branded','Multi-location','Full white-label','Dedicated support','Custom integrations'],
+                'cta_label' => 'Contact us',
+            ],
         ];
     } else {
         $plans = $c['plans'] ?? [];
@@ -18,54 +44,135 @@
     $featured = $c['featured'] ?? 'branded';
 @endphp
 
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<style>
+    .mk-plan-grid {
+        display: grid;
+        grid-template-columns: repeat({{ count($plans) }}, 1fr);
+        gap: 14px;
+    }
+    .mk-plan {
+        background: rgba(255,255,255,.03);
+        border: 0.5px solid var(--mk-border);
+        border-radius: var(--mk-r-lg);
+        padding: 24px;
+        display: flex; flex-direction: column;
+    }
+    .mk-plan.featured {
+        border-color: rgba(190,242,100,.4);
+        background: rgba(190,242,100,.03);
+    }
+    .mk-plan-badge {
+        font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+        background: rgba(190,242,100,.12);
+        color: var(--mk-accent);
+        padding: 3px 10px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-bottom: 12px;
+        font-weight: 600;
+        width: fit-content;
+    }
+    .mk-plan-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .mk-plan-price {
+        font-size: 32px; font-weight: 800;
+        letter-spacing: -.02em; margin-bottom: 4px;
+        line-height: 1;
+    }
+    .mk-plan-price sup { font-size: 18px; font-weight: 600; vertical-align: top; margin-top: 6px; display: inline-block; }
+    .mk-plan-price span { font-size: 14px; font-weight: 400; color: var(--mk-muted); }
+    .mk-plan-desc {
+        font-size: 13px; color: var(--mk-muted);
+        margin: 10px 0 18px;
+        padding-bottom: 18px;
+        border-bottom: 0.5px solid var(--mk-border);
+        line-height: 1.55;
+    }
+    .mk-plan-feats { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .mk-plan-feat {
+        font-size: 13px; color: rgba(255,255,255,.6);
+        display: flex; align-items: flex-start; gap: 8px;
+        line-height: 1.4;
+    }
+    .mk-check {
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        background: var(--mk-accent-dim);
+        border: 0.5px solid rgba(190,242,100,.3);
+        flex-shrink: 0;
+        margin-top: 1px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .mk-check::after {
+        content: '';
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: var(--mk-accent);
+        opacity: .7;
+    }
+    .mk-plan-btn {
+        margin-top: 20px;
+        display: block; text-align: center;
+        padding: 11px;
+        border-radius: var(--mk-r);
+        font-size: 14px; font-weight: 600;
+        border: 0.5px solid var(--mk-border2);
+        color: var(--mk-muted);
+        transition: all .15s;
+    }
+    .mk-plan-btn:hover { border-color: rgba(255,255,255,.25); color: var(--mk-text); }
+    .mk-plan.featured .mk-plan-btn {
+        background: var(--mk-accent);
+        color: var(--mk-accent-text);
+        border-color: var(--mk-accent);
+    }
+    .mk-plan.featured .mk-plan-btn:hover { filter: brightness(.92); }
+
+    @media(max-width: 860px) { .mk-plan-grid { grid-template-columns: 1fr; } }
+</style>
+
+<section class="mk-section">
     <div class="mk-container">
-        @if(!empty($c['heading']) || !empty($c['subheading']))
-            <div style="text-align:center;margin-bottom:48px;max-width:640px;margin-left:auto;margin-right:auto">
-                @if(!empty($c['heading']))      <h2>{{ $c['heading'] }}</h2>      @endif
-                @if(!empty($c['subheading']))   <p style="font-size:18px">{{ $c['subheading'] }}</p>   @endif
-            </div>
+        @if(!empty($c['eyebrow']))
+            <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
+        @endif
+        @if(!empty($c['heading']))
+            <h2 class="mk-section-title">{{ $c['heading'] }}</h2>
+        @endif
+        @if(!empty($c['subheading']))
+            <p class="mk-section-sub">{{ $c['subheading'] }}</p>
         @endif
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:1100px;margin:0 auto">
+        <div class="mk-plan-grid">
             @foreach($plans as $plan)
                 @php $isFeatured = ($plan['slug'] ?? null) === $featured; @endphp
-                <div style="
-                    border: 2px solid {{ $isFeatured ? 'var(--mk-accent)' : 'var(--mk-border)' }};
-                    border-radius: 16px;
-                    padding: 32px;
-                    background: white;
-                    position: relative;
-                    {{ $isFeatured ? 'transform: scale(1.02); box-shadow: 0 20px 40px -12px rgba(124, 58, 237, 0.15);' : '' }}
-                ">
+                <div class="mk-plan {{ $isFeatured ? 'featured' : '' }}">
                     @if($isFeatured)
-                        <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--mk-accent);color:white;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">MOST POPULAR</div>
+                        <div class="mk-plan-badge">Most popular</div>
                     @endif
-
-                    <h3 style="font-size:20px;margin-bottom:4px">{{ $plan['name'] }}</h3>
-                    <p style="font-size:14px;margin-bottom:24px;color:var(--mk-text-muted)">{{ $plan['blurb'] ?? '' }}</p>
-
-                    <div style="margin-bottom:32px">
-                        <span style="font-size:48px;font-weight:800;letter-spacing:-.03em">${{ number_format(($plan['price_cents'] ?? 0)/100, 0) }}</span>
-                        <span style="font-size:16px;color:var(--mk-text-muted)">{{ $plan['period'] ?? '/mo' }}</span>
+                    <div class="mk-plan-name">{{ $plan['name'] ?? '' }}</div>
+                    <div class="mk-plan-price">
+                        <sup>$</sup>{{ number_format(($plan['price_cents'] ?? 0) / 100, 0) }}<span>{{ $plan['period'] ?? '/mo' }}</span>
                     </div>
-
-                    <a href="{{ $plan['cta_url'] ?? 'https://app.intake.works/signup?plan=' . ($plan['slug'] ?? '') }}"
-                       class="mk-btn {{ $isFeatured ? 'mk-btn--primary' : 'mk-btn--secondary' }}"
-                       style="display:block;text-align:center;margin-bottom:24px">
-                        {{ $plan['cta_label'] ?? 'Start free trial' }}
-                    </a>
-
-                    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px">
-                        @foreach(($plan['features'] ?? []) as $feature)
-                            <li style="font-size:14px;display:flex;align-items:flex-start;gap:10px">
-                                <span style="color:var(--mk-accent);flex-shrink:0">✓</span>
-                                <span>{{ $feature }}</span>
-                            </li>
+                    @if(!empty($plan['desc']))
+                        <p class="mk-plan-desc">{{ $plan['desc'] }}</p>
+                    @endif
+                    <div class="mk-plan-feats">
+                        @foreach(($plan['features'] ?? []) as $feat)
+                            <div class="mk-plan-feat">
+                                <div class="mk-check"></div>
+                                {{ $feat }}
+                            </div>
                         @endforeach
-                    </ul>
+                    </div>
+                    <a href="{{ $plan['cta_url'] ?? route('platform.signup') . '?plan=' . ($plan['slug'] ?? '') }}" class="mk-plan-btn">
+                        {{ $plan['cta_label'] ?? 'Get started' }}
+                    </a>
                 </div>
             @endforeach
         </div>
+
+        @if(!empty($c['footnote']))
+            <p style="font-size:13px;color:var(--mk-dim);margin-top:16px">{{ $c['footnote'] }}</p>
+        @endif
     </div>
 </section>

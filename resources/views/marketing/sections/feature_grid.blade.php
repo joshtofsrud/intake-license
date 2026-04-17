@@ -1,42 +1,95 @@
-{{-- Feature grid. Content: heading, subheading, columns (2|3|4), features[{icon, title, body}] --}}
+{{--
+    Feature grid. Content: eyebrow, heading, subheading, columns (2|3|4),
+                          features[{icon, title, body}], cta_label, cta_url
+
+    Icon field accepts either an emoji (📅) or raw SVG path data (e.g.
+    '<rect x="2" y="3" width="12" height="9" rx="1.5"/><path .../>').
+    If it looks like SVG path content, it's rendered inside a pre-styled
+    SVG viewBox; otherwise the literal text is shown.
+--}}
 @php
-    $cols = (int)($c['columns'] ?? 3);
-    $cols = max(2, min(4, $cols));
+    $cols = max(2, min(4, (int)($c['columns'] ?? 3)));
+    $isSvgPath = function ($icon) {
+        return is_string($icon) && str_contains($icon, '<') && (
+            str_contains($icon, 'path') ||
+            str_contains($icon, 'rect') ||
+            str_contains($icon, 'circle') ||
+            str_contains($icon, 'line')
+        );
+    };
 @endphp
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+
+<style>
+    .mk-feat-grid {
+        display: grid;
+        grid-template-columns: repeat({{ $cols }}, 1fr);
+        gap: 14px;
+    }
+    .mk-feat-card {
+        background: rgba(255,255,255,.03);
+        border: 0.5px solid var(--mk-border);
+        border-radius: var(--mk-r-lg);
+        padding: 22px;
+        transition: border-color .15s;
+    }
+    .mk-feat-card:hover { border-color: rgba(255,255,255,.16); }
+    .mk-feat-icon {
+        width: 36px; height: 36px;
+        background: var(--mk-accent-dim);
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 14px;
+        font-size: 18px;
+    }
+    .mk-feat-icon svg {
+        width: 18px; height: 18px;
+        stroke: var(--mk-accent);
+        fill: none;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+    .mk-feat-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .mk-feat-desc  { font-size: 13px; color: var(--mk-muted); line-height: 1.6; }
+
+    @media(max-width: 860px) { .mk-feat-grid { grid-template-columns: 1fr 1fr; } }
+    @media(max-width: 560px) { .mk-feat-grid { grid-template-columns: 1fr; } }
+</style>
+
+<section class="mk-section">
     <div class="mk-container">
-        @if(!empty($c['heading']) || !empty($c['subheading']))
-            <div style="text-align:center;margin-bottom:48px;max-width:640px;margin-left:auto;margin-right:auto">
-                @if(!empty($c['heading']))     <h2>{{ $c['heading'] }}</h2>     @endif
-                @if(!empty($c['subheading']))  <p style="font-size:18px">{{ $c['subheading'] }}</p>  @endif
-            </div>
+        @if(!empty($c['eyebrow']))
+            <div class="mk-eyebrow">{{ $c['eyebrow'] }}</div>
+        @endif
+        @if(!empty($c['heading']))
+            <h2 class="mk-section-title">{{ $c['heading'] }}</h2>
+        @endif
+        @if(!empty($c['subheading']))
+            <p class="mk-section-sub">{{ $c['subheading'] }}</p>
         @endif
 
-        <div style="display:grid;grid-template-columns:repeat({{ $cols }}, minmax(0, 1fr));gap:32px">
-            @foreach(($c['features'] ?? []) as $feature)
-                <div>
-                    @if(!empty($feature['icon']))
-                        <div style="
-                            width:48px;height:48px;
-                            display:flex;align-items:center;justify-content:center;
-                            background:rgba(124,58,237,.08);
-                            border-radius:12px;
-                            font-size:24px;
-                            margin-bottom:16px
-                        ">{{ $feature['icon'] }}</div>
-                    @endif
-                    <h3 style="font-size:18px;margin-bottom:8px">{{ $feature['title'] ?? '' }}</h3>
-                    <p style="margin:0;font-size:15px">{{ $feature['body'] ?? '' }}</p>
+        <div class="mk-feat-grid">
+            @foreach(($c['features'] ?? []) as $feat)
+                <div class="mk-feat-card">
+                    <div class="mk-feat-icon">
+                        @if($isSvgPath($feat['icon'] ?? ''))
+                            <svg viewBox="0 0 16 16">{!! $feat['icon'] !!}</svg>
+                        @elseif(!empty($feat['icon']))
+                            <span>{{ $feat['icon'] }}</span>
+                        @endif
+                    </div>
+                    <div class="mk-feat-title">{{ $feat['title'] ?? '' }}</div>
+                    <p class="mk-feat-desc">{{ $feat['body'] ?? '' }}</p>
                 </div>
             @endforeach
         </div>
-    </div>
 
-    <style>
-        @media (max-width: 760px) {
-            section.{{ $padding }} > .mk-container > div:last-child {
-                grid-template-columns: 1fr !important;
-            }
-        }
-    </style>
+        @if(!empty($c['cta_label']))
+            <div style="margin-top:24px">
+                <a href="{{ $c['cta_url'] ?? '#' }}" class="mk-btn mk-btn--ghost mk-btn--sm">
+                    {{ $c['cta_label'] }} →
+                </a>
+            </div>
+        @endif
+    </div>
 </section>
