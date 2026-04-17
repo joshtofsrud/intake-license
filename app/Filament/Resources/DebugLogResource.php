@@ -12,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Master admin debug panel.
@@ -19,11 +20,6 @@ use Illuminate\Database\Eloquent\Builder;
  * Lives at intake.works/admin/debug-logs. Shows a filterable, searchable,
  * auto-refreshing table of every interesting event on the platform:
  * requests, errors, mail, auth, impersonation, audits, webhooks, jobs.
- *
- * Each row is expandable to show full context (stack traces, payloads,
- * changes). Errors can be marked resolved. A correlation filter lets you
- * jump from an error to every log line that happened during the same
- * request.
  */
 class DebugLogResource extends Resource
 {
@@ -37,13 +33,20 @@ class DebugLogResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        // Shows count next to the menu item when there are unresolved errors in last 24h.
-        $count = DebugLog::query()
-            ->where('channel', 'error')
-            ->where('is_resolved', false)
-            ->where('created_at', '>=', now()->subDay())
-            ->count();
-        return $count > 0 ? (string) $count : null;
+        // Guard against the table not existing yet (e.g. migration hasn't run).
+        // Without this, every admin page load crashes with a SQL error.
+        try {
+            if (! Schema::hasTable('debug_logs')) return null;
+
+            $count = DebugLog::query()
+                ->where('channel', 'error')
+                ->where('is_resolved', false)
+                ->where('created_at', '>=', now()->subDay())
+                ->count();
+            return $count > 0 ? (string) $count : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public static function getNavigationBadgeColor(): ?string
@@ -51,9 +54,6 @@ class DebugLogResource extends Resource
         return 'danger';
     }
 
-    // ----------------------------------------------------------------
-    // Read-only — debug logs are written by the service, never edited.
-    // ----------------------------------------------------------------
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -275,8 +275,6 @@ class DebugLogResource extends Resource
                             'resolved_by'     => auth('web')->id(),
                             'resolution_note' => $data['note'] ?? null,
                         ]);
-                        // Resolve every row with the same fingerprint — one decision
-                        // closes all instances of the same underlying bug.
                         if ($r->fingerprint) {
                             DebugLog::where('fingerprint', $r->fingerprint)
                                 ->where('is_resolved', false)
@@ -331,7 +329,6 @@ class DebugLogResource extends Resource
         ];
     }
 
-    /** Disable creation — logs are written by the service. */
     public static function canCreate(): bool
     {
         return false;
