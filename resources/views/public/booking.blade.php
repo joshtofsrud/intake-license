@@ -1,3 +1,20 @@
+@php
+  $bk = $bk ?? [];
+  $bkAccent = ($bk['accent'] ?? null) ?: ($currentTenant->accent_color ?? '#BEF264');
+  $bkText = ($bk['body_text'] ?? null) ?: ($currentTenant->text_color ?? '#111111');
+  $bkBg = $currentTenant->bg_color ?? '#ffffff';
+  $bkTint = $bk['bg_tint'] ?? '#FFFFFF';
+  $bkOpacity = ($bk['bg_opacity'] ?? 100) / 100;
+  $bkProgressBg = ($bk['progress_bg'] ?? null) ?: '#ABA6A6';
+  $bkProgressText = ($bk['progress_text'] ?? null) ?: '#000000';
+  $bkTheme = $bk['theme'] ?? 'light';
+  $stepLabels = [
+    $bk['step1_label'] ?? 'Services',
+    $bk['step2_label'] ?? 'Schedule',
+    $bk['step3_label'] ?? 'Details',
+    $bk['step4_label'] ?? 'Review',
+  ];
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,17 +27,34 @@
   <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --p-accent:      {{ $currentTenant->accent_color ?? '#BEF264' }};
-      --p-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};
-      --p-text:        {{ $currentTenant->text_color ?? '#111111' }};
-      --p-bg:          {{ $currentTenant->bg_color ?? '#ffffff' }};
+      --p-accent:      {{ $bkAccent }};
+      --p-accent-text: {{ \App\Support\ColorHelper::accentTextColor($bkAccent) }};
+      --p-text:        {{ $bkText }};
+      --p-bg:          {{ $bkBg }};
       --p-font-heading:'{{ $currentTenant->font_heading ?? 'Inter' }}', -apple-system, sans-serif;
       --p-font-body:   '{{ $currentTenant->font_body ?? 'Inter' }}', -apple-system, sans-serif;
       --p-r: 8px; --p-r-lg: 12px; --p-max: 1100px;
       --p-gutter: clamp(16px, 4vw, 48px);
+      --bk-progress-bg: {{ $bkProgressBg }};
+      --bk-progress-text: {{ $bkProgressText }};
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: var(--p-font-body); background: var(--p-bg); color: var(--p-text); -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--p-font-body);
+      background: var(--p-bg);
+      color: var(--p-text);
+      -webkit-font-smoothing: antialiased;
+      @if($bkOpacity < 1)
+      background-image: linear-gradient(
+        rgba({{ implode(',', sscanf($bkTint, "#%02x%02x%02x")) }}, {{ $bkOpacity }}),
+        rgba({{ implode(',', sscanf($bkTint, "#%02x%02x%02x")) }}, {{ $bkOpacity }})
+      );
+      @endif
+    }
+    @if($bkTheme === 'dark')
+    body { background: #111; color: #f0f0f0; --p-text: #f0f0f0; --p-bg: #111; }
+    .bk-top-bar { border-bottom-color: rgba(255,255,255,.08); }
+    @endif
     a { color: inherit; text-decoration: none; }
     button { font-family: inherit; }
     .bk-top-bar { border-bottom: 1px solid rgba(0,0,0,.08); padding: 14px var(--p-gutter); display: flex; align-items: center; justify-content: space-between; max-width: var(--p-max); margin: 0 auto; }
@@ -45,7 +79,7 @@
 </div>
 
 <div class="bk-progress" id="bk-progress">
-  @foreach(['Services','Schedule','Details','Review'] as $i => $label)
+  @foreach($stepLabels as $i => $label)
     <div class="bk-step {{ $i === 0 ? 'active' : '' }}" data-step="{{ $i + 1 }}">
       <div class="bk-step-dot">{{ $i + 1 }}</div>
       <span class="bk-step-label">{{ $label }}</span>
@@ -58,8 +92,8 @@
 
 {{-- Step 1: Services --}}
 <div class="bk-section active" id="bk-step-1">
-  <h1 class="bk-section-title">What do you need?</h1>
-  <p class="bk-section-sub">Select one or more services.</p>
+  <h1 class="bk-section-title">{{ $bk['step1_heading'] ?? 'What do you need serviced?' }}</h1>
+  <p class="bk-section-sub">{{ $bk['step1_sub'] ?? 'Select one or more services.' }}</p>
   <div class="bk-toolbar">
     <input type="search" class="bk-search" id="bk-search" placeholder="Search services…">
   </div>
@@ -111,14 +145,14 @@
     </div>
   @endif
   <div class="bk-nav">
-    <button type="button" class="bk-next" id="bk-next-1" disabled onclick="goTo(2)">Continue → Schedule</button>
+    <button type="button" class="bk-next" id="bk-next-1" disabled onclick="goTo(2)">Continue → {{ $stepLabels[1] }}</button>
   </div>
 </div>
 
 {{-- Step 2: Schedule --}}
 <div class="bk-section" id="bk-step-2">
-  <h1 class="bk-section-title">Pick a date</h1>
-  <p class="bk-section-sub">Choose an available date for your service.</p>
+  <h1 class="bk-section-title">{{ $bk['step2_heading'] ?? 'Pick a drop-off date' }}</h1>
+  <p class="bk-section-sub">{{ $bk['step2_sub'] ?? 'Choose an available date for your service.' }}</p>
   <div class="bk-calendar">
     <div class="bk-cal-header">
       <button type="button" class="bk-cal-nav" id="cal-prev">‹</button>
@@ -145,7 +179,7 @@
   @endif
   <div class="bk-nav">
     <button type="button" class="bk-back" onclick="goTo(1)">← Back</button>
-    <button type="button" class="bk-next" id="bk-next-2" disabled onclick="goTo(3)">Continue → Details</button>
+    <button type="button" class="bk-next" id="bk-next-2" disabled onclick="goTo(3)">Continue → {{ $stepLabels[2] }}</button>
   </div>
 </div>
 
@@ -153,8 +187,8 @@
 <div class="bk-section" id="bk-step-3">
   <div class="bk-details-layout">
     <div>
-      <h1 class="bk-section-title">Your details</h1>
-      <p class="bk-section-sub">We'll use this to confirm your booking.</p>
+      <h1 class="bk-section-title">{{ $bk['step3_heading'] ?? 'Your details' }}</h1>
+      <p class="bk-section-sub">{{ $bk['step3_sub'] ?? 'We\'ll use this to confirm your booking.' }}</p>
       <div class="bk-field-grid-2">
         <div class="bk-form-group">
           <label class="bk-label">First name *</label>
@@ -201,7 +235,7 @@
       @endforeach
       <div class="bk-nav">
         <button type="button" class="bk-back" onclick="goTo(2)">← Back</button>
-        <button type="button" class="bk-next" id="bk-next-3" onclick="goToReview()">Continue → Review</button>
+        <button type="button" class="bk-next" id="bk-next-3" onclick="goToReview()">Continue → {{ $stepLabels[3] }}</button>
       </div>
     </div>
     <div class="bk-sidebar" id="bk-sidebar">
@@ -213,8 +247,8 @@
 
 {{-- Step 4: Review + Payment --}}
 <div class="bk-section" id="bk-step-4">
-  <h1 class="bk-section-title">Review & pay</h1>
-  <p class="bk-section-sub">Confirm your booking details.</p>
+  <h1 class="bk-section-title">{{ $bk['step4_heading'] ?? 'Review your order' }}</h1>
+  <p class="bk-section-sub">{{ $bk['step4_sub'] ?? 'Confirm your booking details.' }}</p>
   <div class="bk-review-card">
     <div class="bk-review-head">Services</div>
     <div class="bk-review-body" id="bk-review-services"></div>

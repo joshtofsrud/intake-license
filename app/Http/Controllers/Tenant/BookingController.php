@@ -15,14 +15,10 @@ use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
-    // ----------------------------------------------------------------
-    // GET /book — render the booking form
-    // ----------------------------------------------------------------
     public function index()
     {
         $tenant = tenant();
 
-        // Services catalog
         $catalog = TenantServiceCategory::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
@@ -33,19 +29,16 @@ class BookingController extends Controller
             }])
             ->get();
 
-        // All active tiers (for display)
         $tiers = \App\Models\Tenant\TenantServiceTier::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
 
-        // Global add-ons
         $addons = TenantAddon::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
 
-        // Custom form fields
         $formSections = TenantFormSection::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')
             ->with(['fields' => function ($q) {
@@ -53,13 +46,11 @@ class BookingController extends Controller
             }])
             ->get();
 
-        // Receiving methods
         $receivingMethods = TenantReceivingMethod::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
 
-        // Payment providers
         $s              = $tenant->settings ?? [];
         $stripeEnabled  = !empty($s['stripe_enabled'])  && !empty($s['stripe_test_sk'] ?? $s['stripe_live_sk'] ?? '');
         $paypalEnabled  = !empty($s['paypal_enabled'])  && !empty($s['paypal_test_client_id'] ?? $s['paypal_live_client_id'] ?? '');
@@ -76,16 +67,36 @@ class BookingController extends Controller
 
         $bookingMode = $tenant->booking_mode ?? 'drop_off';
 
+        // Booking form appearance settings
+        $bk = [
+            'theme'          => $s['booking_theme'] ?? 'light',
+            'accent'         => $s['booking_accent'] ?? '',
+            'bg_tint'        => $s['booking_bg_tint'] ?? '#FFFFFF',
+            'bg_opacity'     => $s['booking_bg_opacity'] ?? '100',
+            'progress_bg'    => $s['booking_progress_bg'] ?? '',
+            'progress_text'  => $s['booking_progress_text'] ?? '#000000',
+            'body_text'      => $s['booking_body_text'] ?? '',
+            'step1_label'    => $s['booking_step1_label'] ?? 'Services',
+            'step2_label'    => $s['booking_step2_label'] ?? 'Schedule',
+            'step3_label'    => $s['booking_step3_label'] ?? 'Details',
+            'step4_label'    => $s['booking_step4_label'] ?? 'Review',
+            'step1_heading'  => $s['booking_step1_heading'] ?? 'What do you need serviced?',
+            'step2_heading'  => $s['booking_step2_heading'] ?? 'Pick a drop-off date',
+            'step3_heading'  => $s['booking_step3_heading'] ?? 'Your details',
+            'step4_heading'  => $s['booking_step4_heading'] ?? 'Review your order',
+            'step1_sub'      => $s['booking_step1_sub'] ?? 'Select one or more services.',
+            'step2_sub'      => $s['booking_step2_sub'] ?? 'Choose a date and tell us how you\'re dropping off.',
+            'step3_sub'      => $s['booking_step3_sub'] ?? 'Who you are and anything we need to know.',
+            'step4_sub'      => $s['booking_step4_sub'] ?? 'Confirm everything looks good.',
+        ];
+
         return view('public.booking', compact(
             'catalog', 'tiers', 'addons', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
-            'bookingMode'
+            'bookingMode', 'bk'
         ));
     }
 
-    // ----------------------------------------------------------------
-    // GET /book/availability — AJAX: available dates for a month
-    // ----------------------------------------------------------------
     public function availability(Request $request)
     {
         $request->validate([
@@ -97,7 +108,6 @@ class BookingController extends Controller
         $mode   = $tenant->booking_mode ?? 'drop_off';
         $dates  = BookingService::availableDates($tenant, (int) $request->input('year'), (int) $request->input('month'));
 
-        // In time_slots mode, also return slots per available date
         $slots = [];
         if ($mode === 'time_slots') {
             foreach ($dates as $date) {
@@ -108,9 +118,6 @@ class BookingController extends Controller
         return response()->json(['dates' => $dates, 'slots' => $slots, 'mode' => $mode]);
     }
 
-    // ----------------------------------------------------------------
-    // POST /book/submit — create appointment + initiate payment
-    // ----------------------------------------------------------------
     public function submit(Request $request)
     {
         $request->validate([
@@ -129,7 +136,6 @@ class BookingController extends Controller
 
         $paymentMethod = $request->input('payment_method');
 
-        // No payment — go straight to confirmation
         if ($paymentMethod === 'none' || $appointment->total_cents === 0) {
             return response()->json([
                 'success'      => true,
@@ -138,7 +144,6 @@ class BookingController extends Controller
             ]);
         }
 
-        // Stripe — return client secret for Elements
         if ($paymentMethod === 'stripe') {
             $stripe = new StripeService($tenant);
             if (!$stripe->isConfigured()) {
@@ -153,7 +158,6 @@ class BookingController extends Controller
             ]);
         }
 
-        // PayPal — return approve URL
         if ($paymentMethod === 'paypal') {
             $paypal = new PayPalService($tenant);
             if (!$paypal->isConfigured()) {
@@ -171,12 +175,9 @@ class BookingController extends Controller
         return response()->json(['success' => false, 'message' => 'Unknown payment method.'], 422);
     }
 
-    // ----------------------------------------------------------------
-    // GET /book/paypal/return — PayPal redirects back here after approval
-    // ----------------------------------------------------------------
     public function paypalReturn(Request $request)
     {
-        $orderId = $request->query('token'); // PayPal sends ?token=ORDER_ID
+        $orderId = $request->query('token');
         if (!$orderId) {
             return redirect('/book')->with('error', 'PayPal payment was cancelled.');
         }
@@ -190,9 +191,6 @@ class BookingController extends Controller
         }
     }
 
-    // ----------------------------------------------------------------
-    // Webhooks
-    // ----------------------------------------------------------------
     public function stripeWebhook(Request $request)
     {
         try {
@@ -210,7 +208,6 @@ class BookingController extends Controller
 
     public function paypalWebhook(Request $request)
     {
-        // PayPal webhooks — basic handler, expand as needed
         logger()->info('PayPal webhook received', $request->all());
         return response('ok');
     }
