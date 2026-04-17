@@ -2,20 +2,32 @@
   $c    = $section->content ?? [];
   $type = $section->section_type;
   $typeLabels = [
-    'nav'           => 'Navigation bar',
-    'hero'          => 'Hero',
-    'services'      => 'Services preview',
-    'text_image'    => 'Text + image',
-    'cta_banner'    => 'CTA banner',
-    'image_gallery' => 'Image gallery',
-    'contact_form'  => 'Contact form',
-    'booking_embed' => 'Booking form embed',
-    'footer'        => 'Footer',
+    'nav'                    => 'Navigation bar',
+    'hero'                   => 'Hero',
+    'services'               => 'Services preview',
+    'text_image'             => 'Text + image',
+    'cta_banner'             => 'CTA banner',
+    'image_gallery'          => 'Image gallery',
+    'contact_form'           => 'Contact form',
+    'booking_embed'          => 'Booking form embed',
+    'footer'                 => 'Footer',
+    'feature_grid'           => 'Feature grid',
+    'step_timeline'          => 'Step timeline',
+    'pricing_table'          => 'Pricing table',
+    'faq_accordion'          => 'FAQ accordion',
+    'testimonial_carousel'   => 'Testimonials',
+    'logo_bar'               => 'Logo / trust bar',
+    'comparison_table'       => 'Comparison table',
+    'industry_pack_showcase' => 'Industry showcase',
+    'stats_row'              => 'Stats row',
   ];
   $typeIcons = [
     'nav'=>'🧭','hero'=>'🖼','services'=>'⚙','text_image'=>'📝',
     'cta_banner'=>'📣','image_gallery'=>'🖼','contact_form'=>'✉',
     'booking_embed'=>'📅','footer'=>'⬇',
+    'feature_grid'=>'▦','step_timeline'=>'🔢','pricing_table'=>'💲',
+    'faq_accordion'=>'❓','testimonial_carousel'=>'💬','logo_bar'=>'⚑',
+    'comparison_table'=>'📊','industry_pack_showcase'=>'🏷','stats_row'=>'📈',
   ];
 @endphp
 
@@ -44,9 +56,7 @@
       </label>
     </div>
 
-    {{-- ============================================================
-         NAVIGATION BAR
-         ============================================================ --}}
+    {{-- ============================================================ NAVIGATION BAR ============================================================ --}}
     @if($type === 'nav')
       <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:12px;opacity:.5">Show logo</span>
@@ -95,13 +105,20 @@
           onchange="this.value=this.checked?1:0">
       </div>
 
-    {{-- ============================================================
-         HERO
-         ============================================================ --}}
+    {{-- ============================================================ HERO ============================================================ --}}
     @elseif($type === 'hero')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow <span style="opacity:.4">(small uppercase label above headline)</span></div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. Built for service businesses">
+      </div>
       <div class="pb-field-row">
         <div class="pb-field-label">Headline</div>
         <input type="text" class="pb-input" data-field="headline" value="{{ $c['headline'] ?? '' }}" placeholder="Your main headline">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Highlight words <span style="opacity:.4">(shown in accent color inside headline)</span></div>
+        <input type="text" class="pb-input" data-field="accent_words" value="{{ $c['accent_words'] ?? '' }}" placeholder='e.g. "bike shops, ski shops,"'>
+        <div style="font-size:10px;opacity:.3;margin-top:2px">The exact phrase here, if found in the headline, will be colored with the accent color.</div>
       </div>
       <div class="pb-field-row">
         <div class="pb-field-label">Subheading</div>
@@ -113,24 +130,16 @@
           <div class="pb-field-label">Background color</div>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="color" data-field="bg_color" value="{{ $c['bg_color'] ?? '#1a1a1a' }}"
-              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0"
-              id="hero-bg-color-{{ $section->id }}"
-              onchange="document.getElementById('hero-bg-hex-{{ $section->id }}').value=this.value">
-            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace"
-              id="hero-bg-hex-{{ $section->id }}" value="{{ $c['bg_color'] ?? '#1a1a1a' }}"
-              onchange="document.getElementById('hero-bg-color-{{ $section->id }}').value=this.value;this.setAttribute('data-field','bg_color')" data-field="bg_color_text">
+              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['bg_color'] ?? '#1a1a1a' }}" data-field="bg_color_text">
           </div>
         </div>
         <div class="pb-field-row">
           <div class="pb-field-label">Text color</div>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="color" data-field="text_color" value="{{ $c['text_color'] ?? '#ffffff' }}"
-              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0"
-              id="hero-text-color-{{ $section->id }}"
-              onchange="document.getElementById('hero-text-hex-{{ $section->id }}').value=this.value">
-            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace"
-              id="hero-text-hex-{{ $section->id }}" value="{{ $c['text_color'] ?? '#ffffff' }}"
-              onchange="document.getElementById('hero-text-color-{{ $section->id }}').value=this.value" data-field="text_color_text">
+              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['text_color'] ?? '#ffffff' }}" data-field="text_color_text">
           </div>
         </div>
       </div>
@@ -181,55 +190,12 @@
         </div>
       </div>
 
-      <div style="border-top:0.5px solid var(--ia-border);margin:8px 0;padding-top:12px">
-        <div class="pb-field-row">
-          <div class="pb-field-label">Background image</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="text" class="pb-input" data-field="bg_image_url" value="{{ $c['bg_image_url'] ?? '' }}" placeholder="https://… or upload" style="flex:1" id="hero-bg-url-{{ $section->id }}">
-            <label class="ia-btn ia-btn--secondary ia-btn--sm" style="cursor:pointer;flex-shrink:0">
-              Upload
-              <input type="file" accept="image/*" style="display:none" onchange="uploadImage(this,'hero','hero-bg-url-{{ $section->id }}')">
-            </label>
-          </div>
-          @if(!empty($c['bg_image_url']))
-            <img src="{{ $c['bg_image_url'] }}" style="margin-top:8px;max-height:80px;border-radius:6px;opacity:.8">
-          @endif
-        </div>
-        <div class="pb-field-row">
-          <div class="pb-field-label">Image overlay opacity</div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="range" min="0" max="100" value="{{ $c['overlay_opacity'] ?? 45 }}" data-field="overlay_opacity"
-              style="flex:1" oninput="this.nextElementSibling.textContent=this.value+'%'">
-            <span style="font-size:11px;opacity:.4;min-width:32px">{{ $c['overlay_opacity'] ?? 45 }}%</span>
-          </div>
-          <div style="font-size:10px;opacity:.3;margin-top:2px">Darkens the image so text is readable</div>
-        </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Footnote / disclaimer</div>
+        <input type="text" class="pb-input" data-field="note" value="{{ $c['note'] ?? '' }}" placeholder="e.g. Free 14-day trial · No credit card required">
       </div>
 
-      <div style="border-top:0.5px solid var(--ia-border);margin:8px 0;padding-top:12px">
-        <div class="pb-field-label" style="margin-bottom:8px">Advanced</div>
-        <div class="pb-field-row">
-          <div class="pb-field-label">Content max width</div>
-          <select class="pb-input" data-field="content_width">
-            <option value="narrow" {{ ($c['content_width'] ?? 'normal') === 'narrow' ? 'selected' : '' }}>Narrow (480px)</option>
-            <option value="normal" {{ ($c['content_width'] ?? 'normal') === 'normal' ? 'selected' : '' }}>Normal (680px)</option>
-            <option value="wide" {{ ($c['content_width'] ?? 'normal') === 'wide' ? 'selected' : '' }}>Wide (900px)</option>
-            <option value="full" {{ ($c['content_width'] ?? 'normal') === 'full' ? 'selected' : '' }}>Full width</option>
-          </select>
-        </div>
-        <div class="pb-field-row">
-          <div class="pb-field-label">Vertical alignment</div>
-          <select class="pb-input" data-field="vertical_align">
-            <option value="center" {{ ($c['vertical_align'] ?? 'center') === 'center' ? 'selected' : '' }}>Center</option>
-            <option value="top" {{ ($c['vertical_align'] ?? 'center') === 'top' ? 'selected' : '' }}>Top</option>
-            <option value="bottom" {{ ($c['vertical_align'] ?? 'center') === 'bottom' ? 'selected' : '' }}>Bottom</option>
-          </select>
-        </div>
-      </div>
-
-    {{-- ============================================================
-         SERVICES
-         ============================================================ --}}
+    {{-- ============================================================ SERVICES ============================================================ --}}
     @elseif($type === 'services')
       <div class="pb-field-row">
         <div class="pb-field-label">Heading</div>
@@ -283,10 +249,12 @@
         </select>
       </div>
 
-    {{-- ============================================================
-         TEXT + IMAGE
-         ============================================================ --}}
+    {{-- ============================================================ TEXT + IMAGE ============================================================ --}}
     @elseif($type === 'text_image')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="Optional small label">
+      </div>
       <div class="pb-field-row">
         <div class="pb-field-label">Heading</div>
         <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="Section heading">
@@ -296,80 +264,28 @@
         <textarea class="pb-textarea" data-field="body" rows="5" placeholder="Your content here. Supports multiple paragraphs.">{{ $c['body'] ?? '' }}</textarea>
       </div>
       <div class="pb-field-row">
-        <div class="pb-field-label">Image</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="url" class="pb-input" data-field="image_url" value="{{ $c['image_url'] ?? '' }}" placeholder="https://… or upload" style="flex:1" id="ti-img-{{ $section->id }}">
-          <label class="ia-btn ia-btn--secondary ia-btn--sm" style="cursor:pointer;flex-shrink:0">
-            Upload
-            <input type="file" accept="image/*" style="display:none" onchange="uploadImage(this,'general','ti-img-{{ $section->id }}')">
-          </label>
-        </div>
-        @if(!empty($c['image_url']))
-          <img src="{{ $c['image_url'] }}" style="margin-top:8px;max-height:80px;border-radius:6px;opacity:.8">
-        @endif
+        <div class="pb-field-label">Image URL</div>
+        <input type="url" class="pb-input" data-field="image_url" value="{{ $c['image_url'] ?? '' }}" placeholder="https://…">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Image position</div>
+        <select class="pb-input" data-field="image_position">
+          <option value="right" {{ ($c['image_position'] ?? 'right') === 'right' ? 'selected' : '' }}>Right</option>
+          <option value="left" {{ ($c['image_position'] ?? 'right') === 'left' ? 'selected' : '' }}>Left</option>
+        </select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="pb-field-row">
-          <div class="pb-field-label">Image position</div>
-          <select class="pb-input" data-field="image_position">
-            <option value="right" {{ ($c['image_position'] ?? 'right') === 'right' ? 'selected' : '' }}>Right</option>
-            <option value="left" {{ ($c['image_position'] ?? 'right') === 'left' ? 'selected' : '' }}>Left</option>
-          </select>
+          <div class="pb-field-label">Button label <span style="opacity:.4">(optional)</span></div>
+          <input type="text" class="pb-input" data-field="cta_label" value="{{ $c['cta_label'] ?? '' }}" placeholder="Learn more">
         </div>
         <div class="pb-field-row">
-          <div class="pb-field-label">Image aspect ratio</div>
-          <select class="pb-input" data-field="image_ratio">
-            <option value="4/3" {{ ($c['image_ratio'] ?? '4/3') === '4/3' ? 'selected' : '' }}>4:3 (landscape)</option>
-            <option value="1/1" {{ ($c['image_ratio'] ?? '4/3') === '1/1' ? 'selected' : '' }}>1:1 (square)</option>
-            <option value="3/4" {{ ($c['image_ratio'] ?? '4/3') === '3/4' ? 'selected' : '' }}>3:4 (portrait)</option>
-            <option value="16/9" {{ ($c['image_ratio'] ?? '4/3') === '16/9' ? 'selected' : '' }}>16:9 (widescreen)</option>
-          </select>
-        </div>
-      </div>
-      <div class="pb-field-row">
-        <div class="pb-field-label">Image border radius</div>
-        <select class="pb-input" data-field="image_radius">
-          <option value="none" {{ ($c['image_radius'] ?? 'normal') === 'none' ? 'selected' : '' }}>None (square corners)</option>
-          <option value="normal" {{ ($c['image_radius'] ?? 'normal') === 'normal' ? 'selected' : '' }}>Normal (12px)</option>
-          <option value="large" {{ ($c['image_radius'] ?? 'normal') === 'large' ? 'selected' : '' }}>Large (24px)</option>
-          <option value="round" {{ ($c['image_radius'] ?? 'normal') === 'round' ? 'selected' : '' }}>Fully round</option>
-        </select>
-      </div>
-      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
-        <div class="pb-field-label" style="margin-bottom:8px">Button <span style="opacity:.4">(optional)</span></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div class="pb-field-row">
-            <div class="pb-field-label">Label</div>
-            <input type="text" class="pb-input" data-field="cta_label" value="{{ $c['cta_label'] ?? '' }}" placeholder="Learn more">
-          </div>
-          <div class="pb-field-row">
-            <div class="pb-field-label">URL</div>
-            <input type="text" class="pb-input" data-field="cta_url" value="{{ $c['cta_url'] ?? '' }}" placeholder="/about">
-          </div>
-        </div>
-        <div class="pb-field-row">
-          <div class="pb-field-label">Button style</div>
-          <select class="pb-input" data-field="cta_style">
-            <option value="primary" {{ ($c['cta_style'] ?? 'primary') === 'primary' ? 'selected' : '' }}>Primary (filled)</option>
-            <option value="outline" {{ ($c['cta_style'] ?? 'primary') === 'outline' ? 'selected' : '' }}>Outline</option>
-            <option value="text" {{ ($c['cta_style'] ?? 'primary') === 'text' ? 'selected' : '' }}>Text link</option>
-          </select>
-        </div>
-      </div>
-      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
-        <div class="pb-field-row">
-          <div class="pb-field-label">Background color <span style="opacity:.4">(optional)</span></div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="color" data-field="section_bg" value="{{ $c['section_bg'] ?? '#ffffff' }}"
-              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
-            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['section_bg'] ?? '' }}" placeholder="Inherit" data-field="section_bg_text">
-          </div>
+          <div class="pb-field-label">Button URL</div>
+          <input type="text" class="pb-input" data-field="cta_url" value="{{ $c['cta_url'] ?? '' }}" placeholder="/about">
         </div>
       </div>
 
-    {{-- ============================================================
-         CTA BANNER
-         ============================================================ --}}
+    {{-- ============================================================ CTA BANNER ============================================================ --}}
     @elseif($type === 'cta_banner')
       <div class="pb-field-row">
         <div class="pb-field-label">Headline</div>
@@ -407,26 +323,8 @@
           </div>
         </div>
       </div>
-      <div class="pb-field-row">
-        <div class="pb-field-label">Text alignment</div>
-        <select class="pb-input" data-field="text_align">
-          <option value="center" {{ ($c['text_align'] ?? 'center') === 'center' ? 'selected' : '' }}>Center</option>
-          <option value="left" {{ ($c['text_align'] ?? 'center') === 'left' ? 'selected' : '' }}>Left</option>
-          <option value="right" {{ ($c['text_align'] ?? 'center') === 'right' ? 'selected' : '' }}>Right</option>
-        </select>
-      </div>
-      <div class="pb-field-row">
-        <div class="pb-field-label">Padding size</div>
-        <select class="pb-input" data-field="padding_size">
-          <option value="small" {{ ($c['padding_size'] ?? 'normal') === 'small' ? 'selected' : '' }}>Small</option>
-          <option value="normal" {{ ($c['padding_size'] ?? 'normal') === 'normal' ? 'selected' : '' }}>Normal</option>
-          <option value="large" {{ ($c['padding_size'] ?? 'normal') === 'large' ? 'selected' : '' }}>Large</option>
-        </select>
-      </div>
 
-    {{-- ============================================================
-         CONTACT FORM
-         ============================================================ --}}
+    {{-- ============================================================ CONTACT FORM ============================================================ --}}
     @elseif($type === 'contact_form')
       <div class="pb-field-row">
         <div class="pb-field-label">Heading</div>
@@ -443,43 +341,24 @@
           onchange="this.value=this.checked?1:0">
       </div>
       <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;opacity:.5">Show subject field</span>
-        <input type="checkbox" data-field="show_subject" value="1"
-          {{ ($c['show_subject'] ?? false) ? 'checked' : '' }}
+        <span style="font-size:12px;opacity:.5">Show message field</span>
+        <input type="checkbox" data-field="show_message" value="1"
+          {{ ($c['show_message'] ?? true) ? 'checked' : '' }}
           onchange="this.value=this.checked?1:0">
       </div>
-      <div class="pb-field-row">
-        <div class="pb-field-label">Submit button text</div>
-        <input type="text" class="pb-input" data-field="submit_label" value="{{ $c['submit_label'] ?? 'Send message' }}">
-      </div>
-      <div class="pb-field-row">
-        <div class="pb-field-label">Success message</div>
-        <input type="text" class="pb-input" data-field="success_message" value="{{ $c['success_message'] ?? 'Thanks! We\'ll be in touch soon.' }}" placeholder="Message shown after submission">
-      </div>
 
-    {{-- ============================================================
-         BOOKING EMBED
-         ============================================================ --}}
+    {{-- ============================================================ BOOKING EMBED ============================================================ --}}
     @elseif($type === 'booking_embed')
       <div class="pb-field-row">
         <div class="pb-field-label">Section heading</div>
         <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? 'Book online' }}">
       </div>
       <div class="pb-field-row">
-        <div class="pb-field-label">Subheading</div>
-        <input type="text" class="pb-input" data-field="subheading" value="{{ $c['subheading'] ?? '' }}" placeholder="Optional subheading">
-      </div>
-      <div class="pb-field-row">
         <div class="pb-field-label">Button text</div>
         <input type="text" class="pb-input" data-field="btn_label" value="{{ $c['btn_label'] ?? 'Book an appointment' }}">
       </div>
-      <div style="padding:12px;background:rgba(255,255,255,.03);border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);margin-top:8px">
-        <div style="font-size:11px;opacity:.3">The full multi-step booking form will be embedded here on the live site. Customize its appearance in the <strong>Intake Form Editor</strong>.</div>
-      </div>
 
-    {{-- ============================================================
-         FOOTER
-         ============================================================ --}}
+    {{-- ============================================================ FOOTER ============================================================ --}}
     @elseif($type === 'footer')
       <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:12px;opacity:.5">Show logo</span>
@@ -491,55 +370,10 @@
         <div class="pb-field-label">Copyright text</div>
         <input type="text" class="pb-input" data-field="copyright_text"
           value="{{ $c['copyright_text'] ?? '' }}"
-          placeholder="© {{ date('Y') }} {{ $currentTenant->name }}. All rights reserved.">
-      </div>
-      <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;opacity:.5">Show "Powered by Intake"</span>
-        <input type="checkbox" data-field="show_powered_by" value="1"
-          {{ ($c['show_powered_by'] ?? true) ? 'checked' : '' }}
-          onchange="this.value=this.checked?1:0">
-      </div>
-      <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;opacity:.5">Show navigation links</span>
-        <input type="checkbox" data-field="show_nav" value="1"
-          {{ ($c['show_nav'] ?? true) ? 'checked' : '' }}
-          onchange="this.value=this.checked?1:0">
-      </div>
-      <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;opacity:.5">Show "Book online" link</span>
-        <input type="checkbox" data-field="show_book_link" value="1"
-          {{ ($c['show_book_link'] ?? true) ? 'checked' : '' }}
-          onchange="this.value=this.checked?1:0">
-      </div>
-      <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:12px;opacity:.5">Show contact email</span>
-        <input type="checkbox" data-field="show_email" value="1"
-          {{ ($c['show_email'] ?? true) ? 'checked' : '' }}
-          onchange="this.value=this.checked?1:0">
-      </div>
-      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
-        <div class="pb-field-row">
-          <div class="pb-field-label">Background color</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="color" data-field="footer_bg" value="{{ ($c['footer_bg'] ?? null) ?: '#ffffff' }}"
-              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
-            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['footer_bg'] ?? '' }}" placeholder="Default" data-field="footer_bg_text">
-          </div>
-          <div style="font-size:10px;opacity:.3;margin-top:2px">Leave blank to use site background</div>
-        </div>
-        <div class="pb-field-row">
-          <div class="pb-field-label">Text color</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="color" data-field="footer_text" value="{{ ($c['footer_text'] ?? null) ?: '#111111' }}"
-              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
-            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['footer_text'] ?? '' }}" placeholder="Default" data-field="footer_text_text">
-          </div>
-        </div>
+          placeholder="© {{ date('Y') }} {{ $currentTenant->name ?? 'Intake' }}. All rights reserved.">
       </div>
 
-    {{-- ============================================================
-         IMAGE GALLERY
-         ============================================================ --}}
+    {{-- ============================================================ IMAGE GALLERY ============================================================ --}}
     @elseif($type === 'image_gallery')
       <div class="pb-field-row">
         <div class="pb-field-label">Heading</div>
@@ -555,33 +389,269 @@
           </select>
         </div>
         <div class="pb-field-row">
-          <div class="pb-field-label">Gap size</div>
-          <select class="pb-input" data-field="gap_size">
-            <option value="none" {{ ($c['gap_size'] ?? 'normal') === 'none' ? 'selected' : '' }}>None</option>
-            <option value="small" {{ ($c['gap_size'] ?? 'normal') === 'small' ? 'selected' : '' }}>Small (4px)</option>
-            <option value="normal" {{ ($c['gap_size'] ?? 'normal') === 'normal' ? 'selected' : '' }}>Normal (12px)</option>
-            <option value="large" {{ ($c['gap_size'] ?? 'normal') === 'large' ? 'selected' : '' }}>Large (24px)</option>
+          <div class="pb-field-label">Image shape</div>
+          <select class="pb-input" data-field="image_shape">
+            <option value="square" {{ ($c['image_shape'] ?? 'square') === 'square' ? 'selected' : '' }}>Square (1:1)</option>
+            <option value="landscape" {{ ($c['image_shape'] ?? 'square') === 'landscape' ? 'selected' : '' }}>Landscape (4:3)</option>
+            <option value="portrait" {{ ($c['image_shape'] ?? 'square') === 'portrait' ? 'selected' : '' }}>Portrait (3:4)</option>
+          </select>
+        </div>
+      </div>
+
+    {{-- ============================================================ FEATURE GRID ============================================================ --}}
+    @elseif($type === 'feature_grid')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. Everything included">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. One platform, zero chaos">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Columns</div>
+        <select class="pb-input" data-field="columns">
+          @foreach([2,3,4] as $col)
+            <option value="{{ $col }}" {{ ($c['columns'] ?? 3) == $col ? 'selected' : '' }}>{{ $col }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Features (JSON)</div>
+        <textarea class="pb-textarea" data-field="features_json" rows="10"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';this.dataset.valid='1';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=features]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message;this.dataset.valid='0'}">{{ json_encode($c['features'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Edit the list above as JSON.</div>
+        <input type="hidden" data-field="features" value="{{ json_encode($c['features'] ?? []) }}">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;border-top:0.5px solid var(--ia-border);margin-top:10px;padding-top:10px">
+        <div class="pb-field-row">
+          <div class="pb-field-label">CTA label <span style="opacity:.4">(optional)</span></div>
+          <input type="text" class="pb-input" data-field="cta_label" value="{{ $c['cta_label'] ?? '' }}" placeholder="See all features">
+        </div>
+        <div class="pb-field-row">
+          <div class="pb-field-label">CTA URL</div>
+          <input type="text" class="pb-input" data-field="cta_url" value="{{ $c['cta_url'] ?? '' }}" placeholder="/features">
+        </div>
+      </div>
+
+    {{-- ============================================================ STEP TIMELINE ============================================================ --}}
+    @elseif($type === 'step_timeline')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. How it works">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. Up and running in minutes">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Steps (JSON)</div>
+        <textarea class="pb-textarea" data-field="steps_json" rows="10"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=steps]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['steps'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Each step: {{ '{"title":"...", "desc":"...", "done":true/false}' }}</div>
+        <input type="hidden" data-field="steps" value="{{ json_encode($c['steps'] ?? []) }}">
+      </div>
+
+    {{-- ============================================================ PRICING TABLE ============================================================ --}}
+    @elseif($type === 'pricing_table')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. Pricing">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. Simple plans, no surprises">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="pb-field-row">
+          <div class="pb-field-label">Source</div>
+          <select class="pb-input" data-field="source">
+            <option value="config" {{ ($c['source'] ?? 'config') === 'config' ? 'selected' : '' }}>Config (plan_prices)</option>
+            <option value="manual" {{ ($c['source'] ?? 'config') === 'manual' ? 'selected' : '' }}>Manual (edit JSON below)</option>
+          </select>
+        </div>
+        <div class="pb-field-row">
+          <div class="pb-field-label">Featured plan</div>
+          <select class="pb-input" data-field="featured">
+            <option value="basic"   {{ ($c['featured'] ?? 'branded') === 'basic'   ? 'selected' : '' }}>Basic</option>
+            <option value="branded" {{ ($c['featured'] ?? 'branded') === 'branded' ? 'selected' : '' }}>Branded</option>
+            <option value="custom"  {{ ($c['featured'] ?? 'branded') === 'custom'  ? 'selected' : '' }}>Custom</option>
           </select>
         </div>
       </div>
       <div class="pb-field-row">
-        <div class="pb-field-label">Image shape</div>
-        <select class="pb-input" data-field="image_shape">
-          <option value="square" {{ ($c['image_shape'] ?? 'square') === 'square' ? 'selected' : '' }}>Square (1:1)</option>
-          <option value="landscape" {{ ($c['image_shape'] ?? 'square') === 'landscape' ? 'selected' : '' }}>Landscape (4:3)</option>
-          <option value="portrait" {{ ($c['image_shape'] ?? 'square') === 'portrait' ? 'selected' : '' }}>Portrait (3:4)</option>
-        </select>
+        <div class="pb-field-label">Footnote</div>
+        <input type="text" class="pb-input" data-field="footnote" value="{{ $c['footnote'] ?? '' }}" placeholder="e.g. All plans include a 14-day free trial.">
+      </div>
+      @if(($c['source'] ?? 'config') === 'manual')
+        <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+          <div class="pb-field-label" style="margin-bottom:8px">Plans (JSON, manual source only)</div>
+          <textarea class="pb-textarea" data-field="plans_json" rows="10"
+            style="font-family:monospace;font-size:11px"
+            oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=plans]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['plans'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+          <div style="font-size:10px;opacity:.5;margin-top:4px">Each plan: slug, name, price_cents, period, desc, features[], cta_label</div>
+          <input type="hidden" data-field="plans" value="{{ json_encode($c['plans'] ?? []) }}">
+        </div>
+      @endif
+
+    {{-- ============================================================ FAQ ACCORDION ============================================================ --}}
+    @elseif($type === 'faq_accordion')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. Questions">
       </div>
       <div class="pb-field-row">
-        <div class="pb-field-label">Border radius</div>
-        <select class="pb-input" data-field="image_radius">
-          <option value="none" {{ ($c['image_radius'] ?? 'normal') === 'none' ? 'selected' : '' }}>None</option>
-          <option value="normal" {{ ($c['image_radius'] ?? 'normal') === 'normal' ? 'selected' : '' }}>Normal</option>
-          <option value="large" {{ ($c['image_radius'] ?? 'normal') === 'large' ? 'selected' : '' }}>Large</option>
-        </select>
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. Frequently asked">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Questions (JSON)</div>
+        <textarea class="pb-textarea" data-field="items_json" rows="10"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=items]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['items'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Each item: {{ '{"q":"Question", "a":"Answer"}' }}</div>
+        <input type="hidden" data-field="items" value="{{ json_encode($c['items'] ?? []) }}">
+      </div>
+
+    {{-- ============================================================ TESTIMONIAL CAROUSEL ============================================================ --}}
+    @elseif($type === 'testimonial_carousel')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. Testimonials">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Testimonials (JSON)</div>
+        <textarea class="pb-textarea" data-field="testimonials_json" rows="10"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=testimonials]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['testimonials'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Each: quote, author, role, avatar_url</div>
+        <input type="hidden" data-field="testimonials" value="{{ json_encode($c['testimonials'] ?? []) }}">
+      </div>
+
+    {{-- ============================================================ LOGO BAR ============================================================ --}}
+    @elseif($type === 'logo_bar')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Label</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. Trusted by shops like">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Shop names <span style="opacity:.4">(comma-separated)</span></div>
+        <textarea class="pb-textarea" data-field="shop_names_csv" rows="2"
+          oninput="var arr=this.value.split(',').map(function(s){return s.trim()}).filter(Boolean);this.closest('.pb-section-body').querySelector('[data-field=shop_names]').value=JSON.stringify(arr)">{{ implode(', ', $c['shop_names'] ?? []) }}</textarea>
+        <input type="hidden" data-field="shop_names" value="{{ json_encode($c['shop_names'] ?? []) }}">
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Or leave blank and use image logos via JSON below.</div>
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Image logos (JSON, optional)</div>
+        <textarea class="pb-textarea" data-field="logos_json" rows="6"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=logos]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['logos'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Each: {{ '{"url":"...", "alt":"..."}' }}</div>
+        <input type="hidden" data-field="logos" value="{{ json_encode($c['logos'] ?? []) }}">
+      </div>
+
+    {{-- ============================================================ COMPARISON TABLE ============================================================ --}}
+    @elseif($type === 'comparison_table')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. How we compare">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Competitor names <span style="opacity:.4">(comma-separated, first = you)</span></div>
+        <input type="text" class="pb-input" data-field="competitors_csv" value="{{ implode(', ', $c['competitors'] ?? ['Intake']) }}"
+          oninput="var arr=this.value.split(',').map(function(s){return s.trim()}).filter(Boolean);this.closest('.pb-section-body').querySelector('[data-field=competitors]').value=JSON.stringify(arr)">
+        <input type="hidden" data-field="competitors" value="{{ json_encode($c['competitors'] ?? ['Intake']) }}">
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Rows (JSON)</div>
+        <textarea class="pb-textarea" data-field="rows_json" rows="10"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=rows]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['rows'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Each row: {{ '{"feature":"Name", "values":["yes","no","extra"]}' }} — values match competitor order.</div>
+        <input type="hidden" data-field="rows" value="{{ json_encode($c['rows'] ?? []) }}">
+      </div>
+
+    {{-- ============================================================ INDUSTRY PACK SHOWCASE ============================================================ --}}
+    @elseif($type === 'industry_pack_showcase')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}" placeholder="e.g. Industry-specific">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}" placeholder="e.g. Built for your industry">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <textarea class="pb-textarea" data-field="subheading" rows="2">{{ $c['subheading'] ?? '' }}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="pb-field-row">
+          <div class="pb-field-label">Industries to show</div>
+          <input type="number" class="pb-input" data-field="limit" value="{{ $c['limit'] ?? 12 }}" min="1" max="24">
+        </div>
+        <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
+          <span style="font-size:12px;opacity:.5">"See all" link</span>
+          <input type="checkbox" data-field="show_all_link" value="1"
+            {{ ($c['show_all_link'] ?? true) ? 'checked' : '' }}
+            onchange="this.value=this.checked?1:0">
+        </div>
       </div>
       <div style="padding:10px;background:rgba(255,255,255,.03);border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);margin-top:8px">
-        <div style="font-size:11px;opacity:.3">Image upload for galleries coming soon. For now, paste image URLs in the gallery data.</div>
+        <div style="font-size:11px;opacity:.4">Industries pull from <code>config/industry_packs.php</code>. Add more there to have them appear.</div>
+      </div>
+
+    {{-- ============================================================ STATS ROW ============================================================ --}}
+    @elseif($type === 'stats_row')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Eyebrow</div>
+        <input type="text" class="pb-input" data-field="eyebrow" value="{{ $c['eyebrow'] ?? '' }}">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Heading <span style="opacity:.4">(optional)</span></div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? '' }}">
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-label" style="margin-bottom:8px">Stats (JSON)</div>
+        <textarea class="pb-textarea" data-field="stats_json" rows="8"
+          style="font-family:monospace;font-size:11px"
+          oninput="try{this.nextElementSibling.textContent='✓ Valid';var arr=JSON.parse(this.value);this.closest('.pb-section-body').querySelector('[data-field=stats]').value=JSON.stringify(arr);}catch(e){this.nextElementSibling.textContent='⚠ '+e.message}">{{ json_encode($c['stats'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</textarea>
+        <div style="font-size:10px;opacity:.5;margin-top:4px">Each stat: {{ '{"number":"200+", "label":"Shops"}' }}</div>
+        <input type="hidden" data-field="stats" value="{{ json_encode($c['stats'] ?? []) }}">
       </div>
 
     @else
