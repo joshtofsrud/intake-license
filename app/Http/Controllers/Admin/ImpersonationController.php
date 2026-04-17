@@ -39,6 +39,10 @@ class ImpersonationController extends Controller
         // Log in as the tenant owner via the tenant guard
         Auth::guard('tenant')->login($owner);
 
+        // Debug panel: record start (actor is the master admin still bound
+        // to the web guard at this point).
+        debug_log()->impersonation('start', $tenant, $owner);
+
         // Redirect to their admin dashboard
         $adminUrl = 'https://' . $tenant->subdomain . '.' . config('intake.domain') . '/admin';
 
@@ -55,7 +59,16 @@ class ImpersonationController extends Controller
     {
         $from = Session::pull('impersonating_from');
 
+        // Capture tenant + target BEFORE logging out so the audit row is
+        // complete. The tenant guard still has a user at this point.
+        $target = Auth::guard('tenant')->user();
+        $tenant = $target ? Tenant::find($target->tenant_id) : null;
+
         Auth::guard('tenant')->logout();
+
+        if ($tenant) {
+            debug_log()->impersonation('end', $tenant, $target);
+        }
 
         $returnUrl = $from['return_url'] ?? url('/admin/tenants');
 

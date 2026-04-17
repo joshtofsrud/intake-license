@@ -46,3 +46,17 @@ if (! function_exists('format_money')) {
         return $sym . number_format($cents / 100, 2);
     }
 }
+
+if (! function_exists('debug_log')) {
+    /**
+     * Shortcut to the DebugLogService singleton.
+     *
+     *   debug_log()->error($exception);
+     *   debug_log()->audit('settings_updated', 'Tenant updated', $tenant, $diff);
+     *   debug_log()->mail($recipient, 'booking.confirmation');
+     */
+    function debug_log(): \App\Services\DebugLogService
+    {
+        return app(\App\Services\DebugLogService::class);
+    }
+}
