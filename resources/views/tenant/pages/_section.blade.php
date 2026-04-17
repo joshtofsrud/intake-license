@@ -86,6 +86,14 @@
         </select>
       </div>
       <div class="pb-field-row">
+        <div class="pb-field-label">Text alignment</div>
+        <select class="pb-input" data-field="text_align">
+          <option value="left" {{ ($c['text_align'] ?? 'left') === 'left' ? 'selected' : '' }}>Left</option>
+          <option value="center" {{ ($c['text_align'] ?? 'left') === 'center' ? 'selected' : '' }}>Center</option>
+          <option value="right" {{ ($c['text_align'] ?? 'left') === 'right' ? 'selected' : '' }}>Right</option>
+        </select>
+      </div>
+      <div class="pb-field-row">
         <div class="pb-field-label">Background image</div>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="text" class="pb-input" data-field="bg_image_url" value="{{ $c['bg_image_url'] ?? '' }}" placeholder="https://… or upload" style="flex:1" id="hero-bg-url-{{ $section->id }}">

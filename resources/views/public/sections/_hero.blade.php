@@ -4,6 +4,7 @@
   $hasBgImage = !empty($c['bg_image_url']);
   $bgColor    = $c['bg_color'] ?? '#1a1a1a';
   $textColor  = $c['text_color'] ?? '#ffffff';
+  $align      = $c['text_align'] ?? 'left';
 @endphp
 
 <style>
@@ -34,6 +35,12 @@
   color: {{ $textColor }};
   padding: clamp(40px, 8vw, 96px) 0;
   max-width: 680px;
+  text-align: {{ $align }};
+  @if($align === 'center')
+  margin: 0 auto;
+  @elseif($align === 'right')
+  margin-left: auto;
+  @endif
 }
 .p-hero-headline {
   font-size: clamp(32px, 6vw, 72px);
@@ -48,8 +55,23 @@
   opacity: .8;
   margin-bottom: 32px;
   max-width: 520px;
+  @if($align === 'center')
+  margin-left: auto;
+  margin-right: auto;
+  @elseif($align === 'right')
+  margin-left: auto;
+  @endif
 }
-.p-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.p-hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  @if($align === 'center')
+  justify-content: center;
+  @elseif($align === 'right')
+  justify-content: flex-end;
+  @endif
+}
 </style>
 
 <section class="p-hero">
