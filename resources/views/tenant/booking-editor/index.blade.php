@@ -163,7 +163,7 @@
     </div>
 
     <div class="bke-section-divider"></div>
-    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" style="width:100%" onclick="resetDefaults()">Reset to defaults</button>
+    <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;justify-content:center" onclick="resetDefaults()">Reset to defaults</button>
   </div>
 
   {{-- CENTER: Live Preview --}}
