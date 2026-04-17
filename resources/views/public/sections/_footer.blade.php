@@ -1,3 +1,8 @@
+@php
+  $footerBg = $tenant->bg_color ?? '#ffffff';
+  $logoUrl = \App\Support\ColorHelper::pickLogo($tenant, $footerBg);
+@endphp
+
 <style>
 .p-footer {
   border-top: 1px solid rgba(0,0,0,.08);
@@ -59,8 +64,8 @@
       <div class="p-footer-brand">
         @if($c['show_logo'] ?? true)
           <div class="p-footer-logo">
-            @if($tenant->logo_url)
-              <img src="{{ $tenant->logo_url }}" alt="{{ $tenant->name }}">
+            @if($logoUrl)
+              <img src="{{ $logoUrl }}" alt="{{ $tenant->name }}">
             @else
               {{ $tenant->name }}
             @endif

@@ -15,7 +15,7 @@ class Tenant extends Model
     protected $fillable = [
         'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'name',
         'is_active', 'settings',
-        'logo_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
+        'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'font_heading', 'font_body', 'tagline',
         'email_from_name', 'email_from_address', 'email_reply_to',
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',

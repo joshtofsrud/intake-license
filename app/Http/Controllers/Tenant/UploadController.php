@@ -16,7 +16,7 @@ class UploadController extends Controller
     {
         $request->validate([
             'file' => ['required', 'file', 'max:' . self::MAX_SIZE_KB, 'mimes:' . implode(',', self::ALLOWED)],
-            'type' => ['nullable', 'string', 'in:logo,favicon,hero,gallery,general'],
+            'type' => ['nullable', 'string', 'in:logo,logo_light,favicon,hero,gallery,general'],
         ]);
 
         $tenant = tenant();

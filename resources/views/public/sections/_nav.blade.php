@@ -1,3 +1,8 @@
+@php
+  $navBg = ($c['bg_style'] ?? 'solid') === 'transparent' ? 'transparent' : (($tenant->bg_color ?? '#ffffff'));
+  $logoUrl = \App\Support\ColorHelper::pickLogo($tenant, $navBg);
+@endphp
+
 <style>
 .p-nav {
   position: sticky;
@@ -63,8 +68,8 @@
     <div class="p-nav-inner">
       @if($c['show_logo'] ?? true)
         <a href="/" class="p-nav-logo">
-          @if($tenant->logo_url)
-            <img src="{{ $tenant->logo_url }}" alt="{{ $tenant->name }}">
+          @if($logoUrl)
+            <img src="{{ $logoUrl }}" alt="{{ $tenant->name }}">
           @else
             {{ $tenant->name }}
           @endif

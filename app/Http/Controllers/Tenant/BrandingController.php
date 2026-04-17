@@ -36,23 +36,26 @@ class BrandingController extends Controller
                 'bg_color', 'font_heading', 'font_body',
             ]);
 
-            // Handle logo upload
             if ($request->hasFile('logo')) {
                 $request->validate(['logo' => ['image', 'max:2048']]);
-                $path = $request->file('logo')->store('tenant-logos', 'public');
-                $data['logo_url'] = Storage::url($path);
+                $path = $request->file('logo')->store("tenants/{$tenant->id}/logo", 'public');
+                $data['logo_url'] = asset('storage/' . $path);
             }
 
-            // Handle favicon upload
+            if ($request->hasFile('logo_light')) {
+                $request->validate(['logo_light' => ['image', 'max:2048']]);
+                $path = $request->file('logo_light')->store("tenants/{$tenant->id}/logo", 'public');
+                $data['logo_light_url'] = asset('storage/' . $path);
+            }
+
             if ($request->hasFile('favicon')) {
                 $request->validate(['favicon' => ['image', 'max:512']]);
-                $path = $request->file('favicon')->store('tenant-favicons', 'public');
-                $data['favicon_url'] = Storage::url($path);
+                $path = $request->file('favicon')->store("tenants/{$tenant->id}/favicon", 'public');
+                $data['favicon_url'] = asset('storage/' . $path);
             }
 
             $tenant->update($data);
 
-            // Save admin theme in settings JSON
             if ($request->filled('admin_theme')) {
                 $settings = $tenant->settings ?? [];
                 $settings['admin_theme'] = $request->input('admin_theme');

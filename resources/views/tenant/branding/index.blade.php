@@ -31,6 +31,9 @@
 .color-swatch-row{display:flex;gap:10px;align-items:center;margin-top:6px}
 .color-swatch{width:36px;height:36px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);overflow:hidden;cursor:pointer;flex-shrink:0}
 .color-swatch input[type=color]{width:52px;height:52px;margin:-8px;border:none;cursor:pointer;background:none;padding:0}
+.logo-preview{height:40px;border-radius:6px;margin-bottom:8px;display:block}
+.logo-preview-dark{background:#111;padding:6px 10px;border-radius:6px;margin-bottom:8px;display:inline-block}
+.logo-preview-dark img{height:32px}
 </style>
 @endpush
 
@@ -43,21 +46,16 @@
   </div>
 </div>
 
-{{-- Tabs --}}
 <div class="brand-tabs">
   <a href="?tab=appearance" class="brand-tab {{ $activeTab === 'appearance' ? 'active' : '' }}">Appearance</a>
   <a href="?tab=email"      class="brand-tab {{ $activeTab === 'email'      ? 'active' : '' }}">Email</a>
 </div>
 
-{{-- ============================================================
-     Appearance tab
-     ============================================================ --}}
 @if($activeTab === 'appearance')
 <form method="POST" action="{{ route('tenant.branding.update') }}" enctype="multipart/form-data" class="brand-section">
   @csrf @method('PATCH')
   <input type="hidden" name="tab" value="appearance">
 
-  {{-- Shop name + tagline --}}
   <div class="ia-card" style="margin-bottom:20px">
     <div class="ia-card-head"><span class="ia-card-title">Shop identity</span></div>
     <div class="ia-form-group">
@@ -69,25 +67,41 @@
       <input type="text" name="tagline" class="ia-input" value="{{ old('tagline', $currentTenant->tagline) }}"
         placeholder="e.g. Expert bike service since 2010">
     </div>
+  </div>
+
+  <div class="ia-card" style="margin-bottom:20px">
+    <div class="ia-card-head"><span class="ia-card-title">Logos</span></div>
+    <p style="font-size:13px;opacity:.5;margin-bottom:16px">
+      Upload two versions of your logo. The system automatically picks the right one based on the background color.
+    </p>
     <div class="ia-input-grid-2">
       <div class="ia-form-group">
-        <label class="ia-form-label">Logo</label>
+        <label class="ia-form-label">Default logo <span style="opacity:.4;font-weight:400">(for light backgrounds)</span></label>
         @if($currentTenant->logo_url)
-          <img src="{{ $currentTenant->logo_url }}" alt="Logo" style="height:40px;border-radius:6px;margin-bottom:8px;display:block">
+          <img src="{{ $currentTenant->logo_url }}" alt="Logo" class="logo-preview">
         @endif
         <input type="file" name="logo" accept="image/*" class="ia-input" style="padding:6px">
       </div>
       <div class="ia-form-group">
-        <label class="ia-form-label">Favicon</label>
-        @if($currentTenant->favicon_url)
-          <img src="{{ $currentTenant->favicon_url }}" alt="Favicon" style="height:32px;border-radius:4px;margin-bottom:8px;display:block">
+        <label class="ia-form-label">Light logo <span style="opacity:.4;font-weight:400">(for dark backgrounds)</span></label>
+        @if($currentTenant->logo_light_url)
+          <div class="logo-preview-dark">
+            <img src="{{ $currentTenant->logo_light_url }}" alt="Light logo">
+          </div>
         @endif
-        <input type="file" name="favicon" accept="image/*" class="ia-input" style="padding:6px">
+        <input type="file" name="logo_light" accept="image/*" class="ia-input" style="padding:6px">
+        <div style="font-size:11px;opacity:.35;margin-top:4px">White or light-colored version for use on dark hero sections and dark theme booking forms.</div>
       </div>
+    </div>
+    <div class="ia-form-group" style="margin-top:12px">
+      <label class="ia-form-label">Favicon</label>
+      @if($currentTenant->favicon_url)
+        <img src="{{ $currentTenant->favicon_url }}" alt="Favicon" style="height:32px;border-radius:4px;margin-bottom:8px;display:block">
+      @endif
+      <input type="file" name="favicon" accept="image/*" class="ia-input" style="padding:6px;max-width:300px">
     </div>
   </div>
 
-  {{-- Colors --}}
   <div class="ia-card" style="margin-bottom:20px">
     <div class="ia-card-head"><span class="ia-card-title">Colors</span></div>
     @foreach([
@@ -111,7 +125,6 @@
     @endforeach
   </div>
 
-  {{-- Fonts --}}
   <div class="ia-card" style="margin-bottom:20px">
     <div class="ia-card-head"><span class="ia-card-title">Typography</span></div>
     <div class="ia-input-grid-2">
@@ -134,7 +147,6 @@
     </div>
   </div>
 
-  {{-- Admin theme picker --}}
   <div class="ia-card" style="margin-bottom:24px">
     <div class="ia-card-head"><span class="ia-card-title">Admin theme</span></div>
     <div class="brand-theme-grid">
@@ -168,9 +180,6 @@
 </form>
 @endif
 
-{{-- ============================================================
-     Email tab
-     ============================================================ --}}
 @if($activeTab === 'email')
 <form method="POST" action="{{ route('tenant.branding.update') }}" class="brand-section">
   @csrf @method('PATCH')
@@ -221,7 +230,6 @@
 
 @push('scripts')
 <script>
-// Sync color picker ↔ text input
 document.querySelectorAll('input[type=color]').forEach(function(picker) {
   var textId = picker.id.replace('color-', 'text-');
   var text   = document.getElementById(textId);

@@ -19,6 +19,8 @@
     $bk['step3_label'] ?? 'Details',
     $bk['step4_label'] ?? 'Review',
   ];
+  \$bookingBg = \$isDark ? '#111111' : (\$currentTenant->bg_color ?? '#ffffff');
+  \$logoUrl = \App\Support\ColorHelper::pickLogo(\$currentTenant, \$bookingBg);
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -83,8 +85,8 @@
 
 <div class="bk-top-bar">
   <div class="bk-top-logo">
-    @if($currentTenant->logo_url)
-      <img src="{{ $currentTenant->logo_url }}" alt="{{ $currentTenant->name }}">
+    @if($logoUrl)
+      <img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">
     @else
       {{ $currentTenant->name }}
     @endif

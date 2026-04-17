@@ -58,4 +58,28 @@ class ColorHelper
             ? $c / 12.92
             : (($c + 0.055) / 1.055) ** 2.4;
     }
+
+
+    /**
+     * Determine if a hex color is dark (useful for picking logo variant).
+     */
+    public static function isDark(string $hex): bool
+    {
+        $rgb = self::hexToRgb($hex);
+        $luminance = 0.2126 * self::linearize($rgb[0] / 255)
+                    + 0.7152 * self::linearize($rgb[1] / 255)
+                    + 0.0722 * self::linearize($rgb[2] / 255);
+        return $luminance < 0.4;
+    }
+
+    /**
+     * Pick the right logo URL based on background color.
+     * Returns light logo on dark backgrounds, default logo on light backgrounds.
+     */
+    public static function pickLogo($tenant, string $bgColor = '#ffffff'): ?string
+    {
+        if (empty($tenant->logo_url)) return null;
+        if (empty($tenant->logo_light_url)) return $tenant->logo_url;
+        return self::isDark($bgColor) ? $tenant->logo_light_url : $tenant->logo_url;
+    }
 }
