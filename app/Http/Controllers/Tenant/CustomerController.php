@@ -11,12 +11,20 @@ use Illuminate\Support\Facades\Auth;
 
 class CustomerController extends Controller
 {
-    // ----------------------------------------------------------------
-    // List
-    // ----------------------------------------------------------------
     public function index(Request $request)
     {
-        $tenant  = tenant();
+        $tenant = tenant();
+
+        // JSON detail request
+        if ($request->has('detail') && ($request->expectsJson() || $request->ajax())) {
+            return $this->jsonDetail($tenant, $request->input('detail'));
+        }
+
+        // JSON update request
+        if ($request->has('update') && $request->isMethod('post')) {
+            return $this->handleUpdate($tenant, $request->input('update'), $request);
+        }
+
         $search  = $request->input('s', '');
         $page    = max(1, (int) $request->input('page', 1));
         $perPage = 25;
@@ -39,7 +47,6 @@ class CustomerController extends Controller
                        ->get();
 
         $emails = $customers->pluck('email')->toArray();
-
         $stats = [];
         if (!empty($emails)) {
             $rows = TenantAppointment::where('tenant_id', $tenant->id)
@@ -65,76 +72,14 @@ class CustomerController extends Controller
         ));
     }
 
-    // ----------------------------------------------------------------
-    // Show (JSON for modal)
-    // ----------------------------------------------------------------
     public function show(Request $request, string $id)
     {
-        $tenant   = tenant();
-        $customer = TenantCustomer::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        $notes = TenantCustomerNote::where('customer_id', $customer->id)
-            ->orderByDesc('created_at')
-            ->get();
-
-        $appointments = TenantAppointment::where('tenant_id', $tenant->id)
-            ->where('customer_email', $customer->email)
-            ->orderByDesc('appointment_date')
-            ->orderByDesc('created_at')
-            ->get();
-
-        $totalSpend = $appointments->where('payment_status', 'paid')->sum('total_cents');
-        $lastService = $appointments->whereIn('status', ['completed','closed','shipped'])
-            ->max('appointment_date');
-        $totalAppts = $appointments->count();
-
         if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'ok' => true,
-                'customer' => [
-                    'id'            => $customer->id,
-                    'first_name'    => $customer->first_name,
-                    'last_name'     => $customer->last_name,
-                    'name'          => $customer->first_name . ' ' . $customer->last_name,
-                    'email'         => $customer->email,
-                    'phone'         => $customer->phone,
-                    'address_line1' => $customer->address_line1,
-                    'city'          => $customer->city,
-                    'state'         => $customer->state,
-                    'postcode'      => $customer->postcode,
-                    'country'       => $customer->country,
-                    'created_at'    => $customer->created_at->format('M j, Y'),
-                    'total_spend'   => format_money($totalSpend),
-                    'last_service'  => $lastService ? \Carbon\Carbon::parse($lastService)->format('M j, Y') : null,
-                    'total_appts'   => $totalAppts,
-                ],
-                'appointments' => $appointments->take(10)->map(fn($a) => [
-                    'id'      => $a->id,
-                    'ito'     => $a->ra_number,
-                    'date'    => $a->appointment_date->format('M j, Y'),
-                    'status'  => ucwords(str_replace('_', ' ', $a->status)),
-                    'status_key' => $a->status,
-                    'payment' => ucfirst($a->payment_status),
-                    'payment_key' => $a->payment_status,
-                    'total'   => format_money($a->total_cents),
-                ]),
-                'notes' => $notes->map(fn($n) => [
-                    'id'         => $n->id,
-                    'note'       => $n->note,
-                    'author'     => $n->user?->name ?? 'Staff',
-                    'created_at' => $n->created_at->format('M j, g:i a'),
-                ]),
-            ]);
+            return $this->jsonDetail(tenant(), $id);
         }
-
         return redirect()->route('tenant.customers.index');
     }
 
-    // ----------------------------------------------------------------
-    // Store
-    // ----------------------------------------------------------------
     public function store(Request $request)
     {
         $tenant = tenant();
@@ -160,12 +105,78 @@ class CustomerController extends Controller
             ->with('success', 'Customer saved.');
     }
 
-    // ----------------------------------------------------------------
-    // Update
-    // ----------------------------------------------------------------
     public function update(Request $request, string $id)
     {
-        $tenant   = tenant();
+        return $this->handleUpdate(tenant(), $id, $request);
+    }
+
+    // ----------------------------------------------------------------
+    // JSON detail
+    // ----------------------------------------------------------------
+    private function jsonDetail($tenant, string $id)
+    {
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $notes = TenantCustomerNote::where('customer_id', $customer->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        $appointments = TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('customer_email', $customer->email)
+            ->orderByDesc('appointment_date')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $totalSpend = $appointments->where('payment_status', 'paid')->sum('total_cents');
+        $lastService = $appointments->whereIn('status', ['completed','closed','shipped'])
+            ->max('appointment_date');
+        $totalAppts = $appointments->count();
+
+        return response()->json([
+            'ok' => true,
+            'customer' => [
+                'id'            => $customer->id,
+                'first_name'    => $customer->first_name,
+                'last_name'     => $customer->last_name,
+                'name'          => $customer->first_name . ' ' . $customer->last_name,
+                'email'         => $customer->email,
+                'phone'         => $customer->phone,
+                'address_line1' => $customer->address_line1,
+                'city'          => $customer->city,
+                'state'         => $customer->state,
+                'postcode'      => $customer->postcode,
+                'country'       => $customer->country,
+                'created_at'    => $customer->created_at->format('M j, Y'),
+                'total_spend'   => format_money($totalSpend),
+                'last_service'  => $lastService ? \Carbon\Carbon::parse($lastService)->format('M j, Y') : null,
+                'total_appts'   => $totalAppts,
+            ],
+            'appointments' => $appointments->take(10)->map(fn($a) => [
+                'id'      => $a->id,
+                'ito'     => $a->ra_number,
+                'date'    => $a->appointment_date->format('M j, Y'),
+                'status'  => ucwords(str_replace('_', ' ', $a->status)),
+                'status_key' => $a->status,
+                'payment' => ucfirst($a->payment_status),
+                'payment_key' => $a->payment_status,
+                'total'   => format_money($a->total_cents),
+            ]),
+            'notes' => $notes->map(fn($n) => [
+                'id'         => $n->id,
+                'note'       => $n->note,
+                'author'     => $n->user?->name ?? 'Staff',
+                'created_at' => $n->created_at->format('M j, g:i a'),
+            ]),
+        ]);
+    }
+
+    // ----------------------------------------------------------------
+    // Handle update operations
+    // ----------------------------------------------------------------
+    private function handleUpdate($tenant, string $id, Request $request)
+    {
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('id', $id)
             ->firstOrFail();
@@ -175,10 +186,7 @@ class CustomerController extends Controller
         if ($op === 'update_info') {
             $data = $this->validated($request, $customer->email);
             $customer->update($data);
-            if ($request->expectsJson()) {
-                return response()->json(['ok' => true]);
-            }
-            return back()->with('success', 'Customer updated.');
+            return response()->json(['ok' => true]);
         }
 
         if ($op === 'add_note') {
@@ -213,9 +221,6 @@ class CustomerController extends Controller
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
 
-    // ----------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------
     private function validated(Request $request, ?string $existingEmail = null): array
     {
         $emailRules = $existingEmail ? ['nullable','email','max:191'] : ['required','email','max:191'];

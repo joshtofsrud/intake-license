@@ -14,9 +14,7 @@
   animation:dm-pop .25s cubic-bezier(.2,1.1,.3,1);
 }
 @keyframes dm-pop{from{transform:scale(.95) translateY(10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
-.dm-head {
-  padding:24px 28px 0;display:flex;justify-content:space-between;align-items:flex-start;
-}
+.dm-head{padding:24px 28px 0;display:flex;justify-content:space-between;align-items:flex-start;}
 .dm-title{font-size:20px;font-weight:700;}
 .dm-subtitle{font-size:13px;opacity:.5;margin-top:4px;}
 .dm-close{background:none;border:none;color:inherit;font-size:24px;cursor:pointer;opacity:.5;padding:4px 8px;line-height:1;}
@@ -101,7 +99,7 @@ var DM = {
   currentId: null,
   csrf: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
 
-  open: function(type, id, url) {
+  open: function(type, id) {
     this.currentType = type;
     this.currentId = id;
     document.getElementById('detail-modal').style.display = 'block';
@@ -110,33 +108,31 @@ var DM = {
     document.getElementById('dm-body').innerHTML = '<div class="dm-loading">Loading details...</div>';
     document.body.style.overflow = 'hidden';
 
+    var resource = type === 'appointment' ? 'appointments' : 'customers';
+    var url = '/admin/' + resource + '?detail=' + encodeURIComponent(id);
+
     fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
-      .then(function(r) { return r.json(); })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data) {
         if (!data.ok) { DM.showError('Failed to load.'); return; }
         if (type === 'appointment') DM.renderAppointment(data);
         else if (type === 'customer') DM.renderCustomer(data);
       })
-      .catch(function(e) { DM.showError('Network error: ' + e.message); });
+      .catch(function(e) { DM.showError('Failed to load: ' + e.message); });
   },
 
   showError: function(msg) {
     document.getElementById('dm-body').innerHTML = '<div class="dm-err" style="display:block">' + this.esc(msg) + '</div>';
   },
 
-  // ================================================================
-  // APPOINTMENT
-  // ================================================================
   renderAppointment: function(data) {
     var a = data.appointment;
     var tr = data.transitions;
 
     document.getElementById('dm-title').textContent = a.ra_number;
-    document.getElementById('dm-subtitle').textContent = a.customer_name + ' · ' + a.appointment_date;
+    document.getElementById('dm-subtitle').textContent = a.customer_name + ' \u00b7 ' + a.appointment_date;
 
     var h = '';
-
-    // Status + transitions
     h += '<div class="dm-section">';
     h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
     h += '<span class="dm-badge dm-badge--' + a.status.replace('_','-') + '">' + a.status_label + '</span>';
@@ -152,25 +148,22 @@ var DM = {
     }
     h += '</div>';
 
-    // Tabs
     h += '<div class="dm-tabs">';
     h += '<div class="dm-tab active" onclick="DM.switchTab(this,\'dm-tab-details\')">Details</div>';
     h += '<div class="dm-tab" onclick="DM.switchTab(this,\'dm-tab-charges\')">Charges</div>';
     h += '<div class="dm-tab" onclick="DM.switchTab(this,\'dm-tab-notes\')">Notes (' + a.notes.length + ')</div>';
     h += '</div>';
 
-    // Details tab
     h += '<div class="dm-tab-content active" id="dm-tab-details">';
     h += '<div class="dm-grid">';
     h += this.field('Customer', a.customer_name);
     h += this.field('Email', a.customer_email);
-    h += this.field('Phone', a.customer_phone || '—');
+    h += this.field('Phone', a.customer_phone || '\u2014');
     h += this.field('Date', a.appointment_date);
     h += this.field('Created', a.created_at);
     h += this.field('Payment', a.payment_label);
     h += '</div>';
 
-    // Line items
     if (a.items.length > 0) {
       h += '<div style="margin-top:16px"><div class="dm-section-label">Services</div>';
       h += '<table class="dm-table"><thead><tr><th>Item</th><th>Tier</th><th class="num">Price</th></tr></thead><tbody>';
@@ -180,14 +173,12 @@ var DM = {
       h += '</tbody></table></div>';
     }
 
-    // Payment summary
     h += '<div style="margin-top:16px">';
     h += '<div class="dm-stat-row"><span class="dm-stat-label">Subtotal</span><span class="dm-stat-value">' + a.subtotal_display + '</span></div>';
     h += '<div class="dm-stat-row"><span class="dm-stat-label">Total</span><span class="dm-stat-value" style="font-size:16px">' + a.total_display + '</span></div>';
     if (a.paid_cents > 0) h += '<div class="dm-stat-row"><span class="dm-stat-label">Paid</span><span class="dm-stat-value" style="color:#22C55E">' + a.paid_display + '</span></div>';
     h += '</div>';
 
-    // Payment status update
     h += '<div style="margin-top:12px"><div class="dm-row">';
     h += '<select id="dm-payment-select" class="dm-input" style="max-width:160px">';
     ['unpaid','partial','paid','refunded'].forEach(function(ps) {
@@ -203,7 +194,6 @@ var DM = {
     }
     h += '</div>';
 
-    // Charges tab
     h += '<div class="dm-tab-content" id="dm-tab-charges">';
     h += '<div id="dm-charges-list">';
     if (a.charges.length === 0) {
@@ -224,7 +214,6 @@ var DM = {
     h += '</div></div>';
     h += '</div>';
 
-    // Notes tab
     h += '<div class="dm-tab-content" id="dm-tab-notes">';
     h += '<div style="margin-bottom:12px"><div class="dm-row">';
     h += '<input type="text" id="dm-note-input" class="dm-input" placeholder="Add a note..." style="flex:1" maxlength="500">';
@@ -249,9 +238,8 @@ var DM = {
   },
 
   updateAppt: function(op, data) {
-    var url = this.buildUrl('appointments', this.currentId);
+    var url = '/admin/appointments?update=' + encodeURIComponent(this.currentId);
     data.op = op;
-    data._method = 'PATCH';
     this.post(url, data, function() { DM.reload(); });
   },
 
@@ -274,9 +262,6 @@ var DM = {
     this.updateAppt('delete_note', { note_id: noteId });
   },
 
-  // ================================================================
-  // CUSTOMER
-  // ================================================================
   renderCustomer: function(data) {
     var c = data.customer;
     var appts = data.appointments;
@@ -286,8 +271,6 @@ var DM = {
     document.getElementById('dm-subtitle').textContent = c.email;
 
     var h = '';
-
-    // Stats
     h += '<div class="dm-section"><div class="dm-grid">';
     h += this.field('Total Spend', c.total_spend);
     h += this.field('Appointments', c.total_appts);
@@ -295,23 +278,20 @@ var DM = {
     h += this.field('Customer Since', c.created_at);
     h += '</div></div>';
 
-    // Tabs
     h += '<div class="dm-tabs">';
     h += '<div class="dm-tab active" onclick="DM.switchTab(this,\'dm-tab-info\')">Info</div>';
     h += '<div class="dm-tab" onclick="DM.switchTab(this,\'dm-tab-history\')">History (' + appts.length + ')</div>';
     h += '<div class="dm-tab" onclick="DM.switchTab(this,\'dm-tab-custnotes\')">Notes (' + notes.length + ')</div>';
     h += '</div>';
 
-    // Info tab
     h += '<div class="dm-tab-content active" id="dm-tab-info">';
     h += '<div class="dm-grid">';
     h += this.field('Name', c.name);
     h += this.field('Email', c.email);
-    h += this.field('Phone', c.phone || '—');
-    h += this.field('Address', [c.address_line1, c.city, c.state, c.postcode].filter(Boolean).join(', ') || '—');
+    h += this.field('Phone', c.phone || '\u2014');
+    h += this.field('Address', [c.address_line1, c.city, c.state, c.postcode].filter(Boolean).join(', ') || '\u2014');
     h += '</div></div>';
 
-    // History tab
     h += '<div class="dm-tab-content" id="dm-tab-history">';
     if (appts.length === 0) {
       h += '<p style="font-size:13px;opacity:.4">No appointments yet.</p>';
@@ -330,7 +310,6 @@ var DM = {
     }
     h += '</div>';
 
-    // Notes tab
     h += '<div class="dm-tab-content" id="dm-tab-custnotes">';
     h += '<div style="margin-bottom:12px"><div class="dm-row">';
     h += '<input type="text" id="dm-custnote-input" class="dm-input" placeholder="Add a note..." style="flex:1" maxlength="200">';
@@ -358,24 +337,20 @@ var DM = {
     var input = document.getElementById('dm-custnote-input');
     var note = input.value.trim();
     if (!note) return;
-    var url = this.buildUrl('customers', this.currentId);
-    this.post(url, { op: 'add_note', _method: 'PATCH', note: note }, function() { DM.reload(); });
+    var url = '/admin/customers?update=' + encodeURIComponent(this.currentId);
+    this.post(url, { op: 'add_note', note: note }, function() { DM.reload(); });
   },
 
   deleteCustNote: function(noteId) {
     if (!confirm('Delete this note?')) return;
-    var url = this.buildUrl('customers', this.currentId);
-    this.post(url, { op: 'delete_note', _method: 'PATCH', note_id: noteId }, function() { DM.reload(); });
+    var url = '/admin/customers?update=' + encodeURIComponent(this.currentId);
+    this.post(url, { op: 'delete_note', note_id: noteId }, function() { DM.reload(); });
   },
 
   openAppt: function(id) {
-    var url = this.buildUrl('appointments', id);
-    this.open('appointment', id, url);
+    this.open('appointment', id);
   },
 
-  // ================================================================
-  // HELPERS
-  // ================================================================
   switchTab: function(el, tabId) {
     var parent = el.parentElement;
     parent.querySelectorAll('.dm-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -386,16 +361,11 @@ var DM = {
   },
 
   field: function(label, value) {
-    return '<div><div class="dm-field-label">' + label + '</div><div class="dm-field-value">' + this.esc(value || '—') + '</div></div>';
-  },
-
-  buildUrl: function(resource, id) {
-    return '/admin/' + resource + '/' + id;
+    return '<div><div class="dm-field-label">' + label + '</div><div class="dm-field-value">' + this.esc(value || '\u2014') + '</div></div>';
   },
 
   reload: function() {
-    var url = this.buildUrl(this.currentType === 'appointment' ? 'appointments' : 'customers', this.currentId);
-    this.open(this.currentType, this.currentId, url);
+    this.open(this.currentType, this.currentId);
   },
 
   post: function(url, data, onSuccess) {
@@ -417,8 +387,7 @@ var DM = {
 };
 
 function openDetailModal(type, id) {
-  var url = '/admin/' + (type === 'appointment' ? 'appointments' : 'customers') + '/' + id;
-  DM.open(type, id, url);
+  DM.open(type, id);
 }
 
 function closeDetailModal() {
