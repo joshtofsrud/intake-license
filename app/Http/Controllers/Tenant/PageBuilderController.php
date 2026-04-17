@@ -11,8 +11,17 @@ use Illuminate\Support\Str;
 
 class PageBuilderController extends Controller
 {
+    /**
+     * Section content fields that are expected to be arrays. When the editor
+     * sends these as JSON strings (from hidden inputs alongside JSON-textarea
+     * UIs), we decode them before storing so renderers get real arrays back.
+     */
+    private const ARRAY_FIELDS = [
+        'features', 'steps', 'plans', 'items', 'testimonials',
+        'shop_names', 'logos', 'competitors', 'rows', 'stats', 'images',
+    ];
+
     private const DEFAULTS = [
-        // --- Original tenant section types ---
         'nav'           => ['show_logo'=>true,'cta_label'=>'Book Now','cta_url'=>'/book','bg_style'=>'solid'],
         'hero'          => ['eyebrow'=>'','headline'=>'Your headline here','accent_words'=>'','subheading'=>'A short description.','bg_type'=>'color','bg_color'=>'#1a1a1a','text_color'=>'#ffffff','cta_primary_label'=>'Book Now','cta_primary_url'=>'/book','height'=>'large','text_align'=>'center','note'=>''],
         'services'      => ['heading'=>'Our services','show_prices'=>true,'columns'=>3],
@@ -23,85 +32,36 @@ class PageBuilderController extends Controller
         'booking_embed' => ['heading'=>'Book online'],
         'footer'        => ['show_logo'=>true,'show_copyright'=>true,'copyright_text'=>''],
 
-        // --- Marketing section types ---
         'pricing_table' => [
-            'eyebrow'    => '',
-            'heading'    => 'Pricing',
-            'subheading' => 'Pick the plan that fits.',
-            'source'     => 'config',
-            'featured'   => 'branded',
-            'plans'      => [],
-            'footnote'   => '',
+            'eyebrow'    => '', 'heading' => 'Pricing', 'subheading' => 'Pick the plan that fits.',
+            'source'     => 'config', 'featured' => 'branded', 'plans' => [], 'footnote' => '',
         ],
         'feature_grid' => [
-            'eyebrow'    => '',
-            'heading'    => 'Features',
-            'subheading' => '',
-            'columns'    => 3,
-            'features'   => [
+            'eyebrow' => '', 'heading' => 'Features', 'subheading' => '', 'columns' => 3,
+            'features' => [
                 ['icon' => '✓', 'title' => 'Feature 1', 'body' => 'Short description.'],
                 ['icon' => '✓', 'title' => 'Feature 2', 'body' => 'Short description.'],
                 ['icon' => '✓', 'title' => 'Feature 3', 'body' => 'Short description.'],
             ],
-            'cta_label' => '',
-            'cta_url'   => '',
+            'cta_label' => '', 'cta_url' => '',
         ],
         'step_timeline' => [
-            'eyebrow'    => '',
-            'heading'    => 'How it works',
-            'subheading' => '',
+            'eyebrow' => '', 'heading' => 'How it works', 'subheading' => '',
             'steps' => [
-                ['title' => 'Sign up',   'desc' => 'Short step description', 'done' => true],
+                ['title' => 'Sign up', 'desc' => 'Short step description', 'done' => true],
                 ['title' => 'Customize', 'desc' => 'Short step description', 'done' => true],
-                ['title' => 'Launch',    'desc' => 'Short step description', 'done' => false],
+                ['title' => 'Launch', 'desc' => 'Short step description', 'done' => false],
             ],
         ],
         'testimonial_carousel' => [
-            'eyebrow'      => '',
-            'heading'      => 'What customers say',
-            'subheading'   => '',
-            'testimonials' => [
-                ['quote' => 'This changed how we run the shop.', 'author' => 'Name', 'role' => 'Owner'],
-            ],
+            'eyebrow' => '', 'heading' => 'What customers say', 'subheading' => '',
+            'testimonials' => [['quote' => 'This changed how we run the shop.', 'author' => 'Name', 'role' => 'Owner']],
         ],
-        'logo_bar' => [
-            'heading'    => 'Trusted by shops like',
-            'shop_names' => [],
-            'logos'      => [],
-        ],
-        'faq_accordion' => [
-            'eyebrow' => '',
-            'heading' => 'Frequently asked',
-            'subheading' => '',
-            'items'   => [
-                ['q' => 'A common question?', 'a' => 'A clear answer.'],
-            ],
-        ],
-        'comparison_table' => [
-            'eyebrow'     => '',
-            'heading'     => 'How we compare',
-            'subheading'  => '',
-            'competitors' => ['Intake', 'Other'],
-            'rows' => [
-                ['feature' => 'Feature name', 'values' => ['yes', 'no']],
-            ],
-        ],
-        'industry_pack_showcase' => [
-            'eyebrow'       => '',
-            'heading'       => 'Built for your industry',
-            'subheading'    => 'Pick your industry, get pre-configured services, pricing, and content.',
-            'limit'         => 12,
-            'show_all_link' => true,
-        ],
-        'stats_row' => [
-            'eyebrow' => '',
-            'heading' => '',
-            'stats'   => [
-                ['number' => '200+', 'label' => 'Businesses'],
-                ['number' => '50k+', 'label' => 'Appointments processed'],
-                ['number' => '24',   'label' => 'Industries'],
-            ],
-        ],
+        'logo_bar'         => ['heading' => 'Trusted by shops like', 'shop_names' => [], 'logos' => []],
+        'faq_accordion'    => ['eyebrow'=>'','heading'=>'Frequently asked','subheading'=>'','items'=>[['q'=>'A common question?','a'=>'A clear answer.']]],
+        'comparison_table' => ['eyebrow'=>'','heading'=>'How we compare','subheading'=>'','competitors'=>['Intake','Other'],'rows'=>[['feature'=>'Feature','values'=>['yes','no']]]],
+        'industry_pack_showcase' => ['eyebrow'=>'','heading'=>'Built for your industry','subheading'=>'Pick your industry, get pre-configured services, pricing, and content.','limit'=>12,'show_all_link'=>true],
+        'stats_row'        => ['eyebrow'=>'','heading'=>'','stats'=>[['number'=>'200+','label'=>'Businesses'],['number'=>'50k+','label'=>'Appointments'],['number'=>'24','label'=>'Industries']]],
     ];
 
     public function index(Request $request)
@@ -254,6 +214,17 @@ class PageBuilderController extends Controller
             $section = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
             $content = $request->input('content', []);
             if (!is_array($content)) $content = [];
+
+            // Decode JSON strings for known array fields. The editor uses JSON
+            // textareas for array-of-objects fields (features, steps, plans,
+            // etc.) and posts them as hidden inputs with stringified JSON.
+            foreach (self::ARRAY_FIELDS as $f) {
+                if (isset($content[$f]) && is_string($content[$f])) {
+                    $decoded = json_decode($content[$f], true);
+                    $content[$f] = is_array($decoded) ? $decoded : [];
+                }
+            }
+
             $section->update([
                 'content'   => array_merge($section->content ?? [], $content),
                 'bg_color'  => $request->input('bg_color'),

@@ -2,10 +2,9 @@
     Feature grid. Content: eyebrow, heading, subheading, columns (2|3|4),
                           features[{icon, title, body}], cta_label, cta_url
 
-    Icon field accepts either an emoji (📅) or raw SVG path data (e.g.
-    '<rect x="2" y="3" width="12" height="9" rx="1.5"/><path .../>').
-    If it looks like SVG path content, it's rendered inside a pre-styled
-    SVG viewBox; otherwise the literal text is shown.
+    Icon field accepts either an emoji (📅) or raw SVG path data. If the
+    features content was saved as a JSON string by the editor, decode it
+    defensively before iterating.
 --}}
 @php
     $cols = max(2, min(4, (int)($c['columns'] ?? 3)));
@@ -17,6 +16,12 @@
             str_contains($icon, 'line')
         );
     };
+
+    $features = $c['features'] ?? [];
+    if (is_string($features)) {
+        $decoded = json_decode($features, true);
+        $features = is_array($decoded) ? $decoded : [];
+    }
 @endphp
 
 <style>
@@ -69,7 +74,7 @@
         @endif
 
         <div class="mk-feat-grid">
-            @foreach(($c['features'] ?? []) as $feat)
+            @foreach($features as $feat)
                 <div class="mk-feat-card">
                     <div class="mk-feat-icon">
                         @if($isSvgPath($feat['icon'] ?? ''))
