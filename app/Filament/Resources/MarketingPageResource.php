@@ -17,20 +17,8 @@ use Illuminate\Database\Eloquent\Model;
  * Marketing pages resource — master admin UI for editing intake.works content.
  *
  * Scopes TenantPage to the platform tenant only (is_platform=true). Every
- * row represents an editable marketing URL:
- *
- *   home                → intake.works/
- *   pricing             → intake.works/pricing
- *   features            → intake.works/features
- *   contact             → intake.works/contact
- *   docs                → intake.works/docs
- *   __industry_template → template for every /for/{slug} page
- *   {any custom slug}   → intake.works/{slug}
- *
- * Editing happens via the existing tenant page builder (same three-column
- * live preview editor). The "Edit content" action routes through
- * /admin/marketing-pages/{id}/content which binds the platform tenant and
- * redirects into the editor.
+ * row represents an editable marketing URL. Labels overridden so the admin
+ * reads "Marketing page" rather than auto-inferred "Tenant page".
  */
 class MarketingPageResource extends Resource
 {
@@ -42,6 +30,13 @@ class MarketingPageResource extends Resource
     protected static ?int    $navigationSort  = 10;
     protected static ?string $recordTitleAttribute = 'title';
 
+    // Override the singular/plural labels Filament infers from the model name.
+    // Without these, every header / breadcrumb / button reads "Tenant Page".
+    protected static ?string $modelLabel         = 'Marketing page';
+    protected static ?string $pluralModelLabel   = 'Marketing pages';
+    protected static ?string $breadcrumb         = 'Marketing pages';
+    protected static ?string $slug               = 'marketing-pages';
+
     /**
      * Limit every query to the platform tenant. Guards against accidentally
      * listing real tenant pages in the master admin.
@@ -51,8 +46,6 @@ class MarketingPageResource extends Resource
         $platform = Tenant::where('is_platform', true)->first();
 
         if (! $platform) {
-            // No platform tenant yet — return an empty query rather than
-            // crashing. Admin can run the seeder via php artisan.
             return parent::getEloquentQuery()->whereRaw('1 = 0');
         }
 
@@ -162,7 +155,6 @@ class MarketingPageResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
-                        // Never let anyone bulk-delete the home or template pages
                         ->action(function ($records) {
                             $records->each(function ($r) {
                                 if ($r->is_home || str_starts_with($r->slug, '__')) return;
@@ -182,13 +174,6 @@ class MarketingPageResource extends Resource
         ];
     }
 
-    /**
-     * Given a marketing page, return the public URL it's served at.
-     *
-     *   home     → https://intake.works/
-     *   pricing  → https://intake.works/pricing
-     *   __*      → (internal, no public URL)
-     */
     public static function urlForPage(TenantPage $page): string
     {
         $domain = config('intake.domain', 'intake.works');
