@@ -19,8 +19,8 @@
     $bk['step3_label'] ?? 'Details',
     $bk['step4_label'] ?? 'Review',
   ];
-  \$bookingBg = \$isDark ? '#111111' : (\$currentTenant->bg_color ?? '#ffffff');
-  \$logoUrl = \App\Support\ColorHelper::pickLogo(\$currentTenant, \$bookingBg);
+  $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
+  $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
 @endphp
 <!DOCTYPE html>
 <html lang="en">
