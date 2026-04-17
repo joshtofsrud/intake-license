@@ -20,4 +20,4 @@ class TenantItemTierPrice extends Model
     {
         return $this->belongsTo(TenantServiceItem::class, 'item_id');
     }
-}
+} 
