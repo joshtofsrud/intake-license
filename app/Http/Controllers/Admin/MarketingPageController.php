@@ -9,12 +9,14 @@ use App\Models\Tenant\TenantPage;
 use Illuminate\Http\Request;
 
 /**
- * Bridges the master admin to the existing tenant page builder editor
- * so marketing pages (served under the platform tenant) can be edited
- * using the same three-column editor UI.
+ * Bridges the master admin to the tenant page builder for marketing pages.
  *
- * Sets an `isMarketing` flag the editor view checks to swap route URLs
- * from tenant-subdomain routes to master-admin routes.
+ * The tenant admin layout (layouts.tenant.app) depends on a few view
+ * globals that the tenant subdomain middleware normally sets:
+ *   - $adminTheme    (light|dark — set by ApplyTenantTheme middleware)
+ *   - $currentTenant (set by ResolveTenant middleware)
+ * We share those manually here so the editor view renders for master
+ * admins at intake.works/admin/marketing-pages/.../edit-content.
  */
 class MarketingPageController extends Controller
 {
@@ -22,19 +24,31 @@ class MarketingPageController extends Controller
     {
         $platform = Tenant::where('is_platform', true)->firstOrFail();
 
-        $page = TenantPage::where('tenant_id', $platform->id)
+        TenantPage::where('tenant_id', $platform->id)
             ->where('id', $pageId)
             ->firstOrFail();
 
-        app()->instance('tenant', $platform);
-        view()->share('currentTenant', $platform);
+        $this->bindPlatform($platform);
 
-        // Tell the editor view it's in marketing/admin context so it uses
-        // the admin routes (no subdomain param) instead of tenant routes.
-        view()->share('isMarketing', true);
-
-        $request->merge(['edit' => $page->id]);
+        $request->merge(['edit' => $pageId]);
 
         return $builder->index($request);
+    }
+
+    public function store(Request $request, PageBuilderController $builder)
+    {
+        $platform = Tenant::where('is_platform', true)->firstOrFail();
+        $this->bindPlatform($platform);
+        return $builder->store($request);
+    }
+
+    private function bindPlatform(Tenant $platform): void
+    {
+        app()->instance('tenant', $platform);
+        view()->share('currentTenant', $platform);
+        view()->share('isMarketing', true);
+
+        // Tenant admin layout expects this from ApplyTenantTheme middleware.
+        view()->share('adminTheme', 'dark');
     }
 }
