@@ -14,7 +14,6 @@ class ListDebugLogs extends ListRecords
     {
         return [
             DebugLogHeaderStats::class,
-            // DebugLogErrorsChart::class,  // temporarily disabled — investigating Livewire registration issue
         ];
     }
 }
