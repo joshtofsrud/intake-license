@@ -48,11 +48,6 @@ class AppointmentController extends Controller
             return $this->jsonDetail($tenant, $request->input('detail'));
         }
 
-        // JSON update request
-        if ($request->has('update') && $request->isMethod('post')) {
-            return $this->handleUpdate($tenant, $request->input('update'), $request);
-        }
-
         $search   = $request->input('s', '');
         $status   = $request->input('status', '');
         $payment  = $request->input('payment', '');
@@ -92,11 +87,16 @@ class AppointmentController extends Controller
     }
 
     // ----------------------------------------------------------------
-    // Store (create new appointment via AJAX modal)
+    // Store — handles both new appointments AND updates via ?update=
     // ----------------------------------------------------------------
     public function store(Request $request)
     {
         $tenant = tenant();
+
+        // If ?update=UUID, route to update handler
+        if ($request->has('update')) {
+            return $this->handleUpdate($tenant, $request->input('update'), $request);
+        }
 
         $data = $request->validate([
             'customer_first_name' => ['required', 'string', 'max:100'],
@@ -163,13 +163,12 @@ class AppointmentController extends Controller
     }
 
     // ----------------------------------------------------------------
-    // Show (kept for backward compat, redirects non-AJAX)
+    // Show (kept for backward compat)
     // ----------------------------------------------------------------
     public function show(Request $request, string $id)
     {
-        $tenant = tenant();
         if ($request->expectsJson() || $request->ajax()) {
-            return $this->jsonDetail($tenant, $id);
+            return $this->jsonDetail(tenant(), $id);
         }
         return redirect()->route('tenant.appointments.index');
     }

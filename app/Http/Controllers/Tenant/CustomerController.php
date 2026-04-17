@@ -20,11 +20,6 @@ class CustomerController extends Controller
             return $this->jsonDetail($tenant, $request->input('detail'));
         }
 
-        // JSON update request
-        if ($request->has('update') && $request->isMethod('post')) {
-            return $this->handleUpdate($tenant, $request->input('update'), $request);
-        }
-
         $search  = $request->input('s', '');
         $page    = max(1, (int) $request->input('page', 1));
         $perPage = 25;
@@ -83,6 +78,12 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         $tenant = tenant();
+
+        // If ?update=UUID, route to update handler
+        if ($request->has('update')) {
+            return $this->handleUpdate($tenant, $request->input('update'), $request);
+        }
+
         $data   = $this->validated($request);
         $data['tenant_id'] = $tenant->id;
 
@@ -110,9 +111,6 @@ class CustomerController extends Controller
         return $this->handleUpdate(tenant(), $id, $request);
     }
 
-    // ----------------------------------------------------------------
-    // JSON detail
-    // ----------------------------------------------------------------
     private function jsonDetail($tenant, string $id)
     {
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
@@ -172,9 +170,6 @@ class CustomerController extends Controller
         ]);
     }
 
-    // ----------------------------------------------------------------
-    // Handle update operations
-    // ----------------------------------------------------------------
     private function handleUpdate($tenant, string $id, Request $request)
     {
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
