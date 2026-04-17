@@ -56,6 +56,12 @@
       'group'  => 'manage',
     ],
     [
+      'route'  => 'tenant.help.index',
+      'label'  => 'Help & Guides',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5a1.5 1.5 0 1 1 1.5 1.5v1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="10" r=".6" fill="currentColor"/></svg>',
+      'group'  => 'settings',
+    ],
+    [
       'route'  => 'tenant.branding.index',
       'label'  => 'Branding',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="2" fill="currentColor"/></svg>',
