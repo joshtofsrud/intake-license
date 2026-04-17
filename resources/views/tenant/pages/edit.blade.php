@@ -429,6 +429,34 @@ function saveNav() {
 // ----------------------------------------------------------------
 // Status toast
 // ----------------------------------------------------------------
+// Upload image
+function uploadImage(fileInput, type, targetId) {
+  var file = fileInput.files[0];
+  if (!file) return;
+  var fd = new FormData();
+  fd.append('_token', csrf);
+  fd.append('file', file);
+  fd.append('type', type);
+  showStatus('Uploading…');
+  fetch('/admin/uploads', {
+    method: 'POST', body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    credentials: 'same-origin'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(resp) {
+    if (resp.ok) {
+      document.getElementById(targetId).value = resp.url;
+      document.getElementById(targetId).dispatchEvent(new Event('input'));
+      showStatus('Uploaded ✓');
+    } else {
+      showStatus('Upload failed: ' + (resp.message || 'error'));
+    }
+  })
+  .catch(function(e) { showStatus('Upload error: ' + e.message); });
+  fileInput.value = '';
+}
+
 function showStatus(msg) {
   var el = document.getElementById('pb-status');
   el.textContent = msg;

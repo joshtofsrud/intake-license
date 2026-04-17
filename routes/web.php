@@ -138,7 +138,8 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             // Booking form editor
             Route::get('/booking-editor',       [TenantControllers\BookingEditorController::class, 'index'])->name('booking-editor.index');
             Route::post('/booking-editor',      [TenantControllers\BookingEditorController::class, 'store'])->name('booking-editor.store');
-
+            // Uploads
+            Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
             // Page builder
             Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
             Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');

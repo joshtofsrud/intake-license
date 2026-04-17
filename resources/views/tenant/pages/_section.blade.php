@@ -16,7 +16,6 @@
 
 <div class="pb-section-block" data-section-id="{{ $section->id }}">
 
-  {{-- Section header --}}
   <div class="pb-section-head">
     <span class="pb-drag-handle" title="Drag to reorder">⋮⋮</span>
     <span class="pb-section-type">{{ $typeLabels[$type] ?? $type }}</span>
@@ -26,10 +25,8 @@
     <span class="pb-section-chevron">▾</span>
   </div>
 
-  {{-- Section editor body --}}
   <div class="pb-section-body" data-section-id="{{ $section->id }}">
 
-    {{-- Visibility toggle (all sections) --}}
     <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:13px;opacity:.6">Visible</span>
       <label style="cursor:pointer">
@@ -70,26 +67,46 @@
           <input type="text" class="pb-input" data-field="cta_primary_url" value="{{ $c['cta_primary_url'] ?? '/book' }}">
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="pb-field-row">
+          <div class="pb-field-label">Secondary button label</div>
+          <input type="text" class="pb-input" data-field="cta_secondary_label" value="{{ $c['cta_secondary_label'] ?? '' }}" placeholder="Optional">
+        </div>
+        <div class="pb-field-row">
+          <div class="pb-field-label">Secondary button URL</div>
+          <input type="text" class="pb-input" data-field="cta_secondary_url" value="{{ $c['cta_secondary_url'] ?? '' }}">
+        </div>
+      </div>
       <div class="pb-field-row">
         <div class="pb-field-label">Height</div>
         <select class="pb-input" data-field="height">
           @foreach(['small','medium','large','fullscreen'] as $h)
-            <option value="{{ $h }}" {{ ($c['height'] ?? 'large') === $h ? 'selected' : '' }}>
-              {{ ucfirst($h) }}
-            </option>
+            <option value="{{ $h }}" {{ ($c['height'] ?? 'large') === $h ? 'selected' : '' }}>{{ ucfirst($h) }}</option>
           @endforeach
         </select>
       </div>
       <div class="pb-field-row">
-        <div class="pb-field-label">Background image URL</div>
-        <input type="url" class="pb-input" data-field="bg_image_url"
-          value="{{ $c['bg_image_url'] ?? '' }}" placeholder="https://…">
+        <div class="pb-field-label">Background image</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" class="pb-input" data-field="bg_image_url" value="{{ $c['bg_image_url'] ?? '' }}" placeholder="https://… or upload" style="flex:1" id="hero-bg-url-{{ $section->id }}">
+          <label class="ia-btn ia-btn--secondary ia-btn--sm" style="cursor:pointer;flex-shrink:0">
+            Upload
+            <input type="file" accept="image/*" style="display:none" onchange="uploadImage(this,'hero','hero-bg-url-{{ $section->id }}')">
+          </label>
+        </div>
+        @if(!empty($c['bg_image_url']))
+          <img src="{{ $c['bg_image_url'] }}" style="margin-top:8px;max-height:80px;border-radius:6px;opacity:.8">
+        @endif
       </div>
 
     @elseif($type === 'services')
       <div class="pb-field-row">
         <div class="pb-field-label">Heading</div>
         <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? 'Our services' }}">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Subheading</div>
+        <input type="text" class="pb-input" data-field="subheading" value="{{ $c['subheading'] ?? '' }}" placeholder="Optional subheading">
       </div>
       <div class="pb-field-row">
         <div class="pb-field-label">Columns</div>
@@ -118,9 +135,17 @@
         <textarea class="pb-textarea" data-field="body" rows="4">{{ $c['body'] ?? '' }}</textarea>
       </div>
       <div class="pb-field-row">
-        <div class="pb-field-label">Image URL</div>
-        <input type="url" class="pb-input" data-field="image_url"
-          value="{{ $c['image_url'] ?? '' }}" placeholder="https://…">
+        <div class="pb-field-label">Image</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="url" class="pb-input" data-field="image_url" value="{{ $c['image_url'] ?? '' }}" placeholder="https://… or upload" style="flex:1" id="ti-img-{{ $section->id }}">
+          <label class="ia-btn ia-btn--secondary ia-btn--sm" style="cursor:pointer;flex-shrink:0">
+            Upload
+            <input type="file" accept="image/*" style="display:none" onchange="uploadImage(this,'general','ti-img-{{ $section->id }}')">
+          </label>
+        </div>
+        @if(!empty($c['image_url']))
+          <img src="{{ $c['image_url'] }}" style="margin-top:8px;max-height:80px;border-radius:6px;opacity:.8">
+        @endif
       </div>
       <div class="pb-field-row">
         <div class="pb-field-label">Image position</div>
@@ -249,7 +274,6 @@
       <p style="font-size:13px;opacity:.4">No editor available for this section type.</p>
     @endif
 
-    {{-- Section footer --}}
     <div class="pb-section-actions">
       <span style="font-size:12px;opacity:.3">Auto-saves as you type</span>
       <button type="button" class="ia-btn ia-btn--danger ia-btn--sm pb-delete-section"
