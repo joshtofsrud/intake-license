@@ -5,8 +5,9 @@ namespace App\Filament\Resources\DebugLogResource\Pages;
 use App\Filament\Resources\DebugLogResource;
 use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\DebugLogErrorsChart;
+use App\Models\DebugLog;
 use Filament\Resources\Pages\ListRecords;
-use Filament\Resources\Components\Tab;
+use Filament\Resources\Pages\ListRecords\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListDebugLogs extends ListRecords
@@ -21,22 +22,12 @@ class ListDebugLogs extends ListRecords
         ];
     }
 
-    /**
-     * Top-of-page tabs for the most common filters. Same rows, different
-     * default scope — avoids three clicks to get to "errors in last 24h".
-     */
     public function getTabs(): array
     {
         return [
             'all' => Tab::make('All'),
 
             'errors' => Tab::make('Errors')
-                ->badge(\App\Models\DebugLog::query()
-                    ->where('channel', 'error')
-                    ->where('is_resolved', false)
-                    ->where('created_at', '>=', now()->subDay())
-                    ->count() ?: null)
-                ->badgeColor('danger')
                 ->modifyQueryUsing(fn (Builder $q) => $q
                     ->where('channel', 'error')
                     ->where('is_resolved', false)),
