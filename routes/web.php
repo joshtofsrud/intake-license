@@ -61,37 +61,30 @@ Route::domain('app.' . $domain)->group(function () {
 // =========================================================================
 
 Route::middleware(['App\Http\Middleware\ResolveTenant'])
-    ->group(function () use ($tenantHost, $domain) {
+    ->domain($tenantHost)
+    ->group(function () {
 
-    // Public pages
-    Route::domain($tenantHost)->group(function () {
+    // ----------------------------------------------------------------
+    // Public pages — no auth required
+    // ----------------------------------------------------------------
+    Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
+    Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
+    Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
-        Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
-        Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
-        Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
+    Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
+    Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
+    Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
+    Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
 
-        Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
-        Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
-        Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
-        Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
+    Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
+    Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
-        Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
-        Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
+    Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
 
-        Route::get('/{slug}',    [TenantControllers\PublicController::class, 'page'])->where('slug', '^(?!admin).*$')->name('tenant.page');
-        Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
-
-    });
-
-    // Custom domains
-    Route::get('/',         [TenantControllers\PublicController::class, 'home'])->name('tenant.home.custom');
-    Route::get('/book',     [TenantControllers\PublicController::class, 'booking'])->name('tenant.booking.custom');
-    Route::get('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.custom');
-    Route::get('/{slug}',   [TenantControllers\PublicController::class, 'page'])->where('slug', '^(?!admin).*$')->name('tenant.page.custom');
-
-    // Tenant admin
-    Route::domain($tenantHost)
-        ->prefix('admin')
+    // ----------------------------------------------------------------
+    // Tenant admin — authenticated
+    // ----------------------------------------------------------------
+    Route::prefix('admin')
         ->name('tenant.')
         ->group(function () {
 
@@ -177,5 +170,8 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
         });
 
     });
+
+    // Public page catch-all — MUST be last (catches /{slug} for tenant pages)
+    Route::get('/{slug}', [TenantControllers\PublicController::class, 'page'])->name('tenant.page');
 
 });
