@@ -191,6 +191,7 @@ class AppointmentController extends Controller
                 'paid_display' => format_money($appointment->paid_cents),
                 'subtotal_display' => format_money($appointment->subtotal_cents),
                 'created_at' => $appointment->created_at->format('M j, Y g:i a'),
+                'slot_weight' => $appointment->slot_weight ?? 1,
                 'items' => $appointment->items->map(fn($i) => ['name' => $i->item_name_snapshot, 'tier' => $i->tier_name_snapshot, 'price' => format_money($i->price_cents)]),
                 'addons' => $appointment->addons->map(fn($a) => ['name' => $a->addon_name_snapshot, 'price' => format_money($a->price_cents)]),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
@@ -219,6 +220,12 @@ class AppointmentController extends Controller
             $appointment->update(['payment_status' => $newPayment]);
             return response()->json(['ok' => true, 'payment_status' => $newPayment]);
         }
+        if ($op === 'date') {
+            $request->validate(['appointment_date' => ['required', 'date']]);
+            $appointment->update(['appointment_date' => $request->input('appointment_date')]);
+            return response()->json(['ok' => true]);
+        }
+
         if ($op === 'add_charge') {
             $request->validate(['description' => ['required', 'string', 'max:255'], 'amount_cents' => ['required', 'integer', 'min:1']]);
             $charge = TenantAppointmentCharge::create(['appointment_id' => $appointment->id, 'description' => $request->input('description'), 'amount_cents' => (int) $request->input('amount_cents'), 'is_paid' => false, 'created_at' => now()]);
