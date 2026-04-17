@@ -1,7 +1,7 @@
 {{-- CTA banner. Content: headline, subheading, cta_label, cta_url, bg_color, text_color --}}
 <section class="{{ $padding }}" style="
-    background: {{ $c['bg_color'] ?: 'var(--mk-accent)' }};
-    color: {{ $c['text_color'] ?: '#ffffff' }};
+    background: {{ !empty($c['bg_color']) ? $c['bg_color'] : 'var(--mk-accent)' }};
+    color: {{ !empty($c['text_color']) ? $c['text_color'] : '#ffffff' }};
     text-align: center;
 ">
     <div class="mk-container" style="max-width:760px">
