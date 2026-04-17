@@ -1,5 +1,21 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Edit: ' . $page->title; @endphp
+@php
+  $pageTitle = 'Edit: ' . $page->title;
+  // Marketing-aware URL helpers. When editing a platform tenant page from
+  // the master admin, tenant.* routes require a subdomain param and
+  // tenant_url() points to a tenant subdomain we don't have. Swap for the
+  // admin routes + root-domain URLs when $isMarketing is true.
+  $isMarketing = $isMarketing ?? false;
+  $backUrl = $isMarketing
+      ? url('/admin/marketing-pages')
+      : route('tenant.pages.index');
+  $previewUrl = $isMarketing
+      ? 'https://' . config('intake.domain', 'intake.works') . '/' . ($page->is_home ? '' : $page->slug)
+      : tenant_url($page->is_home ? '' : $page->slug);
+  $storeUrl = $isMarketing
+      ? url('/admin/marketing-pages/store')
+      : route('tenant.pages.store');
+@endphp
 
 @push('styles')
 <style>
@@ -8,7 +24,6 @@
 .pb-col:last-child { border-right: none; }
 .pb-col-label { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; font-weight: 600; opacity: .35; margin-bottom: 14px; }
 
-/* Preview column */
 .pb-preview-col { display: flex; flex-direction: column; padding: 0; border-right: 0.5px solid var(--ia-border); background: #f5f5f5; }
 .pb-preview-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 0.5px solid var(--ia-border); background: var(--ia-surface); }
 .pb-preview-toolbar-left { display: flex; align-items: center; gap: 8px; }
@@ -20,7 +35,6 @@
 .pb-preview-frame { border: none; background: #fff; border-radius: 8px; box-shadow: 0 2px 20px rgba(0,0,0,.15); transition: width .3s, height .3s; width: 100%; height: 100%; }
 .pb-preview-frame.mobile { width: 375px; height: 100%; }
 
-/* Section blocks */
 .pb-section-block { border-radius: var(--ia-r-lg); border: 0.5px solid var(--ia-border); background: var(--ia-surface); margin-bottom: 8px; overflow: hidden; }
 .pb-section-block.active { border-color: var(--ia-accent); }
 .pb-section-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; border-bottom: 0.5px solid transparent; }
@@ -39,7 +53,6 @@
 .pb-textarea { width: 100%; padding: 6px 10px; border-radius: var(--ia-r-md); border: 0.5px solid var(--ia-border); background: var(--ia-input-bg); color: var(--ia-text); font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
 .pb-section-actions { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--ia-border); }
 
-/* Add section */
 .pb-add-section { padding: 12px; border-radius: var(--ia-r-lg); border: 0.5px dashed var(--ia-border); text-align: center; cursor: pointer; font-size: 13px; opacity: .5; margin-top: 4px; }
 .pb-add-section:hover { opacity: 1; border-color: var(--ia-accent); }
 .pb-add-panel { display: none; margin-top: 8px; }
@@ -49,11 +62,9 @@
 .pb-type-btn:hover { border-color: var(--ia-accent); background: var(--ia-accent-soft); }
 .pb-type-icon { font-size: 14px; margin-bottom: 2px; display: block; }
 
-/* Right column */
 .pb-save-btn { width: 100%; justify-content: center; }
 .nav-item-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
 
-/* Status toast */
 .pb-status { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; border-radius: 8px; font-size: 13px; background: #0a0a0a; color: #BEF264; z-index: 9999; opacity: 0; transition: opacity .3s; pointer-events: none; }
 
 @media (max-width: 1100px) {
@@ -82,9 +93,8 @@
     </p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.pages.index') }}" class="ia-btn ia-btn--ghost ia-btn--sm">← Pages</a>
-    <a href="{{ tenant_url($page->is_home ? '' : $page->slug) }}" target="_blank"
-       class="ia-btn ia-btn--secondary ia-btn--sm">Open in new tab ↗</a>
+    <a href="{{ $backUrl }}" class="ia-btn ia-btn--ghost ia-btn--sm">← {{ $isMarketing ? 'Marketing pages' : 'Pages' }}</a>
+    <a href="{{ $previewUrl }}" target="_blank" class="ia-btn ia-btn--secondary ia-btn--sm">Open in new tab ↗</a>
     <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick="savePageSettings()">Save changes</button>
   </div>
 </div>
@@ -106,8 +116,20 @@
     <div class="pb-add-panel" id="pb-add-panel">
       <div class="pb-type-grid">
         @php
-          $typeIcons = ['hero'=>'🖼','services'=>'⚙','text_image'=>'📝','cta_banner'=>'📣','image_gallery'=>'🖼','contact_form'=>'✉','booking_embed'=>'📅'];
-          $typeLabels = ['hero'=>'Hero','services'=>'Services','text_image'=>'Text + Image','cta_banner'=>'CTA Banner','image_gallery'=>'Gallery','contact_form'=>'Contact','booking_embed'=>'Booking'];
+          $typeIcons  = ['hero'=>'🖼','services'=>'⚙','text_image'=>'📝','cta_banner'=>'📣','image_gallery'=>'🖼','contact_form'=>'✉','booking_embed'=>'📅','pricing_table'=>'💲','feature_grid'=>'▦','step_timeline'=>'🔢','testimonial_carousel'=>'💬','logo_bar'=>'⚑','faq_accordion'=>'❓','comparison_table'=>'📊','industry_pack_showcase'=>'🏷','stats_row'=>'📈'];
+          $typeLabels = ['hero'=>'Hero','services'=>'Services','text_image'=>'Text + Image','cta_banner'=>'CTA Banner','image_gallery'=>'Gallery','contact_form'=>'Contact','booking_embed'=>'Booking','pricing_table'=>'Pricing','feature_grid'=>'Feature grid','step_timeline'=>'Step timeline','testimonial_carousel'=>'Testimonials','logo_bar'=>'Logo bar','faq_accordion'=>'FAQ','comparison_table'=>'Comparison','industry_pack_showcase'=>'Industries','stats_row'=>'Stats'];
+
+          // Filter section list based on context — tenant sites don't need marketing
+          // sections, and marketing pages don't need "services" or "booking_embed"
+          // since those require a real tenant catalog.
+          if ($isMarketing) {
+              unset($typeLabels['services'], $typeLabels['booking_embed']);
+          } else {
+              // Tenant editor: hide marketing-specific types for now
+              foreach (['pricing_table','feature_grid','step_timeline','testimonial_carousel','logo_bar','faq_accordion','comparison_table','industry_pack_showcase','stats_row'] as $t) {
+                  unset($typeLabels[$t]);
+              }
+          }
         @endphp
         @foreach($typeLabels as $type => $label)
           <button type="button" class="pb-type-btn" onclick="addSection('{{ $type }}')">
@@ -134,8 +156,7 @@
       </div>
     </div>
     <div class="pb-preview-frame-wrap">
-      <iframe id="pb-preview" class="pb-preview-frame"
-        src="{{ tenant_url($page->is_home ? '' : $page->slug) }}"></iframe>
+      <iframe id="pb-preview" class="pb-preview-frame" src="{{ $previewUrl }}"></iframe>
     </div>
   </div>
 
@@ -190,16 +211,13 @@
 
 @push('scripts')
 <script>
-var pageId   = '{{ $page->id }}';
-var csrf     = window.IntakeAdmin.csrfToken;
-var navCount = {{ $navItems->count() }};
-var storeUrl = '{{ route("tenant.pages.store") }}';
-var previewUrl = '{{ tenant_url($page->is_home ? "" : $page->slug) }}';
+var pageId    = '{{ $page->id }}';
+var csrf      = window.IntakeAdmin.csrfToken;
+var navCount  = {{ $navItems->count() }};
+var storeUrl  = '{{ $storeUrl }}';
+var previewUrl= '{{ $previewUrl }}';
 var refreshTimer = null;
 
-// ----------------------------------------------------------------
-// Preview
-// ----------------------------------------------------------------
 function refreshPreview() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(function() {
@@ -216,17 +234,11 @@ function setDevice(mode, btn) {
   else { frame.classList.remove('mobile'); }
 }
 
-// ----------------------------------------------------------------
-// Add section trigger
-// ----------------------------------------------------------------
 document.getElementById('pb-add-trigger').addEventListener('click', function () {
   document.getElementById('pb-add-panel').classList.add('open');
   this.style.display = 'none';
 });
 
-// ----------------------------------------------------------------
-// Add section
-// ----------------------------------------------------------------
 function addSection(type) {
   var fd = new FormData();
   fd.append('_token', csrf);
@@ -239,18 +251,12 @@ function addSection(type) {
     .then(function(resp) { if (resp.success) window.location.reload(); });
 }
 
-// ----------------------------------------------------------------
-// Section collapse/expand
-// ----------------------------------------------------------------
 document.querySelectorAll('.pb-section-head').forEach(function (head) {
   head.addEventListener('click', function () {
     head.closest('.pb-section-block').classList.toggle('open');
   });
 });
 
-// ----------------------------------------------------------------
-// Auto-save sections
-// ----------------------------------------------------------------
 var saveTimers = {};
 
 document.querySelectorAll('.pb-section-body').forEach(function (body) {
@@ -285,16 +291,10 @@ function saveSection(sectionId, body) {
   fetch(storeUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(function(r) { return r.json(); })
     .then(function(resp) {
-      if (resp.success) {
-        showStatus('Saved ✓');
-        refreshPreview();
-      }
+      if (resp.success) { showStatus('Saved ✓'); refreshPreview(); }
     });
 }
 
-// ----------------------------------------------------------------
-// Delete section
-// ----------------------------------------------------------------
 document.querySelectorAll('.pb-delete-section').forEach(function (btn) {
   btn.addEventListener('click', function (e) {
     e.stopPropagation();
@@ -307,16 +307,10 @@ document.querySelectorAll('.pb-delete-section').forEach(function (btn) {
     fd.append('section_id', sectionId);
 
     fetch(storeUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function() {
-        btn.closest('.pb-section-block').remove();
-        refreshPreview();
-      });
+      .then(function() { btn.closest('.pb-section-block').remove(); refreshPreview(); });
   });
 });
 
-// ----------------------------------------------------------------
-// Drag + drop reorder
-// ----------------------------------------------------------------
 var canvas = document.getElementById('pb-canvas');
 var dragging = null;
 
@@ -365,9 +359,6 @@ canvas.querySelectorAll('.pb-drag-handle').forEach(function (handle) {
   });
 });
 
-// ----------------------------------------------------------------
-// Page settings save
-// ----------------------------------------------------------------
 function savePageSettings() {
   var fd = new FormData();
   fd.append('_token', csrf);
@@ -388,9 +379,6 @@ function savePageSettings() {
     });
 }
 
-// ----------------------------------------------------------------
-// Nav editor
-// ----------------------------------------------------------------
 function addNavItem() {
   var list = document.getElementById('nav-items-list');
   var row = document.createElement('div');
@@ -426,10 +414,6 @@ function saveNav() {
     });
 }
 
-// ----------------------------------------------------------------
-// Status toast
-// ----------------------------------------------------------------
-// Upload image
 function uploadImage(fileInput, type, targetId) {
   var file = fileInput.files[0];
   if (!file) return;
@@ -449,9 +433,7 @@ function uploadImage(fileInput, type, targetId) {
       document.getElementById(targetId).value = resp.url;
       document.getElementById(targetId).dispatchEvent(new Event('input'));
       showStatus('Uploaded ✓');
-    } else {
-      showStatus('Upload failed: ' + (resp.message || 'error'));
-    }
+    } else { showStatus('Upload failed: ' + (resp.message || 'error')); }
   })
   .catch(function(e) { showStatus('Upload error: ' + e.message); });
   fileInput.value = '';
