@@ -1,13 +1,18 @@
 @php
   $bk = $bk ?? [];
-  $bkAccent = ($bk['accent'] ?? null) ?: ($currentTenant->accent_color ?? '#BEF264');
-  $bkText = ($bk['body_text'] ?? null) ?: ($currentTenant->text_color ?? '#111111');
-  $bkBg = $currentTenant->bg_color ?? '#ffffff';
-  $bkTint = $bk['bg_tint'] ?? '#FFFFFF';
-  $bkOpacity = ($bk['bg_opacity'] ?? 100) / 100;
-  $bkProgressBg = ($bk['progress_bg'] ?? null) ?: '#ABA6A6';
-  $bkProgressText = ($bk['progress_text'] ?? null) ?: '#000000';
   $bkTheme = $bk['theme'] ?? 'light';
+  $isDark = $bkTheme === 'dark';
+  $bkAccent = ($bk['accent'] ?? null) ?: ($currentTenant->accent_color ?? '#BEF264');
+  $bkText = $isDark
+    ? (($bk['body_text'] ?? null) ?: '#f0f0f0')
+    : (($bk['body_text'] ?? null) ?: ($currentTenant->text_color ?? '#111111'));
+  $bkBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
+  $bkTint = $isDark
+    ? (($bk['bg_tint'] ?? null) ?: '#1a1a1a')
+    : (($bk['bg_tint'] ?? null) ?: '#FFFFFF');
+  $bkOpacity = ($bk['bg_opacity'] ?? 100) / 100;
+  $bkProgressBg = ($bk['progress_bg'] ?? null) ?: ($isDark ? '#333333' : '#ABA6A6');
+  $bkProgressText = ($bk['progress_text'] ?? null) ?: ($isDark ? '#f0f0f0' : '#000000');
   $stepLabels = [
     $bk['step1_label'] ?? 'Services',
     $bk['step2_label'] ?? 'Schedule',
@@ -44,16 +49,25 @@
       background: var(--p-bg);
       color: var(--p-text);
       -webkit-font-smoothing: antialiased;
-      @if($bkOpacity < 1)
-      background-image: linear-gradient(
-        rgba({{ implode(',', sscanf($bkTint, "#%02x%02x%02x")) }}, {{ $bkOpacity }}),
-        rgba({{ implode(',', sscanf($bkTint, "#%02x%02x%02x")) }}, {{ $bkOpacity }})
-      );
-      @endif
     }
-    @if($bkTheme === 'dark')
-    body { background: #111; color: #f0f0f0; --p-text: #f0f0f0; --p-bg: #111; }
-    .bk-top-bar { border-bottom-color: rgba(255,255,255,.08); }
+    @if($bkOpacity < 1)
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: {{ $bkTint }};
+      opacity: {{ $bkOpacity }};
+      z-index: -1;
+      pointer-events: none;
+    }
+    @endif
+    @if($isDark)
+    .bk-top-bar { border-bottom-color: rgba(255,255,255,.08) !important; }
+    .bk-item-card, .bk-review-card { border-color: rgba(255,255,255,.1) !important; }
+    .bk-input, .bk-select, .bk-textarea, .bk-search { background: rgba(255,255,255,.06) !important; border-color: rgba(255,255,255,.12) !important; color: #f0f0f0 !important; }
+    .bk-cal-day.available:hover { background: rgba(255,255,255,.08) !important; }
+    .bk-sidebar { background: rgba(255,255,255,.04) !important; border-color: rgba(255,255,255,.1) !important; }
+    .bk-addon-row { border-color: rgba(255,255,255,.08) !important; }
     @endif
     a { color: inherit; text-decoration: none; }
     button { font-family: inherit; }
