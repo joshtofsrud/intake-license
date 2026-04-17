@@ -19,7 +19,6 @@
   </div>
 </div>
 
-{{-- New page inline form --}}
 <div id="new-page-form" class="ia-card ia-card--tight" style="display:none;margin-bottom:20px">
   <form method="POST" action="{{ route('tenant.pages.store') }}" style="display:flex;gap:10px;align-items:flex-end">
     @csrf
@@ -69,12 +68,12 @@
             <span style="font-size:13px;opacity:.5">{{ $page->is_in_nav ? 'Yes' : 'No' }}</span>
           </td>
           <td style="text-align:right;white-space:nowrap">
-            <a href="{{ route('tenant.pages.edit', $page->id) }}"
+            <a href="{{ route('tenant.pages.index', ['edit' => $page->id]) }}"
                class="ia-btn ia-btn--secondary ia-btn--sm">Edit</a>
             @if(!$page->is_home)
-              <form method="POST" action="{{ route('tenant.pages.destroy', $page->id) }}"
+              <form method="POST" action="{{ route('tenant.pages.store', ['delete' => $page->id]) }}"
                 style="display:inline" data-confirm="Delete '{{ $page->title }}'?">
-                @csrf @method('DELETE')
+                @csrf
                 <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Delete</button>
               </form>
             @endif

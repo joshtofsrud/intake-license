@@ -63,9 +63,6 @@
 
 <div class="pb-layout">
 
-  {{-- ============================================================
-       Left: section canvas
-       ============================================================ --}}
   <div>
     <div class="pb-canvas" id="pb-canvas">
       @foreach($sections as $section)
@@ -73,7 +70,6 @@
       @endforeach
     </div>
 
-    {{-- Add section button --}}
     <div class="pb-add-section" id="pb-add-trigger">
       + Add section
     </div>
@@ -85,27 +81,19 @@
       <div class="pb-type-grid">
         @php
           $typeIcons = [
-            'hero'          => '🖼',
-            'services'      => '⚙',
-            'text_image'    => '📝',
-            'cta_banner'    => '📣',
-            'image_gallery' => '🖼',
-            'contact_form'  => '✉',
-            'booking_embed' => '📅',
+            'hero' => '🖼', 'services' => '⚙', 'text_image' => '📝',
+            'cta_banner' => '📣', 'image_gallery' => '🖼',
+            'contact_form' => '✉', 'booking_embed' => '📅',
           ];
           $typeLabels = [
-            'hero'          => 'Hero',
-            'services'      => 'Services preview',
-            'text_image'    => 'Text + image',
-            'cta_banner'    => 'CTA banner',
-            'image_gallery' => 'Image gallery',
-            'contact_form'  => 'Contact form',
+            'hero' => 'Hero', 'services' => 'Services preview',
+            'text_image' => 'Text + image', 'cta_banner' => 'CTA banner',
+            'image_gallery' => 'Image gallery', 'contact_form' => 'Contact form',
             'booking_embed' => 'Booking form',
           ];
         @endphp
         @foreach($typeLabels as $type => $label)
-          <button type="button" class="pb-type-btn"
-            onclick="addSection('{{ $type }}')">
+          <button type="button" class="pb-type-btn" onclick="addSection('{{ $type }}')">
             <span class="pb-type-icon" style="font-size:16px">{{ $typeIcons[$type] ?? '□' }}</span>
             {{ $label }}
           </button>
@@ -118,18 +106,14 @@
     </div>
   </div>
 
-  {{-- ============================================================
-       Right: page settings + nav editor
-       ============================================================ --}}
   <div style="display:flex;flex-direction:column;gap:16px">
 
-    {{-- Page settings --}}
     <div class="ia-card ia-card--tight">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
         Page settings
       </div>
-      <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}">
-        @csrf @method('PATCH')
+      <form method="POST" action="{{ route('tenant.pages.store', ['update' => $page->id]) }}">
+        @csrf
         <input type="hidden" name="op" value="update_page">
         <div class="ia-form-group">
           <label class="ia-form-label">Title</label>
@@ -163,13 +147,12 @@
       </form>
     </div>
 
-    {{-- Nav editor --}}
     <div class="ia-card ia-card--tight">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
         Navigation
       </div>
-      <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" id="nav-form">
-        @csrf @method('PATCH')
+      <form method="POST" action="{{ route('tenant.pages.store', ['update' => $page->id]) }}" id="nav-form">
+        @csrf
         <input type="hidden" name="op" value="update_nav">
 
         <div id="nav-items-list">
@@ -202,47 +185,36 @@
 var pageId   = '{{ $page->id }}';
 var csrf     = window.IntakeAdmin.csrfToken;
 var navCount = {{ $navItems->count() }};
+var storeUrl = '{{ route("tenant.pages.store") }}';
 
-// ----------------------------------------------------------------
-// Add section trigger
-// ----------------------------------------------------------------
 document.getElementById('pb-add-trigger').addEventListener('click', function () {
   document.getElementById('pb-add-panel').classList.add('open');
   this.style.display = 'none';
 });
 
-// ----------------------------------------------------------------
-// Add section via AJAX
-// ----------------------------------------------------------------
 function addSection(type) {
   var fd = new FormData();
   fd.append('_token', csrf);
+  fd.append('section_op', 'add');
+  fd.append('page_id', pageId);
   fd.append('type', type);
 
-  fetch('/admin/pages/' + pageId + '/sections', {
+  fetch(storeUrl, {
     method: 'POST', body: fd,
     headers: { 'X-Requested-With': 'XMLHttpRequest' }
   })
   .then(function (r) { return r.json(); })
   .then(function (resp) {
-    if (!resp.success) return;
-    // Reload the page to show the new section with its editor
-    window.location.reload();
+    if (resp.success) window.location.reload();
   });
 }
 
-// ----------------------------------------------------------------
-// Section collapse/expand
-// ----------------------------------------------------------------
 document.querySelectorAll('.pb-section-head').forEach(function (head) {
   head.addEventListener('click', function () {
     head.closest('.pb-section-block').classList.toggle('open');
   });
 });
 
-// ----------------------------------------------------------------
-// Auto-save section content on input (debounced)
-// ----------------------------------------------------------------
 var saveTimers = {};
 
 document.querySelectorAll('.pb-section-body').forEach(function (body) {
@@ -250,15 +222,11 @@ document.querySelectorAll('.pb-section-body').forEach(function (body) {
   body.querySelectorAll('input, textarea, select').forEach(function (input) {
     input.addEventListener('input', function () {
       clearTimeout(saveTimers[sectionId]);
-      saveTimers[sectionId] = setTimeout(function () {
-        saveSection(sectionId, body);
-      }, 800);
+      saveTimers[sectionId] = setTimeout(function () { saveSection(sectionId, body); }, 800);
     });
     input.addEventListener('change', function () {
       clearTimeout(saveTimers[sectionId]);
-      saveTimers[sectionId] = setTimeout(function () {
-        saveSection(sectionId, body);
-      }, 100);
+      saveTimers[sectionId] = setTimeout(function () { saveSection(sectionId, body); }, 100);
     });
   });
 });
@@ -271,11 +239,13 @@ function saveSection(sectionId, body) {
 
   var fd = new FormData();
   fd.append('_token', csrf);
-  fd.append('_method', 'PATCH');
+  fd.append('section_op', 'update');
+  fd.append('page_id', pageId);
+  fd.append('section_id', sectionId);
   fd.append('is_visible', body.querySelector('[data-field="is_visible"]')?.value ?? 1);
   Object.keys(content).forEach(function (k) { fd.append('content[' + k + ']', content[k]); });
 
-  fetch('/admin/pages/' + pageId + '/sections/' + sectionId, {
+  fetch(storeUrl, {
     method: 'POST', body: fd,
     headers: { 'X-Requested-With': 'XMLHttpRequest' }
   }).then(function (r) { return r.json(); })
@@ -284,18 +254,17 @@ function saveSection(sectionId, body) {
     });
 }
 
-// ----------------------------------------------------------------
-// Delete section
-// ----------------------------------------------------------------
 document.querySelectorAll('.pb-delete-section').forEach(function (btn) {
   btn.addEventListener('click', function () {
     if (!confirm('Delete this section?')) return;
     var sectionId = btn.getAttribute('data-section-id');
     var fd = new FormData();
     fd.append('_token', csrf);
-    fd.append('_method', 'DELETE');
+    fd.append('section_op', 'delete');
+    fd.append('page_id', pageId);
+    fd.append('section_id', sectionId);
 
-    fetch('/admin/pages/' + pageId + '/sections/' + sectionId, {
+    fetch(storeUrl, {
       method: 'POST', body: fd,
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     }).then(function () {
@@ -304,11 +273,8 @@ document.querySelectorAll('.pb-delete-section').forEach(function (btn) {
   });
 });
 
-// ----------------------------------------------------------------
-// Section drag + drop reorder
-// ----------------------------------------------------------------
-var canvas    = document.getElementById('pb-canvas');
-var dragging  = null;
+var canvas   = document.getElementById('pb-canvas');
+var dragging = null;
 
 canvas.querySelectorAll('.pb-drag-handle').forEach(function (handle) {
   handle.addEventListener('mousedown', function (e) {
@@ -320,9 +286,9 @@ canvas.querySelectorAll('.pb-drag-handle').forEach(function (handle) {
       var target = document.elementFromPoint(e2.clientX, e2.clientY);
       var over   = target ? target.closest('.pb-section-block') : null;
       if (over && over !== dragging) {
-        var all   = Array.from(canvas.querySelectorAll('.pb-section-block'));
-        var di    = all.indexOf(dragging);
-        var oi    = all.indexOf(over);
+        var all = Array.from(canvas.querySelectorAll('.pb-section-block'));
+        var di  = all.indexOf(dragging);
+        var oi  = all.indexOf(over);
         canvas.insertBefore(dragging, di < oi ? over.nextSibling : over);
       }
     };
@@ -332,15 +298,16 @@ canvas.querySelectorAll('.pb-drag-handle').forEach(function (handle) {
       document.removeEventListener('mouseup', onUp);
       dragging.classList.remove('dragging');
 
-      // Save order
       var order = Array.from(canvas.querySelectorAll('.pb-section-block'))
         .map(function (b) { return b.getAttribute('data-section-id'); });
 
       var fd = new FormData();
       fd.append('_token', csrf);
+      fd.append('section_op', 'reorder');
+      fd.append('page_id', pageId);
       order.forEach(function (id) { fd.append('order[]', id); });
 
-      fetch('/admin/pages/' + pageId + '/sections/reorder', {
+      fetch(storeUrl, {
         method: 'POST', body: fd,
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       });
@@ -353,9 +320,6 @@ canvas.querySelectorAll('.pb-drag-handle').forEach(function (handle) {
   });
 });
 
-// ----------------------------------------------------------------
-// Nav item add
-// ----------------------------------------------------------------
 function addNavItem() {
   var list = document.getElementById('nav-items-list');
   var row  = document.createElement('div');
@@ -368,9 +332,6 @@ function addNavItem() {
   navCount++;
 }
 
-// ----------------------------------------------------------------
-// Status indicator
-// ----------------------------------------------------------------
 function showStatus(msg) {
   var el = document.getElementById('pb-status');
   if (!el) {
