@@ -6,6 +6,7 @@ use App\Filament\Resources\ActivationResource;
 use App\Filament\Resources\CustomerResource;
 use App\Filament\Resources\DebugLogResource;
 use App\Filament\Resources\LicenseResource;
+use App\Filament\Resources\MarketingPageResource;
 use App\Filament\Resources\TenantResource;
 use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\PlatformStatsWidget;
@@ -41,7 +42,8 @@ class AdminPanelProvider extends PanelProvider
                 CustomerResource::class,
                 LicenseResource::class,
                 ActivationResource::class,
-                DebugLogResource::class, // new — master admin debug panel
+                MarketingPageResource::class, // new — marketing page editor entry
+                DebugLogResource::class,
             ])
             ->pages([
                 Pages\Dashboard::class,
@@ -49,7 +51,7 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 PlatformStatsWidget::class,
                 StatsOverview::class,
-                DebugLogHeaderStats::class, // surface error counts on dashboard too
+                DebugLogHeaderStats::class,
             ])
             ->middleware([
                 EncryptCookies::class,
