@@ -79,6 +79,15 @@
           <option value="tall" {{ ($c['nav_height'] ?? 'normal') === 'tall' ? 'selected' : '' }}>Tall (80px)</option>
         </select>
       </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Background color</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="color" data-field="bg_color" value="{{ ($c['bg_color'] ?? null) ?: '#ffffff' }}"
+            style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+          <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['bg_color'] ?? '' }}" placeholder="Default" data-field="bg_color_text">
+        </div>
+        <div style="font-size:10px;opacity:.3;margin-top:2px">Leave blank to use site background color</div>
+      </div>
       <div class="pb-field-row" style="display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:12px;opacity:.5">Show CTA on mobile</span>
         <input type="checkbox" data-field="show_cta_mobile" value="1"
@@ -507,6 +516,25 @@
         <input type="checkbox" data-field="show_email" value="1"
           {{ ($c['show_email'] ?? true) ? 'checked' : '' }}
           onchange="this.value=this.checked?1:0">
+      </div>
+      <div style="border-top:0.5px solid var(--ia-border);margin:10px 0;padding-top:10px">
+        <div class="pb-field-row">
+          <div class="pb-field-label">Background color</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="color" data-field="footer_bg" value="{{ ($c['footer_bg'] ?? null) ?: '#ffffff' }}"
+              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['footer_bg'] ?? '' }}" placeholder="Default" data-field="footer_bg_text">
+          </div>
+          <div style="font-size:10px;opacity:.3;margin-top:2px">Leave blank to use site background</div>
+        </div>
+        <div class="pb-field-row">
+          <div class="pb-field-label">Text color</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="color" data-field="footer_text" value="{{ ($c['footer_text'] ?? null) ?: '#111111' }}"
+              style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+            <input type="text" class="pb-input" style="width:80px;font-size:11px;font-family:monospace" value="{{ $c['footer_text'] ?? '' }}" placeholder="Default" data-field="footer_text_text">
+          </div>
+        </div>
       </div>
 
     {{-- ============================================================

@@ -1,9 +1,14 @@
+@php
+  $sidebarBg = ($adminTheme === 'c') ? '#0c0c0c' : (($adminTheme === 'a') ? '#0f0f0f' : '#ffffff');
+  $sidebarLogo = \App\Support\ColorHelper::pickLogo($currentTenant, $sidebarBg);
+@endphp
+
 <aside class="ia-sidebar">
 
   {{-- Logo --}}
   <div class="ia-sidebar-logo">
-    @if($currentTenant->logo_url)
-      <img src="{{ $currentTenant->logo_url }}" alt="{{ $currentTenant->name }}" style="height:26px;width:auto;border-radius:4px">
+    @if($sidebarLogo)
+      <img src="{{ $sidebarLogo }}" alt="{{ $currentTenant->name }}" style="height:26px;width:auto;border-radius:4px">
     @else
       <div class="ia-sidebar-logo-mark">{{ strtoupper(substr($currentTenant->name, 0, 1)) }}</div>
     @endif
