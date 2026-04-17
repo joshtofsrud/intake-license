@@ -1,5 +1,16 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Customers'; @endphp
+@php
+  $pageTitle = 'Customers';
+  $sortLabels = [
+    'name_asc'     => 'Name A–Z',
+    'name_desc'    => 'Name Z–A',
+    'added_desc'   => 'Newest first',
+    'added_asc'    => 'Oldest first',
+    'spend_desc'   => 'Top spenders',
+    'spend_asc'    => 'Lowest spend',
+    'last_service' => 'Last service',
+  ];
+@endphp
 
 @section('content')
 
@@ -54,8 +65,15 @@
 <form method="get" action="{{ route('tenant.customers.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search name, email, or phone…" style="max-width:300px">
+
+  <select name="sort" class="ia-input" style="width:auto">
+    @foreach($sortLabels as $val => $label)
+      <option value="{{ $val }}" @selected($sort === $val)>{{ $label }}</option>
+    @endforeach
+  </select>
+
   <button type="submit" class="ia-btn ia-btn--secondary">Search</button>
-  @if($search)
+  @if($search || $sort !== 'name_asc')
     <a href="{{ route('tenant.customers.index') }}" class="ia-btn ia-btn--ghost">Reset</a>
   @endif
 </form>

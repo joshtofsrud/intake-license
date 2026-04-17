@@ -11,6 +11,15 @@
     'cancelled'   => 'Cancelled',
     'refunded'    => 'Refunded',
   ];
+  $sortLabels = [
+    'date_desc'  => 'Newest first',
+    'date_asc'   => 'Oldest first',
+    'name_asc'   => 'Customer A–Z',
+    'name_desc'  => 'Customer Z–A',
+    'status'     => 'By status',
+    'total_desc' => 'Total (high–low)',
+    'total_asc'  => 'Total (low–high)',
+  ];
 @endphp
 
 @section('content')
@@ -27,7 +36,6 @@
   </div>
 </div>
 
-{{-- Filter toolbar --}}
 <form method="get" action="{{ route('tenant.appointments.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search ITO#, name, email…" style="max-width:260px">
@@ -51,8 +59,14 @@
   <input type="date" name="date_to" class="ia-input" value="{{ $dateTo }}"
     style="width:auto" title="To date">
 
+  <select name="sort" class="ia-input" style="width:auto">
+    @foreach($sortLabels as $val => $label)
+      <option value="{{ $val }}" @selected($sort === $val)>{{ $label }}</option>
+    @endforeach
+  </select>
+
   <button type="submit" class="ia-btn ia-btn--secondary">Filter</button>
-  @if($search || $status || $payment || $dateFrom || $dateTo)
+  @if($search || $status || $payment || $dateFrom || $dateTo || $sort !== 'date_desc')
     <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost">Reset</a>
   @endif
 </form>
@@ -83,9 +97,7 @@
       </button>
     @endif
   </div>
-
 @else
-
   <div class="ia-table-wrap">
     <table class="ia-table">
       <thead>
@@ -101,16 +113,12 @@
       <tbody>
         @foreach($appointments as $appt)
           <tr style="cursor:pointer" onclick="openDetailModal('appointment','{{ $appt->id }}')">
-            <td>
-              <span style="font-weight:500;color:inherit">{{ $appt->ra_number }}</span>
-            </td>
+            <td><span style="font-weight:500">{{ $appt->ra_number }}</span></td>
             <td>
               <div style="font-weight:500">{{ $appt->customerName() }}</div>
               <div class="ia-muted-cell" style="font-size:12px">{{ $appt->customer_email }}</div>
             </td>
-            <td class="ia-muted-cell">
-              {{ $appt->appointment_date->format('M j, Y') }}
-            </td>
+            <td class="ia-muted-cell">{{ $appt->appointment_date->format('M j, Y') }}</td>
             <td>
               <span class="ia-badge ia-badge--{{ str_replace('_','-',$appt->status) }}">
                 {{ $statusLabels[$appt->status] ?? $appt->status }}
@@ -128,18 +136,14 @@
     </table>
   </div>
 
-  {{-- Pagination --}}
   @if($totalPages > 1)
     <div class="ia-pagination">
       @for($p = 1; $p <= $totalPages; $p++)
         <a href="{{ route('tenant.appointments.index', array_merge(request()->query(), ['page' => $p])) }}"
-           class="ia-page-btn {{ $p === $page ? 'active' : '' }}">
-          {{ $p }}
-        </a>
+           class="ia-page-btn {{ $p === $page ? 'active' : '' }}">{{ $p }}</a>
       @endfor
     </div>
   @endif
-
 @endif
 
 @include('tenant.appointments._create_modal')

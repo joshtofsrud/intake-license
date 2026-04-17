@@ -15,12 +15,12 @@ class CustomerController extends Controller
     {
         $tenant = tenant();
 
-        // JSON detail request
         if ($request->has('detail') && ($request->expectsJson() || $request->ajax())) {
             return $this->jsonDetail($tenant, $request->input('detail'));
         }
 
         $search  = $request->input('s', '');
+        $sort    = $request->input('sort', 'name_asc');
         $page    = max(1, (int) $request->input('page', 1));
         $perPage = 25;
 
@@ -35,9 +35,24 @@ class CustomerController extends Controller
             });
         }
 
+        // Sort
+        switch ($sort) {
+            case 'name_desc':
+                $q->orderByDesc('last_name')->orderByDesc('first_name');
+                break;
+            case 'added_desc':
+                $q->orderByDesc('created_at');
+                break;
+            case 'added_asc':
+                $q->orderBy('created_at');
+                break;
+            default: // name_asc
+                $q->orderBy('last_name')->orderBy('first_name');
+                break;
+        }
+
         $total   = $q->count();
-        $customers = $q->orderBy('last_name')->orderBy('first_name')
-                       ->offset(($page - 1) * $perPage)
+        $customers = $q->offset(($page - 1) * $perPage)
                        ->limit($perPage)
                        ->get();
 
@@ -60,10 +75,19 @@ class CustomerController extends Controller
             }
         }
 
+        // Re-sort by spend/last service if needed (done in PHP since it's a joined stat)
+        if ($sort === 'spend_desc') {
+            $customers = $customers->sortByDesc(fn($c) => (int)($stats[$c->id]?->total_spend_cents ?? 0))->values();
+        } elseif ($sort === 'spend_asc') {
+            $customers = $customers->sortBy(fn($c) => (int)($stats[$c->id]?->total_spend_cents ?? 0))->values();
+        } elseif ($sort === 'last_service') {
+            $customers = $customers->sortByDesc(fn($c) => $stats[$c->id]?->last_service_date ?? '0000-00-00')->values();
+        }
+
         $totalPages = max(1, ceil($total / $perPage));
 
         return view('tenant.customers.index', compact(
-            'customers', 'stats', 'total', 'page', 'totalPages', 'search'
+            'customers', 'stats', 'total', 'page', 'totalPages', 'search', 'sort'
         ));
     }
 
@@ -79,7 +103,6 @@ class CustomerController extends Controller
     {
         $tenant = tenant();
 
-        // If ?update=UUID, route to update handler
         if ($request->has('update')) {
             return $this->handleUpdate($tenant, $request->input('update'), $request);
         }
@@ -113,58 +136,38 @@ class CustomerController extends Controller
 
     private function jsonDetail($tenant, string $id)
     {
-        $customer = TenantCustomer::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
 
-        $notes = TenantCustomerNote::where('customer_id', $customer->id)
-            ->orderByDesc('created_at')
-            ->get();
+        $notes = TenantCustomerNote::where('customer_id', $customer->id)->orderByDesc('created_at')->get();
 
         $appointments = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('customer_email', $customer->email)
-            ->orderByDesc('appointment_date')
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('appointment_date')->orderByDesc('created_at')->get();
 
         $totalSpend = $appointments->where('payment_status', 'paid')->sum('total_cents');
-        $lastService = $appointments->whereIn('status', ['completed','closed','shipped'])
-            ->max('appointment_date');
+        $lastService = $appointments->whereIn('status', ['completed','closed','shipped'])->max('appointment_date');
         $totalAppts = $appointments->count();
 
         return response()->json([
             'ok' => true,
             'customer' => [
-                'id'            => $customer->id,
-                'first_name'    => $customer->first_name,
-                'last_name'     => $customer->last_name,
-                'name'          => $customer->first_name . ' ' . $customer->last_name,
-                'email'         => $customer->email,
-                'phone'         => $customer->phone,
-                'address_line1' => $customer->address_line1,
-                'city'          => $customer->city,
-                'state'         => $customer->state,
-                'postcode'      => $customer->postcode,
-                'country'       => $customer->country,
-                'created_at'    => $customer->created_at->format('M j, Y'),
-                'total_spend'   => format_money($totalSpend),
-                'last_service'  => $lastService ? \Carbon\Carbon::parse($lastService)->format('M j, Y') : null,
-                'total_appts'   => $totalAppts,
+                'id' => $customer->id, 'first_name' => $customer->first_name, 'last_name' => $customer->last_name,
+                'name' => $customer->first_name . ' ' . $customer->last_name, 'email' => $customer->email,
+                'phone' => $customer->phone, 'address_line1' => $customer->address_line1,
+                'city' => $customer->city, 'state' => $customer->state, 'postcode' => $customer->postcode,
+                'country' => $customer->country, 'created_at' => $customer->created_at->format('M j, Y'),
+                'total_spend' => format_money($totalSpend),
+                'last_service' => $lastService ? \Carbon\Carbon::parse($lastService)->format('M j, Y') : null,
+                'total_appts' => $totalAppts,
             ],
             'appointments' => $appointments->take(10)->map(fn($a) => [
-                'id'      => $a->id,
-                'ito'     => $a->ra_number,
-                'date'    => $a->appointment_date->format('M j, Y'),
-                'status'  => ucwords(str_replace('_', ' ', $a->status)),
-                'status_key' => $a->status,
-                'payment' => ucfirst($a->payment_status),
-                'payment_key' => $a->payment_status,
-                'total'   => format_money($a->total_cents),
+                'id' => $a->id, 'ito' => $a->ra_number, 'date' => $a->appointment_date->format('M j, Y'),
+                'status' => ucwords(str_replace('_', ' ', $a->status)), 'status_key' => $a->status,
+                'payment' => ucfirst($a->payment_status), 'payment_key' => $a->payment_status,
+                'total' => format_money($a->total_cents),
             ]),
             'notes' => $notes->map(fn($n) => [
-                'id'         => $n->id,
-                'note'       => $n->note,
-                'author'     => $n->user?->name ?? 'Staff',
+                'id' => $n->id, 'note' => $n->note, 'author' => $n->user?->name ?? 'Staff',
                 'created_at' => $n->created_at->format('M j, g:i a'),
             ]),
         ]);
@@ -172,10 +175,7 @@ class CustomerController extends Controller
 
     private function handleUpdate($tenant, string $id, Request $request)
     {
-        $customer = TenantCustomer::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         $op = $request->input('op');
 
         if ($op === 'update_info') {
@@ -183,36 +183,17 @@ class CustomerController extends Controller
             $customer->update($data);
             return response()->json(['ok' => true]);
         }
-
         if ($op === 'add_note') {
             $note = mb_substr(trim($request->input('note', '')), 0, 200);
-            if (!$note) {
-                return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
-            }
-            $n = TenantCustomerNote::create([
-                'tenant_id'   => $tenant->id,
-                'customer_id' => $customer->id,
-                'user_id'     => Auth::guard('tenant')->id(),
-                'note'        => $note,
-                'created_at'  => now(),
-            ]);
+            if (!$note) return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
+            $n = TenantCustomerNote::create(['tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'user_id' => Auth::guard('tenant')->id(), 'note' => $note, 'created_at' => now()]);
             $user = Auth::guard('tenant')->user();
-            return response()->json([
-                'ok'         => true,
-                'id'         => $n->id,
-                'note'       => $n->note,
-                'author'     => $user->name,
-                'created_at' => $n->created_at->format('M j, g:i a'),
-            ]);
+            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note, 'author' => $user->name, 'created_at' => $n->created_at->format('M j, g:i a')]);
         }
-
         if ($op === 'delete_note') {
-            TenantCustomerNote::where('customer_id', $customer->id)
-                ->where('id', $request->input('note_id'))
-                ->delete();
+            TenantCustomerNote::where('customer_id', $customer->id)->where('id', $request->input('note_id'))->delete();
             return response()->json(['ok' => true]);
         }
-
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
 
@@ -220,27 +201,18 @@ class CustomerController extends Controller
     {
         $emailRules = $existingEmail ? ['nullable','email','max:191'] : ['required','email','max:191'];
         $request->validate([
-            'first_name' => ['required', 'string', 'max:100'],
-            'last_name'  => ['required', 'string', 'max:100'],
-            'email'      => $emailRules,
-            'phone'      => ['nullable', 'string', 'max:32'],
-            'address_line1' => ['nullable', 'string', 'max:191'],
-            'city'       => ['nullable', 'string', 'max:100'],
-            'state'      => ['nullable', 'string', 'max:64'],
-            'postcode'   => ['nullable', 'string', 'max:20'],
-            'country'    => ['nullable', 'string', 'max:2'],
+            'first_name' => ['required', 'string', 'max:100'], 'last_name' => ['required', 'string', 'max:100'],
+            'email' => $emailRules, 'phone' => ['nullable', 'string', 'max:32'],
+            'address_line1' => ['nullable', 'string', 'max:191'], 'city' => ['nullable', 'string', 'max:100'],
+            'state' => ['nullable', 'string', 'max:64'], 'postcode' => ['nullable', 'string', 'max:20'],
+            'country' => ['nullable', 'string', 'max:2'],
         ]);
-
         return array_filter([
-            'first_name'    => $request->input('first_name'),
-            'last_name'     => $request->input('last_name'),
-            'email'         => $request->input('email') ?? $existingEmail,
-            'phone'         => $request->input('phone'),
-            'address_line1' => $request->input('address_line1'),
-            'city'          => $request->input('city'),
-            'state'         => $request->input('state'),
-            'postcode'      => $request->input('postcode'),
-            'country'       => strtoupper($request->input('country', 'US')),
+            'first_name' => $request->input('first_name'), 'last_name' => $request->input('last_name'),
+            'email' => $request->input('email') ?? $existingEmail, 'phone' => $request->input('phone'),
+            'address_line1' => $request->input('address_line1'), 'city' => $request->input('city'),
+            'state' => $request->input('state'), 'postcode' => $request->input('postcode'),
+            'country' => strtoupper($request->input('country', 'US')),
         ], fn($v) => $v !== null && $v !== '');
     }
 }
