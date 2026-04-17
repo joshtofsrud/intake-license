@@ -162,6 +162,8 @@
           onchange="syncSwatch('booking_body_text',this.value)">
       </div>
     </div>
+    <div class="bke-section-divider"></div>
+    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" style="width:100%" onclick="resetDefaults()">Reset to defaults</button>
   </div>
 
   {{-- CENTER: Live Preview --}}
