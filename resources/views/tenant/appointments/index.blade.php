@@ -100,12 +100,9 @@
       </thead>
       <tbody>
         @foreach($appointments as $appt)
-          @php $url = route('tenant.appointments.show', $appt->id); @endphp
-          <tr onclick="window.location='{{ $url }}'">
+          <tr style="cursor:pointer" onclick="openDetailModal('appointment','{{ $appt->id }}')">
             <td>
-              <a href="{{ $url }}" style="font-weight:500;color:inherit">
-                {{ $appt->ra_number }}
-              </a>
+              <span style="font-weight:500;color:inherit">{{ $appt->ra_number }}</span>
             </td>
             <td>
               <div style="font-weight:500">{{ $appt->customerName() }}</div>

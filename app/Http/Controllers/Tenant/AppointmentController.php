@@ -30,6 +30,16 @@ class AppointmentController extends Controller
         'refunded'    => [],
     ];
 
+    private const TRANSITION_LABELS = [
+        'confirmed'   => 'Confirm',
+        'in_progress' => 'Start Work',
+        'completed'   => 'Mark Completed',
+        'shipped'     => 'Mark Shipped',
+        'closed'      => 'Close Job',
+        'cancelled'   => 'Cancel',
+        'refunded'    => 'Refund',
+    ];
+
     private const DESTRUCTIVE = ['cancelled', 'refunded'];
 
     // ----------------------------------------------------------------
@@ -77,6 +87,81 @@ class AppointmentController extends Controller
     }
 
     // ----------------------------------------------------------------
+    // JSON detail (for modal)
+    // ----------------------------------------------------------------
+    public function show(Request $request, string $id)
+    {
+        $tenant      = tenant();
+        $appointment = TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->with(['items', 'addons', 'notes', 'charges', 'customer'])
+            ->firstOrFail();
+
+        $transitions = self::TRANSITIONS[$appointment->status] ?? [];
+        $destructive = self::DESTRUCTIVE;
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'appointment' => [
+                    'id'              => $appointment->id,
+                    'ra_number'       => $appointment->ra_number,
+                    'status'          => $appointment->status,
+                    'status_label'    => ucwords(str_replace('_', ' ', $appointment->status)),
+                    'payment_status'  => $appointment->payment_status,
+                    'payment_label'   => ucfirst($appointment->payment_status),
+                    'customer_name'   => $appointment->customerName(),
+                    'customer_email'  => $appointment->customer_email,
+                    'customer_phone'  => $appointment->customer_phone,
+                    'customer_id'     => $appointment->customer_id,
+                    'appointment_date'=> $appointment->appointment_date->format('M j, Y'),
+                    'appointment_date_raw' => $appointment->appointment_date->format('Y-m-d'),
+                    'staff_notes'     => $appointment->staff_notes,
+                    'subtotal_cents'  => $appointment->subtotal_cents,
+                    'tax_cents'       => $appointment->tax_cents,
+                    'total_cents'     => $appointment->total_cents,
+                    'paid_cents'      => $appointment->paid_cents,
+                    'total_display'   => format_money($appointment->total_cents),
+                    'paid_display'    => format_money($appointment->paid_cents),
+                    'subtotal_display'=> format_money($appointment->subtotal_cents),
+                    'created_at'      => $appointment->created_at->format('M j, Y g:i a'),
+                    'items' => $appointment->items->map(fn($i) => [
+                        'name'  => $i->item_name_snapshot,
+                        'tier'  => $i->tier_name_snapshot,
+                        'price' => format_money($i->price_cents),
+                    ]),
+                    'addons' => $appointment->addons->map(fn($a) => [
+                        'name'  => $a->addon_name_snapshot,
+                        'price' => format_money($a->price_cents),
+                    ]),
+                    'charges' => $appointment->charges->map(fn($c) => [
+                        'id'          => $c->id,
+                        'description' => $c->description,
+                        'amount'      => format_money($c->amount_cents),
+                        'is_paid'     => $c->is_paid,
+                        'date'        => \Carbon\Carbon::parse($c->created_at)->format('M j'),
+                    ]),
+                    'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => [
+                        'id'         => $n->id,
+                        'note'       => $n->note_content,
+                        'author'     => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'),
+                        'type'       => $n->note_type,
+                        'created_at' => \Carbon\Carbon::parse($n->created_at)->format('M j, g:i a'),
+                    ]),
+                ],
+                'transitions' => collect($transitions)->map(fn($t) => [
+                    'status'      => $t,
+                    'label'       => self::TRANSITION_LABELS[$t] ?? ucfirst($t),
+                    'destructive' => in_array($t, $destructive),
+                ])->values(),
+            ]);
+        }
+
+        // Fallback for non-AJAX (redirect to list)
+        return redirect()->route('tenant.appointments.index');
+    }
+
+    // ----------------------------------------------------------------
     // Store (create new appointment via AJAX modal)
     // ----------------------------------------------------------------
     public function store(Request $request)
@@ -92,7 +177,6 @@ class AppointmentController extends Controller
             'staff_notes'         => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // Find or create the customer record
         $customer = TenantCustomer::firstOrCreate(
             [
                 'tenant_id' => $tenant->id,
@@ -105,7 +189,6 @@ class AppointmentController extends Controller
             ]
         );
 
-        // Generate ITO number: ITO-{sequential}-{random}
         $seq = TenantAppointment::where('tenant_id', $tenant->id)->count() + 1;
         $itoNumber = 'ITO-' . str_pad($seq, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(Str::random(4));
 
@@ -128,7 +211,6 @@ class AppointmentController extends Controller
             'staff_notes'         => $data['staff_notes'] ?? null,
         ]);
 
-        // Add a system note
         TenantAppointmentNote::create([
             'appointment_id'      => $appointment->id,
             'user_id'             => Auth::guard('tenant')->id(),
@@ -140,36 +222,18 @@ class AppointmentController extends Controller
 
         if ($request->expectsJson()) {
             return response()->json([
-                'ok'       => true,
-                'redirect' => route('tenant.appointments.show', $appointment->id),
+                'ok'  => true,
+                'id'  => $appointment->id,
+                'ito' => $itoNumber,
             ]);
         }
 
-        return redirect()->route('tenant.appointments.show', $appointment->id)
+        return redirect()->route('tenant.appointments.index')
             ->with('success', 'Appointment created.');
     }
 
     // ----------------------------------------------------------------
-    // Detail
-    // ----------------------------------------------------------------
-    public function show(Request $request, string $id)
-    {
-        $tenant      = tenant();
-        $appointment = TenantAppointment::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->with(['items', 'addons', 'responses', 'notes', 'charges', 'customer'])
-            ->firstOrFail();
-
-        $transitions = self::TRANSITIONS[$appointment->status] ?? [];
-        $destructive = self::DESTRUCTIVE;
-
-        return view('tenant.appointments.show', compact(
-            'appointment', 'transitions', 'destructive'
-        ));
-    }
-
-    // ----------------------------------------------------------------
-    // Update (status, payment)
+    // Update (status, payment, charges, notes — all AJAX)
     // ----------------------------------------------------------------
     public function update(Request $request, string $id)
     {
@@ -185,40 +249,30 @@ class AppointmentController extends Controller
             $newStatus = $request->input('status');
             $allowed   = self::TRANSITIONS[$appointment->status] ?? [];
             if (! in_array($newStatus, $allowed, true)) {
-                return back()->with('error', 'Invalid status transition.');
+                return response()->json(['ok' => false, 'message' => 'Invalid status transition.'], 422);
             }
             $appointment->update(['status' => $newStatus]);
 
             TenantAppointmentNote::create([
-                'appointment_id'    => $appointment->id,
-                'user_id'           => Auth::guard('tenant')->id(),
-                'note_type'         => 'system',
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
                 'is_customer_visible' => false,
-                'note_content'      => 'Status changed to ' . ucwords(str_replace('_', ' ', $newStatus)) . '.',
-                'created_at'        => now(),
+                'note_content'        => 'Status changed to ' . ucwords(str_replace('_', ' ', $newStatus)) . '.',
+                'created_at'          => now(),
             ]);
 
-            return back()->with('success', 'Status updated.');
-        }
-
-        // Update slot weight (admin override)
-        if ($op === 'slot_weight') {
-            $weight = max(1, min(4, (int) $request->input('slot_weight', 1)));
-            $appointment->update([
-                'slot_weight'            => $weight,
-                'slot_weight_overridden' => $weight !== (int) $appointment->slot_weight_auto,
-            ]);
-            return back()->with('success', 'Slot weight updated.');
+            return response()->json(['ok' => true, 'status' => $newStatus, 'label' => ucwords(str_replace('_', ' ', $newStatus))]);
         }
 
         // Payment status
         if ($op === 'payment') {
             $newPayment = $request->input('payment_status');
             if (! in_array($newPayment, ['unpaid', 'partial', 'paid', 'refunded'], true)) {
-                return back()->with('error', 'Invalid payment status.');
+                return response()->json(['ok' => false, 'message' => 'Invalid payment status.'], 422);
             }
             $appointment->update(['payment_status' => $newPayment]);
-            return back()->with('success', 'Payment status updated.');
+            return response()->json(['ok' => true, 'payment_status' => $newPayment]);
         }
 
         // Add charge
@@ -227,48 +281,53 @@ class AppointmentController extends Controller
                 'description'  => ['required', 'string', 'max:255'],
                 'amount_cents' => ['required', 'integer', 'min:1'],
             ]);
-            TenantAppointmentCharge::create([
+            $charge = TenantAppointmentCharge::create([
                 'appointment_id' => $appointment->id,
                 'description'    => $request->input('description'),
                 'amount_cents'   => (int) $request->input('amount_cents'),
                 'is_paid'        => false,
                 'created_at'     => now(),
             ]);
-            return back()->with('success', 'Charge added.');
+            return response()->json([
+                'ok'          => true,
+                'id'          => $charge->id,
+                'description' => $charge->description,
+                'amount'      => format_money($charge->amount_cents),
+            ]);
         }
 
-        // Add note (AJAX)
-        if ($op === 'add_note' && $request->ajax()) {
+        // Add note
+        if ($op === 'add_note') {
             $note = mb_substr(trim($request->input('note', '')), 0, 500);
             if (! $note) {
-                return response()->json(['success' => false, 'message' => 'Note is required.']);
+                return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
             }
             $n = TenantAppointmentNote::create([
-                'appointment_id'     => $appointment->id,
-                'user_id'            => Auth::guard('tenant')->id(),
-                'note_type'          => 'staff',
-                'is_customer_visible'=> false,
-                'note_content'       => $note,
-                'created_at'         => now(),
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'staff',
+                'is_customer_visible' => false,
+                'note_content'        => $note,
+                'created_at'          => now(),
             ]);
             $user = Auth::guard('tenant')->user();
             return response()->json([
-                'success'     => true,
-                'id'          => $n->id,
-                'note'        => $n->note_content,
-                'author'      => $user->name,
-                'created_at'  => $n->created_at->format('M j, Y g:i a'),
+                'ok'         => true,
+                'id'         => $n->id,
+                'note'       => $n->note_content,
+                'author'     => $user->name,
+                'created_at' => $n->created_at->format('M j, g:i a'),
             ]);
         }
 
-        // Delete note (AJAX)
-        if ($op === 'delete_note' && $request->ajax()) {
+        // Delete note
+        if ($op === 'delete_note') {
             TenantAppointmentNote::where('appointment_id', $appointment->id)
                 ->where('id', $request->input('note_id'))
                 ->delete();
-            return response()->json(['success' => true]);
+            return response()->json(['ok' => true]);
         }
 
-        return back();
+        return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
 }

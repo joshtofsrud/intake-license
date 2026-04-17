@@ -38,12 +38,10 @@ class CustomerController extends Controller
                        ->limit($perPage)
                        ->get();
 
-        // Attach stats per customer (last service date + total paid spend)
         $emails = $customers->pluck('email')->toArray();
 
         $stats = [];
         if (!empty($emails)) {
-            $apptTable = (new TenantAppointment)->getTable();
             $rows = TenantAppointment::where('tenant_id', $tenant->id)
                 ->whereIn('customer_email', $emails)
                 ->selectRaw('
@@ -68,7 +66,7 @@ class CustomerController extends Controller
     }
 
     // ----------------------------------------------------------------
-    // Show
+    // Show (JSON for modal)
     // ----------------------------------------------------------------
     public function show(Request $request, string $id)
     {
@@ -87,14 +85,51 @@ class CustomerController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        // Stats
         $totalSpend = $appointments->where('payment_status', 'paid')->sum('total_cents');
         $lastService = $appointments->whereIn('status', ['completed','closed','shipped'])
             ->max('appointment_date');
+        $totalAppts = $appointments->count();
 
-        return view('tenant.customers.show', compact(
-            'customer', 'notes', 'appointments', 'totalSpend', 'lastService'
-        ));
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'customer' => [
+                    'id'            => $customer->id,
+                    'first_name'    => $customer->first_name,
+                    'last_name'     => $customer->last_name,
+                    'name'          => $customer->first_name . ' ' . $customer->last_name,
+                    'email'         => $customer->email,
+                    'phone'         => $customer->phone,
+                    'address_line1' => $customer->address_line1,
+                    'city'          => $customer->city,
+                    'state'         => $customer->state,
+                    'postcode'      => $customer->postcode,
+                    'country'       => $customer->country,
+                    'created_at'    => $customer->created_at->format('M j, Y'),
+                    'total_spend'   => format_money($totalSpend),
+                    'last_service'  => $lastService ? \Carbon\Carbon::parse($lastService)->format('M j, Y') : null,
+                    'total_appts'   => $totalAppts,
+                ],
+                'appointments' => $appointments->take(10)->map(fn($a) => [
+                    'id'      => $a->id,
+                    'ito'     => $a->ra_number,
+                    'date'    => $a->appointment_date->format('M j, Y'),
+                    'status'  => ucwords(str_replace('_', ' ', $a->status)),
+                    'status_key' => $a->status,
+                    'payment' => ucfirst($a->payment_status),
+                    'payment_key' => $a->payment_status,
+                    'total'   => format_money($a->total_cents),
+                ]),
+                'notes' => $notes->map(fn($n) => [
+                    'id'         => $n->id,
+                    'note'       => $n->note,
+                    'author'     => $n->user?->name ?? 'Staff',
+                    'created_at' => $n->created_at->format('M j, g:i a'),
+                ]),
+            ]);
+        }
+
+        return redirect()->route('tenant.customers.index');
     }
 
     // ----------------------------------------------------------------
@@ -106,20 +141,22 @@ class CustomerController extends Controller
         $data   = $this->validated($request);
         $data['tenant_id'] = $tenant->id;
 
-        // Upsert by email
         $existing = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('email', $data['email'])
             ->first();
 
         if ($existing) {
             $existing->update($data);
-            $id = $existing->id;
+            $customer = $existing;
         } else {
             $customer = TenantCustomer::create($data);
-            $id = $customer->id;
         }
 
-        return redirect()->route('tenant.customers.show', $id)
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'id' => $customer->id]);
+        }
+
+        return redirect()->route('tenant.customers.index')
             ->with('success', 'Customer saved.');
     }
 
@@ -135,18 +172,19 @@ class CustomerController extends Controller
 
         $op = $request->input('op');
 
-        // Edit customer info
         if ($op === 'update_info') {
             $data = $this->validated($request, $customer->email);
             $customer->update($data);
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => true]);
+            }
             return back()->with('success', 'Customer updated.');
         }
 
-        // Add note (AJAX)
-        if ($op === 'add_note' && $request->ajax()) {
+        if ($op === 'add_note') {
             $note = mb_substr(trim($request->input('note', '')), 0, 200);
             if (!$note) {
-                return response()->json(['success' => false, 'message' => 'Note is required.']);
+                return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
             }
             $n = TenantCustomerNote::create([
                 'tenant_id'   => $tenant->id,
@@ -157,23 +195,22 @@ class CustomerController extends Controller
             ]);
             $user = Auth::guard('tenant')->user();
             return response()->json([
-                'success'    => true,
+                'ok'         => true,
                 'id'         => $n->id,
                 'note'       => $n->note,
                 'author'     => $user->name,
-                'created_at' => $n->created_at->format('M j, Y g:i a'),
+                'created_at' => $n->created_at->format('M j, g:i a'),
             ]);
         }
 
-        // Delete note (AJAX)
-        if ($op === 'delete_note' && $request->ajax()) {
+        if ($op === 'delete_note') {
             TenantCustomerNote::where('customer_id', $customer->id)
                 ->where('id', $request->input('note_id'))
                 ->delete();
-            return response()->json(['success' => true]);
+            return response()->json(['ok' => true]);
         }
 
-        return back();
+        return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
 
     // ----------------------------------------------------------------

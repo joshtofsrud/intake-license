@@ -97,6 +97,9 @@
 
 </div>
 
+{{-- Detail modal (appointments, customers) --}}
+@include('tenant._detail_modal')
+
 {{-- Global JS --}}
 <script>
   window.IntakeAdmin = {

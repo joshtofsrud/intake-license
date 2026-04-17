@@ -15,7 +15,6 @@
   </div>
 </div>
 
-{{-- Inline new customer card --}}
 <div id="new-customer-card" class="ia-card" style="display:none;margin-bottom:20px">
   <div class="ia-card-head">
     <span class="ia-card-title">New customer</span>
@@ -52,7 +51,6 @@
   </form>
 </div>
 
-{{-- Search --}}
 <form method="get" action="{{ route('tenant.customers.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search name, email, or phone…" style="max-width:300px">
@@ -81,9 +79,7 @@
       @if($search) Try a different search term. @else Customers are created when appointments are booked, or you can add one manually. @endif
     </div>
   </div>
-
 @else
-
   <div class="ia-table-wrap">
     <table class="ia-table">
       <thead>
@@ -98,27 +94,16 @@
       </thead>
       <tbody>
         @foreach($customers as $c)
-          @php
-            $url  = route('tenant.customers.show', $c->id);
-            $stat = $stats[$c->id] ?? null;
-          @endphp
-          <tr onclick="window.location='{{ $url }}'">
-            <td>
-              <a href="{{ $url }}" style="font-weight:500;color:inherit">
-                {{ $c->first_name }} {{ $c->last_name }}
-              </a>
-            </td>
+          @php $stat = $stats[$c->id] ?? null; @endphp
+          <tr style="cursor:pointer" onclick="openDetailModal('customer','{{ $c->id }}')">
+            <td><span style="font-weight:500">{{ $c->first_name }} {{ $c->last_name }}</span></td>
             <td class="ia-muted-cell">{{ $c->email }}</td>
             <td class="ia-muted-cell">{{ $c->phone ?: '—' }}</td>
             <td class="ia-muted-cell">
               {{ $stat?->last_service_date ? \Carbon\Carbon::parse($stat->last_service_date)->format('M j, Y') : '—' }}
             </td>
-            <td class="ia-num">
-              {{ format_money((int)($stat?->total_spend_cents ?? 0)) }}
-            </td>
-            <td class="ia-muted-cell">
-              {{ $c->created_at->format('M j, Y') }}
-            </td>
+            <td class="ia-num">{{ format_money((int)($stat?->total_spend_cents ?? 0)) }}</td>
+            <td class="ia-muted-cell">{{ $c->created_at->format('M j, Y') }}</td>
           </tr>
         @endforeach
       </tbody>
@@ -133,7 +118,6 @@
       @endfor
     </div>
   @endif
-
 @endif
 
 @endsection
