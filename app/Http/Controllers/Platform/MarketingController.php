@@ -9,50 +9,62 @@ use App\Models\Tenant\TenantNavItem;
 use Illuminate\Http\Request;
 
 /**
- * Marketing site (intake.works) — served from the platform tenant.
+ * Marketing site (intake.works) controller.
  *
- * The platform tenant is the row with is_platform=true. Its TenantPages
- * back every marketing URL. This controller is a thin lookup that
- * resolves the page by slug and hands off to the shared section
- * rendering pipeline used by tenant public sites.
- *
- * URL → page slug mapping:
- *   /                → 'home'
- *   /pricing         → 'pricing'
- *   /features        → 'features'
- *   /contact         → 'contact'
- *   /docs            → 'docs'
- *   /for/{industry}  → industry template + pack merge (see forIndustry)
- *   /{slug}          → any custom page added via the marketing editor
+ * Legacy toggle: set USE_LEGACY_MARKETING=true in .env to serve the
+ * hardcoded Blade views (resources/views/marketing/*.blade.php) instead
+ * of the platform-tenant page builder. Useful as a fallback while
+ * iterating on the editor.
  */
 class MarketingController extends Controller
 {
-    public function home()                { return $this->renderPage('home'); }
-    public function pricing()             { return $this->renderPage('pricing'); }
-    public function features()            { return $this->renderPage('features'); }
-    public function docs()                { return $this->renderPage('docs'); }
+    public function home()
+    {
+        if ($this->useLegacy()) {
+            return view('marketing.home', $this->legacyShared());
+        }
+        return $this->renderPage('home');
+    }
 
-    /**
-     * Generic slug handler — supports any custom page added via the editor.
-     * Registered last in the route file as a catch-all.
-     */
+    public function pricing()
+    {
+        if ($this->useLegacy()) {
+            return view('marketing.pricing', $this->legacyShared());
+        }
+        return $this->renderPage('pricing');
+    }
+
+    public function features()
+    {
+        if ($this->useLegacy()) {
+            return view('marketing.features', $this->legacyShared());
+        }
+        return $this->renderPage('features');
+    }
+
+    public function docs()
+    {
+        if ($this->useLegacy()) {
+            return view('marketing.docs', $this->legacyShared());
+        }
+        return $this->renderPage('docs');
+    }
+
     public function show(string $slug)
     {
-        // Guard against accessing internal template pages directly
         if (str_starts_with($slug, '__')) abort(404);
+
+        // Legacy mode has no concept of custom slugs — fall back to 404.
+        if ($this->useLegacy()) abort(404);
 
         return $this->renderPage($slug);
     }
 
-    /**
-     * /for/{industry} — industry-specific landing page.
-     *
-     * Looks up the industry pack, then renders the __industry_template
-     * page with the pack's values substituted into {industry_*} tokens.
-     * Falls back to 404 if the slug isn't a known pack.
-     */
     public function forIndustry(string $industry)
     {
+        // Legacy mode has no /for/{industry} pages — fall back to 404.
+        if ($this->useLegacy()) abort(404);
+
         $packs = config('industry_packs', []);
         if (! isset($packs[$industry])) abort(404);
 
@@ -65,9 +77,6 @@ class MarketingController extends Controller
 
         if (! $template) abort(404, 'Industry template not seeded.');
 
-        // Clone sections and run token replacement. We never persist the
-        // cloned rows — they're built in-memory per request. Editing the
-        // template in the admin changes every /for/X page at once.
         $sections = $template->sections()->where('is_visible', true)->get()->map(function ($s) use ($pack) {
             $s->content = $this->substituteTokens($s->content, $pack);
             return $s;
@@ -76,7 +85,6 @@ class MarketingController extends Controller
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')->get();
 
-        // Override page metadata so SEO title/description reflect the industry
         $template->meta_title       = "Booking software for {$pack['name']} — Intake";
         $template->meta_description = $pack['tagline'];
 
@@ -89,15 +97,12 @@ class MarketingController extends Controller
         ]);
     }
 
-    /**
-     * Handle the contact form submission.
-     *
-     * The contact page is now rendered via the generic renderPage('contact')
-     * flow; this method only handles the POST.
-     */
     public function contact(Request $request)
     {
         if ($request->isMethod('get')) {
+            if ($this->useLegacy()) {
+                return view('marketing.contact', $this->legacyShared());
+            }
             return $this->renderPage('contact');
         }
 
@@ -107,13 +112,33 @@ class MarketingController extends Controller
             'message' => ['required', 'string', 'max:3000'],
         ]);
 
-        // TODO: queue an email to support@intake.works once mail is wired up
         return back()->with('contact_success', true);
     }
 
     // ================================================================
     // Internals
     // ================================================================
+
+    private function useLegacy(): bool
+    {
+        return (bool) config('intake.use_legacy_marketing', false);
+    }
+
+    /**
+     * Shared data the legacy Blade views expect. Keep in sync with what
+     * the old MarketingController passed so the views render identically.
+     */
+    private function legacyShared(): array
+    {
+        $plans = config('intake.plan_prices');
+        return [
+            'plans' => [
+                'basic'   => ['price' => $plans['basic']   / 100, 'name' => 'Basic',   'slug' => 'basic'],
+                'branded' => ['price' => $plans['branded'] / 100, 'name' => 'Branded', 'slug' => 'branded'],
+                'custom'  => ['price' => $plans['custom']  / 100, 'name' => 'Custom',  'slug' => 'custom'],
+            ],
+        ];
+    }
 
     private function renderPage(string $slug)
     {
@@ -139,10 +164,6 @@ class MarketingController extends Controller
         ]);
     }
 
-    /**
-     * Look up the platform tenant — cached per request since every marketing
-     * request needs it.
-     */
     private function platformTenant(): Tenant
     {
         static $cached = null;
@@ -155,17 +176,6 @@ class MarketingController extends Controller
         return $cached;
     }
 
-    /**
-     * Recursively replace {industry_*} tokens in the section content array
-     * with values from the industry pack.
-     *
-     *   {industry_name}             → $pack['name']
-     *   {industry_tagline}          → $pack['tagline']
-     *   {industry_services_blurb}   → $pack['services_blurb']
-     *   {industry_workflow_blurb}   → $pack['workflow_blurb']
-     *   {industry_slug}             → $pack['slug']
-     *   {industry_icon}             → $pack['icon']
-     */
     private function substituteTokens($value, array $pack)
     {
         if (is_array($value)) {
