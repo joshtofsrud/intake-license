@@ -9,20 +9,12 @@ use App\Models\Tenant\TenantPage;
 use Illuminate\Http\Request;
 
 /**
- * MarketingPageController
+ * Bridges the master admin to the existing tenant page builder editor
+ * so marketing pages (served under the platform tenant) can be edited
+ * using the same three-column editor UI.
  *
- * Bridges the master admin to the existing tenant page builder editor so
- * marketing pages (served under the platform tenant) can be edited using
- * the same three-column live preview UI.
- *
- * Flow:
- *   1. Master admin clicks "Edit content" in Filament
- *   2. This controller binds the platform tenant into the container so
- *      PageBuilderController::index() resolves tenant() correctly
- *   3. Hands off to the existing editor view, which renders as usual
- *
- * Auth: the `web` auth middleware on the route ensures only logged-in
- * master admins can reach this.
+ * Sets an `isMarketing` flag the editor view checks to swap route URLs
+ * from tenant-subdomain routes to master-admin routes.
  */
 class MarketingPageController extends Controller
 {
@@ -30,19 +22,17 @@ class MarketingPageController extends Controller
     {
         $platform = Tenant::where('is_platform', true)->firstOrFail();
 
-        // Make sure the requested page actually belongs to the platform tenant
-        // — defense-in-depth against accidentally editing a real tenant page.
         $page = TenantPage::where('tenant_id', $platform->id)
             ->where('id', $pageId)
             ->firstOrFail();
 
-        // Bind the platform tenant for this request. PageBuilderController::index
-        // calls tenant() which resolves from the 'tenant' container key.
         app()->instance('tenant', $platform);
         view()->share('currentTenant', $platform);
 
-        // Re-merge the `edit=pageId` query param and call into the existing
-        // editor. This reuses the tenant editor's Blade view wholesale.
+        // Tell the editor view it's in marketing/admin context so it uses
+        // the admin routes (no subdomain param) instead of tenant routes.
+        view()->share('isMarketing', true);
+
         $request->merge(['edit' => $page->id]);
 
         return $builder->index($request);
