@@ -2,7 +2,7 @@
 <html lang="en" class="ia-theme-{{ $adminTheme }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $pageTitle ?? 'Dashboard' }} — {{ $currentTenant->name }}</title>
 
@@ -18,6 +18,7 @@
   {{-- Base + theme CSS --}}
   <link rel="stylesheet" href="{{ asset('css/tenant/base.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/theme-' . $adminTheme . '.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}">
 
   {{-- Tenant accent color injected at runtime --}}
   <style>
@@ -36,7 +37,7 @@
 <div class="ia-shell">
 
   {{-- ================================================================
-       Sidebar (themes A + C)
+       Sidebar (themes A + C) — desktop only via CSS media query
        ================================================================ --}}
   @if($adminTheme !== 'b')
     @include('layouts.tenant._sidebar')
@@ -47,7 +48,7 @@
        ================================================================ --}}
   <div class="ia-main">
 
-    {{-- Top bar (theme B only) --}}
+    {{-- Top bar (theme B only) — desktop only via CSS media query --}}
     @if($adminTheme === 'b')
       @include('layouts.tenant._topnav')
     @endif
@@ -97,6 +98,13 @@
 
 </div>
 
+{{-- ================================================================
+     Mobile-only nav (bottom tab bar + drawer)
+     Hidden on desktop via CSS; always rendered in markup.
+     ================================================================ --}}
+@include('layouts.tenant._mobile-nav')
+@include('layouts.tenant._more-drawer')
+
 {{-- Detail modal (appointments, customers) --}}
 @include('tenant._detail_modal')
 
@@ -112,6 +120,7 @@
 </script>
 
 <script src="{{ asset('js/tenant/admin.js') }}" defer></script>
+<script src="{{ asset('js/tenant/mobile-nav.js') }}" defer></script>
 
 @stack('scripts')
 
