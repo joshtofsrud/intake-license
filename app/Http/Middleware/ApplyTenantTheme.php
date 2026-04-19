@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
  * $adminTheme with all views. Applied to all tenant admin routes.
  *
  * Valid values: 'a' (sidebar light), 'b' (top nav airy), 'c' (dark premium)
- * Default: 'a'
+ * Default: 'c' — dark premium is the house style
  */
 class ApplyTenantTheme
 {
@@ -22,12 +22,12 @@ class ApplyTenantTheme
     {
         $tenant = app('tenant');
 
-        $theme = 'a'; // default
+        $theme = 'c'; // default — dark premium
 
         if ($tenant) {
             $settings = $tenant->settings ?? [];
-            $stored   = $settings['admin_theme'] ?? 'a';
-            $theme    = in_array($stored, ['a', 'b', 'c']) ? $stored : 'a';
+            $stored   = $settings['admin_theme'] ?? 'c';
+            $theme    = in_array($stored, ['a', 'b', 'c']) ? $stored : 'c';
         }
 
         View::share('adminTheme', $theme);
