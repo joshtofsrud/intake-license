@@ -3,6 +3,10 @@
   $activeTab   = request('tab', 'appearance');
   $adminThemeC = $currentTenant->settings['admin_theme'] ?? 'c';
 
+  if ($adminThemeC === 'a') {
+    $adminThemeC = 'c';
+  }
+
   $fonts = ['Inter','Poppins','DM Sans','Nunito','Lato','Raleway','Montserrat','Playfair Display','Merriweather'];
 @endphp
 
@@ -13,15 +17,13 @@
 .brand-tab:hover{color:var(--ia-text)}
 .brand-tab.active{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
 .brand-section{max-width:640px}
-.brand-theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px}
+.brand-theme-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px;max-width:420px}
 .brand-theme-card{border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:14px;cursor:pointer;transition:all .12s;position:relative}
 .brand-theme-card:hover{border-color:var(--ia-accent)}
 .brand-theme-card.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
 .brand-theme-card input{position:absolute;opacity:0;width:0;height:0}
 .brand-theme-preview{height:60px;border-radius:var(--ia-r-md);overflow:hidden;margin-bottom:8px;display:flex}
 .brand-theme-label{font-size:12px;font-weight:500;text-align:center}
-.preview-a-side{width:35%;background:#0f0f0f}
-.preview-a-main{flex:1;background:#f8f8f6}
 .preview-b-wrap{flex:1;display:flex;flex-direction:column}
 .preview-b-top{height:12px;background:#ffffff;border-bottom:0.5px solid #e8e8e4}
 .preview-b-main{flex:1;background:#ffffff}
@@ -33,16 +35,6 @@
 .logo-preview{height:40px;border-radius:6px;margin-bottom:8px;display:block}
 .logo-preview-dark{background:#111;padding:6px 10px;border-radius:6px;margin-bottom:8px;display:inline-block}
 .logo-preview-dark img{height:32px}
-
-/* Desktop-only theme badge */
-.brand-theme-desktop-tag{display:inline-block;margin-left:6px;padding:1px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:rgba(0,0,0,.08);color:rgba(0,0,0,.55);border-radius:3px;vertical-align:middle}
-.ia-theme-c .brand-theme-desktop-tag{background:rgba(255,255,255,.1);color:rgba(255,255,255,.6)}
-
-/* On mobile/tablet, dim and disable desktop-only theme cards */
-@media (max-width: 1023px) {
-  .brand-theme-card--desktop-only{opacity:.4;cursor:not-allowed;pointer-events:none}
-  .brand-theme-card--desktop-only input[type=radio]{pointer-events:none}
-}
 </style>
 @endpush
 
@@ -160,11 +152,10 @@
     <div class="ia-card-head"><span class="ia-card-title">Admin theme</span></div>
     <div class="brand-theme-grid">
       @foreach([
-        ['a', 'Sidebar + light', 'preview-a-side', 'preview-a-main', true],
-        ['b', 'Top nav + airy',  'preview-b-wrap',  null,             false],
-        ['c', 'Dark premium',    'preview-c-side',  'preview-c-main', false],
-      ] as [$val, $label, $class1, $class2, $desktopOnly])
-      <label class="brand-theme-card {{ $adminThemeC === $val ? 'selected' : '' }} {{ $desktopOnly ? 'brand-theme-card--desktop-only' : '' }}" id="theme-card-{{ $val }}">
+        ['b', 'Top nav + airy',  'preview-b-wrap',  null],
+        ['c', 'Dark premium',    'preview-c-side',  'preview-c-main'],
+      ] as [$val, $label, $class1, $class2])
+      <label class="brand-theme-card {{ $adminThemeC === $val ? 'selected' : '' }}" id="theme-card-{{ $val }}">
         <input type="radio" name="admin_theme" value="{{ $val }}"
           {{ $adminThemeC === $val ? 'checked' : '' }}
           onchange="document.querySelectorAll('.brand-theme-card').forEach(c=>c.classList.remove('selected'));document.getElementById('theme-card-{{ $val }}').classList.add('selected')">
@@ -179,12 +170,7 @@
             <div class="{{ $class2 }}"></div>
           @endif
         </div>
-        <div class="brand-theme-label">
-          {{ $label }}
-          @if($desktopOnly)
-            <span class="brand-theme-desktop-tag">Desktop only</span>
-          @endif
-        </div>
+        <div class="brand-theme-label">{{ $label }}</div>
       </label>
       @endforeach
     </div>
