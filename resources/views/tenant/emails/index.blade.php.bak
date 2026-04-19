@@ -138,9 +138,10 @@
           </div>
           <div class="em-vars" id="em-vars-{{ $key }}">
             @foreach($type['vars'] as $var)
-              <span class="em-var" onclick="insertVar('{{ $key }}', '{{ '{{' . $var . '}}' }}')"
+              @php($token = '{{' . $var . '}}')
+              <span class="em-var" onclick="insertVar('{{ $key }}', @js($token))"
                 title="Click to copy">
-                {{ '{{' . $var . '}}' }}
+                {{ $token }}
               </span>
             @endforeach
           </div>
