@@ -4,8 +4,7 @@
    ================================================================ */
 
 .ia-mobile-nav,
-.ia-drawer-overlay,
-.ia-brand-footer--mobile {
+.ia-drawer-overlay {
   display: none;
 }
 
@@ -30,7 +29,7 @@
   }
 
   /* ================================================================
-     Bottom tab bar
+     Bottom tab bar — default (light theme)
      ================================================================ */
   .ia-mobile-nav {
     display: flex;
@@ -40,17 +39,19 @@
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--ia-bg, #141414);
-    border-top: 0.5px solid var(--ia-border, rgba(255, 255, 255, .1));
+    background: #ffffff;
+    border-top: 0.5px solid rgba(0, 0, 0, .1);
     padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
     z-index: 100;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, .3);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, .06);
   }
 
-  .ia-theme-b .ia-mobile-nav {
-    background: #ffffff;
-    border-top-color: rgba(0, 0, 0, .08);
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, .05);
+  /* Dark theme overrides (themes A and C) */
+  .ia-theme-a .ia-mobile-nav,
+  .ia-theme-c .ia-mobile-nav {
+    background: #141414;
+    border-top-color: rgba(255, 255, 255, .1);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, .3);
   }
 
   .ia-mobile-nav-item {
@@ -64,7 +65,7 @@
     padding: 4px 2px;
     font-size: 10px;
     font-weight: 500;
-    color: var(--ia-muted, rgba(255, 255, 255, .55));
+    color: rgba(0, 0, 0, .55);
     text-decoration: none;
     background: transparent;
     border: 0;
@@ -74,17 +75,19 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  .ia-theme-b .ia-mobile-nav-item {
-    color: rgba(0, 0, 0, .5);
+  .ia-theme-a .ia-mobile-nav-item,
+  .ia-theme-c .ia-mobile-nav-item {
+    color: rgba(255, 255, 255, .6);
   }
 
   .ia-mobile-nav-item.active {
-    color: var(--ia-accent, #BEF264);
+    color: #3B6D11;
     font-weight: 600;
   }
 
-  .ia-theme-b .ia-mobile-nav-item.active {
-    color: var(--ia-accent-text-on-light, #3B6D11);
+  .ia-theme-a .ia-mobile-nav-item.active,
+  .ia-theme-c .ia-mobile-nav-item.active {
+    color: #BEF264;
   }
 
   .ia-mobile-nav-icon {
@@ -99,7 +102,12 @@
   }
 
   .ia-mobile-nav-item.active .ia-mobile-nav-icon {
-    background: var(--ia-accent-soft, rgba(190, 242, 100, .12));
+    background: rgba(190, 242, 100, .25);
+  }
+
+  .ia-theme-a .ia-mobile-nav-item.active .ia-mobile-nav-icon,
+  .ia-theme-c .ia-mobile-nav-item.active .ia-mobile-nav-icon {
+    background: rgba(190, 242, 100, .18);
   }
 
   .ia-mobile-nav-label {
@@ -134,21 +142,22 @@
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--ia-bg-elevated, #171717);
+    background: #ffffff;
+    color: #1a1a1a;
     border-top-left-radius: 18px;
     border-top-right-radius: 18px;
     padding: 8px 0 calc(12px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 -16px 48px rgba(0, 0, 0, .4);
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, .25);
     transform: translateY(100%);
     transition: transform 280ms cubic-bezier(.2, .8, .2, 1);
     max-height: 85vh;
     overflow-y: auto;
-    color: var(--ia-text, #f0f0f0);
   }
 
-  .ia-theme-b .ia-drawer {
-    background: #ffffff;
-    color: #1a1a1a;
+  .ia-theme-a .ia-drawer,
+  .ia-theme-c .ia-drawer {
+    background: #171717;
+    color: #f0f0f0;
   }
 
   .ia-drawer-overlay.open .ia-drawer {
@@ -158,13 +167,14 @@
   .ia-drawer-handle {
     width: 36px;
     height: 4px;
-    background: rgba(255, 255, 255, .2);
+    background: rgba(0, 0, 0, .15);
     border-radius: 2px;
     margin: 0 auto 10px;
   }
 
-  .ia-theme-b .ia-drawer-handle {
-    background: rgba(0, 0, 0, .15);
+  .ia-theme-a .ia-drawer-handle,
+  .ia-theme-c .ia-drawer-handle {
+    background: rgba(255, 255, 255, .2);
   }
 
   .ia-drawer-header {
@@ -179,18 +189,19 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .06em;
-    color: var(--ia-muted, rgba(255, 255, 255, .55));
+    color: rgba(0, 0, 0, .55);
     margin: 0;
   }
 
-  .ia-theme-b .ia-drawer-title {
-    color: rgba(0, 0, 0, .55);
+  .ia-theme-a .ia-drawer-title,
+  .ia-theme-c .ia-drawer-title {
+    color: rgba(255, 255, 255, .55);
   }
 
   .ia-drawer-close {
     background: transparent;
     border: 0;
-    color: var(--ia-muted, rgba(255, 255, 255, .55));
+    color: rgba(0, 0, 0, .55);
     padding: 4px;
     cursor: pointer;
     border-radius: 4px;
@@ -198,51 +209,71 @@
     align-items: center;
   }
 
-  .ia-drawer-close:hover {
-    background: rgba(255, 255, 255, .06);
+  .ia-theme-a .ia-drawer-close,
+  .ia-theme-c .ia-drawer-close {
+    color: rgba(255, 255, 255, .55);
+  }
+
+  .ia-drawer-close:active {
+    background: rgba(0, 0, 0, .05);
   }
 
   .ia-drawer-items {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0;
-    border-top: 0.5px solid var(--ia-border, rgba(255, 255, 255, .08));
+    border-top: 0.5px solid rgba(0, 0, 0, .08);
   }
 
-  .ia-theme-b .ia-drawer-items {
-    border-top-color: rgba(0, 0, 0, .08);
+  .ia-theme-a .ia-drawer-items,
+  .ia-theme-c .ia-drawer-items {
+    border-top-color: rgba(255, 255, 255, .08);
   }
 
   .ia-drawer-item {
     padding: 14px 20px;
     font-size: 14px;
     font-weight: 500;
-    color: var(--ia-text, #f0f0f0);
+    color: #1a1a1a;
     text-decoration: none;
-    border-bottom: 0.5px solid var(--ia-border, rgba(255, 255, 255, .08));
+    border-bottom: 0.5px solid rgba(0, 0, 0, .08);
     -webkit-tap-highlight-color: transparent;
+    display: block;
   }
 
   .ia-drawer-item:nth-child(odd) {
-    border-right: 0.5px solid var(--ia-border, rgba(255, 255, 255, .08));
+    border-right: 0.5px solid rgba(0, 0, 0, .08);
   }
 
-  .ia-theme-b .ia-drawer-item {
-    color: #1a1a1a;
-    border-color: rgba(0, 0, 0, .08);
+  .ia-theme-a .ia-drawer-item,
+  .ia-theme-c .ia-drawer-item {
+    color: #f0f0f0;
+    border-color: rgba(255, 255, 255, .08);
+  }
+
+  .ia-theme-a .ia-drawer-item:nth-child(odd),
+  .ia-theme-c .ia-drawer-item:nth-child(odd) {
+    border-right-color: rgba(255, 255, 255, .08);
   }
 
   .ia-drawer-item.active {
-    color: var(--ia-accent, #BEF264);
-    background: var(--ia-accent-soft, rgba(190, 242, 100, .08));
+    color: #3B6D11;
+    background: rgba(190, 242, 100, .15);
     font-weight: 600;
   }
 
-  .ia-theme-b .ia-drawer-item.active {
-    color: var(--ia-accent-text-on-light, #3B6D11);
+  .ia-theme-a .ia-drawer-item.active,
+  .ia-theme-c .ia-drawer-item.active {
+    color: #BEF264;
+    background: rgba(190, 242, 100, .08);
   }
 
   .ia-drawer-item:active {
+    background: rgba(0, 0, 0, .04);
+  }
+
+  .ia-theme-a .ia-drawer-item:active,
+  .ia-theme-c .ia-drawer-item:active {
     background: rgba(255, 255, 255, .04);
   }
 
@@ -253,20 +284,21 @@
     gap: 12px;
     padding: 14px 20px;
     margin-top: 4px;
-    border-top: 0.5px solid var(--ia-border, rgba(255, 255, 255, .08));
+    border-top: 0.5px solid rgba(0, 0, 0, .08);
     cursor: pointer;
   }
 
-  .ia-theme-b .ia-drawer-user {
-    border-top-color: rgba(0, 0, 0, .08);
+  .ia-theme-a .ia-drawer-user,
+  .ia-theme-c .ia-drawer-user {
+    border-top-color: rgba(255, 255, 255, .08);
   }
 
   .ia-drawer-user .ia-user-avatar {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--ia-accent, #BEF264);
-    color: var(--ia-accent-text, #0a0a0a);
+    background: #BEF264;
+    color: #0a0a0a;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -282,12 +314,13 @@
 
   .ia-drawer-user .ia-user-role {
     font-size: 11px;
-    color: var(--ia-muted, rgba(255, 255, 255, .55));
+    color: rgba(0, 0, 0, .5);
     margin-top: 1px;
   }
 
-  .ia-theme-b .ia-drawer-user .ia-user-role {
-    color: rgba(0, 0, 0, .5);
+  .ia-theme-a .ia-drawer-user .ia-user-role,
+  .ia-theme-c .ia-drawer-user .ia-user-role {
+    color: rgba(255, 255, 255, .55);
   }
 
   /* Brand footer */
@@ -295,22 +328,24 @@
     text-align: center;
     padding: 14px 20px 6px;
     font-size: 11px;
-    color: rgba(255, 255, 255, .35);
+    color: rgba(0, 0, 0, .4);
     letter-spacing: .02em;
   }
 
-  .ia-theme-b .ia-brand-footer {
-    color: rgba(0, 0, 0, .4);
+  .ia-theme-a .ia-brand-footer,
+  .ia-theme-c .ia-brand-footer {
+    color: rgba(255, 255, 255, .35);
   }
 
   .ia-brand-footer a {
-    color: rgba(255, 255, 255, .55);
+    color: rgba(0, 0, 0, .6);
     font-weight: 500;
     text-decoration: none;
   }
 
-  .ia-theme-b .ia-brand-footer a {
-    color: rgba(0, 0, 0, .6);
+  .ia-theme-a .ia-brand-footer a,
+  .ia-theme-c .ia-brand-footer a {
+    color: rgba(255, 255, 255, .55);
   }
 
   /* Lock body scroll when drawer open */
