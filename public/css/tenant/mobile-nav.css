@@ -420,3 +420,83 @@
     pointer-events: none;
   }
 }
+
+/* ================================================================
+   Mobile header (≤1023px) — logo or tenant name
+   Shipped 2026-04-19
+   ================================================================ */
+
+.ia-mobile-header {
+  display: none; /* desktop hides it */
+}
+
+@media (max-width: 1023px) {
+  .ia-mobile-header {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    background: #0c0c0c;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    height: 52px;
+  }
+
+  /* Light theme (theme-b): different background + border */
+  body.ia-theme-b .ia-mobile-header {
+    background: #ffffff;
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .ia-mobile-header-inner {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+  }
+
+  .ia-mobile-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .ia-mobile-header-logo {
+    max-height: 32px;
+    max-width: 180px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .ia-mobile-header-mark {
+    width: 28px;
+    height: 28px;
+    background: var(--ia-accent, #BEF264);
+    color: var(--ia-accent-text, #0a0a0a);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .ia-mobile-header-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  body.ia-theme-b .ia-mobile-header-name {
+    color: rgba(0, 0, 0, 0.88);
+  }
+
+  /* Push main content down so it doesn't slide under the header */
+  .ia-content {
+    padding-top: 16px;
+  }
+}

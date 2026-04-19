@@ -174,6 +174,28 @@
       .p-grid-2, .p-grid-3, .p-grid-4 { grid-template-columns: 1fr; }
       .p-grid-2.p-2-col-mobile { grid-template-columns: 1fr 1fr; }
     }
+
+    /* Powered by intake — conditional branded footer */
+    .p-intake-footer {
+      text-align: center;
+      padding: 20px 16px;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.4);
+      font-family: var(--p-font-body);
+      margin-top: 40px;
+    }
+    .p-intake-footer a {
+      color: rgba(0, 0, 0, 0.55);
+      font-weight: 500;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    }
+    .p-intake-footer a:hover {
+      color: var(--p-accent);
+      border-bottom-color: var(--p-accent);
+    }
+
     @media (max-width: 480px) {
       .p-grid-2.p-2-col-mobile { grid-template-columns: 1fr; }
     }
@@ -213,6 +235,13 @@
     ])
   @endif
 @endforeach
+
+{{-- Powered by intake — hidden when tenant is on Branded / Scale plan --}}
+@if($currentTenant->show_intake_branding ?? true)
+  <div class="p-intake-footer">
+    Powered by <a href="https://intake.works" target="_blank" rel="noopener">intake</a>
+  </div>
+@endif
 
 <script>
 function openMobileNav()  { document.getElementById('p-mobile-nav').classList.add('open'); document.body.style.overflow='hidden'; }

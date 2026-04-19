@@ -34,6 +34,8 @@
 
 <body class="ia-theme-{{ $adminTheme }}">
 
+@include('layouts.tenant._mobile-header')
+
 <div class="ia-shell">
 
   {{-- ================================================================
@@ -78,24 +80,10 @@
         </div>
       @endif
 
-      {{-- Flash messages --}}
-      @if(session('success'))
-        <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
-      @endif
-      @if(session('error'))
-        <div class="ia-flash ia-flash--error">{{ session('error') }}</div>
-      @endif
-      @if(session('info'))
-        <div class="ia-flash ia-flash--info">{{ session('info') }}</div>
-      @endif
-
-      {{-- Page slot --}}
       @yield('content')
 
     </main>
-
   </div>
-
 </div>
 
 {{-- ================================================================
