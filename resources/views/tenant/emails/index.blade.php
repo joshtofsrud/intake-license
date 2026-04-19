@@ -151,11 +151,12 @@
             @csrf @method('PATCH')
             <input type="hidden" name="op" value="save">
 
+            @php($defaultSubject = $type['_default_subject'] ?? 'Your booking is confirmed — {{ra_number}}')
             <div class="ia-form-group">
               <label class="ia-form-label">Subject line <span class="ia-required">*</span></label>
               <input type="text" name="subject" id="em-subject-{{ $key }}" class="ia-input"
-                value="{{ old('subject', $type['subject']) ?: $type['_default_subject'] ?? '' }}"
-                placeholder="{{ $type['_default_subject'] ?? 'Your booking is confirmed — {{ra_number}}' }}"
+                value="{{ old('subject', $type['subject']) ?: ($type['_default_subject'] ?? '') }}"
+                placeholder="{{ $defaultSubject }}"
                 required>
             </div>
 
