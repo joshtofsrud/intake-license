@@ -37,7 +37,7 @@
 .brand-theme-desktop-tag{display:inline-block;margin-left:6px;padding:1px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:rgba(0,0,0,.08);color:rgba(0,0,0,.55);border-radius:3px;vertical-align:middle}
 .ia-theme-c .brand-theme-desktop-tag{background:rgba(255,255,255,.1);color:rgba(255,255,255,.6)}
 
-@@media (max-width: 1023px) {
+@media (max-width: 1023px) {
   .brand-theme-card--desktop-only{opacity:.4;cursor:not-allowed;pointer-events:none}
   .brand-theme-card--desktop-only input[type=radio]{pointer-events:none}
 }
