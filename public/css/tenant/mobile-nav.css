@@ -33,8 +33,9 @@
      Bottom tab bar
      ================================================================ */
   .ia-mobile-nav {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -53,6 +54,8 @@
   }
 
   .ia-mobile-nav-item {
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -102,6 +105,9 @@
   .ia-mobile-nav-label {
     white-space: nowrap;
     line-height: 1.2;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
   }
 
   /* ================================================================
