@@ -1,3 +1,4 @@
+@extends('layouts.tenant.app')
 @php
   $pageTitle   = 'Branding';
   $activeTab   = request('tab', 'appearance');
