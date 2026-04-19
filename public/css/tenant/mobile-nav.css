@@ -17,7 +17,6 @@
     display: none !important;
   }
 
-  /* Main content takes full screen, reserves space for bottom nav */
   .ia-shell,
   .ia-main {
     display: block !important;
@@ -29,9 +28,7 @@
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* ================================================================
-     Bottom tab bar — default (light theme)
-     ================================================================ */
+  /* Bottom tab bar — default (light theme) */
   .ia-mobile-nav {
     display: flex;
     justify-content: space-around;
@@ -118,7 +115,6 @@
     max-width: 100%;
   }
 
-  /* Tablet: bigger touch targets + drawer uses 3 columns */
   @media (min-width: 600px) {
     .ia-mobile-nav {
       padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
@@ -133,9 +129,7 @@
     }
   }
 
-  /* ================================================================
-     Drawer overlay + drawer
-     ================================================================ */
+  /* Drawer */
   .ia-drawer-overlay {
     display: block;
     position: fixed;
@@ -240,7 +234,6 @@
     border-top: 0.5px solid rgba(0, 0, 0, .08);
   }
 
-  /* Tablet: 3 columns for overflow drawer */
   @media (min-width: 600px) {
     .ia-drawer-items {
       grid-template-columns: 1fr 1fr 1fr;
@@ -264,10 +257,10 @@
     display: block;
   }
 
-  /* Remove right border on last column — works for both 2 and 3 col layouts */
   .ia-drawer-item:nth-child(2n) {
     border-right: 0;
   }
+
   @media (min-width: 600px) {
     .ia-drawer-item:nth-child(2n) {
       border-right: 0.5px solid rgba(0, 0, 0, .08);
@@ -320,7 +313,6 @@
     background: rgba(255, 255, 255, .04);
   }
 
-  /* User footer inside drawer */
   .ia-drawer-user {
     display: flex;
     align-items: center;
@@ -366,7 +358,6 @@
     color: rgba(255, 255, 255, .55);
   }
 
-  /* Brand footer */
   .ia-brand-footer {
     text-align: center;
     padding: 14px 20px 6px;
@@ -391,8 +382,41 @@
     color: rgba(255, 255, 255, .55);
   }
 
-  /* Lock body scroll when drawer open */
   body.ia-drawer-open {
     overflow: hidden;
+  }
+}
+
+/* ================================================================
+   Theme picker — desktop-only theme tag (applies at all sizes)
+   ================================================================ */
+.brand-theme-desktop-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: rgba(0, 0, 0, .08);
+  color: rgba(0, 0, 0, .55);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.ia-theme-c .brand-theme-desktop-tag {
+  background: rgba(255, 255, 255, .1);
+  color: rgba(255, 255, 255, .6);
+}
+
+/* On mobile/tablet, dim and disable desktop-only theme cards */
+@media (max-width: 1023px) {
+  .brand-theme-card--desktop-only {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .brand-theme-card--desktop-only input[type="radio"] {
+    pointer-events: none;
   }
 }

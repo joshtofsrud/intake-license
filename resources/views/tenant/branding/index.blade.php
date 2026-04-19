@@ -1,8 +1,7 @@
-@extends('layouts.tenant.app')
 @php
   $pageTitle   = 'Branding';
   $activeTab   = request('tab', 'appearance');
-  $adminThemeC = $currentTenant->settings['admin_theme'] ?? 'a';
+  $adminThemeC = $currentTenant->settings['admin_theme'] ?? 'c';
 
   $fonts = ['Inter','Poppins','DM Sans','Nunito','Lato','Raleway','Montserrat','Playfair Display','Merriweather'];
 @endphp
@@ -34,6 +33,16 @@
 .logo-preview{height:40px;border-radius:6px;margin-bottom:8px;display:block}
 .logo-preview-dark{background:#111;padding:6px 10px;border-radius:6px;margin-bottom:8px;display:inline-block}
 .logo-preview-dark img{height:32px}
+
+/* Desktop-only theme badge */
+.brand-theme-desktop-tag{display:inline-block;margin-left:6px;padding:1px 6px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:rgba(0,0,0,.08);color:rgba(0,0,0,.55);border-radius:3px;vertical-align:middle}
+.ia-theme-c .brand-theme-desktop-tag{background:rgba(255,255,255,.1);color:rgba(255,255,255,.6)}
+
+/* On mobile/tablet, dim and disable desktop-only theme cards */
+@media (max-width: 1023px) {
+  .brand-theme-card--desktop-only{opacity:.4;cursor:not-allowed;pointer-events:none}
+  .brand-theme-card--desktop-only input[type=radio]{pointer-events:none}
+}
 </style>
 @endpush
 
@@ -151,11 +160,11 @@
     <div class="ia-card-head"><span class="ia-card-title">Admin theme</span></div>
     <div class="brand-theme-grid">
       @foreach([
-        ['a', 'Sidebar + light', 'preview-a-side', 'preview-a-main'],
-        ['b', 'Top nav + airy',  'preview-b-wrap',  null],
-        ['c', 'Dark premium',    'preview-c-side',  'preview-c-main'],
-      ] as [$val, $label, $class1, $class2])
-      <label class="brand-theme-card {{ $adminThemeC === $val ? 'selected' : '' }}" id="theme-card-{{ $val }}">
+        ['a', 'Sidebar + light', 'preview-a-side', 'preview-a-main', true],
+        ['b', 'Top nav + airy',  'preview-b-wrap',  null,             false],
+        ['c', 'Dark premium',    'preview-c-side',  'preview-c-main', false],
+      ] as [$val, $label, $class1, $class2, $desktopOnly])
+      <label class="brand-theme-card {{ $adminThemeC === $val ? 'selected' : '' }} {{ $desktopOnly ? 'brand-theme-card--desktop-only' : '' }}" id="theme-card-{{ $val }}">
         <input type="radio" name="admin_theme" value="{{ $val }}"
           {{ $adminThemeC === $val ? 'checked' : '' }}
           onchange="document.querySelectorAll('.brand-theme-card').forEach(c=>c.classList.remove('selected'));document.getElementById('theme-card-{{ $val }}').classList.add('selected')">
@@ -170,7 +179,12 @@
             <div class="{{ $class2 }}"></div>
           @endif
         </div>
-        <div class="brand-theme-label">{{ $label }}</div>
+        <div class="brand-theme-label">
+          {{ $label }}
+          @if($desktopOnly)
+            <span class="brand-theme-desktop-tag">Desktop only</span>
+          @endif
+        </div>
       </label>
       @endforeach
     </div>
