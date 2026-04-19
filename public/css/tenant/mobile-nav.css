@@ -1,6 +1,7 @@
 /* ================================================================
-   Mobile Nav — bottom tab bar + overflow drawer
-   Applies only below 768px. Desktop sidebar/topnav unaffected.
+   Mobile + Tablet Nav — bottom tab bar + overflow drawer
+   Applies up to 1023px wide (phones + tablets in portrait).
+   Desktop (1024px+) shows sidebar/topnav as normal.
    ================================================================ */
 
 .ia-mobile-nav,
@@ -8,7 +9,7 @@
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
 
   /* Hide desktop chrome */
   .ia-sidebar,
@@ -46,7 +47,6 @@
     box-shadow: 0 -4px 12px rgba(0, 0, 0, .06);
   }
 
-  /* Dark theme overrides (themes A and C) */
   .ia-theme-a .ia-mobile-nav,
   .ia-theme-c .ia-mobile-nav {
     background: #141414;
@@ -116,6 +116,21 @@
     text-overflow: ellipsis;
     overflow: hidden;
     max-width: 100%;
+  }
+
+  /* Tablet: bigger touch targets + drawer uses 3 columns */
+  @media (min-width: 600px) {
+    .ia-mobile-nav {
+      padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .ia-mobile-nav-item {
+      min-height: 56px;
+      font-size: 11px;
+    }
+    .ia-mobile-nav-icon {
+      width: 32px;
+      height: 32px;
+    }
   }
 
   /* ================================================================
@@ -225,6 +240,13 @@
     border-top: 0.5px solid rgba(0, 0, 0, .08);
   }
 
+  /* Tablet: 3 columns for overflow drawer */
+  @media (min-width: 600px) {
+    .ia-drawer-items {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+  }
+
   .ia-theme-a .ia-drawer-items,
   .ia-theme-c .ia-drawer-items {
     border-top-color: rgba(255, 255, 255, .08);
@@ -237,12 +259,22 @@
     color: #1a1a1a;
     text-decoration: none;
     border-bottom: 0.5px solid rgba(0, 0, 0, .08);
+    border-right: 0.5px solid rgba(0, 0, 0, .08);
     -webkit-tap-highlight-color: transparent;
     display: block;
   }
 
-  .ia-drawer-item:nth-child(odd) {
-    border-right: 0.5px solid rgba(0, 0, 0, .08);
+  /* Remove right border on last column — works for both 2 and 3 col layouts */
+  .ia-drawer-item:nth-child(2n) {
+    border-right: 0;
+  }
+  @media (min-width: 600px) {
+    .ia-drawer-item:nth-child(2n) {
+      border-right: 0.5px solid rgba(0, 0, 0, .08);
+    }
+    .ia-drawer-item:nth-child(3n) {
+      border-right: 0;
+    }
   }
 
   .ia-theme-a .ia-drawer-item,
@@ -251,9 +283,20 @@
     border-color: rgba(255, 255, 255, .08);
   }
 
-  .ia-theme-a .ia-drawer-item:nth-child(odd),
-  .ia-theme-c .ia-drawer-item:nth-child(odd) {
-    border-right-color: rgba(255, 255, 255, .08);
+  .ia-theme-a .ia-drawer-item:nth-child(2n),
+  .ia-theme-c .ia-drawer-item:nth-child(2n) {
+    border-right-color: transparent;
+  }
+
+  @media (min-width: 600px) {
+    .ia-theme-a .ia-drawer-item:nth-child(2n),
+    .ia-theme-c .ia-drawer-item:nth-child(2n) {
+      border-right-color: rgba(255, 255, 255, .08);
+    }
+    .ia-theme-a .ia-drawer-item:nth-child(3n),
+    .ia-theme-c .ia-drawer-item:nth-child(3n) {
+      border-right-color: transparent;
+    }
   }
 
   .ia-drawer-item.active {
