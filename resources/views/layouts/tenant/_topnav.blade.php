@@ -1,13 +1,13 @@
 <header class="ia-topbar">
 
-  {{-- Logo --}}
+  {{-- Logo (image only when uploaded, fallback to letter + name when not) --}}
   <div class="ia-topbar-logo">
     @if($currentTenant->logo_url)
       <img src="{{ $currentTenant->logo_url }}" alt="{{ $currentTenant->name }}" style="height:24px;width:auto;border-radius:3px">
     @else
       <div class="ia-topbar-logo-mark">{{ strtoupper(substr($currentTenant->name, 0, 1)) }}</div>
+      <span class="ia-topbar-logo-name">{{ $currentTenant->name }}</span>
     @endif
-    <span class="ia-topbar-logo-name">{{ $currentTenant->name }}</span>
   </div>
 
   {{-- Nav items --}}
