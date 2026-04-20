@@ -136,13 +136,13 @@
           <div style="font-size:11px;opacity:.4;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">
             Variables
           </div>
+          @php($OBR = str_repeat(chr(123), 2))
+          @php($CBR = str_repeat(chr(125), 2))
           <div class="em-vars" id="em-vars-{{ $key }}">
             @foreach($type['vars'] as $var)
-              @php($token = '{{' . $var . '}}')
+              @php($token = $OBR . $var . $CBR)
               <span class="em-var" onclick="insertVar('{{ $key }}', @js($token))"
-                title="Click to copy">
-                {{ $token }}
-              </span>
+                title="Click to copy">{{ $token }}</span>
             @endforeach
           </div>
 
@@ -151,7 +151,7 @@
             @csrf @method('PATCH')
             <input type="hidden" name="op" value="save">
 
-            @php($defaultSubject = $type['_default_subject'] ?? 'Your booking is confirmed — {{ra_number}}')
+            @php($defaultSubject = $type['_default_subject'] ?? ('Your booking is confirmed — ' . str_repeat(chr(123),2) . 'ra_number' . str_repeat(chr(125),2)))
             <div class="ia-form-group">
               <label class="ia-form-label">Subject line <span class="ia-required">*</span></label>
               <input type="text" name="subject" id="em-subject-{{ $key }}" class="ia-input"
