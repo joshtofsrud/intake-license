@@ -71,13 +71,26 @@ class EmailController extends Controller
             return back()->with('success', 'Template reset to default.');
         }
 
-        $validated = $request->validate([
-            'subject'   => ['required', 'string', 'max:255'],
-            'body'      => ['required', 'string'],
-            'is_active' => ['nullable', 'boolean'],
+        \Log::info('EMAIL_UPDATE: start', [
+            'type'      => $type,
+            'tenant_id' => tenant()?->id,
+            'all'       => $request->except(['_token']),
         ]);
 
-        TenantEmailTemplate::updateOrCreate(
+        try {
+            $validated = $request->validate([
+                'subject'   => ['required', 'string', 'max:255'],
+                'body'      => ['required', 'string'],
+                'is_active' => ['nullable', 'boolean'],
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('EMAIL_UPDATE: validation failed', ['errors' => $e->errors()]);
+            throw $e;
+        }
+
+        \Log::info('EMAIL_UPDATE: validated', $validated);
+
+        $result = TenantEmailTemplate::updateOrCreate(
             [
                 'tenant_id'     => tenant()->id,
                 'template_type' => $type,
@@ -88,6 +101,13 @@ class EmailController extends Controller
                 'is_enabled' => (bool) $request->input('is_active', 0),
             ]
         );
+
+        \Log::info('EMAIL_UPDATE: saved', [
+            'id'      => $result->id ?? null,
+            'wasRecentlyCreated' => $result->wasRecentlyCreated,
+            'exists'  => $result->exists,
+            'attrs'   => $result->getAttributes(),
+        ]);
 
         return back()->with('success', 'Template saved.');
     }
