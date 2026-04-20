@@ -428,7 +428,7 @@ window.CB = (function() {
         </select>`);
       html += alignField(d.align);
     } else if (t === 'paragraph') {
-      html += field('text', 'Text (use {{first_name}} etc.)', `<textarea class="cb-field-textarea" oninput="CB.updateData('text', this.value)">${escapeHtml(d.text || '')}</textarea>`);
+      html += field('text', 'Text (tokens like first_name supported)', `<textarea class="cb-field-textarea" oninput="CB.updateData('text', this.value)">${escapeHtml(d.text || '')}</textarea>`);
       html += alignField(d.align);
     } else if (t === 'image') {
       html += field('url', 'Image URL', `<input type="text" class="cb-field-input" value="${escapeAttr(d.url || '')}" placeholder="https://..." oninput="CB.updateData('url', this.value)">`);
