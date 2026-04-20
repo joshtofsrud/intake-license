@@ -145,6 +145,10 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::patch('/services/{id}',      [TenantControllers\ServiceController::class, 'update'])->name('services.update');
             Route::delete('/services/{id}',     [TenantControllers\ServiceController::class, 'destroy'])->name('services.destroy');
 
+            Route::post('/addons',              [TenantControllers\AddonController::class, 'store'])->name('addons.store');
+            Route::patch('/addons/{id}',        [TenantControllers\AddonController::class, 'update'])->name('addons.update');
+            Route::delete('/addons/{id}',       [TenantControllers\AddonController::class, 'destroy'])->name('addons.destroy');
+
             Route::get('/capacity',             [TenantControllers\CapacityController::class, 'index'])->name('capacity.index');
             Route::post('/capacity',            [TenantControllers\CapacityController::class, 'store'])->name('capacity.store');
 
