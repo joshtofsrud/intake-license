@@ -172,6 +172,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
             Route::patch('/campaigns/{id}',     [TenantControllers\CampaignController::class, 'update'])->name('campaigns.update');
             Route::post('/campaigns/{id}/send', [TenantControllers\CampaignController::class, 'send'])->name('campaigns.send');
+            Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
 
             Route::get('/branding',             [TenantControllers\BrandingController::class, 'index'])->name('branding.index');
             Route::patch('/branding',           [TenantControllers\BrandingController::class, 'update'])->name('branding.update');

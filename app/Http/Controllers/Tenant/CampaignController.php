@@ -6,14 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantCampaign;
 use App\Models\Tenant\TenantCampaignSend;
 use App\Models\Tenant\TenantCustomer;
+use App\Support\BlockRenderer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class CampaignController extends Controller
 {
-    // ----------------------------------------------------------------
-    // Index — list campaigns grouped by status
-    // ----------------------------------------------------------------
     public function index()
     {
         $tenant = tenant();
@@ -33,9 +31,6 @@ class CampaignController extends Controller
         return view('tenant.campaigns.index', compact('campaigns', 'groups', 'customerCount'));
     }
 
-    // ----------------------------------------------------------------
-    // Show — view/edit a single campaign
-    // ----------------------------------------------------------------
     public function show(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
@@ -46,18 +41,26 @@ class CampaignController extends Controller
 
         $customerCount = TenantCustomer::where('tenant_id', $tenant->id)->count();
 
-        // Segment options for bulk sends
         $segments = [
             'all'             => "All customers ({$customerCount})",
             'has_appointment' => 'Customers with at least one appointment',
         ];
 
-        return view('tenant.campaigns.show', compact('campaign', 'customerCount', 'segments'));
+        // If blocks are empty, seed with a single paragraph so the composer starts useful
+        $blocks = $campaign->blocks ?? [];
+        if (empty($blocks)) {
+            $blocks = [
+                [
+                    'id'   => (string) Str::uuid(),
+                    'type' => 'paragraph',
+                    'data' => ['text' => '', 'align' => 'left'],
+                ],
+            ];
+        }
+
+        return view('tenant.campaigns.show', compact('campaign', 'customerCount', 'segments', 'blocks'));
     }
 
-    // ----------------------------------------------------------------
-    // Store — create a new campaign
-    // ----------------------------------------------------------------
     public function store(Request $request, string $subdomain)
     {
         $tenant = tenant();
@@ -74,18 +77,16 @@ class CampaignController extends Controller
             'status'     => 'draft',
             'subject'    => '',
             'body_html'  => '',
+            'blocks'     => [],
             'targeting'  => ['segment' => 'all'],
             'created_by' => auth('tenant')->id(),
         ]);
 
         return redirect()
             ->route('tenant.campaigns.show', ['id' => $campaign->id])
-            ->with('success', 'Campaign created. Now compose your message.');
+            ->with('success', 'Campaign created. Compose your message below.');
     }
 
-    // ----------------------------------------------------------------
-    // Update — save campaign edits
-    // ----------------------------------------------------------------
     public function update(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
@@ -100,28 +101,39 @@ class CampaignController extends Controller
 
         $name    = trim((string) $request->input('name', ''));
         $subject = trim((string) $request->input('subject', ''));
-        $body    = (string) $request->input('body', '');
         $segment = $request->input('segment', 'all');
 
-        if ($name === '' || $subject === '' || $body === '') {
+        // Blocks come in as JSON string from the hidden form field
+        $blocksJson = (string) $request->input('blocks_json', '[]');
+        $blocks     = json_decode($blocksJson, true);
+        if (! is_array($blocks)) {
+            $blocks = [];
+        }
+        $blocks = self::sanitizeBlocks($blocks);
+
+        if ($name === '' || $subject === '') {
             return back()
-                ->with('error', 'Name, subject, and body are required.')
+                ->with('error', 'Name and subject are required.')
                 ->withInput();
         }
+
+        // Render blocks to final HTML once at save time (also used by future send worker)
+        $bodyHtml = BlockRenderer::render($blocks, [], [
+            'accent'     => $tenant->accent_color ?? '#BEF264',
+            'accentText' => '#0a0a0a',
+        ]);
 
         $campaign->update([
             'name'      => $name,
             'subject'   => $subject,
-            'body_html' => $body,
+            'blocks'    => $blocks,
+            'body_html' => $bodyHtml,
             'targeting' => ['segment' => $segment],
         ]);
 
         return back()->with('success', 'Campaign saved.');
     }
 
-    // ----------------------------------------------------------------
-    // Send — dispatch campaign to audience (queues send rows)
-    // ----------------------------------------------------------------
     public function send(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
@@ -134,11 +146,10 @@ class CampaignController extends Controller
             return back()->with('error', 'This campaign has already been sent or is in progress.');
         }
 
-        if (trim($campaign->subject) === '' || trim($campaign->body_html) === '') {
-            return back()->with('error', 'Please add a subject and body before sending.');
+        if (trim($campaign->subject) === '' || empty($campaign->blocks)) {
+            return back()->with('error', 'Please add a subject and at least one content block before sending.');
         }
 
-        // Resolve audience based on segment
         $segment = $campaign->targeting['segment'] ?? 'all';
         $query   = TenantCustomer::where('tenant_id', $tenant->id)
                                  ->whereNotNull('email')
@@ -154,15 +165,14 @@ class CampaignController extends Controller
             return back()->with('error', 'No recipients match this segment.');
         }
 
-        // Create send rows (pending). Actual dispatch happens via queue worker.
         foreach ($customers as $customer) {
             TenantCampaignSend::create([
-                'campaign_id'     => $campaign->id,
-                'customer_id'     => $customer->id,
-                'email'           => $customer->email,
-                'status'          => 'pending',
-                'tracking_token'  => Str::random(32),
-                'created_at'      => now(),
+                'campaign_id'    => $campaign->id,
+                'customer_id'    => $customer->id,
+                'email'          => $customer->email,
+                'status'         => 'pending',
+                'tracking_token' => Str::random(32),
+                'created_at'     => now(),
             ]);
         }
 
@@ -173,5 +183,70 @@ class CampaignController extends Controller
         ]);
 
         return back()->with('success', "Campaign queued for {$customers->count()} recipient(s). Sending will complete shortly.");
+    }
+
+    /**
+     * Live preview endpoint — takes blocks JSON, returns rendered HTML.
+     * Used by the composer iframe for real-time preview without a full save.
+     */
+    public function preview(Request $request, string $subdomain, string $id)
+    {
+        $tenant = tenant();
+
+        $campaign = TenantCampaign::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $blocks = $request->input('blocks', []);
+        if (! is_array($blocks)) {
+            $blocks = [];
+        }
+        $blocks = self::sanitizeBlocks($blocks);
+
+        $html = BlockRenderer::render($blocks, BlockRenderer::SAMPLE_VARS, [
+            'accent'     => $tenant->accent_color ?? '#BEF264',
+            'accentText' => '#0a0a0a',
+            'preview'    => true,
+        ]);
+
+        return response($html)->header('Content-Type', 'text/html');
+    }
+
+    /**
+     * Whitelist block shapes so we don't persist garbage or XSS.
+     * Unknown block types are dropped; unknown fields are dropped.
+     */
+    private static function sanitizeBlocks(array $blocks): array
+    {
+        $allowed = [
+            'heading'   => ['text', 'size', 'align'],
+            'paragraph' => ['text', 'align'],
+            'image'     => ['url', 'alt'],
+            'button'    => ['text', 'url', 'align'],
+            'divider'   => [],
+            'footer'    => ['text'],
+        ];
+
+        $clean = [];
+        foreach ($blocks as $block) {
+            if (! is_array($block) || empty($block['type']) || ! isset($allowed[$block['type']])) {
+                continue;
+            }
+            $type = $block['type'];
+            $data = [];
+            foreach ($allowed[$type] as $field) {
+                if (isset($block['data'][$field])) {
+                    $data[$field] = is_string($block['data'][$field])
+                        ? $block['data'][$field]
+                        : (string) $block['data'][$field];
+                }
+            }
+            $clean[] = [
+                'id'   => $block['id'] ?? (string) Str::uuid(),
+                'type' => $type,
+                'data' => $data,
+            ];
+        }
+        return $clean;
     }
 }
