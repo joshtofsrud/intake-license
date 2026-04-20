@@ -206,6 +206,21 @@
 
 @push('scripts')
 <script>
+// ==== TEMP DIAGNOSTIC — remove after save works ====
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('form[id^="em-form-"]').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      alert('SUBMIT event fired on ' + form.id + '\ndefaultPrevented: ' + e.defaultPrevented + '\naction: ' + form.action);
+    });
+  });
+  document.querySelectorAll('form[id^="em-form-"] button[type="submit"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      alert('CLICK event on Save button in ' + btn.closest('form').id);
+    });
+  });
+});
+// ==== END DIAGNOSTIC ====
+
 // Tenant values injected from Blade (safe, no nested braces)
 const SHOP_NAME    = @js($currentTenant->name);
 const ACCENT_COLOR = @js($currentTenant->accent_color ?? '#BEF264');
