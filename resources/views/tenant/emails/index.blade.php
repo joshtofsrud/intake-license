@@ -218,13 +218,22 @@ function showEditor(key) {
 }
 
 function insertVar(editorKey, varStr) {
-  var ta = document.getElementById('em-body-' + editorKey);
-  if (!ta) return;
-  var start = ta.selectionStart, end = ta.selectionEnd;
-  ta.value = ta.value.substring(0, start) + varStr + ta.value.substring(end);
-  ta.selectionStart = ta.selectionEnd = start + varStr.length;
-  ta.focus();
+  var subject = document.getElementById('em-subject-' + editorKey);
+  var body    = document.getElementById('em-body-' + editorKey);
+  var last    = window._emLastFocus;
+  var target  = (last === subject || last === body) ? last : body;
+  if (!target) return;
+  var start = target.selectionStart, end = target.selectionEnd;
+  target.value = target.value.substring(0, start) + varStr + target.value.substring(end);
+  target.selectionStart = target.selectionEnd = start + varStr.length;
+  target.focus();
 }
+
+document.addEventListener('focusin', function(e) {
+  if (e.target && e.target.id && /^em-(subject|body)-/.test(e.target.id)) {
+    window._emLastFocus = e.target;
+  }
+});
 
 function previewTemplate(key) {
   var subject  = document.getElementById('em-subject-' + key)?.value || '';
