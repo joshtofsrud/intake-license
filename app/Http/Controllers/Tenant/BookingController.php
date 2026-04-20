@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantAppointment;
-use App\Models\Tenant\TenantAddon;
 use App\Models\Tenant\TenantFormSection;
 use App\Models\Tenant\TenantReceivingMethod;
 use App\Models\Tenant\TenantServiceCategory;
@@ -23,37 +22,22 @@ class BookingController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->with(['items' => function ($q) {
-                $q->where('is_active', true)
-                  ->orderBy('sort_order')
-                  ->with(['tierPrices.tier', 'addons.addon']);
+                $q->where('is_active', true)->orderBy('sort_order')
+                  ->with(['serviceAddons' => function ($sa) { $sa->orderBy('sort_order')->with('addon'); }]);
             }])
-            ->get();
-
-        $tiers = \App\Models\Tenant\TenantServiceTier::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
-
-        $addons = TenantAddon::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
             ->get();
 
         $formSections = TenantFormSection::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')
-            ->with(['fields' => function ($q) {
-                $q->orderBy('sort_order');
-            }])
+            ->with(['fields' => function ($q) { $q->orderBy('sort_order'); }])
             ->get();
 
         $receivingMethods = TenantReceivingMethod::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
+            ->where('is_active', true)->orderBy('sort_order')->get();
 
-        $s              = $tenant->settings ?? [];
-        $stripeEnabled  = !empty($s['stripe_enabled'])  && !empty($s['stripe_test_sk'] ?? $s['stripe_live_sk'] ?? '');
-        $paypalEnabled  = !empty($s['paypal_enabled'])  && !empty($s['paypal_test_client_id'] ?? $s['paypal_live_client_id'] ?? '');
+        $s = $tenant->settings ?? [];
+        $stripeEnabled = !empty($s['stripe_enabled']) && !empty($s['stripe_test_sk'] ?? $s['stripe_live_sk'] ?? '');
+        $paypalEnabled = !empty($s['paypal_enabled']) && !empty($s['paypal_test_client_id'] ?? $s['paypal_live_client_id'] ?? '');
         $stripePublishableKey = '';
         if ($stripeEnabled) {
             $mode = $s['stripe_mode'] ?? 'test';
@@ -67,7 +51,6 @@ class BookingController extends Controller
 
         $bookingMode = $tenant->booking_mode ?? 'drop_off';
 
-        // Booking form appearance settings
         $bk = [
             'theme'          => $s['booking_theme'] ?? 'light',
             'accent'         => $s['booking_accent'] ?? '',
@@ -91,7 +74,7 @@ class BookingController extends Controller
         ];
 
         return view('public.booking', compact(
-            'catalog', 'tiers', 'addons', 'formSections', 'receivingMethods',
+            'catalog', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
             'bookingMode', 'bk'
         ));
@@ -104,43 +87,48 @@ class BookingController extends Controller
             'month' => ['required', 'integer', 'min:1', 'max:12'],
         ]);
 
-        $tenant = tenant();
-        $mode   = $tenant->booking_mode ?? 'drop_off';
-        $dates  = BookingService::availableDates($tenant, (int) $request->input('year'), (int) $request->input('month'));
+        $tenant  = tenant();
+        $mode    = $tenant->booking_mode ?? 'drop_off';
+        $booking = app(BookingService::class);
+        $dates   = $booking->availableDates($tenant, (int) $request->input('year'), (int) $request->input('month'));
 
         $slots = [];
         if ($mode === 'time_slots') {
             foreach ($dates as $date) {
-                $slots[$date] = BookingService::availableSlotsForDate($tenant, $date);
+                $slots[$date] = $booking->availableSlotsForDate($tenant, $date);
             }
         }
-
         return response()->json(['dates' => $dates, 'slots' => $slots, 'mode' => $mode]);
     }
 
     public function submit(Request $request)
     {
         $request->validate([
-            'first_name'  => ['required', 'string', 'max:100'],
-            'last_name'   => ['required', 'string', 'max:100'],
-            'email'       => ['required', 'email', 'max:191'],
-            'date'        => ['required', 'date', 'after_or_equal:today'],
-            'items'       => ['required', 'array', 'min:1'],
-            'items.*.item_id' => ['required', 'string'],
-            'items.*.tier_id' => ['required', 'string'],
-            'payment_method'  => ['required', 'in:stripe,paypal,none'],
+            'first_name'              => ['required', 'string', 'max:100'],
+            'last_name'               => ['required', 'string', 'max:100'],
+            'email'                   => ['required', 'email', 'max:191'],
+            'phone'                   => ['nullable', 'string', 'max:32'],
+            'date'                    => ['required', 'date', 'after_or_equal:today'],
+            'appointment_time'        => ['nullable', 'string'],
+            'receiving_method'        => ['nullable', 'string'],
+            'items'                   => ['required', 'array', 'min:1'],
+            'items.*.service_item_id' => ['required', 'string'],
+            'items.*.addon_ids'       => ['nullable', 'array'],
+            'items.*.addon_ids.*'     => ['string'],
+            'responses'               => ['nullable', 'array'],
+            'response_labels'         => ['nullable', 'array'],
+            'payment_method'          => ['required', 'in:stripe,paypal,none'],
         ]);
 
-        $tenant      = tenant();
-        $appointment = BookingService::createAppointment($tenant, $request->all());
-
+        $tenant = tenant();
+        $appointment = app(BookingService::class)->createAppointment($request->all(), $tenant->id);
         $paymentMethod = $request->input('payment_method');
 
         if ($paymentMethod === 'none' || $appointment->total_cents === 0) {
             return response()->json([
-                'success'      => true,
-                'redirect'     => url("/confirm?ra={$appointment->ra_number}"),
-                'ra_number'    => $appointment->ra_number,
+                'success' => true,
+                'redirect' => url("/confirm?ra={$appointment->ra_number}"),
+                'ra_number' => $appointment->ra_number,
             ]);
         }
 
@@ -151,10 +139,9 @@ class BookingController extends Controller
             }
             $intent = $stripe->createPaymentIntent($appointment);
             return response()->json([
-                'success'       => true,
-                'payment'       => 'stripe',
+                'success' => true, 'payment' => 'stripe',
                 'client_secret' => $intent['client_secret'],
-                'ra_number'     => $appointment->ra_number,
+                'ra_number' => $appointment->ra_number,
             ]);
         }
 
@@ -165,10 +152,9 @@ class BookingController extends Controller
             }
             $order = $paypal->createOrder($appointment);
             return response()->json([
-                'success'      => true,
-                'payment'      => 'paypal',
-                'approve_url'  => $order['approve_url'],
-                'ra_number'    => $appointment->ra_number,
+                'success' => true, 'payment' => 'paypal',
+                'approve_url' => $order['approve_url'],
+                'ra_number' => $appointment->ra_number,
             ]);
         }
 
@@ -178,9 +164,7 @@ class BookingController extends Controller
     public function paypalReturn(Request $request)
     {
         $orderId = $request->query('token');
-        if (!$orderId) {
-            return redirect('/book')->with('error', 'PayPal payment was cancelled.');
-        }
+        if (!$orderId) return redirect('/book')->with('error', 'PayPal payment was cancelled.');
 
         try {
             $appointment = PayPalService::handleReturn(tenant(), $orderId);
@@ -194,11 +178,7 @@ class BookingController extends Controller
     public function stripeWebhook(Request $request)
     {
         try {
-            StripeService::handleWebhook(
-                tenant(),
-                $request->getContent(),
-                $request->header('Stripe-Signature', '')
-            );
+            StripeService::handleWebhook(tenant(), $request->getContent(), $request->header('Stripe-Signature', ''));
         } catch (\Throwable $e) {
             logger()->error('Stripe webhook error: ' . $e->getMessage());
             return response('error', 400);

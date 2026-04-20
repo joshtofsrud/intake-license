@@ -99,7 +99,9 @@ class PublicController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->with(['items' => function ($q) {
-                $q->where('is_active', true)->orderBy('sort_order')->with('tierPrices');
+                $q->where('is_active', true)->orderBy('sort_order')->with(['serviceAddons' => function ($sa) {
+                    $sa->orderBy('sort_order')->with('addon');
+                }]);
             }])
             ->get();
 

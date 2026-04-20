@@ -249,13 +249,6 @@
              ================================================================ --}}
         <section class="ob-step" data-step="services">
           <div class="ob-field">
-            <label class="ob-label" for="ob-tier">Service tier</label>
-            <input type="text" class="ob-input" id="ob-tier" value="Standard"
-                   placeholder="Standard">
-            <div class="ob-hint">e.g. Standard, Premium, Economy. You can add more later.</div>
-          </div>
-
-          <div class="ob-field">
             <label class="ob-label" for="ob-category">Category</label>
             <input type="text" class="ob-input" id="ob-category" value="Services"
                    placeholder="Services">
@@ -412,7 +405,6 @@
         }
         else if (step === 'services') {
           const fd = new FormData();
-          fd.append('tier_name',     document.getElementById('ob-tier').value || 'Standard');
           fd.append('category_name', document.getElementById('ob-category').value || 'Services');
           fd.append('item_name',     document.getElementById('ob-item').value);
           fd.append('price',         document.getElementById('ob-price').value || '0');

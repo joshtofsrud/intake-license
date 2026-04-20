@@ -14,8 +14,7 @@
   var state = {
     step:       1,
     // Services
-    selections: {},   // { itemId: { itemId, itemName, tierId, tierName, priceCents } }
-    addons:     {},   // { addonId: { addonId, addonName, priceCents } }
+    selections: {},   // { serviceId: { serviceId, serviceName, priceCents, durationMinutes, addonIds: [] } }
     // Schedule
     date:       null,
     receivingMethod: null,
@@ -44,8 +43,8 @@
   // Boot
   // =========================================================================
   document.addEventListener('DOMContentLoaded', function () {
-    bindTierButtons();
-    bindAddonCheckboxes();
+    bindAddButtons();
+    bindServiceAddonCheckboxes();
     bindSearch();
     bindCalNav();
     bindReceiving();
@@ -95,50 +94,74 @@
   // =========================================================================
   // Step 1 — Services
   // =========================================================================
-  function bindTierButtons() {
-    document.querySelectorAll('.bk-tier-btn').forEach(function (btn) {
+  function bindAddButtons() {
+    document.querySelectorAll('.bk-service-add-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var itemId   = btn.getAttribute('data-item-id');
-        var itemName = btn.getAttribute('data-item-name');
-        var tierId   = btn.getAttribute('data-tier-id');
-        var tierName = btn.getAttribute('data-tier-name');
-        var price    = parseInt(btn.getAttribute('data-price'), 10);
-
-        // Deselect other tiers for same item
-        document.querySelectorAll('.bk-tier-btn[data-item-id="' + itemId + '"]')
-          .forEach(function (b) { b.classList.remove('selected'); });
-
-        // Toggle: if this tier was already selected, deselect
-        var existing = state.selections[itemId];
-        if (existing && existing.tierId === tierId) {
-          delete state.selections[itemId];
-          btn.closest('.bk-item-card').classList.remove('selected');
+        var serviceId = btn.getAttribute('data-service-id');
+        if (!serviceId) return;
+        if (state.selections[serviceId]) {
+          deselectService(serviceId);
         } else {
-          state.selections[itemId] = { itemId: itemId, itemName: itemName, tierId: tierId, tierName: tierName, priceCents: price };
-          btn.classList.add('selected');
-          btn.closest('.bk-item-card').classList.add('selected');
+          selectService(btn);
+        }
+      });
+    });
+  }
+
+  function bindServiceAddonCheckboxes() {
+    document.querySelectorAll('.bk-service-addon-check').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var serviceId = cb.getAttribute('data-service-id');
+        var addonId   = cb.getAttribute('data-addon-id');
+        if (!serviceId || !addonId) return;
+
+        if (cb.checked && !state.selections[serviceId]) {
+          var row = document.querySelector('.bk-service-row[data-service-id="' + serviceId + '"]');
+          var btn = row ? row.querySelector('.bk-service-add-btn') : null;
+          if (btn) selectService(btn);
         }
 
-        updateNext1();
+        var sel = state.selections[serviceId];
+        if (!sel) return;
+
+        if (cb.checked) {
+          if (sel.addonIds.indexOf(addonId) === -1) sel.addonIds.push(addonId);
+        } else {
+          sel.addonIds = sel.addonIds.filter(function (id) { return id !== addonId; });
+        }
         updateSidebar();
       });
     });
   }
 
-  function bindAddonCheckboxes() {
-    document.querySelectorAll('.bk-addon-check').forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        var addonId   = cb.getAttribute('data-addon-id');
-        var addonName = cb.getAttribute('data-addon-name');
-        var price     = parseInt(cb.getAttribute('data-addon-price'), 10);
-        if (cb.checked) {
-          state.addons[addonId] = { addonId: addonId, addonName: addonName, priceCents: price };
-        } else {
-          delete state.addons[addonId];
-        }
-        updateSidebar();
-      });
-    });
+  function selectService(btn) {
+    var serviceId   = btn.getAttribute('data-service-id');
+    var serviceName = btn.getAttribute('data-service-name');
+    var priceCents  = parseInt(btn.getAttribute('data-service-price-cents'), 10) || 0;
+    var row         = btn.closest('.bk-service-row');
+    var duration    = row ? parseInt(row.getAttribute('data-service-duration'), 10) || 0 : 0;
+
+    state.selections[serviceId] = {
+      serviceId: serviceId, serviceName: serviceName,
+      priceCents: priceCents, durationMinutes: duration, addonIds: [],
+    };
+    if (row) row.classList.add('is-selected');
+    btn.textContent = '✓ Added';
+    updateNext1();
+    updateSidebar();
+  }
+
+  function deselectService(serviceId) {
+    delete state.selections[serviceId];
+    var row = document.querySelector('.bk-service-row[data-service-id="' + serviceId + '"]');
+    if (row) {
+      row.classList.remove('is-selected');
+      var btn = row.querySelector('.bk-service-add-btn');
+      if (btn) btn.textContent = 'Add to booking';
+      row.querySelectorAll('.bk-service-addon-check').forEach(function (cb) { cb.checked = false; });
+    }
+    updateNext1();
+    updateSidebar();
   }
 
   function bindSearch() {
@@ -146,12 +169,12 @@
     if (!input) return;
     input.addEventListener('input', function () {
       var q = input.value.toLowerCase().trim();
-      document.querySelectorAll('.bk-item-card').forEach(function (card) {
-        var name = (card.getAttribute('data-item-name') || '').toLowerCase();
-        card.style.display = (!q || name.includes(q)) ? '' : 'none';
+      document.querySelectorAll('.bk-service-row').forEach(function (row) {
+        var name = (row.getAttribute('data-service-name') || '').toLowerCase();
+        row.style.display = (!q || name.includes(q)) ? '' : 'none';
       });
       document.querySelectorAll('.bk-cat-group').forEach(function (group) {
-        var visible = Array.from(group.querySelectorAll('.bk-item-card'))
+        var visible = Array.from(group.querySelectorAll('.bk-service-row'))
           .some(function (c) { return c.style.display !== 'none'; });
         group.style.display = visible ? '' : 'none';
       });
@@ -403,24 +426,23 @@
   function updateSidebar() {
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
-    var items   = Object.values(state.selections);
-    var addons  = Object.values(state.addons);
-    var total   = 0;
-
-    if (items.length === 0 && addons.length === 0) {
+    var services = Object.values(state.selections);
+    if (services.length === 0) {
       container.innerHTML = '<p class="bk-sidebar-empty">No items selected yet.</p>';
       return;
     }
-
-    var html = '';
-    items.forEach(function (sel) {
-      html += '<div class="bk-sidebar-line"><span>' + esc(sel.itemName) + ' <small style="opacity:.5">(' + esc(sel.tierName) + ')</small></span>'
-            + '<span>' + fmtMoney(sel.priceCents) + '</span></div>';
+    var html = ''; var total = 0;
+    services.forEach(function (sel) {
+      html += '<div class="bk-sidebar-line"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
       total += sel.priceCents;
-    });
-    addons.forEach(function (a) {
-      html += '<div class="bk-sidebar-line"><span>' + esc(a.addonName) + '</span><span>' + fmtMoney(a.priceCents) + '</span></div>';
-      total += a.priceCents;
+      sel.addonIds.forEach(function (addonId) {
+        var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
+        if (!cb) return;
+        var name  = cb.getAttribute('data-addon-name') || '';
+        var price = parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+        html += '<div class="bk-sidebar-line" style="padding-left:16px;opacity:.85"><span>+ ' + esc(name) + '</span><span>' + fmtMoney(price) + '</span></div>';
+        total += price;
+      });
     });
     html += '<div class="bk-sidebar-total"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
     container.innerHTML = html;
@@ -433,14 +455,18 @@
     updateSidebar();
 
     // Services
-    var svc  = document.getElementById('bk-review-services');
+    var svc = document.getElementById('bk-review-services');
     if (svc) {
       var html = '';
       Object.values(state.selections).forEach(function (sel) {
-        html += '<div class="bk-review-row"><span>' + esc(sel.itemName) + ' — ' + esc(sel.tierName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
-      });
-      Object.values(state.addons).forEach(function (a) {
-        html += '<div class="bk-review-row"><span class="bk-review-row-label">' + esc(a.addonName) + ' (add-on)</span><span>' + fmtMoney(a.priceCents) + '</span></div>';
+        html += '<div class="bk-review-row"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
+        sel.addonIds.forEach(function (addonId) {
+          var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
+          if (!cb) return;
+          var name  = cb.getAttribute('data-addon-name') || '';
+          var price = parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+          html += '<div class="bk-review-row"><span class="bk-review-row-label">+ ' + esc(name) + '</span><span>' + fmtMoney(price) + '</span></div>';
+        });
       });
       var total = calcTotal();
       html += '<div class="bk-review-row" style="font-weight:700;border-top:1px solid rgba(0,0,0,.08);margin-top:8px;padding-top:8px"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
@@ -591,23 +617,16 @@
   function buildPayload(paymentMethod) {
     collectDetails();
     var items = Object.values(state.selections).map(function (s) {
-      return { item_id: s.itemId, tier_id: s.tierId };
+      return { service_item_id: s.serviceId, addon_ids: s.addonIds.slice() };
     });
-    var addons = Object.keys(state.addons);
-
     return {
-      first_name:       state.firstName,
-      last_name:        state.lastName,
-      email:            state.email,
-      phone:            state.phone,
-      date:             state.date,
-      appointment_time: state.appointmentTime || null,
+      first_name: state.firstName, last_name: state.lastName,
+      email: state.email, phone: state.phone,
+      date: state.date, appointment_time: state.appointmentTime || null,
       receiving_method: state.receivingMethod,
-      items:            items,
-      addons:           addons,
-      responses:        state.responses,
-      response_labels:  state.responseLabels,
-      payment_method:   paymentMethod,
+      items: items,
+      responses: state.responses, response_labels: state.responseLabels,
+      payment_method: paymentMethod,
     };
   }
 
@@ -616,8 +635,13 @@
   // =========================================================================
   function calcTotal() {
     var t = 0;
-    Object.values(state.selections).forEach(function (s) { t += s.priceCents; });
-    Object.values(state.addons).forEach(function (a) { t += a.priceCents; });
+    Object.values(state.selections).forEach(function (sel) {
+      t += sel.priceCents;
+      sel.addonIds.forEach(function (addonId) {
+        var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
+        if (cb) t += parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+      });
+    });
     return t;
   }
 

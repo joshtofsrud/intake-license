@@ -4,10 +4,8 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantCapacityRule;
-use App\Models\Tenant\TenantItemTierPrice;
 use App\Models\Tenant\TenantServiceCategory;
 use App\Models\Tenant\TenantServiceItem;
-use App\Models\Tenant\TenantServiceTier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -74,45 +72,32 @@ class OnboardingModalController extends Controller
         $tenant = tenant();
 
         $data = $request->validate([
-            'tier_name'     => ['required', 'string', 'max:100'],
             'category_name' => ['required', 'string', 'max:100'],
             'item_name'     => ['required', 'string', 'max:100'],
             'price'         => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        // Tier
-        $tier = TenantServiceTier::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => Str::slug($data['tier_name'])],
-            ['name' => $data['tier_name'], 'is_active' => true, 'sort_order' => 0]
-        );
-
-        // Category
         $category = TenantServiceCategory::firstOrCreate(
             ['tenant_id' => $tenant->id, 'slug' => Str::slug($data['category_name'])],
             ['name' => $data['category_name'], 'is_active' => true, 'sort_order' => 0]
         );
 
-        // Item
-        $item = TenantServiceItem::firstOrCreate(
+        $priceCents = !empty($data['price']) ? (int) round($data['price'] * 100) : 0;
+
+        TenantServiceItem::firstOrCreate(
             ['tenant_id' => $tenant->id, 'slug' => Str::slug($data['item_name'])],
             [
-                'category_id' => $category->id,
-                'name'        => $data['item_name'],
-                'is_active'   => true,
-                'sort_order'  => 0,
+                'category_id'            => $category->id,
+                'name'                   => $data['item_name'],
+                'price_cents'            => $priceCents,
+                'prep_before_minutes'    => 0,
+                'duration_minutes'       => 30,
+                'cleanup_after_minutes'  => 0,
+                'slot_weight'            => 1,
+                'is_active'              => true,
+                'sort_order'             => 0,
             ]
         );
-
-        // Price (if provided)
-        if (!empty($data['price'])) {
-            TenantItemTierPrice::updateOrCreate(
-                ['item_id' => $item->id, 'tier_id' => $tier->id],
-                [
-                    'tenant_id'   => $tenant->id,
-                    'price_cents' => (int) round($data['price'] * 100),
-                ]
-            );
-        }
 
         return $this->progressResponse('services', true);
     }

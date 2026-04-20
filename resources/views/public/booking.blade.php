@@ -80,6 +80,32 @@
     .bk-top-back:hover { opacity: 1; }
   </style>
   <link rel="stylesheet" href="{{ asset('css/booking.css') }}">
+<style>
+.bk-service-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.bk-service-row{display:flex;gap:16px;align-items:flex-start;padding:14px 16px;border:0.5px solid var(--bk-border,rgba(0,0,0,.08));border-radius:10px;background:var(--bk-surface,rgba(0,0,0,.02));transition:border-color .12s ease,background .12s ease}
+.bk-service-row:hover{border-color:var(--bk-border-strong,rgba(0,0,0,.15))}
+.bk-service-row.is-selected{border-color:var(--p-accent,#BEF264);background:rgba(190,242,100,.08)}
+.bk-service-main{flex:1;min-width:0}
+.bk-service-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.bk-service-name{font-weight:600;font-size:15px;line-height:1.3}
+.bk-service-price{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.bk-service-desc{font-size:13px;opacity:.65;margin-top:4px;line-height:1.5}
+.bk-service-meta{font-size:12px;opacity:.5;margin-top:6px}
+.bk-service-addons{margin-top:12px;padding-top:12px;border-top:0.5px dashed var(--bk-border,rgba(0,0,0,.08));display:flex;flex-direction:column;gap:4px}
+.bk-service-addons-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;opacity:.5;margin-bottom:4px;font-weight:600}
+.bk-service-addon{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .12s ease}
+.bk-service-addon:hover{background:rgba(0,0,0,.03)}
+.bk-service-addon input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--p-accent,#BEF264)}
+.bk-service-addon-name{min-width:0}
+.bk-service-addon-name small{display:block;opacity:.55;font-size:11.5px;margin-top:1px;line-height:1.35}
+.bk-service-addon-price{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap}
+.bk-service-addon-price small{display:block;opacity:.5;font-size:10.5px;margin-top:1px}
+.bk-service-actions{flex-shrink:0}
+.bk-service-add-btn{padding:8px 14px;border:0.5px solid var(--bk-border-strong,rgba(0,0,0,.15));border-radius:8px;background:transparent;font-size:13px;font-weight:500;cursor:pointer;transition:all .12s ease;white-space:nowrap}
+.bk-service-add-btn:hover{border-color:var(--p-accent,#BEF264)}
+.bk-service-row.is-selected .bk-service-add-btn{background:var(--p-accent,#BEF264);border-color:var(--p-accent,#BEF264);color:#0a0a0a}
+@media (max-width:600px){.bk-service-row{flex-direction:column}.bk-service-actions{width:100%}.bk-service-add-btn{width:100%}}
+</style>
 </head>
 <body>
 
@@ -117,22 +143,69 @@
     @forelse($catalog as $cat)
       <div class="bk-cat-group" data-cat="{{ strtolower($cat->name) }}">
         <div class="bk-cat-heading">{{ $cat->name }}</div>
-        <div class="bk-item-grid">
+        <div class="bk-service-list">
           @foreach($cat->items as $item)
-            <div class="bk-item-card" data-item-id="{{ $item->id }}" data-item-name="{{ $item->name }}">
-              <div class="bk-item-name">{{ $item->name }}</div>
-              <div class="bk-tiers">
-                @foreach($item->tierPrices->filter(fn($p) => $p->price_cents !== null) as $price)
-                  <button type="button" class="bk-tier-btn"
-                    data-item-id="{{ $item->id }}"
-                    data-item-name="{{ $item->name }}"
-                    data-tier-id="{{ $price->tier_id }}"
-                    data-tier-name="{{ $price->tier->name ?? '' }}"
-                    data-price="{{ $price->price_cents }}">
-                    <span>{{ $price->tier->name ?? '' }}</span>
-                    <span class="bk-tier-price">{{ format_money($price->price_cents) }}</span>
-                  </button>
-                @endforeach
+            <div class="bk-service-row"
+                 data-service-id="{{ $item->id }}"
+                 data-service-name="{{ $item->name }}"
+                 data-service-price-cents="{{ $item->price_cents }}"
+                 data-service-duration="{{ $item->duration_minutes }}">
+              <div class="bk-service-main">
+                <div class="bk-service-head">
+                  <div class="bk-service-name">{{ $item->name }}</div>
+                  <div class="bk-service-price">{{ format_money($item->price_cents) }}</div>
+                </div>
+                @if($item->description)
+                  <div class="bk-service-desc">{{ $item->description }}</div>
+                @endif
+                <div class="bk-service-meta">
+                  <span class="bk-service-duration">{{ $item->duration_minutes }} min</span>
+                </div>
+                @if($item->serviceAddons && $item->serviceAddons->count() > 0)
+                  <div class="bk-service-addons">
+                    <div class="bk-service-addons-label">Add-ons</div>
+                    @foreach($item->serviceAddons as $pivot)
+                      @if($pivot->addon && $pivot->addon->is_active)
+                        @php
+                          $effPrice    = $pivot->effectivePriceCents();
+                          $effDuration = $pivot->effectiveDuration();
+                          $addonKey    = $item->id . ':' . $pivot->addon_id;
+                        @endphp
+                        <label class="bk-service-addon" for="bk-addon-{{ $addonKey }}">
+                          <input type="checkbox"
+                                 id="bk-addon-{{ $addonKey }}"
+                                 class="bk-service-addon-check"
+                                 data-service-id="{{ $item->id }}"
+                                 data-addon-id="{{ $pivot->addon_id }}"
+                                 data-addon-name="{{ $pivot->addon->name }}"
+                                 data-addon-price-cents="{{ $effPrice }}"
+                                 data-addon-duration="{{ $effDuration }}">
+                          <span class="bk-service-addon-name">
+                            {{ $pivot->addon->name }}
+                            @if($pivot->addon->description)
+                              <small>{{ $pivot->addon->description }}</small>
+                            @endif
+                          </span>
+                          <span class="bk-service-addon-price">
+                            +{{ format_money($effPrice) }}
+                            @if($effDuration > 0)
+                              <small>+{{ $effDuration }} min</small>
+                            @endif
+                          </span>
+                        </label>
+                      @endif
+                    @endforeach
+                  </div>
+                @endif
+              </div>
+              <div class="bk-service-actions">
+                <button type="button"
+                        class="bk-service-add-btn"
+                        data-service-id="{{ $item->id }}"
+                        data-service-name="{{ $item->name }}"
+                        data-service-price-cents="{{ $item->price_cents }}">
+                  Add to booking
+                </button>
               </div>
             </div>
           @endforeach
@@ -142,24 +215,6 @@
       <p style="opacity:.4">No services available yet.</p>
     @endforelse
   </div>
-  @if($addons->isNotEmpty())
-    <div style="margin-top:28px">
-      <div class="bk-cat-heading">Add-ons</div>
-      @foreach($addons as $addon)
-        <div class="bk-addon-row">
-          <input type="checkbox" id="addon-{{ $addon->id }}"
-            data-addon-id="{{ $addon->id }}" data-addon-name="{{ $addon->name }}"
-            data-addon-price="{{ $addon->price_cents }}" class="bk-addon-check"
-            style="width:18px;height:18px;cursor:pointer;accent-color:var(--p-accent)">
-          <label for="addon-{{ $addon->id }}" class="bk-addon-name" style="cursor:pointer">
-            {{ $addon->name }}
-            @if($addon->description)<small style="opacity:.5;display:block;font-size:12px">{{ $addon->description }}</small>@endif
-          </label>
-          <span class="bk-addon-price">{{ format_money($addon->price_cents) }}</span>
-        </div>
-      @endforeach
-    </div>
-  @endif
   <div class="bk-nav">
     <button type="button" class="bk-next" id="bk-next-1" disabled onclick="goTo(2)">Continue → {{ $stepLabels[1] }}</button>
   </div>

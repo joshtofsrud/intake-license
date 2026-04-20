@@ -52,13 +52,25 @@
   @foreach($appointment->items as $item)
   <tr>
     <td style="font-size:14px;padding:6px 0;border-bottom:1px solid #f0f0ee">
-      {{ $item->item_name_snapshot }} — {{ $item->tier_name_snapshot }}
+      {{ $item->item_name_snapshot }}
     </td>
     <td style="font-size:14px;text-align:right;padding:6px 0;border-bottom:1px solid #f0f0ee;white-space:nowrap">
       {{ format_money($item->price_cents) }}
     </td>
   </tr>
   @endforeach
+  @if($appointment->addons && $appointment->addons->isNotEmpty())
+    @foreach($appointment->addons as $addon)
+    <tr>
+      <td style="font-size:13px;padding:4px 0 4px 16px;border-bottom:1px solid #f0f0ee;color:#666">
+        + {{ $addon->addon_name_snapshot }}
+      </td>
+      <td style="font-size:13px;text-align:right;padding:4px 0;border-bottom:1px solid #f0f0ee;color:#666;white-space:nowrap">
+        {{ format_money($addon->price_cents) }}
+      </td>
+    </tr>
+    @endforeach
+  @endif
 </table>
 @endif
 

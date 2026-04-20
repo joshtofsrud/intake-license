@@ -99,7 +99,7 @@
           <thead>
             <tr>
               <th>Item</th>
-              <th>Tier</th>
+              <th class="ia-num">Duration</th>
               <th class="ia-num">Price</th>
             </tr>
           </thead>
@@ -107,14 +107,14 @@
             @foreach($appointment->items as $item)
               <tr>
                 <td style="font-weight:500">{{ $item->item_name_snapshot }}</td>
-                <td style="opacity:.6">{{ $item->tier_name_snapshot }}</td>
+                <td class="ia-num" style="opacity:.6">{{ $item->duration_minutes_snapshot ?? 0 }} min</td>
                 <td class="ia-num">{{ format_money($item->price_cents) }}</td>
               </tr>
             @endforeach
             @foreach($appointment->addons as $addon)
               <tr>
-                <td style="opacity:.7">{{ $addon->addon_name_snapshot }}</td>
-                <td style="opacity:.4;font-size:12px">Add-on</td>
+                <td style="opacity:.7">+ {{ $addon->addon_name_snapshot }}</td>
+                <td class="ia-num" style="opacity:.4">{{ $addon->duration_minutes_snapshot ?? 0 }} min</td>
                 <td class="ia-num">{{ format_money($addon->price_cents) }}</td>
               </tr>
             @endforeach

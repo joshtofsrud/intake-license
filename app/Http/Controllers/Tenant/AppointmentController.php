@@ -192,7 +192,7 @@ class AppointmentController extends Controller
                 'subtotal_display' => format_money($appointment->subtotal_cents),
                 'created_at' => $appointment->created_at->format('M j, Y g:i a'),
                 'slot_weight' => $appointment->slot_weight ?? 1,
-                'items' => $appointment->items->map(fn($i) => ['name' => $i->item_name_snapshot, 'tier' => $i->tier_name_snapshot, 'price' => format_money($i->price_cents)]),
+                'items' => $appointment->items->map(fn($i) => ['name' => $i->item_name_snapshot, 'duration' => $i->duration_minutes_snapshot, 'price' => format_money($i->price_cents)]),
                 'addons' => $appointment->addons->map(fn($a) => ['name' => $a->addon_name_snapshot, 'price' => format_money($a->price_cents)]),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
                 'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => \Carbon\Carbon::parse($n->created_at)->format('M j, g:i a')]),

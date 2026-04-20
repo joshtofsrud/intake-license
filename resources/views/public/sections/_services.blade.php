@@ -71,17 +71,8 @@
                   @if($item->description)
                     <p class="p-service-desc">{{ $item->description }}</p>
                   @endif
-                  @if($showPrices && $item->tierPrices->isNotEmpty())
-                    <div class="p-service-tiers">
-                      @foreach($item->tierPrices as $price)
-                        @if($price->price_cents !== null)
-                          <div class="p-service-tier-row">
-                            <span class="p-service-tier-name">{{ $price->tier->name ?? '' }}</span>
-                            <span class="p-service-tier-price">{{ format_money($price->price_cents) }}</span>
-                          </div>
-                        @endif
-                      @endforeach
-                    </div>
+                  @if($showPrices && $item->price_cents !== null)
+                    <div class="p-service-price">{{ format_money($item->price_cents) }}</div>
                   @endif
                 </div>
               @endforeach
