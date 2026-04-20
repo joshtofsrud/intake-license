@@ -105,19 +105,11 @@ class CampaignController extends Controller
 
         // Blocks come in as JSON string from the hidden form field
         $blocksJson = (string) $request->input('blocks_json', '[]');
-        \Log::info('CAMPAIGN_SAVE: raw input', [
-            'blocks_json_length' => strlen($blocksJson),
-            'blocks_json_preview' => substr($blocksJson, 0, 500),
-            'name' => $request->input('name'),
-            'subject' => $request->input('subject'),
-        ]);
         $blocks     = json_decode($blocksJson, true);
         if (! is_array($blocks)) {
             $blocks = [];
         }
-        \Log::info('CAMPAIGN_SAVE: decoded', ['count' => count($blocks), 'blocks' => $blocks]);
         $blocks = self::sanitizeBlocks($blocks);
-        \Log::info('CAMPAIGN_SAVE: sanitized', ['count' => count($blocks), 'blocks' => $blocks]);
 
         if ($name === '' || $subject === '') {
             return back()

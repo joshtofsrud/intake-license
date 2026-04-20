@@ -9,12 +9,13 @@ class TenantCampaign extends Model
     use HasUuids;
     protected $table    = 'tenant_campaigns';
     protected $fillable = [
-        'tenant_id','name','type','status','subject','body_html','body_text',
+        'tenant_id','name','type','status','subject','body_html','body_text','blocks',
         'targeting','scheduled_at','sent_at',
         'total_recipients','total_sent','total_opened','total_clicked','created_by',
     ];
     protected $casts = [
         'targeting'    => 'array',
+        'blocks'       => 'array',
         'scheduled_at' => 'datetime',
         'sent_at'      => 'datetime',
     ];
