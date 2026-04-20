@@ -141,9 +141,36 @@ class CapacityController extends Controller
         // Mode switch execute
         if ($op === 'execute_switch') {
             $toMode    = $request->input('to_mode');
-            $overrides = $request->input('overrides', []);
-            BookingModeService::executeSwitch($tenant, $toMode, $overrides);
-            return response()->json(['success' => true, 'mode' => $toMode]);
+            $overrides = $request->input('overrides', '{}');
+
+            // JS sends JSON-encoded string via FormData — decode to array.
+            if (is_string($overrides)) {
+                $decoded = json_decode($overrides, true);
+                $overrides = is_array($decoded) ? $decoded : [];
+            }
+
+            if (! in_array($toMode, ['drop_off', 'time_slots'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid target mode.',
+                ], 422);
+            }
+
+            try {
+                BookingModeService::executeSwitch($tenant, $toMode, $overrides);
+                return response()->json(['success' => true, 'mode' => $toMode]);
+            } catch (\Throwable $e) {
+                \Log::error('Booking mode switch failed', [
+                    'tenant_id' => $tenant->id,
+                    'to_mode'   => $toMode,
+                    'error'     => $e->getMessage(),
+                    'trace'     => $e->getTraceAsString(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Switch failed: ' . $e->getMessage(),
+                ], 500);
+            }
         }
 
         return response()->json(['success' => false, 'message' => 'Unknown op.'], 422);

@@ -452,11 +452,12 @@ function confirmSwitch() {
   });
 
   post({ op: 'execute_switch', to_mode: switchTargetMode, overrides: JSON.stringify(overrides) }, function(resp) {
-    if (resp.success) {
+    if (resp && resp.success) {
       window.location.reload();
     } else {
       btn.disabled = false; btn.textContent = 'Confirm switch';
-      alert('Switch failed. Please try again.');
+      var msg = (resp && resp.message) ? resp.message : 'Switch failed. Please try again.';
+      alert(msg);
     }
   });
 }
