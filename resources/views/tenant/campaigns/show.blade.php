@@ -689,6 +689,7 @@ window.CB = (function() {
   }
 
   function renderSettings() {
+    destroyTipTapEditor();
     const wrap = document.getElementById('cb-settings');
     if (!wrap) return;
     const block = blocks.find(b => b.id === selectedId);
@@ -908,13 +909,6 @@ window.CB = (function() {
     updateToolbarState();
   }
 
-  // Clean up editor whenever settings panel re-renders
-  const _originalRenderSettings = renderSettings;
-  renderSettings = function() {
-    destroyTipTapEditor();
-    _originalRenderSettings();
-  };
-
   // If TipTap loads after initial render, remount
   window.addEventListener('tiptap-loaded', function() {
     if (document.getElementById('cb-tt-editor')) mountTipTapEditor();
@@ -1020,13 +1014,6 @@ window.CB = (function() {
     editor.on('transaction', updateToolbarState);
     updateToolbarState();
   }
-
-  // Clean up editor whenever settings panel re-renders
-  const _originalRenderSettings = renderSettings;
-  renderSettings = function() {
-    destroyTipTapEditor();
-    _originalRenderSettings();
-  };
 
   // If TipTap loads after initial render, remount
   window.addEventListener('tiptap-loaded', function() {
