@@ -206,6 +206,10 @@
 
 @push('scripts')
 <script>
+// Tenant values injected from Blade (safe — no nested {{ }})
+const SHOP_NAME    = @js($currentTenant->name);
+const ACCENT_COLOR = @js($currentTenant->accent_color ?? '#BEF264');
+
 function showEditor(key) {
   document.querySelectorAll('.em-editor').forEach(function(e) { e.classList.remove('active'); });
   document.querySelectorAll('.em-type-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -228,19 +232,19 @@ function previewTemplate(key) {
   var preview  = document.getElementById('em-preview-' + key);
   var iframe   = document.getElementById('em-iframe-' + key);
 
-  // Substitute sample vars
+  // Substitute sample vars. @{{...}} below tells Blade to output literal {{...}} to the browser.
   var sampleVars = {
-    '{{first_name}}':       'Jane',
-    '{{ra_number}}':        'SPK-A3F9B2',
-    '{{appointment_date}}': 'Thursday, November 14, 2024',
-    '{{total}}':            '$185.00',
-    '{{status}}':           'Completed',
-    '{{status_note}}':      'Your bike is ready for pickup.',
-    '{{name}}':             'Jane Smith',
-    '{{shop_name}}':        '{{ $currentTenant->name }}',
-    '{{reset_url}}':        '#',
-    '{{accent}}':           '{{ $currentTenant->accent_color ?? "#BEF264" }}',
-    '{{accent_text}}':      '#0a0a0a',
+    '@{{first_name}}':       'Jane',
+    '@{{ra_number}}':        'SPK-A3F9B2',
+    '@{{appointment_date}}': 'Thursday, November 14, 2024',
+    '@{{total}}':            '$185.00',
+    '@{{status}}':           'Completed',
+    '@{{status_note}}':      'Your bike is ready for pickup.',
+    '@{{name}}':             'Jane Smith',
+    '@{{shop_name}}':        SHOP_NAME,
+    '@{{reset_url}}':        '#',
+    '@{{accent}}':           ACCENT_COLOR,
+    '@{{accent_text}}':      '#0a0a0a',
   };
 
   var rendered = body;
@@ -248,12 +252,11 @@ function previewTemplate(key) {
     rendered = rendered.split(k).join(sampleVars[k]);
   });
 
-  var html = `<!DOCTYPE html><html><body style="margin:0;padding:16px;background:#f4f4f2;font-family:-apple-system,sans-serif">
-    <p style="font-size:11px;color:#888;margin:0 0 8px;text-transform:uppercase;letter-spacing:.07em">Subject: ${subject}</p>
-    <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e8e8e4;font-size:14px;line-height:1.7;color:#111">
-      ${rendered || '<em style="color:#aaa">No body content yet.</em>'}
-    </div>
-  </body></html>`;
+  var html = '<!DOCTYPE html><html><body style="margin:0;padding:16px;background:#f4f4f2;font-family:-apple-system,sans-serif">'
+    + '<p style="font-size:11px;color:#888;margin:0 0 8px;text-transform:uppercase;letter-spacing:.07em">Subject: ' + subject + '</p>'
+    + '<div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e8e8e4;font-size:14px;line-height:1.7;color:#111">'
+    + (rendered || '<em style="color:#aaa">No body content yet.</em>')
+    + '</div></body></html>';
 
   if (preview) preview.style.display = '';
   if (iframe) {
