@@ -232,7 +232,7 @@ function previewTemplate(key) {
   var preview  = document.getElementById('em-preview-' + key);
   var iframe   = document.getElementById('em-iframe-' + key);
 
-  // Substitute sample vars. @{{...}} below tells Blade to output literal {{...}} to the browser.
+  // Substitute sample vars. The @ prefix on keys below tells Blade to output them literally to the browser.
   var sampleVars = {
     '@{{first_name}}':       'Jane',
     '@{{ra_number}}':        'SPK-A3F9B2',
