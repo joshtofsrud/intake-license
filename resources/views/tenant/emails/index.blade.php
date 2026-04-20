@@ -206,7 +206,7 @@
 
 @push('scripts')
 <script>
-// Tenant values injected from Blade (safe — no nested {{ }})
+// Tenant values injected from Blade (safe, no nested braces)
 const SHOP_NAME    = @js($currentTenant->name);
 const ACCENT_COLOR = @js($currentTenant->accent_color ?? '#BEF264');
 
