@@ -174,6 +174,12 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/campaigns/{id}/send', [TenantControllers\CampaignController::class, 'send'])->name('campaigns.send');
             Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
 
+            // Campaign image library
+            Route::get('/campaign-images',           [TenantControllers\CampaignImageController::class, 'index'])->name('campaign-images.index');
+            Route::get('/campaign-images/usage',     [TenantControllers\CampaignImageController::class, 'usage'])->name('campaign-images.usage');
+            Route::post('/campaign-images',          [TenantControllers\CampaignImageController::class, 'upload'])->name('campaign-images.upload');
+            Route::delete('/campaign-images/{id}',   [TenantControllers\CampaignImageController::class, 'destroy'])->name('campaign-images.destroy');
+
             Route::get('/branding',             [TenantControllers\BrandingController::class, 'index'])->name('branding.index');
             Route::patch('/branding',           [TenantControllers\BrandingController::class, 'update'])->name('branding.update');
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');

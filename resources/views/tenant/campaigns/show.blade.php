@@ -195,6 +195,157 @@
   .cb-shell { grid-template-columns: 1fr; }
   .cb-preview-iframe { height: 480px; }
 }
+
+/* =============== Image block settings UI =============== */
+.cb-img-preview {
+  padding: 12px;
+  background: var(--ia-surface-2);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-sm);
+  margin-bottom: 12px;
+  text-align: center;
+}
+.cb-img-change {
+  margin-top: 8px;
+  background: none;
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-sm);
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--ia-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.cb-img-change:hover { border-color: var(--ia-accent); color: var(--ia-text); }
+
+.cb-img-picker-btn {
+  display: block;
+  width: 100%;
+  padding: 30px 12px;
+  background: var(--ia-surface-2);
+  border: 0.5px dashed var(--ia-border);
+  border-radius: var(--ia-r-md);
+  cursor: pointer;
+  text-align: center;
+  color: var(--ia-text-muted);
+  margin-bottom: 12px;
+  font-family: inherit;
+}
+.cb-img-picker-btn:hover { border-color: var(--ia-accent); border-style: solid; color: var(--ia-text); }
+
+/* =============== Image picker modal =============== */
+.cb-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cb-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+.cb-modal-panel {
+  position: relative;
+  width: 90%;
+  max-width: 780px;
+  max-height: 85vh;
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cb-modal-head {
+  padding: 16px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cb-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  color: inherit;
+  opacity: .5;
+  padding: 0 4px;
+}
+.cb-modal-close:hover { opacity: 1; }
+.cb-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+}
+.cb-modal-actions {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.cb-upload-btn {
+  display: inline-block;
+  background: var(--ia-accent);
+  color: var(--ia-accent-text, #0a0a0a);
+  padding: 8px 16px;
+  border-radius: var(--ia-r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cb-upload-btn:hover { filter: brightness(1.05); }
+
+.cb-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.cb-picker-item {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--ia-surface-2);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-sm);
+  overflow: hidden;
+  cursor: pointer;
+}
+.cb-picker-item:hover { border-color: var(--ia-accent); }
+.cb-picker-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cb-picker-item-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  border: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .1s;
+}
+.cb-picker-item:hover .cb-picker-item-del { opacity: 1; }
+.cb-picker-empty {
+  grid-column: 1 / -1;
+  padding: 40px 12px;
+  text-align: center;
+  font-size: 12px;
+  opacity: .5;
+}
 </style>
 @endpush
 
@@ -339,6 +490,34 @@
   @endif
 </div>
 
+{{-- Image picker modal --}}
+<div class="cb-modal" id="cb-picker-modal" style="display:none">
+  <div class="cb-modal-backdrop" onclick="CB.closeImagePicker()"></div>
+  <div class="cb-modal-panel">
+    <div class="cb-modal-head">
+      <div>
+        <h3 style="margin:0;font-size:15px;font-weight:600">Image library</h3>
+        <p id="cb-picker-usage" style="margin:4px 0 0;font-size:11px;opacity:.5">Loading…</p>
+      </div>
+      <button type="button" class="cb-modal-close" onclick="CB.closeImagePicker()" aria-label="Close">×</button>
+    </div>
+
+    <div class="cb-modal-body">
+      <div class="cb-modal-actions">
+        <label class="cb-upload-btn">
+          <input type="file" id="cb-upload-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" onchange="CB.handleUpload(this.files[0])">
+          <span>Upload new image</span>
+        </label>
+        <span id="cb-upload-status" style="font-size:12px;opacity:.6;margin-left:12px"></span>
+      </div>
+
+      <div id="cb-picker-grid" class="cb-picker-grid">
+        <div class="cb-picker-empty">Loading images…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -431,9 +610,19 @@ window.CB = (function() {
       html += field('text', 'Text (tokens like first_name supported)', `<textarea class="cb-field-textarea" oninput="CB.updateData('text', this.value)">${escapeHtml(d.text || '')}</textarea>`);
       html += alignField(d.align);
     } else if (t === 'image') {
-      html += field('url', 'Image URL', `<input type="text" class="cb-field-input" value="${escapeAttr(d.url || '')}" placeholder="https://..." oninput="CB.updateData('url', this.value)">`);
-      html += field('alt', 'Alt text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" oninput="CB.updateData('alt', this.value)">`);
-      html += '<p style="font-size:11px;opacity:.4;line-height:1.4">Image upload coming in the next phase. For now, paste a URL to any publicly accessible image.</p>';
+      const hasImage = !!(d.url && d.url.length > 0);
+      if (hasImage) {
+        html += `<div class="cb-img-preview">
+          <img src="${escapeAttr(d.url)}" alt="" style="max-width:100%;max-height:140px;display:block;margin:0 auto;border-radius:4px">
+          <button type="button" class="cb-img-change" onclick="CB.openImagePicker()">Change image</button>
+        </div>`;
+      } else {
+        html += `<button type="button" class="cb-img-picker-btn" onclick="CB.openImagePicker()">
+          <span style="font-size:22px;opacity:.4">+</span>
+          <span style="display:block;font-size:12px;margin-top:4px">Choose or upload image</span>
+        </button>`;
+      }
+      html += field('alt', 'Alt text (for screen readers)', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" placeholder="Describe the image" oninput="CB.updateData('alt', this.value)">`);
     } else if (t === 'button') {
       html += field('text', 'Button label', `<input type="text" class="cb-field-input" value="${escapeAttr(d.text || '')}" oninput="CB.updateData('text', this.value)">`);
       html += field('url', 'Link URL', `<input type="text" class="cb-field-input" value="${escapeAttr(d.url || '')}" placeholder="https://..." oninput="CB.updateData('url', this.value)">`);
@@ -542,12 +731,111 @@ window.CB = (function() {
       if (!block) return;
       block.data = block.data || {};
       block.data[key] = value;
-      // Re-render selected state of align buttons etc. without losing input focus
       if (key === 'align' || key === 'size') renderSettings();
       syncHiddenInput();
       requestPreview();
     },
+
+    async openImagePicker() {
+      if (readOnly) return;
+      const modal = document.getElementById('cb-picker-modal');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      await Promise.all([loadUsage(), loadImages()]);
+    },
+
+    closeImagePicker() {
+      const modal = document.getElementById('cb-picker-modal');
+      if (modal) modal.style.display = 'none';
+    },
+
+    selectImage(url) {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || block.type !== 'image') return;
+      block.data = block.data || {};
+      block.data.url = url;
+      CB.closeImagePicker();
+      renderSettings();
+      syncHiddenInput();
+      requestPreview();
+    },
+
+    async handleUpload(file) {
+      if (!file) return;
+      const status = document.getElementById('cb-upload-status');
+      if (status) status.textContent = 'Uploading…';
+
+      const fd = new FormData();
+      fd.append('image', file);
+
+      try {
+        const res = await fetch('/admin/campaign-images', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+          body: fd,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (status) status.textContent = data.error || 'Upload failed.';
+          return;
+        }
+        if (status) status.textContent = 'Uploaded.';
+        CB.selectImage(data.url);
+      } catch (err) {
+        if (status) status.textContent = 'Upload failed.';
+      }
+    },
+
+    async deleteImage(id, ev) {
+      if (ev) ev.stopPropagation();
+      if (!confirm('Delete this image? This cannot be undone.')) return;
+      try {
+        await fetch('/admin/campaign-images/' + id, {
+          method: 'DELETE',
+          headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
+        });
+        await Promise.all([loadUsage(), loadImages()]);
+      } catch (err) {
+        alert('Delete failed.');
+      }
+    },
   };
+
+  async function loadUsage() {
+    const el = document.getElementById('cb-picker-usage');
+    if (!el) return;
+    try {
+      const res = await fetch('/admin/campaign-images/usage', { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      const usedMb  = (data.bytes_used  / 1024 / 1024).toFixed(1);
+      const limitMb = (data.bytes_limit / 1024 / 1024).toFixed(0);
+      el.textContent = `${data.file_count} image${data.file_count === 1 ? '' : 's'} · ${usedMb} MB of ${limitMb} MB used`;
+    } catch (err) {
+      el.textContent = 'Usage unavailable.';
+    }
+  }
+
+  async function loadImages() {
+    const grid = document.getElementById('cb-picker-grid');
+    if (!grid) return;
+    grid.innerHTML = '<div class="cb-picker-empty">Loading images…</div>';
+    try {
+      const res = await fetch('/admin/campaign-images?limit=100', { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      if (!data.images || data.images.length === 0) {
+        grid.innerHTML = '<div class="cb-picker-empty">No images yet. Upload your first one above.</div>';
+        return;
+      }
+      grid.innerHTML = data.images.map(img => `
+        <div class="cb-picker-item" onclick="CB.selectImage('${img.url}')" title="${escapeAttr(img.filename)}">
+          <img src="${img.url}" alt="${escapeAttr(img.filename)}" loading="lazy">
+          <button type="button" class="cb-picker-item-del" onclick="CB.deleteImage('${img.id}', event)" title="Delete">×</button>
+        </div>
+      `).join('');
+    } catch (err) {
+      grid.innerHTML = '<div class="cb-picker-empty">Failed to load images.</div>';
+    }
+  }
 })();
 
 document.addEventListener('DOMContentLoaded', CB.init);
