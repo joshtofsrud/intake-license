@@ -541,22 +541,17 @@
       createBtn.addEventListener('click', function () {
         var targetServiceId = state.pickerForServiceId;
         closeAddonPicker();
-        var name = prompt('New add-on name:');
-        if (!name || !name.trim()) return;
-        ajax(D.urls.addonsBase, 'POST', {
-          op: 'save_addon', name: name.trim(),
-          price_cents: 0, default_duration_minutes: 0,
-        }).then(function (r) {
-          if (!(r.ok && r.json && r.json.success)) { alert('Add-on create failed'); return; }
-          var a = r.json.addon;
-          state.library.push({
-            id: a.id, name: a.name, description: a.description || '',
-            price_cents: a.price_cents|0, default_duration_minutes: a.default_duration_minutes|0,
-            is_active: !!a.is_active, sort_order: a.sort_order|0, usage_count: 0,
-          });
-          if (targetServiceId) attachAddonToService(targetServiceId, a.id);
-          else renderAll();
+        state.tab = 'addons';
+        document.querySelectorAll('.sv-subnav-tab').forEach(function (t) {
+          t.classList.toggle('is-active', t.getAttribute('data-tab') === 'addons');
         });
+        document.getElementById('sv-tab-services').style.display = 'none';
+        document.getElementById('sv-tab-addons').style.display = '';
+        document.getElementById('sv-view-toggle').style.display = 'none';
+        document.getElementById('sv-add-btn').textContent = '+ Add add-on';
+        renderAll();
+        state.__attachAfterCreate = targetServiceId || null;
+        createLibraryAddon();
       });
     }
     document.addEventListener('click', function (e) {
@@ -1063,59 +1058,230 @@
   }
 
   function createService() {
-    var name = prompt('New service name:');
-    if (!name || !name.trim()) return;
-    var categoryId = state.categories.length ? state.categories[0].id : null;
-    if (!categoryId) {
-      var catName = prompt('You have no categories yet. Enter a category name to create:');
-      if (!catName || !catName.trim()) return;
-      ajax(D.urls.servicesBase, 'POST', { op: 'save_category', name: catName.trim() }).then(function (r) {
-        if (!serviceResponseOk(r)) { alert('Category save failed: ' + serviceErrorMessage(r)); return; }
-        state.categories.push({
-          id: r.json.data.id, name: r.json.data.name, slug: r.json.data.slug,
-          is_active: true, sort_order: r.json.data.sort_order || 0, services: [],
-        });
-        actuallyCreateService(name.trim(), r.json.data.id);
+    if (state.view !== 'list') {
+      state.view = 'list';
+      persistView('list');
+      document.querySelectorAll('.sv-view-toggle-btn').forEach(function (b) {
+        b.classList.toggle('is-active', b.getAttribute('data-view') === 'list');
+      });
+      document.querySelectorAll('.sv-view').forEach(function (v) { v.classList.remove('is-active'); });
+      var lv = document.getElementById('sv-view-list');
+      if (lv) lv.classList.add('is-active');
+    }
+
+    if (state.categories.length === 0) {
+      renderInlineCategoryCreator(function (newCategory) {
+        renderInlineServiceCreator(newCategory.id);
       });
       return;
     }
-    actuallyCreateService(name.trim(), categoryId);
+
+    renderInlineServiceCreator(state.categories[0].id);
   }
 
-  function actuallyCreateService(name, categoryId) {
-    ajax(D.urls.servicesBase, 'POST', {
-      op: 'save_service',
-      name: name, category_id: categoryId,
-      price_cents: 0, prep_before_minutes: 0,
-      duration_minutes: 30, cleanup_after_minutes: 0, slot_weight: 1,
-    }).then(function (r) {
-      if (!serviceResponseOk(r)) { alert('Service save failed: ' + serviceErrorMessage(r)); return; }
-      var newService = normalizeService(Object.assign({ addons: [] }, r.json.data));
-      var cat = state.categories.find(function (c) { return c.id === categoryId; });
-      if (cat) cat.services.push(newService);
-      state.expanded = newService.id;
-      renderAll();
+  function renderInlineServiceCreator(categoryId) {
+    var body = document.getElementById('sv-list-body');
+    if (!body) return;
+    var existing = document.getElementById('sv-inline-create-row');
+    if (existing) { existing.querySelector('input').focus(); return; }
+
+    var categoryOptions = state.categories.map(function (c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === categoryId ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    }).join('');
+
+    var row = document.createElement('div');
+    row.className = 'sv-list-row';
+    row.id = 'sv-inline-create-row';
+    row.style.background = 'var(--ia-accent-soft)';
+    row.innerHTML = ''
+      + '<div class="sv-drag">+</div>'
+      + '<div><input type="text" class="sv-cell-input" id="sv-inline-name" placeholder="New service name…" style="padding:4px 7px;background:var(--ia-input-bg);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-sm);font-size:13.5px"></div>'
+      + '<div><select class="sv-drawer-select" id="sv-inline-category" style="padding:4px 7px;font-size:12.5px">' + categoryOptions + '</select></div>'
+      + '<div class="sv-num" style="opacity:.4;font-size:12px">—</div>'
+      + '<div class="sv-num" style="opacity:.4;font-size:12px">30 min</div>'
+      + '<div style="text-align:center;opacity:.4;font-size:11px">auto</div>'
+      + '<div><button type="button" class="sv-expand-btn" id="sv-inline-cancel" title="Cancel">×</button></div>';
+
+    body.insertBefore(row, body.firstChild);
+
+    var nameInput = row.querySelector('#sv-inline-name');
+    var catSelect = row.querySelector('#sv-inline-category');
+    var cancelBtn = row.querySelector('#sv-inline-cancel');
+
+    nameInput.focus();
+
+    var committed = false;
+    function cancel() {
+      if (committed) return;
+      committed = true;
+      row.remove();
+    }
+    function commit() {
+      if (committed) return;
+      var name = nameInput.value.trim();
+      if (!name) { cancel(); return; }
+      committed = true;
+      row.style.opacity = '.6';
+      nameInput.disabled = true;
+      catSelect.disabled = true;
+      ajax(D.urls.servicesBase, 'POST', {
+        op: 'save_service', name: name, category_id: catSelect.value,
+        price_cents: 0, prep_before_minutes: 0,
+        duration_minutes: 30, cleanup_after_minutes: 0, slot_weight: 1,
+      }).then(function (r) {
+        row.remove();
+        if (!serviceResponseOk(r)) { alert('Service save failed: ' + serviceErrorMessage(r)); return; }
+        var newService = normalizeService(Object.assign({ addons: [] }, r.json.data));
+        var cat = state.categories.find(function (c) { return c.id === catSelect.value; });
+        if (cat) cat.services.push(newService);
+        state.expanded = newService.id;
+        renderAll();
+      });
+    }
+
+    nameInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
     });
+    nameInput.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (document.activeElement !== catSelect && document.activeElement !== cancelBtn) commit();
+      }, 120);
+    });
+    cancelBtn.addEventListener('click', cancel);
+  }
+
+  function renderInlineCategoryCreator(onCreated) {
+    var body = document.getElementById('sv-list-body');
+    if (!body) return;
+    var existing = document.getElementById('sv-inline-create-row');
+    if (existing) existing.remove();
+
+    var row = document.createElement('div');
+    row.className = 'sv-list-row';
+    row.id = 'sv-inline-create-row';
+    row.style.background = 'var(--ia-accent-soft)';
+    row.innerHTML = ''
+      + '<div class="sv-drag">+</div>'
+      + '<div style="grid-column:2 / span 4"><input type="text" class="sv-cell-input" id="sv-inline-cat-name" placeholder="New category name (e.g. Repair, Fitting, Build)…" style="padding:4px 7px;background:var(--ia-input-bg);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-sm);font-size:13.5px;width:100%"></div>'
+      + '<div style="text-align:center;opacity:.4;font-size:11px">→</div>'
+      + '<div><button type="button" class="sv-expand-btn" id="sv-inline-cat-cancel" title="Cancel">×</button></div>';
+
+    body.insertBefore(row, body.firstChild);
+
+    var nameInput = row.querySelector('#sv-inline-cat-name');
+    var cancelBtn = row.querySelector('#sv-inline-cat-cancel');
+    nameInput.focus();
+
+    var committed = false;
+    function cancel() { if (committed) return; committed = true; row.remove(); }
+    function commit() {
+      if (committed) return;
+      var name = nameInput.value.trim();
+      if (!name) { cancel(); return; }
+      committed = true;
+      nameInput.disabled = true;
+      ajax(D.urls.servicesBase, 'POST', { op: 'save_category', name: name }).then(function (r) {
+        row.remove();
+        if (!serviceResponseOk(r)) { alert('Category save failed: ' + serviceErrorMessage(r)); return; }
+        var cat = {
+          id: r.json.data.id, name: r.json.data.name, slug: r.json.data.slug,
+          is_active: true, sort_order: r.json.data.sort_order || 0, services: [],
+        };
+        state.categories.push(cat);
+        if (typeof onCreated === 'function') onCreated(cat);
+        else renderAll();
+      });
+    }
+    nameInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
+    });
+    nameInput.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (document.activeElement !== cancelBtn) commit();
+      }, 120);
+    });
+    cancelBtn.addEventListener('click', cancel);
   }
 
   function createLibraryAddon() {
-    var name = prompt('New add-on name:');
-    if (!name || !name.trim()) return;
-    ajax(D.urls.addonsBase, 'POST', {
-      op: 'save_addon', name: name.trim(),
-      price_cents: 0, default_duration_minutes: 0,
-    }).then(function (r) {
-      if (!(r.ok && r.json && r.json.success)) { alert('Add-on save failed'); return; }
-      var a = r.json.addon;
-      state.library.push({
-        id: a.id, name: a.name, description: a.description || '',
-        price_cents: a.price_cents|0,
-        default_duration_minutes: a.default_duration_minutes|0,
-        is_active: !!a.is_active, sort_order: a.sort_order|0,
-        usage_count: a.usage_count|0,
+    var body = document.getElementById('sv-addon-lib-body');
+    if (!body) return;
+    var existing = document.getElementById('sv-inline-addon-row');
+    if (existing) { existing.querySelector('input').focus(); return; }
+
+    var row = document.createElement('div');
+    row.className = 'sv-addon-row';
+    row.id = 'sv-inline-addon-row';
+    row.style.background = 'var(--ia-accent-soft)';
+    row.innerHTML = ''
+      + '<div><input type="text" class="sv-cell-input" id="sv-inline-addon-name" placeholder="New add-on name…" style="padding:4px 7px;background:var(--ia-input-bg);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-sm);font-size:13.5px"></div>'
+      + '<div style="opacity:.4;font-size:12px">—</div>'
+      + '<div class="sv-addon-row-time" style="opacity:.4;font-size:12px">0 min</div>'
+      + '<div class="sv-addon-row-price" style="opacity:.4;font-size:12px">' + fmtMoney(0) + '</div>'
+      + '<div class="sv-addon-row-usage" style="opacity:.4">—</div>'
+      + '<div style="text-align:center;opacity:.4;font-size:11px">auto</div>'
+      + '<div><button type="button" class="sv-expand-btn" id="sv-inline-addon-cancel" title="Cancel">×</button></div>';
+
+    body.insertBefore(row, body.firstChild);
+
+    var nameInput = row.querySelector('#sv-inline-addon-name');
+    var cancelBtn = row.querySelector('#sv-inline-addon-cancel');
+    nameInput.focus();
+
+    var committed = false;
+    function cancel() { if (committed) return; committed = true; row.remove(); }
+    function commit() {
+      if (committed) return;
+      var name = nameInput.value.trim();
+      if (!name) { cancel(); return; }
+      committed = true;
+      nameInput.disabled = true;
+      ajax(D.urls.addonsBase, 'POST', {
+        op: 'save_addon', name: name,
+        price_cents: 0, default_duration_minutes: 0,
+      }).then(function (r) {
+        row.remove();
+        if (!(r.ok && r.json && r.json.success)) { alert('Add-on save failed'); return; }
+        var a = r.json.addon;
+        state.library.push({
+          id: a.id, name: a.name, description: a.description || '',
+          price_cents: a.price_cents|0, default_duration_minutes: a.default_duration_minutes|0,
+          is_active: !!a.is_active, sort_order: a.sort_order|0,
+          usage_count: a.usage_count|0,
+        });
+        var attachTarget = state.__attachAfterCreate;
+        state.__attachAfterCreate = null;
+        if (attachTarget) {
+          state.tab = 'services';
+          document.querySelectorAll('.sv-subnav-tab').forEach(function (t) {
+            t.classList.toggle('is-active', t.getAttribute('data-tab') === 'services');
+          });
+          document.getElementById('sv-tab-services').style.display = '';
+          document.getElementById('sv-tab-addons').style.display = 'none';
+          document.getElementById('sv-view-toggle').style.display = '';
+          document.getElementById('sv-add-btn').textContent = '+ Add service';
+          attachAddonToService(attachTarget, a.id);
+        } else {
+          renderAll();
+        }
       });
-      renderAll();
+    }
+    nameInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
     });
+    nameInput.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (document.activeElement !== cancelBtn) commit();
+      }, 120);
+    });
+    cancelBtn.addEventListener('click', cancel);
+  }
+
+  function actuallyCreateService() {
+    // kept for API compatibility with earlier heredocs; no longer called
   }
 
   // Wrap renderAll so bindings refresh after each render
