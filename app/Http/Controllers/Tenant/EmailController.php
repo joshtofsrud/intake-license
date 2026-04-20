@@ -49,7 +49,7 @@ class EmailController extends Controller
         return view('tenant.emails.index', compact('types'));
     }
 
-    public function update(Request $request, string $type)
+    public function update(Request $request, string $subdomain, string $type)
     {
         Log::info('EMAIL_UPDATE_HIT', [
             'type'      => $type,
