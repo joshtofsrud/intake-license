@@ -106,20 +106,85 @@ class BlockRenderer
 
     private static function renderParagraph(array $data): string
     {
-        // Convert plain newlines to <br> but escape HTML otherwise.
-        $text  = self::escape($data['text'] ?? '');
-        $text  = nl2br($text);
         $align = self::safeAlign($data['align'] ?? 'left');
 
-        if (trim($text) === '') {
-            $text = '<span style="color:#bbb;font-style:italic">Empty paragraph</span>';
+        // Prefer sanitized HTML field (from rich text editor); fall back to
+        // plain text field for legacy blocks — wrap in <p> with <br> for newlines.
+        if (!empty($data['html']) && is_string($data['html'])) {
+            $body = self::sanitizeHtml($data['html']);
+        } else {
+            $text = self::escape($data['text'] ?? '');
+            $body = nl2br($text);
         }
+
+        if (trim(strip_tags($body)) === '') {
+            $body = '<span style="color:#bbb;font-style:italic">Empty paragraph</span>';
+        }
+
+        // Inline-style anchors because email clients strip CSS classes.
+        $body = preg_replace(
+            '/<a\s+([^>]*?)href=(["\'])([^"\'\s]+)\2([^>]*)>/i',
+            '<a $1href=$2$3$2$4 style="color:#0066cc;text-decoration:underline">',
+            $body
+        );
 
         return <<<HTML
             <tr><td style="padding:8px 24px;text-align:{$align};font-size:15px;line-height:1.65;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
-              {$text}
+              {$body}
             </td></tr>
             HTML;
+    }
+
+    /**
+     * Whitelist-based HTML sanitizer for paragraph rich text.
+     *
+     * Allowed tags: p br strong em a ul ol li
+     * All attributes stripped except href on <a>.
+     * Inline styles stripped. Scripts stripped.
+     *
+     * This is adequate for authenticated staff input. If/when campaigns
+     * accept input from public sources, upgrade to HTMLPurifier.
+     */
+    public static function sanitizeHtml(string $html): string
+    {
+        // 1. Strip script/style/iframe/object/embed blocks entirely, including content
+        $html = preg_replace('#<(script|style|iframe|object|embed|form)[^>]*>.*?</\\1>#is', '', $html);
+        $html = preg_replace('#<(script|style|iframe|object|embed|form)[^>]*/?>#i', '', $html);
+
+        // 2. Strip HTML comments (can hide nasty payloads)
+        $html = preg_replace('/<!--.*?-->/s', '', $html);
+
+        // 3. Whitelist tags. Everything else becomes escaped text.
+        $allowed = '<p><br><strong><b><em><i><u><a><ul><ol><li>';
+        $html = strip_tags($html, $allowed);
+
+        // 4. Strip any on* event handlers and inline styles from surviving tags,
+        //    plus any javascript: / data: URLs in href attrs.
+        $html = preg_replace_callback('/<([a-z][a-z0-9]*)\b([^>]*)>/i', function ($m) {
+            $tag  = strtolower($m[1]);
+            $attr = $m[2];
+
+            // For anchors, keep ONLY the href attribute (and only http/https/mailto).
+            if ($tag === 'a') {
+                if (preg_match('/\bhref\s*=\s*(["\'])([^"\'\s>]+)\1/i', $attr, $h)) {
+                    $url = trim($h[2]);
+                    if (preg_match('/^(https?:\/\/|mailto:)/i', $url)) {
+                        $url = htmlspecialchars($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        return '<a href="' . $url . '" rel="noopener">';
+                    }
+                }
+                return '<a>';
+            }
+
+            // Normalize <b>→<strong>, <i>→<em>
+            if ($tag === 'b') $tag = 'strong';
+            if ($tag === 'i') $tag = 'em';
+
+            // Everything else: emit the tag bare, no attributes.
+            return '<' . $tag . '>';
+        }, $html);
+
+        return $html;
     }
 
     private static function renderImage(array $data): string

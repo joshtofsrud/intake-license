@@ -233,6 +233,98 @@
 }
 .cb-img-picker-btn:hover { border-color: var(--ia-accent); border-style: solid; color: var(--ia-text); }
 
+/* =============== TipTap rich text editor =============== */
+.cb-tt-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--ia-surface-2);
+  border: 0.5px solid var(--ia-border);
+  border-bottom: none;
+  border-top-left-radius: var(--ia-r-sm);
+  border-top-right-radius: var(--ia-r-sm);
+}
+.cb-tt-btn {
+  background: transparent;
+  border: 0.5px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  min-width: 26px;
+  color: var(--ia-text-muted);
+  font-family: inherit;
+}
+.cb-tt-btn:hover { background: var(--ia-hover); color: var(--ia-text); }
+.cb-tt-btn.active { background: var(--ia-accent-soft); border-color: var(--ia-accent); color: var(--ia-text); }
+.cb-tt-editor {
+  background: var(--ia-surface-2);
+  border: 0.5px solid var(--ia-border);
+  border-top: none;
+  border-bottom-left-radius: var(--ia-r-sm);
+  border-bottom-right-radius: var(--ia-r-sm);
+  padding: 10px 12px;
+  min-height: 120px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ia-text);
+}
+.cb-tt-editor .ProseMirror {
+  outline: none;
+  min-height: 100px;
+}
+.cb-tt-editor .ProseMirror p { margin: 0 0 8px; }
+.cb-tt-editor .ProseMirror p:last-child { margin-bottom: 0; }
+.cb-tt-editor .ProseMirror ul,
+.cb-tt-editor .ProseMirror ol { padding-left: 20px; margin: 0 0 8px; }
+.cb-tt-editor .ProseMirror a { color: var(--ia-accent); text-decoration: underline; }
+
+/* =============== TipTap rich text editor =============== */
+.cb-tt-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--ia-surface-2);
+  border: 0.5px solid var(--ia-border);
+  border-bottom: none;
+  border-top-left-radius: var(--ia-r-sm);
+  border-top-right-radius: var(--ia-r-sm);
+}
+.cb-tt-btn {
+  background: transparent;
+  border: 0.5px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  min-width: 26px;
+  color: var(--ia-text-muted);
+  font-family: inherit;
+}
+.cb-tt-btn:hover { background: var(--ia-hover); color: var(--ia-text); }
+.cb-tt-btn.active { background: var(--ia-accent-soft); border-color: var(--ia-accent); color: var(--ia-text); }
+.cb-tt-editor {
+  background: var(--ia-surface-2);
+  border: 0.5px solid var(--ia-border);
+  border-top: none;
+  border-bottom-left-radius: var(--ia-r-sm);
+  border-bottom-right-radius: var(--ia-r-sm);
+  padding: 10px 12px;
+  min-height: 120px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ia-text);
+}
+.cb-tt-editor .ProseMirror {
+  outline: none;
+  min-height: 100px;
+}
+.cb-tt-editor .ProseMirror p { margin: 0 0 8px; }
+.cb-tt-editor .ProseMirror p:last-child { margin-bottom: 0; }
+.cb-tt-editor .ProseMirror ul,
+.cb-tt-editor .ProseMirror ol { padding-left: 20px; margin: 0 0 8px; }
+.cb-tt-editor .ProseMirror a { color: var(--ia-accent); text-decoration: underline; }
+
 /* =============== Image picker modal =============== */
 .cb-modal {
   position: fixed;
@@ -521,6 +613,22 @@
 @endsection
 
 @push('scripts')
+<script type="importmap">
+{
+  "imports": {
+    "@tiptap/core":         "https://esm.sh/@tiptap/core@2.10.3",
+    "@tiptap/starter-kit":  "https://esm.sh/@tiptap/starter-kit@2.10.3",
+    "@tiptap/extension-link": "https://esm.sh/@tiptap/extension-link@2.10.3"
+  }
+}
+</script>
+<script type="module">
+import { Editor }     from '@tiptap/core';
+import StarterKit     from '@tiptap/starter-kit';
+import Link           from '@tiptap/extension-link';
+window.TipTap = { Editor, StarterKit, Link };
+window.dispatchEvent(new Event('tiptap-loaded'));
+</script>
 <script>
 window.CB = (function() {
   // ---- State ----
@@ -607,8 +715,19 @@ window.CB = (function() {
         </select>`);
       html += alignField(d.align);
     } else if (t === 'paragraph') {
-      html += field('text', 'Text (tokens like first_name supported)', `<textarea class="cb-field-textarea" oninput="CB.updateData('text', this.value)">${escapeHtml(d.text || '')}</textarea>`);
+      // Rich text editor — mount TipTap into this container after settings render.
+      // data-tt-html holds initial content; we read it during mount.
+      const initialHtml = d.html != null
+        ? d.html
+        : (d.text ? escapeHtml(d.text || '').replace(/\n/g, '<br>') : '');
+      html += `<div class="cb-field">
+        <label class="cb-field-label">Text (tokens like first_name supported)</label>
+        <div class="cb-tt-toolbar" id="cb-tt-toolbar"></div>
+        <div class="cb-tt-editor" id="cb-tt-editor" data-tt-html="${escapeAttr(initialHtml)}"></div>
+      </div>`;
       html += alignField(d.align);
+      // Defer the mount so the DOM nodes exist first
+      setTimeout(mountTipTapEditor, 0);
     } else if (t === 'image') {
       const hasImage = !!(d.url && d.url.length > 0);
       if (hasImage) {
@@ -687,6 +806,232 @@ window.CB = (function() {
     const input = document.getElementById('cb-blocks-json');
     if (input) input.value = JSON.stringify(blocks);
   }
+
+  // ---- TipTap editor mount/destroy ----
+  let activeEditor = null;
+
+  function destroyTipTapEditor() {
+    if (activeEditor) {
+      try { activeEditor.destroy(); } catch (e) {}
+      activeEditor = null;
+    }
+  }
+
+  function mountTipTapEditor() {
+    destroyTipTapEditor();
+
+    const holder = document.getElementById('cb-tt-editor');
+    const toolbar = document.getElementById('cb-tt-toolbar');
+    if (!holder || !toolbar || !window.TipTap) return;
+
+    const initialHtml = holder.getAttribute('data-tt-html') || '';
+
+    const editor = new window.TipTap.Editor({
+      element: holder,
+      extensions: [
+        window.TipTap.StarterKit.configure({
+          heading: false, // headings are a separate block
+          codeBlock: false,
+          blockquote: false,
+          horizontalRule: false,
+        }),
+        window.TipTap.Link.configure({
+          openOnClick: false,
+          autolink: true,
+          HTMLAttributes: { rel: 'noopener' },
+        }),
+      ],
+      content: initialHtml,
+      onUpdate: ({ editor }) => {
+        const html = editor.getHTML();
+        const block = blocks.find(b => b.id === selectedId);
+        if (!block) return;
+        block.data = block.data || {};
+        block.data.html = html;
+        delete block.data.text; // migrate off legacy text field on edit
+        syncHiddenInput();
+        requestPreview();
+      },
+    });
+
+    activeEditor = editor;
+
+    // Toolbar
+    toolbar.innerHTML = `
+      <button type="button" class="cb-tt-btn" data-cmd="bold"    title="Bold"><b>B</b></button>
+      <button type="button" class="cb-tt-btn" data-cmd="italic"  title="Italic"><i>I</i></button>
+      <button type="button" class="cb-tt-btn" data-cmd="link"    title="Link">↗</button>
+      <button type="button" class="cb-tt-btn" data-cmd="bullet"  title="Bullet list">•</button>
+      <button type="button" class="cb-tt-btn" data-cmd="ordered" title="Numbered list">1.</button>
+    `;
+    toolbar.querySelectorAll('.cb-tt-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const cmd = btn.getAttribute('data-cmd');
+        if (cmd === 'bold')    editor.chain().focus().toggleBold().run();
+        if (cmd === 'italic')  editor.chain().focus().toggleItalic().run();
+        if (cmd === 'bullet')  editor.chain().focus().toggleBulletList().run();
+        if (cmd === 'ordered') editor.chain().focus().toggleOrderedList().run();
+        if (cmd === 'link') {
+          const prev = editor.getAttributes('link').href || '';
+          const url  = window.prompt('URL (leave empty to remove):', prev);
+          if (url === null) return;
+          if (url === '') {
+            editor.chain().focus().unsetLink().run();
+          } else {
+            let normalized = url.trim();
+            if (!/^(https?:\/\/|mailto:)/i.test(normalized)) {
+              normalized = 'https://' + normalized;
+            }
+            editor.chain().focus().setLink({ href: normalized }).run();
+          }
+        }
+        updateToolbarState();
+      });
+    });
+
+    function updateToolbarState() {
+      const buttons = toolbar.querySelectorAll('.cb-tt-btn');
+      buttons.forEach(function(btn) {
+        const cmd = btn.getAttribute('data-cmd');
+        let active = false;
+        if (cmd === 'bold')    active = editor.isActive('bold');
+        if (cmd === 'italic')  active = editor.isActive('italic');
+        if (cmd === 'link')    active = editor.isActive('link');
+        if (cmd === 'bullet')  active = editor.isActive('bulletList');
+        if (cmd === 'ordered') active = editor.isActive('orderedList');
+        btn.classList.toggle('active', active);
+      });
+    }
+    editor.on('selectionUpdate', updateToolbarState);
+    editor.on('transaction', updateToolbarState);
+    updateToolbarState();
+  }
+
+  // Clean up editor whenever settings panel re-renders
+  const _originalRenderSettings = renderSettings;
+  renderSettings = function() {
+    destroyTipTapEditor();
+    _originalRenderSettings();
+  };
+
+  // If TipTap loads after initial render, remount
+  window.addEventListener('tiptap-loaded', function() {
+    if (document.getElementById('cb-tt-editor')) mountTipTapEditor();
+  });
+
+  // ---- TipTap editor mount/destroy ----
+  let activeEditor = null;
+
+  function destroyTipTapEditor() {
+    if (activeEditor) {
+      try { activeEditor.destroy(); } catch (e) {}
+      activeEditor = null;
+    }
+  }
+
+  function mountTipTapEditor() {
+    destroyTipTapEditor();
+
+    const holder = document.getElementById('cb-tt-editor');
+    const toolbar = document.getElementById('cb-tt-toolbar');
+    if (!holder || !toolbar || !window.TipTap) return;
+
+    const initialHtml = holder.getAttribute('data-tt-html') || '';
+
+    const editor = new window.TipTap.Editor({
+      element: holder,
+      extensions: [
+        window.TipTap.StarterKit.configure({
+          heading: false, // headings are a separate block
+          codeBlock: false,
+          blockquote: false,
+          horizontalRule: false,
+        }),
+        window.TipTap.Link.configure({
+          openOnClick: false,
+          autolink: true,
+          HTMLAttributes: { rel: 'noopener' },
+        }),
+      ],
+      content: initialHtml,
+      onUpdate: ({ editor }) => {
+        const html = editor.getHTML();
+        const block = blocks.find(b => b.id === selectedId);
+        if (!block) return;
+        block.data = block.data || {};
+        block.data.html = html;
+        delete block.data.text; // migrate off legacy text field on edit
+        syncHiddenInput();
+        requestPreview();
+      },
+    });
+
+    activeEditor = editor;
+
+    // Toolbar
+    toolbar.innerHTML = `
+      <button type="button" class="cb-tt-btn" data-cmd="bold"    title="Bold"><b>B</b></button>
+      <button type="button" class="cb-tt-btn" data-cmd="italic"  title="Italic"><i>I</i></button>
+      <button type="button" class="cb-tt-btn" data-cmd="link"    title="Link">↗</button>
+      <button type="button" class="cb-tt-btn" data-cmd="bullet"  title="Bullet list">•</button>
+      <button type="button" class="cb-tt-btn" data-cmd="ordered" title="Numbered list">1.</button>
+    `;
+    toolbar.querySelectorAll('.cb-tt-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const cmd = btn.getAttribute('data-cmd');
+        if (cmd === 'bold')    editor.chain().focus().toggleBold().run();
+        if (cmd === 'italic')  editor.chain().focus().toggleItalic().run();
+        if (cmd === 'bullet')  editor.chain().focus().toggleBulletList().run();
+        if (cmd === 'ordered') editor.chain().focus().toggleOrderedList().run();
+        if (cmd === 'link') {
+          const prev = editor.getAttributes('link').href || '';
+          const url  = window.prompt('URL (leave empty to remove):', prev);
+          if (url === null) return;
+          if (url === '') {
+            editor.chain().focus().unsetLink().run();
+          } else {
+            let normalized = url.trim();
+            if (!/^(https?:\/\/|mailto:)/i.test(normalized)) {
+              normalized = 'https://' + normalized;
+            }
+            editor.chain().focus().setLink({ href: normalized }).run();
+          }
+        }
+        updateToolbarState();
+      });
+    });
+
+    function updateToolbarState() {
+      const buttons = toolbar.querySelectorAll('.cb-tt-btn');
+      buttons.forEach(function(btn) {
+        const cmd = btn.getAttribute('data-cmd');
+        let active = false;
+        if (cmd === 'bold')    active = editor.isActive('bold');
+        if (cmd === 'italic')  active = editor.isActive('italic');
+        if (cmd === 'link')    active = editor.isActive('link');
+        if (cmd === 'bullet')  active = editor.isActive('bulletList');
+        if (cmd === 'ordered') active = editor.isActive('orderedList');
+        btn.classList.toggle('active', active);
+      });
+    }
+    editor.on('selectionUpdate', updateToolbarState);
+    editor.on('transaction', updateToolbarState);
+    updateToolbarState();
+  }
+
+  // Clean up editor whenever settings panel re-renders
+  const _originalRenderSettings = renderSettings;
+  renderSettings = function() {
+    destroyTipTapEditor();
+    _originalRenderSettings();
+  };
+
+  // If TipTap loads after initial render, remount
+  window.addEventListener('tiptap-loaded', function() {
+    if (document.getElementById('cb-tt-editor')) mountTipTapEditor();
+  });
 
   // ---- Public API ----
   return {

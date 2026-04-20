@@ -220,7 +220,7 @@ class CampaignController extends Controller
     {
         $allowed = [
             'heading'   => ['text', 'size', 'align'],
-            'paragraph' => ['text', 'align'],
+            'paragraph' => ['html', 'text', 'align'],
             'image'     => ['url', 'alt'],
             'button'    => ['text', 'url', 'align'],
             'divider'   => [],
@@ -236,9 +236,16 @@ class CampaignController extends Controller
             $data = [];
             foreach ($allowed[$type] as $field) {
                 if (isset($block['data'][$field])) {
-                    $data[$field] = is_string($block['data'][$field])
+                    $value = is_string($block['data'][$field])
                         ? $block['data'][$field]
                         : (string) $block['data'][$field];
+
+                    // Run HTML fields through the sanitizer before saving.
+                    if ($type === 'paragraph' && $field === 'html') {
+                        $value = \App\Support\BlockRenderer::sanitizeHtml($value);
+                    }
+
+                    $data[$field] = $value;
                 }
             }
             $clean[] = [
