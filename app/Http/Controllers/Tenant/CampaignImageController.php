@@ -79,7 +79,7 @@ class CampaignImageController extends Controller
         }
 
         // Quota check — based on tenant's plan tier
-        $tierKey = $tenant->plan_tier ?? 'basic';
+        $tierKey = $tenant->plan_tier ?? 'starter';
         $tierLimit = (int) config("intake.image_quotas.tiers.{$tierKey}", 0);
         $used = self::usedBytes($tenant->id);
         if ($tierLimit > 0 && ($used + $file->getSize()) > $tierLimit) {
@@ -161,7 +161,7 @@ class CampaignImageController extends Controller
         $tenant = tenant();
 
         $used  = self::usedBytes($tenant->id);
-        $tierKey = $tenant->plan_tier ?? 'basic';
+        $tierKey = $tenant->plan_tier ?? 'starter';
         $limit = (int) config("intake.image_quotas.tiers.{$tierKey}", 0);
         $count = TenantCampaignImage::where('tenant_id', $tenant->id)->count();
 

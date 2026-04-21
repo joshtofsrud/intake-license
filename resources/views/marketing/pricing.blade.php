@@ -60,7 +60,7 @@
     <div class="mk-plan-grid-full">
       @php
         $planDetails = [
-          'basic'   => [
+          'starter' => [
             'popular' => false,
             'desc'    => 'Everything you need to start taking bookings online.',
             'features'=> ['Online booking form','Customer CRM','Work order management','intake.works subdomain','Stripe + PayPal payments','Page builder (website)','Capacity management','Email confirmations','Up to 3 team members'],
@@ -68,12 +68,12 @@
           'branded' => [
             'popular' => true,
             'desc'    => 'Your own domain and brand. Nothing that says "Intake".',
-            'features'=> ['Everything in Basic','Custom domain','Remove Intake branding','Priority email support','Email campaigns','Up to 10 team members','Advanced form builder'],
+            'features'=> ['Everything in Starter','Custom domain','Remove Intake branding','Priority email support','Email campaigns','Up to 10 team members','Advanced form builder'],
           ],
-          'custom'  => [
+          'scale'   => [
             'popular' => false,
-            'desc'    => 'Multiple locations, full white-label, and dedicated support.',
-            'features'=> ['Everything in Branded','Multi-location support','Full white-label','Dedicated account manager','Custom integrations','Unlimited team members','SLA guarantee'],
+            'desc'    => 'Multi-location, full white-label, and advanced automations.',
+            'features'=> ['Everything in Branded','Multi-location support','Full white-label','Dedicated account manager','Advanced automations','Unlimited team members','SLA guarantee'],
           ],
         ];
       @endphp
@@ -93,7 +93,7 @@
             @endforeach
           </div>
           <a href="{{ route('platform.signup') }}?plan={{ $slug }}" class="mk-plan-btn">
-            {{ $slug === 'custom' ? 'Contact us' : 'Start free trial' }}
+            Start free trial
           </a>
         </div>
       @endforeach
@@ -115,28 +115,28 @@
           @php
           $rows = [
             ['section' => 'Booking'],
-            ['label' => 'Online booking form',      'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Service catalog + tiers',  'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Capacity management',      'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Custom form fields',       'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Email confirmations',      'basic' => true,  'branded' => true,  'custom' => true],
+            ['label' => 'Online booking form',      'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Service catalog + tiers',  'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Capacity management',      'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Custom form fields',       'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Email confirmations',      'starter' => true,  'branded' => true,  'scale' => true],
             ['section' => 'Payments'],
-            ['label' => 'Stripe',                   'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'PayPal',                   'basic' => true,  'branded' => true,  'custom' => true],
+            ['label' => 'Stripe',                   'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'PayPal',                   'starter' => true,  'branded' => true,  'scale' => true],
             ['section' => 'Website'],
-            ['label' => 'Page builder',             'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'intake.works subdomain',   'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Custom domain',            'basic' => false, 'branded' => true,  'custom' => true],
-            ['label' => 'Remove Intake branding',   'basic' => false, 'branded' => true,  'custom' => true],
+            ['label' => 'Page builder',             'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'intake.works subdomain',   'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Custom domain',            'starter' => false, 'branded' => true,  'scale' => true],
+            ['label' => 'Remove Intake branding',   'starter' => false, 'branded' => true,  'scale' => true],
             ['section' => 'Management'],
-            ['label' => 'Customer CRM',             'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Work order management',    'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Team members',             'basic' => '3',   'branded' => '10',  'custom' => 'Unlimited'],
-            ['label' => 'Email campaigns',          'basic' => false, 'branded' => true,  'custom' => true],
+            ['label' => 'Customer CRM',             'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Work order management',    'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Team members',             'starter' => '3',   'branded' => '10',  'scale' => 'Unlimited'],
+            ['label' => 'Email campaigns',          'starter' => false, 'branded' => true,  'scale' => true],
             ['section' => 'Support'],
-            ['label' => 'Email support',            'basic' => true,  'branded' => true,  'custom' => true],
-            ['label' => 'Priority support',         'basic' => false, 'branded' => true,  'custom' => true],
-            ['label' => 'Dedicated account manager','basic' => false, 'branded' => false, 'custom' => true],
+            ['label' => 'Email support',            'starter' => true,  'branded' => true,  'scale' => true],
+            ['label' => 'Priority support',         'starter' => false, 'branded' => true,  'scale' => true],
+            ['label' => 'Dedicated account manager','starter' => false, 'branded' => false, 'scale' => true],
           ];
           @endphp
           @foreach($rows as $row)
@@ -145,7 +145,7 @@
             @else
               <tr>
                 <td>{{ $row['label'] }}</td>
-                @foreach(['basic','branded','custom'] as $plan)
+                @foreach(['starter','branded','scale'] as $plan)
                   <td>
                     @if($row[$plan] === true)
                       <span class="mk-tick">✓</span>

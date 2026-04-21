@@ -356,7 +356,9 @@ The `ResolveTenant` middleware handles the routing — it looks up the custom do
 | Variable | Description |
 |----------|-------------|
 | `APP_DOMAIN` | Root domain (default: `intake.works`) |
-| `PLAN_PRICE_BASIC` | Basic plan monthly price in cents |
+| `PLAN_PRICE_STARTER` | Starter plan monthly price in cents |
+| `PLAN_PRICE_BRANDED` | Branded plan monthly price in cents |
+| `PLAN_PRICE_SCALE` | Scale plan monthly price in cents |
 | `PLAN_PRICE_BRANDED` | Branded plan monthly price in cents |
 | `PLAN_PRICE_CUSTOM` | Custom plan monthly price in cents |
 | `ONBOARDING_FEE_CENTS` | One-time onboarding fee in cents |

@@ -133,9 +133,9 @@ class MarketingController extends Controller
         $plans = config('intake.plan_prices');
         return [
             'plans' => [
-                'basic'   => ['price' => $plans['basic']   / 100, 'name' => 'Basic',   'slug' => 'basic'],
+                'starter' => ['price' => $plans['starter'] / 100, 'name' => 'Starter', 'slug' => 'starter'],
                 'branded' => ['price' => $plans['branded'] / 100, 'name' => 'Branded', 'slug' => 'branded'],
-                'custom'  => ['price' => $plans['custom']  / 100, 'name' => 'Custom',  'slug' => 'custom'],
+                'scale'   => ['price' => $plans['scale']   / 100, 'name' => 'Scale',   'slug' => 'scale'],
             ],
         ];
     }

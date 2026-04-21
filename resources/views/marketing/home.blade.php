@@ -155,9 +155,9 @@
     <div class="mk-plan-grid">
       @php
         $planDetails = [
-          'basic'   => ['popular' => false, 'desc' => 'Everything you need to start taking bookings online.', 'features' => ['Booking form', 'Customer CRM', 'Work orders', 'intake.works subdomain', 'Stripe + PayPal']],
-          'branded' => ['popular' => true,  'desc' => 'Your own domain and brand — nothing that says "Intake".', 'features' => ['Everything in Basic', 'Custom domain', 'Remove Intake branding', 'Priority support', 'Email campaigns']],
-          'custom'  => ['popular' => false, 'desc' => 'Multiple locations, full white-label, and custom integrations.', 'features' => ['Everything in Branded', 'Multi-location', 'Full white-label', 'Dedicated support', 'Custom integrations']],
+          'starter' => ['popular' => false, 'desc' => 'Everything you need to start taking bookings online.', 'features' => ['Booking form', 'Customer CRM', 'Work orders', 'intake.works subdomain', 'Stripe + PayPal']],
+          'branded' => ['popular' => true,  'desc' => 'Your own domain and brand — nothing that says "Intake".', 'features' => ['Everything in Starter', 'Custom domain', 'Remove Intake branding', 'Priority support', 'Email campaigns']],
+          'scale'   => ['popular' => false, 'desc' => 'Multi-location, full white-label, and advanced automation.', 'features' => ['Everything in Branded', 'Multi-location', 'Full white-label', 'Dedicated support', 'Advanced automations']],
         ];
       @endphp
       @foreach($plans as $slug => $plan)
@@ -175,7 +175,7 @@
             @endforeach
           </div>
           <a href="{{ route('platform.signup') }}?plan={{ $slug }}" class="mk-plan-btn">
-            {{ $slug === 'custom' ? 'Contact us' : 'Get started' }}
+            Get started
           </a>
         </div>
       @endforeach

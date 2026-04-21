@@ -11,13 +11,13 @@
         $prices = config('intake.plan_prices', []);
         $plans = [
             [
-                'slug'  => 'basic',
-                'name'  => 'Basic',
-                'price_cents' => $prices['basic'] ?? 2900,
+                'slug'  => 'starter',
+                'name'  => 'Starter',
+                'price_cents' => $prices['starter'] ?? 2900,
                 'period' => '/mo',
                 'desc'   => 'Everything you need to start taking bookings online.',
                 'features' => ['Booking form','Customer CRM','Work orders','intake.works subdomain','Stripe + PayPal'],
-                'cta_label' => 'Get started',
+                'cta_label' => 'Start free trial',
             ],
             [
                 'slug'  => 'branded',
@@ -25,17 +25,17 @@
                 'price_cents' => $prices['branded'] ?? 7900,
                 'period' => '/mo',
                 'desc'   => 'Your own domain and brand — nothing that says "Intake".',
-                'features' => ['Everything in Basic','Custom domain','Remove Intake branding','Priority support','Email campaigns'],
-                'cta_label' => 'Get started',
+                'features' => ['Everything in Starter','Custom domain','Remove Intake branding','Priority support','Email campaigns'],
+                'cta_label' => 'Start free trial',
             ],
             [
-                'slug'  => 'custom',
-                'name'  => 'Custom',
-                'price_cents' => $prices['custom'] ?? 19900,
+                'slug'  => 'scale',
+                'name'  => 'Scale',
+                'price_cents' => $prices['scale'] ?? 19900,
                 'period' => '/mo',
-                'desc'   => 'Multiple locations, full white-label, and custom integrations.',
-                'features' => ['Everything in Branded','Multi-location','Full white-label','Dedicated support','Custom integrations'],
-                'cta_label' => 'Contact us',
+                'desc'   => 'Multi-location, full white-label, and advanced automations.',
+                'features' => ['Everything in Branded','Multi-location','Full white-label','Dedicated support','Advanced automations'],
+                'cta_label' => 'Start free trial',
             ],
         ];
     } else {

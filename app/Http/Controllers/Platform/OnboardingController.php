@@ -25,7 +25,7 @@ class OnboardingController extends Controller
     public function signup(Request $request)
     {
         return view('platform.signup', [
-            'plan'       => $request->query('plan', 'basic'),
+            'plan'       => $request->query('plan', 'starter'),
             'planPrices' => config('intake.plan_prices'),
         ]);
     }
@@ -39,7 +39,7 @@ class OnboardingController extends Controller
             'subdomain' => ['required', 'string', 'regex:/^[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]$/', 'unique:tenants,subdomain'],
             'email'     => ['required', 'email', 'max:255'],
             'password'  => ['required', 'string', 'min:8', 'confirmed'],
-            'plan'      => ['required', 'in:basic,branded,custom'],
+            'plan'      => ['required', 'in:starter,branded,scale'],
         ]);
 
         $reserved = config('intake.reserved_subdomains', []);

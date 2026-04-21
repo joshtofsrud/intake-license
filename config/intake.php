@@ -63,9 +63,10 @@ return [
     |--------------------------------------------------------------------------
     */
     'plan_prices' => [
-        'basic'    => env('PLAN_PRICE_BASIC',    2900),   // $29/mo
+        'starter'  => env('PLAN_PRICE_STARTER',  2900),   // $29/mo
         'branded'  => env('PLAN_PRICE_BRANDED',  7900),   // $79/mo
-        'custom'   => env('PLAN_PRICE_CUSTOM',  19900),   // $199/mo
+        'scale'    => env('PLAN_PRICE_SCALE',   19900),   // $199/mo
+        'custom'   => env('PLAN_PRICE_CUSTOM',      0),   // master-admin-assigned, variable
     ],
 
     /*
@@ -78,9 +79,10 @@ return [
     'image_quotas' => [
         'per_file_bytes' => env('IMAGE_PER_FILE_BYTES', 5 * 1024 * 1024),    // 5 MB
         'tiers' => [
-            'basic'   => env('IMAGE_QUOTA_BASIC',   100 * 1024 * 1024),      // 100 MB
+            'starter' => env('IMAGE_QUOTA_STARTER', 100 * 1024 * 1024),      // 100 MB
             'branded' => env('IMAGE_QUOTA_BRANDED', 500 * 1024 * 1024),      // 500 MB
-            'custom'  => env('IMAGE_QUOTA_CUSTOM',  2 * 1024 * 1024 * 1024), // 2 GB
+            'scale'   => env('IMAGE_QUOTA_SCALE',   2 * 1024 * 1024 * 1024), // 2 GB
+            'custom'  => env('IMAGE_QUOTA_CUSTOM',  2 * 1024 * 1024 * 1024), // 2 GB (default, can override per-tenant)
         ],
         'allowed_mime' => [
             'image/jpeg',

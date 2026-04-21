@@ -133,7 +133,7 @@
       {{-- Plan selector --}}
       <label>Plan</label>
       <div class="su-plan-select">
-        @foreach(['basic' => '$29/mo', 'branded' => '$79/mo', 'custom' => '$199/mo'] as $slug => $price)
+        @foreach(['starter' => '$29/mo', 'branded' => '$79/mo', 'scale' => '$199/mo'] as $slug => $price)
           <label class="su-plan-btn {{ $plan === $slug ? 'selected' : '' }}" id="plan-{{ $slug }}"
             onclick="selectPlan('{{ $slug }}')">
             <input type="radio" name="plan" value="{{ $slug }}" class="su-plan-input"

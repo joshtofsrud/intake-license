@@ -428,7 +428,7 @@
         <div class="pb-field-row">
           <div class="pb-field-label">Featured plan</div>
           <select class="pb-input" data-field="featured">
-            <option value="basic"   {{ ($c['featured'] ?? 'branded') === 'basic'   ? 'selected' : '' }}>Basic</option>
+            <option value="starter" {{ ($c['featured'] ?? 'branded') === 'starter' ? 'selected' : '' }}>Starter</option>
             <option value="branded" {{ ($c['featured'] ?? 'branded') === 'branded' ? 'selected' : '' }}>Branded</option>
             <option value="custom"  {{ ($c['featured'] ?? 'branded') === 'custom'  ? 'selected' : '' }}>Custom</option>
           </select>
