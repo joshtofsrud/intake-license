@@ -211,6 +211,26 @@ class AppointmentController extends Controller
             $allowed = self::TRANSITIONS[$appointment->status] ?? [];
             if (!in_array($newStatus, $allowed, true)) return response()->json(['ok' => false, 'message' => 'Invalid status transition.'], 422);
             $appointment->update(['status' => $newStatus]);
+
+            if ($newStatus === 'cancelled' && $appointment->appointment_date) {
+                try {
+                    $firstItem = $appointment->items()->first();
+                    if ($firstItem && $firstItem->service_item_id) {
+                        \App\Jobs\ProcessWaitlistOpeningJob::dispatch(
+                            $appointment->tenant_id,
+                            $appointment->appointment_date->toDateTimeString(),
+                            $firstItem->service_item_id,
+                            'cancellation',
+                            $appointment->id
+                        )->afterCommit();
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Waitlist dispatch failed', [
+                        'appointment_id' => $appointment->id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
             TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'system', 'is_customer_visible' => false, 'note_content' => 'Status changed to ' . ucwords(str_replace('_', ' ', $newStatus)) . '.', 'created_at' => now()]);
             return response()->json(['ok' => true, 'status' => $newStatus, 'label' => ucwords(str_replace('_', ' ', $newStatus))]);
         }

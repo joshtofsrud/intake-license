@@ -97,6 +97,14 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
     Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
+
+    Route::get('/waitlist/join',               [TenantControllers\WaitlistPublicController::class, 'join'])->name('tenant.waitlist.join');
+    Route::post('/waitlist/join',              [TenantControllers\WaitlistPublicController::class, 'submitJoin'])->name('tenant.waitlist.submit');
+    Route::get('/waitlist/my',                 [TenantControllers\WaitlistPublicController::class, 'myEntries'])->name('tenant.waitlist.my');
+    Route::post('/waitlist/remove',            [TenantControllers\WaitlistPublicController::class, 'removeEntry'])->name('tenant.waitlist.remove');
+    Route::get('/waitlist/offer/{token}',      [TenantControllers\WaitlistOfferController::class, 'show'])->name('tenant.waitlist.offer.show');
+    Route::post('/waitlist/offer/{token}/accept', [TenantControllers\WaitlistOfferController::class, 'accept'])->name('tenant.waitlist.offer.accept');
+    Route::get('/waitlist/offer/{token}/confirmed', [TenantControllers\WaitlistOfferController::class, 'confirmed'])->name('tenant.waitlist.offer.confirmed');
     Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
 
     Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
@@ -140,6 +148,12 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/customers',           [TenantControllers\CustomerController::class, 'store'])->name('customers.store');
             Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');
 
+            Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');
+            Route::get('/waitlist/settings',           [TenantControllers\WaitlistAdminController::class, 'settings'])->name('waitlist.settings');
+            Route::patch('/waitlist/settings',         [TenantControllers\WaitlistAdminController::class, 'updateSettings'])->name('waitlist.settings.update');
+            Route::post('/waitlist/similar',           [TenantControllers\WaitlistAdminController::class, 'addSimilarMapping'])->name('waitlist.similar.add');
+            Route::delete('/waitlist/similar/{id}',    [TenantControllers\WaitlistAdminController::class, 'removeSimilarMapping'])->name('waitlist.similar.remove');
+            Route::delete('/waitlist/entries/{id}',    [TenantControllers\WaitlistAdminController::class, 'cancelEntry'])->name('waitlist.cancel');
             Route::get('/services',             [TenantControllers\ServiceController::class, 'index'])->name('services.index');
             Route::post('/services',            [TenantControllers\ServiceController::class, 'store'])->name('services.store');
             Route::patch('/services/{id}',      [TenantControllers\ServiceController::class, 'update'])->name('services.update');

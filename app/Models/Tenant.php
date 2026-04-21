@@ -13,7 +13,7 @@ class Tenant extends Model
     use HasUuids;
 
     protected $fillable = [
-        'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'name',
+        'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'has_waitlist_addon', 'name',
         'is_active', 'settings',
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'font_heading', 'font_body', 'tagline',
@@ -131,5 +131,16 @@ class Tenant extends Model
     {
         return $this->email_from_address
             ?: ($this->subdomain . '@intake.works');
+    }
+
+    public function hasWaitlistFeature(): bool
+    {
+        if (in_array($this->plan_tier, ['branded', 'custom'], true)) return true;
+        return (bool) $this->has_waitlist_addon;
+    }
+
+    public function waitlistSettings()
+    {
+        return $this->hasOne(\App\Models\Tenant\TenantWaitlistSettings::class, 'tenant_id');
     }
 }

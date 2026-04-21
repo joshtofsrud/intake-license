@@ -25,4 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 app(\App\Services\DebugLogService::class)->error($e);
             }
         });
-    })->create();
+    })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
+        $schedule->command('waitlist:expire')->dailyAt('02:15');
+    })
+    ->create();
