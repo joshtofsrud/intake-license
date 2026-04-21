@@ -1,8 +1,6 @@
 <x-filament-panels::page>
 
-    @push('styles')
     <link rel="stylesheet" href="{{ asset('css/admin/tenants-grid.css') }}?v={{ filemtime(public_path('css/admin/tenants-grid.css')) }}">
-    @endpush
 
     <div class="tg-page">
 

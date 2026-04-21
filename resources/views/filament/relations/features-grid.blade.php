@@ -1,8 +1,6 @@
 <div>
 
-    @push('styles')
     <link rel="stylesheet" href="{{ asset('css/admin/features-grid.css') }}?v={{ filemtime(public_path('css/admin/features-grid.css')) }}">
-    @endpush
 
     <div class="fg-page" x-data="{
         promptActivate(code, name) {
