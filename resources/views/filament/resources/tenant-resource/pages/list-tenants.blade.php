@@ -103,12 +103,9 @@
                                  @click.outside="open = false">
                                 <button type="button" class="tg-card__menu-btn" @click.prevent="open = !open" aria-label="Menu">⋮</button>
                                 <div class="tg-card__menu-pop" x-show="open" x-cloak style="display:none;">
-                                    <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="tg-card__menu-item">View site ↗</a>
-                                    <form method="POST" action="{{ route('admin.impersonate', $t->id) }}" @click.stop>
-                                        @csrf
-                                        <button type="submit" class="tg-card__menu-item">Impersonate</button>
-                                    </form>
-                                    <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
+                                    <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="tg-card__menu-item" @click.stop>View site ↗</a>
+                                    <a href="{{ route('admin.impersonate', $t->id) }}" class="tg-card__menu-item" @click.stop="event.preventDefault(); const f=document.createElement('form'); f.method='POST'; f.action='{{ route('admin.impersonate', $t->id) }}'; const t=document.createElement('input'); t.type='hidden'; t.name='_token'; t.value='{{ csrf_token() }}'; f.appendChild(t); document.body.appendChild(f); f.submit();">Impersonate</a>
+                                    <a href="{{ $editUrl }}" class="tg-card__menu-item" @click.stop>Edit</a>
                                     <button type="button" class="tg-card__menu-item tg-card__menu-item--danger"
                                         wire:click.stop="mountTableAction('suspend', '{{ $t->id }}')">
                                         @if($t->onboarding_status === 'suspended')
