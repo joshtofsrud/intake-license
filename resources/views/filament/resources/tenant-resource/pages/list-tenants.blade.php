@@ -112,7 +112,8 @@
                                  }"
                                  @click.outside="open = false">
                                 <button type="button" class="tg-card__menu-btn" @click.stop.prevent="toggle($event)" aria-label="Menu">⋮</button>
-                                <div class="tg-card__menu-pop" x-show="open" x-cloak @click.stop :style="popStyle" style="display:none;">
+                                <template x-teleport="body">
+                                    <div class="tg-card__menu-pop" x-show="open" x-cloak @click.stop :style="popStyle" style="display:none;">
                                     <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="tg-card__menu-item">View site ↗</a>
                                     <a href="#"
                                        class="tg-card__menu-item"
@@ -130,6 +131,7 @@
                                        ">Impersonate</a>
                                     <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
                                 </div>
+                                </template>
                             </div>
                         </div>
 
