@@ -99,10 +99,20 @@
                                 <div class="tg-card__sub">{{ $t->subdomain }}.{{ $domain }}</div>
                             </div>
                             <div class="tg-card__menu"
-                                 x-data="{ open: false }"
+                                 x-data="{
+                                    open: false,
+                                    popStyle: '',
+                                    toggle(ev) {
+                                        this.open = !this.open;
+                                        if (this.open) {
+                                            const r = ev.currentTarget.getBoundingClientRect();
+                                            this.popStyle = `top: ${r.bottom + 4}px; left: ${r.right - 180}px;`;
+                                        }
+                                    }
+                                 }"
                                  @click.outside="open = false">
-                                <button type="button" class="tg-card__menu-btn" @click.stop.prevent="open = !open" aria-label="Menu">⋮</button>
-                                <div class="tg-card__menu-pop" x-show="open" x-cloak @click.stop style="display:none;">
+                                <button type="button" class="tg-card__menu-btn" @click.stop.prevent="toggle($event)" aria-label="Menu">⋮</button>
+                                <div class="tg-card__menu-pop" x-show="open" x-cloak @click.stop :style="popStyle" style="display:none;">
                                     <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="tg-card__menu-item">View site ↗</a>
                                     <a href="#"
                                        class="tg-card__menu-item"
