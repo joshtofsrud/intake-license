@@ -287,16 +287,18 @@
 }
 
 .tg-card__menu-pop {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    background: #fff;
-    border: 1px solid rgb(212 212 216 / 1);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.12), 0 2px 4px rgb(0 0 0 / 0.06);
-    min-width: 180px;
-    padding: 4px;
-    z-index: 50;
+    position: absolute !important;
+    top: calc(100% + 4px) !important;
+    right: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border: 1px solid #d4d4d8 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06) !important;
+    min-width: 180px !important;
+    padding: 4px !important;
+    z-index: 50 !important;
+    opacity: 1 !important;
 }
 
 .dark .tg-card__menu-pop {
