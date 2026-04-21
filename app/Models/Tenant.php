@@ -14,7 +14,7 @@ class Tenant extends Model
     use HasUuids;
 
     protected $fillable = [
-        'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'has_waitlist_addon', 'name',
+        'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'name',
         'is_active', 'settings',
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'font_heading', 'font_body', 'tagline',
