@@ -142,6 +142,172 @@
 .sv-empty{padding:60px 20px;text-align:center;color:var(--ia-text-muted);font-size:13px}
 .sv-view{display:none}
 .sv-view.is-active{display:block}
+
+@media (max-width: 1023px) {
+  .sv-view-toggle{display:none !important}
+  .sv-list-head-row{display:none}
+  .sv-list-row{
+    display:flex !important;
+    flex-direction:column;
+    gap:10px;
+    padding:14px 14px 12px;
+    background:var(--ia-surface);
+    border:0.5px solid var(--ia-border);
+    border-radius:10px;
+    margin-bottom:10px;
+    grid-template-columns:none;
+  }
+  .sv-list-row:last-of-type{border-bottom:0.5px solid var(--ia-border)}
+  .sv-list-row .sv-drag{display:none}
+  .sv-list-row > div{width:100%;text-align:left}
+  .sv-list-row > div:nth-child(2){order:1;font-size:14.5px;font-weight:500;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .sv-list-row > div:nth-child(2)::after{content:attr(data-mobile-price);font-variant-numeric:tabular-nums;font-weight:500;font-size:14px}
+  .sv-list-row > div:nth-child(3){order:2;font-size:11.5px;color:var(--ia-text-muted);margin-top:-6px}
+  .sv-list-row > div:nth-child(4){display:none}
+  .sv-list-row > div:nth-child(5){order:3;text-align:left;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.05)}
+  .sv-list-row > div:nth-child(6){order:4;position:absolute;top:14px;right:48px;width:auto}
+  .sv-list-row > div:nth-child(7){order:5;position:absolute;top:14px;right:14px;width:auto}
+  .sv-list-row{position:relative;padding-right:100px}
+  .sv-list-row > div:nth-child(5) .sv-time-stack{align-items:flex-start;flex-direction:row;gap:8px;align-items:baseline}
+  .sv-list-row > div:nth-child(5) .sv-time-main{color:var(--ia-accent);font-weight:500;font-variant-numeric:tabular-nums;font-size:12.5px}
+  .sv-list-row > div:nth-child(5) .sv-time-breakdown{font-size:10.5px}
+
+  .sv-cell-editable{cursor:default !important;pointer-events:none}
+  .sv-cell-editable:hover{background:transparent !important;outline:none !important}
+
+  .sv-list-wrap{background:transparent;border:none;border-radius:0;overflow:visible;padding:0}
+  .sv-list-row{border-radius:10px}
+  #sv-list-body{padding:0 14px}
+
+  .sv-filter-bar{padding:0 14px 12px}
+  .sv-filter-select{display:none}
+  .sv-filter-clear{display:none !important}
+  .sv-filter-icon-btn{display:inline-flex !important;width:36px;height:36px;border-radius:8px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);align-items:center;justify-content:center;color:var(--ia-text-muted);cursor:pointer;padding:0;flex-shrink:0}
+  .sv-filter-icon-btn svg{width:15px;height:15px}
+  .sv-filter-icon-btn.has-active{color:var(--ia-accent);border-color:var(--ia-accent)}
+
+  .sv-mode-banner{margin:0 14px 12px}
+  .sv-subnav{padding:0 14px}
+
+  .sv-drawer{
+    position:fixed;
+    inset:0;
+    top:auto;
+    bottom:0;
+    left:0;
+    right:0;
+    max-height:90vh;
+    background:var(--ia-surface);
+    border-radius:14px 14px 0 0;
+    border-top:0.5px solid var(--ia-border-strong);
+    border-left:none;
+    border-right:none;
+    border-bottom:none;
+    margin:0;
+    padding:0;
+    z-index:400;
+    display:none;
+    overflow-y:auto;
+    transform:translateY(100%);
+    transition:transform .22s ease;
+    box-shadow:0 -8px 24px rgba(0,0,0,.4);
+  }
+  .sv-list-row.is-expanded + .sv-drawer{
+    display:block;
+    transform:translateY(0);
+  }
+  .sv-drawer::before{
+    content:'';
+    display:block;
+    width:36px;
+    height:4px;
+    background:rgba(255,255,255,.2);
+    border-radius:2px;
+    margin:10px auto 14px;
+  }
+  .sv-drawer-mobile-head{
+    display:flex !important;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 16px 14px;
+    border-bottom:0.5px solid var(--ia-border);
+    margin-bottom:14px;
+    position:sticky;
+    top:0;
+    background:var(--ia-surface);
+    z-index:1;
+  }
+  .sv-drawer-mobile-title{font-size:15px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sv-drawer-mobile-close{background:none;border:none;color:var(--ia-text-muted);font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+  .sv-drawer > *:not(.sv-drawer-mobile-head){padding-left:16px;padding-right:16px}
+  .sv-drawer-field{margin-bottom:12px}
+  .sv-drawer-field-row{grid-template-columns:1fr 1fr}
+  .sv-drawer-field-triple{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .sv-drawer-input,.sv-drawer-select,.sv-drawer-textarea{font-size:14px;padding:10px 12px}
+  .sv-attached-addon{grid-template-columns:1fr;gap:4px;padding:10px 11px}
+  .sv-attached-addon > .sv-attached-addon-cell{text-align:left;display:flex;gap:10px;align-items:baseline;justify-content:space-between}
+  .sv-attached-addon > .sv-attached-addon-remove{position:absolute;top:8px;right:8px}
+  .sv-attached-addon{position:relative;padding-right:36px}
+  .sv-drawer-actions{flex-direction:row;gap:8px;padding:14px 16px;margin-top:14px;position:sticky;bottom:0;background:var(--ia-surface);border-top:0.5px solid var(--ia-border);margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
+  .sv-drawer-actions-right{flex:1;justify-content:flex-end}
+
+  .sv-modal{max-width:100% !important;max-height:85vh;border-radius:14px 14px 0 0;margin:0;position:fixed !important;bottom:0;left:0;right:0;width:100%;border-bottom:none;border-left:none;border-right:none}
+  .sv-modal-overlay{align-items:flex-end !important;padding:0 !important}
+  .sv-modal::before{content:'';display:block;width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:10px auto 4px}
+
+  .sv-addon-head-row{display:none}
+  .sv-addon-row{
+    display:flex !important;
+    flex-direction:column;
+    gap:6px;
+    padding:12px 14px;
+    margin:0 14px 10px;
+    background:var(--ia-surface);
+    border:0.5px solid var(--ia-border);
+    border-radius:10px;
+    position:relative;
+    grid-template-columns:none;
+  }
+  .sv-addon-row > div{width:100%;text-align:left}
+  .sv-addon-row > div:nth-child(1){order:1;font-size:14px;font-weight:500;padding-right:80px}
+  .sv-addon-row > div:nth-child(2){order:2;font-size:12px;color:var(--ia-text-muted);padding-right:80px}
+  .sv-addon-row > div:nth-child(3){order:3;text-align:left;display:inline-block;width:auto;font-size:12px;color:var(--ia-text-muted)}
+  .sv-addon-row > div:nth-child(4){order:4;text-align:left;display:inline-block;width:auto;margin-left:12px;font-size:12.5px;font-variant-numeric:tabular-nums}
+  .sv-addon-row > div:nth-child(3)::before{content:'Duration: '}
+  .sv-addon-row > div:nth-child(4)::before{content:'Price: '}
+  .sv-addon-row > div:nth-child(5){order:5;text-align:left;font-size:11.5px;margin-top:2px}
+  .sv-addon-row > div:nth-child(6){order:6;position:absolute;top:12px;right:50px;width:auto}
+  .sv-addon-row > div:nth-child(7){order:7;position:absolute;top:12px;right:14px;width:auto}
+  .sv-addon-page-wrap{background:transparent;border:none;padding:0}
+}
+
+@media (max-width: 767px) {
+  .sv-drawer-field-row{grid-template-columns:1fr;gap:10px}
+  .sv-drawer-field-triple{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .sv-drawer-input,.sv-drawer-select,.sv-drawer-textarea{font-size:14.5px}
+  .ia-page-head{padding-left:14px !important;padding-right:14px !important}
+  .ia-page-title{font-size:19px !important}
+  .ia-page-subtitle{display:none !important}
+}
+
+.sv-filter-icon-btn{display:none}
+
+body.sv-sheet-open{overflow:hidden !important}
+
+.sv-modal-mobile-close{display:none;position:absolute;top:14px;right:12px;background:none;border:none;color:var(--ia-text-muted);font-size:26px;line-height:1;padding:2px 6px;cursor:pointer;border-radius:6px}
+.sv-modal-mobile-close:hover{background:var(--ia-hover);color:var(--ia-text)}
+
+@media (max-width: 1023px) {
+  .sv-modal-mobile-close{display:inline-block}
+  .sv-modal-head{padding-right:50px !important}
+  .sv-addon-lib-item{padding:14px 12px;grid-template-columns:1fr 80px 70px}
+  .sv-addon-lib-item > div:first-child b{font-size:14px}
+  .sv-addon-lib-item .sv-addon-lib-desc{font-size:12px;margin-top:3px}
+  .sv-addon-lib-time,.sv-addon-lib-price{font-size:12.5px}
+  .sv-modal-body{padding:12px 8px}
+  .sv-modal-foot{padding:14px 16px}
+  .sv-modal-foot .ia-btn{padding:10px 14px;font-size:13.5px;flex:1}
+}
 </style>
 @endpush
 
@@ -191,6 +357,9 @@
       <option value="false">Inactive only</option>
     </select>
     <button type="button" class="sv-filter-clear" id="sv-clear-filters" style="display:none">Clear</button>
+    <button type="button" class="sv-filter-icon-btn" id="sv-filter-open" title="Filters" aria-label="Filters">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M4 8h8M6 12h4"/></svg>
+    </button>
   </div>
 
   <div class="sv-mode-banner" id="sv-mode-banner">
@@ -259,11 +428,40 @@
   </div>
 </div>
 
+<div class="sv-modal-overlay" id="sv-filter-sheet">
+  <div class="sv-modal" style="max-width:460px">
+    <div class="sv-modal-head" style="position:relative">
+      <div class="sv-modal-title">Filters</div>
+      <div class="sv-modal-subtitle">Narrow down services.</div>
+      <button type="button" class="sv-modal-mobile-close" data-filter-close aria-label="Close">&times;</button>
+    </div>
+    <div class="sv-modal-body" style="padding:16px">
+      <div class="sv-drawer-field">
+        <label class="sv-drawer-label">Category</label>
+        <select class="sv-drawer-select" id="sv-sheet-filter-category"><option value="">All categories</option></select>
+      </div>
+      <div class="sv-drawer-field">
+        <label class="sv-drawer-label">Status</label>
+        <select class="sv-drawer-select" id="sv-sheet-filter-active">
+          <option value="">All statuses</option>
+          <option value="true">Active only</option>
+          <option value="false">Inactive only</option>
+        </select>
+      </div>
+    </div>
+    <div class="sv-modal-foot">
+      <button type="button" class="ia-btn ia-btn--sm" id="sv-filter-reset">Clear all</button>
+      <button type="button" class="ia-btn ia-btn--sm ia-btn--primary" data-filter-close>Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="sv-modal-overlay" id="sv-addon-picker-modal">
   <div class="sv-modal">
-    <div class="sv-modal-head">
+    <div class="sv-modal-head" style="position:relative">
       <div class="sv-modal-title">Add an add-on to this service</div>
       <div class="sv-modal-subtitle">Pick from your library, or create a new one.</div>
+      <button type="button" class="sv-modal-mobile-close" data-modal-close aria-label="Close">&times;</button>
     </div>
     <div class="sv-modal-search">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="m11 11 3 3" stroke-linecap="round"/></svg>

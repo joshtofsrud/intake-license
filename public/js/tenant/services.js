@@ -302,6 +302,10 @@
     timePreviewRows += '<div class="sv-time-preview-row customer"><span class="sv-time-preview-label">Customer sees</span><span class="sv-time-preview-value">' + fmtDuration(customer) + '</span></div>';
 
     return '<div class="sv-drawer" data-drawer-for="' + esc(s.id) + '">'
+      + '<div class="sv-drawer-mobile-head" style="display:none">'
+        + '<div class="sv-drawer-mobile-title">' + esc(s.name) + '</div>'
+        + '<button type="button" class="sv-drawer-mobile-close" data-drawer-close="' + esc(s.id) + '" aria-label="Close">&times;</button>'
+      + '</div>'
       + '<div class="sv-drawer-field">'
         + '<label class="sv-drawer-label">Description</label>'
         + '<textarea class="sv-drawer-textarea" data-drawer-field="description" data-service="' + esc(s.id) + '">' + esc(s.description || '') + '</textarea>'
@@ -469,6 +473,7 @@
       if (close) {
         state.expanded = null;
         renderList();
+        syncSheetOpenState();
         return;
       }
       var modalClose = e.target.closest('[data-modal-close]');
@@ -773,6 +778,7 @@
         var sid = ex.getAttribute('data-expand');
         state.expanded = state.expanded === sid ? null : sid;
         renderList();
+        syncSheetOpenState();
         return;
       }
       var tblEx = e.target.closest('[data-tbl-expand]');
@@ -1293,10 +1299,338 @@
     bindAddButton();
     bindDrawerFields();
     bindAddonLibEvents();
+    bindMobileCardTap();
+    syncSheetOpenState();
   };
 
   bindDrawerActions();
   bindAddonPicker();
+
+    // ====================================================================
+  // H3 (mobile): scroll-lock + card-wide tap to open sheet
+  // ====================================================================
+
+  function isMobile() {
+    return window.matchMedia && window.matchMedia('(max-width: 1023px)').matches;
+  }
+
+  function setSheetOpen(open) {
+    if (open) {
+      document.body.classList.add('sv-sheet-open');
+    } else {
+      document.body.classList.remove('sv-sheet-open');
+    }
+  }
+
+  function syncSheetOpenState() {
+    setSheetOpen(isMobile() && state.expanded !== null);
+  }
+
+  function bindMobileCardTap() {
+    if (!isMobile()) return;
+    document.querySelectorAll('.sv-list-row').forEach(function (row) {
+      if (row.__svMobileBound) return;
+      row.__svMobileBound = true;
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('[data-toggle-service]')) return;
+        if (e.target.closest('[data-expand]')) return;
+        if (e.target.closest('.sv-cell-editable')) return;
+        if (e.target.closest('.sv-drawer')) return;
+        var sid = row.getAttribute('data-service');
+        if (!sid) return;
+        if (state.expanded === sid) return;
+        state.expanded = sid;
+        renderList();
+        syncSheetOpenState();
+        setTimeout(function () {
+          var drawer = document.querySelector('.sv-drawer[data-drawer-for="' + sid + '"]');
+          if (drawer && drawer.scrollTo) drawer.scrollTo({ top: 0, behavior: 'auto' });
+        }, 50);
+      });
+    });
+  }
+
+  window.addEventListener('resize', function () {
+    syncSheetOpenState();
+  });
+
+  // ====================================================================
+  // H4: Filter sheet (mobile)
+  // ====================================================================
+
+  function bindFilterSheet() {
+    var openBtn = document.getElementById('sv-filter-open');
+    var sheet   = document.getElementById('sv-filter-sheet');
+    var catSel  = document.getElementById('sv-sheet-filter-category');
+    var actSel  = document.getElementById('sv-sheet-filter-active');
+    var resetBtn = document.getElementById('sv-filter-reset');
+    var closeBtns = document.querySelectorAll('[data-filter-close]');
+
+    if (!openBtn || openBtn.__svBound) return;
+    openBtn.__svBound = true;
+
+    function refreshCatOptions() {
+      if (!catSel) return;
+      var current = state.filterCategory;
+      var html = '<option value="">All categories</option>';
+      state.categories.forEach(function (cat) {
+        html += '<option value="' + cat.id + '"' + (cat.id === current ? ' selected' : '') + '>' + cat.name.replace(/[<>&\"]/g, '') + '</option>';
+      });
+      catSel.innerHTML = html;
+      if (actSel) actSel.value = state.filterActive || '';
+    }
+
+    function updateActiveIcon() {
+      var count = [state.filterCategory, state.filterActive].filter(Boolean).length;
+      openBtn.classList.toggle('has-active', count > 0);
+    }
+
+    openBtn.addEventListener('click', function () {
+      refreshCatOptions();
+      updateActiveIcon();
+      sheet.classList.add('is-visible');
+      setSheetOpen(true);
+    });
+
+    function closeFilterSheet() {
+      sheet.classList.remove('is-visible');
+      if (state.expanded === null) setSheetOpen(false);
+      updateActiveIcon();
+    }
+
+    closeBtns.forEach(function (btn) {
+      btn.addEventListener('click', closeFilterSheet);
+    });
+
+    sheet.addEventListener('click', function (e) {
+      if (e.target === sheet) closeFilterSheet();
+    });
+
+    if (catSel) catSel.addEventListener('change', function () {
+      state.filterCategory = catSel.value;
+      var top = document.getElementById('sv-filter-category');
+      if (top) top.value = catSel.value;
+      renderAll();
+      updateActiveIcon();
+    });
+    if (actSel) actSel.addEventListener('change', function () {
+      state.filterActive = actSel.value;
+      var top = document.getElementById('sv-filter-active');
+      if (top) top.value = actSel.value;
+      renderAll();
+      updateActiveIcon();
+    });
+    if (resetBtn) resetBtn.addEventListener('click', function () {
+      state.filterCategory = '';
+      state.filterActive = '';
+      if (catSel) catSel.value = '';
+      if (actSel) actSel.value = '';
+      var topCat = document.getElementById('sv-filter-category');
+      var topAct = document.getElementById('sv-filter-active');
+      if (topCat) topCat.value = '';
+      if (topAct) topAct.value = '';
+      renderAll();
+      updateActiveIcon();
+    });
+
+    updateActiveIcon();
+  }
+
+  bindFilterSheet();
+
+  // ====================================================================
+  // H6: Swipe-to-close + focus trap (mobile sheets)
+  // ====================================================================
+
+  var SwipeDismiss = (function () {
+    var SWIPE_THRESHOLD_PX = 80;
+    var VELOCITY_THRESHOLD = 0.35;
+
+    function attach(element, onDismiss) {
+      if (!element || element.__svSwipeBound) return;
+      element.__svSwipeBound = true;
+
+      var startY = null;
+      var startX = null;
+      var startT = 0;
+      var currentY = 0;
+      var dragging = false;
+
+      function onStart(e) {
+        if (!isMobile()) return;
+        if (element.scrollTop > 0) return;
+        var t = e.touches ? e.touches[0] : e;
+        startY = t.clientY;
+        startX = t.clientX;
+        startT = Date.now();
+        currentY = 0;
+        dragging = false;
+      }
+
+      function onMove(e) {
+        if (startY === null) return;
+        var t = e.touches ? e.touches[0] : e;
+        var dy = t.clientY - startY;
+        var dx = Math.abs(t.clientX - startX);
+        if (!dragging) {
+          if (Math.abs(dy) < 8) return;
+          if (dx > Math.abs(dy)) { startY = null; return; }
+          if (dy < 0) { startY = null; return; }
+          dragging = true;
+        }
+        if (dy < 0) dy = 0;
+        currentY = dy;
+        element.style.transition = 'none';
+        element.style.transform = 'translateY(' + dy + 'px)';
+        if (e.cancelable) e.preventDefault();
+      }
+
+      function onEnd() {
+        if (startY === null) return;
+        var dt = Math.max(1, Date.now() - startT);
+        var velocity = currentY / dt;
+        element.style.transition = '';
+        if (dragging && (currentY > SWIPE_THRESHOLD_PX || velocity > VELOCITY_THRESHOLD)) {
+          element.style.transform = 'translateY(100%)';
+          setTimeout(function () {
+            element.style.transform = '';
+            onDismiss();
+          }, 180);
+        } else {
+          element.style.transform = '';
+        }
+        startY = null;
+        startX = null;
+        currentY = 0;
+        dragging = false;
+      }
+
+      element.addEventListener('touchstart', onStart, { passive: true });
+      element.addEventListener('touchmove', onMove, { passive: false });
+      element.addEventListener('touchend', onEnd);
+      element.addEventListener('touchcancel', onEnd);
+    }
+
+    return { attach: attach };
+  }());
+
+  function bindSwipeDismiss() {
+    if (!isMobile()) return;
+    document.querySelectorAll('.sv-drawer').forEach(function (drawer) {
+      SwipeDismiss.attach(drawer, function () {
+        state.expanded = null;
+        renderList();
+        syncSheetOpenState();
+      });
+    });
+    var picker = document.querySelector('#sv-addon-picker-modal .sv-modal');
+    if (picker) SwipeDismiss.attach(picker, function () {
+      closeAddonPicker();
+      if (state.expanded === null) setSheetOpen(false);
+    });
+    var filter = document.querySelector('#sv-filter-sheet .sv-modal');
+    if (filter) SwipeDismiss.attach(filter, function () {
+      var sheet = document.getElementById('sv-filter-sheet');
+      if (sheet) sheet.classList.remove('is-visible');
+      if (state.expanded === null) setSheetOpen(false);
+    });
+  }
+
+  // ====================================================================
+  // H6: Focus trap
+  // ====================================================================
+
+  var FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  var activeTrap = null;
+
+  function getFocusable(container) {
+    return Array.prototype.slice.call(container.querySelectorAll(FOCUSABLE_SELECTOR))
+      .filter(function (el) {
+        return el.offsetParent !== null || el === document.activeElement;
+      });
+  }
+
+  function installFocusTrap(container, options) {
+    removeFocusTrap();
+    if (!container) return;
+    options = options || {};
+
+    var previouslyFocused = document.activeElement;
+
+    function handleKeydown(e) {
+      if (e.key === 'Escape' && options.onEscape) {
+        options.onEscape();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      var focusable = getFocusable(container);
+      if (focusable.length === 0) { e.preventDefault(); return; }
+      var first = focusable[0];
+      var last  = focusable[focusable.length - 1];
+      var active = document.activeElement;
+      if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    }
+
+    container.addEventListener('keydown', handleKeydown);
+
+    var initial = options.initialFocus
+      ? container.querySelector(options.initialFocus)
+      : getFocusable(container)[0];
+    if (initial && typeof initial.focus === 'function') {
+      setTimeout(function () { initial.focus(); }, 50);
+    }
+
+    activeTrap = {
+      container: container,
+      handler: handleKeydown,
+      previouslyFocused: previouslyFocused,
+    };
+  }
+
+  function removeFocusTrap() {
+    if (!activeTrap) return;
+    activeTrap.container.removeEventListener('keydown', activeTrap.handler);
+    if (activeTrap.previouslyFocused && typeof activeTrap.previouslyFocused.focus === 'function') {
+      try { activeTrap.previouslyFocused.focus(); } catch (e) {}
+    }
+    activeTrap = null;
+  }
+
+  function bindTrapHooks() {
+    var origSet = setSheetOpen;
+    setSheetOpen = function (open) {
+      origSet(open);
+      if (!isMobile()) { removeFocusTrap(); return; }
+      if (!open) { removeFocusTrap(); return; }
+      var drawer = document.querySelector('.sv-list-row.is-expanded + .sv-drawer');
+      if (drawer) {
+        installFocusTrap(drawer, {
+          initialFocus: '[data-drawer-close]',
+          onEscape: function () {
+            state.expanded = null;
+            renderList();
+            setSheetOpen(false);
+          },
+        });
+      }
+    };
+  }
+
+  bindTrapHooks();
+
+  // ====================================================================
+  // H6: Re-bind swipe after each render
+  // ====================================================================
+
+  var _origRenderAll2 = renderAll;
+  renderAll = function () {
+    _origRenderAll2();
+    bindSwipeDismiss();
+  };
+
+
 
     // expose for later heredocs to extend
   window.SvApp = {
