@@ -483,10 +483,16 @@
     pointer-events: none;
 }
 
-/* Re-enable pointer events only on the menu area (button + popup) */
+/* Re-enable pointer events on the menu area. Note: NO local stacking
+ * context here (no z-index on the menu itself) so the popup's z-index: 50
+ * stacks against the card as a whole, not against the menu parent. */
 .fi-page .tg-card__menu {
+    pointer-events: auto;
+    position: static;
+}
+
+.fi-page .tg-card__menu-btn {
     position: relative;
-    z-index: 3;
     pointer-events: auto;
 }
 
