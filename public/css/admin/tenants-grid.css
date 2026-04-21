@@ -1,3 +1,25 @@
+/* SPECIFICITY BOOST - Filament's Tailwind utilities override our custom classes.
+ * We solve this by scoping everything under .fi-page (Filament adds this class to
+ * every page), which boosts specificity enough to win over utility classes.
+ */
+
+.fi-page .tg-page * { box-sizing: border-box; }
+
+.fi-page .tg-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    gap: 12px !important;
+    grid-auto-flow: row !important;
+}
+
+@media (max-width: 640px) {
+    .fi-page .tg-grid { grid-template-columns: 1fr !important; }
+}
+
+.fi-page .tg-card {
+    display: block !important;
+}
+
 /* Tenant grid — master admin list page
  * Designed to fit inside Filament's panel layout. Uses Filament's CSS vars
  * where possible so it respects light/dark theme automatically.
