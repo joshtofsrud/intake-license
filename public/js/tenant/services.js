@@ -190,6 +190,8 @@
     state.categories.forEach(function (cat) {
       html += '<option value="' + esc(cat.id) + '"' + (cat.id === current ? ' selected' : '') + '>' + esc(cat.name) + '</option>';
     });
+    html += '<option disabled>──────────</option>';
+    html += '<option value="__CREATE_CATEGORY__">+ Add category…</option>';
     sel.innerHTML = html;
   }
 
@@ -758,7 +760,15 @@
     if (search) search.addEventListener('input', function () { state.search = search.value; renderAll(); });
 
     var filterCat = document.getElementById('sv-filter-category');
-    if (filterCat) filterCat.addEventListener('change', function () { state.filterCategory = filterCat.value; renderAll(); });
+    if (filterCat) filterCat.addEventListener('change', function () {
+      if (filterCat.value === '__CREATE_CATEGORY__') {
+        filterCat.value = state.filterCategory || '';
+        openCategoryCreator();
+        return;
+      }
+      state.filterCategory = filterCat.value;
+      renderAll();
+    });
 
     var filterAct = document.getElementById('sv-filter-active');
     if (filterAct) filterAct.addEventListener('change', function () { state.filterActive = filterAct.value; renderAll(); });
@@ -1055,12 +1065,46 @@
 
   function bindAddButton() {
     var btn = document.getElementById('sv-add-btn');
-    if (!btn || btn.__svBound) return;
-    btn.__svBound = true;
-    btn.addEventListener('click', function () {
-      if (state.tab === 'services') createService();
-      else createLibraryAddon();
-    });
+    if (btn && !btn.__svBound) {
+      btn.__svBound = true;
+      btn.addEventListener('click', function () {
+        if (state.tab === 'services') createService();
+        else createLibraryAddon();
+      });
+    }
+    var catBtn = document.getElementById('sv-add-category-btn');
+    if (catBtn && !catBtn.__svBound) {
+      catBtn.__svBound = true;
+      catBtn.addEventListener('click', function () {
+        openCategoryCreator();
+      });
+    }
+  }
+
+  function openCategoryCreator() {
+    if (state.tab !== 'services') {
+      state.tab = 'services';
+      document.querySelectorAll('.sv-subnav-tab').forEach(function (t) {
+        t.classList.toggle('is-active', t.getAttribute('data-tab') === 'services');
+      });
+      document.getElementById('sv-tab-services').style.display = '';
+      document.getElementById('sv-tab-addons').style.display = 'none';
+      var toggle = document.getElementById('sv-view-toggle');
+      if (toggle) toggle.style.display = '';
+      document.getElementById('sv-add-btn').textContent = '+ Add service';
+      renderAll();
+    }
+    if (state.view !== 'list') {
+      state.view = 'list';
+      persistView('list');
+      document.querySelectorAll('.sv-view-toggle-btn').forEach(function (b) {
+        b.classList.toggle('is-active', b.getAttribute('data-view') === 'list');
+      });
+      document.querySelectorAll('.sv-view').forEach(function (v) { v.classList.remove('is-active'); });
+      var lv = document.getElementById('sv-view-list');
+      if (lv) lv.classList.add('is-active');
+    }
+    renderInlineCategoryCreator();
   }
 
   function createService() {
@@ -1376,6 +1420,8 @@
       state.categories.forEach(function (cat) {
         html += '<option value="' + cat.id + '"' + (cat.id === current ? ' selected' : '') + '>' + cat.name.replace(/[<>&\"]/g, '') + '</option>';
       });
+      html += '<option disabled>──────────</option>';
+      html += '<option value="__CREATE_CATEGORY__">+ Add category…</option>';
       catSel.innerHTML = html;
       if (actSel) actSel.value = state.filterActive || '';
     }
@@ -1407,6 +1453,13 @@
     });
 
     if (catSel) catSel.addEventListener('change', function () {
+      if (catSel.value === '__CREATE_CATEGORY__') {
+        catSel.value = state.filterCategory || '';
+        sheet.classList.remove('is-visible');
+        if (state.expanded === null) setSheetOpen(false);
+        openCategoryCreator();
+        return;
+      }
       state.filterCategory = catSel.value;
       var top = document.getElementById('sv-filter-category');
       if (top) top.value = catSel.value;

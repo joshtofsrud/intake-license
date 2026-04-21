@@ -329,6 +329,7 @@ body.sv-sheet-open{overflow:hidden !important}
         Table
       </button>
     </div>
+    <button type="button" class="ia-btn" id="sv-add-category-btn">+ Add category</button>
     <button type="button" class="ia-btn ia-btn--primary" id="sv-add-btn">+ Add service</button>
   </div>
 </div>
