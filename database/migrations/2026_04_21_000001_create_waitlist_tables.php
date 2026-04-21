@@ -75,7 +75,9 @@ return new class extends Migration {
             $t->uuid('id')->primary();
             $t->foreignUuid('tenant_id')->constrained('tenants')->cascadeOnDelete();
             $t->foreignUuid('service_item_id')->constrained('tenant_service_items')->cascadeOnDelete();
-            $t->foreignUuid('substitutable_service_item_id')->constrained('tenant_service_items')->cascadeOnDelete();
+            $t->foreignUuid('substitutable_service_item_id');
+            $t->foreign('substitutable_service_item_id', 'wl_sm_sub_svc_fk')
+                ->references('id')->on('tenant_service_items')->cascadeOnDelete();
             $t->timestamps();
             $t->unique(['tenant_id', 'service_item_id', 'substitutable_service_item_id'], 'wl_similar_unique');
         });
