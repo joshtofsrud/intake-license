@@ -82,6 +82,8 @@ Route::domain('app.' . $domain)->group(function () {
     Route::get('/',         [Platform\OnboardingController::class, 'index'])->name('platform.home');
     Route::get('/signup',   [Platform\OnboardingController::class, 'signup'])->name('platform.signup');
     Route::post('/signup',  [Platform\OnboardingController::class, 'processSignup'])->name('platform.signup.process');
+    Route::get('/signup/payment',  [Platform\OnboardingController::class, 'paymentStep'])->name('platform.signup.payment');
+    Route::post('/signup/complete', [Platform\OnboardingController::class, 'completeSignup'])->name('platform.signup.complete');
     Route::get('/checkout', [Platform\OnboardingController::class, 'checkout'])->name('platform.checkout');
     Route::post('/subdomain/check', [Platform\OnboardingController::class, 'checkSubdomain'])->name('platform.subdomain.check');
 
