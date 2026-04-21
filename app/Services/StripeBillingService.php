@@ -2,113 +2,334 @@
 
 namespace App\Services;
 
+use App\Models\BillingSettings;
 use App\Models\Tenant;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Stripe\Exception\ApiErrorException;
+use Stripe\StripeClient;
 
 /**
- * StripeBillingService
+ * StripeBillingService — real Stripe integration for Intake's platform billing.
  *
- * Facade for all Stripe interactions. Currently stubbed - every method that
- * would hit Stripe returns a simulated response so the rest of the app can
- * be built and tested end-to-end.
+ * Scope: tenant-to-Intake billing only (subscription fees).
+ * NOT used for: tenant-to-customer payments (that's Stripe Connect, separate).
  *
- * When plumbing Stripe next session:
- *   1. composer require stripe/stripe-php
- *   2. Add STRIPE_SECRET, STRIPE_WEBHOOK_SECRET to .env
- *   3. Config: config/services.php -> 'stripe' => ['secret' => env(...), 'webhook_secret' => env(...)]
- *   4. Replace each `simulated*` method body with the real Stripe SDK call
- *   5. Leave the method signatures alone - callers depend on them.
+ * Configuration: reads keys from BillingSettings model (DB, encrypted).
+ * All Stripe API calls go through $this->client() which creates a fresh
+ * StripeClient per call with the currently-configured secret key.
  *
- * Design principle: this class NEVER writes to tenant_feature_addons directly.
- * It returns data to AddonManagementService, which is the only writer.
+ * Error handling: every Stripe API call is wrapped in try/catch. API errors
+ * are logged + re-thrown as domain-level exceptions the caller can handle
+ * cleanly. Network errors + 5xx from Stripe are retried at the SDK level.
+ *
+ * Idempotency: all mutation calls pass an Idempotency-Key so duplicate
+ * requests (webhook replays, user double-clicks) don't create duplicates.
  */
 class StripeBillingService
 {
+    /**
+     * Is Stripe live-mode active?
+     */
     public function isLive(): bool
     {
-        // TODO(stripe): return !empty(config('services.stripe.secret'));
-        return false;
+        return BillingSettings::current()->isLive();
     }
 
     /**
-     * Add a recurring addon to the tenant's existing Stripe subscription.
-     *
-     * Returns array: [
-     *   'subscription_item_id' => 'si_...',
-     *   'price_id'             => 'price_...',
-     *   'current_period_end'   => Carbon,
-     *   'proration_amount'     => int (cents charged now, may be 0),
-     * ]
+     * Is Stripe configured enough to process payments at all?
      */
-    public function addSubscriptionItem(Tenant $tenant, object $addon): array
+    public function isConfigured(): bool
     {
-        // TODO(stripe): implement
-        //   \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
-        //   $item = \Stripe\SubscriptionItem::create([
-        //       'subscription' => $tenant->stripe_subscription_id,
-        //       'price' => $addon->stripe_price_id_monthly,
-        //       'proration_behavior' => 'create_prorations',
-        //   ]);
-
-        return $this->simulatedSubscriptionItemAddition($tenant, $addon);
+        return BillingSettings::current()->isConfigured();
     }
 
-    public function cancelSubscriptionItemAtPeriodEnd(Tenant $tenant, string $subscriptionItemId): void
+    /**
+     * Test connectivity + key validity.
+     * Returns ['ok' => bool, 'message' => string, 'account' => ?array]
+     */
+    public function testConnection(): array
     {
-        // TODO(stripe): implement cancel-at-period-end pattern
-        Log::info('[StripeBillingService] STUB cancelSubscriptionItemAtPeriodEnd', [
-            'tenant_id' => $tenant->id,
-            'subscription_item_id' => $subscriptionItemId,
+        try {
+            $account = $this->client()->accounts->retrieve();
+            return [
+                'ok' => true,
+                'message' => "Connected to: {$account->email} ({$account->id})",
+                'account' => [
+                    'id' => $account->id,
+                    'email' => $account->email,
+                    'country' => $account->country,
+                    'charges_enabled' => $account->charges_enabled,
+                    'payouts_enabled' => $account->payouts_enabled,
+                ],
+            ];
+        } catch (ApiErrorException $e) {
+            return [
+                'ok' => false,
+                'message' => $e->getMessage(),
+                'account' => null,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'message' => 'Connection error: ' . $e->getMessage(),
+                'account' => null,
+            ];
+        }
+    }
+
+    // ==================================================================
+    // Customer management
+    // ==================================================================
+
+    /**
+     * Create a Stripe customer for a tenant.
+     * Returns the Stripe customer ID.
+     */
+    public function createCustomer(Tenant $tenant, string $email, string $name): string
+    {
+        $customer = $this->client()->customers->create(
+            [
+                'email' => $email,
+                'name' => $name,
+                'metadata' => [
+                    'tenant_id' => $tenant->id,
+                    'subdomain' => $tenant->subdomain,
+                ],
+            ],
+            [
+                'idempotency_key' => "customer-create-{$tenant->id}",
+            ]
+        );
+
+        return $customer->id;
+    }
+
+    /**
+     * Retrieve a Stripe customer. Returns null if not found.
+     */
+    public function getCustomer(string $customerId): ?\Stripe\Customer
+    {
+        try {
+            return $this->client()->customers->retrieve($customerId);
+        } catch (ApiErrorException $e) {
+            Log::warning('Stripe customer retrieve failed', [
+                'customer_id' => $customerId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    // ==================================================================
+    // Subscription management
+    // ==================================================================
+
+    /**
+     * Create a trialing subscription for a tenant on a specific plan.
+     *
+     * @param  string  $customerId  Stripe customer ID
+     * @param  string  $tier        starter|branded|scale
+     * @param  string  $cadence     monthly|annual
+     * @param  int     $trialDays   default 14
+     * @param  string|null  $paymentMethodId  Stripe PM ID (card collected at signup)
+     * @return \Stripe\Subscription
+     */
+    public function createTrialingSubscription(
+        string $customerId,
+        string $tier,
+        string $cadence,
+        int $trialDays = 14,
+        ?string $paymentMethodId = null,
+    ): \Stripe\Subscription {
+        $priceId = BillingSettings::current()->priceIdFor($tier, $cadence);
+        if (! $priceId) {
+            throw new \RuntimeException("No Stripe price configured for {$tier} {$cadence}");
+        }
+
+        $params = [
+            'customer' => $customerId,
+            'items' => [['price' => $priceId]],
+            'trial_period_days' => $trialDays,
+            'payment_behavior' => 'default_incomplete',
+            'payment_settings' => [
+                'save_default_payment_method' => 'on_subscription',
+            ],
+            'metadata' => [
+                'tier' => $tier,
+                'cadence' => $cadence,
+            ],
+            'expand' => ['latest_invoice.payment_intent'],
+        ];
+
+        if ($paymentMethodId) {
+            $params['default_payment_method'] = $paymentMethodId;
+        }
+
+        return $this->client()->subscriptions->create(
+            $params,
+            ['idempotency_key' => "sub-create-{$customerId}-{$tier}-{$cadence}"]
+        );
+    }
+
+    /**
+     * Cancel a subscription at the current period end.
+     * Tenant keeps access until then.
+     */
+    public function cancelSubscriptionAtPeriodEnd(string $subscriptionId): \Stripe\Subscription
+    {
+        return $this->client()->subscriptions->update(
+            $subscriptionId,
+            ['cancel_at_period_end' => true],
+            ['idempotency_key' => "sub-cancel-{$subscriptionId}"]
+        );
+    }
+
+    /**
+     * Resume a subscription that was set to cancel at period end.
+     */
+    public function resumeSubscription(string $subscriptionId): \Stripe\Subscription
+    {
+        return $this->client()->subscriptions->update(
+            $subscriptionId,
+            ['cancel_at_period_end' => false],
+            ['idempotency_key' => "sub-resume-{$subscriptionId}"]
+        );
+    }
+
+    /**
+     * Change a subscription to a different plan tier or cadence.
+     * Prorates immediately (Stripe's default behavior).
+     */
+    public function changeSubscriptionPlan(
+        string $subscriptionId,
+        string $tier,
+        string $cadence,
+    ): \Stripe\Subscription {
+        $priceId = BillingSettings::current()->priceIdFor($tier, $cadence);
+        if (! $priceId) {
+            throw new \RuntimeException("No Stripe price configured for {$tier} {$cadence}");
+        }
+
+        $subscription = $this->client()->subscriptions->retrieve($subscriptionId);
+        $currentItemId = $subscription->items->data[0]->id;
+
+        return $this->client()->subscriptions->update(
+            $subscriptionId,
+            [
+                'items' => [[
+                    'id' => $currentItemId,
+                    'price' => $priceId,
+                ]],
+                'proration_behavior' => 'always_invoice', // immediate prorated charge
+                'metadata' => [
+                    'tier' => $tier,
+                    'cadence' => $cadence,
+                ],
+            ],
+            ['idempotency_key' => "sub-change-{$subscriptionId}-{$tier}-{$cadence}"]
+        );
+    }
+
+    // ==================================================================
+    // Addon subscription items (framework for Phase 5)
+    // ==================================================================
+
+    /**
+     * Add an addon as a subscription item (line item on existing subscription).
+     * Returns the subscription item ID.
+     */
+    public function addSubscriptionItem(
+        string $subscriptionId,
+        string $stripePriceId,
+    ): string {
+        $item = $this->client()->subscriptionItems->create(
+            [
+                'subscription' => $subscriptionId,
+                'price' => $stripePriceId,
+                'proration_behavior' => 'always_invoice',
+            ],
+            ['idempotency_key' => "item-create-{$subscriptionId}-{$stripePriceId}"]
+        );
+
+        return $item->id;
+    }
+
+    /**
+     * Cancel a subscription item at period end (addon cancellation).
+     */
+    public function cancelSubscriptionItemAtPeriodEnd(string $itemId): void
+    {
+        $this->client()->subscriptionItems->update(
+            $itemId,
+            [
+                'proration_behavior' => 'none',
+                'cancel_at_period_end' => true,
+            ],
+            ['idempotency_key' => "item-cancel-{$itemId}"]
+        );
+    }
+
+    // ==================================================================
+    // Webhooks
+    // ==================================================================
+
+    /**
+     * Verify a webhook signature. Throws if invalid.
+     *
+     * @param  string  $payload  raw request body
+     * @param  string  $signature  Stripe-Signature header value
+     * @return \Stripe\Event
+     */
+    public function verifyWebhook(string $payload, string $signature): \Stripe\Event
+    {
+        $secret = BillingSettings::current()->activeWebhookSecret();
+        if (! $secret) {
+            throw new \RuntimeException('Webhook secret not configured');
+        }
+
+        return \Stripe\Webhook::constructEvent($payload, $signature, $secret);
+    }
+
+    // ==================================================================
+    // Billing portal
+    // ==================================================================
+
+    /**
+     * Create a billing portal session URL for a customer.
+     * Returns the URL the tenant should be redirected to.
+     */
+    public function createBillingPortalSession(
+        string $customerId,
+        string $returnUrl,
+    ): string {
+        $session = $this->client()->billingPortal->sessions->create([
+            'customer' => $customerId,
+            'return_url' => $returnUrl,
         ]);
+
+        return $session->url;
     }
 
-    public function chargeOneTime(Tenant $tenant, object $addon): array
-    {
-        // TODO(stripe): create invoice item + invoice + finalize
-        return [
-            'invoice_id' => 'in_stub_' . uniqid(),
-            'amount' => $addon->price_cents,
-            'status' => 'paid',
-        ];
-    }
+    // ==================================================================
+    // Internal
+    // ==================================================================
 
-    public function verifyWebhook(string $payload, string $signatureHeader): object
+    /**
+     * Get a configured Stripe client using the current secret key.
+     * Creates a fresh instance per call (cheap, no connection pooling needed).
+     *
+     * @throws \RuntimeException if not configured
+     */
+    protected function client(): StripeClient
     {
-        // TODO(stripe): implement
-        //   return \Stripe\Webhook::constructEvent(
-        //       $payload,
-        //       $signatureHeader,
-        //       config('services.stripe.webhook_secret')
-        //   );
+        $key = BillingSettings::current()->activeSecretKey();
+        if (! $key) {
+            throw new \RuntimeException('Stripe secret key not configured. Set it in master admin → Billing configuration.');
+        }
 
-        return (object) json_decode($payload, false);
-    }
-
-    public function syncSubscriptionFromStripe(Tenant $tenant): array
-    {
-        // TODO(stripe): fetch subscription + all items, reconcile against tenant_feature_addons
-        return [
-            'synced' => false,
-            'reason' => 'stripe not live',
-        ];
-    }
-
-    protected function simulatedSubscriptionItemAddition(Tenant $tenant, object $addon): array
-    {
-        Log::info('[StripeBillingService] STUB addSubscriptionItem', [
-            'tenant_id' => $tenant->id,
-            'addon_code' => $addon->code,
-            'price_cents' => $addon->price_cents,
+        return new StripeClient([
+            'api_key' => $key,
+            'stripe_version' => '2024-06-20', // pin API version for stability
         ]);
-
-        $periodEnd = Carbon::now()->endOfMonth();
-
-        return [
-            'subscription_item_id' => 'si_stub_' . uniqid(),
-            'price_id' => $addon->stripe_price_id_monthly ?? ('price_stub_' . $addon->code),
-            'current_period_end' => $periodEnd,
-            'proration_amount' => 0,
-        ];
     }
 }

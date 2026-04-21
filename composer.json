@@ -1,14 +1,18 @@
 {
     "name": "intake/license-server",
     "description": "Intake licensing, update delivery, and install tracking server",
-    "keywords": ["laravel", "licensing"],
+    "keywords": [
+        "laravel",
+        "licensing"
+    ],
     "license": "proprietary",
     "require": {
         "php": "^8.2",
         "filament/filament": "^3.2",
         "laravel/framework": "^11.0",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.9"
+        "laravel/tinker": "^2.9",
+        "stripe/stripe-php": "^15.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
