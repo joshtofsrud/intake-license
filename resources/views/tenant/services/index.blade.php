@@ -485,8 +485,8 @@ window.SvData = {
   mode:       @json($jsMode),
   csrf:       '{{ csrf_token() }}',
   urls: {
-    servicesBase: '{{ url("/services") }}',
-    addonsBase:   '{{ url("/addons") }}',
+    servicesBase: '{{ route("tenant.services.index") }}',
+    addonsBase:   '{{ route("tenant.addons.store") }}',
   },
   currency: '{{ tenant()->currency_symbol ?? "$" }}',
 };
