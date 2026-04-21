@@ -47,6 +47,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Pages\Dashboard::class,
+                \App\Filament\Pages\BillingConfiguration::class,
             ])
             ->widgets([
                 PlatformStatsWidget::class,
