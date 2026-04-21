@@ -26,7 +26,12 @@ class TenantResource extends Resource
                 Forms\Components\TextInput::make('name')->required()->maxLength(255),
                 Forms\Components\TextInput::make('subdomain')->required()->maxLength(63),
                 Forms\Components\Select::make('plan_tier')
-                    ->options(['basic' => 'Basic', 'branded' => 'Branded', 'custom' => 'Custom'])
+                    ->options([
+                        'starter' => 'Starter',
+                        'branded' => 'Branded',
+                        'scale' => 'Scale',
+                        'custom' => 'Custom (enterprise)',
+                    ])
                     ->required(),
                 Forms\Components\Select::make('onboarding_status')
                     ->options(['pending' => 'Pending', 'complete' => 'Complete', 'suspended' => 'Suspended'])
@@ -83,8 +88,9 @@ class TenantResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('plan_tier')
                     ->colors([
-                        'gray'    => 'basic',
-                        'primary' => 'branded',
+                        'gray'    => 'starter',
+                        'success' => 'branded',
+                        'primary' => 'scale',
                         'warning' => 'custom',
                     ]),
 
@@ -118,7 +124,12 @@ class TenantResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('plan_tier')
-                    ->options(['basic' => 'Basic', 'branded' => 'Branded', 'custom' => 'Custom']),
+                    ->options([
+                        'starter' => 'Starter',
+                        'branded' => 'Branded',
+                        'scale' => 'Scale',
+                        'custom' => 'Custom',
+                    ]),
                 Tables\Filters\SelectFilter::make('onboarding_status')
                     ->options(['pending' => 'Pending', 'complete' => 'Complete', 'suspended' => 'Suspended']),
             ])
