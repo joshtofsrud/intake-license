@@ -478,11 +478,14 @@
 .fi-page .tg-card__footer {
     position: relative;
     z-index: 2;
+    pointer-events: none;
 }
 
+/* Re-enable pointer events only on the menu area (button + popup) */
 .fi-page .tg-card__menu {
     position: relative;
     z-index: 3;
+    pointer-events: auto;
 }
 
 .fi-page .tg-card__menu-pop {
