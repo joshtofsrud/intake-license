@@ -50,6 +50,12 @@
       'group'  => 'manage',
     ],
     [
+      'route'  => 'tenant.waitlist.index',
+      'label'  => 'Waitlist',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2v2l-2 2v5h10V6l-2-2V2" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4 2h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M6 7.5h2M5 9.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => 'manage',
+    ],
+        [
       'route'  => 'tenant.campaigns.index',
       'label'  => 'Campaigns',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M9 4l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -74,9 +80,9 @@
       'group'  => 'settings',
     ],
     [
-      'route'  => 'tenant.team.index',
-      'label'  => 'Team',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><circle cx="10" cy="5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M1 12c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10.5 8.5c1.5.3 2.5 1.3 2.5 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'route'  => 'tenant.feature_addons.index',
+      'label'  => 'Add-ons',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="4.5" height="4.5" rx="0.8" stroke="currentColor" stroke-width="1.2"/><rect x="8" y="1.5" width="4.5" height="4.5" rx="0.8" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="8" width="4.5" height="4.5" rx="0.8" stroke="currentColor" stroke-width="1.2"/><path d="M10.25 8v4.5M8 10.25h4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
       'group'  => 'settings',
     ],
   ];
