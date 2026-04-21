@@ -92,7 +92,7 @@
         @endphp
         @if($offerCount > 0)
           <b>{{ $offerCount }}</b> sent
-          @if($acceptedCount > 0) · <b>{{ $acceptedCount }}</b> accepted@endif
+          @if($acceptedCount > 0) · <b>{{ $acceptedCount }}</b> accepted @endif
         @else
           <span style="opacity:.5">None yet</span>
         @endif
