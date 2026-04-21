@@ -4,7 +4,6 @@
 
     <div class="tg-page">
 
-        {{-- Header strip with counts --}}
         <div class="tg-header">
             <p class="tg-header__stats">
                 {{ $counts['all'] }} tenants
@@ -15,7 +14,6 @@
             </p>
         </div>
 
-        {{-- Filter pills + search --}}
         <div class="tg-filters">
             <div class="tg-pills">
                 <button type="button" wire:click="$set('filterStatus', 'all')"
@@ -48,7 +46,6 @@
             </div>
         </div>
 
-        {{-- Card grid --}}
         @if($tenants->isEmpty())
             <div class="tg-empty">
                 <p>No tenants match your filters.</p>
@@ -87,7 +84,11 @@
                         [$lifeBg, $lifeFg] = $lifecycleColors[$t->lifecycle] ?? ['#F1EFE8', '#5F5E5A'];
                     @endphp
 
-                    <a href="{{ $editUrl }}" class="{{ $cardClass }}" data-tenant-id="{{ $t->id }}">
+                    {{-- Card is a div, NOT an anchor. Clickable via stretched-link overlay. --}}
+                    <div class="{{ $cardClass }}" data-tenant-id="{{ $t->id }}">
+
+                        {{-- Full-card click target — absolute overlay, z-index below interactive elements --}}
+                        <a href="{{ $editUrl }}" class="tg-card__overlay" aria-label="Manage {{ $t->name }}"></a>
 
                         <div class="tg-card__head">
                             <div class="tg-avatar" style="background: {{ $avatarBg }}; color: {{ $avatarFg }};">
@@ -99,21 +100,25 @@
                             </div>
                             <div class="tg-card__menu"
                                  x-data="{ open: false }"
-                                 @click.stop
                                  @click.outside="open = false">
-                                <button type="button" class="tg-card__menu-btn" @click.prevent="open = !open" aria-label="Menu">⋮</button>
-                                <div class="tg-card__menu-pop" x-show="open" x-cloak style="display:none;">
-                                    <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="tg-card__menu-item" @click.stop>View site ↗</a>
-                                    <a href="{{ route('admin.impersonate', $t->id) }}" class="tg-card__menu-item" @click.stop="event.preventDefault(); const f=document.createElement('form'); f.method='POST'; f.action='{{ route('admin.impersonate', $t->id) }}'; const t=document.createElement('input'); t.type='hidden'; t.name='_token'; t.value='{{ csrf_token() }}'; f.appendChild(t); document.body.appendChild(f); f.submit();">Impersonate</a>
-                                    <a href="{{ $editUrl }}" class="tg-card__menu-item" @click.stop>Edit</a>
-                                    <button type="button" class="tg-card__menu-item tg-card__menu-item--danger"
-                                        wire:click.stop="mountTableAction('suspend', '{{ $t->id }}')">
-                                        @if($t->onboarding_status === 'suspended')
-                                            Unsuspend
-                                        @else
-                                            Suspend
-                                        @endif
-                                    </button>
+                                <button type="button" class="tg-card__menu-btn" @click.stop.prevent="open = !open" aria-label="Menu">⋮</button>
+                                <div class="tg-card__menu-pop" x-show="open" x-cloak @click.stop style="display:none;">
+                                    <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="tg-card__menu-item">View site ↗</a>
+                                    <a href="#"
+                                       class="tg-card__menu-item"
+                                       @click.stop.prevent="
+                                           const f=document.createElement('form');
+                                           f.method='POST';
+                                           f.action='{{ route('admin.impersonate', $t->id) }}';
+                                           const tok=document.createElement('input');
+                                           tok.type='hidden';
+                                           tok.name='_token';
+                                           tok.value='{{ csrf_token() }}';
+                                           f.appendChild(tok);
+                                           document.body.appendChild(f);
+                                           f.submit();
+                                       ">Impersonate</a>
+                                    <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
                                 </div>
                             </div>
                         </div>
@@ -163,7 +168,7 @@
                             </span>
                             <span class="tg-card__footer-cta">Manage →</span>
                         </div>
-                    </a>
+                    </div>
                 @endforeach
             </div>
         @endif

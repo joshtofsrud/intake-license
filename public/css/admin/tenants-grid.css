@@ -458,3 +458,34 @@
 }
 
 [x-cloak] { display: none !important; }
+
+/* ==================== OVERLAY CLICK TARGET ==================== */
+.fi-page .tg-card {
+    position: relative !important;
+}
+
+.fi-page .tg-card__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 12px;
+    text-decoration: none;
+}
+
+.fi-page .tg-card__head,
+.fi-page .tg-card__badges,
+.fi-page .tg-card__stats,
+.fi-page .tg-card__footer {
+    position: relative;
+    z-index: 2;
+}
+
+.fi-page .tg-card__menu {
+    position: relative;
+    z-index: 3;
+}
+
+.fi-page .tg-card__menu-pop {
+    z-index: 40 !important;
+}
+
