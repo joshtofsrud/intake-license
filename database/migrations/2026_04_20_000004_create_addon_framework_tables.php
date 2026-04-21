@@ -53,7 +53,7 @@ return new class extends Migration
 
         Schema::create('tenant_feature_addons', function (Blueprint $t) {
             $t->id();
-            $t->unsignedBigInteger('tenant_id');
+            $t->uuid('tenant_id');
             $t->string('addon_code', 64);
 
             $t->string('source', 24)->default('self_serve');
@@ -84,7 +84,7 @@ return new class extends Migration
 
         Schema::create('tenant_addon_suppressions', function (Blueprint $t) {
             $t->id();
-            $t->unsignedBigInteger('tenant_id');
+            $t->uuid('tenant_id');
             $t->string('addon_code', 64);
             $t->unsignedBigInteger('suppressed_by_user_id')->nullable();
             $t->text('reason')->nullable();
@@ -103,7 +103,7 @@ return new class extends Migration
 
         Schema::create('addon_audit_log', function (Blueprint $t) {
             $t->id();
-            $t->unsignedBigInteger('tenant_id');
+            $t->uuid('tenant_id');
             $t->string('addon_code', 64);
 
             $t->string('action', 32);
