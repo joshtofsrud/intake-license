@@ -117,7 +117,7 @@ class AddonCatalogController extends Controller
         $tenant = $this->currentTenant($request);
         $code = $validated['addon_code'];
 
-        $row = DB::table('tenant_addons')
+        $row = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->where('addon_code', $code)
             ->whereIn('status', ['active', 'failed_payment'])

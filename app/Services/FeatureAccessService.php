@@ -13,11 +13,11 @@ use Illuminate\Support\Facades\DB;
  *
  * Resolution order:
  *   1. Is there an active suppression for this (tenant, addon)? -> NO access.
- *   2. Is there an active tenant_addons row?                    -> YES access.
+ *   2. Is there an active tenant_feature_addons row?                    -> YES access.
  *   3. Is this addon included in the tenant's plan tier?        -> YES access.
  *   4. Otherwise                                                -> NO access.
  *
- * "Active" tenant_addons status: 'active', 'canceling', 'failed_payment'.
+ * "Active" tenant_feature_addons status: 'active', 'canceling', 'failed_payment'.
  *   - canceling keeps access until current_period_end (Option A).
  *   - failed_payment keeps access during the grace window.
  *
@@ -57,7 +57,7 @@ class FeatureAccessService
             ->orderBy('sort_order')
             ->get();
 
-        $tenantAddons = DB::table('tenant_addons')
+        $tenantAddons = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', ['active', 'canceling', 'failed_payment'])
             ->get()
@@ -159,7 +159,7 @@ class FeatureAccessService
                 && in_array($planTier, $includedPlans, true);
         }
 
-        $active = DB::table('tenant_addons')
+        $active = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', ['active', 'canceling', 'failed_payment'])
             ->pluck('addon_code');

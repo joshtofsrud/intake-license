@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * All write operations for addon state. Every state change:
  *   1. Validates the transition is legal
- *   2. Writes the tenant_addons / suppressions row
+ *   2. Writes the tenant_feature_addons / suppressions row
  *   3. Records an audit log entry
  *   4. Flushes FeatureAccessService cache for the tenant
  *   5. Fires activation/deactivation hooks (e.g. create waitlist settings)
@@ -45,14 +45,14 @@ class AddonManagementService
                     'updated_at' => now(),
                 ]);
 
-            $existing = DB::table('tenant_addons')
+            $existing = DB::table('tenant_feature_addons')
                 ->where('tenant_id', $tenant->id)
                 ->where('addon_code', $addonCode)
                 ->whereIn('status', ['active', 'canceling', 'failed_payment'])
                 ->first();
 
             if ($existing) {
-                DB::table('tenant_addons')
+                DB::table('tenant_feature_addons')
                     ->where('id', $existing->id)
                     ->update([
                         'status' => 'active',
@@ -67,7 +67,7 @@ class AddonManagementService
 
                 $rowId = $existing->id;
             } else {
-                $rowId = DB::table('tenant_addons')->insertGetId([
+                $rowId = DB::table('tenant_feature_addons')->insertGetId([
                     'tenant_id' => $tenant->id,
                     'addon_code' => $addonCode,
                     'source' => $source,
@@ -90,7 +90,7 @@ class AddonManagementService
             $this->features->clearCache($tenant);
             $this->runActivationHooks($tenant, $addonCode);
 
-            return DB::table('tenant_addons')->where('id', $rowId)->first();
+            return DB::table('tenant_feature_addons')->where('id', $rowId)->first();
         });
     }
 
@@ -102,7 +102,7 @@ class AddonManagementService
         $reason = $opts['reason'] ?? null;
 
         return DB::transaction(function () use ($tenant, $addonCode, $actorType, $actorId, $actorLabel, $reason) {
-            $row = DB::table('tenant_addons')
+            $row = DB::table('tenant_feature_addons')
                 ->where('tenant_id', $tenant->id)
                 ->where('addon_code', $addonCode)
                 ->whereIn('status', ['active', 'failed_payment'])
@@ -116,7 +116,7 @@ class AddonManagementService
                 && $row->source === 'self_serve';
 
             if ($hasBillingCycle) {
-                DB::table('tenant_addons')
+                DB::table('tenant_feature_addons')
                     ->where('id', $row->id)
                     ->update([
                         'status' => 'canceling',
@@ -130,7 +130,7 @@ class AddonManagementService
                     'tenant_addon_id' => $row->id,
                 ];
             } else {
-                DB::table('tenant_addons')
+                DB::table('tenant_feature_addons')
                     ->where('id', $row->id)
                     ->update([
                         'status' => 'expired',
@@ -151,13 +151,13 @@ class AddonManagementService
             $this->logAudit($tenant, $addonCode, $action, $actorType, $actorId, $actorLabel, $reason, $actionMeta);
             $this->features->clearCache($tenant);
 
-            return DB::table('tenant_addons')->where('id', $row->id)->first();
+            return DB::table('tenant_feature_addons')->where('id', $row->id)->first();
         });
     }
 
     public function expire(Tenant $tenant, string $addonCode, array $opts = []): void
     {
-        $row = DB::table('tenant_addons')
+        $row = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->where('addon_code', $addonCode)
             ->whereIn('status', ['active', 'canceling', 'failed_payment'])
@@ -167,7 +167,7 @@ class AddonManagementService
             return;
         }
 
-        DB::table('tenant_addons')
+        DB::table('tenant_feature_addons')
             ->where('id', $row->id)
             ->update([
                 'status' => 'expired',
@@ -264,7 +264,7 @@ class AddonManagementService
 
     public function markPaymentFailed(Tenant $tenant, string $addonCode, array $opts = []): void
     {
-        $row = DB::table('tenant_addons')
+        $row = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->where('addon_code', $addonCode)
             ->whereIn('status', ['active', 'canceling'])
@@ -274,7 +274,7 @@ class AddonManagementService
             return;
         }
 
-        DB::table('tenant_addons')
+        DB::table('tenant_feature_addons')
             ->where('id', $row->id)
             ->update([
                 'status' => 'failed_payment',
@@ -291,7 +291,7 @@ class AddonManagementService
 
     public function markPaymentSucceeded(Tenant $tenant, string $addonCode, array $opts = []): void
     {
-        $row = DB::table('tenant_addons')
+        $row = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->where('addon_code', $addonCode)
             ->whereIn('status', ['active', 'failed_payment', 'canceling'])
@@ -310,7 +310,7 @@ class AddonManagementService
             $updates['current_period_end'] = $opts['current_period_end'];
         }
 
-        DB::table('tenant_addons')
+        DB::table('tenant_feature_addons')
             ->where('id', $row->id)
             ->update($updates);
 

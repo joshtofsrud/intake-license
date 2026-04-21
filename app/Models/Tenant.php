@@ -163,7 +163,7 @@ class Tenant extends Model
     }
 
     /**
-     * Relationship: all tenant_addons rows (including expired, for history).
+     * Relationship: all tenant_feature_addons rows (including expired, for history).
      */
     public function addons(): HasMany
     {

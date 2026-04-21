@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * Tables:
  *   addons                      - master catalog of every addon/feature Intake sells
- *   tenant_addons               - join: which tenant has which addon, how they got it
+ *   tenant_feature_addons       - join: which tenant has which addon, how they got it
  *   tenant_addon_suppressions   - staff-revoked access to plan-included features
  *   addon_audit_log             - every activate/deactivate/payment event
  *
@@ -51,7 +51,7 @@ return new class extends Migration
             $t->index('category');
         });
 
-        Schema::create('tenant_addons', function (Blueprint $t) {
+        Schema::create('tenant_feature_addons', function (Blueprint $t) {
             $t->id();
             $t->unsignedBigInteger('tenant_id');
             $t->string('addon_code', 64);
@@ -129,7 +129,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('addon_audit_log');
         Schema::dropIfExists('tenant_addon_suppressions');
-        Schema::dropIfExists('tenant_addons');
+        Schema::dropIfExists('tenant_feature_addons');
         Schema::dropIfExists('addons');
     }
 };

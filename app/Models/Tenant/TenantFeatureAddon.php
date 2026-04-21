@@ -13,12 +13,12 @@ use Illuminate\Database\Eloquent\Model;
  * This is DISTINCT from TenantAddon (the service-addon model used by the
  * services admin, e.g. "extra 15 minutes" on a massage).
  *
- * Table: tenant_addons (the feature-addon pivot table created by the
+ * Table: tenant_feature_addons (created by the
  * addon framework migration 2026_04_20_000004).
  */
 class TenantFeatureAddon extends Model
 {
-    protected $table = 'tenant_addons';
+    protected $table = 'tenant_feature_addons';
 
     protected $fillable = [
         'tenant_id',

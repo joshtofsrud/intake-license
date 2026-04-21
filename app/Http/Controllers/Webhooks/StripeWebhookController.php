@@ -84,7 +84,7 @@ class StripeWebhookController extends Controller
 
     protected function onSubscriptionDeleted($event): void
     {
-        // TODO(stripe): expire every tenant_addons row tied to this subscription
+        // TODO(stripe): expire every tenant_feature_addons row tied to this subscription
         Log::info('[StripeWebhook] STUB onSubscriptionDeleted');
     }
 }

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * addons:expire
  *
- * Runs daily. Expires every tenant_addons row whose status is 'canceling'
+ * Runs daily. Expires every tenant_feature_addons row whose status is 'canceling'
  * and whose current_period_end has passed.
  *
  * Matches waitlist:expire which runs on the existing intake-scheduler.
@@ -23,7 +23,7 @@ class ExpireAddonsCommand extends Command
 
     public function handle(AddonManagementService $manager): int
     {
-        $rows = DB::table('tenant_addons')
+        $rows = DB::table('tenant_feature_addons')
             ->where('status', 'canceling')
             ->whereNotNull('current_period_end')
             ->where('current_period_end', '<=', now())

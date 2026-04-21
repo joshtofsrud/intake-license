@@ -5,11 +5,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Migrate existing has_waitlist_addon flags into the new tenant_addons framework.
+ * Migrate existing has_waitlist_addon flags into the new tenant_feature_addons framework.
  *
  * Runs AFTER 2026_04_20_000004 creates the tables.
  *
- * Non-destructive: reads has_waitlist_addon, creates tenant_addons rows with
+ * Non-destructive: reads has_waitlist_addon, creates tenant_feature_addons rows with
  * source='staff_push', and logs the action. The tenants.has_waitlist_addon
  * column is NOT dropped here; a later cleanup migration will drop it.
  */
@@ -48,7 +48,7 @@ return new class extends Migration
             ->get();
 
         foreach ($tenants as $tenant) {
-            $alreadyMigrated = DB::table('tenant_addons')
+            $alreadyMigrated = DB::table('tenant_feature_addons')
                 ->where('tenant_id', $tenant->id)
                 ->where('addon_code', 'waitlist')
                 ->whereIn('status', ['active', 'canceling', 'failed_payment'])
@@ -74,7 +74,7 @@ return new class extends Migration
                 continue;
             }
 
-            DB::table('tenant_addons')->insert([
+            DB::table('tenant_feature_addons')->insert([
                 'tenant_id' => $tenant->id,
                 'addon_code' => 'waitlist',
                 'source' => 'staff_push',

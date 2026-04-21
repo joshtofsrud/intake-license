@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  *   4. Replace each `simulated*` method body with the real Stripe SDK call
  *   5. Leave the method signatures alone - callers depend on them.
  *
- * Design principle: this class NEVER writes to tenant_addons directly.
+ * Design principle: this class NEVER writes to tenant_feature_addons directly.
  * It returns data to AddonManagementService, which is the only writer.
  */
 class StripeBillingService
@@ -87,7 +87,7 @@ class StripeBillingService
 
     public function syncSubscriptionFromStripe(Tenant $tenant): array
     {
-        // TODO(stripe): fetch subscription + all items, reconcile against tenant_addons
+        // TODO(stripe): fetch subscription + all items, reconcile against tenant_feature_addons
         return [
             'synced' => false,
             'reason' => 'stripe not live',

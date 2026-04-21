@@ -218,7 +218,7 @@ class FeaturesRelationManager extends RelationManager
 
     protected function tenantHasTenantAddonRow($record): bool
     {
-        return DB::table('tenant_addons')
+        return DB::table('tenant_feature_addons')
             ->where('tenant_id', $this->getOwnerRecord()->id)
             ->where('addon_code', $record->code)
             ->whereIn('status', ['active', 'canceling', 'failed_payment'])
@@ -293,7 +293,7 @@ class FeaturesRelationManager extends RelationManager
             return '<span style="color:#6a6a6a;font-size:0.85em;">Not active</span>';
         }
 
-        $tenantAddon = DB::table('tenant_addons')
+        $tenantAddon = DB::table('tenant_feature_addons')
             ->where('tenant_id', $tenant->id)
             ->where('addon_code', $record->code)
             ->whereIn('status', ['active', 'canceling', 'failed_payment'])
