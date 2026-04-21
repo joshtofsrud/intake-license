@@ -26,6 +26,13 @@ Route::domain($domain)->group(function () {
         ], $db === 'ok' ? 200 : 503);
     });
 
+    // --- Stripe subscription webhooks (addon framework + plan billing) ---
+    // Separate from tenant-scoped /webhooks/stripe which handles booking deposits.
+    // Stripe signs the request; CSRF exempted via VerifyCsrfToken::$except.
+    Route::post('/webhooks/stripe/subscriptions',
+        [\App\Http\Controllers\Webhooks\StripeWebhookController::class, 'handle']
+    )->name('webhooks.stripe.subscriptions');
+
     // --- Fixed marketing pages (backed by platform tenant's TenantPages) ---
     Route::get('/',         [Platform\MarketingController::class, 'home'])->name('marketing.home');
     Route::get('/pricing',  [Platform\MarketingController::class, 'pricing'])->name('marketing.pricing');
@@ -154,6 +161,11 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/waitlist/similar',           [TenantControllers\WaitlistAdminController::class, 'addSimilarMapping'])->name('waitlist.similar.add');
             Route::delete('/waitlist/similar/{id}',    [TenantControllers\WaitlistAdminController::class, 'removeSimilarMapping'])->name('waitlist.similar.remove');
             Route::delete('/waitlist/entries/{id}',    [TenantControllers\WaitlistAdminController::class, 'cancelEntry'])->name('waitlist.cancel');
+            // Feature-addon catalog (tenant-facing purchase + manage).
+            // Note: 'feature-addons' path avoids collision with existing service-addon routes below.
+            Route::get('/feature-addons',             [TenantControllers\AddonCatalogController::class, 'index'])->name('feature_addons.index');
+            Route::post('/feature-addons/activate',   [TenantControllers\AddonCatalogController::class, 'activate'])->name('feature_addons.activate');
+            Route::post('/feature-addons/cancel',     [TenantControllers\AddonCatalogController::class, 'cancel'])->name('feature_addons.cancel');
             Route::get('/services',             [TenantControllers\ServiceController::class, 'index'])->name('services.index');
             Route::post('/services',            [TenantControllers\ServiceController::class, 'store'])->name('services.store');
             Route::patch('/services/{id}',      [TenantControllers\ServiceController::class, 'update'])->name('services.update');

@@ -159,6 +159,13 @@ class TenantResource extends Resource
             ->defaultSort('created_at', 'desc');
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            TenantResource\RelationManagers\FeaturesRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [

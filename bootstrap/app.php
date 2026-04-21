@@ -16,6 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // full request lifecycle including the terminate() write. Runs last
         // in the stack so it sees the real response status.
         $middleware->append(\App\Http\Middleware\LogRequests::class);
+
+        // Exclude Stripe webhook from CSRF — Stripe signs the request body.
+        // Tenant booking webhook (/webhooks/stripe) and addon subscription
+        // webhook (/webhooks/stripe/subscriptions) both need this.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/stripe',
+            'webhooks/stripe/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Route unhandled exceptions into the debug panel.
@@ -28,5 +36,6 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
         $schedule->command('waitlist:expire')->dailyAt('02:15');
+        $schedule->command('addons:expire')->dailyAt('02:30');
     })
     ->create();

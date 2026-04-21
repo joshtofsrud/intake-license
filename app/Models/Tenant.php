@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Services\FeatureAccessService;
 
 class Tenant extends Model
 {
@@ -133,10 +134,49 @@ class Tenant extends Model
             ?: ($this->subdomain . '@intake.works');
     }
 
+    /**
+     * Does this tenant currently have access to the given feature?
+     *
+     * This is the canonical feature gate. Every controller, view, and job
+     * that conditionally enables a feature goes through this method.
+     */
+    public function hasAddon(string $code): bool
+    {
+        return app(FeatureAccessService::class)->hasAddon($this, $code);
+    }
+
+    /**
+     * All currently-accessible addon codes.
+     */
+    public function activeAddonCodes(): array
+    {
+        return app(FeatureAccessService::class)->activeAddonCodes($this);
+    }
+
+    /**
+     * @deprecated Use $tenant->hasAddon('waitlist') instead.
+     * Kept for backward compat until all callers are migrated.
+     */
     public function hasWaitlistFeature(): bool
     {
-        if (in_array($this->plan_tier, ['branded', 'custom'], true)) return true;
-        return (bool) $this->has_waitlist_addon;
+        return $this->hasAddon('waitlist');
+    }
+
+    /**
+     * Relationship: all tenant_addons rows (including expired, for history).
+     */
+    public function addons(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantFeatureAddon::class);
+    }
+
+    /**
+     * Relationship: only currently-active addons.
+     */
+    public function activeAddons(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantFeatureAddon::class)
+            ->whereIn('status', ['active', 'canceling', 'failed_payment']);
     }
 
     public function waitlistSettings()

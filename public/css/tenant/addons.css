@@ -1,0 +1,293 @@
+/* Addon catalog page.
+ * Uses --p-* tenant branding vars where they exist; falls back to Dark Premium.
+ * Breakpoint: 1024px (matches services admin).
+ */
+
+.addons-page {
+    padding: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+    color: var(--p-text, #e8e8e8);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.addons-header { margin-bottom: 32px; }
+
+.addons-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: var(--p-text, #e8e8e8);
+    letter-spacing: -0.02em;
+}
+
+.addons-header__sub {
+    font-size: 1rem;
+    color: var(--p-text-dim, #8a8a8a);
+    margin: 0;
+}
+
+.addons-header__banner {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: #1e3a5f;
+    border-left: 3px solid #60A5FA;
+    color: #bfdbfe;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.addons-header__banner strong { color: #dbeafe; font-weight: 600; }
+
+.addons-section { margin-bottom: 32px; }
+
+.addons-section__title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--p-text-tertiary, #5a5a5a);
+    margin: 0 0 12px;
+}
+
+.addons-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 1024px) {
+    .addons-page { padding: 16px; }
+    .addons-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+}
+
+@media (max-width: 640px) {
+    .addons-grid { grid-template-columns: 1fr; }
+}
+
+.addon-card {
+    background: var(--p-card-bg, #0f0f0f);
+    border: 1px solid var(--p-border, #1f1f1f);
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 180px;
+    transition: border-color 150ms ease, transform 120ms ease;
+}
+
+.addon-card:hover { border-color: #2e2e2e; }
+.addon-card--active { border-color: #2a4a2a; }
+.addon-card--included { border-color: #2e3a5a; background: #0d1520; }
+.addon-card--canceling { border-color: #4a3a1a; background: #1a1510; }
+.addon-card--failed { border-color: #5a2a2a; background: #1a0f0f; }
+
+.addon-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.addon-card__title-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.addon-card__title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--p-text, #e8e8e8);
+    letter-spacing: -0.01em;
+}
+
+.addon-card__badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.addon-card__badge--new { background: #BEF264; color: #0a0a0a; }
+
+.addon-card__price {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #BEF264;
+    white-space: nowrap;
+}
+
+.addon-card__price-unit {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--p-text-dim, #8a8a8a);
+}
+
+.addon-card__desc {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--p-text-dim, #8a8a8a);
+    margin: 0;
+    flex: 1;
+}
+
+.addon-card__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 8px;
+}
+
+.addon-card__state {
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.addon-card__state--added { color: #4ADE80; }
+.addon-card__state--included { color: #93c5fd; font-weight: 600; }
+.addon-card__state--canceling { color: #FBBF24; font-size: 0.75rem; }
+.addon-card__state--failed { color: #f87171; font-size: 0.75rem; font-weight: 600; }
+.addon-card__state--comped { color: #c4b5fd; font-weight: 600; }
+.addon-card__state--suppressed { color: #6a6a6a; font-style: italic; font-size: 0.8rem; }
+
+.addon-card__btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 120ms ease, border-color 120ms ease;
+    font-family: inherit;
+}
+
+.addon-card__btn--add { background: #BEF264; color: #0a0a0a; border-color: #BEF264; }
+.addon-card__btn--add:hover { background: #a3e635; }
+.addon-card__btn--manage { background: transparent; color: var(--p-text-dim, #8a8a8a); border-color: var(--p-border, #1f1f1f); }
+.addon-card__btn--manage:hover { color: var(--p-text, #e8e8e8); border-color: #3a3a3a; }
+.addon-card__btn--reactivate { background: transparent; color: #BEF264; border-color: #BEF264; }
+.addon-card__btn--reactivate:hover { background: #BEF264; color: #0a0a0a; }
+.addon-card__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.addon-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.addon-modal[aria-hidden="false"] { display: flex; }
+
+.addon-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(2px);
+}
+
+.addon-modal__panel {
+    position: relative;
+    background: #0f0f0f;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    max-width: 460px;
+    width: 100%;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+}
+
+.addon-modal__close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: var(--p-text-dim, #8a8a8a);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+}
+
+.addon-modal__close:hover { color: var(--p-text, #e8e8e8); }
+
+.addon-modal__body h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: var(--p-text, #e8e8e8);
+}
+
+.addon-modal__body p { color: var(--p-text-dim, #8a8a8a); line-height: 1.5; }
+
+.addon-modal__body .addon-modal__price-summary {
+    background: #181818;
+    border: 1px solid #222;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+}
+
+.addon-modal__body .addon-modal__price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    padding: 4px 0;
+}
+
+.addon-modal__body .addon-modal__price-row--total {
+    padding-top: 10px;
+    margin-top: 6px;
+    border-top: 1px solid #2a2a2a;
+    font-weight: 600;
+    color: var(--p-text, #e8e8e8);
+}
+
+.addon-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.addon-modal__btn {
+    padding: 9px 18px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-family: inherit;
+}
+
+.addon-modal__btn--secondary { background: transparent; color: var(--p-text-dim, #8a8a8a); border-color: #2a2a2a; }
+.addon-modal__btn--primary { background: #BEF264; color: #0a0a0a; border-color: #BEF264; }
+.addon-modal__btn--danger { background: #7a2323; color: #fecaca; border-color: #7a2323; }
+.addon-modal__btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.addon-modal__error {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #2a1010;
+    border-left: 3px solid #f87171;
+    color: #fca5a5;
+    font-size: 0.85rem;
+    border-radius: 4px;
+}
