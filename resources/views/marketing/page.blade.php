@@ -158,7 +158,39 @@
         if (in_array($type, ['nav', 'footer'])) continue;
 
         $partial = 'marketing.sections.' . $type;
-        $padding = 'mk-section--' . ($section->padding ?? 'normal');
+
+        // Padding: content override > section column > default ('normal')
+        $paddingValue = $c['padding_override'] ?? $section->padding ?? 'normal';
+        $padding = 'mk-section--' . $paddingValue;
+
+        // Margin override — only applied if explicitly set.
+        $marginMap = [
+            'none'   => '0',
+            'small'  => 'clamp(12px, 2vw, 24px)',
+            'normal' => 'clamp(24px, 4vw, 48px)',
+            'large'  => 'clamp(48px, 6vw, 80px)',
+        ];
+        $marginValue = $c['margin_override'] ?? null;
+        $marginCss = $marginValue && isset($marginMap[$marginValue])
+            ? "margin-top:{$marginMap[$marginValue]};margin-bottom:{$marginMap[$marginValue]};"
+            : '';
+
+        // Inline section-level style assembly (bg, text color, margin).
+        $inlineStyle = '';
+        if (! empty($section->bg_color)) {
+            $inlineStyle .= "background:{$section->bg_color};";
+        }
+        if (! empty($c['text_color'])) {
+            $inlineStyle .= "color:{$c['text_color']};";
+        }
+        $inlineStyle .= $marginCss;
+
+        // Border radius map (for per-block use inside partials).
+        $radiusMap = ['none' => '0', 'sm' => '4px', 'md' => '8px', 'lg' => '14px', 'xl' => '20px'];
+        $borderRadiusValue = $c['border_radius'] ?? null;
+        $borderRadius = $borderRadiusValue && isset($radiusMap[$borderRadiusValue])
+            ? $radiusMap[$borderRadiusValue]
+            : null;
     @endphp
 
     @if(view()->exists($partial))
@@ -166,6 +198,8 @@
             'c' => $c,
             'section' => $section,
             'padding' => $padding,
+            'inlineStyle' => $inlineStyle,
+            'borderRadius' => $borderRadius,
             'navItems' => $navItems,
             'tenant' => $tenant,
             'industry' => $industry,

@@ -29,7 +29,7 @@
     textarea.mk-cf-input { resize: vertical; font-family: inherit; }
 </style>
 
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container" style="max-width:580px">
         @if(!empty($c['heading']))
             <h2 class="mk-section-title" style="text-align:center;margin-bottom:32px">{{ $c['heading'] }}</h2>

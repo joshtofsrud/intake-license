@@ -1,5 +1,5 @@
 {{-- Stats row. Content: heading, stats[{number, label}] --}}
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         @if(!empty($c['heading']))
             <h2 style="text-align:center;margin-bottom:40px">{{ $c['heading'] }}</h2>

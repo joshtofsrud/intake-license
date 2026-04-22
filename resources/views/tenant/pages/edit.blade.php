@@ -277,10 +277,45 @@ document.querySelectorAll('.pb-section-body').forEach(function (body) {
 
 function saveSection(sectionId, body) {
   var content = {};
-  body.querySelectorAll('[data-field]').forEach(function (el) {
-    if (el.type === 'checkbox') content[el.getAttribute('data-field')] = el.checked ? '1' : '0';
-    else content[el.getAttribute('data-field')] = el.value;
+
+  // Keep text-input "_text" shadow in sync with color picker value when text input has valid hex.
+  // This lets admins type a hex directly or pick via color input, and both stay in lockstep.
+  body.querySelectorAll('input[data-field$="_text"]').forEach(function (textInput) {
+    var baseField = textInput.getAttribute('data-field').replace(/_text$/, '');
+    var picker = body.querySelector('input[data-field="' + baseField + '"][type="color"]');
+    if (!picker) return;
+    var txt = (textInput.value || '').trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(txt)) {
+      picker.value = txt;
+    } else if (txt === '') {
+      // Blank text = clear the color override. Leave picker alone but don't send the field.
+      picker.setAttribute('data-blank', '1');
+    } else {
+      picker.removeAttribute('data-blank');
+    }
   });
+
+  body.querySelectorAll('[data-field]').forEach(function (el) {
+    var field = el.getAttribute('data-field');
+    // Skip the "_text" shadow fields — they're only for UI, not persisted.
+    if (field.endsWith('_text')) return;
+    // Skip color pickers that have been blanked by the text input.
+    if (el.type === 'color' && el.getAttribute('data-blank') === '1') {
+      content[field] = '';
+      return;
+    }
+    if (el.type === 'checkbox') content[field] = el.checked ? '1' : '0';
+    else content[field] = el.value;
+  });
+
+  // Promote bg_color out of content — server persists it to its own column.
+  var bgColor = content.bg_color;
+  delete content.bg_color;
+
+  // Promote padding_override out of content if set — it maps to the section's padding column.
+  var paddingOverride = content.padding_override;
+  // Keep padding_override IN content so we can support per-block override without touching the column.
+  // The renderer prefers $c['padding_override'] over $section->padding.
 
   var fd = new FormData();
   fd.append('_token', csrf);
@@ -288,6 +323,7 @@ function saveSection(sectionId, body) {
   fd.append('page_id', pageId);
   fd.append('section_id', sectionId);
   fd.append('is_visible', body.querySelector('[data-field="is_visible"]')?.checked ? 1 : 0);
+  if (bgColor !== undefined) fd.append('bg_color', bgColor);
   Object.keys(content).forEach(function (k) { fd.append('content[' + k + ']', content[k]); });
 
   fetch(storeUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })

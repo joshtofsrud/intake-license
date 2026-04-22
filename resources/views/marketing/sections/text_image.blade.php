@@ -2,7 +2,7 @@
 @php
     $imgRight = ($c['image_position'] ?? 'right') === 'right';
 @endphp
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;max-width:1100px;margin:0 auto">
             <div style="order: {{ $imgRight ? 1 : 2 }}">

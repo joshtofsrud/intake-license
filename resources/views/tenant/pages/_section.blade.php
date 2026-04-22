@@ -599,6 +599,88 @@
       <p style="font-size:13px;opacity:.4">No editor available for this section type.</p>
     @endif
 
+    {{-- ============================================================ SHARED STYLING PANEL ============================================================ --}}
+    {{-- Applies to all block types. Values stored in the section's content JSON. --}}
+    {{-- Render module skips shell-only sections (_shell_nav, _shell_footer). --}}
+    @unless(in_array($type, ['nav', 'footer']))
+    <details class="pb-styling-panel" style="margin-top:14px;border-top:0.5px solid var(--ia-border);padding-top:10px">
+      <summary style="cursor:pointer;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ia-text-muted);font-weight:600;opacity:.6;list-style:none;display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;opacity:.6">▸</span>
+        Section styling
+      </summary>
+      <div style="padding-top:12px;display:flex;flex-direction:column;gap:10px">
+
+        {{-- Background + text colors --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="pb-field-row">
+            <div class="pb-field-label">Background color <span style="opacity:.4">(optional)</span></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="color" data-field="bg_color"
+                value="{{ $section->bg_color ?? '#000000' }}"
+                style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+              <input type="text" class="pb-input" style="flex:1;font-size:11px;font-family:monospace"
+                value="{{ $section->bg_color ?? '' }}"
+                data-field="bg_color_text" placeholder="#000000 or blank">
+            </div>
+          </div>
+          <div class="pb-field-row">
+            <div class="pb-field-label">Text color <span style="opacity:.4">(optional)</span></div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="color" data-field="text_color"
+                value="{{ $c['text_color'] ?? '#ffffff' }}"
+                style="width:36px;height:32px;border-radius:6px;border:0.5px solid var(--ia-border);cursor:pointer;padding:0">
+              <input type="text" class="pb-input" style="flex:1;font-size:11px;font-family:monospace"
+                value="{{ $c['text_color'] ?? '' }}"
+                data-field="text_color_text" placeholder="#ffffff or blank">
+            </div>
+          </div>
+        </div>
+
+        {{-- Padding + margin overrides --}}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="pb-field-row">
+            <div class="pb-field-label">Padding override</div>
+            <select class="pb-input" data-field="padding_override">
+              <option value=""        {{ ($c['padding_override'] ?? '') === ''        ? 'selected' : '' }}>Use default</option>
+              <option value="none"    {{ ($c['padding_override'] ?? '') === 'none'    ? 'selected' : '' }}>None</option>
+              <option value="small"   {{ ($c['padding_override'] ?? '') === 'small'   ? 'selected' : '' }}>Small</option>
+              <option value="normal"  {{ ($c['padding_override'] ?? '') === 'normal'  ? 'selected' : '' }}>Normal</option>
+              <option value="large"   {{ ($c['padding_override'] ?? '') === 'large'   ? 'selected' : '' }}>Large</option>
+              <option value="xl"      {{ ($c['padding_override'] ?? '') === 'xl'      ? 'selected' : '' }}>Extra large</option>
+            </select>
+          </div>
+          <div class="pb-field-row">
+            <div class="pb-field-label">Margin override</div>
+            <select class="pb-input" data-field="margin_override">
+              <option value=""        {{ ($c['margin_override'] ?? '') === ''        ? 'selected' : '' }}>Use default</option>
+              <option value="none"    {{ ($c['margin_override'] ?? '') === 'none'    ? 'selected' : '' }}>None</option>
+              <option value="small"   {{ ($c['margin_override'] ?? '') === 'small'   ? 'selected' : '' }}>Small</option>
+              <option value="normal"  {{ ($c['margin_override'] ?? '') === 'normal'  ? 'selected' : '' }}>Normal</option>
+              <option value="large"   {{ ($c['margin_override'] ?? '') === 'large'   ? 'selected' : '' }}>Large</option>
+            </select>
+          </div>
+        </div>
+
+        {{-- Border radius --}}
+        <div class="pb-field-row">
+          <div class="pb-field-label">Inner border radius <span style="opacity:.4">(cards, tiles)</span></div>
+          <select class="pb-input" data-field="border_radius">
+            <option value=""   {{ ($c['border_radius'] ?? '') === ''   ? 'selected' : '' }}>Use default</option>
+            <option value="none" {{ ($c['border_radius'] ?? '') === 'none' ? 'selected' : '' }}>None (square)</option>
+            <option value="sm"  {{ ($c['border_radius'] ?? '') === 'sm'  ? 'selected' : '' }}>Small (4px)</option>
+            <option value="md"  {{ ($c['border_radius'] ?? '') === 'md'  ? 'selected' : '' }}>Medium (8px)</option>
+            <option value="lg"  {{ ($c['border_radius'] ?? '') === 'lg'  ? 'selected' : '' }}>Large (14px)</option>
+            <option value="xl"  {{ ($c['border_radius'] ?? '') === 'xl'  ? 'selected' : '' }}>Extra large (20px)</option>
+          </select>
+        </div>
+
+        <p style="font-size:10px;opacity:.4;margin:0">
+          Overrides let you tune presentation without touching code. Leave blank to use theme defaults.
+        </p>
+      </div>
+    </details>
+    @endunless
+
     {{-- Section footer --}}
     <div class="pb-section-actions">
       <span style="font-size:11px;opacity:.25">Auto-saves as you type</span>

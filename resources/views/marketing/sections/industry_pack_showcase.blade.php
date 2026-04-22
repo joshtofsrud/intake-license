@@ -4,7 +4,7 @@
     $limit = (int)($c['limit'] ?? 12);
     $shown = array_slice($packs, 0, $limit, true);
 @endphp
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         @if(!empty($c['heading']) || !empty($c['subheading']))
             <div style="text-align:center;margin-bottom:40px;max-width:640px;margin-left:auto;margin-right:auto">

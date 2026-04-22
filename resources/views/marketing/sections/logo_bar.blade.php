@@ -1,5 +1,5 @@
 {{-- Logo bar (trusted by). Content: heading, logos[{url, alt}] --}}
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         @if(!empty($c['heading']))
             <p style="text-align:center;font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mk-text-muted);margin-bottom:32px">

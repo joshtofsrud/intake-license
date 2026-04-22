@@ -5,7 +5,7 @@
     $aspect = ['square' => '1 / 1', 'landscape' => '4 / 3', 'portrait' => '3 / 4'][$c['image_shape'] ?? 'square'] ?? '1 / 1';
     $radius = ['none' => '0', 'normal' => '8px', 'large' => '16px'][$c['image_radius'] ?? 'normal'] ?? '8px';
 @endphp
-<section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
+<section class="{{ $padding }}" @if(!empty($inlineStyle ?? \'\')) style="{{ $inlineStyle }}" @endif>
     <div class="mk-container">
         @if(!empty($c['heading']))
             <h2 class="mk-section-title" style="text-align:center;margin-bottom:32px">{{ $c['heading'] }}</h2>
