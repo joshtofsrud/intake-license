@@ -30,6 +30,9 @@
 .mk-how-title{font-size:14px;font-weight:600;margin-bottom:5px}
 .mk-how-desc{font-size:12px;color:var(--mk-muted);line-height:1.55}
 .mk-plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mk-quiz-cta{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.25);color:var(--mk-accent);border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+.mk-quiz-cta:hover{background:rgba(190,242,100,.14);border-color:rgba(190,242,100,.4)}
+.mk-quiz-cta-icon{font-size:12px}
 .mk-plan{background:rgba(255,255,255,.03);border:0.5px solid var(--mk-border);border-radius:var(--mk-r-lg);padding:24px;display:flex;flex-direction:column}
 .mk-plan.featured{border-color:rgba(190,242,100,.4);background:rgba(190,242,100,.03)}
 .mk-plan-badge{font-size:10px;text-transform:uppercase;letter-spacing:.08em;background:rgba(190,242,100,.12);color:var(--mk-accent);padding:3px 10px;border-radius:4px;display:inline-block;margin-bottom:12px;font-weight:600;width:fit-content}
@@ -152,6 +155,12 @@
   <div class="mk-container">
     <div class="mk-eyebrow">Pricing</div>
     <h2 class="mk-section-title">Simple plans, no surprises</h2>
+    <div style="text-align:center;margin:12px 0 28px">
+      <button type="button" data-open-quiz class="mk-quiz-cta">
+        <span class="mk-quiz-cta-icon">✨</span>
+        <span>Not sure which plan? Take 30 seconds →</span>
+      </button>
+    </div>
     <div class="mk-plan-grid">
       @php
         $planDetails = [

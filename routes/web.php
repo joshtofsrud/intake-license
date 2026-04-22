@@ -33,6 +33,13 @@ Route::domain($domain)->group(function () {
         [\App\Http\Controllers\Webhooks\StripeWebhookController::class, 'handle']
     )->name('webhooks.stripe.subscriptions');
 
+    // --- Plan quiz analytics (marketing funnel) ---
+    // Client-side quiz POSTs here on completion. CSRF exempted so the quiz
+    // can run on any cached marketing page without needing a fresh token.
+    Route::post('/api/plan-quiz/complete',
+        [Platform\PlanQuizController::class, 'complete']
+    )->name('platform.plan-quiz.complete');
+
     // --- Fixed marketing pages (backed by platform tenant's TenantPages) ---
     Route::get('/',         [Platform\MarketingController::class, 'home'])->name('marketing.home');
     Route::get('/pricing',  [Platform\MarketingController::class, 'pricing'])->name('marketing.pricing');

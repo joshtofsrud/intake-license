@@ -48,6 +48,18 @@ class OnboardingController extends Controller
 
     public function signup(Request $request)
     {
+        // Capture quiz attribution from URL params (set by plan quiz modal).
+        // Stashed in session so it survives the multi-step signup flow.
+        if ($request->query('quiz_session')) {
+            $request->session()->put('quiz_attribution', [
+                'session_id' => substr((string) $request->query('quiz_session'), 0, 64),
+                'tags'       => array_filter(array_map(
+                    fn($t) => substr(trim($t), 0, 32),
+                    explode(',', (string) $request->query('quiz_tags', ''))
+                )),
+            ]);
+        }
+
         return view('platform.signup', [
             'plan'       => $request->query('plan', 'starter'),
             'planPrices' => config('intake.plan_prices'),
@@ -383,9 +395,16 @@ class OnboardingController extends Controller
 
     /**
      * Generate one-time token and redirect to tenant's admin subdomain.
+     * Also applies quiz attribution tags if the signup came from the plan quiz.
      */
     private function redirectToTenantAdmin(Tenant $tenant, TenantUser $user)
     {
+        // Apply quiz attribution if this signup was quiz-sourced.
+        $attribution = request()->session()->pull('quiz_attribution');
+        if ($attribution && ! empty($attribution['tags'])) {
+            $this->applyQuizTags($tenant, $attribution);
+        }
+
         $token = Str::random(40);
         Cache::put(
             'onboarding_token_' . $token,
@@ -397,5 +416,48 @@ class OnboardingController extends Controller
             . '/admin?token=' . $token;
 
         return redirect($tenantUrl);
+    }
+
+    /**
+     * Apply quiz attribution tags to a freshly-created tenant and mark the
+     * corresponding quiz completion as converted. Non-blocking — failures
+     * log but don't interrupt signup.
+     *
+     * @param  Tenant  $tenant
+     * @param  array   $attribution  ['session_id' => string, 'tags' => string[]]
+     */
+    private function applyQuizTags(Tenant $tenant, array $attribution): void
+    {
+        // Whitelist of tags the quiz is allowed to auto-apply.
+        $allowed = ['quiz-signup', 'enterprise-quiz', 'high-volume', 'multi-location', 'needs-setup-help'];
+
+        try {
+            foreach ($attribution['tags'] as $tag) {
+                if (! in_array($tag, $allowed, true)) continue;
+
+                \DB::table('tenant_tags')->insertOrIgnore([
+                    'tenant_id' => $tenant->id,
+                    'tag'       => $tag,
+                    'source'    => 'quiz',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Mark the matching quiz completion(s) as converted.
+            if (! empty($attribution['session_id'])) {
+                \App\Models\QuizCompletion::where('session_id', $attribution['session_id'])
+                    ->whereNull('converted_to_signup_at')
+                    ->update([
+                        'converted_to_signup_at' => now(),
+                        'converted_tenant_id'    => $tenant->id,
+                    ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Quiz tag application failed', [
+                'tenant_id' => $tenant->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

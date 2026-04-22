@@ -28,6 +28,9 @@
 .mk-compare-table td{padding:12px 16px;border-bottom:0.5px solid var(--mk-border);color:rgba(255,255,255,.65)}
 .mk-compare-table td:not(:first-child){text-align:center}
 .mk-compare-table tr:last-child td{border-bottom:none}
+.mk-quiz-cta{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.25);color:var(--mk-accent);border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s}
+.mk-quiz-cta:hover{background:rgba(190,242,100,.14);border-color:rgba(190,242,100,.4)}
+.mk-quiz-cta-icon{font-size:12px}
 .mk-compare-table .section-row td{font-weight:600;color:var(--mk-text);background:rgba(255,255,255,.03);font-size:12px;text-transform:uppercase;letter-spacing:.07em;padding:10px 16px}
 .mk-tick{color:var(--mk-accent);font-size:14px}
 .mk-dash{color:var(--mk-dim)}
@@ -47,9 +50,13 @@
     <h1 class="mk-section-title" style="font-size:clamp(28px,5vw,52px);max-width:500px;margin:0 auto 12px">
       Simple plans, no surprises
     </h1>
-    <p class="mk-section-sub" style="margin:0 auto">
+    <p class="mk-section-sub" style="margin:0 auto 20px">
       Start free. Upgrade when you're ready. Cancel anytime.
     </p>
+    <button type="button" data-open-quiz class="mk-quiz-cta">
+      <span class="mk-quiz-cta-icon">✨</span>
+      <span>Not sure which plan? Take 30 seconds →</span>
+    </button>
   </div>
 </section>
 
