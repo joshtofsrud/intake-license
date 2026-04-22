@@ -68,6 +68,7 @@
                 <div class="mk-footer-col-title">Get started</div>
                 <a href="{{ route('platform.signup') }}"    class="mk-footer-link">Free trial</a>
                 <a href="{{ route('platform.login') }}"     class="mk-footer-link">Sign in</a>
+                <a href="#" data-open-quiz                  class="mk-footer-link">Which plan is right for me?</a>
             </div>
         </div>
         <div class="mk-footer-bottom">
