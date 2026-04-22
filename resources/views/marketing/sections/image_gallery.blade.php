@@ -8,15 +8,21 @@
 <section class="{{ $padding }}" @if(!empty($section->bg_color)) style="background:{{ $section->bg_color }}" @endif>
     <div class="mk-container">
         @if(!empty($c['heading']))
-            <h2 style="text-align:center;margin-bottom:32px">{{ $c['heading'] }}</h2>
+            <h2 class="mk-section-title" style="text-align:center;margin-bottom:32px">{{ $c['heading'] }}</h2>
         @endif
 
         @if(empty($c['images']))
-            <p style="text-align:center;color:var(--mk-text-muted);font-size:14px;opacity:.6">No images added yet.</p>
+            <p style="text-align:center;color:var(--mk-muted);font-size:14px;opacity:.6">No images added yet.</p>
         @else
             <div style="display:grid;grid-template-columns:repeat({{ $cols }}, minmax(0, 1fr));gap:{{ $gapPx }}px">
                 @foreach($c['images'] as $img)
-                    <div style="aspect-ratio:{{ $aspect }};border-radius:{{ $radius }};overflow:hidden;background:#F3F4F6">
+                    <div style="
+                        aspect-ratio:{{ $aspect }};
+                        border-radius:{{ $radius }};
+                        overflow:hidden;
+                        background: rgba(255,255,255,.04);
+                        border: 0.5px solid var(--mk-border);
+                    ">
                         <img src="{{ is_array($img) ? ($img['url'] ?? '') : $img }}" alt="" style="width:100%;height:100%;object-fit:cover">
                     </div>
                 @endforeach
