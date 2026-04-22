@@ -185,5 +185,6 @@
         document.getElementById('mk-mobile-nav').classList.toggle('open');
     }
 </script>
+@include('marketing._plan-quiz')
 </body>
 </html>
