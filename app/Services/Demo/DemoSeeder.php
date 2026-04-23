@@ -57,7 +57,6 @@ class DemoSeeder
         // Sub-seeders (waitlist, campaigns, pages)
         (new WaitlistSeeder($this->logger))->seed($tenant, $customers, $servicesBySlug);
         (new CampaignsSeeder($this->logger))->seed($tenant, $owner, $customers);
-        (new PagesSeeder($this->industry, $this->logger))->seed($tenant);
 
         $this->log("Done.");
     }
