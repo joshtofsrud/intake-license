@@ -76,6 +76,10 @@ class StripeWebhookController extends Controller
             match ($type) {
                 'invoice.paid' => $this->onInvoicePaid($event),
                 'invoice.payment_failed' => $this->onInvoicePaymentFailed($event),
+                // customer.subscription.created is functionally equivalent to updated
+                // for our purposes — same payload shape, same fields we care about.
+                // Stripe fires both at subscription start; belt-and-suspenders sync.
+                'customer.subscription.created',
                 'customer.subscription.updated' => $this->onSubscriptionUpdated($event),
                 'customer.subscription.deleted' => $this->onSubscriptionDeleted($event),
                 default => Log::info('[StripeWebhook] unhandled event type', ['type' => $type]),
