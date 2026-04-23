@@ -157,7 +157,14 @@ class AppointmentController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return $this->jsonDetail(tenant(), $id);
         }
-        return redirect()->route('tenant.appointments.index');
+
+        $tenant = tenant();
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->with(['items', 'addons', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields'])
+            ->firstOrFail();
+
+        return view('tenant.appointments.show', compact('appointment'));
     }
 
     public function update(Request $request, string $subdomain, string $id)

@@ -171,6 +171,14 @@
     font-size: 13px;
     color: var(--ia-text-muted);
   }
+
+  /* On mobile + tablet, the bottom nav sits over the drawer foot.
+     Mirror the nav's 72px height + safe-area padding so buttons clear it. */
+  @media (max-width: 1023px) {
+    .appt-drawer-foot {
+      padding-bottom: calc(14px + 72px + env(safe-area-inset-bottom, 0px));
+    }
+  }
 </style>
 @endpush
 
