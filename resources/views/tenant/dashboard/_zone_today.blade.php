@@ -54,6 +54,34 @@
     </div>
   </div>
 
+
+  {{-- 7-day date strip --}}
+  @php
+    $stripStart = now()->subDays(3)->startOfDay();
+    $stripDays = [];
+    for ($i = 0; $i < 7; $i++) {
+        $d = $stripStart->copy()->addDays($i);
+        $stripDays[] = [
+            'date'      => $d->toDateString(),
+            'day_short' => $d->format('D'),
+            'day_num'   => (int) $d->format('j'),
+            'is_today'  => $d->isToday(),
+        ];
+    }
+  @endphp
+
+  <div class="ia-dash-date-strip" id="ia-date-strip" role="tablist" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:20px 0 12px">
+    @foreach($stripDays as $sd)
+      <button type="button" class="ia-dash-date-chip {{ $sd['is_today'] ? 'is-target' : '' }}" data-date="{{ $sd['date'] }}" role="tab" style="display:flex;flex-direction:column;align-items:center;padding:10px 4px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:{{ $sd['is_today'] ? 'var(--ia-accent-soft)' : 'transparent' }};cursor:pointer;transition:all var(--ia-t);font-family:inherit">
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;opacity:.55;font-weight:500">{{ $sd['day_short'] }}</span>
+        <span style="font-size:18px;font-weight:500;line-height:1;margin-top:3px">{{ $sd['day_num'] }}</span>
+        <span class="ia-dash-date-count" data-count-for="{{ $sd['date'] }}" style="font-size:10px;opacity:.4;margin-top:3px">·</span>
+      </button>
+    @endforeach
+  </div>
+
+  <div id="ia-day-panel">
+
   @if($today['appointments']->isNotEmpty())
   <div class="ia-card" style="margin-top:20px">
     <div class="ia-card-head">
@@ -103,4 +131,5 @@
     </div>
   </div>
   @endif
+  </div>{{-- /ia-day-panel --}}
 </div>

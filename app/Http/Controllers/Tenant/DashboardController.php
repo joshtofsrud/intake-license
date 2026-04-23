@@ -37,7 +37,47 @@ class DashboardController extends Controller
         return view('tenant.dashboard', $data);
     }
 
-    public function dismissWorkOrderBanner(\Illuminate\Http\Request $request)
+    public function dayJson(\Illuminate\Http\Request $request)
+    {
+        $tenant = tenant();
+        $service = new DashboardDataService($tenant);
+
+        $date = $request->query('date', now()->toDateString());
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date = now()->toDateString();
+        }
+
+        $data = $service->dayData($date);
+
+        return response()->json([
+            'ok' => true,
+            'target_date'       => $data['target_date'],
+            'target_date_long'  => $data['target_date_long'],
+            'appointment_count' => $data['appointment_count'],
+            'strip'             => $data['strip'],
+            'appointments'      => $data['appointments']->map(function ($a) {
+                return [
+                    'id'                  => $a->id,
+                    'url'                 => route('tenant.appointments.show', $a->id),
+                    'appointment_time'    => $a->appointment_time,
+                    'time_hm'             => $a->appointment_time ? \Carbon\Carbon::parse($a->appointment_time)->format('g:i') : null,
+                    'time_ap'             => $a->appointment_time ? \Carbon\Carbon::parse($a->appointment_time)->format('A') : null,
+                    'duration'            => (int) ($a->total_duration_minutes ?? 0),
+                    'first_item'          => $a->items->first()?->item_name_snapshot ?? 'Service',
+                    'customer_name'       => trim(($a->customer_first_name ?? '') . ' ' . ($a->customer_last_name ?? '')),
+                    'total_formatted'     => format_money($a->total_cents),
+                    'status'              => $a->status,
+                    'status_label'        => ucwords(str_replace('_', ' ', $a->status)),
+                    'status_class'        => str_replace('_', '-', $a->status),
+                    'payment_status'      => $a->payment_status,
+                    'payment_status_label'=> ucfirst($a->payment_status),
+                    'receiving'           => $a->receiving_method_snapshot ?: 'Any time',
+                ];
+            })->values()->toArray(),
+        ]);
+    }
+
+        public function dismissWorkOrderBanner(\Illuminate\Http\Request $request)
     {
         return response()
             ->json(['ok' => true])

@@ -158,6 +158,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
             Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');
+            Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
             Route::get('/customers/{id}',       [TenantControllers\CustomerController::class, 'show'])->name('customers.show');
@@ -184,6 +185,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::patch('/work-order-fields/{id}',      [TenantControllers\WorkOrderFieldsController::class, 'update'])->name('work-order-fields.update');
             Route::delete('/work-order-fields/{id}',     [TenantControllers\WorkOrderFieldsController::class, 'destroy'])->name('work-order-fields.destroy');
             Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
+            Route::get('/dashboard/day.json', [TenantControllers\DashboardController::class, 'dayJson'])->name('dashboard.day');
 
             Route::post('/addons',              [TenantControllers\AddonController::class, 'store'])->name('addons.store');
             Route::patch('/addons/{id}',        [TenantControllers\AddonController::class, 'update'])->name('addons.update');

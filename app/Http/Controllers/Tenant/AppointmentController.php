@@ -165,7 +165,60 @@ class AppointmentController extends Controller
         return $this->handleUpdate(tenant(), $id, $request);
     }
 
-    private function jsonDetail($tenant, string $id)
+    public function drawer(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->with(['items', 'addons', 'workOrderResponses'])
+            ->firstOrFail();
+
+        $identifierField = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
+            ->where('is_identifier', true)
+            ->first();
+
+        $identifierValue = null;
+        if ($identifierField) {
+            $resp = $appointment->workOrderResponses->firstWhere('field_id', $identifierField->id);
+            $identifierValue = $resp?->response_value;
+        }
+
+        return response()->json([
+            'ok' => true,
+            'appointment' => [
+                'id'                    => $appointment->id,
+                'ra_number'             => $appointment->ra_number,
+                'status'                => $appointment->status,
+                'status_label'          => ucwords(str_replace('_', ' ', $appointment->status)),
+                'payment_status'        => $appointment->payment_status,
+                'payment_status_label'  => ucfirst($appointment->payment_status),
+                'customer_name'         => trim(($appointment->customer_first_name ?? '') . ' ' . ($appointment->customer_last_name ?? '')),
+                'customer_email'        => $appointment->customer_email,
+                'customer_phone'        => $appointment->customer_phone,
+                'appointment_date'      => $appointment->appointment_date?->format('Y-m-d'),
+                'appointment_date_long' => $appointment->appointment_date?->format('l, F j, Y'),
+                'appointment_time'      => $appointment->appointment_time,
+                'total_cents'           => (int) $appointment->total_cents,
+                'total_formatted'       => format_money($appointment->total_cents),
+                'paid_cents'            => (int) $appointment->paid_cents,
+                'duration_minutes'      => (int) ($appointment->total_duration_minutes ?? 0),
+                'identifier_label'      => $identifierField?->label,
+                'identifier_value'      => $identifierValue,
+                'items'                 => $appointment->items->map(fn($i) => [
+                    'name'     => $i->item_name_snapshot,
+                    'price'    => format_money($i->price_cents),
+                    'duration' => (int) ($i->duration_minutes_snapshot ?? 0),
+                ])->values()->toArray(),
+                'addons'                => $appointment->addons->map(fn($a) => [
+                    'name'  => $a->addon_name_snapshot,
+                    'price' => format_money($a->price_cents),
+                ])->values()->toArray(),
+                'full_url'              => route('tenant.appointments.show', $appointment->id),
+            ],
+        ]);
+    }
+
+        private function jsonDetail($tenant, string $id)
     {
         $appointment = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)

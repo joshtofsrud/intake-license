@@ -170,6 +170,58 @@ class DashboardDataService
             ];
         }
 
+        // ---- Overdue categories ----
+        $overdueUnstartedCount = TenantAppointment::where('tenant_id', $tenantId)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->whereDate('appointment_date', '<', $today)
+            ->count();
+
+        if ($overdueUnstartedCount > 0) {
+            $cards[] = [
+                'count' => $overdueUnstartedCount,
+                'title' => 'Overdue: not started',
+                'desc'  => $overdueUnstartedCount === 1
+                    ? 'Appointment past its scheduled date and never started'
+                    : 'Appointments past their scheduled date and never started',
+                'tone'  => 'red',
+                'link'  => route('tenant.appointments.index') . '?overdue=unstarted',
+            ];
+        }
+
+        $overdueInProgressCount = TenantAppointment::where('tenant_id', $tenantId)
+            ->where('status', 'in_progress')
+            ->whereDate('appointment_date', '<', $today)
+            ->count();
+
+        if ($overdueInProgressCount > 0) {
+            $cards[] = [
+                'count' => $overdueInProgressCount,
+                'title' => 'Overdue: in progress',
+                'desc'  => $overdueInProgressCount === 1
+                    ? 'Job started but not closed out'
+                    : 'Jobs started but not closed out',
+                'tone'  => 'amber',
+                'link'  => route('tenant.appointments.index') . '?overdue=in_progress',
+            ];
+        }
+
+        $stalePickupCount = TenantAppointment::where('tenant_id', $tenantId)
+            ->where('status', 'completed')
+            ->where('updated_at', '<', now()->subDays(3))
+            ->count();
+
+        if ($stalePickupCount > 0) {
+            $cards[] = [
+                'count' => $stalePickupCount,
+                'title' => 'Stale pickups',
+                'desc'  => $stalePickupCount === 1
+                    ? 'Completed 3+ days ago, customer not collected'
+                    : 'Completed 3+ days ago, customers not collected',
+                'tone'  => 'amber',
+                'link'  => route('tenant.appointments.index') . '?overdue=stale_pickup',
+            ];
+        }
+
         return [
             'cards'       => $cards,
             'total_items' => count($cards),
@@ -300,7 +352,52 @@ class DashboardDataService
      * Banner state for prompting tenants to set up work order fields.
      * Returns null if no banner should show.
      */
-    public function workOrderBanner(bool $dismissed): ?array
+    /**
+     * Returns appointment list + counts for a specific date + 7-day strip counts.
+     * Used by both server render (for initial dashboard load with ?date=) and
+     * the AJAX day-swap endpoint.
+     */
+    public function dayData(string $date): array
+    {
+        $tenantId = $this->tenant->id;
+        $target = \Illuminate\Support\Carbon::parse($date)->startOfDay();
+
+        $appointments = TenantAppointment::where('tenant_id', $tenantId)
+            ->whereDate('appointment_date', $target->toDateString())
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
+            ->orderBy('created_at')
+            ->with('items')
+            ->get();
+
+        // 7-day strip: 3 days before, target, 3 days after
+        $strip = [];
+        for ($i = -3; $i <= 3; $i++) {
+            $d = $target->copy()->addDays($i);
+            $count = TenantAppointment::where('tenant_id', $tenantId)
+                ->whereDate('appointment_date', $d->toDateString())
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->count();
+            $strip[] = [
+                'date'       => $d->toDateString(),
+                'day_short'  => $d->format('D'),
+                'day_num'    => (int) $d->format('j'),
+                'is_today'   => $d->isToday(),
+                'is_target'  => $i === 0,
+                'count'      => $count,
+            ];
+        }
+
+        return [
+            'target_date'       => $target->toDateString(),
+            'target_date_long'  => $target->format('l, F j'),
+            'appointments'      => $appointments,
+            'appointment_count' => $appointments->count(),
+            'strip'             => $strip,
+        ];
+    }
+
+        public function workOrderBanner(bool $dismissed): ?array
     {
         if ($dismissed) { return null; }
 
