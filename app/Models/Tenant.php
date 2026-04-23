@@ -24,6 +24,8 @@ class Tenant extends Model
         'onboarding_status', 'onboarded_at',
         'notification_email', 'currency', 'currency_symbol',
         'booking_window_days', 'min_notice_hours', 'booking_mode',
+        'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
+        'trial_ends_at', 'subscription_status',
     ];
 
     protected $casts = [
@@ -34,6 +36,7 @@ class Tenant extends Model
         'booking_window_days' => 'integer',
         'min_notice_hours'    => 'integer',
         'booking_mode'        => 'string',
+        'trial_ends_at'       => 'datetime',
     ];
 
     public function license(): BelongsTo

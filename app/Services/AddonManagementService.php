@@ -155,6 +155,43 @@ class AddonManagementService
         });
     }
 
+    /**
+     * Expire every active addon tied to a deleted Stripe subscription.
+     *
+     * Called from the webhook handler when customer.subscription.deleted fires.
+     * We match addon rows by their stripe_subscription_item_id — each addon
+     * is a subscription item on the tenant\'s top-level subscription. When the
+     * parent subscription is fully canceled, every one of its items dies too.
+     *
+     * Delegates to expire() per-row so audit log + cache clear + deactivation
+     * hooks all run, identical to manual expiry.
+     */
+    public function expireAddonsForSubscription(Tenant $tenant, string $subscriptionId): void
+    {
+        // Look up all active/canceling/failed addon rows for this tenant that
+        // have a subscription_item_id set. We can\'t filter by subscription_id
+        // directly because addons only store the item id, not the parent sub id.
+        // But: a tenant has one subscription at a time in our model, so any
+        // active addon with an item_id MUST belong to this canceled subscription.
+        $rows = DB::table('tenant_feature_addons')
+            ->where('tenant_id', $tenant->id)
+            ->whereNotNull('stripe_subscription_item_id')
+            ->whereIn('status', ['active', 'canceling', 'failed_payment'])
+            ->get(['addon_code']);
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $this->expire($tenant, $row->addon_code, [
+                'actor_type' => 'system',
+                'actor_label' => 'stripe webhook',
+                'reason' => "parent subscription {$subscriptionId} canceled",
+            ]);
+        }
+    }
+
     public function expire(Tenant $tenant, string $addonCode, array $opts = []): void
     {
         $row = DB::table('tenant_feature_addons')
