@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="{{ asset('css/tenant/base.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/theme-' . $adminTheme . '.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}">
 
   {{-- Tenant accent color injected at runtime --}}
   <style>
@@ -111,6 +112,8 @@
 <script src="{{ asset('js/tenant/mobile-nav.js') }}" defer></script>
 
 @stack('scripts')
+
+@include('tenant._onboarding_modal')
 
 </body>
 </html>
