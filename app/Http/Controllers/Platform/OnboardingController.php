@@ -175,12 +175,19 @@ class OnboardingController extends Controller
 
         // ---- 2. Create trialing subscription with PM attached ----
         try {
+            $paymentMethodId = $request->input('payment_method_id');
+
+            // Attach the payment method to the customer first. Stripe requires
+            // the PM to be owned by the customer before it can be used as the
+            // subscription's default_payment_method.
+            $stripe->attachPaymentMethod($customerId, $paymentMethodId);
+
             $subscription = $stripe->createTrialingSubscription(
                 customerId: $customerId,
                 tier: $pending['plan'],
                 cadence: $request->input('cadence'),
                 trialDays: 14,
-                paymentMethodId: $request->input('payment_method_id'),
+                paymentMethodId: $paymentMethodId,
             );
         } catch (\Throwable $e) {
             Log::error('Signup: Stripe subscription creation failed', [

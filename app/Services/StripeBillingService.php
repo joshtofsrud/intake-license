@@ -134,7 +134,35 @@ class StripeBillingService
      * @param  string|null  $paymentMethodId  Stripe PM ID (card collected at signup)
      * @return \Stripe\Subscription
      */
-    public function createTrialingSubscription(
+    /**
+     * Attach a payment method to a customer.
+     *
+     * Required before using the PM as default_payment_method on a subscription.
+     * Stripe\'s PaymentElement flow collects a PaymentMethod object on the
+     * frontend but does not auto-attach it to the customer \u2014 we do that here.
+     *
+     * Idempotent: Stripe ignores re-attach attempts on PMs that are already
+     * attached to the same customer.
+     */
+    public function attachPaymentMethod(string $customerId, string $paymentMethodId): void
+    {
+        try {
+            $this->client()->paymentMethods->attach(
+                $paymentMethodId,
+                ['customer' => $customerId],
+                ['idempotency_key' => "pm-attach-{$customerId}-{$paymentMethodId}"]
+            );
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            // If the PM is already attached to this customer, Stripe throws;
+            // treat that as success.
+            if (str_contains($e->getMessage(), 'already been attached')) {
+                return;
+            }
+            throw $e;
+        }
+    }
+
+        public function createTrialingSubscription(
         string $customerId,
         string $tier,
         string $cadence,
@@ -165,9 +193,12 @@ class StripeBillingService
             $params['default_payment_method'] = $paymentMethodId;
         }
 
+        // Include payment method in the idempotency key so retries with a
+        // different PM (e.g. user fixed a declined card) get a fresh key.
+        $idemSuffix = $paymentMethodId ?: 'no-pm';
         return $this->client()->subscriptions->create(
             $params,
-            ['idempotency_key' => "sub-create-{$customerId}-{$tier}-{$cadence}"]
+            ['idempotency_key' => "sub-create-{$customerId}-{$tier}-{$cadence}-{$idemSuffix}"]
         );
     }
 
