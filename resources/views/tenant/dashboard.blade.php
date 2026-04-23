@@ -389,11 +389,13 @@
     strip.querySelectorAll('.ia-dash-date-chip').forEach(function(c){
       c.classList.remove('is-target');
       c.style.background = 'transparent';
+      c.style.borderBottom = '0.5px solid var(--ia-border)';
     });
     var active = strip.querySelector('[data-date="' + dateStr + '"]');
     if (active) {
       active.classList.add('is-target');
-      active.style.background = 'var(--ia-accent-soft)';
+      active.style.background = 'var(--ia-surface-2)';
+      active.style.borderBottom = '2px solid var(--ia-accent)';
     }
 
     panel.innerHTML = '<div style="padding:24px;text-align:center;opacity:.5;font-size:13px">Loading…</div>';
