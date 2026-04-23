@@ -213,7 +213,7 @@ class AppointmentController extends Controller
                     'name'  => $a->addon_name_snapshot,
                     'price' => format_money($a->price_cents),
                 ])->values()->toArray(),
-                'full_url'              => route('tenant.appointments.show', $appointment->id),
+                'full_url'              => route('tenant.appointments.show', ['subdomain' => $tenant->subdomain, 'id' => $appointment->id]),
             ],
         ]);
     }
