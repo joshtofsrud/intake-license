@@ -527,7 +527,7 @@ class DemoSeeder
         if ($date->isSameDay($today)) {
             return $this->weightedPick(['in_progress' => 40, 'confirmed' => 30, 'completed' => 20, 'pending' => 10]);
         }
-        $daysAgo = $today->diffInDays($date);
+        $daysAgo = abs($today->diffInDays($date));
         if ($daysAgo <= 2) {
             return $this->weightedPick(['completed' => 45, 'closed' => 45, 'in_progress' => 5, 'cancelled' => 5]);
         }
