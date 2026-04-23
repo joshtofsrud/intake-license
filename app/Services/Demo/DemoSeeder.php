@@ -25,10 +25,10 @@ use Illuminate\Support\Str;
 
 class DemoSeeder
 {
-    private const CUSTOMER_COUNT      = 200;
-    private const APPOINTMENT_COUNT   = 1800;
+    private const CUSTOMER_COUNT       = 200;
+    private const APPOINTMENT_COUNT    = 1800;
     private const CUSTOMER_SPREAD_DAYS = 365;
-    private const CAPACITY_PER_DAY    = 16;
+    private const CAPACITY_PER_DAY     = 16;
 
     public function __construct(
         private readonly IndustryDataContract $industry,
@@ -53,6 +53,11 @@ class DemoSeeder
         $addonsByService = $this->seedAddons($tenant, $servicesBySlug);
         $customers = $this->seedCustomers($tenant);
         $this->seedAppointments($tenant, $owner, $customers, $servicesBySlug, $addonsByService);
+
+        // Sub-seeders (waitlist, campaigns, pages)
+        (new WaitlistSeeder($this->logger))->seed($tenant, $customers, $servicesBySlug);
+        (new CampaignsSeeder($this->logger))->seed($tenant, $owner, $customers);
+        (new PagesSeeder($this->industry, $this->logger))->seed($tenant);
 
         $this->log("Done.");
     }
@@ -235,13 +240,6 @@ class DemoSeeder
         return $pivotsByService;
     }
 
-    /**
-     * Customers are created via raw DB insert to bypass Eloquent's timestamp
-     * auto-management, which was overriding our seeded created_at values and
-     * causing all customers to appear "new today" on the dashboard.
-     *
-     * Distribution: uniform across CUSTOMER_SPREAD_DAYS (365 days).
-     */
     private function seedCustomers(Tenant $tenant): array
     {
         $first = $this->industry->firstNamePool();
@@ -285,12 +283,8 @@ class DemoSeeder
 
             $city = $cities[array_rand($cities)];
 
-            // Uniform distribution over CUSTOMER_SPREAD_DAYS (365 days)
             $daysAgo = random_int(0, self::CUSTOMER_SPREAD_DAYS);
-            $createdAt = $now->copy()
-                ->subDays($daysAgo)
-                ->subHours(random_int(0, 23))
-                ->subMinutes(random_int(0, 59));
+            $createdAt = $now->copy()->subDays($daysAgo)->subHours(random_int(0, 23))->subMinutes(random_int(0, 59));
 
             $rows[] = [
                 'id'            => (string) Str::uuid(),
@@ -309,12 +303,10 @@ class DemoSeeder
             ];
         }
 
-        // Insert in chunks via raw DB to bypass Eloquent timestamp overrides
         foreach (array_chunk($rows, 100) as $chunk) {
             DB::table('tenant_customers')->insert($chunk);
         }
 
-        // Hydrate Eloquent models for the rest of the seeder to use
         $ids = array_column($rows, 'id');
         $customers = TenantCustomer::whereIn('id', $ids)->get()->all();
 
@@ -328,40 +320,14 @@ class DemoSeeder
         return sprintf('(%s) %03d-%04d', $areaCodes[array_rand($areaCodes)], random_int(200, 999), random_int(0, 9999));
     }
 
-    /**
-     * Seasonal monthly weight for Pacific Northwest bike shop.
-     * Each value is an approximate target of appointments PER OPEN DAY (weekday)
-     * in that month. Summer peaks, winter valleys.
-     *
-     * Keyed 1-12 (Jan-Dec).
-     */
     private function monthlyWeight(int $month): int
     {
         return match ($month) {
-            1  => 3,  // Jan - winter trough
-            2  => 4,  // Feb
-            3  => 5,  // Mar
-            4  => 6,  // Apr
-            5  => 9,  // May - shoulder
-            6  => 14, // Jun - summer
-            7  => 15, // Jul - peak summer
-            8  => 14, // Aug
-            9  => 9,  // Sep - shoulder
-            10 => 6,  // Oct
-            11 => 5,  // Nov
-            12 => 3,  // Dec - winter trough
+            1  => 3,  2  => 4,  3  => 5,  4  => 6,  5  => 9,  6  => 14,
+            7  => 15, 8  => 14, 9  => 9,  10 => 6,  11 => 5,  12 => 3,
         };
     }
 
-    /**
-     * Build a pool of appointment dates distributed seasonally.
-     * Looks backward one year + forward 2 weeks from today.
-     *
-     * Returns an array of Carbon dates, with frequency of each date
-     * weighted by that date's month. Weekends are excluded entirely.
-     *
-     * @return array<Carbon>
-     */
     private function buildSeasonalDatePool(int $totalNeeded): array
     {
         $pool = [];
@@ -369,22 +335,15 @@ class DemoSeeder
         $start = $today->copy()->subDays(365);
         $end = $today->copy()->addDays(14);
 
-        // Future weights should be lower — these are bookings that haven't
-        // happened yet, so even summer future-dated appointments are rarer.
         $cursor = $start->copy();
         while ($cursor->lessThanOrEqualTo($end)) {
             if (!$cursor->isWeekend()) {
                 $weight = $this->monthlyWeight((int) $cursor->format('n'));
-
-                // Scale down future dates — customers book ahead but not heavily
                 if ($cursor->greaterThan($today)) {
                     $weight = max(1, (int) round($weight * 0.3));
                 }
-
-                // Add randomness per day: some days cluster, some are quiet
-                $dayVariance = random_int(60, 140) / 100;  // 0.6 to 1.4
+                $dayVariance = random_int(60, 140) / 100;
                 $appointmentsThisDay = max(0, (int) round($weight * $dayVariance));
-
                 for ($i = 0; $i < $appointmentsThisDay; $i++) {
                     $pool[] = $cursor->copy();
                 }
@@ -392,7 +351,6 @@ class DemoSeeder
             $cursor->addDay();
         }
 
-        // Shuffle and trim to the requested count
         shuffle($pool);
         return array_slice($pool, 0, $totalNeeded);
     }
@@ -557,10 +515,6 @@ class DemoSeeder
         $this->log("  Appointments: {$created}");
     }
 
-    /**
-     * Tighter status distribution so "completed" only means
-     * "ready for pickup" — current/very-recent jobs only.
-     */
     private function pickStatus(Carbon $date, Carbon $today): string
     {
         if ($date->greaterThan($today)) {
@@ -569,17 +523,13 @@ class DemoSeeder
         if ($date->isSameDay($today)) {
             return $this->weightedPick(['in_progress' => 40, 'confirmed' => 30, 'completed' => 20, 'pending' => 10]);
         }
-
         $daysAgo = $today->diffInDays($date);
         if ($daysAgo <= 2) {
-            // Recent past: mostly completed (ready for pickup) or closed (handed off)
             return $this->weightedPick(['completed' => 45, 'closed' => 45, 'in_progress' => 5, 'cancelled' => 5]);
         }
         if ($daysAgo <= 14) {
-            // Past 2 weeks: almost all closed, no more ready-for-pickup
             return $this->weightedPick(['closed' => 88, 'cancelled' => 6, 'refunded' => 3, 'shipped' => 3]);
         }
-        // Older: almost entirely closed
         return $this->weightedPick(['closed' => 92, 'cancelled' => 4, 'refunded' => 2, 'shipped' => 2]);
     }
 

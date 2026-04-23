@@ -2,6 +2,8 @@
 
 namespace App\Services\Demo\Industries;
 
+use App\Models\Tenant;
+
 class BikeShopData implements IndustryDataContract
 {
     public function slug(): string { return 'bike-shops'; }
@@ -90,16 +92,8 @@ class BikeShopData implements IndustryDataContract
     public function sampleResponses(): array
     {
         return [
-            'bike_make' => [
-                'Specialized', 'Trek', 'Santa Cruz', 'Giant', 'Cannondale',
-                'Scott', 'Canyon', 'Yeti', 'Kona', 'Salsa', 'Surly',
-                'Pivot', 'Ibis', 'Norco', 'Rocky Mountain', 'Orbea',
-            ],
-            'bike_model' => [
-                'Stumpjumper', 'Tallboy', 'Enduro', 'Tarmac', 'Domane',
-                'Fuel EX', 'Top Fuel', 'Hightower', 'Megatower', 'Spearfish',
-                'Timberjack', 'SB140', 'Process', 'Honzo', 'Krampus',
-            ],
+            'bike_make' => ['Specialized', 'Trek', 'Santa Cruz', 'Giant', 'Cannondale', 'Scott', 'Canyon', 'Yeti', 'Kona', 'Salsa', 'Surly', 'Pivot', 'Ibis', 'Norco', 'Rocky Mountain', 'Orbea'],
+            'bike_model' => ['Stumpjumper', 'Tallboy', 'Enduro', 'Tarmac', 'Domane', 'Fuel EX', 'Top Fuel', 'Hightower', 'Megatower', 'Spearfish', 'Timberjack', 'SB140', 'Process', 'Honzo', 'Krampus'],
             'bike_year' => function () { return (string) random_int(2015, 2026); },
             'issue_description' => [
                 'Shifting is off in the higher gears.',
@@ -120,27 +114,208 @@ class BikeShopData implements IndustryDataContract
 
     public function firstNamePool(): array
     {
-        return [
-            'Aaron','Alex','Alison','Amy','Andrew','Anna','Ben','Brad','Brian','Caitlin','Cameron','Carlos','Chris','Claire','Connor',
-            'Dan','Dana','David','Derek','Diana','Drew','Elena','Eli','Emily','Emma','Eric','Erin','Ethan','Evan','Grace','Greg',
-            'Hannah','Ian','Isaac','Jack','Jake','James','Jamie','Jason','Jen','Jenna','Jeremy','Jess','John','Jordan','Julia','Justin',
-            'Kate','Katie','Kevin','Kim','Kyle','Laura','Leah','Lisa','Logan','Luke','Maddie','Marcus','Maria','Mark','Matt','Meg',
-            'Megan','Michael','Mike','Molly','Nate','Nick','Nina','Noah','Olivia','Owen','Patrick','Paul','Rachel','Ray','Rebecca',
-            'Rob','Ryan','Sam','Sarah','Sean','Shannon','Sophia','Steph','Steve','Tom','Tyler','Vanessa','Will','Zach','Zoe',
-        ];
+        return ['Aaron','Alex','Alison','Amy','Andrew','Anna','Ben','Brad','Brian','Caitlin','Cameron','Carlos','Chris','Claire','Connor','Dan','Dana','David','Derek','Diana','Drew','Elena','Eli','Emily','Emma','Eric','Erin','Ethan','Evan','Grace','Greg','Hannah','Ian','Isaac','Jack','Jake','James','Jamie','Jason','Jen','Jenna','Jeremy','Jess','John','Jordan','Julia','Justin','Kate','Katie','Kevin','Kim','Kyle','Laura','Leah','Lisa','Logan','Luke','Maddie','Marcus','Maria','Mark','Matt','Meg','Megan','Michael','Mike','Molly','Nate','Nick','Nina','Noah','Olivia','Owen','Patrick','Paul','Rachel','Ray','Rebecca','Rob','Ryan','Sam','Sarah','Sean','Shannon','Sophia','Steph','Steve','Tom','Tyler','Vanessa','Will','Zach','Zoe'];
     }
 
     public function lastNamePool(): array
     {
+        return ['Anderson','Baker','Barnes','Bennett','Brooks','Brown','Bryant','Campbell','Carter','Chen','Clark','Coleman','Collins','Cook','Cooper','Davis','Dixon','Edwards','Ellis','Evans','Fisher','Flores','Foster','Garcia','Gomez','Graham','Gray','Green','Griffin','Hall','Harris','Hayes','Henderson','Hernandez','Hoffman','Howard','Hughes','Jackson','James','Jenkins','Johnson','Jones','Kelly','Kim','King','Lee','Lewis','Long','Lopez','Martinez','Mitchell','Moore','Morgan','Morris','Murphy','Nelson','Nguyen','Olson','Owens','Park','Parker','Patel','Peterson','Phillips','Powell','Price','Reed','Reyes','Richardson','Rivera','Roberts','Rodriguez','Rogers','Ross','Russell','Ryan','Sanders','Schmidt','Scott','Shaw','Simmons','Smith','Stewart','Sullivan','Taylor','Thomas','Thompson','Torres','Turner','Walker','Ward','Watson','White','Williams','Wilson','Wood','Wright','Young'];
+    }
+
+    public function pageContent(Tenant $tenant): array
+    {
+        $shopName = $tenant->name;
+
         return [
-            'Anderson','Baker','Barnes','Bennett','Brooks','Brown','Bryant','Campbell','Carter','Chen','Clark','Coleman','Collins','Cook',
-            'Cooper','Davis','Dixon','Edwards','Ellis','Evans','Fisher','Flores','Foster','Garcia','Gomez','Graham','Gray','Green',
-            'Griffin','Hall','Harris','Hayes','Henderson','Hernandez','Hoffman','Howard','Hughes','Jackson','James','Jenkins',
-            'Johnson','Jones','Kelly','Kim','King','Lee','Lewis','Long','Lopez','Martinez','Mitchell','Moore','Morgan','Morris',
-            'Murphy','Nelson','Nguyen','Olson','Owens','Park','Parker','Patel','Peterson','Phillips','Powell','Price','Reed','Reyes',
-            'Richardson','Rivera','Roberts','Rodriguez','Rogers','Ross','Russell','Ryan','Sanders','Schmidt','Scott','Shaw','Simmons',
-            'Smith','Stewart','Sullivan','Taylor','Thomas','Thompson','Torres','Turner','Walker','Ward','Watson','White','Williams',
-            'Wilson','Wood','Wright','Young',
+            'home' => [
+                'meta_title'       => "{$shopName} - Expert Bike Service in Spokane",
+                'meta_description' => 'Tune-ups, repairs, suspension service, and bike fits. Drop-off friendly. Spokane and Coeur dAlene.',
+                'sections' => [
+                    [
+                        'type' => 'nav',
+                        'content' => [
+                            'show_logo'    => true,
+                            'show_tagline' => false,
+                            'cta_label'    => 'Book Now',
+                            'cta_url'      => '/book',
+                            'bg_style'     => 'solid',
+                        ],
+                    ],
+                    [
+                        'type' => 'hero',
+                        'content' => [
+                            'headline'            => 'Expert bike service. Back on the road fast.',
+                            'subheading'          => 'Tune-ups, repairs, and fits by mechanics who actually ride. Drop-off friendly. No appointment required.',
+                            'bg_type'             => 'color',
+                            'bg_color'            => '#0a0a0a',
+                            'overlay_opacity'     => 0.4,
+                            'text_color'          => '#ffffff',
+                            'cta_primary_label'   => 'Book Service',
+                            'cta_primary_url'     => '/book',
+                            'cta_secondary_label' => 'See Services',
+                            'cta_secondary_url'   => '#services',
+                            'height'              => 'large',
+                        ],
+                        'padding' => 'normal',
+                    ],
+                    [
+                        'type' => 'services',
+                        'content' => [
+                            'heading'     => 'Services',
+                            'subheading'  => 'From quick tune-ups to full builds.',
+                            'show_prices' => true,
+                            'layout'      => 'grid',
+                        ],
+                    ],
+                    [
+                        'type' => 'text_image',
+                        'content' => [
+                            'heading'    => 'Built for people who ride',
+                            'body'       => "Every mechanic on our team races, rides, or both. We know what a bike should feel like when it is dialed, and we know the difference between a shop that services bikes and a shop that cares about them.\n\nDrop your bike off today. We will get it back to you soon, feeling like it should.",
+                            'image_url'  => null,
+                            'image_side' => 'right',
+                            'cta_label'  => 'About Us',
+                            'cta_url'    => '/about',
+                        ],
+                    ],
+                    [
+                        'type' => 'cta_banner',
+                        'content' => [
+                            'headline'  => 'Ready to ride again?',
+                            'subtext'   => 'Most tune-ups finished in 24 hours.',
+                            'cta_label' => 'Drop Off Now',
+                            'cta_url'   => '/book',
+                            'bg_style'  => 'accent',
+                        ],
+                    ],
+                    [
+                        'type' => 'footer',
+                        'content' => [
+                            'show_address'   => true,
+                            'show_hours'     => true,
+                            'show_social'    => true,
+                            'copyright_line' => '(c) ' . date('Y') . ' ' . $shopName,
+                        ],
+                    ],
+                ],
+            ],
+
+            'about' => [
+                'meta_title'       => "About - {$shopName}",
+                'meta_description' => 'A Spokane bike shop run by riders. Meet the team and learn how we work.',
+                'sections' => [
+                    [
+                        'type' => 'nav',
+                        'content' => [
+                            'show_logo'    => true,
+                            'show_tagline' => false,
+                            'cta_label'    => 'Book Now',
+                            'cta_url'      => '/book',
+                            'bg_style'     => 'solid',
+                        ],
+                    ],
+                    [
+                        'type' => 'hero',
+                        'content' => [
+                            'headline'            => 'We ride. We fix. We care.',
+                            'subheading'          => 'A Spokane bike shop run by mechanics who spend as much time on the trail as in the shop.',
+                            'bg_type'             => 'color',
+                            'bg_color'            => '#1a1a1a',
+                            'text_color'          => '#ffffff',
+                            'cta_primary_label'   => null,
+                            'cta_primary_url'     => null,
+                            'cta_secondary_label' => null,
+                            'cta_secondary_url'   => null,
+                            'height'              => 'medium',
+                        ],
+                    ],
+                    [
+                        'type' => 'text_image',
+                        'content' => [
+                            'heading'    => 'Our story',
+                            'body'       => "We opened our doors because the bike shops we grew up with kept disappearing, replaced by chain stores that moved parts but did not understand bikes.\n\nWe wanted a shop where mechanics had time to do the job right. Where a tune-up was not a checklist but a conversation about how your bike feels when you ride it. Where you were not a ticket number, you were someone who rides.\n\nThat is what we built. We hope it shows in the work.",
+                            'image_url'  => null,
+                            'image_side' => 'left',
+                            'cta_label'  => null,
+                            'cta_url'    => null,
+                        ],
+                    ],
+                    [
+                        'type' => 'text_image',
+                        'content' => [
+                            'heading'    => 'How we work',
+                            'body'       => "Drop off your bike any time we are open. We will do a quick walk-through with you: what is feeling off, what you want done, anything to watch for.\n\nWe text or email when your bike is ready. Most services are finished in 24 hours. Complex work (full builds, suspension rebuilds) we will quote you a realistic turnaround on the spot.\n\nIf something is not right after you pick up, bring it back. We stand behind our work.",
+                            'image_url'  => null,
+                            'image_side' => 'right',
+                            'cta_label'  => 'Book a Service',
+                            'cta_url'    => '/book',
+                        ],
+                    ],
+                    [
+                        'type' => 'footer',
+                        'content' => [
+                            'show_address'   => true,
+                            'show_hours'     => true,
+                            'show_social'    => true,
+                            'copyright_line' => '(c) ' . date('Y') . ' ' . $shopName,
+                        ],
+                    ],
+                ],
+            ],
+
+            'contact' => [
+                'meta_title'       => "Contact - {$shopName}",
+                'meta_description' => 'Get in touch. Spokane, WA bike shop.',
+                'sections' => [
+                    [
+                        'type' => 'nav',
+                        'content' => [
+                            'show_logo'    => true,
+                            'show_tagline' => false,
+                            'cta_label'    => 'Book Now',
+                            'cta_url'      => '/book',
+                            'bg_style'     => 'solid',
+                        ],
+                    ],
+                    [
+                        'type' => 'hero',
+                        'content' => [
+                            'headline'            => 'Get in touch',
+                            'subheading'          => 'Questions about a specific job? Parts availability? Team rides? We will get back to you quickly.',
+                            'bg_type'             => 'color',
+                            'bg_color'            => '#1a1a1a',
+                            'text_color'          => '#ffffff',
+                            'cta_primary_label'   => null,
+                            'cta_primary_url'     => null,
+                            'cta_secondary_label' => null,
+                            'cta_secondary_url'   => null,
+                            'height'              => 'small',
+                        ],
+                    ],
+                    [
+                        'type' => 'contact_form',
+                        'content' => [
+                            'heading'            => 'Send us a message',
+                            'subheading'         => 'We typically reply within a business day.',
+                            'show_name_field'    => true,
+                            'show_email_field'   => true,
+                            'show_phone_field'   => true,
+                            'show_message_field' => true,
+                            'submit_label'       => 'Send Message',
+                            'success_message'    => 'Thanks, we will be in touch soon.',
+                        ],
+                    ],
+                    [
+                        'type' => 'footer',
+                        'content' => [
+                            'show_address'   => true,
+                            'show_hours'     => true,
+                            'show_social'    => true,
+                            'copyright_line' => '(c) ' . date('Y') . ' ' . $shopName,
+                        ],
+                    ],
+                ],
+            ],
         ];
     }
 }
