@@ -19,15 +19,16 @@ use App\Models\Tenant\TenantUser;
 use App\Services\Demo\Industries\IndustryDataContract;
 use Closure;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class DemoSeeder
 {
-    private const CUSTOMER_COUNT    = 200;
-    private const APPOINTMENT_COUNT = 500;
-    private const PAST_DAYS         = 90;
-    private const FUTURE_DAYS       = 14;
+    private const CUSTOMER_COUNT      = 200;
+    private const APPOINTMENT_COUNT   = 1800;
+    private const CUSTOMER_SPREAD_DAYS = 365;
+    private const CAPACITY_PER_DAY    = 16;
 
     public function __construct(
         private readonly IndustryDataContract $industry,
@@ -36,11 +37,15 @@ class DemoSeeder
 
     private function log(string $msg): void { ($this->logger)($msg); }
 
-    public function seed(Tenant $tenant, string $ownerEmail, string $ownerPassword): void
-    {
+    public function seed(
+        Tenant $tenant,
+        string $ownerName,
+        string $ownerEmail,
+        string $ownerPassword,
+    ): void {
         $this->log("Seeding tenant [{$tenant->id}] as {$this->industry->label()}...");
 
-        $owner = $this->createOwner($tenant, $ownerEmail, $ownerPassword);
+        $owner = $this->createOwner($tenant, $ownerName, $ownerEmail, $ownerPassword);
         $this->seedCapacityRules($tenant);
         $this->seedReceivingMethods($tenant);
         $this->seedFormFields($tenant);
@@ -52,17 +57,17 @@ class DemoSeeder
         $this->log("Done.");
     }
 
-    private function createOwner(Tenant $tenant, string $email, string $password): TenantUser
+    private function createOwner(Tenant $tenant, string $name, string $email, string $password): TenantUser
     {
         $owner = TenantUser::create([
             'tenant_id' => $tenant->id,
-            'name'      => 'Demo Owner',
+            'name'      => $name,
             'email'     => $email,
             'password'  => Hash::make($password),
             'role'      => 'owner',
             'is_active' => true,
         ]);
-        $this->log("  Owner user: {$email}");
+        $this->log("  Owner user: {$name} <{$email}>");
         return $owner;
     }
 
@@ -75,11 +80,11 @@ class DemoSeeder
                 'rule_type'        => 'default',
                 'day_of_week'      => $dow,
                 'specific_date'    => null,
-                'max_appointments' => $isWeekend ? 0 : 8,
+                'max_appointments' => $isWeekend ? 0 : self::CAPACITY_PER_DAY,
                 'note'             => null,
             ]);
         }
-        $this->log("  Capacity: 8/day Mon-Fri, closed weekends.");
+        $this->log("  Capacity: " . self::CAPACITY_PER_DAY . "/day Mon-Fri, closed weekends.");
     }
 
     private function seedReceivingMethods(Tenant $tenant): void
@@ -230,6 +235,13 @@ class DemoSeeder
         return $pivotsByService;
     }
 
+    /**
+     * Customers are created via raw DB insert to bypass Eloquent's timestamp
+     * auto-management, which was overriding our seeded created_at values and
+     * causing all customers to appear "new today" on the dashboard.
+     *
+     * Distribution: uniform across CUSTOMER_SPREAD_DAYS (365 days).
+     */
     private function seedCustomers(Tenant $tenant): array
     {
         $first = $this->industry->firstNamePool();
@@ -255,7 +267,7 @@ class DemoSeeder
         $streetNames = ['Maple','Oak','Cedar','Pine','Elm','Birch','Spruce','Washington','Monroe','Lincoln','Jefferson','Madison','Division','Hamilton','Mission','Francis','Wellesley','Ridgeview','Hillcrest','Sunset','Lakeview','Riverside'];
         $streetTypes = ['St','Ave','Ln','Dr','Rd','Way','Ct'];
 
-        $customers = [];
+        $rows = [];
         $usedEmails = [];
         $now = Carbon::now();
 
@@ -272,10 +284,16 @@ class DemoSeeder
             $usedEmails[$email] = true;
 
             $city = $cities[array_rand($cities)];
-            $daysAgo = (int) (pow(mt_rand() / mt_getrandmax(), 1.3) * 540);
-            $createdAt = $now->copy()->subDays($daysAgo)->subHours(random_int(0, 23))->subMinutes(random_int(0, 59));
 
-            $customers[] = TenantCustomer::create([
+            // Uniform distribution over CUSTOMER_SPREAD_DAYS (365 days)
+            $daysAgo = random_int(0, self::CUSTOMER_SPREAD_DAYS);
+            $createdAt = $now->copy()
+                ->subDays($daysAgo)
+                ->subHours(random_int(0, 23))
+                ->subMinutes(random_int(0, 59));
+
+            $rows[] = [
+                'id'            => (string) Str::uuid(),
                 'tenant_id'     => $tenant->id,
                 'first_name'    => $f,
                 'last_name'     => $l,
@@ -286,11 +304,21 @@ class DemoSeeder
                 'state'         => $city['state'],
                 'postcode'      => $city['postcode'],
                 'country'       => 'US',
-                'created_at'    => $createdAt,
-                'updated_at'    => $createdAt,
-            ]);
+                'created_at'    => $createdAt->toDateTimeString(),
+                'updated_at'    => $createdAt->toDateTimeString(),
+            ];
         }
-        $this->log("  Customers: " . count($customers));
+
+        // Insert in chunks via raw DB to bypass Eloquent timestamp overrides
+        foreach (array_chunk($rows, 100) as $chunk) {
+            DB::table('tenant_customers')->insert($chunk);
+        }
+
+        // Hydrate Eloquent models for the rest of the seeder to use
+        $ids = array_column($rows, 'id');
+        $customers = TenantCustomer::whereIn('id', $ids)->get()->all();
+
+        $this->log("  Customers: " . count($customers) . " spread across " . self::CUSTOMER_SPREAD_DAYS . " days.");
         return $customers;
     }
 
@@ -300,25 +328,93 @@ class DemoSeeder
         return sprintf('(%s) %03d-%04d', $areaCodes[array_rand($areaCodes)], random_int(200, 999), random_int(0, 9999));
     }
 
-    private function seedAppointments(Tenant $tenant, TenantUser $owner, array $customers, array $servicesBySlug, array $addonsByService): void
+    /**
+     * Seasonal monthly weight for Pacific Northwest bike shop.
+     * Each value is an approximate target of appointments PER OPEN DAY (weekday)
+     * in that month. Summer peaks, winter valleys.
+     *
+     * Keyed 1-12 (Jan-Dec).
+     */
+    private function monthlyWeight(int $month): int
     {
+        return match ($month) {
+            1  => 3,  // Jan - winter trough
+            2  => 4,  // Feb
+            3  => 5,  // Mar
+            4  => 6,  // Apr
+            5  => 9,  // May - shoulder
+            6  => 14, // Jun - summer
+            7  => 15, // Jul - peak summer
+            8  => 14, // Aug
+            9  => 9,  // Sep - shoulder
+            10 => 6,  // Oct
+            11 => 5,  // Nov
+            12 => 3,  // Dec - winter trough
+        };
+    }
+
+    /**
+     * Build a pool of appointment dates distributed seasonally.
+     * Looks backward one year + forward 2 weeks from today.
+     *
+     * Returns an array of Carbon dates, with frequency of each date
+     * weighted by that date's month. Weekends are excluded entirely.
+     *
+     * @return array<Carbon>
+     */
+    private function buildSeasonalDatePool(int $totalNeeded): array
+    {
+        $pool = [];
+        $today = Carbon::now()->startOfDay();
+        $start = $today->copy()->subDays(365);
+        $end = $today->copy()->addDays(14);
+
+        // Future weights should be lower — these are bookings that haven't
+        // happened yet, so even summer future-dated appointments are rarer.
+        $cursor = $start->copy();
+        while ($cursor->lessThanOrEqualTo($end)) {
+            if (!$cursor->isWeekend()) {
+                $weight = $this->monthlyWeight((int) $cursor->format('n'));
+
+                // Scale down future dates — customers book ahead but not heavily
+                if ($cursor->greaterThan($today)) {
+                    $weight = max(1, (int) round($weight * 0.3));
+                }
+
+                // Add randomness per day: some days cluster, some are quiet
+                $dayVariance = random_int(60, 140) / 100;  // 0.6 to 1.4
+                $appointmentsThisDay = max(0, (int) round($weight * $dayVariance));
+
+                for ($i = 0; $i < $appointmentsThisDay; $i++) {
+                    $pool[] = $cursor->copy();
+                }
+            }
+            $cursor->addDay();
+        }
+
+        // Shuffle and trim to the requested count
+        shuffle($pool);
+        return array_slice($pool, 0, $totalNeeded);
+    }
+
+    private function seedAppointments(
+        Tenant $tenant,
+        TenantUser $owner,
+        array $customers,
+        array $servicesBySlug,
+        array $addonsByService,
+    ): void {
         $serviceSlugs = array_keys($servicesBySlug);
         $sampleResponses = $this->industry->sampleResponses();
         $today = Carbon::now()->startOfDay();
 
-        $futureCount = (int) (self::APPOINTMENT_COUNT * 0.18);
-        $pastCount = self::APPOINTMENT_COUNT - $futureCount;
+        $datePool = $this->buildSeasonalDatePool(self::APPOINTMENT_COUNT);
+        $actualCount = count($datePool);
+
+        $this->log("  Generating {$actualCount} appointments with seasonal distribution...");
+
         $created = 0;
-
-        for ($i = 0; $i < self::APPOINTMENT_COUNT; $i++) {
-            $isFuture = $i >= $pastCount;
-            if ($isFuture) {
-                $date = $today->copy()->addDays(random_int(0, self::FUTURE_DAYS));
-            } else {
-                $date = $today->copy()->subDays(random_int(0, self::PAST_DAYS));
-            }
-            while ($date->isWeekend()) { $date->addDay(); }
-
+        foreach ($datePool as $date) {
             $numServices = $this->weightedPick([1 => 70, 2 => 25, 3 => 5]);
             $pickedSlugs = (array) array_rand(array_flip($serviceSlugs), $numServices);
             if ($numServices === 1) { $pickedSlugs = [$pickedSlugs[0]]; }
@@ -447,7 +543,7 @@ class DemoSeeder
                 ]);
             }
 
-            if (random_int(1, 100) <= 20) {
+            if (random_int(1, 100) <= 15) {
                 TenantAppointmentNote::create([
                     'appointment_id'      => $appointment->id,
                     'user_id'             => $owner->id,
@@ -461,6 +557,10 @@ class DemoSeeder
         $this->log("  Appointments: {$created}");
     }
 
+    /**
+     * Tighter status distribution so "completed" only means
+     * "ready for pickup" — current/very-recent jobs only.
+     */
     private function pickStatus(Carbon $date, Carbon $today): string
     {
         if ($date->greaterThan($today)) {
@@ -469,14 +569,18 @@ class DemoSeeder
         if ($date->isSameDay($today)) {
             return $this->weightedPick(['in_progress' => 40, 'confirmed' => 30, 'completed' => 20, 'pending' => 10]);
         }
+
         $daysAgo = $today->diffInDays($date);
-        if ($daysAgo <= 3) {
-            return $this->weightedPick(['completed' => 55, 'in_progress' => 25, 'closed' => 15, 'cancelled' => 5]);
+        if ($daysAgo <= 2) {
+            // Recent past: mostly completed (ready for pickup) or closed (handed off)
+            return $this->weightedPick(['completed' => 45, 'closed' => 45, 'in_progress' => 5, 'cancelled' => 5]);
         }
         if ($daysAgo <= 14) {
-            return $this->weightedPick(['closed' => 70, 'completed' => 20, 'cancelled' => 6, 'refunded' => 2, 'shipped' => 2]);
+            // Past 2 weeks: almost all closed, no more ready-for-pickup
+            return $this->weightedPick(['closed' => 88, 'cancelled' => 6, 'refunded' => 3, 'shipped' => 3]);
         }
-        return $this->weightedPick(['closed' => 88, 'cancelled' => 6, 'refunded' => 3, 'shipped' => 3]);
+        // Older: almost entirely closed
+        return $this->weightedPick(['closed' => 92, 'cancelled' => 4, 'refunded' => 2, 'shipped' => 2]);
     }
 
     private function pickPaymentStatus(string $status): string

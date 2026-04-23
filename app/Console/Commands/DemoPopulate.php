@@ -16,6 +16,7 @@ class DemoPopulate extends Command
                             {subdomain : Subdomain for the demo tenant, e.g. "blueridge"}
                             {industry : Industry slug, e.g. "bike-shops"}
                             {--name= : Override the default shop name}
+                            {--owner-name= : Display name for the demo owner user (default: "[Shop Name] Owner")}
                             {--owner-email=owner@demo.intake.works : Email for the demo owner user}
                             {--owner-password=demo-password-123 : Password for the demo owner user}
                             {--fresh : If the subdomain exists, destroy it and rebuild}';
@@ -66,18 +67,20 @@ class DemoPopulate extends Command
         }
 
         $shopName = $this->option('name') ?: $industry->defaultShopName();
+        $ownerName = $this->option('owner-name') ?: "{$shopName} Owner";
         $ownerEmail = $this->option('owner-email');
         $ownerPassword = $this->option('owner-password');
 
         $this->info("Creating demo tenant:");
-        $this->line("  Subdomain: {$subdomain}");
-        $this->line("  Shop name: {$shopName}");
-        $this->line("  Industry:  {$industry->label()}");
-        $this->line("  Owner:     {$ownerEmail}");
+        $this->line("  Subdomain:  {$subdomain}");
+        $this->line("  Shop name:  {$shopName}");
+        $this->line("  Industry:   {$industry->label()}");
+        $this->line("  Owner name: {$ownerName}");
+        $this->line("  Owner:      {$ownerEmail}");
         $this->newLine();
 
         try {
-            DB::transaction(function () use ($subdomain, $shopName, $industry, $ownerEmail, $ownerPassword) {
+            DB::transaction(function () use ($subdomain, $shopName, $industry, $ownerName, $ownerEmail, $ownerPassword) {
                 $tenant = Tenant::create([
                     'id'          => (string) Str::uuid(),
                     'license_id'  => null,
@@ -91,7 +94,7 @@ class DemoPopulate extends Command
                     industry: $industry,
                     logger: fn(string $msg) => $this->line($msg),
                 );
-                $seeder->seed($tenant, $ownerEmail, $ownerPassword);
+                $seeder->seed($tenant, $ownerName, $ownerEmail, $ownerPassword);
             });
         } catch (\Throwable $e) {
             $this->newLine();
