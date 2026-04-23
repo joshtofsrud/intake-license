@@ -55,6 +55,9 @@ class DemoSeeder
         $this->seedAppointments($tenant, $owner, $customers, $servicesBySlug, $addonsByService);
 
         // Sub-seeders (waitlist, campaigns, pages)
+        // Work-order field definitions + responses (must run after appointments exist)
+        (new WorkOrderSeeder($this->industry, $this->logger))->seed($tenant);
+
         (new WaitlistSeeder($this->logger))->seed($tenant, $customers, $servicesBySlug);
         (new CampaignsSeeder($this->logger))->seed($tenant, $owner, $customers);
 

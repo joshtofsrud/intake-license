@@ -119,4 +119,79 @@ class BikeShopData implements IndustryDataContract
     {
         return ['Anderson','Baker','Barnes','Bennett','Brooks','Brown','Bryant','Campbell','Carter','Chen','Clark','Coleman','Collins','Cook','Cooper','Davis','Dixon','Edwards','Ellis','Evans','Fisher','Flores','Foster','Garcia','Gomez','Graham','Gray','Green','Griffin','Hall','Harris','Hayes','Henderson','Hernandez','Hoffman','Howard','Hughes','Jackson','James','Jenkins','Johnson','Jones','Kelly','Kim','King','Lee','Lewis','Long','Lopez','Martinez','Mitchell','Moore','Morgan','Morris','Murphy','Nelson','Nguyen','Olson','Owens','Park','Parker','Patel','Peterson','Phillips','Powell','Price','Reed','Reyes','Richardson','Rivera','Roberts','Rodriguez','Rogers','Ross','Russell','Ryan','Sanders','Schmidt','Scott','Shaw','Simmons','Smith','Stewart','Sullivan','Taylor','Thomas','Thompson','Torres','Turner','Walker','Ward','Watson','White','Williams','Wilson','Wood','Wright','Young'];
     }
+
+    public function workOrderFieldPresets(): array
+    {
+        return [
+            [
+                'label'               => 'Serial Number',
+                'field_type'          => 'text',
+                'help_text'           => 'Usually stamped under the bottom bracket or on the head tube.',
+                'is_required'         => false,
+                'is_identifier'       => true,
+                'is_customer_visible' => true,
+                'options'             => null,
+            ],
+            [
+                'label'               => 'Model',
+                'field_type'          => 'text',
+                'help_text'           => 'e.g. Stumpjumper Expert, Tallboy CC, Domane SL 6',
+                'is_required'         => false,
+                'is_identifier'       => false,
+                'is_customer_visible' => true,
+                'options'             => null,
+            ],
+            [
+                'label'               => 'Color',
+                'field_type'          => 'text',
+                'help_text'           => null,
+                'is_required'         => false,
+                'is_identifier'       => false,
+                'is_customer_visible' => true,
+                'options'             => null,
+            ],
+            [
+                'label'               => 'Frame Size',
+                'field_type'          => 'select',
+                'help_text'           => null,
+                'is_required'         => false,
+                'is_identifier'       => false,
+                'is_customer_visible' => true,
+                'options'             => ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+            ],
+            [
+                'label'               => 'Wheel Size',
+                'field_type'          => 'select',
+                'help_text'           => null,
+                'is_required'         => false,
+                'is_identifier'       => false,
+                'is_customer_visible' => true,
+                'options'             => ['26"', '27.5"', '29"', '700c', '650b', 'Other'],
+            ],
+        ];
+    }
+
+    public function workOrderSampleValues(): array
+    {
+        return [
+            'Serial Number' => function () {
+                $letters = strtoupper(substr(bin2hex(random_bytes(2)), 0, 2));
+                return $letters . random_int(10000000, 99999999);
+            },
+            'Model' => [
+                'Stumpjumper Expert', 'Stumpjumper Comp', 'Tarmac SL7', 'Domane SL 6',
+                'Fuel EX 8', 'Top Fuel 9.8', 'Hightower CC', 'Megatower C',
+                'Spearfish', 'Timberjack', 'SB140', 'Process 153',
+                'Honzo AL', 'Krampus', 'Checkpoint ALR', 'Cutthroat',
+            ],
+            'Color' => [
+                'Matte Black', 'Gloss Black', 'White', 'Raw Aluminum',
+                'Red', 'Blue', 'Green', 'Orange', 'Yellow',
+                'Satin Grey', 'Teal', 'Purple', 'Bronze',
+            ],
+            'Frame Size' => ['XS', 'S', 'M', 'L', 'XL'],
+            'Wheel Size' => ['27.5"', '29"', '700c'],
+        ];
+    }
+
 }
