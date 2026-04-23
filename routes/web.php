@@ -236,6 +236,10 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::patch('/team/{id}',          [TenantControllers\TeamController::class, 'update'])->name('team.update');
             Route::delete('/team/{id}',         [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
 
+            // Stripe billing portal (card update, invoices, cancel).
+            // Plan changes happen in-app, not via the portal.
+            Route::get('/billing/portal',       [TenantControllers\BillingController::class, 'portal'])->name('billing.portal');
+
         });
 
     });
