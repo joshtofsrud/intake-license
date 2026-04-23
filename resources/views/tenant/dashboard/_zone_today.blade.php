@@ -91,7 +91,7 @@
 
     <div class="ia-dash-today-list">
       @foreach($today['appointments'] as $appt)
-        <a href="{{ route('tenant.appointments.show', $appt->id) }}" class="ia-dash-today-row">
+        <a href="{{ route('tenant.appointments.show', $appt->id) }}" class="ia-dash-today-row" data-appt-id="{{ $appt->id }}">
           <div class="ia-dash-today-time">
             @if($appt->appointment_time)
               <div class="ia-dash-today-time-hm">

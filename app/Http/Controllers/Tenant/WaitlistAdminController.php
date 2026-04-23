@@ -112,7 +112,7 @@ class WaitlistAdminController extends Controller
         return back()->with('success', 'Similar-service mapping added.');
     }
 
-    public function removeSimilarMapping(Request $request, string $id)
+    public function removeSimilarMapping(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
         TenantWaitlistSimilarMap::where('tenant_id', $tenant->id)
@@ -121,7 +121,7 @@ class WaitlistAdminController extends Controller
         return back()->with('success', 'Mapping removed.');
     }
 
-    public function cancelEntry(Request $request, string $id)
+    public function cancelEntry(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
         $entry = TenantWaitlistEntry::where('tenant_id', $tenant->id)

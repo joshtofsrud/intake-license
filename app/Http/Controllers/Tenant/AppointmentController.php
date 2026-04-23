@@ -152,7 +152,7 @@ class AppointmentController extends Controller
         return redirect()->route('tenant.appointments.index')->with('success', 'Appointment created.');
     }
 
-    public function show(Request $request, string $id)
+    public function show(Request $request, string $subdomain, string $id)
     {
         if ($request->expectsJson() || $request->ajax()) {
             return $this->jsonDetail(tenant(), $id);
@@ -160,12 +160,12 @@ class AppointmentController extends Controller
         return redirect()->route('tenant.appointments.index');
     }
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $subdomain, string $id)
     {
         return $this->handleUpdate(tenant(), $id, $request);
     }
 
-    public function drawer(Request $request, string $id)
+    public function drawer(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)

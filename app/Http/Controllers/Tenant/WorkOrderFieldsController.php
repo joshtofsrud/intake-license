@@ -71,7 +71,7 @@ class WorkOrderFieldsController extends Controller
         });
     }
 
-    public function update(Request $request, string $id)
+    public function update(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
         $op = $request->input('op', 'save');
@@ -111,7 +111,7 @@ class WorkOrderFieldsController extends Controller
         });
     }
 
-    public function destroy(Request $request, string $id)
+    public function destroy(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
 

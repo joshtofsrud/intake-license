@@ -302,9 +302,18 @@
       });
   }
 
-  // Intercept appointment row clicks in Zone 1
-  // Drawer click handler disabled pending route parameter binding fix.
-  // Appointment rows currently navigate to the full appointment page.
+  // Intercept appointment row clicks in Zone 1 — open drawer instead of navigating
+  document.addEventListener('click', function(e){
+    var row = e.target.closest('.ia-dash-today-row[data-appt-id]');
+    if (!row) return;
+    // Let modified clicks (cmd/ctrl/middle-click) open in new tab as normal
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+    e.preventDefault();
+    var apptId = row.getAttribute('data-appt-id');
+    var fullHref = row.getAttribute('href');
+    if (fullLink) fullLink.setAttribute('href', fullHref);
+    loadDrawer(apptId);
+  });
 })();
 </script>
 @endpush

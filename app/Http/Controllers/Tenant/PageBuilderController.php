@@ -136,13 +136,13 @@ class PageBuilderController extends Controller
             ->with('success', 'Page created. Start adding sections.');
     }
 
-    public function edit(Request $request, string $id)        { return redirect()->route('tenant.pages.index', ['edit' => $id]); }
-    public function update(Request $request, string $id)      { return $this->handlePageUpdate(tenant(), $id, $request); }
-    public function destroy(Request $request, string $id)     { return $this->handlePageDelete(tenant(), $id); }
-    public function addSection(Request $request, string $id)  { $request->merge(['section_op' => 'add', 'page_id' => $id]); return $this->handleSectionOp(tenant(), $request); }
-    public function updateSection(Request $request, string $id, string $sid) { $request->merge(['section_op' => 'update', 'page_id' => $id, 'section_id' => $sid]); return $this->handleSectionOp(tenant(), $request); }
-    public function deleteSection(Request $request, string $id, string $sid) { $request->merge(['section_op' => 'delete', 'page_id' => $id, 'section_id' => $sid]); return $this->handleSectionOp(tenant(), $request); }
-    public function reorderSections(Request $request, string $id)            { $request->merge(['section_op' => 'reorder', 'page_id' => $id]); return $this->handleSectionOp(tenant(), $request); }
+    public function edit(Request $request, string $subdomain, string $id)        { return redirect()->route('tenant.pages.index', ['edit' => $id]); }
+    public function update(Request $request, string $subdomain, string $id)      { return $this->handlePageUpdate(tenant(), $id, $request); }
+    public function destroy(Request $request, string $subdomain, string $id)     { return $this->handlePageDelete(tenant(), $id); }
+    public function addSection(Request $request, string $subdomain, string $id)  { $request->merge(['section_op' => 'add', 'page_id' => $id]); return $this->handleSectionOp(tenant(), $request); }
+    public function updateSection(Request $request, string $subdomain, string $id, string $sid) { $request->merge(['section_op' => 'update', 'page_id' => $id, 'section_id' => $sid]); return $this->handleSectionOp(tenant(), $request); }
+    public function deleteSection(Request $request, string $subdomain, string $id, string $sid) { $request->merge(['section_op' => 'delete', 'page_id' => $id, 'section_id' => $sid]); return $this->handleSectionOp(tenant(), $request); }
+    public function reorderSections(Request $request, string $subdomain, string $id)            { $request->merge(['section_op' => 'reorder', 'page_id' => $id]); return $this->handleSectionOp(tenant(), $request); }
 
     private function handlePageUpdate($tenant, string $id, Request $request)
     {
