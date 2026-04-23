@@ -164,7 +164,9 @@ class AppointmentController extends Controller
             ->with(['items', 'addons', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields'])
             ->firstOrFail();
 
-        return view('tenant.appointments.show', compact('appointment'));
+        $transitions = self::TRANSITIONS[$appointment->status] ?? [];
+
+        return view('tenant.appointments.show', compact('appointment', 'transitions'));
     }
 
     public function update(Request $request, string $subdomain, string $id)
