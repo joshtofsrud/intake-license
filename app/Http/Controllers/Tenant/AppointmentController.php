@@ -165,8 +165,9 @@ class AppointmentController extends Controller
             ->firstOrFail();
 
         $transitions = self::TRANSITIONS[$appointment->status] ?? [];
+        $destructive = self::DESTRUCTIVE;
 
-        return view('tenant.appointments.show', compact('appointment', 'transitions'));
+        return view('tenant.appointments.show', compact('appointment', 'transitions', 'destructive'));
     }
 
     public function update(Request $request, string $subdomain, string $id)
