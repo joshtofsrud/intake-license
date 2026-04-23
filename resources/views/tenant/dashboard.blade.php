@@ -303,16 +303,8 @@
   }
 
   // Intercept appointment row clicks in Zone 1
-  document.addEventListener('click', function(e){
-    var row = e.target.closest('.ia-dash-today-row');
-    if (!row) return;
-    e.preventDefault();
-    var href = row.getAttribute('href');
-    if (!href) return;
-    var match = href.match(/\/appointments\/([a-f0-9-]+)/i);
-    if (!match) { window.location.href = href; return; }
-    loadDrawer(match[1]);
-  });
+  // Drawer click handler disabled pending route parameter binding fix.
+  // Appointment rows currently navigate to the full appointment page.
 })();
 </script>
 @endpush
