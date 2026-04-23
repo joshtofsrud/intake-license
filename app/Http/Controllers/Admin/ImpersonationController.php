@@ -33,7 +33,7 @@ class ImpersonationController extends Controller
         Session::put('impersonating_from', [
             'guard'      => 'web',
             'user_id'    => Auth::id(),
-            'return_url' => url('/admin/tenants'),
+            'return_url' => 'https://' . config('intake.domain') . '/admin/tenants',
         ]);
 
         // Log in as the tenant owner via the tenant guard

@@ -473,8 +473,13 @@ class DemoSeeder
                 'tax_cents'                 => $tax,
                 'total_cents'               => $total,
                 'paid_cents'                => $paidCents,
-                'created_at'                => $this->appointmentCreationDate($date, $status),
             ]);
+
+            // Force the seeded created_at past Eloquent's auto-timestamp handling
+            $seededCreatedAt = $this->appointmentCreationDate($date, $status);
+            $appointment->created_at = $seededCreatedAt;
+            $appointment->updated_at = $seededCreatedAt;
+            $appointment->saveQuietly();
 
             foreach ($itemsToCreate as $item) {
                 $appointment->items()->create($item);
