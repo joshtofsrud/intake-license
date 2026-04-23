@@ -16,7 +16,7 @@ class DashboardDataService
 {
     public function __construct(private readonly Tenant $tenant) {}
 
-    public function greeting(?TenantUser $user = null): array
+    public function greeting(?object $user = null): array
     {
         $hour = (int) now()->format('G');
         $timeOfDay = match (true) {

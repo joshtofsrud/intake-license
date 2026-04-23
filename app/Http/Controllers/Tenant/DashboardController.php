@@ -13,9 +13,11 @@ class DashboardController extends Controller
         $tenant = tenant();
         $service = new DashboardDataService($tenant);
 
-        // Use default auth context — do NOT pass a guard name, which
-        // can break impersonation flows that set their own session state.
-        $user = $request->user();
+        // When impersonating, the master admin is on the 'web' guard AND
+        // the tenant owner is on the 'tenant' guard. We want the tenant
+        // owner for the dashboard greeting; fall back to default if no
+        // tenant-guarded user exists.
+        $user = $request->user('tenant') ?? $request->user();
 
         $dismissedThisSession = (bool) $request->cookie('onboarding_dismissed_at');
         $progress = $service->onboardingProgress($dismissedThisSession);
