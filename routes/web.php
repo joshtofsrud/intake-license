@@ -179,6 +179,11 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/services',            [TenantControllers\ServiceController::class, 'store'])->name('services.store');
             Route::patch('/services/{id}',      [TenantControllers\ServiceController::class, 'update'])->name('services.update');
             Route::delete('/services/{id}',     [TenantControllers\ServiceController::class, 'destroy'])->name('services.destroy');
+            Route::get('/work-order-fields',             [TenantControllers\WorkOrderFieldsController::class, 'index'])->name('work-order-fields.index');
+            Route::post('/work-order-fields',            [TenantControllers\WorkOrderFieldsController::class, 'store'])->name('work-order-fields.store');
+            Route::patch('/work-order-fields/{id}',      [TenantControllers\WorkOrderFieldsController::class, 'update'])->name('work-order-fields.update');
+            Route::delete('/work-order-fields/{id}',     [TenantControllers\WorkOrderFieldsController::class, 'destroy'])->name('work-order-fields.destroy');
+            Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
 
             Route::post('/addons',              [TenantControllers\AddonController::class, 'store'])->name('addons.store');
             Route::patch('/addons/{id}',        [TenantControllers\AddonController::class, 'update'])->name('addons.update');

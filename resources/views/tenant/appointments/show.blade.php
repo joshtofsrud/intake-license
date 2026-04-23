@@ -127,6 +127,98 @@
       @endif
     </div>
 
+    {{-- Work order (staff-filled equipment details) --}}
+    @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
+    @php
+      $responsesByFieldId = $appointment->workOrderResponses->keyBy('field_id');
+      $identifierField = $appointment->workOrderFields->firstWhere('is_identifier', true);
+      $identifierValue = $identifierField ? ($responsesByFieldId[$identifierField->id]->response_value ?? null) : null;
+      $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
+    @endphp
+    <div class="ia-card" id="work-order-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:0.5px solid var(--ia-border)">
+        <div class="appt-section-label" style="margin-bottom:0">Work order</div>
+        <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="wo-edit-toggle">Edit</button>
+      </div>
+
+      {{-- Display mode --}}
+      <div id="wo-display">
+        @if($identifierField && $identifierValue)
+          <div style="margin-bottom:18px;padding-bottom:16px;border-bottom:0.5px solid var(--ia-border)">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:500;margin-bottom:6px">
+              {{ $identifierField->label }}
+            </div>
+            <div class="ia-mono" style="font-size:18px;font-weight:500;letter-spacing:.02em">
+              {{ $identifierValue }}
+            </div>
+          </div>
+        @endif
+
+        @php
+          $filledNonIdentifier = $nonIdentifierFields->filter(fn($f) => !empty($responsesByFieldId[$f->id]->response_value ?? null));
+        @endphp
+
+        @if($filledNonIdentifier->isEmpty() && (!$identifierField || !$identifierValue))
+          <p style="font-size:13px;opacity:.4">No work order details recorded yet.</p>
+        @elseif($filledNonIdentifier->isNotEmpty())
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px 32px">
+            @foreach($filledNonIdentifier as $field)
+              <div>
+                <div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:500;margin-bottom:3px">
+                  {{ $field->label }}
+                </div>
+                <div style="font-size:14px">{{ $responsesByFieldId[$field->id]->response_value }}</div>
+              </div>
+            @endforeach
+          </div>
+        @endif
+      </div>
+
+      {{-- Edit mode --}}
+      <form id="wo-edit-form" style="display:none" method="POST" action="{{ $updateUrl }}">
+        @csrf @method('PATCH')
+        <input type="hidden" name="op" value="save_work_order">
+
+        @foreach($appointment->workOrderFields as $field)
+          @php $currentValue = $responsesByFieldId[$field->id]->response_value ?? ''; @endphp
+          <div class="ia-form-group" style="margin-bottom:14px">
+            <label class="ia-form-label">
+              {{ $field->label }}
+              @if($field->is_identifier)
+                <span style="background:var(--ia-accent);color:var(--ia-accent-text);font-size:9px;font-weight:500;padding:1px 6px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em;margin-left:6px">ID</span>
+              @endif
+              @if($field->is_required)
+                <span class="ia-required">*</span>
+              @endif
+            </label>
+            @if($field->field_type === 'textarea')
+              <textarea name="values[{{ $field->id }}]" class="ia-input" rows="3" @if($field->is_required) required @endif>{{ $currentValue }}</textarea>
+            @elseif($field->field_type === 'number')
+              <input type="number" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
+            @elseif($field->field_type === 'select')
+              <select name="values[{{ $field->id }}]" class="ia-input" @if($field->is_required) required @endif>
+                <option value="">—</option>
+                @foreach(($field->options ?? []) as $opt)
+                  <option value="{{ $opt }}" @selected($currentValue === $opt)>{{ $opt }}</option>
+                @endforeach
+              </select>
+            @else
+              <input type="text" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
+            @endif
+            @if($field->help_text)
+              <div style="font-size:11px;opacity:.5;margin-top:3px">{{ $field->help_text }}</div>
+            @endif
+          </div>
+        @endforeach
+
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="wo-edit-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+    @endif
+
     {{-- Form responses --}}
     @if($appointment->responses->isNotEmpty())
     <div class="ia-card">
@@ -491,6 +583,27 @@
     return String(str)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;')
       .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+
+  // Work order edit mode toggle — wo-edit-toggle-bound
+  var woDisplay = document.getElementById('wo-display');
+  var woForm = document.getElementById('wo-edit-form');
+  var woToggle = document.getElementById('wo-edit-toggle');
+  var woCancel = document.getElementById('wo-edit-cancel');
+  if (woToggle && woForm && woDisplay) {
+    woToggle.addEventListener('click', function() {
+      woDisplay.style.display = 'none';
+      woForm.style.display = 'block';
+      woToggle.style.display = 'none';
+    });
+  }
+  if (woCancel && woForm && woDisplay) {
+    woCancel.addEventListener('click', function() {
+      woForm.style.display = 'none';
+      woDisplay.style.display = 'block';
+      if (woToggle) woToggle.style.display = '';
+    });
   }
 
 }());

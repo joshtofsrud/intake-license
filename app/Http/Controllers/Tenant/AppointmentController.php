@@ -258,6 +258,67 @@ class AppointmentController extends Controller
             $user = Auth::guard('tenant')->user();
             return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => $n->created_at->format('M j, g:i a')]);
         }
+        if ($op === 'save_work_order') {
+            $values = $request->input('values', []);
+            if (!is_array($values)) {
+                return response()->json(['ok' => false, 'message' => 'values must be an array.'], 422);
+            }
+
+            // Load fields once so we can snapshot labels and detect the identifier
+            $fields = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
+                ->whereIn('id', array_keys($values))
+                ->get()
+                ->keyBy('id');
+
+            $identifierValue = null;
+            $identifierLabel = null;
+
+            foreach ($values as $fieldId => $rawValue) {
+                $field = $fields->get($fieldId);
+                if (!$field) continue;
+
+                $value = is_string($rawValue) ? trim($rawValue) : $rawValue;
+                $value = ($value === '' || $value === null) ? null : (string) $value;
+
+                $existing = \App\Models\Tenant\TenantAppointmentWorkOrderResponse::where('tenant_id', $tenant->id)
+                    ->where('appointment_id', $appointment->id)
+                    ->where('field_id', $field->id)
+                    ->first();
+
+                if ($value === null) {
+                    if ($existing) { $existing->delete(); }
+                } elseif ($existing) {
+                    $existing->update([
+                        'response_value'       => $value,
+                        'field_label_snapshot' => $field->label,
+                    ]);
+                } else {
+                    \App\Models\Tenant\TenantAppointmentWorkOrderResponse::create([
+                        'tenant_id'            => $tenant->id,
+                        'appointment_id'       => $appointment->id,
+                        'field_id'             => $field->id,
+                        'field_label_snapshot' => $field->label,
+                        'response_value'       => $value,
+                    ]);
+                }
+
+                if ($field->is_identifier) {
+                    $identifierValue = $value;
+                    $identifierLabel = $value !== null ? $field->label : null;
+                }
+            }
+
+            // Update the promoted identifier column if any identifier field was in the payload
+            $identifierTouched = $fields->contains(fn($f) => (bool) $f->is_identifier);
+            if ($identifierTouched) {
+                $appointment->update([
+                    'identifier'       => $identifierValue,
+                    'identifier_label' => $identifierLabel,
+                ]);
+            }
+
+            return response()->json(['ok' => true]);
+        }
         if ($op === 'delete_note') {
             TenantAppointmentNote::where('appointment_id', $appointment->id)->where('id', $request->input('note_id'))->delete();
             return response()->json(['ok' => true]);

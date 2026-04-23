@@ -295,4 +295,26 @@ class DashboardDataService
         }
         return $series;
     }
+
+    /**
+     * Banner state for prompting tenants to set up work order fields.
+     * Returns null if no banner should show.
+     */
+    public function workOrderBanner(bool $dismissed): ?array
+    {
+        if ($dismissed) { return null; }
+
+        $hasFields = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $this->tenant->id)
+            ->exists();
+
+        if ($hasFields) { return null; }
+
+        return [
+            'title' => 'Set up your work order fields',
+            'body'  => 'Track serial numbers, models, and whatever else your team needs to record when receiving a job. Tenants in your industry usually configure this once and forget about it.',
+            'cta_label' => 'Configure now',
+            'cta_url' => route('tenant.work-order-fields.index'),
+        ];
+    }
+
 }

@@ -74,4 +74,16 @@ class TenantAppointment extends Model
         }
         throw new \RuntimeException('Could not generate a unique RA number after 6 attempts.');
     }
+
+    public function workOrderResponses()
+    {
+        return $this->hasMany(TenantAppointmentWorkOrderResponse::class, 'appointment_id');
+    }
+
+    public function workOrderFields()
+    {
+        return $this->hasMany(TenantWorkOrderField::class, 'tenant_id', 'tenant_id')
+            ->orderBy('sort_order');
+    }
+
 }

@@ -22,14 +22,26 @@ class DashboardController extends Controller
         $dismissedThisSession = (bool) $request->cookie('onboarding_dismissed_at');
         $progress = $service->onboardingProgress($dismissedThisSession);
 
+        $workOrderBannerDismissed = (bool) $request->cookie('wof_banner_dismissed');
+        $workOrderBanner = $service->workOrderBanner($workOrderBannerDismissed);
+
         $data = [
             'greeting'  => $service->greeting($user),
             'today'     => $service->zoneToday(),
             'attention' => $service->zoneAttention(),
             'growth'    => $service->zoneGrowth(),
             'progress'  => $progress,
+            'workOrderBanner' => $workOrderBanner,
         ];
 
         return view('tenant.dashboard', $data);
     }
+
+    public function dismissWorkOrderBanner(\Illuminate\Http\Request $request)
+    {
+        return response()
+            ->json(['ok' => true])
+            ->withCookie(cookie('wof_banner_dismissed', '1', 60 * 24 * 365));
+    }
+
 }
