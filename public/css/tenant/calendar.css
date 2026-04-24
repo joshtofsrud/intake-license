@@ -1,18 +1,19 @@
-/* =============================================================
- * Calendar admin page styles.
+/* ============================================================================
+ * Calendar admin page — full visual styles.
  *
- * Built piece-by-piece. Current pieces: toolbar + shell.
- * Pending: resource headers, time grid, appointment blocks,
- *          now-line, break/hold rendering.
+ * Uses existing --ia-* variables from base.css + theme-{a|b|c}.css.
+ * Theme switching happens automatically — theme A/B are light, theme C is
+ * dark premium. Every color here reads from --ia-* tokens so the calendar
+ * inherits the correct palette without per-theme overrides.
  *
- * Uses the existing --ia-* CSS variables from base.css and
- * theme-{a|b|c}.css. Never hardcodes colors — all theme tokens
- * come from the inherited variables so all three themes work.
- * ============================================================= */
+ * Scale: every query/render path matters at 500+ tenants. Keep CSS selectors
+ * low-specificity (single class) for rendering performance.
+ * ========================================================================= */
 
+/* ---------- Shell ---------- */
 .ia-cal-shell {
-  background: var(--ia-surface, #141414);
-  border: 0.5px solid var(--ia-border, #2A2A2A);
+  background: var(--ia-surface, #fff);
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
   border-radius: var(--ia-r-lg, 12px);
   overflow: hidden;
 }
@@ -23,7 +24,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 0.5px solid var(--ia-border, #2A2A2A);
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -39,68 +40,64 @@
   font-size: 12px;
   font-weight: 500;
   padding: 5px 12px;
-  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
   border-radius: var(--ia-r-md, 6px);
   background: transparent;
-  color: var(--ia-text, #E8E8E2);
+  color: var(--ia-text, #111);
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 0.1s, color 0.1s;
+  transition: border-color var(--ia-t, .12s), color var(--ia-t, .12s);
 }
 .ia-cal-today-btn:hover {
   border-color: var(--ia-accent, #BEF264);
-  color: var(--ia-accent, #BEF264);
+  color: var(--ia-text, #111);
 }
 .ia-cal-today-btn.is-active {
   background: var(--ia-accent, #BEF264);
-  color: var(--ia-accent-text, #0A0A0A);
+  color: var(--ia-accent-text, #0a0a0a);
   border-color: var(--ia-accent, #BEF264);
 }
 
-.ia-cal-nav-group {
-  display: flex;
-  gap: 4px;
-}
+.ia-cal-nav-group { display: flex; gap: 4px; }
 .ia-cal-nav-btn {
   width: 28px;
   height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
   border-radius: var(--ia-r-md, 6px);
   background: transparent;
-  color: var(--ia-text-muted, #A0A098);
+  color: var(--ia-text-muted, #888);
   font-size: 14px;
   line-height: 1;
   text-decoration: none;
-  cursor: pointer;
-  transition: border-color 0.1s, color 0.1s;
+  transition: border-color var(--ia-t, .12s), color var(--ia-t, .12s);
 }
 .ia-cal-nav-btn:hover {
   border-color: var(--ia-accent, #BEF264);
-  color: var(--ia-text, #E8E8E2);
+  color: var(--ia-text, #111);
 }
 
 .ia-cal-date-label {
   font-size: 15px;
   font-weight: 500;
-  color: var(--ia-text, #E8E8E2);
-  letter-spacing: -0.01em;
+  color: var(--ia-text, #111);
+  letter-spacing: -.01em;
   margin-left: 4px;
 }
 .ia-cal-date-year {
-  color: var(--ia-text-muted, #A0A098);
+  color: var(--ia-text-muted, #888);
   font-weight: 400;
   margin-left: 6px;
   font-size: 13px;
 }
 
-/* ---------- View switcher ---------- */
+/* View switcher */
 .ia-cal-view-switch {
   display: flex;
   gap: 0;
-  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
   border-radius: var(--ia-r-md, 6px);
   overflow: hidden;
 }
@@ -110,42 +107,302 @@
   padding: 5px 14px;
   background: transparent;
   border: none;
-  border-right: 0.5px solid var(--ia-border, #2A2A2A);
-  color: var(--ia-text-muted, #A0A098);
+  border-right: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  color: var(--ia-text-muted, #888);
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: background var(--ia-t, .12s), color var(--ia-t, .12s);
 }
-.ia-cal-view-btn:last-child {
-  border-right: none;
-}
+.ia-cal-view-btn:last-child { border-right: none; }
 .ia-cal-view-btn:not(.is-disabled):not(.is-active):hover {
-  background: var(--ia-surface-hover, #1A1A1A);
-  color: var(--ia-text, #E8E8E2);
+  background: var(--ia-hover, rgba(0,0,0,.04));
+  color: var(--ia-text, #111);
 }
 .ia-cal-view-btn.is-active {
   background: var(--ia-accent, #BEF264);
-  color: var(--ia-accent-text, #0A0A0A);
+  color: var(--ia-accent-text, #0a0a0a);
   cursor: default;
 }
 .ia-cal-view-btn.is-disabled {
-  opacity: 0.35;
+  opacity: .35;
   cursor: not-allowed;
 }
 
-/* ---------- Body placeholder (removed once grid lands) ---------- */
+/* ---------- Body wrapper ---------- */
 .ia-cal-body {
-  min-height: 420px;
+  display: flex;
+  flex-direction: column;
 }
-.ia-cal-placeholder {
+
+/* ---------- Resource headers ---------- */
+.ia-cal-resource-headers {
+  display: grid;
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  background: var(--ia-surface-2, #f2f2ef);
+}
+.ia-cal-time-col-head {
+  border-right: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+}
+.ia-cal-resource-head {
+  padding: 10px 12px;
+  font-size: 12px;
+  border-right: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ia-text, #111);
+  font-weight: 500;
+  min-width: 0;
+}
+.ia-cal-resource-head:last-child { border-right: none; }
+.ia-cal-resource-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ia-cal-resource-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ia-cal-resource-sub {
+  color: var(--ia-text-muted, #888);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Grid (time axis + resource columns) ---------- */
+.ia-cal-grid {
+  display: grid;
+  position: relative;
+}
+
+/* Time axis column */
+.ia-cal-time-col {
+  position: relative;
+  border-right: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  background: var(--ia-surface-2, #f2f2ef);
+}
+.ia-cal-hour-label {
+  position: absolute;
+  right: 8px;
+  font-size: 10px;
+  color: var(--ia-text-muted, #888);
+  transform: translateY(-50%);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+}
+
+/* Resource column body */
+.ia-cal-resource-col {
+  position: relative;
+  border-right: 0.5px solid var(--ia-border, rgba(0,0,0,.08));
+  overflow: hidden;
+}
+.ia-cal-resource-col:last-child { border-right: none; }
+
+.ia-cal-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 0.5px solid var(--ia-border, rgba(0,0,0,.06));
+  pointer-events: none;
+}
+
+/* ---------- Appointment block ---------- */
+.ia-cal-appt {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: var(--ia-r-sm, 4px);
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  overflow: hidden;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--ia-t, .12s), box-shadow var(--ia-t, .12s);
+  z-index: 2;
+}
+.ia-cal-appt:hover {
+  transform: translateX(1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  z-index: 3;
+}
+.ia-cal-appt-name {
+  font-weight: 500;
+  color: var(--ia-text, #111);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ia-cal-appt-svc {
+  color: var(--ia-text-muted, #888);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.ia-cal-appt-time {
+  color: var(--ia-text-muted, #888);
+  font-size: 10px;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  opacity: .75;
+}
+
+/* ---------- Bookend wrappers (prep / clean tails) ---------- */
+.ia-cal-bookend {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: 0.5px dashed var(--ia-border-strong, rgba(0,0,0,.15));
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,.04) 3px,
+    rgba(0,0,0,.04) 6px
+  );
+  border-radius: var(--ia-r-sm, 4px);
+  font-size: 9px;
+  color: var(--ia-text-muted, #888);
+  padding: 1px 6px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+}
+.ia-cal-bookend.is-prep { /* rendered above core */ }
+.ia-cal-bookend.is-clean { /* rendered below core */ }
+
+/* ---------- Break blocks ---------- */
+.ia-cal-break {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(0,0,0,.05) 4px,
+    rgba(0,0,0,.05) 8px
+  );
+  border: 0.5px dashed var(--ia-border-strong, rgba(0,0,0,.15));
+  border-radius: var(--ia-r-sm, 4px);
+  color: var(--ia-text-muted, #888);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  letter-spacing: .02em;
+  z-index: 1;
+  pointer-events: none;
+}
+.ia-cal-break-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+}
+
+/* ---------- Walk-in hold ---------- */
+.ia-cal-hold {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: 0.5px dashed var(--ia-accent, #BEF264);
+  background: var(--ia-accent-soft, rgba(190,242,100,.12));
+  border-radius: var(--ia-r-sm, 4px);
+  color: var(--ia-accent, #BEF264);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  z-index: 1;
+  letter-spacing: .04em;
+  font-weight: 500;
+  pointer-events: none;
+}
+.ia-cal-hold-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+}
+
+/* ---------- Now-line ---------- */
+.ia-cal-now-line {
+  position: absolute;
+  left: 0;
+  height: 0;
+  border-top: 1.5px solid var(--ia-accent, #BEF264);
+  box-shadow: 0 0 6px rgba(190,242,100,.5);
+  z-index: 4;
+  pointer-events: none;
+}
+.ia-cal-now-line::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 9px;
+  height: 9px;
+  background: var(--ia-accent, #BEF264);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--ia-accent, #BEF264);
+}
+.ia-cal-now-label {
+  position: absolute;
+  left: -56px;
+  top: -9px;
+  font-size: 10px;
+  color: var(--ia-accent-text, #0a0a0a);
+  background: var(--ia-accent, #BEF264);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Empty states ---------- */
+.ia-cal-empty {
   padding: 80px 40px;
   text-align: center;
-  color: var(--ia-text-muted, #6A6A62);
+  color: var(--ia-text-muted, #888);
+}
+.ia-cal-empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ia-text, #111);
+  margin-bottom: 6px;
+  letter-spacing: -.01em;
+}
+.ia-cal-empty-body {
   font-size: 13px;
+  line-height: 1.6;
+}
+.ia-cal-empty-body a {
+  color: var(--ia-accent, #BEF264);
+  font-weight: 500;
+  margin-left: 4px;
+}
+.ia-cal-empty-body a:hover {
+  text-decoration: underline;
 }
 
 /* ---------- Mobile ---------- */
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .ia-cal-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -154,7 +411,41 @@
   .ia-cal-toolbar-right {
     justify-content: space-between;
   }
-  .ia-cal-date-label {
-    margin-left: 0;
+  .ia-cal-date-label { margin-left: 0; }
+
+  /* Column widths get cramped on mobile. Let the user scroll horizontally
+     rather than squishing resource columns into illegibility. */
+  .ia-cal-body {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  .ia-cal-resource-headers,
+  .ia-cal-grid {
+    min-width: 600px;
+  }
+}
+
+/* ---------- Theme C (dark premium) tuning ---------- */
+/* Bookend and break hatching needs slightly lighter strokes on dark bg
+   to stay visible without looking harsh. */
+body.ia-theme-c .ia-cal-bookend {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(255,255,255,.04) 3px,
+    rgba(255,255,255,.04) 6px
+  );
+}
+body.ia-theme-c .ia-cal-break {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(255,255,255,.05) 4px,
+    rgba(255,255,255,.05) 8px
+  );
+}
+body.ia-theme-c .ia-cal-appt:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
