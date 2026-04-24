@@ -264,8 +264,12 @@ class AppointmentController extends Controller
                     'subtitle' => $appointment->resource->subtitle,
                     'color_hex' => $appointment->resource->color_hex,
                 ] : null,
-                'appointment_time' => $appointment->appointment_time?->format('g:i a'),
-                'appointment_end_time' => $appointment->appointment_end_time?->format('g:i a'),
+                'appointment_time' => $appointment->appointment_time
+                    ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i a')
+                    : null,
+                'appointment_end_time' => $appointment->appointment_end_time
+                    ? \Carbon\Carbon::parse($appointment->appointment_end_time)->format('g:i a')
+                    : null,
                 'total_duration_minutes' => $appointment->total_duration_minutes,
                 'items' => $appointment->items->map(fn($i) => [
                     'name' => $i->item_name_snapshot,
