@@ -268,11 +268,11 @@
       <div style="margin-top:24px;padding-top:20px;border-top:0.5px solid var(--ia-border);display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:480px;font-size:13px">
         <div>
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Current plan</div>
-          <div style="font-weight:500">{{ ucfirst($currentTenant->plan_tier ?? \'Starter\') }}</div>
+          <div style="font-weight:500">{{ ucfirst($currentTenant->plan_tier ?? 'Starter') }}</div>
         </div>
         <div>
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Status</div>
-          <div style="font-weight:500">{{ ucfirst($currentTenant->subscription_status ?? \'unknown\') }}</div>
+          <div style="font-weight:500">{{ ucfirst($currentTenant->subscription_status ?? 'unknown') }}</div>
         </div>
         @if($currentTenant->trial_ends_at)
         <div>
@@ -282,7 +282,7 @@
         @endif
         <div>
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Billing</div>
-          <div style="font-weight:500">{{ ucfirst($currentTenant->stripe_subscription_cadence ?? \'\') ?: \'\u2014\' }}</div>
+          <div style="font-weight:500">{{ ucfirst($currentTenant->stripe_subscription_cadence ?? '') ?: '—' }}</div>
         </div>
       </div>
     @else
