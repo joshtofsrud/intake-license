@@ -6,10 +6,12 @@ use App\Models\Tenant;
 use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentAddon;
 use App\Models\Tenant\TenantAppointmentItem;
+use App\Models\Tenant\TenantCalendarBreak;
 use App\Models\Tenant\TenantCapacityRule;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantServiceItem;
 use App\Models\Tenant\TenantServiceAddon;
+use App\Models\Tenant\TenantWalkinHold;
 use App\Support\MySQLLock;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -291,6 +293,11 @@ class BookingService
             'cleanup_after_minutes_snapshot',
         ]);
 
+        // Gather breaks and walk-in holds that apply on this date.
+        // Both return arrays of ['starts_at' => Carbon, 'ends_at' => Carbon, 'resource_id' => ?string].
+        $breakWindows = $this->breaksForDate($tenant->id, $date, $resourceId);
+        $holdWindows  = $this->holdsForDate($tenant->id, $date, $resourceId);
+
         // When caller did not specify a resource, the caller wants "any resource works".
         // Count active resources so we know how many concurrent bookings are tolerable
         // per slot before that slot is fully occupied.
@@ -342,11 +349,219 @@ class BookingService
                 $blocked = $busyResourceIds->count() >= $activeResourceCount;
             }
 
+            // Breaks: if ANY break window for this resource (or shop-wide) overlaps
+            // the slot, the slot is blocked regardless of appointment count.
+            // A shop-wide break (resource_id = null) blocks every resource.
+            if (!$blocked) {
+                foreach ($breakWindows as $bw) {
+                    if ($resourceId !== null
+                        && $bw['resource_id'] !== null
+                        && $bw['resource_id'] !== $resourceId) {
+                        continue;  // this break is for a different specific resource
+                    }
+                    if ($slotStart->lt($bw['ends_at']) && $slotEnd->gt($bw['starts_at'])) {
+                        $blocked = true;
+                        break;
+                    }
+                }
+            }
+
+            // Walk-in holds: reserve capacity for walk-in customers. Online
+            // bookings cannot claim a hold window until the hold is released
+            // (auto_release_at in the past) or converted.
+            if (!$blocked) {
+                foreach ($holdWindows as $hw) {
+                    if ($resourceId !== null && $hw['resource_id'] !== $resourceId) {
+                        continue;
+                    }
+                    if ($slotStart->lt($hw['ends_at']) && $slotEnd->gt($hw['starts_at'])) {
+                        $blocked = true;
+                        break;
+                    }
+                }
+            }
+
             if (!$blocked) $slots[] = $slotStart->format('H:i');
             $cursor->addMinutes($interval);
         }
 
         return $slots;
+    }
+
+    /**
+     * Expand break records into concrete time windows for a given date.
+     * Handles one-offs and recurring (daily/weekly/monthly) records.
+     *
+     * Returns: array of ['starts_at' => Carbon, 'ends_at' => Carbon, 'resource_id' => ?string]
+     *
+     * At scale: queries are indexed by (tenant_id, resource_id, starts_at).
+     * The recurrence expansion is O(breaks) per call — fine for the <50 breaks
+     * any single tenant will have. If a tenant ever has 500+ breaks we revisit.
+     */
+    protected function breaksForDate(string $tenantId, string $date, ?string $resourceId): array
+    {
+        $target = Carbon::parse($date);
+
+        // Fetch all potentially-applicable breaks: one-offs on this date,
+        // plus any recurring break still active (recurrence_until >= date or null).
+        // We filter by recurrence matching in PHP — doing it in SQL would require
+        // JSON operators that vary by MySQL version and kill portability.
+        $query = TenantCalendarBreak::where('tenant_id', $tenantId)
+            ->where(function ($q) use ($target) {
+                $q->where(function ($q2) use ($target) {
+                    // One-off on this specific date
+                    $q2->where('is_recurring', false)
+                       ->whereDate('starts_at', $target->toDateString());
+                })->orWhere(function ($q2) use ($target) {
+                    // Recurring, still within its active window
+                    $q2->where('is_recurring', true)
+                       ->where('starts_at', '<=', $target->copy()->endOfDay())
+                       ->where(function ($q3) use ($target) {
+                           $q3->whereNull('recurrence_until')
+                              ->orWhere('recurrence_until', '>=', $target->toDateString());
+                       });
+                });
+            });
+
+        // Narrow to resource-specific + shop-wide breaks.
+        // Shop-wide (resource_id IS NULL) always apply.
+        if ($resourceId !== null) {
+            $query->where(function ($q) use ($resourceId) {
+                $q->whereNull('resource_id')->orWhere('resource_id', $resourceId);
+            });
+        }
+
+        $records = $query->get([
+            'resource_id', 'starts_at', 'ends_at',
+            'is_recurring', 'recurrence_type', 'recurrence_config',
+        ]);
+
+        $windows = [];
+        foreach ($records as $br) {
+            if (!$br->is_recurring) {
+                // One-off: use the stored datetimes directly.
+                $windows[] = [
+                    'starts_at'   => $br->starts_at,
+                    'ends_at'     => $br->ends_at,
+                    'resource_id' => $br->resource_id,
+                ];
+                continue;
+            }
+
+            if (!$this->recurrenceAppliesOnDate($br->recurrence_type, $br->recurrence_config, $target)) {
+                continue;
+            }
+
+            // Shift the stored time-of-day onto the target date.
+            $origStart = Carbon::parse($br->starts_at);
+            $origEnd   = Carbon::parse($br->ends_at);
+            $windows[] = [
+                'starts_at'   => $target->copy()->setTimeFromTimeString($origStart->format('H:i:s')),
+                'ends_at'     => $target->copy()->setTimeFromTimeString($origEnd->format('H:i:s')),
+                'resource_id' => $br->resource_id,
+            ];
+        }
+
+        return $windows;
+    }
+
+    /**
+     * Walk-in holds for a date, excluding converted ones and released ones.
+     * Same recurrence logic as breaks; resource_id is never null for holds
+     * (holds are always tied to a specific resource).
+     */
+    protected function holdsForDate(string $tenantId, string $date, ?string $resourceId): array
+    {
+        $target = Carbon::parse($date);
+        $now    = now();
+
+        $query = TenantWalkinHold::where('tenant_id', $tenantId)
+            ->whereNull('converted_at')  // converted holds don't block — they became appointments
+            ->where(function ($q) use ($now) {
+                // Not auto-released yet (or no auto-release set)
+                $q->whereNull('auto_release_at')->orWhere('auto_release_at', '>', $now);
+            })
+            ->where(function ($q) use ($target) {
+                $q->where(function ($q2) use ($target) {
+                    $q2->where('is_recurring', false)
+                       ->whereDate('starts_at', $target->toDateString());
+                })->orWhere(function ($q2) use ($target) {
+                    $q2->where('is_recurring', true)
+                       ->where('starts_at', '<=', $target->copy()->endOfDay())
+                       ->where(function ($q3) use ($target) {
+                           $q3->whereNull('recurrence_until')
+                              ->orWhere('recurrence_until', '>=', $target->toDateString());
+                       });
+                });
+            });
+
+        if ($resourceId !== null) {
+            $query->where('resource_id', $resourceId);
+        }
+
+        $records = $query->get([
+            'resource_id', 'starts_at', 'ends_at',
+            'is_recurring', 'recurrence_type', 'recurrence_config',
+        ]);
+
+        $windows = [];
+        foreach ($records as $hw) {
+            if (!$hw->is_recurring) {
+                $windows[] = [
+                    'starts_at'   => $hw->starts_at,
+                    'ends_at'     => $hw->ends_at,
+                    'resource_id' => $hw->resource_id,
+                ];
+                continue;
+            }
+
+            if (!$this->recurrenceAppliesOnDate($hw->recurrence_type, $hw->recurrence_config, $target)) {
+                continue;
+            }
+
+            $origStart = Carbon::parse($hw->starts_at);
+            $origEnd   = Carbon::parse($hw->ends_at);
+            $windows[] = [
+                'starts_at'   => $target->copy()->setTimeFromTimeString($origStart->format('H:i:s')),
+                'ends_at'     => $target->copy()->setTimeFromTimeString($origEnd->format('H:i:s')),
+                'resource_id' => $hw->resource_id,
+            ];
+        }
+
+        return $windows;
+    }
+
+    /**
+     * Does a recurrence record apply on the given target date?
+     * Supports: daily, weekly (days of week), monthly (day of month).
+     *
+     * recurrence_config shapes:
+     *   daily:   null  (or {}; we treat as "every day")
+     *   weekly:  {"days": ["mon", "tue", "thu"]}
+     *   monthly: {"day_of_month": 15}
+     */
+    protected function recurrenceAppliesOnDate(?string $type, $config, Carbon $target): bool
+    {
+        if ($type === 'daily') {
+            return true;
+        }
+
+        if ($type === 'weekly') {
+            $days = is_array($config) ? ($config['days'] ?? []) : [];
+            if (!is_array($days) || empty($days)) return false;
+            $targetDow = strtolower($target->format('D'));  // 'mon','tue','wed',...
+            $targetDow = substr($targetDow, 0, 3);
+            $normalized = array_map(fn($d) => strtolower(substr((string) $d, 0, 3)), $days);
+            return in_array($targetDow, $normalized, true);
+        }
+
+        if ($type === 'monthly') {
+            $dayOfMonth = is_array($config) ? (int) ($config['day_of_month'] ?? 0) : 0;
+            if ($dayOfMonth < 1 || $dayOfMonth > 31) return false;
+            return (int) $target->format('j') === $dayOfMonth;
+        }
+
+        return false;
     }
 
     protected function buildBookingPlan(array $items, string $tenantId): array
