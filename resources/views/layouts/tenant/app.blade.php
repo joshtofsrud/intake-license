@@ -40,21 +40,15 @@
 <div class="ia-shell">
 
   {{-- ================================================================
-       Sidebar (themes A + C) — desktop only via CSS media query
+       Sidebar — rendered on both themes (B = Light Premium, C = Dark Premium).
+       Both share the same sidebar layout; theme CSS handles the palette.
        ================================================================ --}}
-  @if($adminTheme !== 'b')
-    @include('layouts.tenant._sidebar')
-  @endif
+  @include('layouts.tenant._sidebar')
 
   {{-- ================================================================
        Main area
        ================================================================ --}}
   <div class="ia-main">
-
-    {{-- Top bar (theme B only) — desktop only via CSS media query --}}
-    @if($adminTheme === 'b')
-      @include('layouts.tenant._topnav')
-    @endif
 
     {{-- Impersonation banner --}}
     @if(session('impersonating_from'))

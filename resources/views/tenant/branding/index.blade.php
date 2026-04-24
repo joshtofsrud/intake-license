@@ -153,7 +153,7 @@
     <div class="ia-card-head"><span class="ia-card-title">Admin theme</span></div>
     <div class="brand-theme-grid">
       @foreach([
-        ['b', 'Top nav + airy',  'preview-b-wrap',  null],
+        ['b', 'Light premium',   'preview-b-wrap',  null],
         ['c', 'Dark premium',    'preview-c-side',  'preview-c-main'],
       ] as [$val, $label, $class1, $class2])
       <label class="brand-theme-card {{ $adminThemeC === $val ? 'selected' : '' }}" id="theme-card-{{ $val }}">

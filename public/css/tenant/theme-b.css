@@ -1,19 +1,31 @@
 /* ==========================================================================
-   Theme B — Top Nav + Airy
-   All-white, borderless, spacious. Top navigation bar.
+   Theme B — Light Premium
+   Dark sidebar + warm off-white content + lime accent.
+   Structurally identical to Theme C (Dark Premium), just with a light palette
+   on the content side. Sidebar stays dark for brand anchoring and visual
+   separation — matches modern SaaS convention (Linear, Notion, Cron).
    ========================================================================== */
 
 body.ia-theme-b {
-  --ia-bg:           #ffffff;
-  --ia-surface:      #f8f8f6;
+  --ia-bg:           #f8f8f6;
+  --ia-surface:      #ffffff;
   --ia-surface-2:    #f2f2ef;
-  --ia-border:       rgba(0,0,0,.09);
-  --ia-border-strong: rgba(0,0,0,.16);
+  --ia-border:       rgba(0,0,0,.08);
+  --ia-border-strong: rgba(0,0,0,.15);
   --ia-text:         #111111;
-  --ia-text-muted:   #888880;
-  --ia-text-dim:     #bbbbb5;
+  --ia-text-muted:   rgba(0,0,0,.45);
+  --ia-text-dim:     rgba(0,0,0,.25);
   --ia-hover:        rgba(0,0,0,.04);
-  --ia-input-bg:     #f8f8f6;
+  --ia-input-bg:     #ffffff;
+
+  /* Sidebar — stays dark even in light mode */
+  --ia-side-bg:      #0f0f0f;
+  --ia-side-text:    rgba(255,255,255,.5);
+  --ia-side-hover:   rgba(255,255,255,.05);
+  --ia-side-active-bg: rgba(255,255,255,.08);
+  --ia-side-active-text: #f5f5f5;
+  --ia-side-border:  rgba(255,255,255,.07);
+  --ia-side-section: rgba(255,255,255,.28);
 }
 
 body.ia-theme-b {
@@ -22,102 +34,141 @@ body.ia-theme-b {
 }
 
 /* --------------------------------------------------------------------------
-   Shell — single column, topbar spans full width
+   Shell layout — sidebar + content, same as theme C
    -------------------------------------------------------------------------- */
 .ia-shell {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 220px 1fr;
   min-height: 100vh;
 }
 
-.ia-sidebar { display: none; }
+/* Hide the legacy topbar if any template still references it */
+.ia-topbar { display: none; }
 
 /* --------------------------------------------------------------------------
-   Top bar
+   Sidebar
    -------------------------------------------------------------------------- */
-.ia-topbar {
+.ia-sidebar {
+  background: var(--ia-side-bg);
+  border-right: 0.5px solid var(--ia-side-border);
   display: flex;
-  align-items: center;
-  gap: 0;
-  height: 54px;
-  padding: 0 28px;
-  background: #ffffff;
-  border-bottom: 0.5px solid var(--ia-border);
+  flex-direction: column;
   position: sticky;
   top: 0;
-  z-index: 100;
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.ia-sidebar::-webkit-scrollbar { display: none; }
 
-.ia-topbar-logo {
+.ia-sidebar-logo {
+  padding: 22px 20px 20px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 32px;
-  flex-shrink: 0;
+  gap: 10px;
+  border-bottom: 0.5px solid var(--ia-side-border);
+  margin-bottom: 8px;
 }
-.ia-topbar-logo-mark {
-  width: 26px;
-  height: 26px;
-  background: #111;
-  border-radius: 6px;
+.ia-sidebar-logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--ia-accent);
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--ia-accent);
+  color: var(--ia-accent-text);
+  flex-shrink: 0;
 }
-.ia-topbar-logo-name {
+.ia-sidebar-logo-name {
   font-size: 15px;
   font-weight: 500;
-  color: #111;
+  color: #f0f0f0;
   letter-spacing: -.01em;
 }
 
-.ia-topbar-nav {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
+.ia-sidebar-shop {
+  padding: 10px 20px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ia-side-section);
+  font-weight: 500;
 }
-.ia-topbar-nav::-webkit-scrollbar { display: none; }
+
+.ia-nav-section {
+  padding: 16px 20px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: rgba(255,255,255,.25);
+  font-weight: 500;
+}
 
 .ia-nav-item {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 14px;
-  height: 54px;
+  gap: 10px;
+  padding: 9px 14px;
+  margin: 1px 8px;
+  border-radius: var(--ia-r-md);
   font-size: 13px;
-  color: var(--ia-text-muted);
+  color: var(--ia-side-text);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
   transition: all var(--ia-t);
-  white-space: nowrap;
-  flex-shrink: 0;
+  position: relative;
 }
-.ia-nav-item svg { display: none; } /* Icons hidden in topnav to save space */
-.ia-nav-item:hover { color: var(--ia-text); }
-.ia-nav-item.active { color: var(--ia-text); border-bottom-color: var(--ia-text); }
+.ia-nav-item svg { opacity: .45; flex-shrink: 0; transition: opacity var(--ia-t); }
+.ia-nav-item:hover {
+  color: rgba(255,255,255,.75);
+  background: var(--ia-side-hover);
+}
+.ia-nav-item:hover svg { opacity: .7; }
+.ia-nav-item.active {
+  color: var(--ia-side-active-text);
+  background: var(--ia-side-active-bg);
+}
+.ia-nav-item.active svg { opacity: 1; }
 
-/* Theme B is horizontal — section dividers/labels from the sidebar
-   layout would render as stray text or broken lines, so we hide them.
-   The nav items already stand on their own without grouping headers. */
-.ia-topbar-nav .ia-nav-section,
-.ia-topbar-nav .ia-sidebar-divider { display: none; }
+/* Accent left-dot on active item — matches theme C */
+.ia-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--ia-accent);
+}
 
-.ia-topbar-end {
+.ia-sidebar-divider {
+  height: 0.5px;
+  background: var(--ia-side-border);
+  margin: 10px 20px;
+}
+
+.ia-sidebar-bottom {
+  margin-top: auto;
+  padding: 12px 8px;
+  border-top: 0.5px solid var(--ia-side-border);
+}
+.ia-sidebar-user {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-left: auto;
-  flex-shrink: 0;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--ia-r-md);
+  cursor: pointer;
+  transition: background var(--ia-t);
 }
+.ia-sidebar-user:hover { background: var(--ia-side-hover); }
 .ia-user-avatar {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--ia-accent);
   display: flex;
@@ -126,40 +177,38 @@ body.ia-theme-b {
   font-size: 11px;
   font-weight: 600;
   color: var(--ia-accent-text);
-  cursor: pointer;
+  flex-shrink: 0;
 }
+.ia-user-name { font-size: 12px; color: rgba(255,255,255,.65); font-weight: 500; }
+.ia-user-role { font-size: 11px; color: rgba(255,255,255,.35); }
 
 /* --------------------------------------------------------------------------
    Main content
    -------------------------------------------------------------------------- */
-.ia-main {
-  flex: 1;
-  min-width: 0;
-}
-.ia-content {
-  padding: 32px 36px;
-  max-width: 1280px;
-  margin: 0 auto;
-}
+.ia-main { min-width: 0; display: flex; flex-direction: column; }
+.ia-content { padding: 28px 32px; flex: 1; }
 
 /* --------------------------------------------------------------------------
-   Cards (airy — no border, just background fill)
+   Cards and surfaces (light palette, subtle borders)
    -------------------------------------------------------------------------- */
 .ia-card {
   background: var(--ia-surface);
-  border: none;
+  border: 0.5px solid var(--ia-border);
 }
 .ia-card-head { border-bottom: 0.5px solid var(--ia-border); }
 
 .ia-stat {
   background: var(--ia-surface);
-  border: none;
+  border: 0.5px solid var(--ia-border);
 }
 .ia-stat-label { color: var(--ia-text-muted); }
 .ia-stat-value { color: var(--ia-text); }
 
 /* Tables */
-.ia-table-wrap { background: var(--ia-surface); border: none; }
+.ia-table-wrap {
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+}
 .ia-table th {
   background: var(--ia-surface-2);
   color: var(--ia-text-muted);
@@ -170,16 +219,36 @@ body.ia-theme-b {
 .ia-table tbody tr:hover { background: rgba(0,0,0,.025); }
 
 /* Notes */
-.ia-note { background: var(--ia-surface); }
+.ia-note { background: var(--ia-surface-2); }
+.ia-note-author { color: var(--ia-text); }
+.ia-note-body   { color: var(--ia-text); }
 
-/* Empty */
-.ia-empty { background: var(--ia-surface); }
+/* Empty state */
+.ia-empty { background: var(--ia-surface); border: 0.5px solid var(--ia-border); }
+.ia-empty-icon { background: var(--ia-surface-2); }
 
 /* --------------------------------------------------------------------------
    Mobile
    -------------------------------------------------------------------------- */
-@media (max-width: 768px) {
-  .ia-topbar { padding: 0 16px; }
+@media (max-width: 900px) {
+  .ia-shell { grid-template-columns: 1fr; }
+  .ia-sidebar {
+    position: relative;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 0;
+    overflow: visible;
+  }
+  .ia-sidebar-logo { border-bottom: none; margin-bottom: 0; padding: 12px 16px; }
+  .ia-sidebar-shop, .ia-nav-section, .ia-sidebar-divider { display: none; }
+  .ia-nav-item {
+    margin: 4px 4px;
+    padding: 6px 12px;
+    border-radius: var(--ia-r-sm);
+  }
+  .ia-nav-item.active::before { display: none; }
+  .ia-sidebar-bottom { display: none; }
   .ia-content { padding: 20px 16px; }
-  .ia-topbar-logo-name { display: none; }
 }
