@@ -7,10 +7,12 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantFormSection;
 use App\Models\Tenant\TenantReceivingMethod;
 use App\Models\Tenant\TenantServiceCategory;
+use App\Exceptions\LockAcquisitionException;
 use App\Services\BookingService;
 use App\Services\PayPalService;
 use App\Services\StripeService;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 class BookingController extends Controller
 {
@@ -110,6 +112,7 @@ class BookingController extends Controller
             'phone'                   => ['nullable', 'string', 'max:32'],
             'date'                    => ['required', 'date', 'after_or_equal:today'],
             'appointment_time'        => ['nullable', 'string'],
+            'resource_id'             => ['nullable', 'string', 'uuid'],
             'receiving_method'        => ['nullable', 'string'],
             'items'                   => ['required', 'array', 'min:1'],
             'items.*.service_item_id' => ['required', 'string'],
@@ -121,7 +124,38 @@ class BookingController extends Controller
         ]);
 
         $tenant = tenant();
-        $appointment = app(BookingService::class)->createAppointment($request->all(), $tenant->id);
+
+        // Concurrency-protected booking creation.
+        // Lock timeout → slot likely contended right now; caller should retry.
+        // Slot-just-taken → someone else grabbed this exact time between
+        //   the customer loading the picker and submitting.
+        // Both return 409 Conflict with specific messages so the frontend can
+        //   either auto-retry (timeout) or refresh the picker (slot taken).
+        try {
+            $appointment = app(BookingService::class)->createAppointment($request->all(), $tenant->id);
+        } catch (LockAcquisitionException $e) {
+            return response()->json([
+                'success' => false,
+                'code'    => 'lock_timeout',
+                'message' => 'We couldn\'t hold this slot in time. Please try again.',
+            ], 409);
+        } catch (RuntimeException $e) {
+            // Distinguish "slot just taken" from other runtime errors by checking
+            // the canonical message. Other RuntimeExceptions (invalid service id,
+            // missing email, etc.) are client-input errors and surface as 422-ish.
+            if (str_contains($e->getMessage(), 'just taken')) {
+                return response()->json([
+                    'success' => false,
+                    'code'    => 'slot_taken',
+                    'message' => $e->getMessage(),
+                ], 409);
+            }
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
         $paymentMethod = $request->input('payment_method');
 
         if ($paymentMethod === 'none' || $appointment->total_cents === 0) {
