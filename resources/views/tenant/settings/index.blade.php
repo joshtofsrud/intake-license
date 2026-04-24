@@ -252,7 +252,7 @@
     @if($currentTenant->stripe_customer_id)
       <p style="margin:0 0 16px;color:var(--ia-text-muted);font-size:13px;line-height:1.55">
         Update your card, download past invoices, or cancel your subscription through
-        Stripe\'s secure billing portal.
+        Stripe's secure billing portal.
       </p>
 
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -261,7 +261,7 @@
           Manage billing in Stripe \u2192
         </a>
         <span style="font-size:12px;color:var(--ia-text-muted)">
-          Opens Stripe\'s hosted portal. Plan changes happen in-app.
+          Opens Stripe's hosted portal. Plan changes happen in-app.
         </span>
       </div>
 
@@ -277,7 +277,7 @@
         @if($currentTenant->trial_ends_at)
         <div>
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Trial ends</div>
-          <div style="font-weight:500">{{ $currentTenant->trial_ends_at->format(\'M j, Y\') }}</div>
+          <div style="font-weight:500">{{ $currentTenant->trial_ends_at->format('M j, Y') }}</div>
         </div>
         @endif
         <div>
