@@ -16,8 +16,8 @@
   </nav>
 
   {{-- End: user avatar + logout --}}
+  {{-- Note: Settings link is in _nav-items; no need to duplicate here. --}}
   <div class="ia-topbar-end">
-    <a href="{{ route('tenant.settings.index') }}" class="ia-btn ia-btn--ghost ia-btn--sm">Settings</a>
     <div class="ia-user-avatar" title="{{ $authUser->name }} · {{ ucfirst($authUser->role) }}"
          onclick="document.getElementById('logout-form-b').submit()">
       {{ strtoupper(substr($authUser->name, 0, 2)) }}

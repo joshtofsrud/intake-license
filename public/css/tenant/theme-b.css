@@ -102,6 +102,12 @@ body.ia-theme-b {
 .ia-nav-item:hover { color: var(--ia-text); }
 .ia-nav-item.active { color: var(--ia-text); border-bottom-color: var(--ia-text); }
 
+/* Theme B is horizontal — section dividers/labels from the sidebar
+   layout would render as stray text or broken lines, so we hide them.
+   The nav items already stand on their own without grouping headers. */
+.ia-topbar-nav .ia-nav-section,
+.ia-topbar-nav .ia-sidebar-divider { display: none; }
+
 .ia-topbar-end {
   display: flex;
   align-items: center;
