@@ -155,8 +155,27 @@ class BookingService
         return $available;
     }
 
-    public function availableSlotsForDate(Tenant $tenant, string $date, $rule = null): array
-    {
+    /**
+     * Returns an array of available start times for a given date.
+     *
+     * Scope:
+     *  - If $resourceId is provided, returns slots where that specific resource is free.
+     *  - If $resourceId is null, returns slots where ANY active resource is free.
+     *    (single-resource shops and legacy callers get backward-compatible behavior)
+     *  - $requiredMinutes ensures a slot can actually hold the full service duration,
+     *    not just that the start time happens to be unoccupied.
+     *
+     * At 10K+ tenants this gets called hundreds of times per second on peak days.
+     * Every query is tenant-scoped + date-scoped + (optionally) resource-scoped to
+     * hit the composite index added in migration M2.
+     */
+    public function availableSlotsForDate(
+        Tenant $tenant,
+        string $date,
+        ?string $resourceId = null,
+        int $requiredMinutes = 0,
+        $rule = null
+    ): array {
         if (!$rule) {
             $dow = Carbon::parse($date)->dayOfWeek;
             $rule = TenantCapacityRule::where('tenant_id', $tenant->id)
@@ -165,30 +184,86 @@ class BookingService
         if (!$rule || !$rule->open_time || !$rule->close_time) return [];
 
         $interval = (int) ($rule->slot_interval_minutes ?? 60);
+        // A slot can only "hold" a service whose total time fits before close.
+        // If caller didn't supply a minimum, fall back to one slot width.
+        $effectiveRequired = $requiredMinutes > 0 ? $requiredMinutes : $interval;
+
         $open  = Carbon::parse($date . ' ' . $rule->open_time);
         $close = Carbon::parse($date . ' ' . $rule->close_time);
 
-        $booked = TenantAppointment::where('tenant_id', $tenant->id)
+        // Pull all appointments touching this date, optionally scoped to one resource.
+        // Index hit: (tenant_id, resource_id, appointment_date) when $resourceId is set,
+        //            (tenant_id, appointment_date) when it's not.
+        $bookedQuery = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('appointment_date', $date)
             ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->whereNotNull('appointment_time')
-            ->get(['appointment_time', 'appointment_end_time', 'total_duration_minutes']);
+            ->whereNotNull('appointment_time');
+
+        if ($resourceId !== null) {
+            $bookedQuery->where('resource_id', $resourceId);
+        }
+
+        $booked = $bookedQuery->get([
+            'resource_id', 'appointment_time', 'appointment_end_time',
+            'total_duration_minutes', 'prep_before_minutes_snapshot',
+            'cleanup_after_minutes_snapshot',
+        ]);
+
+        // When caller did not specify a resource, the caller wants "any resource works".
+        // Count active resources so we know how many concurrent bookings are tolerable
+        // per slot before that slot is fully occupied.
+        $activeResourceCount = 1;
+        if ($resourceId === null) {
+            $activeResourceCount = \App\Models\Tenant\TenantResource::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->count();
+            // Defensive: at least 1, so a freshly-installed tenant without resources
+            // still gets computable slots instead of an empty list.
+            $activeResourceCount = max($activeResourceCount, 1);
+        }
 
         $slots = [];
         $cursor = $open->copy();
         while ($cursor->lt($close)) {
             $slotStart = $cursor->copy();
-            $slotEnd   = $slotStart->copy()->addMinutes($interval);
-            $conflict = $booked->first(function ($appt) use ($date, $slotStart, $slotEnd, $interval) {
+            // Check whether the FULL required duration fits before close.
+            $slotEnd = $slotStart->copy()->addMinutes($effectiveRequired);
+            if ($slotEnd->gt($close)) break;
+
+            $overlapping = $booked->filter(function ($appt) use ($date, $slotStart, $slotEnd, $interval) {
                 $apptStart = Carbon::parse($date . ' ' . $appt->appointment_time);
-                $apptEnd   = $appt->appointment_end_time
+
+                // Bookend-aware end: an appointment "occupies" its core duration
+                // PLUS its cleanup tail. The prep tail is before appt_time so it
+                // doesn't extend the end, but prep would affect the start of the
+                // next appointment — which is handled by its own $apptStart shift below.
+                $apptEnd = $appt->appointment_end_time
                     ? Carbon::parse($date . ' ' . $appt->appointment_end_time)
                     : $apptStart->copy()->addMinutes($appt->total_duration_minutes ?: $interval);
+                $apptEnd = $apptEnd->copy()->addMinutes((int) ($appt->cleanup_after_minutes_snapshot ?? 0));
+
+                // Shift apptStart back by any prep bookend — the resource is effectively
+                // unavailable during prep, so the "occupied window" is wider than
+                // [appt_time, appt_end].
+                $apptStart = $apptStart->copy()->subMinutes((int) ($appt->prep_before_minutes_snapshot ?? 0));
+
                 return $slotStart->lt($apptEnd) && $slotEnd->gt($apptStart);
             });
-            if (!$conflict) $slots[] = $slotStart->format('H:i');
+
+            // When resource-scoped: any overlap = slot blocked.
+            // When any-resource: slot is blocked only when ALL resources are busy.
+            if ($resourceId !== null) {
+                $blocked = $overlapping->isNotEmpty();
+            } else {
+                $busyResourceIds = $overlapping->pluck('resource_id')->filter()->unique();
+                $blocked = $busyResourceIds->count() >= $activeResourceCount;
+            }
+
+            if (!$blocked) $slots[] = $slotStart->format('H:i');
             $cursor->addMinutes($interval);
         }
+
         return $slots;
     }
 
