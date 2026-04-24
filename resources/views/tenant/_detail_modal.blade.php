@@ -200,10 +200,29 @@ var DM = {
       var link = document.createElement('a');
       link.id = 'dm-full-page-link';
       link.href = '/admin/appointments/' + a.id;
-      link.textContent = 'View full page \u2192';
-      link.style.cssText = 'font-size:11px;opacity:.5;margin-right:12px;text-decoration:none;color:inherit;align-self:center';
-      link.onmouseover = function() { this.style.opacity = '1'; };
-      link.onmouseout = function() { this.style.opacity = '.5'; };
+      link.innerHTML = 'View full page <span style="opacity:.7">\u2192</span>';
+      link.style.cssText = [
+        'font-size:12px',
+        'font-weight:500',
+        'padding:6px 12px',
+        'margin-right:8px',
+        'border-radius:var(--ia-r-md, 6px)',
+        'border:.5px solid var(--ia-border, rgba(255,255,255,.12))',
+        'background:rgba(255,255,255,.04)',
+        'color:inherit',
+        'text-decoration:none',
+        'align-self:center',
+        'transition:background .12s, border-color .12s',
+        'white-space:nowrap',
+      ].join(';');
+      link.onmouseover = function() {
+        this.style.background = 'rgba(255,255,255,.08)';
+        this.style.borderColor = 'var(--ia-accent, #BEF264)';
+      };
+      link.onmouseout = function() {
+        this.style.background = 'rgba(255,255,255,.04)';
+        this.style.borderColor = 'var(--ia-border, rgba(255,255,255,.12))';
+      };
       var closeBtn = document.querySelector('.dm-close');
       if (closeBtn) closeBtn.parentNode.insertBefore(link, closeBtn);
     }
