@@ -232,7 +232,10 @@ class AppointmentController extends Controller
     {
         $appointment = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'notes', 'charges', 'customer'])
+            ->with([
+                'items', 'addons', 'notes', 'charges', 'customer',
+                'responses', 'workOrderResponses.field', 'resource',
+            ])
             ->firstOrFail();
 
         $transitions = self::TRANSITIONS[$appointment->status] ?? [];
@@ -255,10 +258,38 @@ class AppointmentController extends Controller
                 'subtotal_display' => format_money($appointment->subtotal_cents),
                 'created_at' => $appointment->created_at->format('M j, Y g:i a'),
                 'slot_weight' => $appointment->slot_weight ?? 1,
-                'items' => $appointment->items->map(fn($i) => ['name' => $i->item_name_snapshot, 'duration' => $i->duration_minutes_snapshot, 'price' => format_money($i->price_cents)]),
+                'resource' => $appointment->resource ? [
+                    'id' => $appointment->resource->id,
+                    'name' => $appointment->resource->name,
+                    'subtitle' => $appointment->resource->subtitle,
+                    'color_hex' => $appointment->resource->color_hex,
+                ] : null,
+                'appointment_time' => $appointment->appointment_time?->format('g:i a'),
+                'appointment_end_time' => $appointment->appointment_end_time?->format('g:i a'),
+                'total_duration_minutes' => $appointment->total_duration_minutes,
+                'items' => $appointment->items->map(fn($i) => [
+                    'name' => $i->item_name_snapshot,
+                    'duration' => $i->duration_minutes_snapshot,
+                    'prep_min' => (int) ($i->prep_before_minutes_snapshot ?? 0),
+                    'cleanup_min' => (int) ($i->cleanup_after_minutes_snapshot ?? 0),
+                    'price' => format_money($i->price_cents),
+                ]),
                 'addons' => $appointment->addons->map(fn($a) => ['name' => $a->addon_name_snapshot, 'price' => format_money($a->price_cents)]),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
                 'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => \Carbon\Carbon::parse($n->created_at)->format('M j, g:i a')]),
+                'work_order_responses' => $appointment->workOrderResponses
+                    ->filter(fn($r) => $r->field !== null)
+                    ->map(fn($r) => [
+                        'field_label' => $r->field->label,
+                        'field_type' => $r->field->field_type,
+                        'is_identifier' => (bool) $r->field->is_identifier,
+                        'value' => $r->response_value,
+                    ])
+                    ->values(),
+                'form_responses' => $appointment->responses->map(fn($r) => [
+                    'field_label' => $r->field_label_snapshot,
+                    'value' => $r->response_value,
+                ]),
             ],
             'transitions' => collect($transitions)->map(fn($t) => ['status' => $t, 'label' => self::TRANSITION_LABELS[$t] ?? ucfirst($t), 'destructive' => in_array($t, self::DESTRUCTIVE)])->values(),
         ]);

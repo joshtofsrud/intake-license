@@ -191,6 +191,23 @@ var DM = {
     document.getElementById('dm-subtitle').textContent = a.customer_name + ' \u00b7 ' + a.appointment_date;
     document.getElementById('dm-age').textContent = 'Created ' + a.created_at;
 
+    // "View full page" escape hatch — links to the show page for any
+    // editing/details the modal doesn't yet support (work order edit, etc.).
+    var headRight = document.querySelector('.dm-head .dm-head-right') || document.querySelector('.dm-head');
+    if (headRight) {
+      var existing = document.getElementById('dm-full-page-link');
+      if (existing) existing.remove();
+      var link = document.createElement('a');
+      link.id = 'dm-full-page-link';
+      link.href = '/admin/appointments/' + a.id;
+      link.textContent = 'View full page \u2192';
+      link.style.cssText = 'font-size:11px;opacity:.5;margin-right:12px;text-decoration:none;color:inherit;align-self:center';
+      link.onmouseover = function() { this.style.opacity = '1'; };
+      link.onmouseout = function() { this.style.opacity = '.5'; };
+      var closeBtn = document.querySelector('.dm-close');
+      if (closeBtn) closeBtn.parentNode.insertBefore(link, closeBtn);
+    }
+
     var h = '';
 
     // Status bar with progress
@@ -235,6 +252,20 @@ var DM = {
     h += this.field('Email', a.customer_email);
     h += this.field('Phone', a.customer_phone || '\u2014');
 
+    // Resource field (only when assigned — older drop-off appointments may have no resource)
+    if (a.resource) {
+      var rDot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + this.esc(a.resource.color_hex || '#888') + ';margin-right:6px;vertical-align:middle"></span>';
+      var rText = rDot + this.esc(a.resource.name) + (a.resource.subtitle ? ' <span style="opacity:.5">\u00b7 ' + this.esc(a.resource.subtitle) + '</span>' : '');
+      h += this.field('Resource', rText);
+    }
+
+    // Time field (only when set — drop-off appointments have date but no time)
+    if (a.appointment_time) {
+      var timeText = a.appointment_time + (a.appointment_end_time ? ' <span style="opacity:.5">\u00b7 ' + a.appointment_end_time + '</span>' : '');
+      if (a.total_duration_minutes) timeText += ' <span style="opacity:.4;font-size:11px">(' + a.total_duration_minutes + ' min)</span>';
+      h += this.field('Time', timeText);
+    }
+
     // Editable date
     h += '<div><div class="dm-field-label">Date</div>';
     h += '<div class="dm-field-value"><span class="dm-editable" id="dm-date-display" onclick="DM.toggleDateEdit()">' + a.appointment_date + '</span></div>';
@@ -248,9 +279,18 @@ var DM = {
     // Line items
     if (a.items.length > 0) {
       h += '<div style="margin-top:16px"><div class="dm-section-label">Services</div>';
-      h += '<table class="dm-table"><thead><tr><th>Item</th><th>Tier</th><th class="num">Price</th></tr></thead><tbody>';
+      h += '<table class="dm-table"><thead><tr><th>Item</th><th>Duration</th><th class="num">Price</th></tr></thead><tbody>';
       for (var i = 0; i < a.items.length; i++) {
-        h += '<tr><td>' + this.esc(a.items[i].name) + '</td><td style="opacity:.6">' + this.esc(a.items[i].tier) + '</td><td class="num">' + a.items[i].price + '</td></tr>';
+        var it = a.items[i];
+        var durText = it.duration + ' min';
+        var bookendText = '';
+        if ((it.prep_min || 0) > 0 || (it.cleanup_min || 0) > 0) {
+          var parts = [];
+          if (it.prep_min > 0) parts.push(it.prep_min + 'm prep');
+          if (it.cleanup_min > 0) parts.push(it.cleanup_min + 'm clean');
+          bookendText = ' <span style="opacity:.4;font-size:11px">+ ' + parts.join(', ') + '</span>';
+        }
+        h += '<tr><td>' + this.esc(it.name) + '</td><td style="opacity:.6">' + durText + bookendText + '</td><td class="num">' + it.price + '</td></tr>';
       }
       h += '</tbody></table></div>';
     }
@@ -292,6 +332,42 @@ var DM = {
     h += '</div>';
     h += '<div style="font-size:11px;opacity:.35;margin-top:4px">' + sw + ' slot' + (sw > 1 ? 's' : '') + ' used</div>';
     h += '</div>';
+
+    // Work order responses — identifier promoted at top, then other fields.
+    if (a.work_order_responses && a.work_order_responses.length > 0) {
+      var identifier = null;
+      var other = [];
+      for (var wi = 0; wi < a.work_order_responses.length; wi++) {
+        var wr = a.work_order_responses[wi];
+        if (wr.is_identifier && !identifier) identifier = wr;
+        else other.push(wr);
+      }
+      h += '<div style="margin-top:16px"><div class="dm-section-label">Work Order</div>';
+      if (identifier) {
+        h += '<div style="margin-bottom:10px;padding:10px 14px;background:rgba(255,255,255,.03);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md)">';
+        h += '<div style="font-size:11px;opacity:.45;margin-bottom:3px">' + this.esc(identifier.field_label) + '</div>';
+        h += '<div style="font-size:15px;font-weight:500;font-family:var(--ia-font-mono,monospace)">' + this.esc(identifier.value || '\u2014') + '</div>';
+        h += '</div>';
+      }
+      if (other.length > 0) {
+        h += '<div class="dm-grid">';
+        for (var oi = 0; oi < other.length; oi++) {
+          h += this.field(other[oi].field_label, this.esc(other[oi].value || '\u2014'));
+        }
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+
+    // Customer-facing form responses (custom intake answers).
+    if (a.form_responses && a.form_responses.length > 0) {
+      h += '<div style="margin-top:16px"><div class="dm-section-label">Customer Details</div>';
+      h += '<div class="dm-grid">';
+      for (var fi = 0; fi < a.form_responses.length; fi++) {
+        h += this.field(a.form_responses[fi].field_label, this.esc(a.form_responses[fi].value || '\u2014'));
+      }
+      h += '</div></div>';
+    }
 
     if (a.staff_notes) {
       h += '<div style="margin-top:16px"><div class="dm-section-label">Staff Notes</div>';
