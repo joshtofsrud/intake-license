@@ -154,6 +154,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/onboarding/dismiss',  [TenantControllers\OnboardingModalController::class, 'dismiss'])->name('onboarding.dismiss');
             Route::post('/onboarding/complete', [TenantControllers\OnboardingModalController::class, 'complete'])->name('onboarding.complete');
 
+            // Calendar (admin) — day/week/month views of the tenant's schedule.
+            Route::get('/calendar',             [TenantControllers\CalendarController::class, 'index'])->name('calendar.index');
+
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
