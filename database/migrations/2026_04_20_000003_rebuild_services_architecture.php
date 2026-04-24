@@ -137,7 +137,6 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('tenant_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('customer_id')->nullable()->constrained('tenant_customers')->nullOnDelete();
-            $table->foreignUuid('resource_id')->nullable()->constrained('tenant_resources')->nullOnDelete();
 
             $table->string('ra_number', 30)->index();
 
@@ -152,8 +151,6 @@ return new class extends Migration
             $table->time('appointment_time')->nullable();
             $table->time('appointment_end_time')->nullable();
             $table->unsignedSmallInteger('total_duration_minutes')->default(0);
-            $table->unsignedSmallInteger('prep_before_minutes_snapshot')->default(0);
-            $table->unsignedSmallInteger('cleanup_after_minutes_snapshot')->default(0);
             $table->unsignedTinyInteger('slot_weight')->default(1);
             $table->boolean('slot_weight_overridden')->default(false);
             $table->unsignedTinyInteger('slot_weight_auto')->default(1);
@@ -184,7 +181,6 @@ return new class extends Migration
 
             $table->unique(['tenant_id', 'ra_number']);
             $table->index(['tenant_id', 'appointment_date']);
-            $table->index(['tenant_id', 'resource_id', 'appointment_date']);
             $table->index(['tenant_id', 'status']);
             $table->index('customer_email');
         });
@@ -199,8 +195,6 @@ return new class extends Migration
             $table->string('item_name_snapshot');
             $table->unsignedInteger('price_cents');
             $table->unsignedSmallInteger('duration_minutes_snapshot')->default(0);
-            $table->unsignedSmallInteger('prep_before_minutes_snapshot')->default(0);
-            $table->unsignedSmallInteger('cleanup_after_minutes_snapshot')->default(0);
 
             $table->timestamps();
         });
