@@ -40,7 +40,7 @@
 </div>
 
 <div class="set-tabs">
-  @foreach(['general'=>'General','booking'=>'Booking','payments'=>'Payments','domain'=>'Domain'] as $tab => $label)
+  @foreach(['general'=>'General','booking'=>'Booking','payments'=>'Payments','billing'=>'Billing','domain'=>'Domain'] as $tab => $label)
     <a href="?tab={{ $tab }}" class="set-tab {{ $activeTab === $tab ? 'active' : '' }}">{{ $label }}</a>
   @endforeach
 </div>
@@ -237,6 +237,62 @@
     @endif
   </div>
 </form>
+@endif
+
+
+{{-- ============================================================ Billing ============================================================ --}}
+@if($activeTab === 'billing')
+<div class="set-section">
+
+  <div class="ia-card" style="margin-bottom:24px">
+    <div class="ia-card-head">
+      <span class="ia-card-title">Manage billing</span>
+    </div>
+
+    @if($currentTenant->stripe_customer_id)
+      <p style="margin:0 0 16px;color:var(--ia-text-muted);font-size:13px;line-height:1.55">
+        Update your card, download past invoices, or cancel your subscription through
+        Stripe\'s secure billing portal.
+      </p>
+
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <a href="{{ route('tenant.billing.portal', ['subdomain' => request()->route('subdomain')]) }}"
+           class="ia-btn ia-btn--primary">
+          Manage billing in Stripe \u2192
+        </a>
+        <span style="font-size:12px;color:var(--ia-text-muted)">
+          Opens Stripe\'s hosted portal. Plan changes happen in-app.
+        </span>
+      </div>
+
+      <div style="margin-top:24px;padding-top:20px;border-top:0.5px solid var(--ia-border);display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:480px;font-size:13px">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Current plan</div>
+          <div style="font-weight:500">{{ ucfirst($currentTenant->plan_tier ?? \'Starter\') }}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Status</div>
+          <div style="font-weight:500">{{ ucfirst($currentTenant->subscription_status ?? \'unknown\') }}</div>
+        </div>
+        @if($currentTenant->trial_ends_at)
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Trial ends</div>
+          <div style="font-weight:500">{{ $currentTenant->trial_ends_at->format(\'M j, Y\') }}</div>
+        </div>
+        @endif
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Billing</div>
+          <div style="font-weight:500">{{ ucfirst($currentTenant->stripe_subscription_cadence ?? \'\') ?: \'\u2014\' }}</div>
+        </div>
+      </div>
+    @else
+      <p style="margin:0;color:var(--ia-text-muted);font-size:13px;line-height:1.55">
+        No billing account is connected to this tenant. Contact support to enable billing.
+      </p>
+    @endif
+  </div>
+
+</div>
 @endif
 
 @endsection
