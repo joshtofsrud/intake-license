@@ -15,10 +15,14 @@ class TenantAppointmentItem extends Model
         'item_name_snapshot',
         'price_cents',
         'duration_minutes_snapshot',
+        'prep_before_minutes_snapshot',
+        'cleanup_after_minutes_snapshot',
     ];
     protected $casts = [
-        'price_cents'               => 'integer',
-        'duration_minutes_snapshot' => 'integer',
+        'price_cents'                    => 'integer',
+        'duration_minutes_snapshot'      => 'integer',
+        'prep_before_minutes_snapshot'   => 'integer',
+        'cleanup_after_minutes_snapshot' => 'integer',
     ];
 
     public function appointment(): BelongsTo

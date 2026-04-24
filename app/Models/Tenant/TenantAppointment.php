@@ -12,10 +12,11 @@ class TenantAppointment extends Model
     use HasUuids;
     protected $table    = 'tenant_appointments';
     protected $fillable = [
-        'tenant_id','customer_id','ra_number',
+        'tenant_id','customer_id','resource_id','ra_number',
         'customer_first_name','customer_last_name','customer_email','customer_phone',
         'appointment_date','appointment_time','appointment_end_time',
-        'total_duration_minutes','slot_weight','slot_weight_auto','slot_weight_overridden',
+        'total_duration_minutes','prep_before_minutes_snapshot','cleanup_after_minutes_snapshot',
+        'slot_weight','slot_weight_auto','slot_weight_overridden',
         'receiving_method_snapshot','receiving_time_snapshot','tracking_number',
         'status','payment_status','payment_method',
         'stripe_payment_intent_id','paypal_order_id',
@@ -23,8 +24,10 @@ class TenantAppointment extends Model
     ];
     protected $casts = [
         'appointment_date'         => 'date',
-        'total_duration_minutes'   => 'integer',
-        'slot_weight'              => 'integer',
+        'total_duration_minutes'         => 'integer',
+        'prep_before_minutes_snapshot'   => 'integer',
+        'cleanup_after_minutes_snapshot' => 'integer',
+        'slot_weight'                    => 'integer',
         'slot_weight_auto'         => 'integer',
         'slot_weight_overridden'   => 'boolean',
         'subtotal_cents'           => 'integer',
@@ -35,6 +38,7 @@ class TenantAppointment extends Model
 
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }
     public function customer(): BelongsTo  { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
+    public function resource(): BelongsTo  { return $this->belongsTo(TenantResource::class, 'resource_id'); }
     public function items(): HasMany       { return $this->hasMany(TenantAppointmentItem::class, 'appointment_id'); }
     public function addons(): HasMany      { return $this->hasMany(TenantAppointmentAddon::class, 'appointment_id'); }
     public function responses(): HasMany   { return $this->hasMany(TenantAppointmentResponse::class, 'appointment_id'); }
