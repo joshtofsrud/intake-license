@@ -474,3 +474,40 @@ body.ia-theme-c .ia-cal-break {
 body.ia-theme-c .ia-cal-appt:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
+
+/* ============================================================
+ * Schedule tab strip — Calendar | Appointments toggle.
+ * Used on both calendar and appointments pages. Visible on
+ * mobile (where it's the primary navigation between the two views).
+ * On desktop it's a discoverability aid — the sidebar nav still works.
+ * ============================================================ */
+.ia-schedule-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 18px;
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.08));
+}
+.ia-schedule-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ia-text-muted, rgba(0,0,0,.45));
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  transition: color var(--ia-t, .12s), border-color var(--ia-t, .12s);
+}
+.ia-schedule-tab:hover {
+  color: var(--ia-text, #111);
+}
+.ia-schedule-tab.is-active {
+  color: var(--ia-text, #111);
+  border-bottom-color: var(--ia-text, #111);
+}
+.ia-schedule-tab svg {
+  opacity: 0.7;
+}
+.ia-schedule-tab.is-active svg {
+  opacity: 1;
+}

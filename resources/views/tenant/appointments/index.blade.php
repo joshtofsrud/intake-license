@@ -36,6 +36,8 @@
   </div>
 </div>
 
+<x-tenant.schedule-tabs active="appointments" />
+
 <form method="get" action="{{ route('tenant.appointments.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search ITO#, name, email…" style="max-width:260px">

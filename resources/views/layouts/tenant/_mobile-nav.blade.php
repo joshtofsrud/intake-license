@@ -10,10 +10,10 @@
       'icon'   => '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="11" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg>',
     ],
     [
-      'route'  => 'tenant.appointments.index',
-      'label'  => 'Appts',
-      'match'  => 'tenant.appointments',
-      'icon'   => '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 4V2M13 4V2M2 8h16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+      'route'  => 'tenant.calendar.index',
+      'label'  => 'Schedule',
+      'match'  => 'tenant.calendar|tenant.appointments',
+      'icon'   => '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 4V2M13 4V2M2 8h16" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="12" r="1" fill="currentColor"/><circle cx="10" cy="12" r="1" fill="currentColor"/><circle cx="14" cy="12" r="1" fill="currentColor"/></svg>',
     ],
     [
       'route'  => 'tenant.customers.index',
@@ -37,7 +37,13 @@
 <nav class="ia-mobile-nav" aria-label="Primary">
   @foreach($mobilePrimary as $item)
     @php
-      $isActive = str_starts_with($current, $item['match']);
+      // 'match' may be a single prefix or a |-separated list of prefixes.
+      // Schedule tab uses this to stay active for both calendar.* and appointments.* routes.
+      $matchPrefixes = explode('|', $item['match']);
+      $isActive = false;
+      foreach ($matchPrefixes as $prefix) {
+        if (str_starts_with($current, $prefix)) { $isActive = true; break; }
+      }
       $url = route($item['route']);
     @endphp
     <a href="{{ $url }}" class="ia-mobile-nav-item {{ $isActive ? 'active' : '' }}">

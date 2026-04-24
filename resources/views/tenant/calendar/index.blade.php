@@ -40,6 +40,8 @@
   </div>
 </div>
 
+<x-tenant.schedule-tabs active="calendar" />
+
 <div class="ia-cal-shell"
      data-cal-open-min="{{ $openMin }}"
      data-cal-close-min="{{ $closeMin }}"
