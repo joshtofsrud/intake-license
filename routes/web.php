@@ -157,6 +157,13 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             // Calendar (admin) — day/week/month views of the tenant's schedule.
             Route::get('/calendar',             [TenantControllers\CalendarController::class, 'index'])->name('calendar.index');
 
+            // Resources (staff / benches / spaces) — calendar's column source
+            Route::get('/resources',            [TenantControllers\ResourceController::class, 'index'])->name('resources.index');
+            Route::post('/resources',           [TenantControllers\ResourceController::class, 'store'])->name('resources.store');
+            Route::patch('/resources/{id}',     [TenantControllers\ResourceController::class, 'update'])->name('resources.update');
+            Route::delete('/resources/{id}',    [TenantControllers\ResourceController::class, 'destroy'])->name('resources.destroy');
+            Route::post('/resources/reorder',   [TenantControllers\ResourceController::class, 'reorder'])->name('resources.reorder');
+
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');

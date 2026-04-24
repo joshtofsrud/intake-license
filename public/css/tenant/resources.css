@@ -1,0 +1,79 @@
+/* Resources admin page */
+
+.resource-row {
+  transition: background 0.1s;
+}
+.resource-row:hover {
+  background: var(--ia-hover, rgba(0,0,0,.02)) !important;
+}
+.resource-row.sortable-ghost {
+  opacity: 0.4;
+}
+.resource-row.sortable-chosen {
+  cursor: grabbing;
+}
+
+.drag-handle:hover {
+  opacity: 0.8 !important;
+}
+
+.ia-input {
+  padding: 6px 10px;
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  border-radius: var(--ia-r-md, 6px);
+  background: var(--ia-input-bg, var(--ia-surface, #fff));
+  color: var(--ia-text, inherit);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.1s;
+}
+.ia-input:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+}
+
+/* Color picker component */
+.cp-swatch {
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  transition: transform 0.1s;
+}
+.cp-swatch:hover:not(.is-locked) {
+  transform: scale(1.08);
+}
+.cp-swatch.is-selected {
+  border-color: var(--ia-text, #111);
+  box-shadow: 0 0 0 1px var(--ia-bg, #fff), 0 0 0 2px var(--ia-text, #111);
+}
+.cp-swatch.is-locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  position: relative;
+  overflow: hidden;
+}
+.cp-swatch.is-locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,0.4) 3px,
+    rgba(0,0,0,0.4) 5px
+  );
+}
+.cp-locked-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.7);
+  z-index: 1;
+}
