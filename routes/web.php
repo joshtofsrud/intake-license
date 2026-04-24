@@ -156,6 +156,8 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
             // Calendar (admin) — day/week/month views of the tenant's schedule.
             Route::get('/calendar',             [TenantControllers\CalendarController::class, 'index'])->name('calendar.index');
+            Route::get('/calendar/quick-book',  [TenantControllers\QuickBookController::class, 'picker'])->name('calendar.quick-book.picker');
+            Route::post('/calendar/quick-book', [TenantControllers\QuickBookController::class, 'store'])->name('calendar.quick-book.store');
 
             // Resources (staff / benches / spaces) — calendar's column source
             Route::get('/resources',            [TenantControllers\ResourceController::class, 'index'])->name('resources.index');

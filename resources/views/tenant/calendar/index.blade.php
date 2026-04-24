@@ -268,6 +268,51 @@
 
 </div>
 
+{{-- Quick-book modal: opens when admin clicks an empty grid cell --}}
+<div class="qb-modal" id="qb-modal" style="display:none">
+  <div class="qb-modal-backdrop" onclick="QuickBook.close()"></div>
+  <div class="qb-modal-card">
+    <div class="qb-modal-head">
+      <div>
+        <div class="qb-modal-title">New appointment</div>
+        <div class="qb-modal-context" id="qb-context">—</div>
+      </div>
+      <button type="button" class="qb-modal-close" onclick="QuickBook.close()" aria-label="Close">×</button>
+    </div>
+
+    <div class="qb-modal-body">
+      <div class="qb-field">
+        <label>Customer</label>
+        <input type="text" id="qb-customer-search" placeholder="Search by name or email, or fill in the fields below" autocomplete="off">
+        <div id="qb-customer-results" class="qb-results" style="display:none"></div>
+      </div>
+
+      <div id="qb-new-customer">
+        <div class="qb-field-row">
+          <div class="qb-field"><label>First name</label><input type="text" id="qb-first-name"></div>
+          <div class="qb-field"><label>Last name</label><input type="text" id="qb-last-name"></div>
+        </div>
+        <div class="qb-field-row">
+          <div class="qb-field"><label>Email</label><input type="email" id="qb-email"></div>
+          <div class="qb-field"><label>Phone</label><input type="tel" id="qb-phone"></div>
+        </div>
+      </div>
+
+      <div class="qb-field">
+        <label>Service</label>
+        <select id="qb-service"><option value="">Select a service…</option></select>
+      </div>
+
+      <div id="qb-error" class="qb-error" style="display:none"></div>
+    </div>
+
+    <div class="qb-modal-foot">
+      <button type="button" class="ia-btn ia-btn--ghost" onclick="QuickBook.close()">Cancel</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="qb-submit" onclick="QuickBook.submit()">Book appointment</button>
+    </div>
+  </div>
+</div>
+
 @endsection
 
 @push('styles')

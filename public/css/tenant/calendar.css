@@ -474,3 +474,135 @@ body.ia-theme-c .ia-cal-break {
 body.ia-theme-c .ia-cal-appt:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
+
+/* ============================================================
+ * Quick-book modal styles
+ * ============================================================ */
+.qb-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.qb-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+.qb-modal-card {
+  position: relative;
+  background: var(--ia-surface, #fff);
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  border-radius: var(--ia-r-lg, 12px);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.qb-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 20px 14px;
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+}
+.qb-modal-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ia-text, #111);
+}
+.qb-modal-context {
+  font-size: 12px;
+  color: var(--ia-text-muted, #888);
+  margin-top: 3px;
+}
+.qb-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--ia-text-muted, #888);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+.qb-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+.qb-modal-foot {
+  padding: 14px 20px;
+  border-top: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.qb-field { margin-bottom: 12px; position: relative; }
+.qb-field label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ia-text-muted, #888);
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+.qb-field input, .qb-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  border-radius: var(--ia-r-md, 6px);
+  background: var(--ia-input-bg, #fff);
+  color: var(--ia-text, inherit);
+  font-size: 13px;
+  font-family: inherit;
+}
+.qb-field input:focus, .qb-field select:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+}
+.qb-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.qb-field-row .qb-field { margin-bottom: 0; }
+
+.qb-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--ia-surface, #fff);
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  border-radius: var(--ia-r-md, 6px);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 5;
+  margin-top: 2px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+.qb-result-row {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.qb-result-row:hover { background: var(--ia-hover, rgba(0,0,0,.04)); }
+.qb-result-email { font-size: 11px; color: var(--ia-text-muted, #888); }
+
+.qb-error {
+  background: rgba(226, 75, 74, .1);
+  border: 0.5px solid rgba(226, 75, 74, .25);
+  color: #d04444;
+  padding: 8px 12px;
+  border-radius: var(--ia-r-md, 6px);
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.ia-cal-resource-col {
+  cursor: copy;
+}
