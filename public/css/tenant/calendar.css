@@ -1,0 +1,160 @@
+/* =============================================================
+ * Calendar admin page styles.
+ *
+ * Built piece-by-piece. Current pieces: toolbar + shell.
+ * Pending: resource headers, time grid, appointment blocks,
+ *          now-line, break/hold rendering.
+ *
+ * Uses the existing --ia-* CSS variables from base.css and
+ * theme-{a|b|c}.css. Never hardcodes colors — all theme tokens
+ * come from the inherited variables so all three themes work.
+ * ============================================================= */
+
+.ia-cal-shell {
+  background: var(--ia-surface, #141414);
+  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border-radius: var(--ia-r-lg, 12px);
+  overflow: hidden;
+}
+
+/* ---------- Toolbar ---------- */
+.ia-cal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--ia-border, #2A2A2A);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ia-cal-toolbar-left,
+.ia-cal-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ia-cal-today-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border-radius: var(--ia-r-md, 6px);
+  background: transparent;
+  color: var(--ia-text, #E8E8E2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.1s, color 0.1s;
+}
+.ia-cal-today-btn:hover {
+  border-color: var(--ia-accent, #BEF264);
+  color: var(--ia-accent, #BEF264);
+}
+.ia-cal-today-btn.is-active {
+  background: var(--ia-accent, #BEF264);
+  color: var(--ia-accent-text, #0A0A0A);
+  border-color: var(--ia-accent, #BEF264);
+}
+
+.ia-cal-nav-group {
+  display: flex;
+  gap: 4px;
+}
+.ia-cal-nav-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border-radius: var(--ia-r-md, 6px);
+  background: transparent;
+  color: var(--ia-text-muted, #A0A098);
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+.ia-cal-nav-btn:hover {
+  border-color: var(--ia-accent, #BEF264);
+  color: var(--ia-text, #E8E8E2);
+}
+
+.ia-cal-date-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ia-text, #E8E8E2);
+  letter-spacing: -0.01em;
+  margin-left: 4px;
+}
+.ia-cal-date-year {
+  color: var(--ia-text-muted, #A0A098);
+  font-weight: 400;
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+/* ---------- View switcher ---------- */
+.ia-cal-view-switch {
+  display: flex;
+  gap: 0;
+  border: 0.5px solid var(--ia-border, #2A2A2A);
+  border-radius: var(--ia-r-md, 6px);
+  overflow: hidden;
+}
+.ia-cal-view-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 14px;
+  background: transparent;
+  border: none;
+  border-right: 0.5px solid var(--ia-border, #2A2A2A);
+  color: var(--ia-text-muted, #A0A098);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.ia-cal-view-btn:last-child {
+  border-right: none;
+}
+.ia-cal-view-btn:not(.is-disabled):not(.is-active):hover {
+  background: var(--ia-surface-hover, #1A1A1A);
+  color: var(--ia-text, #E8E8E2);
+}
+.ia-cal-view-btn.is-active {
+  background: var(--ia-accent, #BEF264);
+  color: var(--ia-accent-text, #0A0A0A);
+  cursor: default;
+}
+.ia-cal-view-btn.is-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---------- Body placeholder (removed once grid lands) ---------- */
+.ia-cal-body {
+  min-height: 420px;
+}
+.ia-cal-placeholder {
+  padding: 80px 40px;
+  text-align: center;
+  color: var(--ia-text-muted, #6A6A62);
+  font-size: 13px;
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
+  .ia-cal-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ia-cal-toolbar-left,
+  .ia-cal-toolbar-right {
+    justify-content: space-between;
+  }
+  .ia-cal-date-label {
+    margin-left: 0;
+  }
+}
