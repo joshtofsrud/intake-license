@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Listeners\LogAuthEvents;
 use App\Listeners\LogMailEvents;
 use App\Listeners\LogQueueEvents;
+use App\Models\Tenant\TenantUser;
+use App\Observers\TenantUserObserver;
 use App\Services\DebugLogService;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -31,5 +33,8 @@ class AppServiceProvider extends ServiceProvider
         Event::subscribe(LogAuthEvents::class);
         Event::subscribe(LogMailEvents::class);
         Event::subscribe(LogQueueEvents::class);
+
+        // Model observers
+        TenantUser::observe(TenantUserObserver::class);
     }
 }
