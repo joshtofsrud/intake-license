@@ -8,6 +8,7 @@ use App\Listeners\LogQueueEvents;
 use App\Models\Tenant\TenantUser;
 use App\Observers\TenantUserObserver;
 use App\Services\DebugLogService;
+use App\Support\MySQLLock;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
         // Singleton so correlation IDs persist across a single request.
         $this->app->singleton(DebugLogService::class);
         $this->app->alias(DebugLogService::class, 'debug_log');
+
+        // MySQLLock is stateless; singleton avoids re-instantiation per inject.
+        $this->app->singleton(MySQLLock::class);
     }
 
     public function boot(): void
