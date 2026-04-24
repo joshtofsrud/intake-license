@@ -257,8 +257,10 @@
 
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <a href="{{ route('tenant.billing.portal', ['subdomain' => request()->route('subdomain')]) }}"
-           class="ia-btn ia-btn--primary">
-          Manage billing in Stripe \u2192
+           class="ia-btn ia-btn--primary"
+           target="_blank"
+           rel="noopener noreferrer">
+          Manage billing in Stripe →
         </a>
         <span style="font-size:12px;color:var(--ia-text-muted)">
           Opens Stripe's hosted portal. Plan changes happen in-app.
