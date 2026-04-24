@@ -23,12 +23,13 @@ class Tenant extends Model
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
         'onboarding_status', 'onboarded_at',
         'notification_email', 'currency', 'currency_symbol',
-        'booking_window_days', 'min_notice_hours', 'booking_mode',
+        'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
     ];
 
     protected $casts = [
+        'last_booking_mode_switch_at' => 'datetime',
         'is_active'           => 'boolean',
         'sms_enabled'         => 'boolean',
         'settings'            => 'array',

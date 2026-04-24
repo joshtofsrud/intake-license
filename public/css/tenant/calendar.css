@@ -234,6 +234,31 @@
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
   z-index: 3;
 }
+
+/* Auto-assigned (needs-review) appointments: amber dashed border.
+   Overrides the resource-color border-left with a clear "attention needed" signal.
+   Admin should click through, confirm or adjust the time, then clear the flag. */
+.ia-cal-appt.needs-review {
+  border: 1px dashed #d97706;
+  border-left-width: 3px;
+}
+.ia-cal-appt.needs-review::after {
+  content: '!';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  background: #d97706;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
 .ia-cal-appt-name {
   font-weight: 500;
   color: var(--ia-text, #111);

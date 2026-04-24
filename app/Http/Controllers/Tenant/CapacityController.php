@@ -133,9 +133,17 @@ class CapacityController extends Controller
 
         // Mode switch preview
         if ($op === 'preview_switch') {
-            $toMode  = $request->input('to_mode');
-            $preview = BookingModeService::previewSwitch($tenant, $toMode);
-            return response()->json(['success' => true, 'preview' => $preview]);
+            $toMode              = $request->input('to_mode');
+            $servicePreview      = BookingModeService::previewSwitch($tenant, $toMode);
+            $appointmentPreview  = BookingModeService::previewAppointmentMigration($tenant, $toMode);
+            return response()->json([
+                'success'               => true,
+                'preview'               => $servicePreview,
+                'appointment_preview'   => $appointmentPreview,
+                'rate_limited'          => BookingModeService::isRateLimited($tenant),
+                'rate_limit_remaining'  => BookingModeService::rateLimitRemainingHours($tenant),
+                'last_switch_at'        => $tenant->last_booking_mode_switch_at?->toIso8601String(),
+            ]);
         }
 
         // Mode switch execute
@@ -156,8 +164,31 @@ class CapacityController extends Controller
                 ], 422);
             }
 
+            // Rate limit guard — one switch per tenant per 24 hours.
+            if (BookingModeService::isRateLimited($tenant)) {
+                $remaining = BookingModeService::rateLimitRemainingHours($tenant);
+                return response()->json([
+                    'success' => false,
+                    'code'    => 'rate_limited',
+                    'message' => "Mode switching is rate-limited. Try again in {$remaining} hours.",
+                ], 429);
+            }
+
+            // Optional appointment assignments payload (combined wizard sends this).
+            $assignments = $request->input('assignments', '{}');
+            if (is_string($assignments)) {
+                $decoded = json_decode($assignments, true);
+                $assignments = is_array($decoded) ? $decoded : [];
+            }
+
             try {
-                BookingModeService::executeSwitch($tenant, $toMode, $overrides);
+                \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $toMode, $overrides, $assignments) {
+                    BookingModeService::executeSwitch($tenant, $toMode, $overrides);
+                    if ($toMode === 'time_slots' && !empty($assignments)) {
+                        BookingModeService::applyAppointmentAssignments($tenant, $assignments);
+                    }
+                    $tenant->update(['last_booking_mode_switch_at' => now()]);
+                });
                 return response()->json(['success' => true, 'mode' => $toMode]);
             } catch (\Throwable $e) {
                 \Log::error('Booking mode switch failed', [

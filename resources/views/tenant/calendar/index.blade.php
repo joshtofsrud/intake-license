@@ -225,12 +225,13 @@
               </div>
             @endif
 
-            <div class="ia-cal-appt"
+            <div class="ia-cal-appt {{ $appt->needs_time_review ? 'needs-review' : '' }}"
                  style="top: {{ $coreTop }}px;
                         height: {{ $coreHeight }}px;
                         border-left-color: {{ $resourceColor }};
                         background: {{ $resourceColor }}1a;"
-                 data-appt-id="{{ $appt->id }}">
+                 data-appt-id="{{ $appt->id }}"
+                 @if($appt->needs_time_review) title="Auto-assigned time — please review" @endif>
               <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }}</div>
               @if($serviceName)
                 <div class="ia-cal-appt-svc">{{ $serviceName }}</div>

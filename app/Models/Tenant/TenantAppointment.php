@@ -21,6 +21,7 @@ class TenantAppointment extends Model
         'status','payment_status','payment_method',
         'stripe_payment_intent_id','paypal_order_id',
         'subtotal_cents','tax_cents','total_cents','paid_cents','staff_notes',
+        'needs_time_review',
     ];
     protected $casts = [
         'appointment_date'         => 'date',
@@ -30,6 +31,7 @@ class TenantAppointment extends Model
         'slot_weight'                    => 'integer',
         'slot_weight_auto'         => 'integer',
         'slot_weight_overridden'   => 'boolean',
+        'needs_time_review'        => 'boolean',
         'subtotal_cents'           => 'integer',
         'tax_cents'                => 'integer',
         'total_cents'              => 'integer',

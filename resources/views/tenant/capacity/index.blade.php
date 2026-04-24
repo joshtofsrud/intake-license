@@ -135,6 +135,7 @@
         <tr><td colspan="3" style="opacity:.4;padding:16px 0">Loading…</td></tr>
       </tbody>
     </table>
+    <div id="switch-extras"></div>
 
     <div style="background:rgba(226,75,74,.08);border:0.5px solid rgba(226,75,74,.2);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:20px">
       <strong>Note:</strong> Existing appointments are not affected. Only future bookings will use the new mode.

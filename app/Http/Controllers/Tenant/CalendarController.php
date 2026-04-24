@@ -76,7 +76,7 @@ class CalendarController extends Controller
                 'id', 'resource_id', 'customer_first_name', 'customer_last_name',
                 'appointment_time', 'appointment_end_time', 'total_duration_minutes',
                 'prep_before_minutes_snapshot', 'cleanup_after_minutes_snapshot',
-                'status', 'total_cents',
+                'status', 'total_cents', 'needs_time_review',
             ]);
 
         // Breaks + holds. We use the same logic as BookingService — inline here
