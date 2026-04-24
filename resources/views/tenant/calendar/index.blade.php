@@ -51,14 +51,14 @@
        ========================================================= --}}
   <div class="ia-cal-toolbar">
     <div class="ia-cal-toolbar-left">
-      <a href="{{ route('calendar.index', ['date' => $todayStr]) }}"
+      <a href="{{ route('tenant.calendar.index', ['date' => $todayStr]) }}"
          class="ia-cal-today-btn {{ $isToday ? 'is-active' : '' }}">
         Today
       </a>
       <div class="ia-cal-nav-group">
-        <a href="{{ route('calendar.index', ['date' => $prevDate]) }}"
+        <a href="{{ route('tenant.calendar.index', ['date' => $prevDate]) }}"
            class="ia-cal-nav-btn" aria-label="Previous day">‹</a>
-        <a href="{{ route('calendar.index', ['date' => $nextDate]) }}"
+        <a href="{{ route('tenant.calendar.index', ['date' => $nextDate]) }}"
            class="ia-cal-nav-btn" aria-label="Next day">›</a>
       </div>
       <div class="ia-cal-date-label">
@@ -82,8 +82,8 @@
       <div class="ia-cal-empty-title">No resources yet</div>
       <div class="ia-cal-empty-body">
         Add at least one staff member or work station to start booking.
-        @if(Route::has('resources.index'))
-          <a href="{{ route('resources.index') }}">Add a resource →</a>
+        @if(Route::has('tenant.resources.index'))
+          <a href="{{ route('tenant.resources.index') }}">Add a resource →</a>
         @endif
       </div>
     </div>
@@ -92,8 +92,8 @@
       <div class="ia-cal-empty-title">Closed on {{ $date->format('l') }}s</div>
       <div class="ia-cal-empty-body">
         Your business hours don't cover this day of the week.
-        @if(Route::has('capacity.index'))
-          <a href="{{ route('capacity.index') }}">Update business hours →</a>
+        @if(Route::has('tenant.capacity.index'))
+          <a href="{{ route('tenant.capacity.index') }}">Update business hours →</a>
         @endif
       </div>
     </div>
