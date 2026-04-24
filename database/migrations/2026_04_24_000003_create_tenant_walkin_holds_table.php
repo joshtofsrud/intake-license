@@ -52,7 +52,7 @@ return new class extends Migration
             $table->index(['auto_release_at', 'converted_at']);
 
             // Recurrence expansion
-            $table->index(['tenant_id', 'is_recurring', 'recurrence_until']);
+            $table->index(['tenant_id', 'is_recurring', 'recurrence_until'], 'holds_tenant_recurring_until_idx');
         });
     }
 

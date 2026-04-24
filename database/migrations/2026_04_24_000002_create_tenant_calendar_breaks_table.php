@@ -37,7 +37,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'resource_id', 'starts_at']);
 
             // Recurrence expansion query: "find all recurring breaks still active"
-            $table->index(['tenant_id', 'is_recurring', 'recurrence_until']);
+            $table->index(['tenant_id', 'is_recurring', 'recurrence_until'], 'breaks_tenant_recurring_until_idx');
         });
     }
 
