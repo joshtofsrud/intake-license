@@ -291,8 +291,11 @@
           @foreach($colAppts as $appt)
             @php
               $apptMin     = $timeToMin($appt->appointment_time);
-              $prepMin     = (int) ($appt->prep_before_minutes_snapshot ?? 0);
-              $cleanMin    = (int) ($appt->cleanup_after_minutes_snapshot ?? 0);
+              // Bookend times sum across all items on the appointment.
+              // Items are the single source of truth for prep/cleanup at scale —
+              // see BookingService::createAppointment() snapshot logic.
+              $prepMin     = (int) $appt->items->sum('prep_before_minutes_snapshot');
+              $cleanMin    = (int) $appt->items->sum('cleanup_after_minutes_snapshot');
               $durMin      = (int) $appt->total_duration_minutes;
               // Core duration = total_duration minus prep + cleanup. This is
               // what the customer "occupies" visually. Total_duration already

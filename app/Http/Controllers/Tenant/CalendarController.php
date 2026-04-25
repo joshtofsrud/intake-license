@@ -106,12 +106,11 @@ class CalendarController extends Controller
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('appointment_time')
             ->whereIn('resource_id', $visibleResourceIds)
-            ->with(['items:id,appointment_id,item_name_snapshot'])
+            ->with(['items:id,appointment_id,item_name_snapshot,duration_minutes_snapshot,prep_before_minutes_snapshot,cleanup_after_minutes_snapshot'])
             ->orderBy('appointment_time')
             ->get([
                 'id', 'resource_id', 'customer_first_name', 'customer_last_name',
                 'appointment_time', 'appointment_end_time', 'total_duration_minutes',
-                'prep_before_minutes_snapshot', 'cleanup_after_minutes_snapshot',
                 'status', 'total_cents', 'needs_time_review',
             ]);
 
