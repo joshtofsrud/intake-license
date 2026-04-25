@@ -758,7 +758,7 @@
     cancelBtn.addEventListener('click', function () {
       window.IntakeConfirm.show({
         title:       'Cancel this appointment?',
-        message:     "The customer's slot will be released and the calendar will reflect the cancellation.",
+        message:     "The appointment will be removed from the calendar and the customer's slot released. This stays in your records but won't show on the active schedule.",
         confirmText: 'Cancel appointment',
         cancelText:  'Keep it',
         danger:      true
