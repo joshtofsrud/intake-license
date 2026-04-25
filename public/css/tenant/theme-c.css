@@ -10,8 +10,8 @@ body.ia-theme-c {
   --ia-border:       rgba(255,255,255,.08);
   --ia-border-strong: rgba(255,255,255,.15);
   --ia-text:         #f0f0f0;
-  --ia-text-muted:   rgba(255,255,255,.4);
-  --ia-text-dim:     rgba(255,255,255,.2);
+  --ia-text-muted:   rgba(255,255,255,.6);
+  --ia-text-dim:     rgba(255,255,255,.4);
   --ia-hover:        rgba(255,255,255,.05);
   --ia-input-bg:     rgba(255,255,255,.05);
 
@@ -113,7 +113,7 @@ body.ia-theme-c {
   cursor: pointer;
   transition: all var(--ia-t);
 }
-.ia-nav-item svg { opacity: .35; flex-shrink: 0; transition: opacity var(--ia-t); }
+.ia-nav-item svg { opacity: .55; flex-shrink: 0; transition: opacity var(--ia-t); }
 .ia-nav-item:hover {
   color: rgba(255,255,255,.7);
   background: var(--ia-side-hover);

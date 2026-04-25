@@ -235,3 +235,54 @@
   .ia-dash-today-status { grid-column: 1 / -1; }
   .ia-dash-weekstat-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ============================================================
+ * Date strip chips on dashboard "today" zone.
+ * Replaces inline styles for theme-aware contrast.
+ * ============================================================ */
+.ia-dash-date-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 4px;
+  border-radius: var(--ia-r-md);
+  border: 0.5px solid var(--ia-border);
+  background: transparent;
+  color: var(--ia-text);
+  cursor: pointer;
+  transition: all var(--ia-t);
+  font-family: inherit;
+}
+.ia-dash-date-chip:hover {
+  background: var(--ia-hover);
+  border-color: var(--ia-border-strong);
+}
+.ia-dash-date-chip.is-target {
+  background: var(--ia-surface-2);
+  border-bottom-width: 2px;
+  border-bottom-color: var(--ia-accent);
+}
+.ia-dash-date-day {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-weight: 500;
+  color: var(--ia-text-muted);
+}
+.ia-dash-date-num {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  margin-top: 3px;
+  color: var(--ia-text);
+}
+.ia-dash-date-count {
+  font-size: 10px;
+  margin-top: 3px;
+  color: var(--ia-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ia-dash-date-chip.is-target .ia-dash-date-day,
+.ia-dash-date-chip.is-target .ia-dash-date-num {
+  color: var(--ia-text);
+}

@@ -72,10 +72,10 @@
 
   <div class="ia-dash-date-strip" id="ia-date-strip" role="tablist" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:20px 0 12px">
     @foreach($stripDays as $sd)
-      <button type="button" class="ia-dash-date-chip {{ $sd['is_today'] ? 'is-target' : '' }}" data-date="{{ $sd['date'] }}" role="tab" style="display:flex;flex-direction:column;align-items:center;padding:10px 4px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);border-bottom:{{ $sd['is_today'] ? '2px solid var(--ia-accent)' : '0.5px solid var(--ia-border)' }};background:{{ $sd['is_today'] ? 'var(--ia-surface-2)' : 'transparent' }};cursor:pointer;transition:all var(--ia-t);font-family:inherit">
-        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;opacity:.55;font-weight:500">{{ $sd['day_short'] }}</span>
-        <span style="font-size:18px;font-weight:500;line-height:1;margin-top:3px">{{ $sd['day_num'] }}</span>
-        <span class="ia-dash-date-count" data-count-for="{{ $sd['date'] }}" style="font-size:10px;opacity:.4;margin-top:3px">·</span>
+      <button type="button" class="ia-dash-date-chip {{ $sd['is_today'] ? 'is-target' : '' }}" data-date="{{ $sd['date'] }}" role="tab">
+        <span class="ia-dash-date-day">{{ $sd['day_short'] }}</span>
+        <span class="ia-dash-date-num">{{ $sd['day_num'] }}</span>
+        <span class="ia-dash-date-count" data-count-for="{{ $sd['date'] }}">·</span>
       </button>
     @endforeach
   </div>
