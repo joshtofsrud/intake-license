@@ -606,3 +606,116 @@ body.ia-theme-c .ia-cal-appt:hover {
 .ia-cal-resource-col {
   cursor: copy;
 }
+
+/* ============================================================
+ * Resource filter chips — Day view
+ * Pattern: toggle on click, double-click or solo-button to solo,
+ * "All" chip always resets.
+ * ============================================================ */
+.ia-cal-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.08));
+  background: var(--ia-surface-2, transparent);
+}
+.ia-cal-filter-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ia-text-muted, rgba(0,0,0,.5));
+  font-weight: 500;
+  margin-right: 4px;
+}
+.ia-cal-fchip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ia-cal-fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  background: transparent;
+  color: var(--ia-text-muted, rgba(0,0,0,.55));
+  transition: all var(--ia-t, .12s);
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ia-cal-fchip:hover {
+  color: var(--ia-text, #111);
+  border-color: var(--ia-border-strong, rgba(0,0,0,.18));
+}
+.ia-cal-fchip.is-on {
+  background: var(--ia-text, #111);
+  color: var(--ia-bg, #fff);
+  border-color: var(--ia-text, #111);
+}
+.ia-cal-fchip.is-on:hover {
+  opacity: 0.92;
+}
+.ia-cal-fchip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ia-cal-fchip-solo {
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.85);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 0.5px solid var(--ia-border-strong, rgba(0,0,0,.2));
+  background: var(--ia-surface, #fff);
+  color: var(--ia-text-muted, rgba(0,0,0,.5));
+  cursor: pointer;
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: opacity var(--ia-t, .12s), color var(--ia-t, .12s);
+  pointer-events: none;
+}
+.ia-cal-fchip-wrap:hover .ia-cal-fchip-solo {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ia-cal-fchip-solo:hover {
+  color: var(--ia-text, #111);
+  border-color: var(--ia-text, #111);
+}
+
+/* Mobile: solo buttons always visible (no hover state on touch) */
+@media (max-width: 700px) {
+  .ia-cal-fchip-solo {
+    opacity: 1;
+    pointer-events: auto;
+    position: static;
+    transform: none;
+    margin-left: -6px;
+  }
+  .ia-cal-fchip {
+    padding-right: 6px;
+  }
+}
+
+/* Theme C dark mode adjustments */
+body.ia-theme-c .ia-cal-fchip.is-on {
+  background: var(--ia-text, #f0f0f0);
+  color: var(--ia-bg, #111);
+}
+body.ia-theme-c .ia-cal-fchip-solo {
+  background: var(--ia-surface, #1a1a1a);
+}

@@ -43,12 +43,47 @@ class CalendarController extends Controller
 
         // Resources — ordered, active only. These are the column headers
         // in the calendar grid.
-        $resources = TenantResource::query()
+        $allResources = TenantResource::query()
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
+
+        // Filter resolution.
+        // URL ?resources=all          → show every resource
+        // URL ?resources=uuid1,uuid2  → show only those (intersected with active)
+        // URL absent + user has a linked resource → default to just their own
+        // URL absent + user has no linked resource → default to all
+        $userId = \Illuminate\Support\Facades\Auth::guard('tenant')->id();
+        $myResource = $userId
+            ? $allResources->firstWhere('staff_user_id', $userId)
+            : null;
+
+        $filterParam = trim((string) $request->query('resources', ''));
+        if ($filterParam === '') {
+            // No URL param → smart default
+            $visibleResourceIds = $myResource
+                ? [$myResource->id]
+                : $allResources->pluck('id')->all();
+            $filterMode = $myResource ? 'self' : 'all';
+        } elseif ($filterParam === 'all') {
+            $visibleResourceIds = $allResources->pluck('id')->all();
+            $filterMode = 'all';
+        } else {
+            $requestedIds = array_filter(array_map('trim', explode(',', $filterParam)));
+            $visibleResourceIds = $allResources
+                ->whereIn('id', $requestedIds)
+                ->pluck('id')
+                ->all();
+            // If filter wiped out everything (stale UUID, etc.), fall back to all
+            if (empty($visibleResourceIds)) {
+                $visibleResourceIds = $allResources->pluck('id')->all();
+            }
+            $filterMode = 'custom';
+        }
+
+        $resources = $allResources->whereIn('id', $visibleResourceIds)->values();
 
         // Business hours for this weekday. If none set, the day is treated as
         // closed — the grid still renders but with a "We're closed" message.
@@ -70,6 +105,7 @@ class CalendarController extends Controller
             ->where('appointment_date', $dateStr)
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('appointment_time')
+            ->whereIn('resource_id', $visibleResourceIds)
             ->with(['items:id,appointment_id,item_name_snapshot'])
             ->orderBy('appointment_time')
             ->get([
@@ -101,6 +137,9 @@ class CalendarController extends Controller
             'appointments'  => $appointments,
             'breakWindows'  => $breakWindows,
             'holdWindows'   => $holdWindows,
+            'allResources'  => $allResources,
+            'myResource'    => $myResource,
+            'filterMode'    => $filterMode,
         ]);
     }
 

@@ -273,10 +273,94 @@
     });
   }
 
+  // ==========================================================================
+  // Resource filter chips
+  // - Single click toggles the chip on/off
+  // - Double-click solos that resource (deselects all others)
+  // - Solo button (hover icon) does the same as double-click
+  // - "All" chip resets to all-on
+  // - URL drives state via ?resources=uuid1,uuid2 or ?resources=all
+  // ==========================================================================
+  function initFilterChips() {
+    var bar = document.getElementById('ia-cal-filter-bar');
+    if (!bar) return;
+
+    function getCurrentSelection() {
+      // Read from the rendered chip states. is-on chips with data-resource-id
+      // form the current filter set.
+      var ids = [];
+      bar.querySelectorAll('.ia-cal-fchip.is-on[data-resource-id]')
+         .forEach(function (c) { ids.push(c.getAttribute('data-resource-id')); });
+      return ids;
+    }
+
+    function navigate(resourceParam) {
+      var u = new URL(window.location.href);
+      u.searchParams.set('resources', resourceParam);
+      window.location.href = u.toString();
+    }
+
+    function navigateWithIds(ids) {
+      var allCount = bar.querySelectorAll('.ia-cal-fchip[data-resource-id]').length;
+      if (ids.length === 0 || ids.length === allCount) {
+        navigate('all');
+      } else {
+        navigate(ids.join(','));
+      }
+    }
+
+    // "All" chip — reset to all visible
+    var allChip = bar.querySelector('[data-action="all"]');
+    if (allChip) {
+      allChip.addEventListener('click', function () {
+        navigate('all');
+      });
+    }
+
+    // Per-resource chips: single click toggles, double click solos
+    bar.querySelectorAll('.ia-cal-fchip[data-resource-id]').forEach(function (chip) {
+      var clickTimer = null;
+      var id = chip.getAttribute('data-resource-id');
+
+      chip.addEventListener('click', function (e) {
+        // Differentiate single vs double click via timer.
+        // A real dblclick event would also fire — we cancel single behavior on dbl.
+        if (clickTimer) return;
+        clickTimer = setTimeout(function () {
+          clickTimer = null;
+          var current = getCurrentSelection();
+          var idx = current.indexOf(id);
+          if (idx >= 0) {
+            current.splice(idx, 1);
+          } else {
+            current.push(id);
+          }
+          navigateWithIds(current);
+        }, 220);
+      });
+
+      chip.addEventListener('dblclick', function (e) {
+        // Solo this resource (cancel pending single-click)
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+        navigate(id);
+      });
+    });
+
+    // Solo button (bullseye icon) → solo this resource
+    bar.querySelectorAll('.ia-cal-fchip-solo').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-resource-id');
+        navigate(id);
+      });
+    });
+  }
+
   function boot() {
     initNowLine();
     initCalendarClicks();
     bindSearch();
+    initFilterChips();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);

@@ -77,6 +77,43 @@
   </div>
 
   {{-- =========================================================
+       Resource filter chips — only render if more than one resource exists
+       ========================================================= --}}
+  @if($allResources->count() > 1)
+    <div class="ia-cal-filter-bar" id="ia-cal-filter-bar"
+         data-current-mode="{{ $filterMode }}">
+      <span class="ia-cal-filter-label">Show</span>
+      <button type="button"
+              class="ia-cal-fchip ia-cal-fchip-all {{ $filterMode === 'all' ? 'is-on' : '' }}"
+              data-action="all">All</button>
+      @foreach($allResources as $r)
+        @php
+          $isVisible = in_array($r->id, $resources->pluck('id')->all());
+        @endphp
+        <span class="ia-cal-fchip-wrap">
+          <button type="button"
+                  class="ia-cal-fchip {{ $isVisible ? 'is-on' : '' }}"
+                  data-resource-id="{{ $r->id }}"
+                  title="Click to toggle · Double-click to solo">
+            <span class="ia-cal-fchip-dot" style="background: {{ $r->color_hex ?: '#888' }};"></span>
+            {{ $r->name }}
+          </button>
+          <button type="button"
+                  class="ia-cal-fchip-solo"
+                  data-resource-id="{{ $r->id }}"
+                  title="Show only {{ $r->name }}"
+                  aria-label="Show only {{ $r->name }}">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+              <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1"/>
+              <circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+        </span>
+      @endforeach
+    </div>
+  @endif
+
+  {{-- =========================================================
        Empty states
        ========================================================= --}}
   @if($resources->isEmpty())
