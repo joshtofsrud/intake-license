@@ -28,7 +28,11 @@
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Bottom tab bar — default (light theme) */
+  /* Bottom tab bar — default (light theme).
+     iOS WebKit (Safari + Chrome on iOS) repaints fixed-position elements
+     during address-bar transitions, causing them to "bobble" or briefly
+     lift. Pinning to a compositor layer with transform: translateZ(0)
+     and will-change: transform fixes the most common symptoms. */
   .ia-mobile-nav {
     display: flex;
     justify-content: space-around;
@@ -42,6 +46,9 @@
     padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
     z-index: 100;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, .06);
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform;
   }
 
   .ia-theme-a .ia-mobile-nav,

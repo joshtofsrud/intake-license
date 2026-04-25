@@ -252,8 +252,12 @@ ul { list-style: none; }
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
-.ia-toolbar .ia-input { width: auto; min-width: 220px; flex: 1; max-width: 320px; }
-.ia-toolbar .ia-select { width: auto; }
+.ia-toolbar .ia-input { width: auto; min-width: 220px; flex: 1; max-width: 320px; height: 38px; }
+.ia-toolbar .ia-select { width: auto; height: 38px; }
+/* Date inputs render with native widget styling that doesn't honor flex sizing
+   the same way text inputs do — pin them at a stable width so they don't
+   collapse when empty. */
+.ia-toolbar input[type="date"].ia-input { min-width: 150px; max-width: 180px; flex: 0 0 auto; height: 38px; }
 .ia-result-count { font-size: 12px; margin-bottom: 12px; }
 
 /* --------------------------------------------------------------------------
@@ -387,7 +391,17 @@ ul { list-style: none; }
   .ia-stats-grid   { grid-template-columns: 1fr 1fr; }
   .ia-page-head    { flex-direction: column; }
   .ia-page-actions { width: 100%; }
-  .ia-toolbar .ia-input { max-width: 100%; }
+  .ia-toolbar { gap: 8px; }
+  .ia-toolbar .ia-input,
+  .ia-toolbar .ia-select,
+  .ia-toolbar input[type="date"].ia-input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+    height: 42px;
+  }
+  .ia-toolbar .ia-btn { width: 100%; height: 42px; }
 }
 @media (max-width: 480px) {
   .ia-stats-grid { grid-template-columns: 1fr; }
@@ -440,4 +454,34 @@ ul { list-style: none; }
 body.ia-theme-c .ia-schedule-pill.is-active {
   background: rgba(255,255,255,.08);
   box-shadow: 0 0 0 0.5px rgba(255,255,255,.1);
+}
+
+/* ============================================================
+ * Appointment show page action row — buttons wrap on narrow screens
+ * Fixes mobile clipping where Mark completed / Mark shipped / Cancel
+ * extend past the viewport edge.
+ * ============================================================ */
+.appt-show-actions,
+.appt-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.appt-show-actions .ia-btn,
+.appt-actions-row .ia-btn {
+  flex: 0 0 auto;
+}
+@media (max-width: 600px) {
+  .appt-show-actions,
+  .appt-actions-row {
+    gap: 6px;
+  }
+  .appt-show-actions .ia-btn,
+  .appt-actions-row .ia-btn {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
 }
