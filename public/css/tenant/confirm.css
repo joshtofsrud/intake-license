@@ -1,0 +1,12 @@
+.ia-confirm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .15s}
+.ia-confirm-backdrop.is-shown{opacity:1}
+.ia-confirm-card{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:24px;width:100%;max-width:380px;transform:translateY(8px) scale(.98);transition:transform .15s}
+.ia-confirm-backdrop.is-shown .ia-confirm-card{transform:translateY(0) scale(1)}
+.ia-confirm-title{font-size:16px;font-weight:500;color:var(--ia-text);margin-bottom:6px}
+.ia-confirm-message{font-size:14px;color:var(--ia-text-muted);line-height:1.5;margin-bottom:20px}
+.ia-confirm-actions{display:flex;gap:8px;justify-content:flex-end}
+.ia-confirm-btn{font-size:13px;padding:8px 14px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:transparent;color:var(--ia-text);cursor:pointer;font-family:inherit;transition:background var(--ia-t)}
+.ia-confirm-btn:hover{background:var(--ia-hover)}
+.ia-confirm-btn--primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
+.ia-confirm-btn--danger{background:#A32D2D;color:#fff;border-color:#A32D2D}
+.ia-confirm-btn--danger:hover{background:#791F1F}

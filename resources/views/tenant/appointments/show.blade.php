@@ -45,6 +45,47 @@
 .add-charge-form { display: none; margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--ia-border); }
 .add-charge-form.open { display: block; }
 @media (max-width: 900px) { .appt-layout { grid-template-columns: 1fr; } }
+
+/* Status progress bar */
+.appt-progress-card { padding: 18px 24px; margin-bottom: 20px; }
+.appt-progress-bar { display: flex; align-items: flex-start; justify-content: space-between; position: relative; gap: 4px; }
+.appt-progress-bar::before { content: ''; position: absolute; top: 12px; left: 12px; right: 12px; height: 2px; background: var(--ia-border); z-index: 0; }
+.appt-progress-bar::after {
+  content: ''; position: absolute; top: 12px; left: 12px; height: 2px; background: var(--ia-accent); z-index: 0;
+  width: calc((100% - 24px) * var(--progress, 0));
+  transition: width .25s ease;
+}
+.appt-progress-step {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  position: relative; z-index: 1; background: transparent; border: none; cursor: pointer; padding: 0;
+  flex: 1; min-width: 0; font-family: inherit;
+}
+.appt-progress-step:disabled { cursor: default; }
+.appt-progress-dot {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--ia-surface); border: 0.5px solid var(--ia-border);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--ia-t), border-color var(--ia-t);
+  color: #fff;
+}
+.appt-progress-step.is-done .appt-progress-dot { background: var(--ia-accent); border-color: var(--ia-accent); color: var(--ia-accent-text); }
+.appt-progress-step.is-current .appt-progress-dot { border: 2px solid var(--ia-accent); background: var(--ia-surface); }
+.appt-progress-dot-inner { width: 8px; height: 8px; border-radius: 50%; background: var(--ia-accent); }
+.appt-progress-label { font-size: 11px; color: var(--ia-text-muted); transition: color var(--ia-t); }
+.appt-progress-step.is-current .appt-progress-label { font-weight: 500; color: var(--ia-text); }
+.appt-progress-step:not(:disabled):hover .appt-progress-dot { border-color: var(--ia-accent); }
+.appt-progress-step.is-saving .appt-progress-dot { opacity: .5; }
+
+/* Terminal state card (cancelled / refunded) */
+.appt-terminal-card { display: flex; align-items: center; gap: 14px; padding: 18px 24px; margin-bottom: 20px; }
+.appt-terminal-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
+.appt-terminal-icon--cancelled { background: #A32D2D; }
+.appt-terminal-icon--refunded { background: #BA7517; }
+.appt-terminal-title { font-size: 15px; font-weight: 500; }
+.appt-terminal-sub { font-size: 13px; color: var(--ia-text-muted); margin-top: 2px; }
+.appt-terminal-card .appt-reopen-btn { margin-left: auto; }
+
+.appt-cancel-btn { margin-top: 4px; }
 </style>
 
 @section('content')
@@ -54,12 +95,7 @@
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">
       Work order
     </div>
-    <h1 class="ia-page-title" style="display:flex;align-items:center;gap:12px">
-      {{ $appointment->ra_number }}
-      <span class="ia-badge ia-badge--{{ str_replace('_','-',$appointment->status) }}" style="font-size:12px">
-        {{ $statusLabels[$appointment->status] ?? $appointment->status }}
-      </span>
-    </h1>
+    <h1 class="ia-page-title">{{ $appointment->ra_number }}</h1>
     <p class="ia-page-subtitle">
       {{ $appointment->customerName() }} ·
       {{ $appointment->appointment_date->format('M j, Y') }}
@@ -67,19 +103,62 @@
   </div>
   <div class="ia-page-actions">
     <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
-
-    @foreach($transitions as $toStatus)
-      @php $isDestructive = in_array($toStatus, $destructive); @endphp
-      <button type="button"
-        class="ia-btn {{ $isDestructive ? 'ia-btn--danger' : 'ia-btn--secondary' }} status-transition-btn"
-        data-status="{{ $toStatus }}"
-        data-label="{{ $transitionLabels[$toStatus] ?? $toStatus }}"
-        @if($isDestructive) data-confirm-msg="{{ $toStatus === 'cancelled' ? 'Cancel this appointment?' : ($toStatus === 'refunded' ? 'Refund this appointment?' : 'Are you sure?') }}" @endif>
-        {{ $transitionLabels[$toStatus] ?? ucfirst($toStatus) }}
-      </button>
-    @endforeach
   </div>
 </div>
+
+@php
+  // Status progress bar — terminal states (cancelled/refunded) replace the bar with a card.
+  $isTerminal = in_array($appointment->status, ['cancelled', 'refunded']);
+  $pipelineSteps = ['pending', 'confirmed', 'in_progress', 'completed'];
+  // TODO: per-tenant extensions for 'shipped' and 'closed' once Workflow settings ship.
+  $currentIndex = array_search($appointment->status, $pipelineSteps);
+  if ($currentIndex === false) $currentIndex = 0;
+@endphp
+
+@if($isTerminal)
+  <div class="ia-card appt-terminal-card">
+    <div class="appt-terminal-icon appt-terminal-icon--{{ $appointment->status }}">
+      @if($appointment->status === 'cancelled')
+        <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      @else
+        <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      @endif
+    </div>
+    <div>
+      <div class="appt-terminal-title">{{ $statusLabels[$appointment->status] }}</div>
+      <div class="appt-terminal-sub">This appointment is {{ $appointment->status }}. Use Reopen to revert.</div>
+    </div>
+    <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-reopen-btn" data-status="pending">
+      Reopen
+    </button>
+  </div>
+@else
+  <div class="ia-card appt-progress-card">
+    <div class="appt-progress-bar" data-current-index="{{ $currentIndex }}" data-update-url="{{ $updateUrl }}">
+      @foreach($pipelineSteps as $idx => $step)
+        @php
+          $stepLabel = $statusLabels[$step];
+          $isDone    = $idx < $currentIndex;
+          $isCurrent = $idx === $currentIndex;
+        @endphp
+        <button type="button"
+                class="appt-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
+                data-status="{{ $step }}"
+                data-step-index="{{ $idx }}"
+                data-label="{{ $stepLabel }}">
+          <span class="appt-progress-dot">
+            @if($isDone)
+              <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            @elseif($isCurrent)
+              <span class="appt-progress-dot-inner"></span>
+            @endif
+          </span>
+          <span class="appt-progress-label">{{ $stepLabel }}</span>
+        </button>
+      @endforeach
+    </div>
+  </div>
+@endif
 
 <div class="appt-layout">
 
@@ -404,6 +483,13 @@
       </form>
     </div>
 
+    {{-- Cancel appointment (destructive, separate from forward flow) --}}
+    @unless(in_array($appointment->status, ['cancelled', 'refunded']))
+      <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn" style="width:100%">
+        Cancel appointment
+      </button>
+    @endunless
+
     {{-- Notes --}}
     <div class="ia-card ia-card--tight">
       <div class="appt-section-label">Notes</div>
@@ -583,50 +669,104 @@
   }
 
 
-  // Status transition buttons — AJAX with toast feedback
-  document.querySelectorAll('.status-transition-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var status = btn.getAttribute('data-status');
-      var label  = btn.getAttribute('data-label');
-      var confirmMsg = btn.getAttribute('data-confirm-msg');
-      if (confirmMsg && !confirm(confirmMsg)) return;
+  // Status updates — used by progress bar steps, reopen button, and cancel button.
+  function updateStatus(targetStatus, targetLabel, opts) {
+    opts = opts || {};
+    var fd = new FormData();
+    fd.append('_token', csrf);
+    fd.append('_method', 'PATCH');
+    fd.append('op', 'status');
+    fd.append('status', targetStatus);
 
-      btn.disabled = true;
-      var origText = btn.textContent;
-      btn.textContent = 'Saving…';
+    return fetch(updateUrl, { method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          window.IntakeToast.success(targetLabel || 'Saved');
+          setTimeout(function () {
+            if (opts.redirectToCalendar) {
+              window.location.href = '{{ route("tenant.calendar.index") }}';
+            } else {
+              window.location.reload();
+            }
+          }, 600);
+          return true;
+        }
+        var msg = (res.body && res.body.message) || 'Could not update status.';
+        window.IntakeToast.error(msg);
+        return false;
+      })
+      .catch(function () {
+        window.IntakeToast.error('Network error. Try again.');
+        return false;
+      });
+  }
 
-      var fd = new FormData();
-      fd.append('_token', csrf);
-      fd.append('_method', 'PATCH');
-      fd.append('op', 'status');
-      fd.append('status', status);
+  // Progress bar — click a step to move there.
+  // Forward moves go silently. Backward moves trigger a confirm modal.
+  var bar = document.querySelector('.appt-progress-bar');
+  if (bar) {
+    var currentIndex = parseInt(bar.getAttribute('data-current-index'), 10);
+    // Set the green-fill width via CSS variable.
+    bar.style.setProperty('--progress', currentIndex / 3);
 
-      fetch(updateUrl, { method: 'POST', body: fd,
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-        .then(function (r) { return r.json(); })
-        .then(function (resp) {
-          if (resp && resp.ok) {
-            window.IntakeToast.success(label);
-            setTimeout(function () {
-              if (status === 'cancelled' || status === 'refunded') {
-                window.location.href = '{{ route("tenant.calendar.index") }}';
-              } else {
-                window.location.reload();
-              }
-            }, 600);
-          } else {
-            btn.disabled = false;
-            btn.textContent = origText;
-            window.IntakeToast.error((resp && resp.message) || 'Could not update status.');
-          }
-        })
-        .catch(function () {
-          btn.disabled = false;
-          btn.textContent = origText;
-          window.IntakeToast.error('Network error. Try again.');
-        });
+    bar.querySelectorAll('.appt-progress-step').forEach(function (step) {
+      step.addEventListener('click', function () {
+        var stepIndex = parseInt(step.getAttribute('data-step-index'), 10);
+        var status    = step.getAttribute('data-status');
+        var label     = step.getAttribute('data-label');
+        if (stepIndex === currentIndex) return;  // clicking current is a no-op
+
+        var go = function () {
+          step.classList.add('is-saving');
+          updateStatus(status, label);
+        };
+
+        if (stepIndex < currentIndex) {
+          window.IntakeConfirm.show({
+            title:       'Move back to ' + label + '?',
+            message:     'This appointment is currently further along. Going back may surprise the customer.',
+            confirmText: 'Move back',
+            cancelText:  'Keep where it is'
+          }).then(function (ok) { if (ok) go(); });
+        } else {
+          go();
+        }
+      });
     });
-  });
+  }
+
+  // Reopen button on terminal cards (cancelled / refunded)
+  var reopenBtn = document.querySelector('.appt-reopen-btn');
+  if (reopenBtn) {
+    reopenBtn.addEventListener('click', function () {
+      window.IntakeConfirm.show({
+        title:       'Reopen this appointment?',
+        message:     'This will return it to Pending status.',
+        confirmText: 'Reopen',
+        cancelText:  'Keep closed'
+      }).then(function (ok) {
+        if (ok) updateStatus('pending', 'Reopened');
+      });
+    });
+  }
+
+  // Cancel button (sidebar)
+  var cancelBtn = document.querySelector('.appt-cancel-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function () {
+      window.IntakeConfirm.show({
+        title:       'Cancel this appointment?',
+        message:     "The customer's slot will be released and the calendar will reflect the cancellation.",
+        confirmText: 'Cancel appointment',
+        cancelText:  'Keep it',
+        danger:      true
+      }).then(function (ok) {
+        if (ok) updateStatus('cancelled', 'Cancelled', { redirectToCalendar: true });
+      });
+    });
+  }
 
   // Work order edit mode toggle — wo-edit-toggle-bound
   var woDisplay = document.getElementById('wo-display');

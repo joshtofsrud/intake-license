@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/toast.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}">
 
   {{-- Tenant accent color injected at runtime --}}
   <style>
@@ -103,6 +104,8 @@
   };
 </script>
 
+<script src="{{ asset('js/tenant/toast.js') }}" defer></script>
+<script src="{{ asset('js/tenant/confirm.js') }}" defer></script>
 <script src="{{ asset('js/tenant/admin.js') }}" defer></script>
 <script src="{{ asset('js/tenant/mobile-nav.js') }}" defer></script>
 
