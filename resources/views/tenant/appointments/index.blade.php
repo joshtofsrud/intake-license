@@ -56,10 +56,14 @@
     <option value="paid"    @selected($payment === 'paid')>Paid</option>
   </select>
 
-  <input type="date" name="date_from" class="ia-input" value="{{ $dateFrom }}"
-    style="width:auto" title="From date">
-  <input type="date" name="date_to" class="ia-input" value="{{ $dateTo }}"
-    style="width:auto" title="To date">
+  <label class="ia-toolbar-date-field">
+    <span class="ia-toolbar-date-label">From</span>
+    <input type="date" name="date_from" class="ia-input" value="{{ $dateFrom }}">
+  </label>
+  <label class="ia-toolbar-date-field">
+    <span class="ia-toolbar-date-label">To</span>
+    <input type="date" name="date_to" class="ia-input" value="{{ $dateTo }}">
+  </label>
 
   <select name="sort" class="ia-input" style="width:auto">
     @foreach($sortLabels as $val => $label)
