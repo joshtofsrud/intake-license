@@ -74,7 +74,7 @@
         class="ia-btn {{ $isDestructive ? 'ia-btn--danger' : 'ia-btn--secondary' }} status-transition-btn"
         data-status="{{ $toStatus }}"
         data-label="{{ $transitionLabels[$toStatus] ?? $toStatus }}"
-        @if($isDestructive) data-confirm="Are you sure you want to {{ $transitionLabels[$toStatus] ?? $toStatus }} this job?" @endif>
+        @if($isDestructive) data-confirm-msg="{{ $toStatus === 'cancelled' ? 'Cancel this appointment?' : ($toStatus === 'refunded' ? 'Refund this appointment?' : 'Are you sure?') }}" @endif>
         {{ $transitionLabels[$toStatus] ?? ucfirst($toStatus) }}
       </button>
     @endforeach
@@ -588,7 +588,7 @@
     btn.addEventListener('click', function () {
       var status = btn.getAttribute('data-status');
       var label  = btn.getAttribute('data-label');
-      var confirmMsg = btn.getAttribute('data-confirm');
+      var confirmMsg = btn.getAttribute('data-confirm-msg');
       if (confirmMsg && !confirm(confirmMsg)) return;
 
       btn.disabled = true;
@@ -606,8 +606,14 @@
         .then(function (r) { return r.json(); })
         .then(function (resp) {
           if (resp && resp.ok) {
-            window.IntakeToast.success(label + ' · saved');
-            setTimeout(function () { window.location.reload(); }, 600);
+            window.IntakeToast.success(label);
+            setTimeout(function () {
+              if (status === 'cancelled' || status === 'refunded') {
+                window.location.href = '{{ route("tenant.calendar.index") }}';
+              } else {
+                window.location.reload();
+              }
+            }, 600);
           } else {
             btn.disabled = false;
             btn.textContent = origText;
