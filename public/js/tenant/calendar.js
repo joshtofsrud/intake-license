@@ -356,11 +356,90 @@
     });
   }
 
+  // ==========================================================================
+  // Mobile bottom-sheet filter — open/close + row interactions
+  // Sheet uses the same URL-driven navigation as the desktop chips.
+  // ==========================================================================
+  var CalendarFilterSheet = {
+    sheet: null,
+    trigger: null,
+
+    init: function () {
+      this.sheet = document.getElementById('ia-cal-filter-sheet');
+      this.trigger = document.getElementById('ia-cal-filter-trigger');
+      if (!this.sheet || !this.trigger) return;
+
+      var self = this;
+      this.trigger.addEventListener('click', function () { self.open(); });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && self.sheet.classList.contains('is-open')) {
+          self.close();
+        }
+      });
+
+      this.sheet.querySelectorAll('.ia-cal-sheet-row').forEach(function (row) {
+        var action = row.getAttribute('data-action');
+        var resourceId = row.getAttribute('data-resource-id');
+        row.addEventListener('click', function (e) {
+          if (e.target.closest('.ia-cal-sheet-row-solo')) return;
+          if (action === 'all') {
+            self.navigate('all');
+          } else if (resourceId) {
+            self.toggle(resourceId);
+          }
+        });
+      });
+    },
+
+    open: function () {
+      if (!this.sheet) return;
+      this.sheet.classList.add('is-open');
+      this.sheet.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    },
+
+    close: function () {
+      if (!this.sheet) return;
+      this.sheet.classList.remove('is-open');
+      this.sheet.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    },
+
+    navigate: function (resourceParam) {
+      var u = new URL(window.location.href);
+      u.searchParams.set('resources', resourceParam);
+      window.location.href = u.toString();
+    },
+
+    toggle: function (id) {
+      var current = [];
+      this.sheet.querySelectorAll('.ia-cal-sheet-row.is-on[data-resource-id]')
+        .forEach(function (r) { current.push(r.getAttribute('data-resource-id')); });
+      var idx = current.indexOf(id);
+      if (idx >= 0) current.splice(idx, 1);
+      else current.push(id);
+
+      var allCount = this.sheet.querySelectorAll('.ia-cal-sheet-row[data-resource-id]').length;
+      if (current.length === 0 || current.length === allCount) {
+        this.navigate('all');
+      } else {
+        this.navigate(current.join(','));
+      }
+    },
+
+    solo: function (id) {
+      this.navigate(id);
+    },
+  };
+  window.CalendarFilterSheet = CalendarFilterSheet;
+
   function boot() {
     initNowLine();
     initCalendarClicks();
     bindSearch();
     initFilterChips();
+    CalendarFilterSheet.init();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);

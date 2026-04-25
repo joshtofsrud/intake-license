@@ -719,3 +719,170 @@ body.ia-theme-c .ia-cal-fchip.is-on {
 body.ia-theme-c .ia-cal-fchip-solo {
   background: var(--ia-surface, #1a1a1a);
 }
+
+/* ============================================================
+ * Resource filter — mobile bottom sheet pattern
+ * Desktop: chip strip visible (the .ia-cal-filter-bar above).
+ * Mobile (<=768px): chip strip hidden, trigger button visible,
+ * tap -> bottom sheet slides up with same chips presented as rows.
+ * ============================================================ */
+.ia-cal-filter-trigger {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin: 10px 14px;
+  border: 0.5px solid var(--ia-border, rgba(0,0,0,.1));
+  border-radius: 999px;
+  background: var(--ia-surface, #fff);
+  color: var(--ia-text, #111);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  position: relative;
+}
+.ia-cal-filter-trigger-label {
+  flex: 1;
+  text-align: left;
+}
+.ia-cal-filter-trigger-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ia-accent, #BEF264);
+  position: absolute;
+  top: 6px;
+  right: 8px;
+}
+
+@media (max-width: 768px) {
+  .ia-cal-filter-bar { display: none; }
+  .ia-cal-filter-trigger { display: inline-flex; }
+}
+
+.ia-cal-filter-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: none;
+  pointer-events: none;
+}
+.ia-cal-filter-sheet.is-open {
+  display: block;
+  pointer-events: auto;
+}
+.ia-cal-filter-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.ia-cal-filter-sheet.is-open .ia-cal-filter-sheet-backdrop {
+  opacity: 1;
+}
+.ia-cal-filter-sheet-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--ia-surface, #fff);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform .25s cubic-bezier(.2,.9,.3,1);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -8px 24px rgba(0,0,0,.18);
+}
+.ia-cal-filter-sheet.is-open .ia-cal-filter-sheet-panel {
+  transform: translateY(0);
+}
+.ia-cal-filter-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--ia-border-strong, rgba(0,0,0,.2));
+  border-radius: 2px;
+  margin: 8px auto 4px;
+}
+.ia-cal-filter-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 18px 12px;
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.08));
+}
+.ia-cal-filter-sheet-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ia-text, #111);
+}
+.ia-cal-filter-sheet-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ia-text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+.ia-cal-filter-sheet-body {
+  overflow-y: auto;
+  padding: 4px 0 12px;
+}
+
+.ia-cal-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 0.5px solid var(--ia-border, rgba(0,0,0,.05));
+  color: var(--ia-text, #111);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+}
+.ia-cal-sheet-row:last-child { border-bottom: none; }
+.ia-cal-sheet-row.is-on { background: var(--ia-hover, rgba(0,0,0,.03)); }
+.ia-cal-sheet-row-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ia-cal-sheet-row-label { flex: 1; font-weight: 500; }
+.ia-cal-sheet-row-sub {
+  font-weight: 400;
+  color: var(--ia-text-muted);
+  font-size: 12px;
+}
+.ia-cal-sheet-row-solo {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 0.5px solid var(--ia-border-strong, rgba(0,0,0,.18));
+  background: transparent;
+  color: var(--ia-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+.ia-cal-sheet-row-solo:hover {
+  border-color: var(--ia-text, #111);
+  color: var(--ia-text, #111);
+}
+.ia-cal-sheet-check {
+  font-size: 18px;
+  color: var(--ia-accent, #BEF264);
+  font-weight: 600;
+  margin-left: 4px;
+}

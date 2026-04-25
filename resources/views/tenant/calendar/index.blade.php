@@ -111,6 +111,49 @@
         </span>
       @endforeach
     </div>
+
+    {{-- Bottom sheet (mobile only via CSS) — same chips, presented spaciously --}}
+    <div class="ia-cal-filter-sheet" id="ia-cal-filter-sheet" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="ia-cal-filter-sheet-backdrop" onclick="CalendarFilterSheet.close()"></div>
+      <div class="ia-cal-filter-sheet-panel">
+        <div class="ia-cal-filter-sheet-handle"></div>
+        <div class="ia-cal-filter-sheet-head">
+          <span class="ia-cal-filter-sheet-title">Filter resources</span>
+          <button type="button" class="ia-cal-filter-sheet-close" onclick="CalendarFilterSheet.close()" aria-label="Close">×</button>
+        </div>
+        <div class="ia-cal-filter-sheet-body">
+          <button type="button"
+                  class="ia-cal-sheet-row {{ $filterMode === 'all' ? 'is-on' : '' }}"
+                  data-action="all">
+            <span class="ia-cal-sheet-row-label">All resources</span>
+            @if($filterMode === 'all')
+              <span class="ia-cal-sheet-check" aria-hidden="true">✓</span>
+            @endif
+          </button>
+          @foreach($allResources as $r)
+            @php $isVisible = in_array($r->id, $resources->pluck('id')->all()); @endphp
+            <button type="button"
+                    class="ia-cal-sheet-row {{ $isVisible ? 'is-on' : '' }}"
+                    data-resource-id="{{ $r->id }}">
+              <span class="ia-cal-sheet-row-dot" style="background: {{ $r->color_hex ?: '#888' }};"></span>
+              <span class="ia-cal-sheet-row-label">
+                {{ $r->name }}
+                @if($r->subtitle)
+                  <span class="ia-cal-sheet-row-sub">· {{ $r->subtitle }}</span>
+                @endif
+              </span>
+              <button type="button" class="ia-cal-sheet-row-solo"
+                      data-resource-id="{{ $r->id }}"
+                      onclick="event.stopPropagation(); CalendarFilterSheet.solo('{{ $r->id }}');"
+                      aria-label="Show only {{ $r->name }}">Only</button>
+              @if($isVisible)
+                <span class="ia-cal-sheet-check" aria-hidden="true">✓</span>
+              @endif
+            </button>
+          @endforeach
+        </div>
+      </div>
+    </div>
   @endif
 
   {{-- =========================================================
