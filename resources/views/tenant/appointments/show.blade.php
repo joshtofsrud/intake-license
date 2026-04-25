@@ -361,6 +361,48 @@
       @endif
     </div>
 
+    {{-- Notes --}}
+    <div class="ia-card">
+      <div class="appt-section-label">Notes</div>
+
+      <div class="ia-note-add">
+        <textarea id="note-input" rows="3" maxlength="500"
+          data-maxlength="500" data-counter="note-chars"
+          placeholder="Add a note…" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
+        <div class="ia-note-add-footer">
+          <span class="ia-char-count" id="note-chars">500</span>
+          <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="note-submit"
+            data-url="{{ $updateUrl }}">
+            Add note
+          </button>
+        </div>
+        <p id="note-error" style="font-size:12px;color:#E24B4A;margin-top:4px;display:none"></p>
+      </div>
+
+      <div class="ia-notes" id="notes-list">
+        @forelse($appointment->notes->sortByDesc('created_at') as $note)
+          <div class="ia-note" data-note-id="{{ $note->id }}">
+            <div class="ia-note-head">
+              <span class="ia-note-author">
+                {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
+              </span>
+              <span class="ia-note-time">
+                {{ \Carbon\Carbon::parse($note->created_at)->format('M j, g:i a') }}
+              </span>
+              @if($note->note_type !== 'system')
+                <button type="button" class="ia-note-delete"
+                  data-note-id="{{ $note->id }}"
+                  title="Delete">&#x2715;</button>
+              @endif
+            </div>
+            <div class="ia-note-body">{{ $note->note_content }}</div>
+          </div>
+        @empty
+          <p class="ia-notes-empty" style="font-size:13px;opacity:.4">No notes yet.</p>
+        @endforelse
+      </div>
+    </div>
+
   </div>
 
   <div style="display:flex;flex-direction:column;gap:16px">
@@ -489,48 +531,6 @@
         Cancel appointment
       </button>
     @endunless
-
-    {{-- Notes --}}
-    <div class="ia-card ia-card--tight">
-      <div class="appt-section-label">Notes</div>
-
-      <div class="ia-note-add">
-        <textarea id="note-input" rows="3" maxlength="500"
-          data-maxlength="500" data-counter="note-chars"
-          placeholder="Add a note…" style="width:100%;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);padding:8px 10px;font-size:13px;resize:none;font-family:var(--ia-font)"></textarea>
-        <div class="ia-note-add-footer">
-          <span class="ia-char-count" id="note-chars">500</span>
-          <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="note-submit"
-            data-url="{{ $updateUrl }}">
-            Add note
-          </button>
-        </div>
-        <p id="note-error" style="font-size:12px;color:#E24B4A;margin-top:4px;display:none"></p>
-      </div>
-
-      <div class="ia-notes" id="notes-list">
-        @forelse($appointment->notes->sortByDesc('created_at') as $note)
-          <div class="ia-note" data-note-id="{{ $note->id }}">
-            <div class="ia-note-head">
-              <span class="ia-note-author">
-                {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
-              </span>
-              <span class="ia-note-time">
-                {{ \Carbon\Carbon::parse($note->created_at)->format('M j, g:i a') }}
-              </span>
-              @if($note->note_type !== 'system')
-                <button type="button" class="ia-note-delete"
-                  data-note-id="{{ $note->id }}"
-                  title="Delete">&#x2715;</button>
-              @endif
-            </div>
-            <div class="ia-note-body">{{ $note->note_content }}</div>
-          </div>
-        @empty
-          <p class="ia-notes-empty" style="font-size:13px;opacity:.4">No notes yet.</p>
-        @endforelse
-      </div>
-    </div>
 
   </div>
 

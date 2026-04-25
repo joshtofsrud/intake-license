@@ -13,15 +13,22 @@ use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
 {
+    // Active statuses can move freely between each other (forward or backward).
+    // Terminal statuses (cancelled/refunded) can only be reopened to pending.
+    // The UI is responsible for confirming destructive or backward moves;
+    // this controller only enforces "is the target status valid at all?"
+    private const ACTIVE_STATUSES   = ['pending', 'confirmed', 'in_progress', 'completed', 'shipped', 'closed'];
+    private const TERMINAL_STATUSES = ['cancelled', 'refunded'];
+
     private const TRANSITIONS = [
-        'pending'     => ['confirmed', 'cancelled'],
-        'confirmed'   => ['in_progress', 'cancelled'],
-        'in_progress' => ['completed', 'shipped', 'cancelled'],
-        'completed'   => ['closed', 'shipped', 'refunded'],
-        'shipped'     => ['closed', 'refunded'],
-        'closed'      => ['refunded'],
-        'cancelled'   => [],
-        'refunded'    => [],
+        'pending'     => ['confirmed', 'in_progress', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
+        'confirmed'   => ['pending', 'in_progress', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
+        'in_progress' => ['pending', 'confirmed', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
+        'completed'   => ['pending', 'confirmed', 'in_progress', 'shipped', 'closed', 'cancelled', 'refunded'],
+        'shipped'     => ['pending', 'confirmed', 'in_progress', 'completed', 'closed', 'cancelled', 'refunded'],
+        'closed'      => ['pending', 'confirmed', 'in_progress', 'completed', 'shipped', 'cancelled', 'refunded'],
+        'cancelled'   => ['pending'],
+        'refunded'    => ['pending'],
     ];
 
     private const TRANSITION_LABELS = [
