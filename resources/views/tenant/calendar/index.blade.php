@@ -77,9 +77,33 @@
   </div>
 
   {{-- =========================================================
-       Resource filter chips — only render if more than one resource exists
+       Resource filter — chip strip on desktop, bottom sheet on mobile
        ========================================================= --}}
   @if($allResources->count() > 1)
+    @php
+      $visibleCount = $resources->count();
+      $totalCount   = $allResources->count();
+      if ($filterMode === 'all') {
+        $filterButtonLabel = 'All';
+      } elseif ($visibleCount === 1) {
+        $filterButtonLabel = $resources->first()->name;
+      } else {
+        $filterButtonLabel = $visibleCount . ' selected';
+      }
+    @endphp
+
+    {{-- Mobile-only trigger button — opens the bottom sheet --}}
+    <button type="button" class="ia-cal-filter-trigger" id="ia-cal-filter-trigger"
+            aria-label="Filter resources" aria-haspopup="dialog">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 3h10M3.5 7h7M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <span class="ia-cal-filter-trigger-label">{{ $filterButtonLabel }}</span>
+      @if($filterMode !== 'all')
+        <span class="ia-cal-filter-trigger-dot" aria-hidden="true"></span>
+      @endif
+    </button>
+
     <div class="ia-cal-filter-bar" id="ia-cal-filter-bar"
          data-current-mode="{{ $filterMode }}">
       <span class="ia-cal-filter-label">Show</span>
