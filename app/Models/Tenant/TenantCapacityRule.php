@@ -7,6 +7,6 @@ class TenantCapacityRule extends Model
 {
     use HasUuids;
     protected $table    = 'tenant_capacity_rules';
-    protected $fillable = ['tenant_id','rule_type','day_of_week','specific_date','max_appointments','note'];
+    protected $fillable = ['tenant_id','rule_type','day_of_week','specific_date','max_appointments','note','open_time','close_time','slot_interval_minutes'];
     protected $casts    = ['specific_date' => 'date', 'max_appointments' => 'integer'];
 }
