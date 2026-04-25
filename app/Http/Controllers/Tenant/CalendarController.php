@@ -103,7 +103,6 @@ class CalendarController extends Controller
         $appointments = TenantAppointment::query()
             ->where('tenant_id', $tenant->id)
             ->where('appointment_date', $dateStr)
-            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('appointment_time')
             ->whereIn('resource_id', $visibleResourceIds)
             ->with(['items:id,appointment_id,item_name_snapshot,duration_minutes_snapshot,prep_before_minutes_snapshot,cleanup_after_minutes_snapshot'])

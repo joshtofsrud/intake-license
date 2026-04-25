@@ -886,3 +886,62 @@ body.ia-theme-c .ia-cal-fchip-solo {
   font-weight: 600;
   margin-left: 4px;
 }
+
+
+/* ================================================================
+   Appointment status visual reflection
+   ================================================================ */
+/* Pending: dashed border, slightly lighter fill — "tentative" feel */
+.ia-cal-appt.status-pending {
+  border-left-style: dashed;
+  opacity: .85;
+}
+
+/* Confirmed: default solid look (no override needed) */
+
+/* In progress: thicker accent border-left to signal active work */
+.ia-cal-appt.status-in-progress {
+  border-left-width: 4px;
+  box-shadow: inset 2px 0 0 var(--ia-accent);
+}
+
+/* Completed: muted, with a subtle check overlay in the top-right */
+.ia-cal-appt.status-completed {
+  opacity: .55;
+}
+.ia-cal-appt.status-completed::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3B6D11;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none'><path d='M2 5l2 2 4-4' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 9px 9px;
+}
+
+/* Cancelled: faded + strikethrough, struck-through name */
+.ia-cal-appt.status-cancelled {
+  opacity: .35;
+  background: var(--ia-border) !important;
+  border-left-style: dotted;
+}
+.ia-cal-appt.status-cancelled .ia-cal-appt-name,
+.ia-cal-appt.status-cancelled .ia-cal-appt-svc,
+.ia-cal-appt.status-cancelled .ia-cal-appt-time {
+  text-decoration: line-through;
+}
+
+/* Refunded: similar to cancelled but with amber tint */
+.ia-cal-appt.status-refunded {
+  opacity: .45;
+  background: rgba(186, 117, 23, .15) !important;
+  border-left-color: #BA7517 !important;
+}
+.ia-cal-appt.status-refunded .ia-cal-appt-name {
+  text-decoration: line-through;
+}
