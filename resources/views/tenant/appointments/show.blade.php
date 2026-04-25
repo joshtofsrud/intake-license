@@ -17,7 +17,7 @@
     'completed'   => 'Mark completed',
     'shipped'     => 'Mark shipped',
     'closed'      => 'Close job',
-    'cancelled'   => 'Cancel',
+    'cancelled'   => 'Cancel appointment',
     'refunded'    => 'Refund',
   ];
   $updateUrl = route('tenant.appointments.update', $appointment->id);
@@ -70,16 +70,13 @@
 
     @foreach($transitions as $toStatus)
       @php $isDestructive = in_array($toStatus, $destructive); @endphp
-      <form method="POST" action="{{ $updateUrl }}" style="display:inline">
-        @csrf @method('PATCH')
-        <input type="hidden" name="op" value="status">
-        <input type="hidden" name="status" value="{{ $toStatus }}">
-        <button type="submit"
-          class="ia-btn {{ $isDestructive ? 'ia-btn--danger' : 'ia-btn--secondary' }}"
-          @if($isDestructive) data-confirm="Are you sure you want to {{ $transitionLabels[$toStatus] ?? $toStatus }} this job?" @endif>
-          {{ $transitionLabels[$toStatus] ?? ucfirst($toStatus) }}
-        </button>
-      </form>
+      <button type="button"
+        class="ia-btn {{ $isDestructive ? 'ia-btn--danger' : 'ia-btn--secondary' }} status-transition-btn"
+        data-status="{{ $toStatus }}"
+        data-label="{{ $transitionLabels[$toStatus] ?? $toStatus }}"
+        @if($isDestructive) data-confirm="Are you sure you want to {{ $transitionLabels[$toStatus] ?? $toStatus }} this job?" @endif>
+        {{ $transitionLabels[$toStatus] ?? ucfirst($toStatus) }}
+      </button>
     @endforeach
   </div>
 </div>
@@ -585,6 +582,45 @@
       .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+
+  // Status transition buttons — AJAX with toast feedback
+  document.querySelectorAll('.status-transition-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var status = btn.getAttribute('data-status');
+      var label  = btn.getAttribute('data-label');
+      var confirmMsg = btn.getAttribute('data-confirm');
+      if (confirmMsg && !confirm(confirmMsg)) return;
+
+      btn.disabled = true;
+      var origText = btn.textContent;
+      btn.textContent = 'Saving…';
+
+      var fd = new FormData();
+      fd.append('_token', csrf);
+      fd.append('_method', 'PATCH');
+      fd.append('op', 'status');
+      fd.append('status', status);
+
+      fetch(updateUrl, { method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (resp) {
+          if (resp && resp.ok) {
+            window.IntakeToast.success(label + ' · saved');
+            setTimeout(function () { window.location.reload(); }, 600);
+          } else {
+            btn.disabled = false;
+            btn.textContent = origText;
+            window.IntakeToast.error((resp && resp.message) || 'Could not update status.');
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = origText;
+          window.IntakeToast.error('Network error. Try again.');
+        });
+    });
+  });
 
   // Work order edit mode toggle — wo-edit-toggle-bound
   var woDisplay = document.getElementById('wo-display');

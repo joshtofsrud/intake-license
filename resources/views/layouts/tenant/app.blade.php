@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="{{ asset('css/tenant/theme-' . $adminTheme . '.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/toast.css') }}">
 
   {{-- Tenant accent color injected at runtime --}}
   <style>
