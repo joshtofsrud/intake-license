@@ -115,18 +115,29 @@
   // QuickBook modal — exposed as window.QuickBook
   // ==========================================================================
   var QuickBook = {
-    state: { date: null, time: null, resourceId: null, customerId: null, services: [], customers: [] },
+    state: { date: null, time: null, resourceId: null, customerId: null, services: [], customers: [], resources: [] },
 
     open: function (ctx) {
-      this.state.date       = ctx.date;
-      this.state.time       = ctx.time;
-      this.state.resourceId = ctx.resourceId;
+      ctx = ctx || {};
+      // Defaults for any field not provided. Today, 09:00, no resource.
+      var today = new Date();
+      var defaultDate = today.getFullYear() + '-'
+        + String(today.getMonth() + 1).padStart(2, '0') + '-'
+        + String(today.getDate()).padStart(2, '0');
+
+      this.state.date       = ctx.date       || defaultDate;
+      this.state.time       = ctx.time       || '09:00';
+      this.state.resourceId = ctx.resourceId || null;
       this.state.customerId = null;
 
-      document.getElementById('qb-context').textContent =
-        ctx.date + ' at ' + this.formatTime(ctx.time) + ' · ' + ctx.resourceName;
-      document.getElementById('qb-error').style.display = 'none';
+      // Populate form fields with the defaults; user can change before submit.
+      var dateEl = document.getElementById('qb-date');
+      var timeEl = document.getElementById('qb-time');
+      if (dateEl) dateEl.value = this.state.date;
+      // Time input wants H:i (no seconds). Cell-click flow already passes H:i.
+      if (timeEl) timeEl.value = this.state.time.split(':').slice(0, 2).join(':');
 
+      document.getElementById('qb-error').style.display = 'none';
       ['qb-customer-search', 'qb-first-name', 'qb-last-name', 'qb-email', 'qb-phone']
         .forEach(function (id) { var e = document.getElementById(id); if (e) e.value = ''; });
       document.getElementById('qb-new-customer').style.display = 'block';
@@ -146,11 +157,31 @@
       fetch(url, { headers: { 'Accept': 'application/json' } })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          QuickBook.state.services = data.services || [];
+          QuickBook.state.services  = data.services  || [];
           QuickBook.state.customers = data.customers || [];
+          QuickBook.state.resources = data.resources || [];
           QuickBook.renderServices();
           QuickBook.renderCustomers();
+          QuickBook.renderResources();
         });
+    },
+
+    renderResources: function () {
+      var sel = document.getElementById('qb-resource');
+      if (!sel) return;
+      var preselect = this.state.resourceId;
+      sel.innerHTML = '<option value="">Select a resource…</option>';
+      this.state.resources.forEach(function (r) {
+        var opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name + (r.subtitle ? ' · ' + r.subtitle : '');
+        if (preselect && r.id === preselect) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      // If we have no preselect, default to first resource.
+      if (!preselect && this.state.resources.length > 0) {
+        sel.value = this.state.resources[0].id;
+      }
     },
 
     renderServices: function () {
@@ -200,10 +231,27 @@
         return this.showError('Pick a service.', btn);
       }
 
+      // Read date / time / resource from the form fields. These are the
+      // source of truth at submit time; state holds defaults only.
+      var dateEl     = document.getElementById('qb-date');
+      var timeEl     = document.getElementById('qb-time');
+      var resourceEl = document.getElementById('qb-resource');
+
+      var dateValue     = dateEl ? dateEl.value : this.state.date;
+      var timeValue     = timeEl ? timeEl.value : this.state.time;
+      var resourceValue = resourceEl ? resourceEl.value : this.state.resourceId;
+
+      if (!dateValue)     return this.showError('Pick a date.', btn);
+      if (!timeValue)     return this.showError('Pick a time.', btn);
+      if (!resourceValue) return this.showError('Pick a resource.', btn);
+
+      // Time input returns H:i; controller wants H:i:s.
+      var apptTime = timeValue.split(':').slice(0, 2).join(':') + ':00';
+
       var body = {
-        date: this.state.date,
-        appointment_time: this.state.time + ':00',
-        resource_id: this.state.resourceId,
+        date: dateValue,
+        appointment_time: apptTime,
+        resource_id: resourceValue,
         service_item_id: serviceId,
       };
 
@@ -581,6 +629,7 @@
 })();
 
 
+
 (function () {
   'use strict';
 
@@ -588,46 +637,27 @@
     var prefill = window.IntakeCalendarPrefill;
     if (!prefill || !window.QuickBook) return;
 
-    var firstResource = document.querySelector('[data-resource-id]');
-    var resourceId    = firstResource ? firstResource.getAttribute('data-resource-id') : null;
-    var resourceName  = '';
-    if (firstResource) {
-      var nameEl = firstResource.querySelector('.ia-cal-resource-name');
-      if (nameEl) resourceName = nameEl.textContent.trim();
-    }
+    // Open the modal with default date/time/resource. User picks them.
+    window.QuickBook.open({});
 
-    var shell = document.querySelector('.ia-cal-shell');
-    var openMin = shell ? parseInt(shell.getAttribute('data-cal-open-min') || '540', 10) : 540;
-    var hh = String(Math.floor(openMin / 60)).padStart(2, '0');
-    var mm = String(openMin % 60).padStart(2, '0');
-    var time = hh + ':' + mm + ':00';
-    var dateStr = (new Date()).toISOString().slice(0, 10);
-
-    if (resourceId) {
-      window.QuickBook.open({
-        date: dateStr,
-        time: time,
-        resourceId: resourceId,
-        resourceName: resourceName || 'Resource'
-      });
-
-      var attempts = 0;
-      var poll = setInterval(function () {
-        attempts++;
-        if (window.QuickBook.state && window.QuickBook.state.services.length > 0) {
-          clearInterval(poll);
-          window.QuickBook.state.customerId = prefill.id;
-          var label = (prefill.first_name || '') + ' ' + (prefill.last_name || '');
-          if (prefill.email) label += ' (' + prefill.email + ')';
-          var search = document.getElementById('qb-customer-search');
-          if (search) search.value = label;
-          var newBlock = document.getElementById('qb-new-customer');
-          if (newBlock) newBlock.style.display = 'none';
-          var results = document.getElementById('qb-customer-results');
-          if (results) results.style.display = 'none';
-        }
-        if (attempts > 30) clearInterval(poll);
-      }, 100);
-    }
+    // After fetchPicker completes, mark the prefilled customer as selected.
+    // Poll briefly since fetchPicker is async.
+    var attempts = 0;
+    var poll = setInterval(function () {
+      attempts++;
+      if (window.QuickBook.state && window.QuickBook.state.services.length > 0) {
+        clearInterval(poll);
+        window.QuickBook.state.customerId = prefill.id;
+        var label = (prefill.first_name || '') + ' ' + (prefill.last_name || '');
+        if (prefill.email) label += ' (' + prefill.email + ')';
+        var search = document.getElementById('qb-customer-search');
+        if (search) search.value = label;
+        var newBlock = document.getElementById('qb-new-customer');
+        if (newBlock) newBlock.style.display = 'none';
+        var results = document.getElementById('qb-customer-results');
+        if (results) results.style.display = 'none';
+      }
+      if (attempts > 30) clearInterval(poll);
+    }, 100);
   });
 })();

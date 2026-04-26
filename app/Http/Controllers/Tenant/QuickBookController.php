@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Exceptions\LockAcquisitionException;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantCustomer;
+use App\Models\Tenant\TenantResource;
 use App\Models\Tenant\TenantServiceItem;
 use App\Services\BookingService;
 use Illuminate\Http\Request;
@@ -39,9 +40,16 @@ class QuickBookController extends Controller
             ->limit(20)
             ->get(['id', 'first_name', 'last_name', 'email', 'phone']);
 
+        $resources = TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'subtitle', 'color_hex']);
+
         return response()->json([
             'services'  => $services,
             'customers' => $customers,
+            'resources' => $resources,
         ]);
     }
 

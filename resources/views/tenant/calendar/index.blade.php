@@ -276,6 +276,22 @@
         </div>
       </div>
 
+      <div class="qb-field-row">
+        <div class="qb-field">
+          <label>Date</label>
+          <input type="date" id="qb-date">
+        </div>
+        <div class="qb-field">
+          <label>Time</label>
+          <input type="time" id="qb-time" step="900">
+        </div>
+      </div>
+
+      <div class="qb-field">
+        <label>Resource</label>
+        <select id="qb-resource"><option value="">Select a resource…</option></select>
+      </div>
+
       <div class="qb-field">
         <label>Service</label>
         <select id="qb-service"><option value="">Select a service…</option></select>
