@@ -21,9 +21,9 @@ class DashboardDataService
      * the tenant will see (greeting hour, today's appointments, week boundaries).
      * For storage timestamps and created_at/updated_at comparisons, use plain now() — those are UTC.
      */
-    private function tnow(): \Carbon\Carbon
+    private function tnow(): Carbon
     {
-        return \Carbon\Carbon::now($this->tenant->timezone());
+        return Carbon::now($this->tenant->timezone());
     }
 
     public function greeting(?object $user = null): array
