@@ -43,6 +43,8 @@ Route::domain($domain)->group(function () {
     // --- Fixed marketing pages (backed by platform tenant's TenantPages) ---
     Route::get('/',         [Platform\MarketingController::class, 'home'])->name('marketing.home');
     Route::get('/pricing',  [Platform\MarketingController::class, 'pricing'])->name('marketing.pricing');
+    Route::get('/changelog', [Platform\MarketingController::class, 'changelog'])->name('marketing.changelog');
+    Route::get('/roadmap',   [Platform\MarketingController::class, 'roadmap'])->name('marketing.roadmap');
     Route::get('/features', [Platform\MarketingController::class, 'features'])->name('marketing.features');
     Route::get('/docs',     [Platform\MarketingController::class, 'docs'])->name('marketing.docs');
     Route::get('/contact',  [Platform\MarketingController::class, 'contact'])->name('marketing.contact');
@@ -212,6 +214,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
             Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
+
+            Route::get('/whats-new', [TenantControllers\WhatsNewController::class, 'changelog'])->name('whats_new.changelog');
+            Route::get('/whats-coming', [TenantControllers\WhatsNewController::class, 'roadmap'])->name('whats_new.roadmap');
 
             Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
             Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');

@@ -83,6 +83,8 @@
                 {{-- Sensible defaults until someone edits nav in the admin --}}
                 <a href="{{ route('marketing.features') }}" class="mk-nav-link {{ request()->routeIs('marketing.features') ? 'active' : '' }}">Features</a>
                 <a href="{{ route('marketing.pricing') }}"  class="mk-nav-link {{ request()->routeIs('marketing.pricing')  ? 'active' : '' }}">Pricing</a>
+                <a href="{{ route('marketing.roadmap') }}"  class="mk-nav-link {{ request()->routeIs('marketing.roadmap')  ? 'active' : '' }}">Roadmap</a>
+                <a href="{{ route('marketing.changelog') }}"  class="mk-nav-link {{ request()->routeIs('marketing.changelog')  ? 'active' : '' }}">Changelog</a>
                 <a href="{{ route('marketing.docs') }}"     class="mk-nav-link {{ request()->routeIs('marketing.docs')     ? 'active' : '' }}">Docs</a>
             @endif
         </div>
@@ -105,6 +107,8 @@
         @else
             <a href="{{ route('marketing.features') }}">Features</a>
             <a href="{{ route('marketing.pricing') }}">Pricing</a>
+            <a href="{{ route('marketing.roadmap') }}">Roadmap</a>
+            <a href="{{ route('marketing.changelog') }}">Changelog</a>
             <a href="{{ route('marketing.docs') }}">Docs</a>
         @endif
         <a href="{{ route('platform.login') }}">Sign in</a>

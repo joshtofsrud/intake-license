@@ -81,6 +81,18 @@
       'group'  => 'settings',
     ],
     [
+      'route'  => 'tenant.whats_new.changelog',
+      'label'  => "What's New",
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5l1.5 3.5 3.5.5-2.5 2.5.5 3.5L7 9.5 4 11.5l.5-3.5L2 5.5l3.5-.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => 'settings',
+    ],
+    [
+      'route'  => 'tenant.whats_new.roadmap',
+      'label'  => "What's Coming",
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11.5L7 2l5 9.5M4.5 8.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'group'  => 'settings',
+    ],
+    [
       'route'  => 'tenant.branding.index',
       'label'  => 'Branding',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="2" fill="currentColor"/></svg>',

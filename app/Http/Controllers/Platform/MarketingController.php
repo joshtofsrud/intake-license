@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\Tenant\TenantPage;
 use App\Models\Tenant\TenantNavItem;
+use App\Models\ChangelogEntry;
+use App\Models\RoadmapEntry;
 use Illuminate\Http\Request;
 
 /**
@@ -40,6 +42,48 @@ class MarketingController extends Controller
             return view('marketing.features', $this->legacyShared());
         }
         return $this->renderPage('features');
+    }
+
+    /**
+     * Public changelog — what shipped, by date.
+     * Always served from the hardcoded Blade; data comes from changelog_entries.
+     */
+    public function changelog()
+    {
+        $entries = ChangelogEntry::published()
+            ->orderByDesc('is_highlighted')
+            ->orderByDesc('shipped_on')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('marketing.changelog', [
+            'entries' => $entries,
+        ] + $this->legacyShared());
+    }
+
+    /**
+     * Public roadmap — what's coming, grouped by status.
+     * Always served from the hardcoded Blade.
+     */
+    public function roadmap()
+    {
+        $entries = RoadmapEntry::published()
+            ->orderBy('display_order')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('status');
+
+        // Stable status order regardless of which buckets have entries.
+        $orderedGroups = [];
+        foreach (array_keys(RoadmapEntry::STATUSES) as $statusKey) {
+            if (isset($entries[$statusKey]) && $entries[$statusKey]->count() > 0) {
+                $orderedGroups[$statusKey] = $entries[$statusKey];
+            }
+        }
+
+        return view('marketing.roadmap', [
+            'groups' => $orderedGroups,
+        ] + $this->legacyShared());
     }
 
     public function docs()

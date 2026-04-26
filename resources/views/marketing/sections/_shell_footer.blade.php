@@ -56,6 +56,8 @@
                 <div class="mk-footer-col-title">Product</div>
                 <a href="{{ route('marketing.features') }}" class="mk-footer-link">Features</a>
                 <a href="{{ route('marketing.pricing') }}"  class="mk-footer-link">Pricing</a>
+                <a href="{{ route('marketing.roadmap') }}"  class="mk-footer-link">Roadmap</a>
+                <a href="{{ route('marketing.changelog') }}"  class="mk-footer-link">Changelog</a>
                 <a href="{{ route('marketing.docs') }}"     class="mk-footer-link">Docs</a>
             </div>
             <div>
