@@ -292,6 +292,12 @@
 </div>
 @endif
 
+@if($viewMode === 'day' && !empty($prefillCustomer ?? null))
+<script>
+  window.IntakeCalendarPrefill = @json($prefillCustomer);
+</script>
+@endif
+
 @endsection
 
 @push('styles')

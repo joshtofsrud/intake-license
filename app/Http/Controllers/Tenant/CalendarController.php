@@ -82,6 +82,26 @@ class CalendarController extends Controller
         $breakWindows = $this->collectBreakWindows($tenant->id, $date);
         $holdWindows  = $this->collectHoldWindows($tenant->id, $date);
 
+        // Customer prefill — when the calendar is opened from the customer
+        // detail page via "+ New appointment", auto-open the QuickBook modal
+        // with the customer pre-selected. Falls back to no prefill on bad ids.
+        $prefillCustomer = null;
+        $customerIdParam = $request->query('customer_id');
+        if ($customerIdParam) {
+            $c = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $customerIdParam)
+                ->first(['id', 'first_name', 'last_name', 'email', 'phone']);
+            if ($c) {
+                $prefillCustomer = [
+                    'id'         => $c->id,
+                    'first_name' => $c->first_name,
+                    'last_name'  => $c->last_name,
+                    'email'      => $c->email,
+                    'phone'      => $c->phone,
+                ];
+            }
+        }
+
         return view('tenant.calendar.index', [
             'viewMode'      => 'day',
             'date'          => $date,
@@ -101,6 +121,7 @@ class CalendarController extends Controller
             'appointments'  => $appointments,
             'breakWindows'  => $breakWindows,
             'holdWindows'   => $holdWindows,
+            'prefillCustomer' => $prefillCustomer,
         ]);
     }
 

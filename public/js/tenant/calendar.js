@@ -579,3 +579,55 @@
     });
   });
 })();
+
+
+(function () {
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var prefill = window.IntakeCalendarPrefill;
+    if (!prefill || !window.QuickBook) return;
+
+    var firstResource = document.querySelector('[data-resource-id]');
+    var resourceId    = firstResource ? firstResource.getAttribute('data-resource-id') : null;
+    var resourceName  = '';
+    if (firstResource) {
+      var nameEl = firstResource.querySelector('.ia-cal-resource-name');
+      if (nameEl) resourceName = nameEl.textContent.trim();
+    }
+
+    var shell = document.querySelector('.ia-cal-shell');
+    var openMin = shell ? parseInt(shell.getAttribute('data-cal-open-min') || '540', 10) : 540;
+    var hh = String(Math.floor(openMin / 60)).padStart(2, '0');
+    var mm = String(openMin % 60).padStart(2, '0');
+    var time = hh + ':' + mm + ':00';
+    var dateStr = (new Date()).toISOString().slice(0, 10);
+
+    if (resourceId) {
+      window.QuickBook.open({
+        date: dateStr,
+        time: time,
+        resourceId: resourceId,
+        resourceName: resourceName || 'Resource'
+      });
+
+      var attempts = 0;
+      var poll = setInterval(function () {
+        attempts++;
+        if (window.QuickBook.state && window.QuickBook.state.services.length > 0) {
+          clearInterval(poll);
+          window.QuickBook.state.customerId = prefill.id;
+          var label = (prefill.first_name || '') + ' ' + (prefill.last_name || '');
+          if (prefill.email) label += ' (' + prefill.email + ')';
+          var search = document.getElementById('qb-customer-search');
+          if (search) search.value = label;
+          var newBlock = document.getElementById('qb-new-customer');
+          if (newBlock) newBlock.style.display = 'none';
+          var results = document.getElementById('qb-customer-results');
+          if (results) results.style.display = 'none';
+        }
+        if (attempts > 30) clearInterval(poll);
+      }, 100);
+    }
+  });
+})();

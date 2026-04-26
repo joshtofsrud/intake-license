@@ -614,6 +614,40 @@ class AppointmentController extends Controller
             ]);
         }
 
+        if ($op === 'slot_weight') {
+            $newWeight = (int) $request->input('slot_weight', 0);
+            if ($newWeight < 1 || $newWeight > 4) {
+                return response()->json([
+                    'ok' => false, 'message' => 'Slot weight must be between 1 and 4.'
+                ], 422);
+            }
+
+            $oldWeight = (int) $appointment->slot_weight;
+            if ($newWeight === $oldWeight) {
+                return response()->json(['ok' => true, 'unchanged' => true]);
+            }
+
+            $appointment->slot_weight = $newWeight;
+            $appointment->slot_weight_overridden = true;
+            $appointment->save();
+
+            // Audit note — mirrors status-change + resource-change pattern.
+            \App\Models\Tenant\TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => sprintf('Slot weight changed from %d to %d.', $oldWeight, $newWeight),
+                'created_at'          => now(),
+            ]);
+
+            return response()->json([
+                'ok'          => true,
+                'slot_weight' => $newWeight,
+                'overridden'  => true,
+            ]);
+        }
+
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
     /**

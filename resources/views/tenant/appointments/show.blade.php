@@ -532,11 +532,10 @@
         <span class="sidebar-stat-value" style="color:#EF9F27">{{ $appointment->slot_weight }}</span>
       </div>
       @endif
-      <form method="POST" action="{{ $updateUrl }}" style="margin-top:12px">
-        @csrf @method('PATCH')
-        <input type="hidden" name="op" value="slot_weight">
+      <div data-appt-slot-weight-card style="margin-top:12px">
+        <input type="hidden" data-appt-slot-weight-current value="{{ (int) ($appointment->slot_weight ?? 1) }}">
         <label class="ia-form-label">Override slot weight</label>
-        <select name="slot_weight" class="ia-input" style="margin-bottom:8px">
+        <select class="ia-input" data-appt-slot-weight-select style="margin-bottom:8px">
           @foreach([1,2,3,4] as $w)
             <option value="{{ $w }}" @selected($appointment->slot_weight == $w)>
               {{ $w }} slot{{ $w > 1 ? 's' : '' }}
@@ -548,13 +547,15 @@
             </option>
           @endforeach
         </select>
-        <p style="font-size:11px;opacity:.4;margin-bottom:8px">
-          This controls how many capacity slots this job uses when checking daily availability.
+        <button type="button"
+                class="ia-btn ia-btn--ghost"
+                data-appt-slot-weight-save
+                data-appt-id="{{ $appointment->id }}"
+                style="width:100%">Save slot weight</button>
+        <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4">
+          Override how many capacity slots this appointment occupies.
         </p>
-        <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%">
-          Update slots
-        </button>
-      </form>
+      </div>
     </div>
 
     {{-- Payment --}}
@@ -681,7 +682,7 @@
         .then(function (resp) {
           noteSubmit.disabled = false;
           noteSubmit.textContent = 'Add note';
-          if (!resp.success) { showErr(resp.message || 'Error.'); return; }
+          if (!resp.ok) { showErr(resp.message || 'Error.'); return; }
 
           var empty = notesList.querySelector('.ia-notes-empty');
           if (empty) empty.remove();
@@ -727,7 +728,7 @@
         headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.json(); })
         .then(function (resp) {
-          if (resp.success) {
+          if (resp.ok) {
             var li = document.querySelector('[data-note-id="' + noteId + '"]');
             if (li) li.remove();
             if (!notesList.querySelector('.ia-note')) {
@@ -979,4 +980,6 @@
 </script>
 
   <script src="{{ asset('js/tenant/appointment-resource.js') }}?v={{ filemtime(public_path('js/tenant/appointment-resource.js')) }}" defer></script>
+
+  <script src="{{ asset('js/tenant/appointment-slot-weight.js') }}?v={{ filemtime(public_path('js/tenant/appointment-slot-weight.js')) }}" defer></script>
 @endpush

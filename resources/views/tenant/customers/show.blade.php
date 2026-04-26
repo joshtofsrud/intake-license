@@ -42,7 +42,7 @@
   </div>
   <div class="ia-page-actions">
     <a href="{{ route('tenant.customers.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
-    <a href="{{ route('tenant.appointments.index') }}?view=new&customer_id={{ $customer->id }}"
+    <a href="{{ route('tenant.calendar.index', ['customer_id' => $customer->id]) }}"
        class="ia-btn ia-btn--primary">+ New appointment</a>
   </div>
 </div>
@@ -318,7 +318,7 @@
 
     post({ op: 'add_note', note: note }, function (resp) {
       noteSubmit.disabled = false; noteSubmit.textContent = 'Add note';
-      if (!resp.success) { show(noteError, resp.message || 'Error.'); return; }
+      if (!resp.ok) { show(noteError, resp.message || 'Error.'); return; }
       hide(noteError);
       var empty = notesList.querySelector('.ia-notes-empty');
       if (empty) empty.remove();
@@ -346,7 +346,7 @@
       if (!confirm('Delete this note?')) return;
       var noteId = btn.getAttribute('data-note-id');
       post({ op: 'delete_note', note_id: noteId }, function (resp) {
-        if (!resp.success) return;
+        if (!resp.ok) return;
         var el = document.querySelector('[data-note-id="' + noteId + '"]');
         if (el) el.remove();
         if (!notesList.querySelector('.ia-note')) {
