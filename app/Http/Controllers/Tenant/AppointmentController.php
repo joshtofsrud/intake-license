@@ -186,9 +186,17 @@ class AppointmentController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'price_cents', 'default_duration_minutes']);
 
+        // Active resources for the sidebar resource-change dropdown.
+        // Ordered to match the calendar column order.
+        $availableResources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'subtitle', 'color_hex']);
+
         return view('tenant.appointments.show', compact(
             'appointment', 'transitions', 'destructive',
-            'availableServices', 'availableAddons'
+            'availableServices', 'availableAddons', 'availableResources'
         ));
     }
 
@@ -518,6 +526,92 @@ class AppointmentController extends Controller
             $row->save();
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'change_resource') {
+            $newResourceId = $request->input('resource_id');
+            $force         = (bool) $request->input('force', false);
+
+            if (!$newResourceId) {
+                return response()->json([
+                    'ok' => false, 'message' => 'Resource is required.'
+                ], 422);
+            }
+
+            // Validate the resource belongs to this tenant and is active.
+            $resource = \App\Models\Tenant\TenantResource::where('id', $newResourceId)
+                ->where('tenant_id', $appointment->tenant_id)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$resource) {
+                return response()->json([
+                    'ok' => false, 'message' => 'Selected resource is not available.'
+                ], 422);
+            }
+
+            // No-op: same resource selected.
+            if ($resource->id === $appointment->resource_id) {
+                return response()->json(['ok' => true, 'unchanged' => true]);
+            }
+
+            $oldResource = \App\Models\Tenant\TenantResource::find($appointment->resource_id);
+            $oldName     = $oldResource?->name ?? 'Unassigned';
+            $newName     = $resource->name;
+
+            // Conflict check — unless force is set, refuse to move into a
+            // busy slot. Returns 409 with the conflicting appointment's
+            // shape so the JS can render a clear confirm modal.
+            if (!$force) {
+                $apptDate = $appointment->appointment_date instanceof \Carbon\Carbon
+                    ? $appointment->appointment_date->toDateString()
+                    : (string) $appointment->appointment_date;
+
+                $bookingService = app(\App\Services\BookingService::class);
+                $conflict = $bookingService->resourceIsFreeDuring(
+                    $appointment->tenant_id,
+                    $resource->id,
+                    $apptDate,
+                    $appointment->appointment_time,
+                    (int) $appointment->total_duration_minutes,
+                    $appointment->id
+                );
+
+                if ($conflict) {
+                    return response()->json([
+                        'ok'        => false,
+                        'conflict'  => $conflict,
+                        'old_name'  => $oldName,
+                        'new_name'  => $newName,
+                        'message'   => 'That resource is busy at this time.',
+                    ], 409);
+                }
+            }
+
+            // Apply the change.
+            $appointment->resource_id = $resource->id;
+            $appointment->save();
+
+            // Audit note. Mirrors the status-change note pattern.
+            $noteContent = $force
+                ? sprintf('Resource changed from %s to %s (override — conflict accepted).', $oldName, $newName)
+                : sprintf('Resource changed from %s to %s.', $oldName, $newName);
+
+            \App\Models\Tenant\TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => $noteContent,
+                'created_at'          => now(),
+            ]);
+
+            return response()->json([
+                'ok'           => true,
+                'resource_id'  => $resource->id,
+                'resource_name'=> $newName,
+                'forced'       => $force,
+            ]);
         }
 
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);

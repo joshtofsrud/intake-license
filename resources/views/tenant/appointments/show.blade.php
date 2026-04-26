@@ -476,6 +476,47 @@
       @endif
     </div>
 
+    {{-- Resource — change which staff member or station owns this appointment.
+         Soft-warns on conflicts with an override path. Auto-notes on change. --}}
+    <div class="ia-card ia-card--tight" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
+        Resource
+      </div>
+
+      @php
+        $currentResourceId = $appointment->resource_id;
+        $currentResource   = $availableResources->firstWhere('id', $currentResourceId);
+      @endphp
+
+      <div class="sidebar-stat" style="border-bottom:none;padding-bottom:4px">
+        <span class="sidebar-stat-label">Currently assigned</span>
+        <span class="sidebar-stat-value" style="display:flex;align-items:center;gap:6px">
+          @if($currentResource)
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ $currentResource->color_hex ?: '#888' }}"></span>
+            {{ $currentResource->name }}
+          @else
+            <span style="opacity:.5">Unassigned</span>
+          @endif
+        </span>
+      </div>
+
+      <label class="ia-form-label" style="margin-top:12px">Change to</label>
+      <select class="ia-input" data-appt-resource-select style="margin-bottom:8px">
+        @foreach($availableResources as $r)
+          <option value="{{ $r->id }}" @selected($r->id === $currentResourceId)>
+            {{ $r->name }}@if($r->subtitle) · {{ $r->subtitle }}@endif
+          </option>
+        @endforeach
+      </select>
+      <button type="button"
+              class="ia-btn ia-btn--ghost"
+              data-appt-resource-save
+              style="width:100%">Save resource</button>
+      <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4">
+        If the new resource is busy at this time, you'''ll get a warning before the change is saved.
+      </p>
+    </div>
+
     {{-- Slot weight --}}
     <div class="ia-card ia-card--tight">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
@@ -936,4 +977,6 @@
 
 }());
 </script>
+
+  <script src="{{ asset('js/tenant/appointment-resource.js') }}?v={{ filemtime(public_path('js/tenant/appointment-resource.js')) }}" defer></script>
 @endpush

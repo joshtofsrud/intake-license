@@ -398,6 +398,116 @@ class BookingService
      * The recurrence expansion is O(breaks) per call — fine for the <50 breaks
      * any single tenant will have. If a tenant ever has 500+ breaks we revisit.
      */
+    /**
+     * Focused availability check: is $resourceId free for the given window
+     * on the given date? Used by AppointmentController::change_resource to
+     * detect conflicts when reassigning an appointment to a different
+     * resource without loading the full slot list.
+     *
+     * Window is [startTime, startTime + durationMinutes), expressed as
+     * an H:i:s string + integer minutes. Excludes $excludeAppointmentId
+     * so the appointment doesn't conflict with itself.
+     *
+     * Returns null if the slot is free, or the conflicting appointment
+     * (lightweight payload) if not. Caller decides how to surface that.
+     *
+     * Conflicts checked against:
+     *   - Other active appointments on this resource overlapping the window
+     *   - Breaks scoped to this resource (or shop-wide breaks)
+     *   - Walk-in holds on this resource
+     *
+     * NOT checked: business hours, slot interval alignment. Caller already
+     * has those validated by virtue of the appointment existing — moving
+     * resources doesn't change the time, so hours/intervals don't need
+     * re-validation.
+     */
+    public function resourceIsFreeDuring(
+        string $tenantId,
+        string $resourceId,
+        string $date,
+        string $startTime,
+        int $durationMinutes,
+        ?string $excludeAppointmentId = null
+    ): ?array {
+        $windowStart = Carbon::parse($date . ' ' . $startTime);
+        $windowEnd   = $windowStart->copy()->addMinutes(max(1, $durationMinutes));
+
+        // Active appointments on this resource for this date
+        $query = TenantAppointment::where('tenant_id', $tenantId)
+            ->where('resource_id', $resourceId)
+            ->where('appointment_date', $date)
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->whereNotNull('appointment_time');
+
+        if ($excludeAppointmentId) {
+            $query->where('id', '!=', $excludeAppointmentId);
+        }
+
+        $candidates = $query->get([
+            'id', 'ra_number', 'customer_first_name', 'customer_last_name',
+            'appointment_time', 'appointment_end_time', 'total_duration_minutes',
+            'cleanup_after_minutes_snapshot',
+        ]);
+
+        foreach ($candidates as $appt) {
+            $apptStart = Carbon::parse($date . ' ' . $appt->appointment_time);
+
+            // End = end_time if set; otherwise compute from start + duration + cleanup tail.
+            // Mirrors the bookend-aware overlap logic in availableSlotsForDate.
+            if ($appt->appointment_end_time) {
+                $apptEnd = Carbon::parse($date . ' ' . $appt->appointment_end_time);
+            } else {
+                $totalMin = (int) $appt->total_duration_minutes
+                          + (int) ($appt->cleanup_after_minutes_snapshot ?? 0);
+                $apptEnd = $apptStart->copy()->addMinutes(max(1, $totalMin));
+            }
+
+            // Overlap = (windowStart < apptEnd) AND (windowEnd > apptStart)
+            if ($windowStart->lt($apptEnd) && $windowEnd->gt($apptStart)) {
+                return [
+                    'kind'              => 'appointment',
+                    'id'                => $appt->id,
+                    'ra_number'         => $appt->ra_number,
+                    'customer_name'     => trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? '')),
+                    'starts_at'         => $apptStart->format('g:i a'),
+                    'ends_at'           => $apptEnd->format('g:i a'),
+                ];
+            }
+        }
+
+        // Breaks — pull just the ones for this resource (or shop-wide) on this date
+        $breaks = $this->breaksForDate($tenantId, $date, $resourceId);
+        foreach ($breaks as $br) {
+            $brStart = Carbon::parse($br['starts_at']);
+            $brEnd   = Carbon::parse($br['ends_at']);
+            if ($windowStart->lt($brEnd) && $windowEnd->gt($brStart)) {
+                return [
+                    'kind'      => 'break',
+                    'label'     => $br['label'] ?? 'Break',
+                    'starts_at' => $brStart->format('g:i a'),
+                    'ends_at'   => $brEnd->format('g:i a'),
+                ];
+            }
+        }
+
+        // Walk-in holds — same shape as breaks
+        $holds = $this->holdsForDate($tenantId, $date, $resourceId);
+        foreach ($holds as $h) {
+            $hStart = Carbon::parse($h['starts_at']);
+            $hEnd   = Carbon::parse($h['ends_at']);
+            if ($windowStart->lt($hEnd) && $windowEnd->gt($hStart)) {
+                return [
+                    'kind'      => 'hold',
+                    'label'     => $h['label'] ?? 'Walk-in hold',
+                    'starts_at' => $hStart->format('g:i a'),
+                    'ends_at'   => $hEnd->format('g:i a'),
+                ];
+            }
+        }
+
+        return null;
+    }
+
     protected function breaksForDate(string $tenantId, string $date, ?string $resourceId): array
     {
         $target = Carbon::parse($date);
