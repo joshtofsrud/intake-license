@@ -449,3 +449,73 @@
 
   console.log('[calendar] module loaded');
 })();
+
+/**
+ * S4 — View persistence
+ *
+ * The view-switcher (Day | Week | Month) is anchor-based, so navigation
+ * works without JS. This block adds two niceties on top:
+ *
+ *   1. Remember the last-used view in localStorage. If a user lands on
+ *      /admin/calendar with no ?view= param, redirect to their preferred
+ *      view (only if different from current — avoids redirect loops).
+ *
+ *   2. Update the saved view every time they click a switcher button.
+ *
+ * Storage key: 'intake.calendar.view'. Values: 'day' | 'week' | 'month'.
+ */
+(function () {
+  'use strict';
+
+  var KEY = 'intake.calendar.view';
+  var VALID = ['day', 'week', 'month'];
+
+  function getCurrent() {
+    var shell = document.querySelector('.ia-cal-shell');
+    return shell ? (shell.getAttribute('data-view-mode') || 'day') : 'day';
+  }
+
+  function getStored() {
+    try {
+      var v = localStorage.getItem(KEY);
+      return VALID.indexOf(v) >= 0 ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function setStored(v) {
+    try {
+      if (VALID.indexOf(v) >= 0) localStorage.setItem(KEY, v);
+    } catch (e) { /* ignore */ }
+  }
+
+  // On load: if URL has no ?view= param and stored preference differs from
+  // the current (server-default) view, redirect once to the preferred view.
+  // Skip if the URL already has ?view= — the user explicitly asked for it.
+  function maybeRedirect() {
+    var url = new URL(window.location.href);
+    if (url.searchParams.has('view')) return;
+
+    var stored = getStored();
+    if (!stored) return;
+
+    var current = getCurrent();
+    if (stored === current) return;
+
+    // Preserve ?date= and ?resources= if present.
+    url.searchParams.set('view', stored);
+    window.location.replace(url.toString());
+  }
+
+  // Persist whatever view the user is on right now (covers the case where
+  // they clicked a switcher button — the new page loads in the new view).
+  function persistCurrent() {
+    setStored(getCurrent());
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    maybeRedirect();
+    persistCurrent();
+  });
+})();

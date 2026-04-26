@@ -2,32 +2,14 @@
 @php
   $pageTitle = 'Calendar';
 
-  // Grid math, done once at render time.
-  // pixelsPerMinute controls how tall the grid is. 1.4px/min = 42px per 30-min slot,
-  // which reads cleanly at desktop widths without being cramped.
-  $pxPerMin    = 1.4;
-  $rangeMin    = $closeMin - $openMin;
-  $gridHeight  = (int) ceil($rangeMin * $pxPerMin);
-
-  // Group appointments by resource for column-based rendering.
-  $apptsByResource = $appointments->groupBy('resource_id');
-
-  // Helper: minutes-since-midnight from a H:i:s time string.
-  $timeToMin = function ($hms) {
-      if (!$hms) return null;
-      $parts = explode(':', $hms);
-      return ((int) ($parts[0] ?? 0)) * 60 + ((int) ($parts[1] ?? 0));
-  };
-
-  // Hour labels for the time axis (every full hour in the visible range).
-  $hourLabels = [];
-  for ($m = (int) (ceil($openMin / 60) * 60); $m < $closeMin; $m += 60) {
-      $h = intdiv($m, 60);
-      $hourLabels[] = [
-          'min'   => $m,
-          'label' => $h === 0 ? '12 AM' : ($h === 12 ? '12 PM' : ($h < 12 ? $h . ' AM' : ($h - 12) . ' PM')),
-          'top'   => (int) round(($m - $openMin) * $pxPerMin),
-      ];
+  // Build the date label + nav targets per current view mode.
+  if ($viewMode === 'week') {
+    $dateLabel = $weekStart->format('M j') . ' – ' . $weekEnd->format('M j, Y');
+  } elseif ($viewMode === 'month') {
+    $dateLabel = $monthLabel;
+  } else {
+    $dateLabel = $date->format('l, F j');
+    $dateYear  = $date->format('Y');
   }
 @endphp
 
@@ -43,46 +25,55 @@
 <x-tenant.schedule-tabs active="calendar" />
 
 <div class="ia-cal-shell"
-     data-cal-open-min="{{ $openMin }}"
-     data-cal-close-min="{{ $closeMin }}"
-     data-cal-px-per-min="{{ $pxPerMin }}"
-     data-cal-is-today="{{ $isToday ? '1' : '0' }}">
+     data-view-mode="{{ $viewMode }}"
+     @if($viewMode === 'day')
+       data-cal-open-min="{{ $openMin }}"
+       data-cal-close-min="{{ $closeMin }}"
+       data-cal-px-per-min="1.4"
+       data-cal-is-today="{{ $isToday ? '1' : '0' }}"
+     @endif>
 
-  {{-- =========================================================
-       Toolbar
-       ========================================================= --}}
+  {{-- ===== Toolbar ===== --}}
   <div class="ia-cal-toolbar">
     <div class="ia-cal-toolbar-left">
-      <a href="{{ route('tenant.calendar.index', ['date' => $todayStr]) }}"
-         class="ia-cal-today-btn {{ $isToday ? 'is-active' : '' }}">
+      <a href="{{ route('tenant.calendar.index', ['view' => $viewMode, 'date' => $todayStr]) }}"
+         class="ia-cal-today-btn {{ ($viewMode === 'day' && $isToday) ? 'is-active' : '' }}">
         Today
       </a>
       <div class="ia-cal-nav-group">
-        <a href="{{ route('tenant.calendar.index', ['date' => $prevDate]) }}"
-           class="ia-cal-nav-btn" aria-label="Previous day">‹</a>
-        <a href="{{ route('tenant.calendar.index', ['date' => $nextDate]) }}"
-           class="ia-cal-nav-btn" aria-label="Next day">›</a>
+        <a href="{{ route('tenant.calendar.index', ['view' => $viewMode, 'date' => $prevDate]) }}"
+           class="ia-cal-nav-btn"
+           aria-label="Previous {{ $viewMode }}">‹</a>
+        <a href="{{ route('tenant.calendar.index', ['view' => $viewMode, 'date' => $nextDate]) }}"
+           class="ia-cal-nav-btn"
+           aria-label="Next {{ $viewMode }}">›</a>
       </div>
       <div class="ia-cal-date-label">
-        {{ $date->format('l, F j') }}<span class="ia-cal-date-year">{{ $date->format('Y') }}</span>
+        {{ $dateLabel }}
+        @if($viewMode === 'day')
+          <span class="ia-cal-date-year">{{ $dateYear }}</span>
+        @endif
       </div>
     </div>
     <div class="ia-cal-toolbar-right">
       <div class="ia-cal-view-switch">
-        <button type="button" class="ia-cal-view-btn is-active" data-view="day">Day</button>
-        <button type="button" class="ia-cal-view-btn is-disabled" data-view="week" disabled title="Coming soon">Week</button>
-        <button type="button" class="ia-cal-view-btn is-disabled" data-view="month" disabled title="Coming soon">Month</button>
+        <a href="{{ route('tenant.calendar.index', ['view' => 'day', 'date' => ($viewMode === 'day' ? $dateStr : ($viewMode === 'week' ? $weekStartStr : $monthAnchor->toDateString()))]) }}"
+           class="ia-cal-view-btn {{ $viewMode === 'day' ? 'is-active' : '' }}"
+           data-view="day">Day</a>
+        <a href="{{ route('tenant.calendar.index', ['view' => 'week', 'date' => ($viewMode === 'day' ? $dateStr : ($viewMode === 'week' ? $weekStartStr : $monthAnchor->toDateString()))]) }}"
+           class="ia-cal-view-btn {{ $viewMode === 'week' ? 'is-active' : '' }}"
+           data-view="week">Week</a>
+        <a href="{{ route('tenant.calendar.index', ['view' => 'month', 'date' => ($viewMode === 'day' ? $dateStr : ($viewMode === 'week' ? $weekStartStr : $monthAnchor->toDateString()))]) }}"
+           class="ia-cal-view-btn {{ $viewMode === 'month' ? 'is-active' : '' }}"
+           data-view="month">Month</a>
       </div>
     </div>
   </div>
 
-  {{-- =========================================================
-       Resource filter — chip strip on desktop, bottom sheet on mobile
-       ========================================================= --}}
-  @if($allResources->count() > 1)
+  {{-- ===== Resource filter (day + week only; month merges resources) ===== --}}
+  @if($viewMode !== 'month' && $allResources->count() > 1)
     @php
       $visibleCount = $resources->count();
-      $totalCount   = $allResources->count();
       if ($filterMode === 'all') {
         $filterButtonLabel = 'All';
       } elseif ($visibleCount === 1) {
@@ -92,7 +83,6 @@
       }
     @endphp
 
-    {{-- Mobile-only trigger button — opens the bottom sheet --}}
     <button type="button" class="ia-cal-filter-trigger" id="ia-cal-filter-trigger"
             aria-label="Filter resources" aria-haspopup="dialog">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -111,9 +101,7 @@
               class="ia-cal-fchip ia-cal-fchip-all {{ $filterMode === 'all' ? 'is-on' : '' }}"
               data-action="all">All</button>
       @foreach($allResources as $r)
-        @php
-          $isVisible = in_array($r->id, $resources->pluck('id')->all());
-        @endphp
+        @php $isVisible = in_array($r->id, $resources->pluck('id')->all()); @endphp
         <span class="ia-cal-fchip-wrap">
           <button type="button"
                   class="ia-cal-fchip {{ $isVisible ? 'is-on' : '' }}"
@@ -136,7 +124,6 @@
       @endforeach
     </div>
 
-    {{-- Bottom sheet (mobile only via CSS) — same chips, presented spaciously --}}
     <div class="ia-cal-filter-sheet" id="ia-cal-filter-sheet" aria-hidden="true" role="dialog" aria-modal="true">
       <div class="ia-cal-filter-sheet-backdrop" onclick="CalendarFilterSheet.close()"></div>
       <div class="ia-cal-filter-sheet-panel">
@@ -180,202 +167,19 @@
     </div>
   @endif
 
-  {{-- =========================================================
-       Empty states
-       ========================================================= --}}
-  @if($resources->isEmpty())
-    <div class="ia-cal-empty">
-      <div class="ia-cal-empty-title">No resources yet</div>
-      <div class="ia-cal-empty-body">
-        Add at least one staff member or work station to start booking.
-        @if(Route::has('tenant.resources.index'))
-          <a href="{{ route('tenant.resources.index') }}">Add a resource →</a>
-        @endif
-      </div>
-    </div>
-  @elseif(!$hasRule)
-    <div class="ia-cal-empty">
-      <div class="ia-cal-empty-title">Closed on {{ $date->format('l') }}s</div>
-      <div class="ia-cal-empty-body">
-        Your business hours don't cover this day of the week.
-        @if(Route::has('tenant.capacity.index'))
-          <a href="{{ route('tenant.capacity.index') }}">Update business hours →</a>
-        @endif
-      </div>
-    </div>
+  {{-- ===== View dispatcher ===== --}}
+  @if($viewMode === 'week')
+    @include('tenant.calendar._week-grid')
+  @elseif($viewMode === 'month')
+    @include('tenant.calendar._month-grid')
   @else
-
-  {{-- =========================================================
-       Grid body
-       ========================================================= --}}
-  <div class="ia-cal-body">
-
-    {{-- Resource header row --}}
-    <div class="ia-cal-resource-headers"
-         style="grid-template-columns: 56px repeat({{ $resources->count() }}, 1fr);">
-      <div class="ia-cal-time-col-head"></div>
-      @foreach($resources as $resource)
-        <div class="ia-cal-resource-head">
-          <span class="ia-cal-resource-dot"
-                style="background: {{ $resource->color_hex ?: '#888' }};"></span>
-          <span class="ia-cal-resource-name">{{ $resource->name }}</span>
-          @if($resource->subtitle)
-            <span class="ia-cal-resource-sub">· {{ $resource->subtitle }}</span>
-          @endif
-        </div>
-      @endforeach
-    </div>
-
-    {{-- Grid with time axis + resource columns --}}
-    <div class="ia-cal-grid"
-         style="grid-template-columns: 56px repeat({{ $resources->count() }}, 1fr); height: {{ $gridHeight }}px;">
-
-      {{-- Time axis column --}}
-      <div class="ia-cal-time-col" style="height: {{ $gridHeight }}px;">
-        @foreach($hourLabels as $hl)
-          <div class="ia-cal-hour-label" style="top: {{ $hl['top'] }}px;">
-            {{ $hl['label'] }}
-          </div>
-        @endforeach
-      </div>
-
-      {{-- Resource columns --}}
-      @foreach($resources as $resource)
-        @php
-          $colAppts  = $apptsByResource->get($resource->id, collect());
-          // Shop-wide breaks (resource_id = null) appear on every column.
-          $colBreaks = collect($breakWindows)->filter(fn($b) =>
-              $b['resource_id'] === null || $b['resource_id'] === $resource->id
-          );
-          $colHolds = collect($holdWindows)->filter(fn($h) =>
-              $h['resource_id'] === $resource->id
-          );
-        @endphp
-
-        <div class="ia-cal-resource-col"
-             style="height: {{ $gridHeight }}px;"
-             data-resource-id="{{ $resource->id }}">
-
-          {{-- Hour grid lines (visual rhythm behind events) --}}
-          @foreach($hourLabels as $hl)
-            <div class="ia-cal-hour-line" style="top: {{ $hl['top'] }}px;"></div>
-          @endforeach
-
-          {{-- Breaks (hatched neutral overlay) --}}
-          @foreach($colBreaks as $br)
-            @php
-              $top    = (int) round(($br['starts_min'] - $openMin) * $pxPerMin);
-              $height = (int) round(($br['ends_min'] - $br['starts_min']) * $pxPerMin);
-            @endphp
-            <div class="ia-cal-break"
-                 style="top: {{ $top }}px; height: {{ $height }}px;"
-                 title="{{ $br['label'] ?: 'Break' }}">
-              <span class="ia-cal-break-label">{{ $br['label'] ?: 'Break' }}</span>
-            </div>
-          @endforeach
-
-          {{-- Walk-in holds (lime dashed) --}}
-          @foreach($colHolds as $hold)
-            @php
-              $top    = (int) round(($hold['starts_min'] - $openMin) * $pxPerMin);
-              $height = (int) round(($hold['ends_min'] - $hold['starts_min']) * $pxPerMin);
-            @endphp
-            <div class="ia-cal-hold"
-                 style="top: {{ $top }}px; height: {{ $height }}px;"
-                 title="Walk-in hold{{ $hold['label'] ? ' — ' . $hold['label'] : '' }}">
-              <span class="ia-cal-hold-label">— Walk-in hold —</span>
-            </div>
-          @endforeach
-
-          {{-- Appointments (with bookend wrappers) --}}
-          @foreach($colAppts as $appt)
-            @php
-              $apptMin     = $timeToMin($appt->appointment_time);
-              // Bookend times sum across all items on the appointment.
-              // Items are the single source of truth for prep/cleanup at scale —
-              // see BookingService::createAppointment() snapshot logic.
-              $prepMin     = (int) $appt->items->sum('prep_before_minutes_snapshot');
-              $cleanMin    = (int) $appt->items->sum('cleanup_after_minutes_snapshot');
-              $durMin      = (int) $appt->total_duration_minutes;
-              // Core duration = total_duration minus prep + cleanup. This is
-              // what the customer "occupies" visually. Total_duration already
-              // includes prep + cleanup per createAppointment logic, so we
-              // subtract them back out for the core.
-              $coreMin     = max(0, $durMin - $prepMin - $cleanMin);
-
-              $prepTop     = (int) round(($apptMin - $prepMin - $openMin) * $pxPerMin);
-              $prepHeight  = (int) round($prepMin * $pxPerMin);
-              $coreTop     = (int) round(($apptMin - $openMin) * $pxPerMin);
-              $coreHeight  = (int) round($coreMin * $pxPerMin);
-              $cleanTop    = $coreTop + $coreHeight;
-              $cleanHeight = (int) round($cleanMin * $pxPerMin);
-
-              $customerName = trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? ''));
-              $serviceName  = optional($appt->items->first())->item_name_snapshot ?? '';
-              $resourceColor = $resource->color_hex ?: '#888';
-
-              // Display times
-              $startH = intdiv($apptMin, 60);
-              $startM = $apptMin % 60;
-              $endMin = $apptMin + $coreMin;
-              $endH   = intdiv($endMin, 60);
-              $endM   = $endMin % 60;
-              $timeRange = sprintf(
-                  '%d:%02d %s – %d:%02d %s',
-                  $startH === 0 ? 12 : ($startH > 12 ? $startH - 12 : $startH), $startM, $startH < 12 ? 'am' : 'pm',
-                  $endH   === 0 ? 12 : ($endH   > 12 ? $endH   - 12 : $endH),   $endM,   $endH   < 12 ? 'am' : 'pm'
-              );
-            @endphp
-
-            @if($prepMin > 0)
-              <div class="ia-cal-bookend is-prep"
-                   style="top: {{ $prepTop }}px; height: {{ $prepHeight }}px;">
-                ↓ {{ $prepMin }}m prep
-              </div>
-            @endif
-
-            <div class="ia-cal-appt {{ $appt->needs_time_review ? 'needs-review' : '' }}"
-                 style="top: {{ $coreTop }}px;
-                        height: {{ $coreHeight }}px;
-                        border-left-color: {{ $resourceColor }};
-                        background: {{ $resourceColor }}1a;"
-                 data-appt-id="{{ $appt->id }}"
-                 @if($appt->needs_time_review) title="Auto-assigned time — please review" @endif>
-              <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }}</div>
-              @if($serviceName)
-                <div class="ia-cal-appt-svc">{{ $serviceName }}</div>
-              @endif
-              <div class="ia-cal-appt-time">{{ $timeRange }}</div>
-            </div>
-
-            @if($cleanMin > 0)
-              <div class="ia-cal-bookend is-clean"
-                   style="top: {{ $cleanTop }}px; height: {{ $cleanHeight }}px;">
-                ↑ {{ $cleanMin }}m clean
-              </div>
-            @endif
-          @endforeach
-
-        </div>
-      @endforeach
-
-      {{-- Now-line (only visible on today's view) --}}
-      @if($isToday)
-        <div class="ia-cal-now-line"
-             id="ia-cal-now-line"
-             style="grid-column: 2 / -1; top: 0; display: none;">
-          <span class="ia-cal-now-label" id="ia-cal-now-label">—</span>
-        </div>
-      @endif
-
-    </div>
-
-  </div>
+    @include('tenant.calendar._day-grid')
   @endif
 
 </div>
 
-{{-- Quick-book modal: opens when admin clicks an empty grid cell --}}
+{{-- Quick-book modal (day view only — week/month drill to day to book) --}}
+@if($viewMode === 'day')
 <div class="qb-modal" id="qb-modal" style="display:none">
   <div class="qb-modal-backdrop" onclick="QuickBook.close()"></div>
   <div class="qb-modal-card">
@@ -419,13 +223,14 @@
     </div>
   </div>
 </div>
+@endif
 
 @endsection
 
 @push('styles')
-  <link rel="stylesheet" href="{{ asset('css/tenant/calendar.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/calendar.css') }}?v={{ filemtime(public_path('css/tenant/calendar.css')) }}">
 @endpush
 
 @push('scripts')
-  <script src="{{ asset('js/tenant/calendar.js') }}" defer></script>
+  <script src="{{ asset('js/tenant/calendar.js') }}?v={{ filemtime(public_path('js/tenant/calendar.js')) }}" defer></script>
 @endpush

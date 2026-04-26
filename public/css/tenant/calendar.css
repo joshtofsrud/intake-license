@@ -945,3 +945,353 @@ body.ia-theme-c .ia-cal-fchip-solo {
 .ia-cal-appt.status-refunded .ia-cal-appt-name {
   text-decoration: line-through;
 }
+
+/* ============================================================
+ * S4 — Week view
+ * Per-resource swimlanes (rows), 7 day-columns (cols).
+ * Compact-list rendering inside cells.
+ * ============================================================ */
+
+.ia-cal-week {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ia-border, #2a2a26);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ia-surface, #18181a);
+}
+
+.ia-cal-week-header,
+.ia-cal-week-row {
+  display: grid;
+  grid-template-columns: 140px repeat(7, 1fr);
+}
+
+.ia-cal-week-header {
+  background: var(--ia-surface-2, #1f1f22);
+  border-bottom: 1px solid var(--ia-border, #2a2a26);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.ia-cal-week-corner {
+  border-right: 1px solid var(--ia-border, #2a2a26);
+}
+
+.ia-cal-week-day-head {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 12px;
+  border-right: 1px solid var(--ia-border, #2a2a26);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ia-cal-week-day-head:last-child {
+  border-right: none;
+}
+.ia-cal-week-day-head.is-weekend {
+  background: rgba(255, 255, 255, 0.015);
+}
+.ia-cal-week-day-head.is-today {
+  background: rgba(204, 246, 51, 0.08);
+}
+.ia-cal-week-day-short {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ia-text-muted, #6A6A62);
+  font-size: 10px;
+}
+.ia-cal-week-day-num {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ia-text, #E8E8E0);
+}
+.ia-cal-week-day-head.is-today .ia-cal-week-day-num {
+  color: var(--ia-accent, #CCF633);
+  font-weight: 600;
+}
+
+.ia-cal-week-row {
+  border-top: 1px solid var(--ia-border, #2a2a26);
+  min-height: 80px;
+}
+.ia-cal-week-row:first-child {
+  border-top: none;
+}
+
+.ia-cal-week-resource {
+  padding: 10px 12px;
+  border-right: 1px solid var(--ia-border, #2a2a26);
+  background: var(--ia-surface-2, #1f1f22);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  position: sticky;
+  left: 0;
+}
+.ia-cal-week-resource .ia-cal-resource-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.ia-cal-week-resource-name {
+  font-weight: 500;
+  color: var(--ia-text, #E8E8E0);
+}
+.ia-cal-week-resource-sub {
+  color: var(--ia-text-muted, #6A6A62);
+  font-size: 11px;
+}
+
+.ia-cal-week-cell {
+  padding: 6px;
+  border-right: 1px solid var(--ia-border, #2a2a26);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.12s ease;
+  min-height: 80px;
+}
+.ia-cal-week-cell:last-child {
+  border-right: none;
+}
+.ia-cal-week-cell:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.ia-cal-week-cell.is-weekend {
+  background: rgba(255, 255, 255, 0.015);
+}
+.ia-cal-week-cell.is-today {
+  background: rgba(204, 246, 51, 0.04);
+}
+.ia-cal-week-cell.is-today:hover {
+  background: rgba(204, 246, 51, 0.08);
+}
+
+.ia-cal-week-cell-empty {
+  color: var(--ia-text-muted, #6A6A62);
+  opacity: 0.3;
+  font-size: 16px;
+  text-align: center;
+  margin-top: 18px;
+}
+
+.ia-cal-week-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 6px;
+  border-left: 3px solid #888;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+  overflow: hidden;
+}
+.ia-cal-week-item-time {
+  color: var(--ia-text-muted, #6A6A62);
+  font-size: 10px;
+  font-weight: 500;
+}
+.ia-cal-week-item-name {
+  color: var(--ia-text, #E8E8E0);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ia-cal-week-item-svc {
+  color: var(--ia-text-muted, #6A6A62);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status reflection on week items — matches day view treatment */
+.ia-cal-week-item.status-pending {
+  border-left-style: dashed;
+  opacity: 0.85;
+}
+.ia-cal-week-item.status-in-progress {
+  border-left-width: 4px;
+  box-shadow: inset 2px 0 0 var(--ia-accent, #CCF633);
+}
+.ia-cal-week-item.status-completed {
+  opacity: 0.55;
+}
+.ia-cal-week-item.status-completed .ia-cal-week-item-name {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ia-text-muted, #6A6A62);
+}
+
+/* ============================================================
+ * S4 — Month view
+ * 6×7 density grid. Stacked color bars per cell.
+ * ============================================================ */
+
+.ia-cal-month {
+  border: 1px solid var(--ia-border, #2a2a26);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ia-surface, #18181a);
+}
+
+.ia-cal-month-header,
+.ia-cal-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.ia-cal-month-header {
+  background: var(--ia-surface-2, #1f1f22);
+  border-bottom: 1px solid var(--ia-border, #2a2a26);
+}
+
+.ia-cal-month-dow {
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ia-text-muted, #6A6A62);
+  text-align: center;
+  border-right: 1px solid var(--ia-border, #2a2a26);
+}
+.ia-cal-month-dow:last-child {
+  border-right: none;
+}
+
+.ia-cal-month-grid {
+  grid-auto-rows: minmax(96px, 1fr);
+}
+
+.ia-cal-month-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-right: 1px solid var(--ia-border, #2a2a26);
+  border-top: 1px solid var(--ia-border, #2a2a26);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.12s ease;
+  position: relative;
+  overflow: hidden;
+}
+.ia-cal-month-cell:nth-child(7n) {
+  border-right: none;
+}
+.ia-cal-month-cell:nth-child(-n+7) {
+  border-top: none;
+}
+.ia-cal-month-cell:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ia-cal-month-cell.is-out-month {
+  opacity: 0.35;
+  background: rgba(0, 0, 0, 0.15);
+}
+.ia-cal-month-cell.is-out-month:hover {
+  opacity: 0.55;
+}
+.ia-cal-month-cell.is-weekend.is-in-month {
+  background: rgba(255, 255, 255, 0.015);
+}
+.ia-cal-month-cell.is-today {
+  background: rgba(204, 246, 51, 0.06);
+}
+.ia-cal-month-cell.is-today:hover {
+  background: rgba(204, 246, 51, 0.12);
+}
+
+.ia-cal-month-num {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ia-text, #E8E8E0);
+}
+.ia-cal-month-cell.is-today .ia-cal-month-num {
+  color: var(--ia-accent, #CCF633);
+  font-weight: 700;
+}
+.ia-cal-month-cell.is-out-month .ia-cal-month-num {
+  color: var(--ia-text-muted, #6A6A62);
+}
+
+.ia-cal-month-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.ia-cal-month-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #888;
+  cursor: help;
+}
+.ia-cal-month-bar.status-pending {
+  opacity: 0.6;
+  background: repeating-linear-gradient(
+    -45deg,
+    currentColor 0,
+    currentColor 2px,
+    transparent 2px,
+    transparent 4px
+  ) !important;
+  background-color: #888;
+}
+.ia-cal-month-bar.status-in-progress {
+  height: 5px;
+  box-shadow: 0 0 0 1px var(--ia-accent, #CCF633);
+}
+.ia-cal-month-bar.status-completed {
+  opacity: 0.4;
+}
+
+.ia-cal-month-more {
+  font-size: 10px;
+  color: var(--ia-text-muted, #6A6A62);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Mobile: tighter month cells, drop minimum height */
+@media (max-width: 768px) {
+  .ia-cal-month-grid {
+    grid-auto-rows: minmax(64px, 1fr);
+  }
+  .ia-cal-month-num {
+    font-size: 11px;
+  }
+  .ia-cal-month-bar {
+    height: 3px;
+  }
+
+  .ia-cal-week-header,
+  .ia-cal-week-row {
+    grid-template-columns: 90px repeat(7, 1fr);
+  }
+  .ia-cal-week-resource {
+    font-size: 11px;
+    padding: 8px 6px;
+  }
+  .ia-cal-week-cell {
+    padding: 4px;
+  }
+  .ia-cal-week-item-svc {
+    display: none;
+  }
+}
