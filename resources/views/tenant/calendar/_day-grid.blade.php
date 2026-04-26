@@ -81,6 +81,75 @@
         $colHolds = collect($holdWindows)->filter(fn($h) =>
             $h['resource_id'] === $resource->id
         );
+
+      /*
+       * Lane assignment for overlapping appointments in this column.
+       * Walk by start time, greedy-place into lowest free lane, then
+       * connected-component cluster detection so all overlapping
+       * appointments share the same lane denominator.
+       */
+      $apptList = $colAppts->values()->all();
+      $windows = [];
+      foreach ($apptList as $i => $a) {
+          $apptMin = $timeToMin($a->appointment_time);
+          $prep    = (int) $a->items->sum('prep_before_minutes_snapshot');
+          $clean   = (int) $a->items->sum('cleanup_after_minutes_snapshot');
+          $dur     = (int) $a->total_duration_minutes;
+          $core    = max(0, $dur - $prep - $clean);
+          $windows[$i] = ['start' => $apptMin - $prep, 'end' => $apptMin + $core + $clean];
+      }
+      $order = array_keys($windows);
+      usort($order, fn($a, $b) => $windows[$a]['start'] <=> $windows[$b]['start']);
+      $laneIndex = [];
+      $laneEnds  = [];
+      foreach ($order as $i) {
+          $w = $windows[$i];
+          $placed = false;
+          foreach ($laneEnds as $ln => $end) {
+              if ($end <= $w['start']) {
+                  $laneIndex[$i] = $ln;
+                  $laneEnds[$ln] = $w['end'];
+                  $placed = true;
+                  break;
+              }
+          }
+          if (!$placed) {
+              $ln = count($laneEnds);
+              $laneIndex[$i] = $ln;
+              $laneEnds[$ln] = $w['end'];
+          }
+      }
+      $clusterId = [];
+      $nextCluster = 0;
+      foreach ($order as $i) {
+          $w = $windows[$i];
+          $merged = null;
+          foreach ($order as $j) {
+              if ($j === $i || !isset($clusterId[$j])) continue;
+              $wj = $windows[$j];
+              if ($w['start'] < $wj['end'] && $w['end'] > $wj['start']) {
+                  if ($merged === null) {
+                      $merged = $clusterId[$j];
+                      $clusterId[$i] = $merged;
+                  } elseif ($clusterId[$j] !== $merged) {
+                      $absorb = $clusterId[$j];
+                      foreach ($clusterId as $k => $c) {
+                          if ($c === $absorb) $clusterId[$k] = $merged;
+                      }
+                  }
+              }
+          }
+          if ($merged === null) {
+              $clusterId[$i] = $nextCluster++;
+          }
+      }
+      $clusterMax = [];
+      foreach ($clusterId as $i => $c) {
+          $li = $laneIndex[$i] ?? 0;
+          if (!isset($clusterMax[$c]) || $li > $clusterMax[$c]) {
+              $clusterMax[$c] = $li;
+          }
+      }
       @endphp
 
       <div class="ia-cal-resource-col"
@@ -130,6 +199,18 @@
             $cleanTop    = $coreTop + $coreHeight;
             $cleanHeight = (int) round($cleanMin * $pxPerMin);
 
+            // Lane-aware horizontal positioning
+            $myIdx = $loop->index;
+            $myLane = $laneIndex[$myIdx] ?? 0;
+            $myCluster = $clusterId[$myIdx] ?? 0;
+            $myLaneCount = ($clusterMax[$myCluster] ?? 0) + 1;
+            $isClustered = $myLaneCount > 1;
+            $laneWidthPct = 100.0 / $myLaneCount;
+            $laneLeftPct  = $laneWidthPct * $myLane;
+            $laneStyle = $isClustered
+                ? sprintf('left: calc(%.4f%% + 1px); width: calc(%.4f%% - 2px);', $laneLeftPct, $laneWidthPct)
+                : '';
+
             $customerName = trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? ''));
             $serviceName  = optional($appt->items->first())->item_name_snapshot ?? '';
             $resourceColor = $resource->color_hex ?: '#888';
@@ -147,19 +228,23 @@
           @endphp
 
           @if($prepMin > 0)
-            <div class="ia-cal-bookend is-prep"
-                 style="top: {{ $prepTop }}px; height: {{ $prepHeight }}px;">
+            <div class="ia-cal-bookend is-prep {{ $isClustered ? \'is-clustered\' : \'\' }}"
+                 style="top: {{ $prepTop }}px; height: {{ $prepHeight }}px; {{ $laneStyle }}">
               ↓ {{ $prepMin }}m prep
             </div>
           @endif
 
-          <div class="ia-cal-appt status-{{ $appt->status }} {{ $appt->needs_time_review ? 'needs-review' : '' }}"
+          <div class="ia-cal-appt status-{{ $appt->status }} {{ $appt->needs_time_review ? \'needs-review\' : \'\' }} {{ $isClustered ? \'is-clustered\' : \'\' }}"
                style="top: {{ $coreTop }}px;
                       height: {{ $coreHeight }}px;
                       border-left-color: {{ $resourceColor }};
-                      background: {{ $resourceColor }}1a;"
+                      background: {{ $resourceColor }}1a; {{ $laneStyle }}"
                data-appt-id="{{ $appt->id }}"
                @if($appt->needs_time_review) title="Auto-assigned time — please review" @endif>
+            @if($isClustered)
+              <span class="ia-cal-appt-cluster-badge"
+                    title="{{ $myLaneCount }} appointments overlap on this resource">{{ $myLaneCount }}×</span>
+            @endif
             <div class="ia-cal-appt-name">{{ $customerName ?: 'Appointment' }}</div>
             @if($serviceName)
               <div class="ia-cal-appt-svc">{{ $serviceName }}</div>
@@ -168,8 +253,8 @@
           </div>
 
           @if($cleanMin > 0)
-            <div class="ia-cal-bookend is-clean"
-                 style="top: {{ $cleanTop }}px; height: {{ $cleanHeight }}px;">
+            <div class="ia-cal-bookend is-clean {{ $isClustered ? \'is-clustered\' : \'\' }}"
+                 style="top: {{ $cleanTop }}px; height: {{ $cleanHeight }}px; {{ $laneStyle }}">
               ↑ {{ $cleanMin }}m clean
             </div>
           @endif

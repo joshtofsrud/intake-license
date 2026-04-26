@@ -1457,3 +1457,48 @@ body.ia-theme-c .ia-cal-fchip-solo {
   }
   .ia-cal-legend-trigger-label { display: none; }
 }
+
+/* ============================================================
+ * Day view — clustered (overlapping) appointments
+ * Lane-based side-by-side layout when 2+ appts overlap on the same
+ * resource column. Badge in the top-right corner shows cluster size.
+ * ============================================================ */
+
+.ia-cal-appt.is-clustered {
+  /* Shadow to separate adjacent lanes visually */
+  box-shadow: 0 0 0 1px var(--ia-surface, #18181a);
+}
+
+.ia-cal-appt-cluster-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(239, 159, 39, 0.18);
+  color: #EF9F27;
+  border: 1px solid rgba(239, 159, 39, 0.35);
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+/* In-progress override: keep the inset accent visible alongside cluster shadow */
+.ia-cal-appt.is-clustered.status-in-progress {
+  box-shadow: 0 0 0 1px var(--ia-surface, #18181a),
+              inset 2px 0 0 var(--ia-accent, #CCF633);
+}
+
+/* Bookends in clusters — match the lane width with a thinner border to read */
+.ia-cal-bookend.is-clustered {
+  /* Width/left already set inline via $laneStyle */
+  /* Visual touch: slightly more transparent so they don't dominate */
+  opacity: 0.85;
+}
+
+/* Tight cluster cells often crowd out the service line — hide it past 3 lanes */
+.ia-cal-appt.is-clustered .ia-cal-appt-svc {
+  font-size: 10px;
+}
