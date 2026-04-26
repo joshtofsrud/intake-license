@@ -259,17 +259,9 @@ class QuickBookController extends Controller
      * own management surface (capacity admin), and surprise-deleting all
      * future occurrences from a single calendar click is wrong.
      */
-    public function destroyBreak(Request $request, string $id)
+    public function destroyBreak(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
-
-        \Illuminate\Support\Facades\Log::info('destroyBreak debug', [
-            'received_id' => $id,
-            'tenant_id'   => $tenant?->id,
-            'tenant_class' => $tenant ? get_class($tenant) : 'null',
-            'count_match' => \App\Models\Tenant\TenantCalendarBreak::where('tenant_id', $tenant?->id)->where('id', $id)->count(),
-            'count_no_tenant' => \App\Models\Tenant\TenantCalendarBreak::where('id', $id)->count(),
-        ]);
 
         $break = TenantCalendarBreak::where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -300,7 +292,7 @@ class QuickBookController extends Controller
      * holds are not in the product yet, but we still check is_recurring
      * to be safe in case the schema gets used that way later.
      */
-    public function destroyHold(Request $request, string $id)
+    public function destroyHold(Request $request, string $subdomain, string $id)
     {
         $tenant = tenant();
 
