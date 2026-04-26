@@ -100,7 +100,6 @@ class CustomerController extends Controller
         $tenant = tenant();
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['notes' => function ($q) { $q->orderByDesc('created_at'); }])
             ->firstOrFail();
 
         $appointments = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
@@ -109,7 +108,9 @@ class CustomerController extends Controller
             ->with('items')
             ->get();
 
-        $notes       = $customer->notes;
+        // Note: $customer->notes is a fillable string column on TenantCustomer.
+        // The relationship is on notes() — call explicitly to get the collection.
+        $notes       = $customer->notes()->orderByDesc('created_at')->get();
         $totalSpend  = (int) $appointments->where('payment_status', 'paid')->sum('total_cents');
         $lastService = $appointments->whereIn('status', ['completed', 'closed', 'shipped'])->first()?->appointment_date;
         $updateUrl   = route('tenant.customers.update', $customer->id);
