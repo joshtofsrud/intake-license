@@ -1295,3 +1295,165 @@ body.ia-theme-c .ia-cal-fchip-solo {
     display: none;
   }
 }
+
+/* ============================================================
+ * S4.1 — Legend panel
+ * Collapsible, persisted in localStorage. "?" trigger in toolbar.
+ * ============================================================ */
+
+.ia-cal-legend-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--ia-border, #2a2a26);
+  border-radius: 4px;
+  color: var(--ia-text-muted, #6A6A62);
+  cursor: pointer;
+  font-size: 12px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+  margin-right: 8px;
+}
+.ia-cal-legend-trigger:hover {
+  color: var(--ia-text, #E8E8E0);
+  border-color: var(--ia-text-muted, #6A6A62);
+}
+.ia-cal-legend-trigger[aria-expanded="true"] {
+  color: var(--ia-text, #E8E8E0);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--ia-text-muted, #6A6A62);
+}
+.ia-cal-legend-trigger-label {
+  font-weight: 500;
+}
+
+.ia-cal-legend {
+  margin: 8px 0 12px;
+  padding: 14px 16px;
+  background: var(--ia-surface-2, #1f1f22);
+  border: 1px solid var(--ia-border, #2a2a26);
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px 28px;
+}
+.ia-cal-legend[hidden] { display: none; }
+
+.ia-cal-legend-section { min-width: 0; }
+
+.ia-cal-legend-heading {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ia-text-muted, #6A6A62);
+  margin-bottom: 8px;
+}
+
+.ia-cal-legend-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ia-cal-legend-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ia-text, #E8E8E0);
+}
+
+.ia-cal-legend-text strong {
+  font-weight: 600;
+  color: var(--ia-text, #E8E8E0);
+}
+.ia-cal-legend-text a {
+  color: var(--ia-accent, #CCF633);
+  text-decoration: none;
+}
+.ia-cal-legend-text a:hover { text-decoration: underline; }
+
+.ia-cal-legend-note {
+  color: var(--ia-text-muted, #6A6A62);
+  font-style: italic;
+  font-size: 11px;
+}
+
+/* Swatches — match the actual on-grid rendering treatment */
+.ia-cal-legend-swatch {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 22px;
+  border-radius: 3px;
+  border-left: 3px solid #888;
+  background: rgba(136, 136, 136, 0.15);
+  margin-top: 1px;
+  position: relative;
+}
+
+.ia-cal-legend-swatch.is-status-pending {
+  border-left-style: dashed;
+  opacity: 0.85;
+}
+.ia-cal-legend-swatch.is-status-confirmed {
+  /* default solid look */
+}
+.ia-cal-legend-swatch.is-status-in-progress {
+  border-left-width: 4px;
+  box-shadow: inset 2px 0 0 var(--ia-accent, #CCF633);
+}
+.ia-cal-legend-swatch.is-status-completed {
+  opacity: 0.55;
+}
+.ia-cal-legend-swatch.is-status-completed::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3B6D11;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none'><path d='M2 5l2 2 4-4' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px 8px;
+}
+
+.ia-cal-legend-swatch.is-bookend {
+  border-left: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.08) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+}
+
+.ia-cal-legend-swatch.is-hold {
+  border: 1px dashed var(--ia-accent, #CCF633);
+  background: rgba(204, 246, 51, 0.08);
+}
+
+.ia-cal-legend-swatch.is-break {
+  border-left: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.05) 3px,
+    rgba(255, 255, 255, 0.12) 3px,
+    rgba(255, 255, 255, 0.12) 6px
+  );
+}
+
+@media (max-width: 640px) {
+  .ia-cal-legend {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .ia-cal-legend-trigger-label { display: none; }
+}

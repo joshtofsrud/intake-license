@@ -519,3 +519,63 @@
     persistCurrent();
   });
 })();
+
+/**
+ * S4.1 — Legend panel toggle
+ *
+ * Click "?" / Legend in the toolbar to expand the explanation panel.
+ * State persists in localStorage so it stays open across navigations
+ * for shop owners who keep it open while learning, and stays closed
+ * for everyone else.
+ *
+ * ESC closes. Click-outside does NOT close — the panel is reference
+ * material, not a modal. If users want it gone they hit the toggle.
+ */
+(function () {
+  'use strict';
+
+  var KEY = 'intake.calendar.legend.open';
+  var trigger;
+  var panel;
+
+  function isOpenStored() {
+    try { return localStorage.getItem(KEY) === '1'; }
+    catch (e) { return false; }
+  }
+
+  function setStored(open) {
+    try { localStorage.setItem(KEY, open ? '1' : '0'); }
+    catch (e) { /* ignore */ }
+  }
+
+  function open() {
+    if (!panel || !trigger) return;
+    panel.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    setStored(true);
+  }
+
+  function close() {
+    if (!panel || !trigger) return;
+    panel.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    setStored(false);
+  }
+
+  function toggle() {
+    if (panel.hidden) open(); else close();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    trigger = document.getElementById('ia-cal-legend-trigger');
+    panel   = document.getElementById('ia-cal-legend');
+    if (!trigger || !panel) return;
+
+    if (isOpenStored()) open(); else close();
+
+    trigger.addEventListener('click', toggle);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !panel.hidden) close();
+    });
+  });
+})();

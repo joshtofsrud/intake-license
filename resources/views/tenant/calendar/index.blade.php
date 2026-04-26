@@ -56,6 +56,16 @@
       </div>
     </div>
     <div class="ia-cal-toolbar-right">
+      <button type="button" class="ia-cal-legend-trigger" id="ia-cal-legend-trigger"
+              aria-label="Show calendar legend" aria-expanded="false">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M5.4 5.2c0-.9.7-1.6 1.6-1.6s1.6.7 1.6 1.6c0 .7-.4 1.1-1 1.4-.4.2-.6.4-.6.7v.5"
+                stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <circle cx="7" cy="10" r=".7" fill="currentColor"/>
+        </svg>
+        <span class="ia-cal-legend-trigger-label">Legend</span>
+      </button>
       <div class="ia-cal-view-switch">
         <a href="{{ route('tenant.calendar.index', ['view' => 'day', 'date' => ($viewMode === 'day' ? $dateStr : ($viewMode === 'week' ? $weekStartStr : $monthAnchor->toDateString()))]) }}"
            class="ia-cal-view-btn {{ $viewMode === 'day' ? 'is-active' : '' }}"
@@ -68,6 +78,63 @@
            data-view="month">Month</a>
       </div>
     </div>
+  </div>
+
+  {{-- ===== Legend panel (collapsible, persisted in localStorage) ===== --}}
+  <div class="ia-cal-legend" id="ia-cal-legend" hidden>
+    <div class="ia-cal-legend-section">
+      <div class="ia-cal-legend-heading">Appointment status</div>
+      <div class="ia-cal-legend-rows">
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-status-pending"></span>
+          <span class="ia-cal-legend-text"><strong>Pending</strong> · dashed border. Booked but not yet confirmed.</span>
+        </div>
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-status-confirmed"></span>
+          <span class="ia-cal-legend-text"><strong>Confirmed</strong> · solid block. Customer is locked in.</span>
+        </div>
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-status-in-progress"></span>
+          <span class="ia-cal-legend-text"><strong>In progress</strong> · accent border. Work has started.</span>
+        </div>
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-status-completed"></span>
+          <span class="ia-cal-legend-text"><strong>Completed</strong> · muted with check. Done and closed.</span>
+        </div>
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-text ia-cal-legend-note">Cancelled appointments are hidden from the grid by default. Find them in the Appointments list with the status filter.</span>
+        </div>
+      </div>
+    </div>
+
+    @if($viewMode === 'day')
+    <div class="ia-cal-legend-section">
+      <div class="ia-cal-legend-heading">Time blocks</div>
+      <div class="ia-cal-legend-rows">
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-bookend"></span>
+          <span class="ia-cal-legend-text"><strong>Prep / cleanup</strong> · hatched bands above and below an appointment. Time the customer doesn't see, but the resource is occupied.</span>
+        </div>
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-hold"></span>
+          <span class="ia-cal-legend-text"><strong>Walk-in hold</strong> · lime dashed. Reserved capacity for walk-in customers — converts to an appointment when one arrives.</span>
+        </div>
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-swatch is-break"></span>
+          <span class="ia-cal-legend-text"><strong>Break</strong> · hatched neutral. Lunch, vendor visits, anything that takes a resource off the schedule.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ia-cal-legend-section">
+      <div class="ia-cal-legend-heading">Resource color</div>
+      <div class="ia-cal-legend-rows">
+        <div class="ia-cal-legend-row">
+          <span class="ia-cal-legend-text">The colored strip on the left of each block matches the resource\'s dot in the column header. Set or change resource colors on the <a href="{{ route(\'tenant.resources.index\') }}">Resources page</a>.</span>
+        </div>
+      </div>
+    </div>
+    @endif
   </div>
 
   {{-- ===== Resource filter (day + week only; month merges resources) ===== --}}
