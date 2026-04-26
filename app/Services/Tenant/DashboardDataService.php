@@ -16,9 +16,19 @@ class DashboardDataService
 {
     public function __construct(private readonly Tenant $tenant) {}
 
+    /**
+     * "Now" in tenant local time. Use for any date-of-day calculation
+     * the tenant will see (greeting hour, today's appointments, week boundaries).
+     * For storage timestamps and created_at/updated_at comparisons, use plain now() — those are UTC.
+     */
+    private function tnow(): \Carbon\Carbon
+    {
+        return \Carbon\Carbon::now($this->tenant->timezone());
+    }
+
     public function greeting(?object $user = null): array
     {
-        $hour = (int) now()->format('G');
+        $hour = (int) $this->tnow()->format('G');
         $timeOfDay = match (true) {
             $hour < 12 => 'morning',
             $hour < 17 => 'afternoon',
@@ -33,14 +43,14 @@ class DashboardDataService
         return [
             'time_of_day' => $timeOfDay,
             'name'        => $name,
-            'date_long'   => now()->format('l, F j'),
+            'date_long'   => $this->tnow()->format('l, F j'),
         ];
     }
 
     public function zoneToday(): array
     {
-        $today = now()->toDateString();
-        $weekStart = now()->startOfWeek()->toDateString();
+        $today = $this->tnow()->toDateString();
+        $weekStart = $this->tnow()->startOfWeek()->toDateString();
 
         $todayAppointments = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereDate('appointment_date', $today)
@@ -53,7 +63,7 @@ class DashboardDataService
         $nextUp = $todayAppointments->first(function ($a) {
             if (!$a->appointment_time) return false;
             $apptDateTime = Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_time);
-            return $apptDateTime->greaterThanOrEqualTo(now());
+            return $apptDateTime->greaterThanOrEqualTo($this->tnow());
         });
 
         if (!$nextUp) {
@@ -90,7 +100,7 @@ class DashboardDataService
     public function zoneAttention(): array
     {
         $tenantId = $this->tenant->id;
-        $today = now()->toDateString();
+        $today = $this->tnow()->toDateString();
 
         $unconfirmedCount = TenantAppointment::where('tenant_id', $tenantId)
             ->where('status', 'pending')
@@ -231,9 +241,9 @@ class DashboardDataService
     public function zoneGrowth(): array
     {
         $tenantId = $this->tenant->id;
-        $today = now()->endOfDay();
-        $thirtyAgo = now()->subDays(30)->startOfDay();
-        $sixtyAgo = now()->subDays(60)->startOfDay();
+        $today = $this->tnow()->endOfDay();
+        $thirtyAgo = $this->tnow()->subDays(30)->startOfDay();
+        $sixtyAgo = $this->tnow()->subDays(60)->startOfDay();
 
         $revenueCurrent = (int) TenantAppointment::where('tenant_id', $tenantId)
             ->whereBetween('appointment_date', [$thirtyAgo->toDateString(), $today->toDateString()])
