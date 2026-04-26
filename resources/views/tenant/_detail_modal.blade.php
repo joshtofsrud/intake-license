@@ -546,6 +546,9 @@ var DM = {
     h += this.field('Email', c.email);
     h += this.field('Phone', c.phone || '\u2014');
     h += this.field('Address', [c.address_line1, c.city, c.state, c.postcode].filter(Boolean).join(', ') || '\u2014');
+    h += '</div>';
+    h += '<div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--ia-border);text-align:right">';
+    h += '<a href="/admin/customers/' + this.currentId + '" class="dm-btn dm-btn--secondary" style="text-decoration:none">Open full page \u2192</a>';
     h += '</div></div>';
 
     // History tab
