@@ -130,7 +130,7 @@
       <div class="ia-cal-legend-heading">Resource color</div>
       <div class="ia-cal-legend-rows">
         <div class="ia-cal-legend-row">
-          <span class="ia-cal-legend-text">The colored strip on the left of each block matches the resource\'s dot in the column header. Set or change resource colors on the <a href="{{ route(\'tenant.resources.index\') }}">Resources page</a>.</span>
+          <span class="ia-cal-legend-text">The colored strip on the left of each block matches the resource's dot in the column header. Set or change resource colors on the <a href="{{ route('tenant.resources.index') }}">Resources page</a>.</span>
         </div>
       </div>
     </div>
