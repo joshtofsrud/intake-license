@@ -58,7 +58,7 @@
     <div class="ia-card">
       <div class="ia-card-head">
         <span class="ia-card-title">Customer info</span>
-        <button type="button" class="ia-card-action" id="edit-toggle">Edit</button>
+        <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="edit-toggle">Edit</button>
       </div>
 
       {{-- View mode --}}
