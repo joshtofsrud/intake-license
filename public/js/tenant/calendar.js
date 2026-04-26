@@ -669,3 +669,280 @@
     }, 100);
   });
 })();
+
+(function () {
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var modal = document.getElementById('qb-modal');
+    if (!modal) return;
+
+    var tabs = modal.querySelectorAll('[data-qb-tab]');
+    var panes = modal.querySelectorAll('[data-qb-pane]');
+    var modeBtns = modal.querySelectorAll('[data-qb-mode]');
+    var modePanes = modal.querySelectorAll('[data-qb-mode-pane]');
+    var chips = modal.querySelectorAll('[data-qb-duration]');
+    var customInput = document.getElementById('qb-duration-custom');
+    var labelInput = document.getElementById('qb-break-label');
+    var dateEl = document.getElementById('qb-date');
+    var submitBtn = document.getElementById('qb-submit');
+    var restHelper = document.getElementById('qb-rest-helper');
+
+    var currentTab = 'appointment';
+    var currentMode = 'duration';
+    var currentDuration = 30;
+
+    function setTab(tab) {
+      currentTab = tab;
+      tabs.forEach(function (t) {
+        t.classList.toggle('is-active', t.getAttribute('data-qb-tab') === tab);
+      });
+      panes.forEach(function (p) {
+        p.style.display = p.getAttribute('data-qb-pane') === tab ? '' : 'none';
+      });
+      if (submitBtn) {
+        submitBtn.textContent = tab === 'break' ? 'Save break' : 'Book appointment';
+      }
+      // Clear any error visible from the other tab
+      var err = document.getElementById('qb-error');
+      if (err) err.style.display = 'none';
+
+      // Refresh rest-of-day helper if Break tab opened
+      if (tab === 'break') updateRestHelper();
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      modeBtns.forEach(function (b) {
+        var on = b.getAttribute('data-qb-mode') === mode;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      modePanes.forEach(function (p) {
+        p.style.display = p.getAttribute('data-qb-mode-pane') === mode ? '' : 'none';
+      });
+      if (mode === 'rest_of_day') updateRestHelper();
+    }
+
+    function setDuration(minutes) {
+      currentDuration = minutes;
+      chips.forEach(function (c) {
+        c.classList.toggle('is-active', parseInt(c.getAttribute('data-qb-duration'), 10) === minutes);
+      });
+      if (customInput) customInput.value = '';
+    }
+
+    /**
+     * Update the "Rest of day" helper text based on the currently-selected
+     * date. Reads business_hours from QuickBook.state.businessHours, which
+     * is loaded by fetchPicker.
+     *
+     * If the selected day has no business hours, disable the rest_of_day
+     * mode and show an explanation. Force back to duration mode.
+     */
+    function updateRestHelper() {
+      if (!restHelper || !dateEl || !window.QuickBook) return;
+      var hours = window.QuickBook.state.businessHours;
+      if (!hours) {
+        restHelper.textContent = 'Loading business hours...';
+        return;
+      }
+
+      var dateValue = dateEl.value;
+      if (!dateValue) {
+        restHelper.textContent = 'Pick a date.';
+        return;
+      }
+
+      // dateValue is YYYY-MM-DD. JS Date parses it as UTC midnight, which
+      // can flip the day-of-week in negative timezones. Parse manually.
+      var parts = dateValue.split('-');
+      var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      var dow = d.getDay(); // 0=Sun..6=Sat
+
+      var dayHours = hours[dow] || hours[String(dow)];
+      var restModeBtn = modal.querySelector('[data-qb-mode="rest_of_day"]');
+
+      if (!dayHours) {
+        restHelper.textContent = 'No business hours set for this day.';
+        restHelper.classList.add('is-unavailable');
+        if (restModeBtn) {
+          restModeBtn.classList.add('is-disabled');
+          restModeBtn.setAttribute('disabled', 'disabled');
+        }
+        // Force duration mode if rest_of_day was active
+        if (currentMode === 'rest_of_day') setMode('duration');
+        return;
+      }
+
+      restHelper.classList.remove('is-unavailable');
+      if (restModeBtn) {
+        restModeBtn.classList.remove('is-disabled');
+        restModeBtn.removeAttribute('disabled');
+      }
+      restHelper.innerHTML = 'Blocks from start time until <strong>' + formatTime(dayHours.close) + '</strong>.';
+    }
+
+    /** Convert "HH:MM" 24h to "h:MM AM/PM". */
+    function formatTime(hm) {
+      var p = hm.split(':');
+      var h = parseInt(p[0], 10);
+      var m = parseInt(p[1], 10);
+      var ampm = h < 12 ? 'AM' : 'PM';
+      var h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      return h12 + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+    }
+
+    // Wire up tab clicks
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () { setTab(t.getAttribute('data-qb-tab')); });
+    });
+
+    // Wire up mode toggle clicks
+    modeBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (b.classList.contains('is-disabled')) return;
+        setMode(b.getAttribute('data-qb-mode'));
+      });
+    });
+
+    // Wire up duration chips
+    chips.forEach(function (c) {
+      c.addEventListener('click', function () {
+        setDuration(parseInt(c.getAttribute('data-qb-duration'), 10));
+      });
+    });
+
+    // Custom duration input — clears chip selection on focus, and updates
+    // currentDuration if a valid number is entered.
+    if (customInput) {
+      customInput.addEventListener('input', function () {
+        var v = parseInt(customInput.value, 10);
+        if (!isNaN(v) && v > 0) {
+          currentDuration = v;
+          chips.forEach(function (c) { c.classList.remove('is-active'); });
+        }
+      });
+    }
+
+    // Update rest-of-day helper whenever the date changes
+    if (dateEl) {
+      dateEl.addEventListener('change', function () {
+        if (currentTab === 'break' && currentMode === 'rest_of_day') updateRestHelper();
+        else if (currentTab === 'break') updateRestHelper();
+      });
+    }
+
+    /**
+     * Override QuickBook.submit when the Break tab is active.
+     * The original submit() handles appointments. We branch here.
+     */
+    var originalSubmit = window.QuickBook ? window.QuickBook.submit : null;
+    if (window.QuickBook && originalSubmit) {
+      window.QuickBook.submit = function () {
+        if (currentTab !== 'break') {
+          return originalSubmit.call(window.QuickBook);
+        }
+        return submitBreak();
+      };
+    }
+
+    function submitBreak() {
+      var btn = submitBtn;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      var err = document.getElementById('qb-error');
+      err.style.display = 'none';
+
+      var dateValue = dateEl.value;
+      var timeEl = document.getElementById('qb-time');
+      var resourceEl = document.getElementById('qb-resource');
+      var labelValue = (labelInput && labelInput.value.trim()) || 'Out for the day';
+
+      var timeValue = timeEl ? timeEl.value : '';
+      var resourceValue = resourceEl ? resourceEl.value : '';
+
+      if (!dateValue)     return showBreakError('Pick a date.', btn);
+      if (!timeValue)     return showBreakError('Pick a start time.', btn);
+      if (!resourceValue) return showBreakError('Pick a resource.', btn);
+
+      var startTime = timeValue.split(':').slice(0, 2).join(':');
+
+      var body = {
+        date: dateValue,
+        start_time: startTime,
+        mode: currentMode,
+        resource_id: resourceValue,
+        label: labelValue,
+      };
+
+      if (currentMode === 'duration') {
+        // Use custom input if it has a valid value; otherwise the chip selection.
+        var customMin = customInput && parseInt(customInput.value, 10);
+        var minutes = (customMin && customMin > 0) ? customMin : currentDuration;
+        if (!minutes || minutes < 5) {
+          return showBreakError('Pick a duration.', btn);
+        }
+        body.duration_minutes = minutes;
+      }
+
+      fetch('/admin/calendar/breaks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': window.IntakeAdmin.csrfToken,
+        },
+        body: JSON.stringify(body),
+      })
+        .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (resp) {
+          if (resp.body && resp.body.success) {
+            // Strip ?customer_id= so post-reload doesn't reopen the modal,
+            // matching the appointment submit pattern.
+            var u = new URL(window.location.href);
+            if (u.searchParams.has('customer_id')) {
+              u.searchParams.delete('customer_id');
+              window.location.href = u.toString();
+            } else {
+              window.location.reload();
+            }
+          } else {
+            showBreakError(resp.body.message || 'Could not save break.', btn);
+          }
+        })
+        .catch(function () { showBreakError('Network error.', btn); });
+    }
+
+    function showBreakError(msg, btn) {
+      var err = document.getElementById('qb-error');
+      err.textContent = msg;
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Save break';
+    }
+  });
+
+  /**
+   * Patch fetchPicker to also persist business_hours so the Break tab
+   * can resolve "rest of day" close times without an extra request.
+   */
+  if (window.QuickBook && window.QuickBook.fetchPicker) {
+    var originalFetch = window.QuickBook.fetchPicker;
+    window.QuickBook.fetchPicker = function (search) {
+      var url = '/admin/calendar/quick-book?customer_search=' + encodeURIComponent(search || '');
+      return fetch(url, { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          window.QuickBook.state.services       = data.services       || [];
+          window.QuickBook.state.customers      = data.customers      || [];
+          window.QuickBook.state.resources      = data.resources      || [];
+          window.QuickBook.state.businessHours  = data.business_hours || null;
+          window.QuickBook.renderServices();
+          window.QuickBook.renderCustomers();
+          if (window.QuickBook.renderResources) window.QuickBook.renderResources();
+        });
+    };
+  }
+})();

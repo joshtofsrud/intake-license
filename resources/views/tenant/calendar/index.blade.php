@@ -258,7 +258,13 @@
       <button type="button" class="qb-modal-close" onclick="QuickBook.close()" aria-label="Close">×</button>
     </div>
 
+    <div class="qb-tabs">
+      <button type="button" class="qb-tab is-active" data-qb-tab="appointment">Appointment</button>
+      <button type="button" class="qb-tab" data-qb-tab="break">Break</button>
+    </div>
+
     <div class="qb-modal-body">
+      <div class="qb-pane" data-qb-pane="appointment">
       <div class="qb-field">
         <label>Customer</label>
         <input type="text" id="qb-customer-search" placeholder="Search by name or email, or fill in the fields below" autocomplete="off">
@@ -296,13 +302,45 @@
         <label>Service</label>
         <select id="qb-service"><option value="">Select a service…</option></select>
       </div>
+      </div><!-- /qb-pane appointment -->
+
+      <div class="qb-pane" data-qb-pane="break" style="display:none">
+        <div class="qb-mode-toggle" role="radiogroup">
+          <button type="button" class="qb-mode-btn is-active" data-qb-mode="duration" role="radio" aria-checked="true">Duration</button>
+          <button type="button" class="qb-mode-btn" data-qb-mode="rest_of_day" role="radio" aria-checked="false">Rest of day</button>
+        </div>
+
+        <div class="qb-mode-pane" data-qb-mode-pane="duration">
+          <div class="qb-chip-row">
+            <button type="button" class="qb-chip" data-qb-duration="15">15m</button>
+            <button type="button" class="qb-chip is-active" data-qb-duration="30">30m</button>
+            <button type="button" class="qb-chip" data-qb-duration="60">1h</button>
+            <button type="button" class="qb-chip" data-qb-duration="120">2h</button>
+          </div>
+          <div class="qb-field qb-field-inline">
+            <label>Or custom</label>
+            <input type="number" id="qb-duration-custom" min="5" max="1440" step="5" placeholder="minutes">
+          </div>
+        </div>
+
+        <div class="qb-mode-pane" data-qb-mode-pane="rest_of_day" style="display:none">
+          <div class="qb-rest-helper" id="qb-rest-helper">
+            Blocks from start time until close.
+          </div>
+        </div>
+
+        <div class="qb-field">
+          <label>Label (shows on calendar)</label>
+          <input type="text" id="qb-break-label" placeholder="Out for the day" maxlength="100">
+        </div>
+      </div><!-- /qb-pane break -->
 
       <div id="qb-error" class="qb-error" style="display:none"></div>
     </div>
 
     <div class="qb-modal-foot">
       <button type="button" class="ia-btn ia-btn--ghost" onclick="QuickBook.close()">Cancel</button>
-      <button type="button" class="ia-btn ia-btn--primary" id="qb-submit" onclick="QuickBook.submit()">Book appointment</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="qb-submit" onclick="QuickBook.submit()" data-default-text="Book appointment">Book appointment</button>
     </div>
   </div>
 </div>
