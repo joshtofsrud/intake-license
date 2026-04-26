@@ -1605,3 +1605,14 @@ body.ia-theme-c .ia-cal-fchip-solo {
   font-weight: 600;
 }
 .qb-rest-helper.is-unavailable { color: var(--ia-text-muted, #6A6A62); }
+
+.ia-cal-break,
+.ia-cal-hold {
+  cursor: pointer;
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+.ia-cal-break:hover,
+.ia-cal-hold:hover {
+  opacity: 0.7;
+  filter: brightness(1.15);
+}

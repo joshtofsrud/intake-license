@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Exceptions\LockAcquisitionException;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantCalendarBreak;
+use App\Models\Tenant\TenantWalkinHold;
 use App\Models\Tenant\TenantCapacityRule;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantResource;
@@ -251,5 +252,71 @@ class QuickBookController extends Controller
                 'ends_at'   => $break->ends_at->toDateTimeString(),
             ],
         ]);
+    }
+
+    /**
+     * Delete a one-off break. Refuses recurring breaks — those have their
+     * own management surface (capacity admin), and surprise-deleting all
+     * future occurrences from a single calendar click is wrong.
+     */
+    public function destroyBreak(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $break = TenantCalendarBreak::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->first();
+
+        if (!$break) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Break not found.',
+            ], 404);
+        }
+
+        if ($break->is_recurring) {
+            return response()->json([
+                'success' => false,
+                'code'    => 'recurring',
+                'message' => 'This is a recurring break. Edit recurring breaks from Capacity admin.',
+            ], 422);
+        }
+
+        $break->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Delete a walk-in hold. Holds are always one-offs in v1 — recurring
+     * holds are not in the product yet, but we still check is_recurring
+     * to be safe in case the schema gets used that way later.
+     */
+    public function destroyHold(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $hold = TenantWalkinHold::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->first();
+
+        if (!$hold) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Walk-in hold not found.',
+            ], 404);
+        }
+
+        if ($hold->is_recurring) {
+            return response()->json([
+                'success' => false,
+                'code'    => 'recurring',
+                'message' => 'This hold recurs. Edit recurring holds from Capacity admin.',
+            ], 422);
+        }
+
+        $hold->delete();
+
+        return response()->json(['success' => true]);
     }
 }

@@ -386,7 +386,7 @@ class CalendarController extends Controller
                        });
                 });
             })
-            ->get(['resource_id','label','starts_at','ends_at','is_recurring','recurrence_type','recurrence_config']);
+            ->get(['id','resource_id','label','starts_at','ends_at','is_recurring','recurrence_type','recurrence_config']);
 
         return $this->expandWindows($records, $date, 'label');
     }
@@ -412,7 +412,7 @@ class CalendarController extends Controller
                        });
                 });
             })
-            ->get(['resource_id','starts_at','ends_at','is_recurring','recurrence_type','recurrence_config','notes']);
+            ->get(['id','resource_id','starts_at','ends_at','is_recurring','recurrence_type','recurrence_config','notes']);
 
         return $this->expandWindows($records, $date, 'notes');
     }
@@ -425,10 +425,12 @@ class CalendarController extends Controller
                 $start = Carbon::parse($r->starts_at);
                 $end   = Carbon::parse($r->ends_at);
                 $windows[] = [
-                    'resource_id' => $r->resource_id,
-                    'starts_min'  => $start->hour * 60 + $start->minute,
-                    'ends_min'    => $end->hour * 60 + $end->minute,
-                    'label'       => $r->{$labelField} ?? '',
+                    'id'           => $r->id,
+                    'resource_id'  => $r->resource_id,
+                    'starts_min'   => $start->hour * 60 + $start->minute,
+                    'ends_min'     => $end->hour * 60 + $end->minute,
+                    'label'        => $r->{$labelField} ?? '',
+                    'is_recurring' => false,
                 ];
                 continue;
             }
@@ -440,10 +442,12 @@ class CalendarController extends Controller
             $origStart = Carbon::parse($r->starts_at);
             $origEnd   = Carbon::parse($r->ends_at);
             $windows[] = [
-                'resource_id' => $r->resource_id,
-                'starts_min'  => $origStart->hour * 60 + $origStart->minute,
-                'ends_min'    => $origEnd->hour * 60 + $origEnd->minute,
-                'label'       => $r->{$labelField} ?? '',
+                'id'           => $r->id,
+                'resource_id'  => $r->resource_id,
+                'starts_min'   => $origStart->hour * 60 + $origStart->minute,
+                'ends_min'     => $origEnd->hour * 60 + $origEnd->minute,
+                'label'        => $r->{$labelField} ?? '',
+                'is_recurring' => true,
             ];
         }
         return $windows;

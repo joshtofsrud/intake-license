@@ -167,7 +167,10 @@
           @endphp
           <div class="ia-cal-break"
                style="top: {{ $top }}px; height: {{ $height }}px;"
-               title="{{ $br['label'] ?: 'Break' }}">
+               title="{{ $br['label'] ?: 'Break' }}"
+               data-break-id="{{ $br['id'] ?? '' }}"
+               data-break-recurring="{{ ($br['is_recurring'] ?? false) ? '1' : '0' }}"
+               data-break-label="{{ $br['label'] ?: 'Break' }}">
             <span class="ia-cal-break-label">{{ $br['label'] ?: 'Break' }}</span>
           </div>
         @endforeach
@@ -179,7 +182,9 @@
           @endphp
           <div class="ia-cal-hold"
                style="top: {{ $top }}px; height: {{ $height }}px;"
-               title="Walk-in hold{{ $hold['label'] ? ' — ' . $hold['label'] : '' }}">
+               title="Walk-in hold{{ $hold['label'] ? ' — ' . $hold['label'] : '' }}"
+               data-hold-id="{{ $hold['id'] ?? '' }}"
+               data-hold-recurring="{{ ($hold['is_recurring'] ?? false) ? '1' : '0' }}">
             <span class="ia-cal-hold-label">— Walk-in hold —</span>
           </div>
         @endforeach

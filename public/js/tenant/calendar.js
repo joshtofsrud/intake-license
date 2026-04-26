@@ -946,3 +946,141 @@
     };
   }
 })();
+
+(function () {
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', function () {
+    bindAll();
+  });
+
+  function bindAll() {
+    document.querySelectorAll('.ia-cal-break').forEach(bindBreak);
+    document.querySelectorAll('.ia-cal-hold').forEach(bindHold);
+  }
+
+  function getCsrf() {
+    return (window.IntakeAdmin && window.IntakeAdmin.csrfToken) || '';
+  }
+
+  function reloadClean() {
+    var u = new URL(window.location.href);
+    if (u.searchParams.has('customer_id')) {
+      u.searchParams.delete('customer_id');
+      window.location.href = u.toString();
+    } else {
+      window.location.reload();
+    }
+  }
+
+  function bindBreak(el) {
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id        = el.getAttribute('data-break-id');
+      var recurring = el.getAttribute('data-break-recurring') === '1';
+      var label     = el.getAttribute('data-break-label') || 'this break';
+
+      if (!id) return;
+
+      if (recurring) {
+        window.IntakeConfirm.show({
+          title:       'Recurring break',
+          message:     'This break repeats. To change or remove a recurring break, edit it from Capacity admin.',
+          confirmText: 'Got it',
+          cancelText:  'Close'
+        });
+        return;
+      }
+
+      window.IntakeConfirm.show({
+        title:       'Remove this break?',
+        message:     'This will remove "' + label + '" from the calendar. Customers will be able to book this slot again.',
+        confirmText: 'Remove break',
+        cancelText:  'Keep it',
+        danger:      true
+      }).then(function (ok) {
+        if (!ok) return;
+        deleteBreak(id);
+      });
+    });
+  }
+
+  function bindHold(el) {
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id        = el.getAttribute('data-hold-id');
+      var recurring = el.getAttribute('data-hold-recurring') === '1';
+
+      if (!id) return;
+
+      if (recurring) {
+        window.IntakeConfirm.show({
+          title:       'Recurring hold',
+          message:     'This walk-in hold repeats. To change or remove a recurring hold, edit it from Capacity admin.',
+          confirmText: 'Got it',
+          cancelText:  'Close'
+        });
+        return;
+      }
+
+      window.IntakeConfirm.show({
+        title:       'Remove this walk-in hold?',
+        message:     'This will release the held slot. Customers will be able to book it again.',
+        confirmText: 'Remove hold',
+        cancelText:  'Keep it',
+        danger:      true
+      }).then(function (ok) {
+        if (!ok) return;
+        deleteHold(id);
+      });
+    });
+  }
+
+  function deleteBreak(id) {
+    fetch('/admin/calendar/breaks/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: {
+        'X-CSRF-TOKEN': getCsrf(),
+        'Accept': 'application/json',
+      },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (resp) {
+        if (resp.body && resp.body.success) {
+          if (window.IntakeToast) window.IntakeToast.success('Break removed.');
+          reloadClean();
+        } else {
+          var msg = (resp.body && resp.body.message) || 'Could not remove break.';
+          if (window.IntakeToast) window.IntakeToast.error(msg);
+        }
+      })
+      .catch(function () {
+        if (window.IntakeToast) window.IntakeToast.error('Network error. Try again.');
+      });
+  }
+
+  function deleteHold(id) {
+    fetch('/admin/calendar/holds/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: {
+        'X-CSRF-TOKEN': getCsrf(),
+        'Accept': 'application/json',
+      },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (resp) {
+        if (resp.body && resp.body.success) {
+          if (window.IntakeToast) window.IntakeToast.success('Walk-in hold removed.');
+          reloadClean();
+        } else {
+          var msg = (resp.body && resp.body.message) || 'Could not remove hold.';
+          if (window.IntakeToast) window.IntakeToast.error(msg);
+        }
+      })
+      .catch(function () {
+        if (window.IntakeToast) window.IntakeToast.error('Network error. Try again.');
+      });
+  }
+})();
