@@ -269,6 +269,33 @@
     editToggle.style.display = '';
   });
 
+  // AJAX-ify the info edit form so the browser doesn't navigate to JSON.
+  if (infoEdit) {
+    infoEdit.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(infoEdit);
+      var submitBtn = infoEdit.querySelector('button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+      fetch(infoEdit.action, { method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save changes'; }
+          if (res.ok && res.body && (res.body.ok || res.body.success)) {
+            window.IntakeToast.success('Customer updated');
+            setTimeout(function () { window.location.reload(); }, 600);
+          } else {
+            window.IntakeToast.error((res.body && res.body.message) || 'Could not save.');
+          }
+        })
+        .catch(function () {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save changes'; }
+          window.IntakeToast.error('Network error. Try again.');
+        });
+    });
+  }
+
   // Note add
   var noteInput  = document.getElementById('cust-note-input');
   var noteSubmit = document.getElementById('cust-note-submit');
