@@ -102,7 +102,7 @@
     </p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost">← Back</a>
+    <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--ghost" onclick="if (document.referrer && document.referrer.indexOf(window.location.host) !== -1) { event.preventDefault(); history.back(); }">← Back</a>
   </div>
 </div>
 

@@ -70,6 +70,52 @@
     </div>
   </div>
 
+  <div class="ia-card">
+    <div class="ia-card-head"><span class="ia-card-title">Timezone</span></div>
+    <div class="ia-form-group">
+      <label class="ia-form-label">Your local timezone</label>
+      <select name="timezone" class="ia-input">
+        @php
+          $tzGroups = [
+            'United States' => [
+              'America/Los_Angeles' => 'Pacific (Los Angeles)',
+              'America/Denver'      => 'Mountain (Denver)',
+              'America/Phoenix'     => 'Mountain — no DST (Phoenix)',
+              'America/Chicago'     => 'Central (Chicago)',
+              'America/New_York'    => 'Eastern (New York)',
+              'America/Anchorage'   => 'Alaska (Anchorage)',
+              'Pacific/Honolulu'    => 'Hawaii (Honolulu)',
+            ],
+            'Canada' => [
+              'America/Vancouver' => 'Pacific (Vancouver)',
+              'America/Edmonton'  => 'Mountain (Edmonton)',
+              'America/Winnipeg'  => 'Central (Winnipeg)',
+              'America/Toronto'   => 'Eastern (Toronto)',
+              'America/Halifax'   => 'Atlantic (Halifax)',
+            ],
+            'Other' => [
+              'UTC'              => 'UTC',
+              'Europe/London'    => 'London',
+              'Europe/Paris'     => 'Paris',
+              'Australia/Sydney' => 'Sydney',
+            ],
+          ];
+          $currentTz = old('timezone', $currentTenant->timezone ?? 'America/Los_Angeles');
+        @endphp
+        @foreach($tzGroups as $groupName => $zones)
+          <optgroup label="{{ $groupName }}">
+            @foreach($zones as $tz => $label)
+              <option value="{{ $tz }}" @selected($currentTz === $tz)>{{ $label }}</option>
+            @endforeach
+          </optgroup>
+        @endforeach
+      </select>
+      <p style="font-size:12px;opacity:.5;margin-top:6px">
+        Determines what counts as "today" on your calendar and dashboard. Stored timestamps are unaffected.
+      </p>
+    </div>
+  </div>
+
   <button type="submit" class="ia-btn ia-btn--primary">Save general settings</button>
 </form>
 @endif

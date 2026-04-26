@@ -22,7 +22,7 @@ class Tenant extends Model
         'email_from_name', 'email_from_address', 'email_reply_to',
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
         'onboarding_status', 'onboarded_at',
-        'notification_email', 'currency', 'currency_symbol',
+        'notification_email', 'currency', 'currency_symbol', 'timezone',
         'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
@@ -39,6 +39,27 @@ class Tenant extends Model
         'booking_mode'        => 'string',
         'trial_ends_at'       => 'datetime',
     ];
+
+    /**
+     * IANA timezone for this tenant. Falls back to America/Los_Angeles if
+     * the column is empty (older rows pre-migration, or if a tenant clears it).
+     */
+    public function timezone(): string
+    {
+        return $this->attributes['timezone'] ?: 'America/Los_Angeles';
+    }
+
+    /** "Now" in the tenant's local timezone. */
+    public function localNow(): \Carbon\Carbon
+    {
+        return \Carbon\Carbon::now($this->timezone());
+    }
+
+    /** "Today" in the tenant's local timezone, at start-of-day. */
+    public function localToday(): \Carbon\Carbon
+    {
+        return \Carbon\Carbon::today($this->timezone());
+    }
 
     public function license(): BelongsTo
     {

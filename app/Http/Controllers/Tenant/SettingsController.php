@@ -21,9 +21,10 @@ class SettingsController extends Controller
             $request->validate([
                 'currency'        => ['required', 'string', 'size:3'],
                 'currency_symbol' => ['required', 'string', 'max:5'],
+                'timezone'        => ['required', 'string', 'max:64'],
             ]);
             $tenant->update($request->only([
-                'currency', 'currency_symbol',
+                'currency', 'currency_symbol', 'timezone',
             ]));
             return back()->with('success', 'General settings saved.');
         }

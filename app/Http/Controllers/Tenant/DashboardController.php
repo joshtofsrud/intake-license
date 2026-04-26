@@ -42,9 +42,9 @@ class DashboardController extends Controller
         $tenant = tenant();
         $service = new DashboardDataService($tenant);
 
-        $date = $request->query('date', now()->toDateString());
+        $date = $request->query('date', $tenant->localToday()->toDateString());
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $date = now()->toDateString();
+            $date = $tenant->localToday()->toDateString();
         }
 
         $data = $service->dayData($date);

@@ -38,13 +38,13 @@ class CapacityController extends Controller
 
         $overrides = TenantCapacityRule::where('tenant_id', $tenant->id)
             ->where('rule_type', 'override')
-            ->where('specific_date', '>=', now()->toDateString())
+            ->where('specific_date', '>=', $tenant->localToday()->toDateString())
             ->orderBy('specific_date')
             ->get();
 
         // Slot consumption per day (for display)
-        $today      = now()->toDateString();
-        $weekEnd    = now()->addDays(7)->toDateString();
+        $today      = $tenant->localToday()->toDateString();
+        $weekEnd    = $tenant->localToday()->addDays(7)->toDateString();
         $slotUsage  = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereBetween('appointment_date', [$today, $weekEnd])

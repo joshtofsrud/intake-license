@@ -27,19 +27,23 @@ class CalendarController extends Controller
     {
         $tenant = tenant();
 
-        // Resolve target date. Invalid query falls back to today rather than throwing.
+        // Resolve target date in the TENANT's timezone, not server UTC.
+        // A 5pm Pacific request shouldn't show "tomorrow" because the server is in UTC.
+        $tz = $tenant->timezone();
         $dateParam = $request->query('date');
         try {
-            $date = $dateParam ? Carbon::parse($dateParam)->startOfDay() : Carbon::today();
+            $date = $dateParam
+                ? \Carbon\Carbon::parse($dateParam, $tz)->startOfDay()
+                : $tenant->localToday();
         } catch (\Throwable $e) {
-            $date = Carbon::today();
+            $date = $tenant->localToday();
         }
         $dateStr = $date->toDateString();
 
         $prevDate = $date->copy()->subDay()->toDateString();
         $nextDate = $date->copy()->addDay()->toDateString();
-        $todayStr = Carbon::today()->toDateString();
-        $isToday  = $date->isToday();
+        $todayStr = $tenant->localToday()->toDateString();
+        $isToday  = $date->toDateString() === $todayStr;
 
         // Resources — ordered, active only. These are the column headers
         // in the calendar grid.
