@@ -7,6 +7,8 @@ use App\Filament\Resources\CustomerResource;
 use App\Filament\Resources\DebugLogResource;
 use App\Filament\Resources\LicenseResource;
 use App\Filament\Resources\MarketingPageResource;
+use App\Filament\Resources\ChangelogEntryResource;
+use App\Filament\Resources\RoadmapEntryResource;
 use App\Filament\Resources\TenantResource;
 use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\PlatformStatsWidget;
@@ -43,6 +45,8 @@ class AdminPanelProvider extends PanelProvider
                 LicenseResource::class,
                 ActivationResource::class,
                 MarketingPageResource::class, // new — marketing page editor entry
+                ChangelogEntryResource::class,
+                RoadmapEntryResource::class,
                 DebugLogResource::class,
             ])
             ->pages([
