@@ -228,13 +228,13 @@
           @endphp
 
           @if($prepMin > 0)
-            <div class="ia-cal-bookend is-prep {{ $isClustered ? \'is-clustered\' : \'\' }}"
+            <div class="ia-cal-bookend is-prep {{ $isClustered ? 'is-clustered' : '' }}"
                  style="top: {{ $prepTop }}px; height: {{ $prepHeight }}px; {{ $laneStyle }}">
               ↓ {{ $prepMin }}m prep
             </div>
           @endif
 
-          <div class="ia-cal-appt status-{{ $appt->status }} {{ $appt->needs_time_review ? \'needs-review\' : \'\' }} {{ $isClustered ? \'is-clustered\' : \'\' }}"
+          <div class="ia-cal-appt status-{{ $appt->status }} {{ $appt->needs_time_review ? 'needs-review' : '' }} {{ $isClustered ? 'is-clustered' : '' }}"
                style="top: {{ $coreTop }}px;
                       height: {{ $coreHeight }}px;
                       border-left-color: {{ $resourceColor }};
@@ -253,7 +253,7 @@
           </div>
 
           @if($cleanMin > 0)
-            <div class="ia-cal-bookend is-clean {{ $isClustered ? \'is-clustered\' : \'\' }}"
+            <div class="ia-cal-bookend is-clean {{ $isClustered ? 'is-clustered' : '' }}"
                  style="top: {{ $cleanTop }}px; height: {{ $cleanHeight }}px; {{ $laneStyle }}">
               ↑ {{ $cleanMin }}m clean
             </div>
