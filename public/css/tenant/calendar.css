@@ -1609,6 +1609,7 @@ body.ia-theme-c .ia-cal-fchip-solo {
 .ia-cal-break,
 .ia-cal-hold {
   cursor: pointer;
+  pointer-events: auto;
   transition: opacity 0.12s ease, filter 0.12s ease;
 }
 .ia-cal-break:hover,
