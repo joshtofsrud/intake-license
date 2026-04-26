@@ -100,14 +100,24 @@ class CustomerController extends Controller
         $tenant = tenant();
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['notes', 'appointments' => function ($q) {
-                $q->orderByDesc('appointment_date')->with('items');
-            }])
+            ->with(['notes' => function ($q) { $q->orderByDesc('created_at'); }])
             ->firstOrFail();
 
-        $updateUrl = route('tenant.customers.update', $customer->id);
+        $appointments = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->orderByDesc('appointment_date')
+            ->with('items')
+            ->get();
 
-        return view('tenant.customers.show', compact('customer', 'updateUrl'));
+        $notes       = $customer->notes;
+        $totalSpend  = (int) $appointments->where('payment_status', 'paid')->sum('total_cents');
+        $lastService = $appointments->whereIn('status', ['completed', 'closed', 'shipped'])->first()?->appointment_date;
+        $updateUrl   = route('tenant.customers.update', $customer->id);
+
+        return view('tenant.customers.show', compact(
+            'customer', 'appointments', 'notes',
+            'totalSpend', 'lastService', 'updateUrl'
+        ));
     }
 
     public function store(Request $request)
