@@ -279,7 +279,15 @@
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
       .then(function (resp) {
         if (resp.body && resp.body.success) {
-          window.location.reload();
+          // Strip ?customer_id= so the post-reload page doesn't re-trigger
+          // the prefill IIFE and reopen the modal.
+          var u = new URL(window.location.href);
+          if (u.searchParams.has('customer_id')) {
+            u.searchParams.delete('customer_id');
+            window.location.href = u.toString();
+          } else {
+            window.location.reload();
+          }
         } else {
           QuickBook.showError(resp.body.message || 'Booking failed.', btn);
         }
