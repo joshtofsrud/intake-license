@@ -168,39 +168,84 @@
     <div class="ia-card">
       <div class="appt-section-label">Services</div>
 
-      @if($appointment->items->isEmpty())
-        <p style="font-size:13px;opacity:.4">No items on this appointment.</p>
-      @else
-        <table class="appt-line-items">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th class="ia-num">Duration</th>
-              <th class="ia-num">Price</th>
+      <table class="appt-line-items" id="line-items-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="ia-num">Duration</th>
+            <th class="ia-num">Price</th>
+            <th style="width:32px"></th>
+          </tr>
+        </thead>
+        <tbody id="line-items-body">
+          @foreach($appointment->items as $item)
+            <tr class="line-row" data-kind="service" data-item-id="{{ $item->id }}">
+              <td style="font-weight:500">{{ $item->item_name_snapshot }}</td>
+              <td class="ia-num">
+                <input type="number" min="0" class="line-edit ia-input ia-input--sm"
+                  data-field="duration_minutes"
+                  value="{{ $item->duration_minutes_override ?? $item->duration_minutes_snapshot ?? 0 }}"
+                  style="width:70px;text-align:right"> <span style="opacity:.5">min</span>
+              </td>
+              <td class="ia-num">
+                <input type="number" min="0" step="0.01" class="line-edit ia-input ia-input--sm"
+                  data-field="price_dollars"
+                  value="{{ number_format(($item->price_cents_override ?? $item->price_cents) / 100, 2, '.', '') }}"
+                  style="width:80px;text-align:right">
+              </td>
+              <td>
+                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm line-remove" title="Remove">&#x2715;</button>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            @foreach($appointment->items as $item)
-              <tr>
-                <td style="font-weight:500">{{ $item->item_name_snapshot }}</td>
-                <td class="ia-num" style="opacity:.6">{{ $item->duration_minutes_snapshot ?? 0 }} min</td>
-                <td class="ia-num">{{ format_money($item->price_cents) }}</td>
-              </tr>
-            @endforeach
-            @foreach($appointment->addons as $addon)
-              <tr>
-                <td style="opacity:.7">+ {{ $addon->addon_name_snapshot }}</td>
-                <td class="ia-num" style="opacity:.4">{{ $addon->duration_minutes_snapshot ?? 0 }} min</td>
-                <td class="ia-num">{{ format_money($addon->price_cents) }}</td>
-              </tr>
-            @endforeach
-          </tbody>
-        </table>
-        <div class="appt-total-row">
-          <span>Subtotal</span>
-          <span>{{ format_money($appointment->subtotal_cents) }}</span>
-        </div>
+          @endforeach
+          @foreach($appointment->addons as $addon)
+            <tr class="line-row" data-kind="addon" data-item-id="{{ $addon->id }}">
+              <td style="opacity:.7">+ {{ $addon->addon_name_snapshot }}</td>
+              <td class="ia-num">
+                <input type="number" min="0" class="line-edit ia-input ia-input--sm"
+                  data-field="duration_minutes"
+                  value="{{ $addon->duration_minutes_override ?? $addon->duration_minutes_snapshot ?? 0 }}"
+                  style="width:70px;text-align:right"> <span style="opacity:.5">min</span>
+              </td>
+              <td class="ia-num">
+                <input type="number" min="0" step="0.01" class="line-edit ia-input ia-input--sm"
+                  data-field="price_dollars"
+                  value="{{ number_format(($addon->price_cents_override ?? $addon->price_cents) / 100, 2, '.', '') }}"
+                  style="width:80px;text-align:right">
+              </td>
+              <td>
+                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm line-remove" title="Remove">&#x2715;</button>
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+
+      @if($appointment->items->isEmpty() && $appointment->addons->isEmpty())
+        <p style="font-size:13px;opacity:.4;margin:8px 0 12px">No items yet — add one below.</p>
       @endif
+
+      <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--ia-border);align-items:center">
+        <select id="add-line-select" class="ia-input ia-input--sm" style="flex:1">
+          <option value="">+ Add service or add-on…</option>
+          <optgroup label="Services">
+            @foreach($availableServices as $svc)
+              <option value="service:{{ $svc->id }}">{{ $svc->name }} · {{ format_money($svc->price_cents) }}</option>
+            @endforeach
+          </optgroup>
+          <optgroup label="Add-ons">
+            @foreach($availableAddons as $ad)
+              <option value="addon:{{ $ad->id }}">+ {{ $ad->name }} · {{ format_money($ad->price_cents) }}</option>
+            @endforeach
+          </optgroup>
+        </select>
+        <button type="button" id="add-line-btn" class="ia-btn ia-btn--secondary ia-btn--sm">Add</button>
+      </div>
+
+      <div class="appt-total-row" style="margin-top:14px">
+        <span>Subtotal</span>
+        <span>{{ format_money($appointment->subtotal_cents) }}</span>
+      </div>
     </div>
 
     {{-- Work order (staff-filled equipment details) --}}
@@ -668,6 +713,208 @@
       .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+
+  // ================================================================
+  // Line-item editor — services and add-ons
+  // ================================================================
+  function postOp(payload) {
+    var fd = new FormData();
+    fd.append('_token', csrf);
+    fd.append('_method', 'PATCH');
+    Object.keys(payload).forEach(function (k) { fd.append(k, payload[k]); });
+    return fetch(updateUrl, { method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+  }
+
+  // Add a new service or addon
+  var addBtn = document.getElementById('add-line-btn');
+  var addSel = document.getElementById('add-line-select');
+  if (addBtn && addSel) {
+    addBtn.addEventListener('click', function () {
+      var val = addSel.value;
+      if (!val) return;
+      var parts = val.split(':');
+      var kind = parts[0]; // 'service' or 'addon'
+      var id   = parts[1];
+      addBtn.disabled = true;
+      addBtn.textContent = '…';
+      var op = kind === 'addon' ? 'add_addon' : 'add_service';
+      var payload = { op: op };
+      payload[kind === 'addon' ? 'addon_id' : 'service_item_id'] = id;
+      postOp(payload).then(function (res) {
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add';
+        if (res.ok && res.body && res.body.ok) {
+          window.IntakeToast.success(kind === 'addon' ? 'Add-on added' : 'Service added');
+          setTimeout(function () { window.location.reload(); }, 500);
+        } else {
+          window.IntakeToast.error((res.body && res.body.message) || 'Could not add.');
+        }
+      });
+    });
+  }
+
+  // Remove a service or addon
+  document.querySelectorAll('.line-remove').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var row  = btn.closest('.line-row');
+      var kind = row.getAttribute('data-kind');
+      var id   = row.getAttribute('data-item-id');
+
+      window.IntakeConfirm.show({
+        title:       'Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?',
+        message:     'The line will be removed and totals recalculated.',
+        confirmText: 'Remove',
+        danger:      true
+      }).then(function (ok) {
+        if (!ok) return;
+        var op = kind === 'addon' ? 'remove_addon' : 'remove_service';
+        var payload = { op: op };
+        payload[kind === 'addon' ? 'addon_id' : 'item_id'] = id;
+        postOp(payload).then(function (res) {
+          if (res.ok && res.body && res.body.ok) {
+            window.IntakeToast.success('Removed');
+            setTimeout(function () { window.location.reload(); }, 500);
+          } else {
+            window.IntakeToast.error((res.body && res.body.message) || 'Could not remove.');
+          }
+        });
+      });
+    });
+  });
+
+  // Update price/duration override on blur
+  document.querySelectorAll('.line-edit').forEach(function (input) {
+    input.addEventListener('blur', function () {
+      var row  = input.closest('.line-row');
+      var kind = row.getAttribute('data-kind');
+      var id   = row.getAttribute('data-item-id');
+      var field = input.getAttribute('data-field');
+
+      // Read both fields' current values so we send a complete update.
+      var durInput = row.querySelector('.line-edit[data-field="duration_minutes"]');
+      var priInput = row.querySelector('.line-edit[data-field="price_dollars"]');
+      var duration = durInput ? parseInt(durInput.value, 10) : null;
+      var dollars  = priInput ? parseFloat(priInput.value) : null;
+      var cents    = (dollars === null || isNaN(dollars)) ? null : Math.round(dollars * 100);
+
+      postOp({
+        op: 'update_line_item',
+        kind: kind,
+        item_id: id,
+        price_cents: cents === null ? '' : cents,
+        duration_minutes: (duration === null || isNaN(duration)) ? '' : duration,
+      }).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          window.IntakeToast.success('Updated');
+        } else {
+          window.IntakeToast.error((res.body && res.body.message) || 'Could not save.');
+        }
+      });
+    });
+  });
+
+  // ================================================================
+  // Line-item editor — services and add-ons
+  // ================================================================
+  function postOp(payload) {
+    var fd = new FormData();
+    fd.append('_token', csrf);
+    fd.append('_method', 'PATCH');
+    Object.keys(payload).forEach(function (k) { fd.append(k, payload[k]); });
+    return fetch(updateUrl, { method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); });
+  }
+
+  // Add a new service or addon
+  var addBtn = document.getElementById('add-line-btn');
+  var addSel = document.getElementById('add-line-select');
+  if (addBtn && addSel) {
+    addBtn.addEventListener('click', function () {
+      var val = addSel.value;
+      if (!val) return;
+      var parts = val.split(':');
+      var kind = parts[0]; // 'service' or 'addon'
+      var id   = parts[1];
+      addBtn.disabled = true;
+      addBtn.textContent = '…';
+      var op = kind === 'addon' ? 'add_addon' : 'add_service';
+      var payload = { op: op };
+      payload[kind === 'addon' ? 'addon_id' : 'service_item_id'] = id;
+      postOp(payload).then(function (res) {
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add';
+        if (res.ok && res.body && res.body.ok) {
+          window.IntakeToast.success(kind === 'addon' ? 'Add-on added' : 'Service added');
+          setTimeout(function () { window.location.reload(); }, 500);
+        } else {
+          window.IntakeToast.error((res.body && res.body.message) || 'Could not add.');
+        }
+      });
+    });
+  }
+
+  // Remove a service or addon
+  document.querySelectorAll('.line-remove').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var row  = btn.closest('.line-row');
+      var kind = row.getAttribute('data-kind');
+      var id   = row.getAttribute('data-item-id');
+
+      window.IntakeConfirm.show({
+        title:       'Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?',
+        message:     'The line will be removed and totals recalculated.',
+        confirmText: 'Remove',
+        danger:      true
+      }).then(function (ok) {
+        if (!ok) return;
+        var op = kind === 'addon' ? 'remove_addon' : 'remove_service';
+        var payload = { op: op };
+        payload[kind === 'addon' ? 'addon_id' : 'item_id'] = id;
+        postOp(payload).then(function (res) {
+          if (res.ok && res.body && res.body.ok) {
+            window.IntakeToast.success('Removed');
+            setTimeout(function () { window.location.reload(); }, 500);
+          } else {
+            window.IntakeToast.error((res.body && res.body.message) || 'Could not remove.');
+          }
+        });
+      });
+    });
+  });
+
+  // Update price/duration override on blur
+  document.querySelectorAll('.line-edit').forEach(function (input) {
+    input.addEventListener('blur', function () {
+      var row  = input.closest('.line-row');
+      var kind = row.getAttribute('data-kind');
+      var id   = row.getAttribute('data-item-id');
+      var field = input.getAttribute('data-field');
+
+      // Read both fields' current values so we send a complete update.
+      var durInput = row.querySelector('.line-edit[data-field="duration_minutes"]');
+      var priInput = row.querySelector('.line-edit[data-field="price_dollars"]');
+      var duration = durInput ? parseInt(durInput.value, 10) : null;
+      var dollars  = priInput ? parseFloat(priInput.value) : null;
+      var cents    = (dollars === null || isNaN(dollars)) ? null : Math.round(dollars * 100);
+
+      postOp({
+        op: 'update_line_item',
+        kind: kind,
+        item_id: id,
+        price_cents: cents === null ? '' : cents,
+        duration_minutes: (duration === null || isNaN(duration)) ? '' : duration,
+      }).then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          window.IntakeToast.success('Updated');
+        } else {
+          window.IntakeToast.error((res.body && res.body.message) || 'Could not save.');
+        }
+      });
+    });
+  });
 
   // Status updates — used by progress bar steps, reopen button, and cancel button.
   function updateStatus(targetStatus, targetLabel, opts) {

@@ -14,12 +14,28 @@ class TenantAppointmentAddon extends Model
         'addon_id',
         'addon_name_snapshot',
         'price_cents',
+        'price_cents_override',
         'duration_minutes_snapshot',
+        'duration_minutes_override',
     ];
     protected $casts = [
         'price_cents'               => 'integer',
+        'price_cents_override'      => 'integer',
         'duration_minutes_snapshot' => 'integer',
+        'duration_minutes_override' => 'integer',
     ];
+
+    /** Effective price = override if set, otherwise the snapshot. */
+    public function effectivePriceCents(): int
+    {
+        return $this->price_cents_override ?? $this->price_cents;
+    }
+
+    /** Effective duration = override if set, otherwise the snapshot. */
+    public function effectiveDurationMinutes(): int
+    {
+        return $this->duration_minutes_override ?? $this->duration_minutes_snapshot;
+    }
 
     public function appointment(): BelongsTo
     {

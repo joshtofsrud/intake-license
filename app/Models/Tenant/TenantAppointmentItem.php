@@ -14,16 +14,32 @@ class TenantAppointmentItem extends Model
         'service_item_id',
         'item_name_snapshot',
         'price_cents',
+        'price_cents_override',
         'duration_minutes_snapshot',
+        'duration_minutes_override',
         'prep_before_minutes_snapshot',
         'cleanup_after_minutes_snapshot',
     ];
     protected $casts = [
         'price_cents'                    => 'integer',
+        'price_cents_override'           => 'integer',
         'duration_minutes_snapshot'      => 'integer',
+        'duration_minutes_override'      => 'integer',
         'prep_before_minutes_snapshot'   => 'integer',
         'cleanup_after_minutes_snapshot' => 'integer',
     ];
+
+    /** Effective price = override if set, otherwise the snapshot. */
+    public function effectivePriceCents(): int
+    {
+        return $this->price_cents_override ?? $this->price_cents;
+    }
+
+    /** Effective duration = override if set, otherwise the snapshot. */
+    public function effectiveDurationMinutes(): int
+    {
+        return $this->duration_minutes_override ?? $this->duration_minutes_snapshot;
+    }
 
     public function appointment(): BelongsTo
     {

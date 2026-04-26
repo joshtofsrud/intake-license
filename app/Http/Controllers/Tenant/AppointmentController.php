@@ -174,7 +174,22 @@ class AppointmentController extends Controller
         $transitions = self::TRANSITIONS[$appointment->status] ?? [];
         $destructive = self::DESTRUCTIVE;
 
-        return view('tenant.appointments.show', compact('appointment', 'transitions', 'destructive'));
+        // Active services + addons for the line-item editor.
+        // Loaded once at render; the inline editor shows them in select dropdowns.
+        $availableServices = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'price_cents', 'duration_minutes']);
+
+        $availableAddons = \App\Models\Tenant\TenantAddon::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'price_cents', 'default_duration_minutes']);
+
+        return view('tenant.appointments.show', compact(
+            'appointment', 'transitions', 'destructive',
+            'availableServices', 'availableAddons'
+        ));
     }
 
     public function update(Request $request, string $subdomain, string $id)
@@ -428,6 +443,121 @@ class AppointmentController extends Controller
             TenantAppointmentNote::where('appointment_id', $appointment->id)->where('id', $request->input('note_id'))->delete();
             return response()->json(['ok' => true]);
         }
+        if ($op === 'add_service') {
+            $serviceItemId = $request->input('service_item_id');
+            $service = \App\Models\Tenant\TenantServiceItem::where('id', $serviceItemId)
+                ->where('tenant_id', $tenant->id)->where('is_active', true)->first();
+            if (!$service) return response()->json(['ok' => false, 'message' => 'Service not found.'], 422);
+
+            \App\Models\Tenant\TenantAppointmentItem::create([
+                'id'                             => (string) \Illuminate\Support\Str::uuid(),
+                'appointment_id'                 => $appointment->id,
+                'service_item_id'                => $service->id,
+                'item_name_snapshot'             => $service->name,
+                'price_cents'                    => $service->price_cents,
+                'duration_minutes_snapshot'      => $service->duration_minutes,
+                'prep_before_minutes_snapshot'   => $service->prep_before_minutes ?? 0,
+                'cleanup_after_minutes_snapshot' => $service->cleanup_after_minutes ?? 0,
+            ]);
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'remove_service') {
+            $itemId = $request->input('item_id');
+            $item = \App\Models\Tenant\TenantAppointmentItem::where('id', $itemId)
+                ->where('appointment_id', $appointment->id)->first();
+            if (!$item) return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
+            $item->delete();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'add_addon') {
+            $addonId = $request->input('addon_id');
+            $addon = \App\Models\Tenant\TenantAddon::where('id', $addonId)
+                ->where('tenant_id', $tenant->id)->where('is_active', true)->first();
+            if (!$addon) return response()->json(['ok' => false, 'message' => 'Add-on not found.'], 422);
+
+            \App\Models\Tenant\TenantAppointmentAddon::create([
+                'id'                        => (string) \Illuminate\Support\Str::uuid(),
+                'appointment_id'            => $appointment->id,
+                'addon_id'                  => $addon->id,
+                'addon_name_snapshot'       => $addon->name,
+                'price_cents'               => $addon->price_cents,
+                'duration_minutes_snapshot' => $addon->default_duration_minutes ?? 0,
+            ]);
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'remove_addon') {
+            $addonId = $request->input('addon_id');
+            $addon = \App\Models\Tenant\TenantAppointmentAddon::where('id', $addonId)
+                ->where('appointment_id', $appointment->id)->first();
+            if (!$addon) return response()->json(['ok' => false, 'message' => 'Add-on not found.'], 422);
+            $addon->delete();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'update_line_item') {
+            $itemId   = $request->input('item_id');
+            $kind     = $request->input('kind', 'service');  // 'service' or 'addon'
+            $price    = $request->input('price_cents');      // null = clear override
+            $duration = $request->input('duration_minutes'); // null = clear override
+
+            $model = $kind === 'addon'
+                ? \App\Models\Tenant\TenantAppointmentAddon::class
+                : \App\Models\Tenant\TenantAppointmentItem::class;
+            $row = $model::where('id', $itemId)->where('appointment_id', $appointment->id)->first();
+            if (!$row) return response()->json(['ok' => false, 'message' => 'Line item not found.'], 422);
+
+            $row->price_cents_override      = ($price === null || $price === '')      ? null : (int) $price;
+            $row->duration_minutes_override = ($duration === null || $duration === '') ? null : (int) $duration;
+            $row->save();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
+    /**
+     * Recalculate appointment totals from current items + addons.
+     * Uses effective (override-aware) values. Called after any line-item mutation.
+     */
+    protected function recalcAppointmentTotals(\App\Models\Tenant\TenantAppointment $appointment): void
+    {
+        $appointment->load(['items', 'addons']);
+
+        $subtotalCents  = 0;
+        $totalDuration  = 0;
+
+        foreach ($appointment->items as $item) {
+            $subtotalCents += $item->effectivePriceCents();
+            $totalDuration += (int) $item->prep_before_minutes_snapshot
+                            + $item->effectiveDurationMinutes()
+                            + (int) $item->cleanup_after_minutes_snapshot;
+        }
+        foreach ($appointment->addons as $addon) {
+            $subtotalCents += $addon->effectivePriceCents();
+            $totalDuration += $addon->effectiveDurationMinutes();
+        }
+
+        // Recompute appointment_end_time if the appointment has a start time
+        $endTime = $appointment->appointment_end_time;
+        if ($appointment->appointment_time && $totalDuration > 0) {
+            $start = new \DateTimeImmutable($appointment->appointment_time);
+            $end   = $start->modify("+{$totalDuration} minutes");
+            $endTime = $end->format('H:i:s');
+        }
+
+        $appointment->update([
+            'subtotal_cents'         => $subtotalCents,
+            'total_cents'            => $subtotalCents + (int) $appointment->tax_cents,
+            'total_duration_minutes' => $totalDuration,
+            'appointment_end_time'   => $endTime,
+        ]);
+    }
+
 }
