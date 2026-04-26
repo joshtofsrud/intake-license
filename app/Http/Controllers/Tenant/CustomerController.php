@@ -96,7 +96,18 @@ class CustomerController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return $this->jsonDetail(tenant(), $id);
         }
-        return redirect()->route('tenant.customers.index');
+
+        $tenant = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->with(['notes', 'appointments' => function ($q) {
+                $q->orderByDesc('appointment_date')->with('items');
+            }])
+            ->firstOrFail();
+
+        $updateUrl = route('tenant.customers.update', $customer->id);
+
+        return view('tenant.customers.show', compact('customer', 'updateUrl'));
     }
 
     public function store(Request $request)
