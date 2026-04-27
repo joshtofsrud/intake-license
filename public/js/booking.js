@@ -241,6 +241,7 @@
       if (loading) loading.style.display = 'none';
       calAvailable = {};
       (resp.dates || []).forEach(function (dt) { calAvailable[dt] = true; });
+      calTimeSlots = resp.slots || {};
       renderCalendar();
     })
     .catch(function () {
