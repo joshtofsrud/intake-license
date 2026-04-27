@@ -648,6 +648,130 @@ class AppointmentController extends Controller
             ]);
         }
 
+        if ($op === 'reschedule') {
+            // Drag-to-reschedule: change appointment_time and optionally resource_id
+            // in one operation. Mirrors the change_resource pattern with a soft-warn
+            // on conflicts and an audit note on success.
+            $newTime       = $request->input('appointment_time');  // HH:MM:SS
+            $newResourceId = $request->input('resource_id');       // optional, may match current
+            $force         = (bool) $request->input('force', false);
+
+            if (!$newTime) {
+                return response()->json([
+                    'ok' => false, 'message' => 'New time is required.'
+                ], 422);
+            }
+
+            // Normalize H:i to H:i:s if needed (drag JS sends HH:MM:00 already, but be defensive)
+            $parts = explode(':', $newTime);
+            if (count($parts) === 2) $newTime = $newTime . ':00';
+
+            // Resolve target resource — defaults to current if not supplied
+            $targetResourceId = $newResourceId ?: $appointment->resource_id;
+            $resource = \App\Models\Tenant\TenantResource::where('id', $targetResourceId)
+                ->where('tenant_id', $appointment->tenant_id)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$resource) {
+                return response()->json([
+                    'ok' => false, 'message' => 'Selected resource is not available.'
+                ], 422);
+            }
+
+            // No-op detection: same time + same resource = nothing to do
+            $currentTime = $appointment->appointment_time;
+            if ($targetResourceId === $appointment->resource_id && $currentTime === $newTime) {
+                return response()->json(['ok' => true, 'unchanged' => true]);
+            }
+
+            // Resolve appointment date as string for conflict check
+            $apptDate = $appointment->appointment_date instanceof \Carbon\Carbon
+                ? $appointment->appointment_date->toDateString()
+                : (string) $appointment->appointment_date;
+
+            // Conflict check unless override is in effect
+            if (!$force) {
+                $bookingService = app(\App\Services\BookingService::class);
+                $conflict = $bookingService->resourceIsFreeDuring(
+                    $appointment->tenant_id,
+                    $resource->id,
+                    $apptDate,
+                    $newTime,
+                    (int) $appointment->total_duration_minutes,
+                    $appointment->id  // exclude self
+                );
+
+                if ($conflict) {
+                    $oldResource = \App\Models\Tenant\TenantResource::find($appointment->resource_id);
+                    return response()->json([
+                        'ok'        => false,
+                        'conflict'  => $conflict,
+                        'old_name'  => $oldResource?->name ?? 'current resource',
+                        'new_name'  => $resource->name,
+                        'message'   => 'That slot is busy.',
+                    ], 409);
+                }
+            }
+
+            // Capture before-state for the audit note
+            $oldTime         = $appointment->appointment_time;
+            $oldResource     = \App\Models\Tenant\TenantResource::find($appointment->resource_id);
+            $oldResourceName = $oldResource?->name ?? 'unassigned';
+            $newResourceName = $resource->name;
+
+            // Compute new end time. total_duration already includes prep + cleanup.
+            $startDateTime = new \DateTimeImmutable($apptDate . ' ' . $newTime);
+            $endDateTime   = $startDateTime->modify('+' . (int) $appointment->total_duration_minutes . ' minutes');
+
+            $appointment->appointment_time     = $newTime;
+            $appointment->appointment_end_time = $endDateTime->format('H:i:s');
+            $appointment->resource_id          = $resource->id;
+            $appointment->save();
+
+            // Audit note — describe what actually changed.
+            $resourceChanged = $oldResource?->id !== $resource->id;
+            $timeChanged     = $oldTime !== $newTime;
+
+            $formatTime = function (string $hms): string {
+                $t = \Carbon\Carbon::createFromFormat('H:i:s', $hms);
+                return $t ? $t->format('g:i A') : $hms;
+            };
+
+            if ($resourceChanged && $timeChanged) {
+                $note = sprintf(
+                    'Rescheduled from %s on %s to %s on %s.',
+                    $formatTime($oldTime), $oldResourceName,
+                    $formatTime($newTime), $newResourceName
+                );
+            } elseif ($timeChanged) {
+                $note = sprintf('Rescheduled from %s to %s.', $formatTime($oldTime), $formatTime($newTime));
+            } else {
+                $note = sprintf('Resource changed from %s to %s.', $oldResourceName, $newResourceName);
+            }
+
+            if ($force) {
+                $note .= ' (override — conflict accepted)';
+            }
+
+            \App\Models\Tenant\TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => $note,
+                'created_at'          => now(),
+            ]);
+
+            return response()->json([
+                'ok'              => true,
+                'appointment_time'=> $newTime,
+                'resource_id'     => $resource->id,
+                'resource_name'   => $resource->name,
+                'forced'          => $force,
+            ]);
+        }
+
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
     }
     /**

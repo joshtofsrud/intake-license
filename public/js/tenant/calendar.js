@@ -1084,3 +1084,269 @@
       });
   }
 })();
+
+(function () {
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var shell = document.querySelector('.ia-cal-shell');
+    if (!shell) return;
+    if (shell.getAttribute('data-view-mode') !== 'day') return;
+
+    var openMin   = parseInt(shell.getAttribute('data-cal-open-min')   || '540', 10);
+    var pxPerMin  = parseFloat(shell.getAttribute('data-cal-px-per-min') || '1.4');
+
+    var snapMin   = 15;
+    var dragThreshold = 5;
+
+    var ghost      = document.getElementById('ia-cal-drag-ghost');
+    var ghostName  = document.getElementById('ia-cal-drag-ghost-name');
+    var ghostTime  = document.getElementById('ia-cal-drag-ghost-time');
+    var timeLabel  = document.getElementById('ia-cal-drag-time-label');
+
+    if (!ghost || !timeLabel) return;
+
+    var state = null;
+
+    function getCsrf() {
+      return (window.IntakeAdmin && window.IntakeAdmin.csrfToken) || '';
+    }
+
+    function formatTime(min) {
+      var h = Math.floor(min / 60);
+      var m = min % 60;
+      var ampm = h < 12 ? 'AM' : 'PM';
+      var h12  = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      return h12 + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+    }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function timeToHHMMSS(min) {
+      var h = Math.floor(min / 60);
+      var m = min % 60;
+      return pad(h) + ':' + pad(m) + ':00';
+    }
+
+    function timeStrToMin(t) {
+      var p = t.split(':');
+      return (parseInt(p[0], 10) * 60) + parseInt(p[1], 10);
+    }
+
+    function snapToInterval(min) {
+      return Math.round(min / snapMin) * snapMin;
+    }
+
+    function findColumnAtPoint(x, y) {
+      var cols = document.querySelectorAll('.ia-cal-resource-col');
+      for (var i = 0; i < cols.length; i++) {
+        var r = cols[i].getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+          return cols[i];
+        }
+      }
+      return null;
+    }
+
+    function onMouseDown(e) {
+      if (e.button !== 0) return;
+      var block = e.currentTarget;
+      var apptId       = block.getAttribute('data-appt-id');
+      var apptTime     = block.getAttribute('data-appt-time');
+      var apptDuration = parseInt(block.getAttribute('data-appt-duration') || '0', 10);
+      var apptResource = block.getAttribute('data-appt-resource-id');
+
+      if (!apptId || !apptTime) return;
+
+      state = {
+        block: block,
+        apptId: apptId,
+        startTime: apptTime,
+        startMin: timeStrToMin(apptTime),
+        durationMin: apptDuration,
+        startResource: apptResource,
+        startX: e.clientX,
+        startY: e.clientY,
+        dragging: false,
+        currentMin: timeStrToMin(apptTime),
+        currentResource: apptResource,
+        currentColumn: null
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      e.preventDefault();
+    }
+
+    function onMouseMove(e) {
+      if (!state) return;
+
+      var dx = e.clientX - state.startX;
+      var dy = e.clientY - state.startY;
+
+      if (!state.dragging) {
+        if (Math.abs(dx) < dragThreshold && Math.abs(dy) < dragThreshold) return;
+        state.dragging = true;
+        state.block.classList.add('ia-cal-appt-dragging');
+        ghost.hidden = false;
+        timeLabel.hidden = false;
+        var nameEl = state.block.querySelector('.ia-cal-appt-name');
+        ghostName.textContent = nameEl ? nameEl.textContent : 'Appointment';
+        ghost.style.height = (state.durationMin * pxPerMin) + 'px';
+      }
+
+      var col = findColumnAtPoint(e.clientX, e.clientY);
+      if (col) {
+        var colRect = col.getBoundingClientRect();
+        var yInCol = e.clientY - colRect.top;
+        var minutesFromOpen = yInCol / pxPerMin;
+        var rawMin = openMin + minutesFromOpen;
+        var snappedMin = snapToInterval(rawMin);
+
+        state.currentMin = snappedMin;
+        state.currentResource = col.getAttribute('data-resource-id');
+        state.currentColumn = col;
+
+        var topPx = (snappedMin - openMin) * pxPerMin;
+        ghost.style.left = colRect.left + 'px';
+        ghost.style.top = (colRect.top + topPx) + 'px';
+        ghost.style.width = colRect.width + 'px';
+        ghost.style.display = 'block';
+        ghostTime.textContent = formatTime(snappedMin) + ' – ' + formatTime(snappedMin + state.durationMin);
+      } else {
+        ghost.style.display = 'none';
+      }
+
+      timeLabel.style.left = (e.clientX + 14) + 'px';
+      timeLabel.style.top  = (e.clientY + 14) + 'px';
+      timeLabel.textContent = col ? formatTime(state.currentMin) : 'Outside grid';
+      timeLabel.classList.toggle('is-invalid', !col);
+    }
+
+    function onMouseUp(e) {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+
+      if (!state || !state.dragging) {
+        state = null;
+        return;
+      }
+
+      var unchanged = (state.currentMin === state.startMin) &&
+                      (state.currentResource === state.startResource);
+
+      cleanupGhost();
+
+      if (unchanged || !state.currentColumn) {
+        state.block.classList.remove('ia-cal-appt-dragging');
+        if (!state.currentColumn && state.dragging) {
+          if (window.IntakeToast) window.IntakeToast.info('Drop outside the grid — kept where it was.');
+        }
+        state = null;
+        return;
+      }
+
+      submitReschedule(state, false);
+    }
+
+    function cleanupGhost() {
+      ghost.hidden = true;
+      ghost.style.display = '';
+      timeLabel.hidden = true;
+      timeLabel.classList.remove('is-invalid');
+    }
+
+    function submitReschedule(s, force) {
+      var apptId = s.apptId;
+      var newTime = timeToHHMMSS(s.currentMin);
+      var newResource = s.currentResource;
+
+      var fd = new FormData();
+      fd.append('_method', 'PATCH');
+      fd.append('_token', getCsrf());
+      fd.append('op', 'reschedule');
+      fd.append('appointment_time', newTime);
+      fd.append('resource_id', newResource);
+      if (force) fd.append('force', '1');
+
+      fetch('/admin/appointments/' + encodeURIComponent(apptId), {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+        body: fd,
+        credentials: 'same-origin'
+      })
+        .then(function (res) {
+          return res.json().then(function (body) {
+            return { status: res.status, body: body };
+          });
+        })
+        .then(function (r) {
+          if (r.status === 200 && r.body.ok) {
+            if (window.IntakeToast) {
+              window.IntakeToast.success(force ? 'Rescheduled (override).' : 'Rescheduled.');
+            }
+            window.location.reload();
+            return;
+          }
+
+          if (r.status === 409 && r.body.conflict) {
+            handleConflict(s, r.body);
+            return;
+          }
+
+          var msg = (r.body && r.body.message) || 'Could not reschedule.';
+          if (window.IntakeToast) window.IntakeToast.error(msg);
+          state.block.classList.remove('ia-cal-appt-dragging');
+          state = null;
+        })
+        .catch(function () {
+          if (window.IntakeToast) window.IntakeToast.error('Network error. Try again.');
+          state.block.classList.remove('ia-cal-appt-dragging');
+          state = null;
+        });
+    }
+
+    function handleConflict(s, body) {
+      var c = body.conflict || {};
+      var oldName = body.old_name || 'current resource';
+      var newName = body.new_name || 'new resource';
+      var msg;
+
+      if (c.kind === 'appointment') {
+        var who = c.customer_name || ('appointment ' + (c.ra_number || ''));
+        msg = newName + ' already has ' + who +
+              ' booked from ' + c.starts_at + ' to ' + c.ends_at + '. ' +
+              'Move anyway? Creates a double-booking.';
+      } else if (c.kind === 'break') {
+        msg = newName + ' has "' + (c.label || 'a break') +
+              '" from ' + c.starts_at + ' to ' + c.ends_at + '. Move anyway?';
+      } else if (c.kind === 'hold') {
+        msg = newName + ' has a walk-in hold from ' + c.starts_at +
+              ' to ' + c.ends_at + '. Move anyway?';
+      } else {
+        msg = 'That slot is busy. Move anyway?';
+      }
+
+      window.IntakeConfirm.show({
+        title:       'Slot is busy',
+        message:     msg,
+        confirmText: 'Move anyway',
+        cancelText:  'Snap back',
+        danger:      true
+      }).then(function (ok) {
+        if (!ok) {
+          state.block.classList.remove('ia-cal-appt-dragging');
+          state = null;
+          return;
+        }
+        submitReschedule(s, true);
+      });
+    }
+
+    // Bind to all appointment blocks on the day view
+    document.querySelectorAll('.ia-cal-appt').forEach(function (block) {
+      block.addEventListener('mousedown', onMouseDown);
+      block.style.cursor = 'grab';
+    });
+  });
+})();

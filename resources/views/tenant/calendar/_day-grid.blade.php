@@ -245,6 +245,9 @@
                       border-left-color: {{ $resourceColor }};
                       background: {{ $resourceColor }}1a; {{ $laneStyle }}"
                data-appt-id="{{ $appt->id }}"
+               data-appt-time="{{ $appt->appointment_time }}"
+               data-appt-duration="{{ (int) $appt->total_duration_minutes }}"
+               data-appt-resource-id="{{ $resource->id }}"
                @if($appt->needs_time_review) title="Auto-assigned time — please review" @endif>
             @if($isClustered)
               <span class="ia-cal-appt-cluster-badge"

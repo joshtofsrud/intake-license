@@ -245,6 +245,13 @@
 
 </div>
 
+{{-- Drag-to-reschedule ghost preview (hidden by default; JS shows during drag) --}}
+<div class="ia-cal-drag-ghost" id="ia-cal-drag-ghost" hidden>
+  <div class="ia-cal-drag-ghost-name" id="ia-cal-drag-ghost-name"></div>
+  <div class="ia-cal-drag-ghost-time" id="ia-cal-drag-ghost-time"></div>
+</div>
+<div class="ia-cal-drag-time-label" id="ia-cal-drag-time-label" hidden></div>
+
 {{-- Quick-book modal (day view only — week/month drill to day to book) --}}
 @if($viewMode === 'day')
 <div class="qb-modal" id="qb-modal" style="display:none">
