@@ -5,7 +5,6 @@
   $moreItems = [
     ['route' => 'tenant.services.index',        'label' => 'Services'],
     ['route' => 'tenant.resources.index',       'label' => 'Resources'],
-    ['route' => 'tenant.receiving-methods.index', 'label' => 'Drop-off methods'],
     ['route' => 'tenant.capacity.index',        'label' => 'Capacity'],
     ['route' => 'tenant.pages.index',           'label' => 'Pages'],
     ['route' => 'tenant.booking-editor.index',  'label' => 'Intake Form Editor'],

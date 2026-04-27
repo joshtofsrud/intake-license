@@ -9,7 +9,13 @@ class SettingsController extends Controller
 {
     public function index()
     {
-        return view('tenant.settings.index');
+        $tenant = tenant();
+        $receivingMethods = \App\Models\Tenant\TenantReceivingMethod::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return view('tenant.settings.index', compact('receivingMethods'));
     }
 
     public function update(Request $request)

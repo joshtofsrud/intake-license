@@ -145,6 +145,176 @@
 
   <button type="submit" class="ia-btn ia-btn--primary">Save booking settings</button>
 </form>
+
+{{-- Drop-off methods (separate block — each row has its own endpoint, not part of the form above) --}}
+<div class="ia-card" style="margin-bottom:24px">
+  <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
+    <span class="ia-card-title">Drop-off methods</span>
+    <span style="font-size:11px;opacity:.45">Shown on the booking page so customers tell you how they're getting items to you</span>
+  </div>
+
+  <div style="padding:14px 16px">
+    <form id="add-method-form" style="display:grid;grid-template-columns:1.2fr 1.6fr auto;gap:10px;align-items:end">
+      @csrf
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
+        <input type="text" name="name" required maxlength="120" placeholder="e.g. Walk-in" class="ia-input" style="width:100%">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Description (optional)</label>
+        <input type="text" name="description" maxlength="500" placeholder="e.g. Stop by during business hours" class="ia-input" style="width:100%">
+      </div>
+      <div>
+        <button type="submit" class="ia-btn ia-btn--primary">Add</button>
+      </div>
+    </form>
+    <div style="display:flex;gap:18px;margin-top:10px;font-size:12px">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" form="add-method-form" name="ask_for_time" value="1"> Ask for arrival time
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" form="add-method-form" name="ask_for_tracking" value="1"> Ask for shipment tracking number
+      </label>
+    </div>
+  </div>
+
+  @if(\$receivingMethods->isEmpty())
+    <div style="padding:24px;text-align:center;border-top:0.5px solid var(--ia-border)">
+      <div style="font-size:13px;opacity:.55">No drop-off methods yet. Add your first one above.</div>
+    </div>
+  @else
+    <div id="method-list" style="border-top:0.5px solid var(--ia-border)">
+      @foreach(\$receivingMethods as \$m)
+        <div class="method-row" data-method-id="{{ \$m->id }}"
+             style="display:grid;grid-template-columns:auto 1.2fr 1.6fr auto auto auto auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);{{ \$m->is_active ? '' : 'opacity:.45' }}">
+          <div class="drag-handle" style="cursor:grab;opacity:.4;font-size:14px;user-select:none">⋮⋮</div>
+
+          <input type="text" data-field="name" value="{{ \$m->name }}" maxlength="120" class="ia-input method-edit" style="width:100%">
+
+          <input type="text" data-field="description" value="{{ \$m->description }}" maxlength="500" placeholder="—" class="ia-input method-edit" style="width:100%">
+
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap" title="Show a time field on the booking page when this method is selected">
+            <input type="checkbox" data-field="ask_for_time" {{ \$m->ask_for_time ? 'checked' : '' }} class="method-edit-toggle">
+            <span>Time</span>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap" title="Show a tracking-number field on the booking page when this method is selected">
+            <input type="checkbox" data-field="ask_for_tracking" {{ \$m->ask_for_tracking ? 'checked' : '' }} class="method-edit-toggle">
+            <span>Tracking</span>
+          </label>
+
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" data-field="is_active" {{ \$m->is_active ? 'checked' : '' }} class="method-edit-toggle">
+            <span>{{ \$m->is_active ? 'Active' : 'Inactive' }}</span>
+          </label>
+
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="deactivateMethod('{{ \$m->id }}')" style="font-size:11px">
+            {{ \$m->is_active ? 'Deactivate' : 'Already off' }}
+          </button>
+        </div>
+      @endforeach
+    </div>
+  @endif
+</div>
+
+@push('scripts')
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      var list = document.getElementById('method-list');
+
+      // Add new method
+      var addForm = document.getElementById('add-method-form');
+      if (addForm) {
+        addForm.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var fd = new FormData(addForm);
+          var body = {
+            name:             fd.get('name'),
+            description:      fd.get('description'),
+            ask_for_time:     fd.get('ask_for_time') ? 1 : 0,
+            ask_for_tracking: fd.get('ask_for_tracking') ? 1 : 0,
+          };
+          fetch("{{ route('tenant.receiving-methods.store') }}", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrf,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(body),
+          }).then(function (r) {
+            if (r.ok) window.location.reload();
+            else alert('Could not add method.');
+          });
+        });
+      }
+
+      // Drag-to-reorder
+      if (list && window.Sortable) {
+        Sortable.create(list, {
+          handle: '.drag-handle',
+          animation: 150,
+          onEnd: function () {
+            var ids = Array.from(list.querySelectorAll('.method-row'))
+                          .map(function (r) { return r.getAttribute('data-method-id'); });
+            fetch("{{ route('tenant.receiving-methods.reorder') }}", {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({ order: ids }),
+            });
+          }
+        });
+      }
+
+      // Inline edit on blur (text) / change (checkbox)
+      document.querySelectorAll('.method-edit, .method-edit-toggle').forEach(function (el) {
+        var evt = el.type === 'checkbox' ? 'change' : 'blur';
+        el.addEventListener(evt, function () {
+          var row = el.closest('.method-row');
+          var id  = row.getAttribute('data-method-id');
+          var field = el.getAttribute('data-field');
+          var value = el.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value;
+          var body = {};
+          body[field] = value;
+          fetch("{{ url('admin/receiving-methods') }}/" + id, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrf,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(body),
+          }).then(function (r) {
+            if (!r.ok) {
+              row.style.outline = '1px solid #d04444';
+              setTimeout(function () { row.style.outline = ''; }, 1500);
+            }
+          });
+        });
+      });
+
+      window.deactivateMethod = function (id) {
+        if (!confirm('Deactivate this drop-off method? Past bookings keep their snapshot. New bookings cannot use it.')) return;
+        fetch("{{ url('admin/receiving-methods') }}/" + id, {
+          method: 'DELETE',
+          headers: {
+            'X-CSRF-TOKEN': csrf,
+            'Accept': 'application/json',
+          },
+        }).then(function (r) {
+          if (r.ok) window.location.reload();
+        });
+      };
+    })();
+  </script>
+@endpush
 @endif
 
 {{-- ============================================================ Payments ============================================================ --}}
