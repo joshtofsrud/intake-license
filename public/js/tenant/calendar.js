@@ -1344,26 +1344,33 @@
     }
 
     // Bind to all appointment blocks on the day view
-    // Click suppression: after a real drag, the browser still fires a click event
-    // when the mouse is released. We swallow that click by setting a flag in
-    // mouseup and clearing it shortly after.
-    var suppressNextClickUntil = 0;
-
     document.querySelectorAll('.ia-cal-appt').forEach(function (block) {
       block.addEventListener('mousedown', onMouseDown);
-      block.addEventListener('click', function (e) {
-        if (Date.now() < suppressNextClickUntil) {
-          e.stopPropagation();
-          e.preventDefault();
-        }
-      }, true);  // capture phase so we run before any other click handlers
       block.style.cursor = 'grab';
     });
 
-    // Hook into mouseup to set the suppression flag if a drag completed
+    // Click suppression: after a drag, the browser fires a click on whatever
+    // element is under the cursor at mouseup — which is often the resource
+    // column (NOT the appointment block we started on). The empty-cell click
+    // handler on .ia-cal-resource-col would then open the new-appointment
+    // modal. We catch the click at the document level in capture phase and
+    // swallow it if a drag just completed.
+    var suppressNextClickUntil = 0;
+
     document.addEventListener('mouseup', function () {
       if (state && state.dragging) {
         suppressNextClickUntil = Date.now() + 300;
+      }
+    }, true);
+
+    document.addEventListener('click', function (e) {
+      if (Date.now() < suppressNextClickUntil) {
+        // Only swallow clicks inside the calendar grid — don't break clicks
+        // elsewhere on the page that happen to fire in the suppression window.
+        if (e.target && e.target.closest('.ia-cal-grid, .ia-cal-resource-col, .ia-cal-appt')) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
       }
     }, true);
   });
