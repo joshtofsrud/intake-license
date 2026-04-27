@@ -373,6 +373,7 @@ window.BkData = {
   stripePk:       '{{ $stripePublishableKey }}',
   paypalClientId: '{{ $paypalClientId }}',
   hasReceiving:   {{ $receivingMethods->isNotEmpty() ? 'true' : 'false' }},
+  bookingMode:    '{{ $bookingMode ?? "drop_off" }}',
 };
 </script>
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
