@@ -65,6 +65,22 @@ class BookingService
 
         $appointmentTime    = !empty($data['appointment_time']) ? $data['appointment_time'] : null;
         $resourceId         = !empty($data['resource_id'])      ? $data['resource_id']      : null;
+
+        // Validate resource belongs to this tenant and is active. Prevents
+        // cross-tenant id submission and bookings against archived resources.
+        // The slot re-check inside the lock catches "just taken", but does not
+        // catch "this resource was deactivated 30 seconds ago" — that case
+        // would slip through silently otherwise.
+        if ($resourceId !== null) {
+            $resourceOk = \App\Models\Tenant\TenantResource::where('id', $resourceId)
+                ->where('tenant_id', $tenantId)
+                ->where('is_active', true)
+                ->exists();
+            if (!$resourceOk) {
+                throw new RuntimeException('That selection is no longer available. Please pick another.');
+            }
+        }
+
         $appointmentEndTime = null;
         if ($appointmentTime && $totalDuration > 0) {
             $start = new \DateTimeImmutable($appointmentTime);
