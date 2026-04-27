@@ -178,38 +178,38 @@
     </div>
   </div>
 
-  @if(\$receivingMethods->isEmpty())
+  @if($receivingMethods->isEmpty())
     <div style="padding:24px;text-align:center;border-top:0.5px solid var(--ia-border)">
       <div style="font-size:13px;opacity:.55">No drop-off methods yet. Add your first one above.</div>
     </div>
   @else
     <div id="method-list" style="border-top:0.5px solid var(--ia-border)">
-      @foreach(\$receivingMethods as \$m)
-        <div class="method-row" data-method-id="{{ \$m->id }}"
-             style="display:grid;grid-template-columns:auto 1.2fr 1.6fr auto auto auto auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);{{ \$m->is_active ? '' : 'opacity:.45' }}">
+      @foreach($receivingMethods as $m)
+        <div class="method-row" data-method-id="{{ $m->id }}"
+             style="display:grid;grid-template-columns:auto 1.2fr 1.6fr auto auto auto auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);{{ $m->is_active ? '' : 'opacity:.45' }}">
           <div class="drag-handle" style="cursor:grab;opacity:.4;font-size:14px;user-select:none">⋮⋮</div>
 
-          <input type="text" data-field="name" value="{{ \$m->name }}" maxlength="120" class="ia-input method-edit" style="width:100%">
+          <input type="text" data-field="name" value="{{ $m->name }}" maxlength="120" class="ia-input method-edit" style="width:100%">
 
-          <input type="text" data-field="description" value="{{ \$m->description }}" maxlength="500" placeholder="—" class="ia-input method-edit" style="width:100%">
+          <input type="text" data-field="description" value="{{ $m->description }}" maxlength="500" placeholder="—" class="ia-input method-edit" style="width:100%">
 
           <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap" title="Show a time field on the booking page when this method is selected">
-            <input type="checkbox" data-field="ask_for_time" {{ \$m->ask_for_time ? 'checked' : '' }} class="method-edit-toggle">
+            <input type="checkbox" data-field="ask_for_time" {{ $m->ask_for_time ? 'checked' : '' }} class="method-edit-toggle">
             <span>Time</span>
           </label>
 
           <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap" title="Show a tracking-number field on the booking page when this method is selected">
-            <input type="checkbox" data-field="ask_for_tracking" {{ \$m->ask_for_tracking ? 'checked' : '' }} class="method-edit-toggle">
+            <input type="checkbox" data-field="ask_for_tracking" {{ $m->ask_for_tracking ? 'checked' : '' }} class="method-edit-toggle">
             <span>Tracking</span>
           </label>
 
           <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap">
-            <input type="checkbox" data-field="is_active" {{ \$m->is_active ? 'checked' : '' }} class="method-edit-toggle">
-            <span>{{ \$m->is_active ? 'Active' : 'Inactive' }}</span>
+            <input type="checkbox" data-field="is_active" {{ $m->is_active ? 'checked' : '' }} class="method-edit-toggle">
+            <span>{{ $m->is_active ? 'Active' : 'Inactive' }}</span>
           </label>
 
-          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="deactivateMethod('{{ \$m->id }}')" style="font-size:11px">
-            {{ \$m->is_active ? 'Deactivate' : 'Already off' }}
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="deactivateMethod('{{ $m->id }}')" style="font-size:11px">
+            {{ $m->is_active ? 'Deactivate' : 'Already off' }}
           </button>
         </div>
       @endforeach
