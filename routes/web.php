@@ -171,6 +171,12 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::delete('/resources/{id}',    [TenantControllers\ResourceController::class, 'destroy'])->name('resources.destroy');
             Route::post('/resources/reorder',   [TenantControllers\ResourceController::class, 'reorder'])->name('resources.reorder');
 
+            Route::get('/receiving-methods',          [TenantControllers\ReceivingMethodController::class, 'index'])->name('receiving-methods.index');
+            Route::post('/receiving-methods',         [TenantControllers\ReceivingMethodController::class, 'store'])->name('receiving-methods.store');
+            Route::patch('/receiving-methods/{id}',   [TenantControllers\ReceivingMethodController::class, 'update'])->name('receiving-methods.update');
+            Route::delete('/receiving-methods/{id}',  [TenantControllers\ReceivingMethodController::class, 'destroy'])->name('receiving-methods.destroy');
+            Route::post('/receiving-methods/reorder', [TenantControllers\ReceivingMethodController::class, 'reorder'])->name('receiving-methods.reorder');
+
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');

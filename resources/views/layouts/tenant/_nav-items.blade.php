@@ -33,6 +33,12 @@
       'group'  => 'manage',
     ],
     [
+      'route'  => 'tenant.receiving-methods.index',
+      'label'  => 'Drop-off methods',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 6l5-3 5 3v5l-5 3-5-3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 6l5 3 5-3M7 9v5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => 'manage',
+    ],
+    [
       'route'  => 'tenant.work-order-fields.index',
       'label'  => 'Work Order Fields',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="10" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M4 5h6M4 7.5h4M4 10h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="11.5" cy="5" r="1" fill="currentColor"/></svg>',
