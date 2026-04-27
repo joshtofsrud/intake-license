@@ -18,7 +18,13 @@ class SmsService
             throw new \InvalidArgumentException('Invalid phone number');
         }
 
+        // Driver selection: tenant-first. If the tenant has Twilio credentials AND
+        // sms_enabled, use Twilio for them — even if the global default driver is 'null'.
+        // This lets one shop send SMS while others stay in null mode (e.g. dev tenants).
         $driver = config('services.twilio.driver', env('TWILIO_DRIVER', 'null'));
+        if ($tenant->sms_enabled && $tenant->twilio_account_sid && $tenant->twilio_auth_token) {
+            $driver = 'twilio';
+        }
 
         if ($driver === 'null') {
             Log::info('SmsService (null driver)', [
@@ -30,7 +36,17 @@ class SmsService
         }
 
         if ($driver === 'twilio') {
-            self::sendViaTwilio($tenant, $to, $body);
+            try {
+                self::sendViaTwilio($tenant, $to, $body);
+            } catch (\Throwable $e) {
+                // Don't break the caller (booking flow, status update, etc.) on Twilio errors.
+                // Log it, return silently. Caller-side: assume "best effort" delivery.
+                Log::error('SmsService Twilio send failed', [
+                    'tenant_id' => $tenant->id,
+                    'to'        => $to,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
             return;
         }
 
@@ -39,12 +55,16 @@ class SmsService
 
     private static function sendViaTwilio(Tenant $tenant, string $to, string $body): void
     {
-        $sid   = env('TWILIO_SID');
-        $token = env('TWILIO_TOKEN');
-        $from  = env('TWILIO_FROM');
+        // Per-tenant credentials are the canonical source. Fall back to platform-level
+        // env vars only if a tenant hasn't configured their own — this lets a tenant
+        // shop with Twilio set up override the platform default. P15: fail open on
+        // 3rd-party errors — log + continue rather than blocking the booking flow.
+        $sid   = $tenant->twilio_account_sid ?: env('TWILIO_SID');
+        $token = $tenant->twilio_auth_token  ?: env('TWILIO_TOKEN');
+        $from  = $tenant->sms_from_number    ?: env('TWILIO_FROM');
 
         if (!$sid || !$token || !$from) {
-            throw new \RuntimeException('Twilio credentials not configured (TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM)');
+            throw new \RuntimeException('Twilio credentials not configured for tenant ' . $tenant->id);
         }
 
         if (!class_exists(\Twilio\Rest\Client::class)) {
