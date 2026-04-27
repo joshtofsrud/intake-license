@@ -374,6 +374,7 @@ window.BkData = {
   paypalClientId: '{{ $paypalClientId }}',
   hasReceiving:   {{ $receivingMethods->isNotEmpty() ? 'true' : 'false' }},
   bookingMode:    '{{ $bookingMode ?? "drop_off" }}',
+  resources:      @json($resources ?? []),
 };
 </script>
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif

@@ -17,6 +17,8 @@
     selections: {},   // { serviceId: { serviceId, serviceName, priceCents, durationMinutes, addonIds: [] } }
     // Schedule
     date:       null,
+    appointmentTime: null,
+    resourceId: null,
     receivingMethod: null,
     // Details
     firstName:  '',
@@ -30,7 +32,7 @@
   };
 
   // Calendar state
-  var calYear, calMonth, calAvailable = {}, calTimeSlots = {};
+  var calYear, calMonth, calAvailable = {}, calTimeSlots = {}, calSlotResources = {};
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -242,6 +244,7 @@
       calAvailable = {};
       (resp.dates || []).forEach(function (dt) { calAvailable[dt] = true; });
       calTimeSlots = resp.slots || {};
+      calSlotResources = resp.slot_resources || {};
       renderCalendar();
     })
     .catch(function () {
@@ -291,6 +294,9 @@
   function selectDate(dateStr) {
     state.date = dateStr;
     state.appointmentTime = null;
+    state.resourceId = null;
+    var existingPicker = document.getElementById('bk-resource-picker');
+    if (existingPicker) existingPicker.remove();
     document.querySelectorAll('.bk-cal-day').forEach(function (c) {
       c.classList.toggle('selected', c.textContent == parseInt(dateStr.split('-')[2], 10) && calAvailable[dateStr]);
     });
@@ -338,6 +344,7 @@
         btn.style.background   = 'var(--p-accent)';
         btn.style.borderColor  = 'var(--p-accent)';
         btn.style.color        = 'var(--p-accent-text)';
+        renderResourcePicker(dateStr, slot);
         updateNext2();
       });
       grid.appendChild(btn);
@@ -345,6 +352,68 @@
 
     wrap.appendChild(grid);
     document.getElementById('bk-calendar').after(wrap);
+  }
+
+  function renderResourcePicker(dateStr, time) {
+    var existing = document.getElementById('bk-resource-picker');
+    if (existing) existing.remove();
+    state.resourceId = null;
+
+    var resources = (d.resources || []);
+    if (resources.length < 2) return; // single-resource: auto-assign server-side
+
+    var freeIds = ((calSlotResources[dateStr] || {})[time]) || [];
+    var freeResources = resources.filter(function (r) { return freeIds.indexOf(r.id) !== -1; });
+    if (freeResources.length === 0) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'bk-resource-picker';
+    wrap.style.cssText = 'margin-top:16px';
+
+    var label = document.createElement('div');
+    label.style.cssText = 'font-size:13px;font-weight:500;margin-bottom:10px';
+    label.textContent = 'Choose who';
+    wrap.appendChild(label);
+
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
+
+    freeResources.forEach(function (res) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.resourceId = res.id;
+      btn.textContent = res.name;
+      btn.style.cssText = 'padding:8px 14px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--p-text);display:inline-flex;align-items:center;gap:8px';
+
+      // Color swatch
+      if (res.color_hex) {
+        var swatch = document.createElement('span');
+        swatch.style.cssText = 'width:10px;height:10px;border-radius:50%;background:' + res.color_hex;
+        btn.prepend(swatch);
+      }
+
+      btn.addEventListener('click', function () {
+        state.resourceId = res.id;
+        grid.querySelectorAll('button').forEach(function (b) {
+          b.style.background = 'transparent';
+          b.style.borderColor = 'rgba(0,0,0,.12)';
+          b.style.color = 'var(--p-text)';
+        });
+        btn.style.background  = 'var(--p-accent)';
+        btn.style.borderColor = 'var(--p-accent)';
+        btn.style.color       = 'var(--p-accent-text)';
+        updateNext2();
+      });
+      grid.appendChild(btn);
+    });
+
+    wrap.appendChild(grid);
+    var timeSlotsEl = document.getElementById('bk-time-slots');
+    if (timeSlotsEl) {
+      timeSlotsEl.after(wrap);
+    } else {
+      document.getElementById('bk-calendar').after(wrap);
+    }
   }
 
   function formatTime(timeStr) {
@@ -370,6 +439,7 @@
   function canProceedStep2() {
     if (!state.date) return false;
     if (bookingMode === 'time_slots' && !state.appointmentTime) return false;
+    if (bookingMode === 'time_slots' && (d.resources || []).length >= 2 && !state.resourceId) return false;
     if (d.hasReceiving) {
       var sel = document.getElementById('bk-receiving');
       if (sel && !sel.value) return false;
@@ -624,6 +694,7 @@
       first_name: state.firstName, last_name: state.lastName,
       email: state.email, phone: state.phone,
       date: state.date, appointment_time: state.appointmentTime || null,
+      resource_id: state.resourceId || null,
       receiving_method: state.receivingMethod,
       items: items,
       responses: state.responses, response_labels: state.responseLabels,
