@@ -86,6 +86,11 @@ class Tenant extends Model
         return $this->hasMany(Tenant\TenantAppointment::class);
     }
 
+    public function resources(): HasMany
+    {
+        return $this->hasMany(\App\Models\Tenant\TenantResource::class)->orderBy('sort_order');
+    }
+
     public function serviceCategories(): HasMany
     {
         return $this->hasMany(Tenant\TenantServiceCategory::class);

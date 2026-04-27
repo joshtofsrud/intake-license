@@ -53,6 +53,15 @@ class BookingController extends Controller
 
         $bookingMode = $tenant->booking_mode ?? 'drop_off';
 
+        $resources = $tenant->resources()->where('is_active', true)->get([
+            'id', 'name', 'subtitle', 'color_hex', 'sort_order',
+        ])->map(fn($r) => [
+            'id'        => $r->id,
+            'name'      => $r->name,
+            'subtitle'  => $r->subtitle,
+            'color_hex' => $r->color_hex,
+        ])->values()->all();
+
         $bk = [
             'theme'          => $s['booking_theme'] ?? 'light',
             'accent'         => $s['booking_accent'] ?? '',
@@ -78,7 +87,7 @@ class BookingController extends Controller
         return view('public.booking', compact(
             'catalog', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
-            'bookingMode', 'bk'
+            'bookingMode', 'resources', 'bk'
         ));
     }
 
@@ -95,12 +104,52 @@ class BookingController extends Controller
         $dates   = $booking->availableDates($tenant, (int) $request->input('year'), (int) $request->input('month'));
 
         $slots = [];
+        $slotResources = [];
+
         if ($mode === 'time_slots') {
+            // Load active resources once; reused for every slot's availability check.
+            $resources = $tenant->resources()->where('is_active', true)->get(['id']);
+
+            // Default slot duration falls back to the day's slot_interval inside
+            // resourceIsFreeDuring; passing 0 here lets the service decide. We
+            // instead pass a real duration (interval) per-day so prep/cleanup math
+            // stays consistent with availableSlotsForDate.
             foreach ($dates as $date) {
-                $slots[$date] = $booking->availableSlotsForDate($tenant, $date);
+                $daySlots = $booking->availableSlotsForDate($tenant, $date);
+                $slots[$date] = $daySlots;
+
+                if (empty($daySlots) || $resources->isEmpty()) {
+                    continue;
+                }
+
+                // Pull the rule once per day for slot duration.
+                $dow = \Carbon\Carbon::parse($date)->dayOfWeek;
+                $rule = \App\Models\Tenant\TenantCapacityRule::where('tenant_id', $tenant->id)
+                    ->where('rule_type', 'default')->where('day_of_week', $dow)->first();
+                $interval = (int) ($rule->slot_interval_minutes ?? 60);
+
+                $slotResources[$date] = [];
+                foreach ($daySlots as $time) {
+                    $freeIds = [];
+                    foreach ($resources as $res) {
+                        $conflict = $booking->resourceIsFreeDuring(
+                            $tenant->id, $res->id, $date, $time . ':00', $interval
+                        );
+                        if ($conflict === null) {
+                            $freeIds[] = $res->id;
+                        }
+                    }
+                    $slotResources[$date][$time] = $freeIds;
+                }
             }
         }
-        return response()->json(['dates' => $dates, 'slots' => $slots, 'mode' => $mode]);
+
+        return response()->json([
+            'dates'          => $dates,
+            'slots'          => $slots,
+            'slot_resources' => $slotResources,
+            'mode'           => $mode,
+        ]);
     }
 
     public function submit(Request $request)
