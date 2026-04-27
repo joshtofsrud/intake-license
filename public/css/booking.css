@@ -212,7 +212,12 @@
   font-size: 13px;
   cursor: default;
   color: var(--p-text);
-  opacity: .2;
+  opacity: .4;
+}
+.bk-cal-day:not(.available):not(:empty) {
+  /* Unavailable but rendered dates — visible enough to read, clearly not clickable. */
+  color: var(--p-text);
+  opacity: .35;
 }
 .bk-cal-day.available {
   opacity: 1;
