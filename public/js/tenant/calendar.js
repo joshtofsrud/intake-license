@@ -1344,9 +1344,27 @@
     }
 
     // Bind to all appointment blocks on the day view
+    // Click suppression: after a real drag, the browser still fires a click event
+    // when the mouse is released. We swallow that click by setting a flag in
+    // mouseup and clearing it shortly after.
+    var suppressNextClickUntil = 0;
+
     document.querySelectorAll('.ia-cal-appt').forEach(function (block) {
       block.addEventListener('mousedown', onMouseDown);
+      block.addEventListener('click', function (e) {
+        if (Date.now() < suppressNextClickUntil) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }, true);  // capture phase so we run before any other click handlers
       block.style.cursor = 'grab';
     });
+
+    // Hook into mouseup to set the suppression flag if a drag completed
+    document.addEventListener('mouseup', function () {
+      if (state && state.dragging) {
+        suppressNextClickUntil = Date.now() + 300;
+      }
+    }, true);
   });
 })();
