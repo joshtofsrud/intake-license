@@ -168,40 +168,41 @@
   border: 1.5px solid rgba(0,0,0,.1);
   border-radius: var(--p-r-lg);
   overflow: hidden;
-  max-width: 340px;
+  width: 100%;
 }
 .bk-cal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 18px 22px;
   border-bottom: 1px solid rgba(0,0,0,.07);
 }
 .bk-cal-nav {
   background: none;
   border: none;
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 6px 12px;
   border-radius: 6px;
   transition: background .12s;
   color: var(--p-text);
 }
 .bk-cal-nav:hover { background: rgba(0,0,0,.06); }
-.bk-cal-month { font-size: 15px; font-weight: 600; }
+.bk-cal-month { font-size: 17px; font-weight: 600; }
 .bk-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  padding: 12px;
+  gap: 4px;
+  padding: 18px;
 }
 .bk-cal-day-name {
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   opacity: .35;
-  padding: 4px 0;
+  padding: 8px 0;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .bk-cal-day {
   aspect-ratio: 1;
@@ -209,7 +210,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 13px;
+  font-size: clamp(14px, 1.6vw, 18px);
   cursor: default;
   color: var(--p-text);
   opacity: .4;
