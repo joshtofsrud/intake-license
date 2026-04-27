@@ -224,7 +224,7 @@
 <div class="bk-section" id="bk-step-2">
   <h1 class="bk-section-title">{{ $bk['step2_heading'] ?? 'Pick a drop-off date' }}</h1>
   <p class="bk-section-sub">{{ $bk['step2_sub'] ?? 'Choose an available date for your service.' }}</p>
-  <div class="bk-calendar">
+  <div class="bk-calendar" id="bk-calendar">
     <div class="bk-cal-header">
       <button type="button" class="bk-cal-nav" id="cal-prev">‹</button>
       <span class="bk-cal-month" id="cal-month-label"></span>
