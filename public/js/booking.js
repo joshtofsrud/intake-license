@@ -258,7 +258,7 @@
 
     var firstDay  = new Date(calYear, calMonth - 1, 1).getDay(); // 0=Sun
     var daysInMonth = new Date(calYear, calMonth, 0).getDate();
-    var todayStr  = fmtDate(today);
+    var todayStr  = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
 
     // Empty cells for offset
     for (var i = 0; i < firstDay; i++) {
@@ -653,8 +653,13 @@
 
   function fmtDate(ds) {
     if (!ds) return '';
-    var parts = ds.split('-');
-    var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    var dt;
+    if (ds instanceof Date) {
+      dt = ds;
+    } else {
+      var parts = String(ds).split('-');
+      dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
     return dt.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 
