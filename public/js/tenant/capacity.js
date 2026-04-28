@@ -69,6 +69,31 @@
     var d = day.day;
     var closed = !!day.is_closed;
     var maxVal = ( day.max === null || day.max === undefined ) ? '' : day.max;
+    var isDropOff = boot.mode === 'drop_off';
+
+    // Mode-aware fields:
+    //  - drop_off mode: show "Daily cap" field. Field overrides the resource-cap-sum
+    //    ceiling. Blank = use resource-cap-sum naturally.
+    //  - time_slots mode: show "Slot interval" field. The grid math (open/close/interval
+    //    × resources) governs primary capacity, so the daily cap field is hidden by
+    //    default — it's an advanced override exposed via Show advanced toggle.
+    var capField = isDropOff
+      ? ''
+        + '<div class="cap-day-max cap-day-fields-when-open">'
+        +   '<input type="number" min="0" placeholder="No limit" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="Optional daily cap. Leave blank to use the sum of staff caps from your Resources page.">'
+        + '</div>'
+      : '<div class="cap-day-max cap-day-fields-when-open cap-day-advanced-only">'
+        +   '<input type="number" min="0" placeholder="No override" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="Optional override on top of grid capacity. Rarely needed in time-slot mode.">'
+        + '</div>';
+
+    var intervalField = isDropOff
+      ? '<div class="cap-day-interval cap-day-fields-when-open cap-day-advanced-only">'
+        +   '<input type="number" min="5" max="240" step="5" data-field="slot_interval_minutes" data-day="' + d + '" value="' + ( day.slot_interval_minutes || 60 ) + '" title="Slot interval. Drop-off mode does not use this; visible under Advanced for completeness.">'
+        + '</div>'
+      : '<div class="cap-day-interval cap-day-fields-when-open">'
+        +   '<input type="number" min="5" max="240" step="5" data-field="slot_interval_minutes" data-day="' + d + '" value="' + ( day.slot_interval_minutes || 60 ) + '" title="How long each bookable slot is, in minutes. Determines how many slots fit in the day.">'
+        + '</div>';
+
     return ''
       + '<div class="cap-day-row ' + ( closed ? 'is-closed' : '' ) + '" data-day="' + d + '">'
       +   '<div class="cap-day-label">' + DAY_LONG[ d ] + '</div>'
@@ -82,12 +107,8 @@
       +     '<input type="time" data-field="close_time" data-day="' + d + '" value="' + ( day.close_time || '17:00' ) + '">'
       +   '</div>'
       +   '<div class="cap-day-fields-when-closed">— closed —</div>'
-      +   '<div class="cap-day-max cap-day-fields-when-open">'
-      +     '<input type="number" min="0" placeholder="Auto" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="Shop-wide cap override. Leave blank to use sum of resource caps.">'
-      +   '</div>'
-      +   '<div class="cap-day-interval cap-day-fields-when-open">'
-      +     '<input type="number" min="5" max="240" step="5" data-field="slot_interval_minutes" data-day="' + d + '" value="' + ( day.slot_interval_minutes || 60 ) + '" title="Slot interval (minutes). Time-slot mode only.">'
-      +   '</div>'
+      +   capField
+      +   intervalField
       + '</div>';
   }
 

@@ -256,6 +256,8 @@
 }
 
 .cap-day-interval { display: none; }
+.cap-day-advanced-only { display: none; }
+.cap-day-row[data-show-advanced="1"] .cap-day-advanced-only { display: block; }
 .cap-day-row[data-show-advanced="1"] .cap-day-interval { display: block; }
 
 .cap-override-row {
