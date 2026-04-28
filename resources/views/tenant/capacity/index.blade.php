@@ -313,6 +313,38 @@
   text-align: right;
 }
 
+/* Clear-to-no-limit button overlaid on the cap input. Hidden when input is empty. */
+.cap-input-wrap {
+  position: relative;
+  display: block;
+}
+.cap-input-wrap input {
+  padding-right: 22px;
+}
+.cap-input-clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--ia-text-3);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cap-input-clear:hover {
+  background: var(--ia-hover, rgba(255,255,255,0.06));
+  color: var(--ia-text);
+}
+
 .cap-day-interval { display: none; }
 .cap-day-advanced-only { display: none; }
 .cap-day-row[data-show-advanced="1"] .cap-day-advanced-only { display: block; }
