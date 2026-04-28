@@ -22,18 +22,21 @@ class EmailService
     public function send(string $templateKey, string $toEmail, array $vars = []): void
     {
         $template = TenantEmailTemplate::where('tenant_id', $this->tenant->id)
-            ->where('template_key', $templateKey)
+            ->where('template_type', $templateKey)
             ->first();
 
-        // Fall back to built-in defaults if the tenant hasn't customized
-        if (! $template || ! $template->is_active) {
+        // Fall back to built-in defaults if the tenant hasn't customized.
+        // Eloquent rows expose 'subject' + 'body_html'; defaults are returned as
+        // an array with the same keys for shape consistency.
+        if (! $template || ! $template->is_enabled) {
             $template = $this->defaultTemplate($templateKey);
+            if (! $template) return;
+            $subject = $this->interpolate($template['subject'], $vars);
+            $body    = $this->interpolate($template['body_html'], $vars);
+        } else {
+            $subject = $this->interpolate($template->subject, $vars);
+            $body    = $this->interpolate($template->body_html, $vars);
         }
-
-        if (! $template) return;
-
-        $subject = $this->interpolate($template['subject'], $vars);
-        $body    = $this->interpolate($template['body'], $vars);
 
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
@@ -137,8 +140,8 @@ HTML;
 
         $defaults = [
             'booking_confirmation' => [
-                'subject' => 'Your booking is confirmed — {{ra_number}}',
-                'body'    => "<p>Hi {{first_name}},</p>
+                'subject'   => 'Your booking is confirmed — {{ra_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
 <p>Your booking with {$shop} is confirmed.</p>
 <table style='font-size:14px;line-height:1.8'>
   <tr><td style='color:#666;padding-right:16px'>Reference</td><td><strong>{{ra_number}}</strong></td></tr>
@@ -149,16 +152,16 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
             'status_update' => [
-                'subject' => 'Your work order {{ra_number}} has been updated',
-                'body'    => "<p>Hi {{first_name}},</p>
+                'subject'   => 'Your work order {{ra_number}} has been updated',
+                'body_html' => "<p>Hi {{first_name}},</p>
 <p>Your work order <strong>{{ra_number}}</strong> at {$shop} has been updated.</p>
 <p><strong>New status:</strong> {{status}}</p>
 <p>{{status_note}}</p>
 <p>— The {$shop} team</p>",
             ],
             'password_reset' => [
-                'subject' => 'Reset your password — {{shop_name}}',
-                'body'    => "<p>Hi {{name}},</p>
+                'subject'   => 'Reset your password — {{shop_name}}',
+                'body_html' => "<p>Hi {{name}},</p>
 <p>You requested a password reset for your {$shop} staff account.</p>
 <p style='margin:24px 0'>
   <a href='{{reset_url}}' style='background:{{accent}};color:{{accent_text}};padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block'>
