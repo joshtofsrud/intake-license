@@ -16,6 +16,7 @@ use App\Support\MySQLLock;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Jobs\SendBookingConfirmationJob;
 use RuntimeException;
 
 class BookingService
@@ -178,6 +179,13 @@ class BookingService
                 }
 
                 $this->persistResponses($appointment, $data);
+
+                // Dispatch the booking-confirmation notification.
+                // afterCommit() ensures the job only fires if the DB transaction
+                // actually commits — never send a confirmation for a phantom
+                // appointment that got rolled back by a later error in the chain.
+                SendBookingConfirmationJob::dispatch($appointment->id)->afterCommit();
+
                 return $appointment->fresh(['items', 'addons', 'customer', 'responses']);
             });
         });

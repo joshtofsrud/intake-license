@@ -136,6 +136,19 @@ class Tenant extends Model
         return $this->hasMany(SupportConversation::class);
     }
 
+    /**
+     * Is a transactional notification enabled for this tenant?
+     * Defaults to ON for booking confirmations + status updates + reminders so
+     * shipping a new tenant doesn't accidentally suppress critical comms.
+     * Disable explicitly via settings: { "notify_booking_confirmation_email": false }
+     */
+    public function notificationEnabled(string $key): bool
+    {
+        $settings = $this->settings ?? [];
+        $settingsKey = 'notify_' . $key;
+        return (bool) ($settings[$settingsKey] ?? true);
+    }
+
     public function publicUrl(): string
     {
         if ($this->custom_domain) {
