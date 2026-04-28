@@ -40,14 +40,21 @@ $logger("=== Demo tenant reset ===");
 // ----------------------------------------------------------------------
 // 1. Destroy all existing tenants. Cascade deletes via FK constraints.
 // ----------------------------------------------------------------------
-$existing = Tenant::all();
-$logger("Found " . $existing->count() . " existing tenants.");
+// CRITICAL: never delete the __platform tenant. It owns the marketing
+// pages, public roadmap, public changelog. Filter by subdomain AND
+// is_platform flag because either is authoritative.
+$existing = Tenant::where('subdomain', '!=', '__platform')
+    ->where(function ($q) {
+        $q->where('is_platform', false)->orWhereNull('is_platform');
+    })
+    ->get();
+
+$logger("Found " . $existing->count() . " demo tenants (excluding __platform).");
 foreach ($existing as $t) {
     $logger("  Deleting tenant: {$t->subdomain} ({$t->name})");
-    // Hard delete \u2014 forceDelete bypasses SoftDeletes if present.
     $t->forceDelete();
 }
-$logger("All tenants deleted.");
+$logger("Demo tenants deleted. __platform preserved.");
 
 // ----------------------------------------------------------------------
 // 2. Create blueridge (bike shop, drop-off mode).
