@@ -80,6 +80,18 @@ class ServiceController extends Controller
 
         $mode = $tenant->booking_mode ?? 'drop_off';
 
+        // Active resources for the eligibility selector. Empty array if no
+        // active resources — services.js handles the empty case.
+        $jsResources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'color_hex'])
+            ->map(fn($r) => [
+                'id'        => $r->id,
+                'name'      => $r->name,
+                'color_hex' => $r->color_hex,
+            ])->values()->toArray();
+
         return view('tenant.services.index', [
             'jsCategories' => $jsCategories,
             'jsLibrary'    => $jsLibrary,
