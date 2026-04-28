@@ -46,6 +46,22 @@ class TenantServiceItem extends Model
          ->withTimestamps();
     }
 
+    /**
+     * Resources eligible to perform this service.
+     * Empty relation = no specialization rule = all active resources are eligible.
+     * Caller (BookingService::eligibleResourcesForService) handles the empty-case
+     * fallback to "all active".
+     */
+    public function eligibleResources(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TenantResource::class,
+            'tenant_service_resource_eligibility',
+            'service_item_id',
+            'resource_id'
+        )->withTimestamps();
+    }
+
     public function customerMinutes(): int
     {
         $total = (int) $this->duration_minutes;

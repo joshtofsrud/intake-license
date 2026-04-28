@@ -1,491 +1,352 @@
-@extends('layouts.tenant.app')
-@php $pageTitle = 'Capacity'; @endphp
-
-@push('styles')
-<style>
-.cap-mode-banner{border-radius:var(--ia-r-lg);padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.cap-mode-banner.drop-off{background:rgba(56,138,221,.08);border:0.5px solid rgba(56,138,221,.2)}
-.cap-mode-banner.time-slots{background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.2)}
-.cap-mode-label{font-size:14px;font-weight:600}
-.cap-mode-desc{font-size:12px;opacity:.6;margin-top:2px}
-.cap-layout{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start}
-.cap-day-card{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:14px 16px;margin-bottom:8px}
-.cap-day-header{display:flex;align-items:center;gap:16px;margin-bottom:0}
-.cap-day-name{width:96px;font-size:13px;font-weight:500;flex-shrink:0}
-.cap-bar-wrap{flex:1;height:8px;background:var(--ia-border);border-radius:4px;overflow:hidden}
-.cap-bar{height:100%;background:var(--ia-accent);border-radius:4px;transition:width .2s}
-.cap-spinner{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.cap-spinner-btn{width:28px;height:28px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background var(--ia-t);line-height:1}
-.cap-spinner-btn:hover{background:var(--ia-hover)}
-.cap-spinner-val{font-size:14px;font-weight:500;min-width:28px;text-align:center}
-.cap-slot-info{font-size:11px;opacity:.45;min-width:140px;text-align:right;line-height:1.4}
-.cap-time-fields{display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--ia-border);display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.cap-time-fields.hidden{display:none}
-.cap-override-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--ia-border);font-size:13px}
-.cap-override-row:last-child{border-bottom:none}
-.cap-override-date{font-weight:500;flex:1}
-.cap-override-note{font-size:12px;opacity:.5}
-.cap-override-max{font-weight:500;min-width:60px;text-align:right}
-
-/* Mode switch modal */
-.cap-switch-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.cap-switch-card{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:28px;width:100%;max-width:560px;max-height:80vh;overflow-y:auto}
-.cap-switch-title{font-size:18px;font-weight:600;margin-bottom:8px}
-.cap-switch-desc{font-size:13px;opacity:.6;margin-bottom:20px;line-height:1.6}
-.cap-preview-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px}
-.cap-preview-table th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;opacity:.45;padding:6px 0;text-align:left;border-bottom:0.5px solid var(--ia-border)}
-.cap-preview-table td{padding:10px 0;border-bottom:0.5px solid var(--ia-border)}
-.cap-preview-table tr:last-child td{border-bottom:none}
-.cap-preview-input{width:80px;padding:5px 8px;border-radius:6px;border:0.5px solid var(--ia-border);background:var(--ia-input-bg);color:var(--ia-text);font-size:13px;text-align:right}
-@media(max-width:800px){.cap-layout{grid-template-columns:1fr}}
-</style>
-@endpush
+@php
+  $pageTitle = 'Capacity';
+  $dayLabels = [0 => 'Sun', 1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat'];
+@endphp
 
 @section('content')
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Capacity</h1>
-    <p class="ia-page-subtitle">Control how many appointments you accept.</p>
+    <p class="ia-page-subtitle">When you're open, how many bookings you'll take, and per-day exceptions.</p>
   </div>
-  <div class="ia-page-actions">
-    <button type="button" class="ia-btn ia-btn--primary" id="cap-save-btn">Save defaults</button>
+  <div class="ia-page-head-right">
+    <div class="cap-mode-pill" data-mode="{{ $mode }}">
+      Booking mode: <strong>{{ $mode === 'time_slots' ? 'Time slots' : 'Drop-off' }}</strong>
+    </div>
   </div>
 </div>
 
-{{-- Mode banner — VERY obvious --}}
-<div class="cap-mode-banner {{ $mode === 'drop_off' ? 'drop-off' : 'time-slots' }}" id="cap-mode-banner">
-  <div>
-    <div class="cap-mode-label">
-      {{ $mode === 'drop_off' ? '📅 Drop-off mode' : '🕐 Time slot mode' }}
-    </div>
-    <div class="cap-mode-desc">
-      @if($mode === 'drop_off')
-        Customers pick a date. You control how many jobs you accept per day.
-      @else
-        Customers pick a date and time. Each service has a set duration.
-      @endif
-    </div>
-  </div>
-  <button type="button" class="ia-btn ia-btn--secondary"
-    onclick="openSwitchModal('{{ $mode === 'drop_off' ? 'time_slots' : 'drop_off' }}')">
-    Switch to {{ $mode === 'drop_off' ? 'time slot' : 'drop-off' }} mode
-  </button>
-</div>
+@if(session('flash'))
+  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>
+@endif
 
-<div class="cap-layout">
-
-  {{-- Left: 7-day defaults --}}
-  <div>
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
-      Weekly defaults
-    </div>
-    <div id="cap-days"></div>
-    <p id="cap-status" style="font-size:12px;opacity:.5;margin-top:8px;min-height:20px"></p>
-  </div>
-
-  {{-- Right: overrides --}}
-  <div>
-    <div class="ia-card ia-card--tight">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:14px">
-        Date overrides
+{{-- ============================================================
+     Resource caps summary
+     ============================================================ --}}
+<div class="ia-card cap-resource-summary" style="padding:14px 18px;margin-bottom:18px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <div class="ia-label" style="font-size:11px;letter-spacing:.06em">Resource daily caps</div>
+      <div style="font-size:13px;color:var(--ia-text-2);margin-top:3px">
+        @if(count($jsResources) === 0)
+          No active resources yet. <a href="{{ route('tenant.resources.index') }}" style="color:var(--ia-accent)">Add resources →</a>
+        @elseif($resourceCapSum === 0)
+          Resources have no per-day caps set. Bookings will be unbounded by resource quota.
+        @else
+          Sum across {{ count($jsResources) }} resource{{ count($jsResources) === 1 ? '' : 's' }}: <strong>{{ $resourceCapSum }}</strong> bookings/day.
+        @endif
       </div>
-      <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:0.5px solid var(--ia-border)">
-        <div class="ia-form-group">
-          <label class="ia-form-label">Date <span class="ia-required">*</span></label>
-          <input type="date" id="ov-date" class="ia-input" min="{{ now()->toDateString() }}">
-        </div>
-        <div class="ia-input-grid-2">
-          <div class="ia-form-group">
-            <label class="ia-form-label">Max bookings</label>
-            <input type="number" id="ov-max" class="ia-input" min="0" value="0">
-          </div>
-          <div class="ia-form-group">
-            <label class="ia-form-label">Note</label>
-            <input type="text" id="ov-note" class="ia-input" placeholder="e.g. Holiday">
-          </div>
-        </div>
-        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" id="ov-add-btn">Add override</button>
-        <p id="ov-error" style="font-size:12px;color:#E24B4A;margin-top:6px;display:none"></p>
-      </div>
-      <div id="ov-list"></div>
     </div>
+    <a href="{{ route('tenant.resources.index') }}" class="ia-btn ia-btn--secondary ia-btn--sm">Manage resources →</a>
   </div>
-
+  @if(count($jsResources) > 0)
+    <div class="cap-resource-chips">
+      @foreach($jsResources as $r)
+        <span class="cap-resource-chip">
+          <span class="cap-resource-dot" style="background:{{ $r['color_hex'] }}"></span>
+          <span>{{ $r['name'] }}</span>
+          <span class="cap-resource-cap">
+            @if($r['max_appointments_per_day'] === null)
+              no cap
+            @else
+              {{ $r['max_appointments_per_day'] }}/day
+            @endif
+          </span>
+        </span>
+      @endforeach
+    </div>
+  @endif
 </div>
 
-{{-- Mode switch modal --}}
-<div class="cap-switch-modal" id="switch-modal" style="display:none">
-  <div class="cap-switch-card">
-    <div class="cap-switch-title" id="switch-modal-title">Switching to time slot mode</div>
-    <p class="cap-switch-desc" id="switch-modal-desc">
-      We've estimated durations for your services based on their slot weights.
-      Review them below and adjust any that need changing before switching.
-    </p>
-
-    <table class="cap-preview-table" id="switch-preview-table">
-      <thead>
-        <tr>
-          <th>Service</th>
-          <th id="switch-col-current">Current weight</th>
-          <th id="switch-col-new">Duration (min)</th>
-        </tr>
-      </thead>
-      <tbody id="switch-preview-body">
-        <tr><td colspan="3" style="opacity:.4;padding:16px 0">Loading…</td></tr>
-      </tbody>
-    </table>
-    <div id="switch-extras"></div>
-
-    <div style="background:rgba(226,75,74,.08);border:0.5px solid rgba(226,75,74,.2);border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:20px">
-      <strong>Note:</strong> Existing appointments are not affected. Only future bookings will use the new mode.
+{{-- ============================================================
+     Weekly defaults (Mon-Sun rows)
+     ============================================================ --}}
+<div class="ia-card" style="padding:0;margin-bottom:18px;overflow:hidden">
+  <div class="cap-card-head">
+    <div>
+      <div class="ia-card-title">Weekly defaults</div>
+      <div class="ia-card-sub">Open/close hours, closed days, and any shop-wide bookings cap that overrides the resource sum.</div>
     </div>
+    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="cap-toggle-advanced">
+      <span data-when-hidden>Show advanced</span>
+      <span data-when-shown style="display:none">Hide advanced</span>
+    </button>
+  </div>
 
-    <div style="display:flex;gap:10px">
-      <button type="button" class="ia-btn ia-btn--ghost" onclick="closeSwitchModal()">Cancel</button>
-      <button type="button" class="ia-btn ia-btn--primary" id="switch-confirm-btn" onclick="confirmSwitch()">
-        Confirm switch
-      </button>
+  <div id="cap-defaults-list">
+    {{-- Day rows rendered by JS from window.CAP_BOOT --}}
+  </div>
+</div>
+
+{{-- ============================================================
+     Date overrides
+     ============================================================ --}}
+<div class="ia-card" style="padding:0;overflow:hidden">
+  <div class="cap-card-head">
+    <div>
+      <div class="ia-card-title">Date overrides</div>
+      <div class="ia-card-sub">One-off changes for specific dates. Useful for holidays, special events, or unplanned closures.</div>
+    </div>
+    <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="cap-add-override-btn">+ Add override</button>
+  </div>
+
+  <div id="cap-overrides-list">
+    {{-- Override rows rendered by JS --}}
+  </div>
+
+  <div id="cap-override-empty" style="padding:34px;text-align:center;color:var(--ia-text-3);font-size:13px;display:none">
+    No date overrides yet. Click <strong>+ Add override</strong> to set capacity or close the shop on a specific date.
+  </div>
+</div>
+
+<div class="cap-status" id="cap-status"></div>
+
+{{-- ============================================================
+     Add override modal
+     ============================================================ --}}
+<div class="cap-modal" id="cap-override-modal" style="display:none">
+  <div class="cap-modal-back"></div>
+  <div class="cap-modal-card">
+    <div class="cap-modal-head">
+      <span class="ia-card-title">Date override</span>
+      <button type="button" class="cap-modal-x" id="cap-override-close">×</button>
+    </div>
+    <div class="cap-modal-body">
+      <div class="ia-form-group">
+        <label class="ia-form-label">Date</label>
+        <input type="date" id="ov-date" class="ia-input">
+      </div>
+      <div class="ia-form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="ov-is-closed">
+          <span>Closed on this date</span>
+        </label>
+      </div>
+      <div class="ia-form-group" id="ov-max-group">
+        <label class="ia-form-label">Max bookings (leave blank to use resource sum)</label>
+        <input type="number" id="ov-max" class="ia-input" min="0" placeholder="Leave blank for resource sum">
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Note (optional)</label>
+        <input type="text" id="ov-note" class="ia-input" placeholder="e.g. Holiday, vacation, half-day">
+      </div>
+    </div>
+    <div class="cap-modal-actions">
+      <button type="button" class="ia-btn ia-btn--ghost" id="cap-override-cancel">Cancel</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="cap-override-save">Save</button>
     </div>
   </div>
 </div>
 
 @endsection
 
+@push('styles')
+<link rel="stylesheet" href="{{ asset('css/tenant/capacity.css') }}?v={{ filemtime(public_path('css/tenant/capacity.css')) }}">
+<style>
+.cap-mode-pill {
+  background: var(--ia-surface-2, rgba(255,255,255,0.04));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--ia-text-2);
+}
+.cap-mode-pill strong { color: var(--ia-text); font-weight: 600; }
+
+.cap-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ia-card-title { font-size: 14px; font-weight: 600; }
+.ia-card-sub { font-size: 12px; color: var(--ia-text-3); margin-top: 3px; }
+
+.cap-resource-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 0.5px dashed var(--ia-border);
+}
+.cap-resource-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ia-surface-2, rgba(255,255,255,0.04));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
+  font-size: 11.5px;
+}
+.cap-resource-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.cap-resource-cap {
+  color: var(--ia-text-3);
+  font-size: 10.5px;
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 0.5px solid var(--ia-border);
+}
+
+.cap-day-row {
+  display: grid;
+  grid-template-columns: 80px 70px 1fr 1fr 100px 100px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+  background: var(--ia-surface);
+}
+.cap-day-row:last-child { border-bottom: none; }
+.cap-day-row.is-closed { opacity: 0.55; }
+.cap-day-row.is-closed .cap-day-fields-when-open { display: none; }
+.cap-day-row .cap-day-fields-when-closed { display: none; }
+.cap-day-row.is-closed .cap-day-fields-when-closed { display: block; color: var(--ia-text-3); font-style: italic; font-size: 12px; }
+
+.cap-day-label { font-weight: 600; font-size: 13px; }
+.cap-day-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ia-text-3);
+  cursor: pointer;
+  user-select: none;
+}
+.cap-day-toggle input { cursor: pointer; }
+
+.cap-day-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ia-text-3);
+}
+.cap-day-time input {
+  background: var(--ia-surface-2, rgba(255,255,255,0.05));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-size: 12px;
+  color: var(--ia-text);
+  font-family: inherit;
+  width: 80px;
+}
+
+.cap-day-max input,
+.cap-day-interval input {
+  background: var(--ia-surface-2, rgba(255,255,255,0.05));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-size: 12px;
+  color: var(--ia-text);
+  font-family: inherit;
+  width: 100%;
+  text-align: right;
+}
+
+.cap-day-interval { display: none; }
+.cap-day-row[data-show-advanced="1"] .cap-day-interval { display: block; }
+
+.cap-override-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr 80px 32px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+  background: var(--ia-surface);
+}
+.cap-override-row:last-child { border-bottom: none; }
+.cap-override-date { font-weight: 600; font-size: 13px; }
+.cap-override-status {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cap-override-status.closed { background: rgba(217, 122, 122, 0.12); color: #d97a7a; }
+.cap-override-status.cap    { background: rgba(212, 255, 63, 0.10); color: var(--ia-accent); }
+.cap-override-note { font-size: 12px; color: var(--ia-text-3); }
+.cap-override-cap-display { font-size: 13px; text-align: right; font-feature-settings: "tnum"; }
+
+.cap-status {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  background: var(--ia-surface-2, #131313);
+  border: 0.5px solid var(--ia-border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--ia-text-2);
+  opacity: 0;
+  transition: opacity 0.18s;
+  pointer-events: none;
+}
+.cap-status.show { opacity: 1; }
+
+.cap-modal {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.cap-modal-back {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55);
+}
+.cap-modal-card {
+  position: relative;
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-radius: 10px;
+  width: 90%; max-width: 460px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+}
+.cap-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.cap-modal-x {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 22px; color: var(--ia-text-3);
+  padding: 4px 8px;
+}
+.cap-modal-x:hover { color: var(--ia-text); }
+.cap-modal-body { padding: 20px; }
+.cap-modal-actions {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; padding: 14px 20px;
+  border-top: 0.5px solid var(--ia-border);
+}
+</style>
+@endpush
+
 @push('scripts')
 <script>
-var d         = { defaults: @json($jsDefaults), overrides: @json($jsOverrides), usage: @json($jsUsage) };
-var mode      = '{{ $mode }}';
-var ajaxUrl   = '{{ route("tenant.capacity.store") }}';
-var csrf      = window.IntakeAdmin.csrfToken;
-var DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-var INTERVALS = [15,30,45,60,90,120];
-var switchTargetMode = null;
-var switchPreviewData = [];
-
-document.addEventListener('DOMContentLoaded', function() {
-  renderDays();
-  renderOverrides();
-  bindSave();
-  bindAddOverride();
-});
-
-// ================================================================
-// Day grid
-// ================================================================
-function renderDays() {
-  var container = document.getElementById('cap-days');
-  container.innerHTML = '';
-  var maxVal = Math.max.apply(null, d.defaults.map(function(x) { return x.max; }).concat([1]));
-
-  d.defaults.forEach(function(rule, i) {
-    var usage    = d.usage[getTodayPlusDays(rule.day)] || { slots_used: 0, job_count: 0 };
-    var slotsUsed = usage.slots_used || 0;
-    var remaining = Math.max(0, rule.max - slotsUsed);
-
-    var card = document.createElement('div');
-    card.className = 'cap-day-card';
-
-    // Header row: name + bar + spinner + slot info
-    var header = document.createElement('div');
-    header.className = 'cap-day-header';
-
-    var name = document.createElement('div');
-    name.className = 'cap-day-name';
-    name.textContent = DAY_NAMES[rule.day];
-
-    var barWrap = document.createElement('div');
-    barWrap.className = 'cap-bar-wrap';
-    var bar = document.createElement('div');
-    bar.className = 'cap-bar';
-    bar.id = 'bar-' + rule.day;
-    bar.style.width = rule.max > 0 ? (rule.max / maxVal * 100).toFixed(1) + '%' : '0%';
-    barWrap.appendChild(bar);
-
-    var spinner = document.createElement('div');
-    spinner.className = 'cap-spinner';
-
-    var minus = document.createElement('button');
-    minus.className = 'cap-spinner-btn'; minus.textContent = '−'; minus.type = 'button';
-    var valEl = document.createElement('span');
-    valEl.className = 'cap-spinner-val'; valEl.textContent = rule.max;
-    valEl.id = 'val-' + rule.day;
-    var plus = document.createElement('button');
-    plus.className = 'cap-spinner-btn'; plus.textContent = '+'; plus.type = 'button';
-
-    function update(newVal) {
-      rule.max = Math.max(0, newVal);
-      valEl.textContent = rule.max;
-      var newMax = Math.max.apply(null, d.defaults.map(function(x) { return x.max; }).concat([1]));
-      d.defaults.forEach(function(r) {
-        var b = document.getElementById('bar-' + r.day);
-        if (b) b.style.width = r.max > 0 ? (r.max / newMax * 100).toFixed(1) + '%' : '0%';
-      });
-      updateSlotInfo(rule.day, rule.max, slotsUsed);
-    }
-
-    minus.addEventListener('click', function() { update(rule.max - 1); });
-    plus.addEventListener('click',  function() { update(rule.max + 1); });
-    spinner.appendChild(minus); spinner.appendChild(valEl); spinner.appendChild(plus);
-
-    // Slot info display
-    var slotInfo = document.createElement('div');
-    slotInfo.className = 'cap-slot-info';
-    slotInfo.id = 'slot-info-' + rule.day;
-    updateSlotInfoEl(slotInfo, rule.max, slotsUsed);
-
-    header.appendChild(name);
-    header.appendChild(barWrap);
-    header.appendChild(spinner);
-    header.appendChild(slotInfo);
-    card.appendChild(header);
-
-    // Time slot mode fields
-    if (mode === 'time_slots') {
-      var timeFields = document.createElement('div');
-      timeFields.className = 'cap-time-fields';
-      timeFields.innerHTML =
-        '<div class="ia-form-group" style="margin-bottom:0"><label class="ia-form-label">Opens</label>' +
-        '<input type="time" class="ia-input" id="open-' + rule.day + '" value="' + (rule.open_time || '09:00') + '" oninput="rule_' + i + '_open=this.value"></div>' +
-        '<div class="ia-form-group" style="margin-bottom:0"><label class="ia-form-label">Closes</label>' +
-        '<input type="time" class="ia-input" id="close-' + rule.day + '" value="' + (rule.close_time || '17:00') + '"></div>' +
-        '<div class="ia-form-group" style="margin-bottom:0"><label class="ia-form-label">Slot every</label>' +
-        '<select class="ia-input" id="interval-' + rule.day + '">' +
-        INTERVALS.map(function(v) {
-          return '<option value="' + v + '"' + (rule.slot_interval_minutes == v ? ' selected' : '') + '>' + v + ' min</option>';
-        }).join('') + '</select></div>';
-      card.appendChild(timeFields);
-    }
-
-    container.appendChild(card);
-  });
-}
-
-function updateSlotInfo(day, max, used) {
-  var el = document.getElementById('slot-info-' + day);
-  if (el) updateSlotInfoEl(el, max, used);
-}
-
-function updateSlotInfoEl(el, max, used) {
-  var remaining = Math.max(0, max - used);
-  if (max === 0) {
-    el.innerHTML = '<span style="opacity:.4">Closed</span>';
-  } else if (used > 0) {
-    el.innerHTML = used + ' of ' + max + ' slots booked<br><span style="color:var(--ia-accent)">' + remaining + ' remaining</span>';
-  } else {
-    el.textContent = max + ' slots available';
-  }
-}
-
-function getTodayPlusDays(dow) {
-  var today = new Date();
-  var diff  = (dow - today.getDay() + 7) % 7;
-  var target = new Date(today);
-  target.setDate(today.getDate() + diff);
-  return target.toISOString().split('T')[0];
-}
-
-function bindSave() {
-  var btn = document.getElementById('cap-save-btn');
-  if (!btn) return;
-  btn.addEventListener('click', function() {
-    btn.disabled = true; btn.textContent = 'Saving…';
-    var payload = { op: 'save_defaults' };
-    d.defaults.forEach(function(rule) {
-      payload['days[' + rule.day + '][max]'] = rule.max;
-      if (mode === 'time_slots') {
-        var openEl     = document.getElementById('open-'     + rule.day);
-        var closeEl    = document.getElementById('close-'    + rule.day);
-        var intervalEl = document.getElementById('interval-' + rule.day);
-        if (openEl)     payload['days[' + rule.day + '][open_time]']             = openEl.value;
-        if (closeEl)    payload['days[' + rule.day + '][close_time]']            = closeEl.value;
-        if (intervalEl) payload['days[' + rule.day + '][slot_interval_minutes]'] = intervalEl.value;
-      }
-    });
-    post(payload, function(resp) {
-      btn.disabled = false; btn.textContent = 'Save defaults';
-      setStatus(resp.success ? 'Saved ✓' : 'Error saving.');
-    });
-  });
-}
-
-// ================================================================
-// Override management
-// ================================================================
-function renderOverrides() {
-  var list = document.getElementById('ov-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (d.overrides.length === 0) {
-    list.innerHTML = '<p style="font-size:13px;opacity:.4">No date overrides yet.</p>';
-    return;
-  }
-  d.overrides.forEach(function(ov) { list.appendChild(buildOverrideRow(ov)); });
-}
-
-function buildOverrideRow(ov) {
-  var row = document.createElement('div');
-  row.className = 'cap-override-row';
-  row.setAttribute('data-id', ov.id);
-
-  var dateEl = document.createElement('div');
-  dateEl.className = 'cap-override-date';
-  dateEl.textContent = formatDate(ov.date);
-
-  var noteEl = document.createElement('div');
-  noteEl.className = 'cap-override-note';
-  noteEl.style.flex = '1';
-  noteEl.textContent = ov.note || '';
-
-  var maxEl = document.createElement('div');
-  maxEl.className = 'cap-override-max';
-  maxEl.textContent = ov.max + ' slots';
-
-  var delBtn = document.createElement('button');
-  delBtn.className = 'ia-btn ia-btn--ghost ia-btn--sm ia-btn--icon';
-  delBtn.type = 'button'; delBtn.title = 'Delete'; delBtn.innerHTML = '&#x2715;';
-  delBtn.addEventListener('click', function() {
-    post({ op: 'delete_override', id: ov.id }, function(resp) {
-      if (resp.success) {
-        row.remove();
-        d.overrides = d.overrides.filter(function(o) { return o.id !== ov.id; });
-        if (d.overrides.length === 0) {
-          document.getElementById('ov-list').innerHTML = '<p style="font-size:13px;opacity:.4">No date overrides yet.</p>';
-        }
-      }
-    });
-  });
-
-  row.appendChild(dateEl); row.appendChild(noteEl);
-  row.appendChild(maxEl); row.appendChild(delBtn);
-  return row;
-}
-
-function bindAddOverride() {
-  var addBtn  = document.getElementById('ov-add-btn');
-  var dateInp = document.getElementById('ov-date');
-  var maxInp  = document.getElementById('ov-max');
-  var noteInp = document.getElementById('ov-note');
-  var errEl   = document.getElementById('ov-error');
-  var list    = document.getElementById('ov-list');
-  if (!addBtn) return;
-
-  addBtn.addEventListener('click', function() {
-    var date = dateInp.value, max = parseInt(maxInp.value, 10);
-    if (!date) { showErr(errEl, 'Please select a date.'); return; }
-    if (isNaN(max) || max < 0) { showErr(errEl, 'Max must be 0 or more.'); return; }
-    hideErr(errEl);
-    addBtn.disabled = true; addBtn.textContent = 'Saving…';
-
-    post({ op: 'save_override', date: date, max: max, note: noteInp.value.trim() }, function(resp) {
-      addBtn.disabled = false; addBtn.textContent = 'Add override';
-      if (!resp.success) { showErr(errEl, resp.message || 'Error.'); return; }
-      var empty = list.querySelector('p'); if (empty) empty.remove();
-      d.overrides.push({ id: resp.id, date: resp.date, max: resp.max, note: resp.note });
-      d.overrides.sort(function(a, b) { return a.date.localeCompare(b.date); });
-      list.innerHTML = '';
-      d.overrides.forEach(function(ov) { list.appendChild(buildOverrideRow(ov)); });
-      dateInp.value = ''; maxInp.value = '0'; noteInp.value = '';
-    });
-  });
-}
-
-// ================================================================
-// Mode switching
-// ================================================================
-function openSwitchModal(toMode) {
-  switchTargetMode = toMode;
-  var modal      = document.getElementById('switch-modal');
-  var title      = document.getElementById('switch-modal-title');
-  var desc       = document.getElementById('switch-modal-desc');
-  var colCurrent = document.getElementById('switch-col-current');
-  var colNew     = document.getElementById('switch-col-new');
-  var body       = document.getElementById('switch-preview-body');
-
-  title.textContent = 'Switching to ' + (toMode === 'time_slots' ? 'time slot' : 'drop-off') + ' mode';
-  desc.textContent  = toMode === 'time_slots'
-    ? "We've estimated durations for your services based on their slot weights. Review and adjust before confirming."
-    : "We've estimated slot weights for your services based on their durations. Review and adjust before confirming.";
-  colCurrent.textContent = toMode === 'time_slots' ? 'Current weight' : 'Current duration';
-  colNew.textContent     = toMode === 'time_slots' ? 'Duration (min)' : 'Slot weight (1–4)';
-  body.innerHTML = '<tr><td colspan="3" style="opacity:.4;padding:16px 0">Loading…</td></tr>';
-  modal.style.display = 'flex';
-
-  post({ op: 'preview_switch', to_mode: toMode }, function(resp) {
-    if (!resp.success) return;
-    switchPreviewData = resp.preview;
-    body.innerHTML = '';
-    resp.preview.forEach(function(item) {
-      var tr = document.createElement('tr');
-      var currentVal = toMode === 'time_slots'
-        ? item.current_weight + ' slot' + (item.current_weight > 1 ? 's' : '')
-        : item.current_duration + ' min';
-      var newVal = toMode === 'time_slots' ? item.estimated_duration : item.estimated_weight;
-      var fieldName = toMode === 'time_slots' ? 'duration_minutes' : 'slot_weight';
-      tr.innerHTML =
-        '<td style="font-size:13px">' + item.name + '</td>' +
-        '<td style="font-size:13px;opacity:.6">' + currentVal + '</td>' +
-        '<td><input type="number" class="cap-preview-input" ' +
-        'data-item-id="' + item.id + '" data-field="' + fieldName + '" ' +
-        'value="' + newVal + '" min="' + (toMode === 'time_slots' ? '5' : '1') + '" ' +
-        'max="' + (toMode === 'time_slots' ? '480' : '4') + '" step="' + (toMode === 'time_slots' ? '5' : '1') + '"></td>';
-      body.appendChild(tr);
-    });
-  });
-}
-
-function closeSwitchModal() {
-  document.getElementById('switch-modal').style.display = 'none';
-  switchTargetMode = null; switchPreviewData = [];
-}
-
-function confirmSwitch() {
-  var btn = document.getElementById('switch-confirm-btn');
-  btn.disabled = true; btn.textContent = 'Switching…';
-
-  // Collect overrides from the table inputs
-  var overrides = {};
-  document.querySelectorAll('.cap-preview-input').forEach(function(inp) {
-    var itemId = inp.getAttribute('data-item-id');
-    var field  = inp.getAttribute('data-field');
-    if (!overrides[itemId]) overrides[itemId] = {};
-    overrides[itemId][field] = inp.value;
-  });
-
-  post({ op: 'execute_switch', to_mode: switchTargetMode, overrides: JSON.stringify(overrides) }, function(resp) {
-    if (resp && resp.success) {
-      window.location.reload();
-    } else {
-      btn.disabled = false; btn.textContent = 'Confirm switch';
-      var msg = (resp && resp.message) ? resp.message : 'Switch failed. Please try again.';
-      alert(msg);
-    }
-  });
-}
-
-// ================================================================
-// Helpers
-// ================================================================
-function setStatus(msg) {
-  var el = document.getElementById('cap-status');
-  if (el) el.textContent = msg;
-}
-function formatDate(dateStr) {
-  try {
-    var parts = dateStr.split('-');
-    var dt = new Date(+parts[0], +parts[1]-1, +parts[2]);
-    return dt.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
-  } catch(e) { return dateStr; }
-}
-function showErr(el, msg) { if (el) { el.textContent = msg; el.style.display = ''; } }
-function hideErr(el)       { if (el) el.style.display = 'none'; }
-function post(data, callback) {
-  var fd = new FormData();
-  fd.append('_token', csrf);
-  Object.keys(data).forEach(function(k) { fd.append(k, data[k]); });
-  fetch(ajaxUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then(function(r) { return r.json(); }).then(callback)
-    .catch(function(err) { console.error('Capacity error:', err); });
-}
+window.CAP_BOOT = {
+  csrf:           '{{ csrf_token() }}',
+  saveUrl:        '{{ route("tenant.capacity.store") }}',
+  mode:           {!! json_encode($mode) !!},
+  defaults:       {!! json_encode($jsDefaults) !!},
+  overrides:      {!! json_encode($jsOverrides) !!},
+  usage:          {!! json_encode($jsUsage) !!},
+  resources:      {!! json_encode($jsResources) !!},
+  resourceCapSum: {!! (int) $resourceCapSum !!},
+};
 </script>
+<script src="{{ asset('js/tenant/capacity.js') }}?v={{ filemtime(public_path('js/tenant/capacity.js')) }}" defer></script>
 @endpush

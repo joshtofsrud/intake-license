@@ -80,18 +80,29 @@ class DemoSeeder
 
     private function seedCapacityRules(Tenant $tenant): void
     {
+        // New schema (2026-04-28 rebuild):
+        //   is_closed flag explicit; weekends seeded as closed.
+        //   max_appointments NULL by default — it's now an OPTIONAL shop-wide
+        //   override on top of per-resource caps. Demo data uses resource caps
+        //   (seeded elsewhere) as the primary capacity ceiling.
+        //   open/close/slot_interval seeded for non-closed days so time-slot
+        //   mode tenants have a working grid out of the box.
         for ($dow = 0; $dow <= 6; $dow++) {
             $isWeekend = $dow === 0 || $dow === 6;
             TenantCapacityRule::create([
-                'tenant_id'        => $tenant->id,
-                'rule_type'        => 'default',
-                'day_of_week'      => $dow,
-                'specific_date'    => null,
-                'max_appointments' => $isWeekend ? 0 : self::CAPACITY_PER_DAY,
-                'note'             => null,
+                'tenant_id'             => $tenant->id,
+                'rule_type'             => 'default',
+                'day_of_week'           => $dow,
+                'specific_date'         => null,
+                'is_closed'             => $isWeekend,
+                'max_appointments'      => null,
+                'open_time'             => $isWeekend ? null : '09:00:00',
+                'close_time'            => $isWeekend ? null : '17:00:00',
+                'slot_interval_minutes' => 60,
+                'note'                  => null,
             ]);
         }
-        $this->log("  Capacity: " . self::CAPACITY_PER_DAY . "/day Mon-Fri, closed weekends.");
+        $this->log("  Capacity: 9-5 Mon-Fri, closed weekends. Per-resource caps govern.");
     }
 
     private function seedReceivingMethods(Tenant $tenant): void

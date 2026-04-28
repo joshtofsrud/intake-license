@@ -84,6 +84,7 @@ class ServiceController extends Controller
             'jsCategories' => $jsCategories,
             'jsLibrary'    => $jsLibrary,
             'jsMode'       => $mode,
+            'jsResources'  => $jsResources,
         ]);
     }
 
@@ -130,6 +131,7 @@ class ServiceController extends Controller
         if ($op === 'duplicate_service')    return $this->duplicateService($tenant, $id);
         if ($op === 'reorder_services')     return $this->reorderServices($request, $tenant);
         if ($op === 'reorder_categories')   return $this->reorderCategories($request, $tenant);
+        if ($op === 'set_eligibility')      return $this->setEligibility($request, $tenant, $id);
 
         return $this->err('Unknown operation.');
     }

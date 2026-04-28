@@ -40,23 +40,28 @@ class ResourceController extends Controller
         $tenant = tenant();
 
         $request->validate([
-            'name'      => ['required', 'string', 'max:120'],
-            'subtitle'  => ['nullable', 'string', 'max:120'],
-            'color_hex' => ['required', 'string', 'in:' . implode(',', self::SWATCHES)],
-            'type'      => ['nullable', 'in:staff,slot,space'],
+            'name'                     => ['required', 'string', 'max:120'],
+            'subtitle'                 => ['nullable', 'string', 'max:120'],
+            'color_hex'                => ['required', 'string', 'in:' . implode(',', self::SWATCHES)],
+            'type'                     => ['nullable', 'in:staff,slot,space'],
+            'max_appointments_per_day' => ['nullable', 'integer', 'min:0', 'max:200'],
         ]);
 
         $maxSort = TenantResource::where('tenant_id', $tenant->id)->max('sort_order') ?? -1;
 
+        $maxApptRaw = $request->input('max_appointments_per_day');
+        $maxApptVal = ($maxApptRaw === null || $maxApptRaw === '') ? null : (int) $maxApptRaw;
+
         $resource = TenantResource::create([
-            'id'         => (string) Str::uuid(),
-            'tenant_id'  => $tenant->id,
-            'name'       => $request->input('name'),
-            'subtitle'   => $request->input('subtitle'),
-            'color_hex'  => $request->input('color_hex'),
-            'type'       => $request->input('type', 'staff'),
-            'sort_order' => $maxSort + 1,
-            'is_active'  => true,
+            'id'                       => (string) Str::uuid(),
+            'tenant_id'                => $tenant->id,
+            'name'                     => $request->input('name'),
+            'subtitle'                 => $request->input('subtitle'),
+            'color_hex'                => $request->input('color_hex'),
+            'type'                     => $request->input('type', 'staff'),
+            'sort_order'               => $maxSort + 1,
+            'is_active'                => true,
+            'max_appointments_per_day' => $maxApptVal,
         ]);
 
         if ($request->expectsJson()) {
@@ -74,13 +79,21 @@ class ResourceController extends Controller
             ->firstOrFail();
 
         $request->validate([
-            'name'      => ['sometimes', 'required', 'string', 'max:120'],
-            'subtitle'  => ['sometimes', 'nullable', 'string', 'max:120'],
-            'color_hex' => ['sometimes', 'required', 'string', 'in:' . implode(',', self::SWATCHES)],
-            'is_active' => ['sometimes', 'boolean'],
+            'name'                     => ['sometimes', 'required', 'string', 'max:120'],
+            'subtitle'                 => ['sometimes', 'nullable', 'string', 'max:120'],
+            'color_hex'                => ['sometimes', 'required', 'string', 'in:' . implode(',', self::SWATCHES)],
+            'is_active'                => ['sometimes', 'boolean'],
+            'max_appointments_per_day' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:200'],
         ]);
 
-        $resource->update($request->only(['name', 'subtitle', 'color_hex', 'is_active']));
+        // Normalize empty-string max to NULL so blanks land as "no cap".
+        $payload = $request->only(['name', 'subtitle', 'color_hex', 'is_active', 'max_appointments_per_day']);
+        if (array_key_exists('max_appointments_per_day', $payload)) {
+            $raw = $payload['max_appointments_per_day'];
+            $payload['max_appointments_per_day'] = ($raw === '' || $raw === null) ? null : (int) $raw;
+        }
+
+        $resource->update($payload);
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'resource' => $resource->fresh()]);

@@ -1,254 +1,340 @@
 /**
- * Intake SaaS — Capacity Editor JS
- * Two-panel: 7-day defaults with spinners + proportional bars | date overrides
+ * Capacity admin — booking-mode-aware weekly defaults + date overrides.
+ *
+ * Driven by window.CAP_BOOT (set by the Blade via @push). All saves go to
+ * the canonical tenant.capacity.store endpoint via op-dispatch:
+ *    op=save_defaults       (weekly grid)
+ *    op=save_override       (date one-off)
+ *    op=delete_override     (remove date one-off)
+ *
+ * No more dependence on the broken IntakeAdmin.ajaxUrl global.
+ *
+ * Save shape (op=save_defaults):
+ *    days[d][is_closed]              boolean
+ *    days[d][open_time]              "HH:MM" (omitted when closed)
+ *    days[d][close_time]             "HH:MM" (omitted when closed)
+ *    days[d][slot_interval_minutes]  integer (omitted when closed)
+ *    days[d][max]                    integer or empty (NULL = no shop override)
  */
 ( function () {
   'use strict';
 
-  var d         = window.IntakeCapData || {};
-  var defaults  = d.defaults  || [];   // [{ id, day, max }, ...]
-  var overrides = d.overrides || [];   // [{ id, date, max, note }, ...]
-  var ajaxUrl   = d.ajaxUrl   || '';
-  var csrf      = d.csrf      || '';
+  var boot = window.CAP_BOOT;
+  if ( !boot ) {
+    console.warn( 'capacity.js: CAP_BOOT missing — page boot data not provided' );
+    return;
+  }
 
-  var DAY_NAMES = [ 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday' ];
+  var DAY_LABELS = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ];
+  var DAY_LONG   = [ 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday' ];
 
+  // ===================================================================
+  // Boot
+  // ===================================================================
   document.addEventListener( 'DOMContentLoaded', function () {
-    renderDays();
+    renderDefaults();
     renderOverrides();
-    bindSave();
-    bindAddOverride();
+    bindAdvancedToggle();
+    bindOverrideModal();
   } );
 
-  // =========================================================================
-  // 7-day defaults
-  // =========================================================================
-  function renderDays() {
-    var container = document.getElementById( 'cap-days' );
-    if ( ! container ) return;
-    container.innerHTML = '';
+  // ===================================================================
+  // Weekly defaults
+  // ===================================================================
+  function renderDefaults() {
+    var list = document.getElementById( 'cap-defaults-list' );
+    if ( !list ) return;
 
-    var maxVal = Math.max.apply( null, defaults.map( function ( d ) { return d.max; } ).concat( [ 1 ] ) );
+    var days = boot.defaults || [];
+    list.innerHTML = days.map( renderDayRow ).join( '' );
 
-    defaults.forEach( function ( rule ) {
-      var card = document.createElement( 'div' );
-      card.className = 'cap-day-card';
+    // Wire the closed-toggle checkbox per row
+    list.querySelectorAll( '[data-cap-closed-toggle]' ).forEach( function ( cb ) {
+      cb.addEventListener( 'change', function () {
+        var row = cb.closest( '.cap-day-row' );
+        if ( cb.checked ) row.classList.add( 'is-closed' );
+        else               row.classList.remove( 'is-closed' );
+        scheduleSave();
+      } );
+    } );
 
-      var name = document.createElement( 'div' );
-      name.className = 'cap-day-name';
-      name.textContent = DAY_NAMES[ rule.day ] || 'Day ' + rule.day;
+    // Wire any input change to a debounced save
+    list.querySelectorAll( 'input' ).forEach( function ( input ) {
+      input.addEventListener( 'change', scheduleSave );
+      input.addEventListener( 'blur',   scheduleSave );
+    } );
+  }
 
-      var barWrap = document.createElement( 'div' );
-      barWrap.className = 'cap-bar-wrap';
-      var bar = document.createElement( 'div' );
-      bar.className = 'cap-bar';
-      bar.style.width = ( rule.max / maxVal * 100 ).toFixed( 1 ) + '%';
-      barWrap.appendChild( bar );
+  function renderDayRow( day ) {
+    var d = day.day;
+    var closed = !!day.is_closed;
+    var maxVal = ( day.max === null || day.max === undefined ) ? '' : day.max;
+    return ''
+      + '<div class="cap-day-row ' + ( closed ? 'is-closed' : '' ) + '" data-day="' + d + '">'
+      +   '<div class="cap-day-label">' + DAY_LONG[ d ] + '</div>'
+      +   '<label class="cap-day-toggle">'
+      +     '<input type="checkbox" data-cap-closed-toggle ' + ( closed ? 'checked' : '' ) + ' data-field="is_closed" data-day="' + d + '">'
+      +     '<span>Closed</span>'
+      +   '</label>'
+      +   '<div class="cap-day-time cap-day-fields-when-open">'
+      +     '<input type="time" data-field="open_time" data-day="' + d + '" value="' + ( day.open_time || '09:00' ) + '">'
+      +     '<span>to</span>'
+      +     '<input type="time" data-field="close_time" data-day="' + d + '" value="' + ( day.close_time || '17:00' ) + '">'
+      +   '</div>'
+      +   '<div class="cap-day-fields-when-closed">— closed —</div>'
+      +   '<div class="cap-day-max cap-day-fields-when-open">'
+      +     '<input type="number" min="0" placeholder="Auto" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="Shop-wide cap override. Leave blank to use sum of resource caps.">'
+      +   '</div>'
+      +   '<div class="cap-day-interval cap-day-fields-when-open">'
+      +     '<input type="number" min="5" max="240" step="5" data-field="slot_interval_minutes" data-day="' + d + '" value="' + ( day.slot_interval_minutes || 60 ) + '" title="Slot interval (minutes). Time-slot mode only.">'
+      +   '</div>'
+      + '</div>';
+  }
 
-      var spinner = document.createElement( 'div' );
-      spinner.className = 'cap-spinner';
+  function bindAdvancedToggle() {
+    var btn = document.getElementById( 'cap-toggle-advanced' );
+    if ( !btn ) return;
+    btn.addEventListener( 'click', function () {
+      var rows = document.querySelectorAll( '.cap-day-row' );
+      var hide = btn.querySelector( '[data-when-hidden]' );
+      var show = btn.querySelector( '[data-when-shown]' );
+      var nowShown = rows.length && rows[ 0 ].dataset.showAdvanced === '1';
+      rows.forEach( function ( row ) {
+        row.dataset.showAdvanced = nowShown ? '0' : '1';
+      } );
+      if ( hide ) hide.style.display = nowShown ? ''      : 'none';
+      if ( show ) show.style.display = nowShown ? 'none'  : '';
+    } );
+  }
 
-      var minusBtn = document.createElement( 'button' );
-      minusBtn.className = 'cap-spinner-btn';
-      minusBtn.textContent = '−';
-      minusBtn.type = 'button';
+  // Debounced save — collects all 7 days and posts as save_defaults.
+  var saveTimer = null;
+  function scheduleSave() {
+    if ( saveTimer ) clearTimeout( saveTimer );
+    saveTimer = setTimeout( saveDefaults, 600 );
+  }
 
-      var valEl = document.createElement( 'span' );
-      valEl.className = 'cap-spinner-val';
-      valEl.textContent = rule.max;
+  function saveDefaults() {
+    var fd = new FormData();
+    fd.append( '_token', boot.csrf );
+    fd.append( 'op', 'save_defaults' );
 
-      var plusBtn = document.createElement( 'button' );
-      plusBtn.className = 'cap-spinner-btn';
-      plusBtn.textContent = '+';
-      plusBtn.type = 'button';
-
-      var slotLabel = document.createElement( 'span' );
-      slotLabel.className = 'cap-slot-label';
-      slotLabel.textContent = rule.max === 1 ? '1 slot' : rule.max + ' slots';
-
-      function update( newVal ) {
-        rule.max = Math.max( 0, newVal );
-        valEl.textContent = rule.max;
-        slotLabel.textContent = rule.max === 1 ? '1 slot' : rule.max + ' slots';
-        var newMax = Math.max.apply( null, defaults.map( function ( d ) { return d.max; } ).concat( [ 1 ] ) );
-        // Update all bars proportionally
-        document.querySelectorAll( '.cap-bar' ).forEach( function ( b, i ) {
-          b.style.width = ( defaults[ i ].max / newMax * 100 ).toFixed( 1 ) + '%';
+    document.querySelectorAll( '.cap-day-row' ).forEach( function ( row ) {
+      var d = row.dataset.day;
+      var closedInput = row.querySelector( '[data-field="is_closed"]' );
+      var isClosed    = closedInput && closedInput.checked;
+      fd.append( 'days[' + d + '][is_closed]', isClosed ? '1' : '0' );
+      if ( !isClosed ) {
+        row.querySelectorAll( '[data-field]' ).forEach( function ( input ) {
+          var field = input.dataset.field;
+          if ( field === 'is_closed' ) return;
+          fd.append( 'days[' + d + '][' + field + ']', input.value );
         } );
       }
-
-      minusBtn.addEventListener( 'click', function () { update( rule.max - 1 ); } );
-      plusBtn.addEventListener( 'click',  function () { update( rule.max + 1 ); } );
-
-      spinner.appendChild( minusBtn );
-      spinner.appendChild( valEl );
-      spinner.appendChild( plusBtn );
-
-      card.appendChild( name );
-      card.appendChild( barWrap );
-      card.appendChild( spinner );
-      card.appendChild( slotLabel );
-      container.appendChild( card );
     } );
+
+    setStatus( 'Saving…' );
+    fetch( boot.saveUrl, {
+      method:  'POST',
+      body:    fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    } )
+      .then( function ( r ) { return r.json(); } )
+      .then( function ( resp ) {
+        if ( resp && resp.success ) setStatus( 'Saved' );
+        else                        setStatus( 'Save failed', true );
+      } )
+      .catch( function ( err ) {
+        console.error( 'Capacity save error:', err );
+        setStatus( 'Save failed', true );
+      } );
   }
 
-  function bindSave() {
-    var btn = document.getElementById( 'cap-save-btn' );
-    if ( ! btn ) return;
-    btn.addEventListener( 'click', function () {
-      btn.disabled = true;
-      btn.textContent = 'Saving…';
-
-      var payload = { op: 'save_defaults' };
-      defaults.forEach( function ( rule ) {
-        payload[ 'days[' + rule.day + ']' ] = rule.max;
-      } );
-
-      post( payload, function ( resp ) {
-        btn.disabled = false;
-        btn.textContent = 'Save defaults';
-        setStatus( resp.success ? 'Saved ✓' : 'Error saving.' );
-      } );
-    } );
-  }
-
-  // =========================================================================
+  // ===================================================================
   // Date overrides
-  // =========================================================================
+  // ===================================================================
   function renderOverrides() {
-    var list = document.getElementById( 'ov-list' );
-    if ( ! list ) return;
-    list.innerHTML = '';
+    var list = document.getElementById( 'cap-overrides-list' );
+    if ( !list ) return;
+
+    var overrides = boot.overrides || [];
+    var empty = document.getElementById( 'cap-override-empty' );
 
     if ( overrides.length === 0 ) {
-      list.innerHTML = '<p style="font-size:13px;opacity:.4">No date overrides yet.</p>';
+      list.innerHTML = '';
+      if ( empty ) empty.style.display = '';
       return;
     }
+    if ( empty ) empty.style.display = 'none';
 
-    overrides.forEach( function ( ov ) {
-      list.appendChild( buildOverrideRow( ov ) );
+    list.innerHTML = overrides.map( function ( ov ) {
+      var dateLabel = formatDate( ov.date );
+      var statusBadge = ov.is_closed
+        ? '<span class="cap-override-status closed">Closed</span>'
+        : '<span class="cap-override-status cap">Cap</span>';
+      var capDisplay = ov.is_closed
+        ? '—'
+        : ( ov.max === null || ov.max === undefined ? 'Resource sum' : ov.max + ' max' );
+
+      return ''
+        + '<div class="cap-override-row" data-id="' + ov.id + '">'
+        +   '<div><div class="cap-override-date">' + dateLabel + '</div></div>'
+        +   '<div>' + statusBadge + '</div>'
+        +   '<div class="cap-override-note">' + ( ov.note ? escapeHtml( ov.note ) : '' ) + '</div>'
+        +   '<div class="cap-override-cap-display">' + capDisplay + '</div>'
+        +   '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-cap-delete-override="' + ov.id + '" title="Remove override">×</button>'
+        + '</div>';
+    } ).join( '' );
+
+    list.querySelectorAll( '[data-cap-delete-override]' ).forEach( function ( btn ) {
+      btn.addEventListener( 'click', function () {
+        var id = btn.dataset.capDeleteOverride;
+        if ( !confirm( 'Remove this date override?' ) ) return;
+        deleteOverride( id );
+      } );
     } );
   }
 
-  function buildOverrideRow( ov ) {
-    var row = document.createElement( 'div' );
-    row.className = 'cap-override-row';
-    row.setAttribute( 'data-id', ov.id );
+  function bindOverrideModal() {
+    var addBtn  = document.getElementById( 'cap-add-override-btn' );
+    var modal   = document.getElementById( 'cap-override-modal' );
+    var closeBtn = document.getElementById( 'cap-override-close' );
+    var cancelBtn = document.getElementById( 'cap-override-cancel' );
+    var saveBtn   = document.getElementById( 'cap-override-save' );
+    var dateInput = document.getElementById( 'ov-date' );
+    var closedCb  = document.getElementById( 'ov-is-closed' );
+    var maxInput  = document.getElementById( 'ov-max' );
+    var maxGroup  = document.getElementById( 'ov-max-group' );
+    var noteInput = document.getElementById( 'ov-note' );
 
-    var dateEl = document.createElement( 'div' );
-    dateEl.className = 'cap-override-date';
-    dateEl.textContent = formatDate( ov.date );
+    if ( !addBtn || !modal ) return;
 
-    var noteEl = document.createElement( 'div' );
-    noteEl.className = 'cap-override-note';
-    noteEl.style.flex = '1';
-    noteEl.textContent = ov.note || '';
+    function openModal() {
+      dateInput.value = '';
+      closedCb.checked = false;
+      maxInput.value = '';
+      noteInput.value = '';
+      maxGroup.style.display = '';
+      modal.style.display = '';
+    }
+    function closeModal() {
+      modal.style.display = 'none';
+    }
 
-    var maxEl = document.createElement( 'div' );
-    maxEl.className = 'cap-override-max';
-    maxEl.textContent = ov.max + ' slots';
+    closedCb.addEventListener( 'change', function () {
+      maxGroup.style.display = closedCb.checked ? 'none' : '';
+    } );
 
-    var delBtn = document.createElement( 'button' );
-    delBtn.className = 'ia-btn ia-btn--ghost ia-btn--sm ia-btn--icon';
-    delBtn.type = 'button';
-    delBtn.title = 'Delete override';
-    delBtn.innerHTML = '&#x2715;';
-    delBtn.addEventListener( 'click', function () {
-      post( { op: 'delete_override', id: ov.id }, function ( resp ) {
-        if ( resp.success ) {
-          row.remove();
-          overrides = overrides.filter( function ( o ) { return o.id !== ov.id; } );
-          if ( overrides.length === 0 ) {
-            document.getElementById( 'ov-list' ).innerHTML = '<p style="font-size:13px;opacity:.4">No date overrides yet.</p>';
+    addBtn.addEventListener( 'click', openModal );
+    closeBtn.addEventListener( 'click', closeModal );
+    cancelBtn.addEventListener( 'click', closeModal );
+    document.querySelector( '#cap-override-modal .cap-modal-back' )
+      .addEventListener( 'click', closeModal );
+
+    saveBtn.addEventListener( 'click', function () {
+      if ( !dateInput.value ) {
+        alert( 'Please pick a date.' );
+        return;
+      }
+      var fd = new FormData();
+      fd.append( '_token', boot.csrf );
+      fd.append( 'op', 'save_override' );
+      fd.append( 'date', dateInput.value );
+      fd.append( 'is_closed', closedCb.checked ? '1' : '0' );
+      if ( !closedCb.checked && maxInput.value !== '' ) {
+        fd.append( 'max', maxInput.value );
+      }
+      fd.append( 'note', noteInput.value || '' );
+
+      fetch( boot.saveUrl, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+      } )
+        .then( function ( r ) { return r.json(); } )
+        .then( function ( resp ) {
+          if ( resp && resp.success ) {
+            // Push the new/updated override into boot state and re-render.
+            var existing = ( boot.overrides || [] ).filter( function ( o ) {
+              return o.date !== resp.date;
+            } );
+            existing.push( {
+              id: resp.id,
+              date: resp.date,
+              max: resp.max,
+              is_closed: !!resp.is_closed,
+              note: resp.note,
+            } );
+            existing.sort( function ( a, b ) { return a.date.localeCompare( b.date ); } );
+            boot.overrides = existing;
+            renderOverrides();
+            closeModal();
+            setStatus( 'Saved' );
+          } else {
+            setStatus( 'Save failed', true );
           }
-        }
-      } );
-    } );
-
-    row.appendChild( dateEl );
-    row.appendChild( noteEl );
-    row.appendChild( maxEl );
-    row.appendChild( delBtn );
-    return row;
-  }
-
-  function bindAddOverride() {
-    var addBtn  = document.getElementById( 'ov-add-btn' );
-    var dateInp = document.getElementById( 'ov-date' );
-    var maxInp  = document.getElementById( 'ov-max' );
-    var noteInp = document.getElementById( 'ov-note' );
-    var errEl   = document.getElementById( 'ov-error' );
-    var list    = document.getElementById( 'ov-list' );
-
-    if ( ! addBtn ) return;
-
-    addBtn.addEventListener( 'click', function () {
-      var date = dateInp.value;
-      var max  = parseInt( maxInp.value, 10 );
-
-      if ( ! date ) { showErr( errEl, 'Please select a date.' ); return; }
-      if ( isNaN( max ) || max < 0 ) { showErr( errEl, 'Max bookings must be 0 or more.' ); return; }
-      hideErr( errEl );
-
-      addBtn.disabled = true;
-      addBtn.textContent = 'Saving…';
-
-      post( {
-        op:   'save_override',
-        date: date,
-        max:  max,
-        note: noteInp.value.trim(),
-      }, function ( resp ) {
-        addBtn.disabled  = false;
-        addBtn.textContent = 'Add override';
-
-        if ( ! resp.success ) { showErr( errEl, resp.message || 'Error.' ); return; }
-
-        // Remove empty state
-        var empty = list.querySelector( 'p' );
-        if ( empty ) empty.remove();
-
-        // Add row (insert sorted by date)
-        var newOv = { id: resp.id, date: resp.date, max: resp.max, note: resp.note };
-        overrides.push( newOv );
-        overrides.sort( function ( a, b ) { return a.date.localeCompare( b.date ); } );
-        list.innerHTML = '';
-        overrides.forEach( function ( ov ) { list.appendChild( buildOverrideRow( ov ) ); } );
-
-        // Reset form
-        dateInp.value  = '';
-        maxInp.value   = '0';
-        noteInp.value  = '';
-      } );
+        } )
+        .catch( function ( err ) {
+          console.error( 'Override save error:', err );
+          setStatus( 'Save failed', true );
+        } );
     } );
   }
 
-  // =========================================================================
-  // Helpers
-  // =========================================================================
-  function formatDate( dateStr ) {
-    try {
-      var d = new Date( dateStr + 'T00:00:00' );
-      return d.toLocaleDateString( undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' } );
-    } catch ( e ) { return dateStr; }
-  }
-
-  function setStatus( msg ) {
-    var el = document.getElementById( 'cap-status' );
-    if ( el ) el.textContent = msg;
-  }
-
-  function showErr( el, msg ) { if ( el ) { el.textContent = msg; el.style.display = ''; } }
-  function hideErr( el )       { if ( el ) el.style.display = 'none'; }
-
-  function post( data, callback ) {
+  function deleteOverride( id ) {
     var fd = new FormData();
-    fd.append( '_token', csrf );
-    Object.keys( data ).forEach( function ( k ) { fd.append( k, data[ k ] ); } );
-    fetch( ajaxUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } } )
+    fd.append( '_token', boot.csrf );
+    fd.append( 'op', 'delete_override' );
+    fd.append( 'id', id );
+
+    fetch( boot.saveUrl, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    } )
       .then( function ( r ) { return r.json(); } )
-      .then( callback )
-      .catch( function ( err ) { console.error( 'Capacity ajax error:', err ); } );
+      .then( function ( resp ) {
+        if ( resp && resp.success ) {
+          boot.overrides = ( boot.overrides || [] ).filter( function ( o ) { return o.id !== id; } );
+          renderOverrides();
+          setStatus( 'Removed' );
+        } else {
+          setStatus( 'Delete failed', true );
+        }
+      } )
+      .catch( function ( err ) {
+        console.error( 'Override delete error:', err );
+        setStatus( 'Delete failed', true );
+      } );
+  }
+
+  // ===================================================================
+  // Helpers
+  // ===================================================================
+  function setStatus( msg, isError ) {
+    var el = document.getElementById( 'cap-status' );
+    if ( !el ) return;
+    el.textContent = msg;
+    el.classList.add( 'show' );
+    if ( isError ) el.style.color = '#d97a7a';
+    else            el.style.color = '';
+    clearTimeout( setStatus._t );
+    setStatus._t = setTimeout( function () { el.classList.remove( 'show' ); }, 1800 );
+  }
+
+  function formatDate( ds ) {
+    try {
+      var d = new Date( ds + 'T00:00:00' );
+      return d.toLocaleDateString( undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' } );
+    } catch ( e ) { return ds; }
+  }
+
+  function escapeHtml( str ) {
+    return String( str )
+      .replace( /&/g, '&amp;' )
+      .replace( /</g, '&lt;' )
+      .replace( />/g, '&gt;' )
+      .replace( /"/g, '&quot;' );
   }
 
 }() );

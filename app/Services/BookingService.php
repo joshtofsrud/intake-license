@@ -91,6 +91,76 @@ class BookingService
 
         $tenant   = Tenant::findOrFail($tenantId);
         $mode     = $tenant->booking_mode ?? 'drop_off';
+
+        // ------------------------------------------------------------------
+        // Drop-off mode: resolve resource via auto-fallback.
+        //
+        // Walks the eligible-resources list (per service) and picks the
+        // first one with remaining daily capacity. Skips resources whose
+        // per-resource cap is already met. If no resource has space, throws
+        // a clean "shop full today" error.
+        //
+        // For multi-service bookings, each service has its own eligibility
+        // list; the chosen resource must satisfy the intersection. We use
+        // the FIRST service's eligibility as the base and intersect with
+        // each subsequent service's list. Empty intersection = "no single
+        // resource can do all selected services" — also a hard reject.
+        //
+        // If $resourceId was provided up-front (e.g. customer picked one
+        // explicitly), we honor that pick if it's eligible AND has capacity.
+        // Otherwise we fall through. This keeps the explicit-pick path
+        // working without forcing every drop-off booking to auto-assign.
+        // ------------------------------------------------------------------
+        if ($mode === 'drop_off' && $resourceId === null) {
+            // Eligibility intersection across all selected services.
+            $candidateIds = null;
+            foreach ($plan as $row) {
+                $serviceId = $row['service']->id;
+                $svcEligible = $this->eligibleResourcesForService($tenantId, $serviceId);
+                if ($candidateIds === null) {
+                    $candidateIds = $svcEligible;
+                } else {
+                    $candidateIds = array_values(array_intersect($candidateIds, $svcEligible));
+                }
+                if (empty($candidateIds)) break;
+            }
+
+            if (empty($candidateIds)) {
+                throw new RuntimeException(
+                    'No staff member can perform every selected service. '
+                    . 'Please pick a different combination.'
+                );
+            }
+
+            // Pull caps for candidates in one query, then walk them in
+            // sort_order to pick the first with remaining quota.
+            $candidates = \App\Models\Tenant\TenantResource::where('tenant_id', $tenantId)
+                ->whereIn('id', $candidateIds)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get(['id', 'max_appointments_per_day']);
+
+            $picked = null;
+            foreach ($candidates as $cand) {
+                $cap = $cand->max_appointments_per_day;
+                if ($cap === null) {
+                    // Unbounded — always pick first unbounded resource.
+                    $picked = $cand->id;
+                    break;
+                }
+                $used = $this->resourceUsedSlotsForDate($tenantId, $cand->id, $data['date']);
+                if (($used + $slotWeight) <= (int) $cap) {
+                    $picked = $cand->id;
+                    break;
+                }
+            }
+
+            if ($picked === null) {
+                throw new RuntimeException('All staff are fully booked on that date. Please pick another day.');
+            }
+
+            $resourceId = $picked;
+        }
         $lockKey  = $this->computeLockKey($mode, $tenantId, $data['date'], $appointmentTime, $resourceId);
         $lock     = app(MySQLLock::class);
 
@@ -239,6 +309,15 @@ class BookingService
             ->whereBetween('specific_date', [$start->toDateString(), $end->toDateString()])
             ->get()->keyBy(fn($r) => $r->specific_date->toDateString());
 
+        // Sum of per-resource daily caps. NULL caps mean "no per-resource limit"
+        // — those resources are excluded from the sum (their capacity is bounded
+        // only by the time grid in time-slot mode, or by shop-wide override in
+        // drop-off mode). Cached per call since it doesn't change day-to-day.
+        $resourceCapSum = (int) \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->whereNotNull('max_appointments_per_day')
+            ->sum('max_appointments_per_day');
+
         $available = [];
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
@@ -246,21 +325,103 @@ class BookingService
             $dow = $cursor->dayOfWeek;
             $rule = $overrides[$dateStr] ?? $defaults[$dow] ?? null;
             if (!$rule) { $cursor->addDay(); continue; }
-            $max = (int) $rule->max_appointments;
-            if ($max === 0) { $cursor->addDay(); continue; }
+
+            // is_closed short-circuits all other capacity logic — closed means closed.
+            if (!empty($rule->is_closed)) { $cursor->addDay(); continue; }
+
+            // max_appointments meaning depends on mode:
+            //   - drop_off:    shop-wide cap override (NULL = use resource sum)
+            //   - time_slots:  optional cap on grid-derived capacity (NULL = no override)
+            $shopOverride = isset($rule->max_appointments) && $rule->max_appointments !== null
+                ? (int) $rule->max_appointments
+                : null;
 
             if ($mode === 'drop_off') {
+                // Effective cap = min(shop_override, resource_cap_sum) when both set.
+                // If neither is set, day is unbounded (treated as 'no cap' — still available).
+                $effectiveCap = null;
+                if ($shopOverride !== null && $resourceCapSum > 0) {
+                    $effectiveCap = min($shopOverride, $resourceCapSum);
+                } elseif ($shopOverride !== null) {
+                    $effectiveCap = $shopOverride;
+                } elseif ($resourceCapSum > 0) {
+                    $effectiveCap = $resourceCapSum;
+                }
+                // Cap of 0 means closed for this day.
+                if ($effectiveCap === 0) { $cursor->addDay(); continue; }
+
                 $used = TenantAppointment::where('tenant_id', $tenant->id)
                     ->whereNotIn('status', ['cancelled', 'refunded'])
                     ->where('appointment_date', $dateStr)->sum('slot_weight');
-                if ($used < $max) $available[] = $dateStr;
+                // null effectiveCap = unbounded, which keeps the day available.
+                if ($effectiveCap === null || $used < $effectiveCap) {
+                    $available[] = $dateStr;
+                }
             } else {
-                $slots = $this->availableSlotsForDate($tenant, $dateStr, $rule);
+                // time_slots: availableSlotsForDate already honors $rule.
+                // The shop override (if any) is applied by capping how many
+                // distinct slots remain bookable, but the grid math — not
+                // a shop-wide weight sum — is the primary gating factor.
+                $slots = $this->availableSlotsForDate($tenant, $dateStr, null, 0, $rule);
                 if (!empty($slots)) $available[] = $dateStr;
             }
             $cursor->addDay();
         }
         return $available;
+    }
+
+    /**
+     * Service→Resource eligibility filter.
+     *
+     * Returns the active resources that can perform the given service item,
+     * scoped to the tenant. EMPTY eligibility table for a service means
+     * "any active resource" — specialization is opt-in. This lets the
+     * BookingService fall through to whichever resource is free at lock
+     * time without forcing tenants to maintain a per-service mapping if
+     * they don't need one.
+     *
+     * Returns an array of resource UUIDs (not models) to keep the result
+     * cheaply cacheable per request.
+     */
+    public function eligibleResourcesForService(string $tenantId, string $serviceId): array
+    {
+        $rows = \Illuminate\Support\Facades\DB::table('tenant_service_resource_eligibility')
+            ->where('tenant_id', $tenantId)
+            ->where('service_item_id', $serviceId)
+            ->pluck('resource_id')
+            ->all();
+
+        if (!empty($rows)) {
+            // Filter to active only — a resource may have been deactivated
+            // after the eligibility row was written, in which case we should
+            // not propose it for new bookings.
+            return \App\Models\Tenant\TenantResource::where('tenant_id', $tenantId)
+                ->whereIn('id', $rows)
+                ->where('is_active', true)
+                ->pluck('id')
+                ->all();
+        }
+
+        // Empty eligibility = all active resources are eligible.
+        return \App\Models\Tenant\TenantResource::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->pluck('id')
+            ->all();
+    }
+
+    /**
+     * Returns the count of active appointments using a given resource on a
+     * given date (sum of slot_weight — services with weight > 1 cost more
+     * against the resource's daily quota). Used by drop-off auto-fallback
+     * to find a resource with remaining capacity.
+     */
+    public function resourceUsedSlotsForDate(string $tenantId, string $resourceId, string $date): int
+    {
+        return (int) TenantAppointment::where('tenant_id', $tenantId)
+            ->where('resource_id', $resourceId)
+            ->where('appointment_date', $date)
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->sum('slot_weight');
     }
 
     /**

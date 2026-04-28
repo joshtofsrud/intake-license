@@ -1,0 +1,109 @@
+/**
+ * Drop-off calendar — drag-to-reschedule + drag-to-reassign.
+ *
+ * Handles two view modes (window.CAL_DROPOFF_BOOT.view):
+ *   - 'day':  per-resource swimlanes within today; drag between columns
+ *             reassigns the appointment to a different resource.
+ *   - 'week': resource rows × day columns; drag between cells changes
+ *             EITHER date OR resource (or both, if dragged diagonally).
+ *
+ * On drop, posts to rescheduleUrl with appointment_id, new_date, new_resource_id.
+ * Server validates and persists. UI optimistically renders the new position;
+ * a failure response triggers a page reload to restore truth.
+ */
+( function () {
+  'use strict';
+
+  var boot = window.CAL_DROPOFF_BOOT;
+  if ( !boot ) return;
+
+  document.addEventListener( 'DOMContentLoaded', function () {
+    if ( !window.Sortable ) {
+      console.warn( 'calendar-dropoff: SortableJS not loaded' );
+      return;
+    }
+
+    if ( boot.view === 'day' )  initDayView();
+    if ( boot.view === 'week' ) initWeekView();
+  } );
+
+  // ------------------------------------------------------------------
+  // Day view: each resource column is a Sortable list. Cards drag
+  // between columns to reassign resource_id; date stays fixed.
+  // ------------------------------------------------------------------
+  function initDayView() {
+    var columns = document.querySelectorAll( '.cal-dropoff-col-body' );
+    columns.forEach( function ( col ) {
+      Sortable.create( col, {
+        group: 'cal-dropoff-day',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        onEnd: function ( evt ) {
+          if ( evt.from === evt.to && evt.oldIndex === evt.newIndex ) return;
+          var card        = evt.item;
+          var apptId      = card.dataset.appointmentId;
+          var newResource = evt.to.dataset.resourceId;
+          var date        = evt.to.dataset.date;
+          reschedule( apptId, date, newResource, card );
+        }
+      } );
+    } );
+  }
+
+  // ------------------------------------------------------------------
+  // Week view: every (resource × day) cell is a Sortable. Cards drag
+  // anywhere in the grid; both date and resource may change in one drop.
+  // ------------------------------------------------------------------
+  function initWeekView() {
+    var cells = document.querySelectorAll( '.cal-week-cell' );
+    cells.forEach( function ( cell ) {
+      Sortable.create( cell, {
+        group: 'cal-dropoff-week',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        // A cell may be empty initially (.cal-week-cell-empty placeholder).
+        // SortableJS won't accept drops into elements with no children unless
+        // we set this. The placeholder div is fine to leave in place.
+        emptyInsertThreshold: 12,
+        onEnd: function ( evt ) {
+          if ( evt.from === evt.to && evt.oldIndex === evt.newIndex ) return;
+          var card        = evt.item;
+          var apptId      = card.dataset.appointmentId;
+          var newResource = evt.to.dataset.resourceId;
+          var newDate     = evt.to.dataset.date;
+          reschedule( apptId, newDate, newResource, card );
+        }
+      } );
+    } );
+  }
+
+  function reschedule( apptId, newDate, newResourceId, cardEl ) {
+    var fd = new FormData();
+    fd.append( '_token', boot.csrf );
+    fd.append( 'appointment_id', apptId );
+    fd.append( 'new_date', newDate );
+    if ( newResourceId ) fd.append( 'new_resource_id', newResourceId );
+
+    fetch( boot.rescheduleUrl, {
+      method:  'POST',
+      body:    fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    } )
+      .then( function ( r ) { return r.json(); } )
+      .then( function ( resp ) {
+        if ( !resp || !resp.success ) {
+          // Reload to restore truth — server rejected the move.
+          alert( 'Could not move that appointment: ' + ( resp && resp.message ? resp.message : 'unknown error' ) );
+          window.location.reload();
+        }
+      } )
+      .catch( function ( err ) {
+        console.error( 'Drop-off reschedule failed:', err );
+        alert( 'Network error. Reloading to restore the calendar.' );
+        window.location.reload();
+      } );
+  }
+
+}() );

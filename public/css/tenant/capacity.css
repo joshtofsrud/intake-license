@@ -1,0 +1,9 @@
+/* Capacity admin — page-specific styles. */
+/* Most styling lives inline in the Blade for portability with the design tokens. */
+/* This file exists primarily so Blade can reference it via filemtime versioning. */
+
+/* Override target: visual emphasis on the closed-toggle when ticked */
+.cap-day-row [data-cap-closed-toggle]:checked + span {
+  color: var(--ia-text);
+  font-weight: 600;
+}

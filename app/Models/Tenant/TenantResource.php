@@ -22,13 +22,15 @@ class TenantResource extends Model
         'staff_user_id',
         'sort_order',
         'is_active',
+        'max_appointments_per_day',
         'metadata',
     ];
 
     protected $casts = [
-        'is_active'  => 'boolean',
-        'sort_order' => 'integer',
-        'metadata'   => 'array',
+        'is_active'                => 'boolean',
+        'sort_order'               => 'integer',
+        'max_appointments_per_day' => 'integer',
+        'metadata'                 => 'array',
     ];
 
     // ------------------------------------------------------------------

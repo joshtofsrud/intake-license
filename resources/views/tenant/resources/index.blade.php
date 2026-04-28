@@ -21,7 +21,7 @@
   <h2 class="ia-h3" style="margin-bottom:12px">Add a resource</h2>
   <form method="POST" action="{{ route('tenant.resources.store') }}" id="add-resource-form">
     @csrf
-    <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr auto;gap:10px;align-items:end">
+    <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 100px auto;gap:10px;align-items:end">
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
         <input type="text" name="name" required maxlength="120" placeholder="e.g. Maya Rodriguez" class="ia-input" style="width:100%">
@@ -33,6 +33,10 @@
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Color</label>
         <x-tenant.color-picker :swatches="$swatches" name="color_hex" :selected="$swatches[0]" :reserved="$reservedLime" />
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px" title="Max appointments this resource can take per day">Daily cap</label>
+        <input type="number" name="max_appointments_per_day" min="0" placeholder="No cap" class="ia-input" style="width:100%;text-align:right">
       </div>
       <div>
         <button type="submit" class="ia-btn ia-btn--primary">Add</button>
@@ -56,7 +60,7 @@
     <div id="resource-list" data-csrf="{{ csrf_token() }}">
       @foreach($resources as $r)
         <div class="resource-row" data-resource-id="{{ $r->id }}"
-             style="display:grid;grid-template-columns:auto 1.2fr 1.2fr 1fr auto auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border);background:var(--ia-surface);{{ $r->is_active ? '' : 'opacity:.45' }}">
+             style="display:grid;grid-template-columns:auto 1.2fr 1.2fr 1fr 90px auto auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border);background:var(--ia-surface);{{ $r->is_active ? '' : 'opacity:.45' }}">
           <div class="drag-handle" style="cursor:grab;opacity:.4;font-size:14px;user-select:none">⋮⋮</div>
 
           <input type="text" data-field="name" value="{{ $r->name }}" maxlength="120" class="ia-input resource-edit" style="width:100%">
@@ -66,6 +70,8 @@
           <div>
             <x-tenant.color-picker :swatches="$swatches" name="color_hex" :selected="$r->color_hex" :reserved="$reservedLime" :resourceId="$r->id" :compact="true" />
           </div>
+
+          <input type="number" data-field="max_appointments_per_day" min="0" value="{{ $r->max_appointments_per_day }}" placeholder="No cap" class="ia-input resource-edit" style="width:100%;text-align:right;font-size:13px" title="Max appointments per day. Blank = no cap.">
 
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
             <input type="checkbox" data-field="is_active" {{ $r->is_active ? 'checked' : '' }} class="resource-edit-toggle">

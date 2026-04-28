@@ -20,17 +20,20 @@ class CapacityController extends Controller
             ->get()
             ->keyBy('day_of_week');
 
-        // Seed defaults if none exist
+        // Seed defaults if none exist. Default closed = Sun/Sat; open Mon–Fri 9–5.
+        // Tenants edit this in the capacity admin; we just provide a reasonable starting shape.
         if ($defaults->isEmpty()) {
             for ($d = 0; $d <= 6; $d++) {
+                $isWeekend = in_array($d, [0, 6]);
                 $rule = TenantCapacityRule::create([
                     'tenant_id'             => $tenant->id,
                     'rule_type'             => 'default',
                     'day_of_week'           => $d,
-                    'max_appointments'      => in_array($d, [0, 6]) ? 0 : 8,
-                    'open_time'             => '09:00:00',
-                    'close_time'            => '17:00:00',
+                    'max_appointments'      => null,
+                    'open_time'             => $isWeekend ? null : '09:00:00',
+                    'close_time'            => $isWeekend ? null : '17:00:00',
                     'slot_interval_minutes' => 60,
+                    'is_closed'             => $isWeekend,
                 ]);
                 $defaults[$d] = $rule;
             }
@@ -60,6 +63,7 @@ class CapacityController extends Controller
             'open_time'             => $r->open_time ? substr($r->open_time, 0, 5) : '09:00',
             'close_time'            => $r->close_time ? substr($r->close_time, 0, 5) : '17:00',
             'slot_interval_minutes' => $r->slot_interval_minutes ?? 60,
+            'is_closed'             => (bool) $r->is_closed,
         ])->values();
 
         $jsOverrides = $overrides->map(fn($r) => [
@@ -77,8 +81,26 @@ class CapacityController extends Controller
         $mode        = $tenant->booking_mode ?? 'drop_off';
         $switchPreview = null;
 
+        // Per-resource caps (read-only on capacity page; editable on resources page).
+        // Pass as array of {id, name, color_hex, max_appointments_per_day} for the
+        // capacity admin to render the "Resource caps sum: X" summary line.
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'color_hex', 'max_appointments_per_day']);
+
+        $jsResources = $resources->map(fn($r) => [
+            'id'                       => $r->id,
+            'name'                     => $r->name,
+            'color_hex'                => $r->color_hex,
+            'max_appointments_per_day' => $r->max_appointments_per_day,
+        ])->values();
+
+        $resourceCapSum = (int) $resources->sum('max_appointments_per_day');
+
         return view('tenant.capacity.index', compact(
-            'jsDefaults', 'jsOverrides', 'jsUsage', 'mode'
+            'jsDefaults', 'jsOverrides', 'jsUsage', 'mode',
+            'jsResources', 'resourceCapSum'
         ));
     }
 
@@ -90,12 +112,28 @@ class CapacityController extends Controller
         if ($op === 'save_defaults') {
             $days = $request->input('days', []);
             foreach ($days as $day => $data) {
-                $updates = ['max_appointments' => max(0, (int)($data['max'] ?? $data))];
+                $updates = [];
 
-                // Time slot mode fields
-                if (isset($data['open_time']))             $updates['open_time']             = $data['open_time'];
-                if (isset($data['close_time']))            $updates['close_time']             = $data['close_time'];
-                if (isset($data['slot_interval_minutes'])) $updates['slot_interval_minutes']  = (int)$data['slot_interval_minutes'];
+                // is_closed comes first — if true, null out time/interval/max so
+                // "saved-closed = lose prior values" per spec item 3.
+                $isClosed = isset($data['is_closed']) ? (bool) $data['is_closed'] : false;
+                $updates['is_closed'] = $isClosed;
+
+                if ($isClosed) {
+                    $updates['open_time']             = null;
+                    $updates['close_time']            = null;
+                    $updates['max_appointments']      = null;
+                } else {
+                    // max_appointments is NULL when blank — represents "no shop-wide override".
+                    $maxRaw = $data['max'] ?? null;
+                    $updates['max_appointments'] = ($maxRaw === '' || $maxRaw === null)
+                        ? null
+                        : max(0, (int) $maxRaw);
+
+                    if (isset($data['open_time']))             $updates['open_time']             = $data['open_time'];
+                    if (isset($data['close_time']))            $updates['close_time']            = $data['close_time'];
+                    if (isset($data['slot_interval_minutes'])) $updates['slot_interval_minutes'] = (int) $data['slot_interval_minutes'];
+                }
 
                 TenantCapacityRule::updateOrCreate(
                     ['tenant_id' => $tenant->id, 'rule_type' => 'default', 'day_of_week' => (int)$day],
@@ -107,19 +145,35 @@ class CapacityController extends Controller
 
         if ($op === 'save_override') {
             $request->validate([
-                'date' => ['required', 'date', 'after_or_equal:today'],
-                'max'  => ['required', 'integer', 'min:0'],
+                'date'      => ['required', 'date', 'after_or_equal:today'],
+                'max'       => ['nullable', 'integer', 'min:0'],
+                'is_closed' => ['nullable', 'boolean'],
+                'note'      => ['nullable', 'string', 'max:255'],
             ]);
+
+            $isClosed = (bool) $request->input('is_closed', false);
+            $payload = [
+                'is_closed' => $isClosed,
+                'note'      => $request->input('note', ''),
+            ];
+            if ($isClosed) {
+                $payload['max_appointments'] = null;
+            } else {
+                $maxRaw = $request->input('max');
+                $payload['max_appointments'] = ($maxRaw === null || $maxRaw === '') ? null : (int) $maxRaw;
+            }
+
             $rule = TenantCapacityRule::updateOrCreate(
                 ['tenant_id' => $tenant->id, 'rule_type' => 'override', 'specific_date' => $request->input('date')],
-                ['max_appointments' => (int)$request->input('max'), 'note' => $request->input('note', '')]
+                $payload
             );
             return response()->json([
-                'success' => true,
-                'id'      => $rule->id,
-                'date'    => $rule->specific_date->format('Y-m-d'),
-                'max'     => $rule->max_appointments,
-                'note'    => $rule->note,
+                'success'   => true,
+                'id'        => $rule->id,
+                'date'      => $rule->specific_date->format('Y-m-d'),
+                'max'       => $rule->max_appointments,
+                'is_closed' => (bool) $rule->is_closed,
+                'note'      => $rule->note,
             ]);
         }
 

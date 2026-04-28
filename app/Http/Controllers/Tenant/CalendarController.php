@@ -24,9 +24,24 @@ class CalendarController extends Controller
      */
     public function index(Request $request)
     {
+        $tenant = tenant();
+        $mode   = $tenant->booking_mode ?? 'drop_off';
+
+        // Month view exists only for time-slot mode in v1; drop-off has day + week.
+        $allowedViews = $mode === 'time_slots'
+            ? ['day', 'week', 'month']
+            : ['day', 'week'];
+
         $view = $request->query('view', 'day');
-        if (!in_array($view, ['day', 'week', 'month'], true)) {
+        if (!in_array($view, $allowedViews, true)) {
             $view = 'day';
+        }
+
+        if ($mode === 'drop_off') {
+            return match ($view) {
+                'week'  => $this->dropOffWeekView($request),
+                default => $this->dropOffDayView($request),
+            };
         }
 
         return match ($view) {
@@ -34,6 +49,140 @@ class CalendarController extends Controller
             'month' => $this->monthView($request),
             default => $this->dayView($request),
         };
+    }
+
+    /* ============================================================
+     * Drop-off mode — day view
+     * Per-resource swimlanes within a single day. No time axis.
+     * Appointments stack within their resource column, ordered by
+     * stack_order (manual drag) then RA number (newest last).
+     * ============================================================ */
+    protected function dropOffDayView(Request $request)
+    {
+        $tenant = tenant();
+        $date   = $this->resolveDate($request->query('date'), $tenant);
+
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'subtitle', 'color_hex', 'max_appointments_per_day']);
+
+        // Active appointments for the day, all resources at once.
+        $appointments = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('appointment_date', $date->toDateString())
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->orderBy('ra_number')
+            ->get([
+                'id', 'ra_number', 'resource_id', 'status',
+                'customer_first_name', 'customer_last_name',
+                'receiving_method_snapshot', 'slot_weight',
+                'appointment_date',
+            ])
+            ->groupBy('resource_id');
+
+        return view('tenant.calendar.dropoff', [
+            'mode'         => 'drop_off',
+            'view'         => 'day',
+            'date'         => $date,
+            'resources'    => $resources,
+            'appointments' => $appointments,
+        ]);
+    }
+
+    /* ============================================================
+     * Drop-off mode — week view
+     * Resources as rows, days as columns. Each cell stacks the
+     * appointments for that resource on that day.
+     * ============================================================ */
+    protected function dropOffWeekView(Request $request)
+    {
+        $tenant = tenant();
+        $anchor = $this->resolveDate($request->query('date'), $tenant);
+
+        // Sunday-anchored week (matches existing weekView convention).
+        $weekStart = $anchor->copy()->startOfWeek(Carbon\Carbon::SUNDAY);
+        $weekEnd   = $weekStart->copy()->addDays(6);
+
+        $days = [];
+        for ($i = 0; $i < 7; $i++) {
+            $days[] = $weekStart->copy()->addDays($i);
+        }
+
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'subtitle', 'color_hex', 'max_appointments_per_day']);
+
+        $appointments = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->whereBetween('appointment_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->orderBy('appointment_date')
+            ->orderBy('ra_number')
+            ->get([
+                'id', 'ra_number', 'resource_id', 'status',
+                'customer_first_name', 'customer_last_name',
+                'receiving_method_snapshot', 'slot_weight',
+                'appointment_date',
+            ]);
+
+        // Group by (date, resource) tuple key so the Blade can render cell-by-cell.
+        $byCell = [];
+        foreach ($appointments as $appt) {
+            $key = $appt->appointment_date->format('Y-m-d') . '|' . ($appt->resource_id ?? 'unassigned');
+            $byCell[$key][] = $appt;
+        }
+
+        return view('tenant.calendar.dropoff-week', [
+            'mode'         => 'drop_off',
+            'view'         => 'week',
+            'weekStart'    => $weekStart,
+            'weekEnd'      => $weekEnd,
+            'days'         => $days,
+            'resources'    => $resources,
+            'byCell'       => $byCell,
+        ]);
+    }
+
+    /* ============================================================
+     * Drop-off reschedule endpoint
+     * Accepts: appointment_id, new_date (YYYY-MM-DD), new_resource_id
+     * Updates the appointment row with appropriate validation.
+     * Used by drag-between-days and drag-between-resources.
+     * ============================================================ */
+    public function dropOffReschedule(Request $request)
+    {
+        $tenant = tenant();
+        $request->validate([
+            'appointment_id'  => ['required', 'string', 'uuid'],
+            'new_date'        => ['required', 'date'],
+            'new_resource_id' => ['nullable', 'string', 'uuid'],
+        ]);
+
+        $appt = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $request->input('appointment_id'))
+            ->firstOrFail();
+
+        $newResourceId = $request->input('new_resource_id');
+        if ($newResourceId) {
+            $resourceOk = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+                ->where('id', $newResourceId)
+                ->where('is_active', true)
+                ->exists();
+            if (!$resourceOk) {
+                return response()->json(['success' => false, 'message' => 'Invalid resource.'], 422);
+            }
+        }
+
+        $appt->update([
+            'appointment_date' => $request->input('new_date'),
+            'resource_id'      => $newResourceId ?? $appt->resource_id,
+        ]);
+
+        return response()->json([
+            'success'    => true,
+            'date'       => $appt->appointment_date->format('Y-m-d'),
+            'resource_id'=> $appt->resource_id,
+        ]);
     }
 
     /* ============================================================
