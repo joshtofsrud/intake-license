@@ -80,8 +80,8 @@
     <div class="cap-col-closed">Status</div>
     <div class="cap-col-hours">Open hours</div>
     <div class="cap-col-spacer"></div>
-    <div class="cap-col-max">{{ $mode === \'drop_off\' ? \'Daily cap\' : \'Slot interval\' }}</div>
-    <div class="cap-col-advanced">{{ $mode === \'drop_off\' ? \'Slot interval\' : \'Daily cap\' }}</div>
+    <div class="cap-col-max">{{ $mode === 'drop_off' ? 'Daily cap' : 'Slot interval' }}</div>
+    <div class="cap-col-advanced">{{ $mode === 'drop_off' ? 'Slot interval' : 'Daily cap' }}</div>
   </div>
 
   <div id="cap-defaults-list">
@@ -89,17 +89,17 @@
   </div>
 
   <div class="cap-legend">
-    @if($mode === \'drop_off\')
+    @if($mode === 'drop_off')
       <div class="cap-legend-row">
-        <strong>Daily cap</strong> — the maximum bookings you\'ll accept on this day.
-        Leave blank to use the sum of your resources\' per-day caps from
-        <a href="{{ route(\'tenant.resources.index\') }}">Resources</a>.
+        <strong>Daily cap</strong> — the maximum bookings you'll accept on this day.
+        Leave blank to use the sum of your resources' per-day caps from
+        <a href="{{ route('tenant.resources.index') }}">Resources</a>.
       </div>
       <div class="cap-legend-row">
         <strong>Closed</strong> — toggle to mark the day as closed. No bookings will be accepted regardless of cap.
       </div>
       <div class="cap-legend-row cap-legend-advanced">
-        <strong>Slot interval</strong> (advanced) — drop-off mode doesn\'t use slot intervals; visible for completeness only.
+        <strong>Slot interval</strong> (advanced) — drop-off mode doesn't use slot intervals; visible for completeness only.
       </div>
     @else
       <div class="cap-legend-row">
@@ -232,6 +232,29 @@
   border-left: 0.5px solid var(--ia-border);
 }
 
+/* Day-row column header — mirrors the .cap-day-row grid template. */
+.cap-day-header {
+  display: grid;
+  grid-template-columns: 80px 70px 1fr 1fr 100px 100px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+  background: var(--ia-surface-2, rgba(255,255,255,0.025));
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ia-text-3);
+  font-weight: 600;
+}
+.cap-day-header .cap-col-max,
+.cap-day-header .cap-col-advanced {
+  text-align: right;
+}
+/* Hide the advanced-only column header until Show advanced is toggled. */
+.cap-day-header .cap-col-advanced { visibility: hidden; }
+.ia-card:has(.cap-day-row[data-show-advanced="1"]) .cap-day-header .cap-col-advanced { visibility: visible; }
+
 .cap-day-row {
   display: grid;
   grid-template-columns: 80px 70px 1fr 1fr 100px 100px;
@@ -294,6 +317,24 @@
 .cap-day-advanced-only { display: none; }
 .cap-day-row[data-show-advanced="1"] .cap-day-advanced-only { display: block; }
 .cap-day-row[data-show-advanced="1"] .cap-day-interval { display: block; }
+
+/* Legend below the day rows. */
+.cap-legend {
+  padding: 14px 20px;
+  border-top: 0.5px solid var(--ia-border);
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+  font-size: 12px;
+  color: var(--ia-text-3);
+}
+.cap-legend-row {
+  padding: 4px 0;
+  line-height: 1.6;
+}
+.cap-legend-row strong { color: var(--ia-text-2); font-weight: 600; }
+.cap-legend-row a { color: var(--ia-accent); text-decoration: none; }
+.cap-legend-row a:hover { text-decoration: underline; }
+.cap-legend-advanced { display: none; }
+.ia-card:has(.cap-day-row[data-show-advanced="1"]) .cap-legend-advanced { display: block; }
 
 .cap-override-row {
   display: grid;
@@ -370,50 +411,6 @@
   gap: 10px; padding: 14px 20px;
   border-top: 0.5px solid var(--ia-border);
 }
-
-/* Day-row column header — mirrors the .cap-day-row grid template. */
-.cap-day-header {
-  display: grid;
-  grid-template-columns: 80px 70px 1fr 1fr 100px 100px;
-  gap: 14px;
-  align-items: center;
-  padding: 10px 20px;
-  border-bottom: 0.5px solid var(--ia-border);
-  background: var(--ia-surface-2, rgba(255,255,255,0.025));
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ia-text-3);
-  font-weight: 600;
-}
-.cap-day-header .cap-col-max,
-.cap-day-header .cap-col-advanced {
-  text-align: right;
-}
-/* Hide the advanced-only column header until Show advanced is toggled. */
-.cap-day-header .cap-col-advanced { display: none; }
-#cap-defaults-list:has(.cap-day-row[data-show-advanced="1"]) ~ .cap-day-header,
-.ia-card:has(.cap-day-row[data-show-advanced="1"]) .cap-day-header .cap-col-advanced {
-  display: block;
-}
-
-/* Legend below the day rows. */
-.cap-legend {
-  padding: 14px 20px;
-  border-top: 0.5px solid var(--ia-border);
-  background: var(--ia-surface-2, rgba(255,255,255,0.02));
-  font-size: 12px;
-  color: var(--ia-text-3);
-}
-.cap-legend-row {
-  padding: 4px 0;
-  line-height: 1.6;
-}
-.cap-legend-row strong { color: var(--ia-text-2); font-weight: 600; }
-.cap-legend-row a { color: var(--ia-accent); text-decoration: none; }
-.cap-legend-row a:hover { text-decoration: underline; }
-.cap-legend-advanced { display: none; }
-.ia-card:has(.cap-day-row[data-show-advanced="1"]) .cap-legend-advanced { display: block; }
 </style>
 @endpush
 
