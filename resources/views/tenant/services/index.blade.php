@@ -492,5 +492,5 @@ window.SvData = {
   currency: '{{ tenant()->currency_symbol ?? "$" }}',
 };
 </script>
-<script src="{{ asset('js/tenant/services.js') }}" defer></script>
+<script src="{{ asset('js/tenant/services.js') }}?v={{ filemtime(public_path('js/tenant/services.js')) }}" defer></script>
 @endpush

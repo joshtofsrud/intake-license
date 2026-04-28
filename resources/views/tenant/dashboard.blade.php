@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 @push('styles')
-  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
 @endpush
 @section('content')
 

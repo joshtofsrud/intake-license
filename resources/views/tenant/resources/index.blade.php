@@ -84,7 +84,7 @@
 @endsection
 
 @push('styles')
-  <link rel="stylesheet" href="{{ asset('css/tenant/resources.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/resources.css') }}?v={{ filemtime(public_path('css/tenant/resources.css')) }}">
 @endpush
 
 @push('scripts')

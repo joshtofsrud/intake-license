@@ -79,7 +79,7 @@
     .bk-top-back { font-size: 13px; opacity: .5; transition: opacity .12s; }
     .bk-top-back:hover { opacity: 1; }
   </style>
-  <link rel="stylesheet" href="{{ asset('css/booking.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/booking.css') }}?v={{ filemtime(public_path('css/booking.css')) }}">
 <style>
 .bk-service-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
 .bk-service-row{display:flex;gap:16px;align-items:flex-start;padding:14px 16px;border:0.5px solid var(--bk-border,rgba(0,0,0,.08));border-radius:10px;background:var(--bk-surface,rgba(0,0,0,.02));transition:border-color .12s ease,background .12s ease}
@@ -379,6 +379,6 @@ window.BkData = {
 </script>
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
 @if($paypalEnabled)<script src="https://www.paypal.com/sdk/js?client-id={{ $paypalClientId }}&currency={{ strtoupper($currentTenant->currency ?? 'USD') }}"></script>@endif
-<script src="{{ asset('js/booking.js') }}"></script>
+<script src="{{ asset('js/booking.js') }}?v={{ filemtime(public_path('js/booking.js')) }}"></script>
 </body>
 </html>
