@@ -58,8 +58,11 @@
       } );
     } );
 
-    // Wire any input change to a debounced save
+    // Wire any input change to a debounced save.
+    // 'input' catches the clear-to-empty case that 'change' sometimes misses
+    // on number inputs across browsers; 'blur' catches navigation-away.
     list.querySelectorAll( 'input' ).forEach( function ( input ) {
+      input.addEventListener( 'input',  scheduleSave );
       input.addEventListener( 'change', scheduleSave );
       input.addEventListener( 'blur',   scheduleSave );
     } );
