@@ -171,6 +171,17 @@ class BikeShopData implements IndustryDataContract
         ];
     }
 
+    public function additionalResources(): array
+    {
+        // Owner resource (Maya) auto-seeded by TenantUserObserver. These are
+        // the additional mechanics. Caps demonstrate dual-cap drop-off math:
+        // resource sum = Maya 8 + Dev 6 + Josh 4 = 18 bookings/day.
+        return [
+            ['name' => 'Dev Chen',     'subtitle' => 'Mechanic', 'color_hex' => '#3B82F6', 'max_appointments_per_day' => 6],
+            ['name' => 'Josh Tofsrud', 'subtitle' => 'Owner',    'color_hex' => '#F472B6', 'max_appointments_per_day' => 4],
+        ];
+    }
+
     public function workOrderSampleValues(): array
     {
         return [

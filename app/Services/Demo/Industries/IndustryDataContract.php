@@ -44,5 +44,15 @@ interface IndustryDataContract
      *   - array of strings (one picked at random)
      *   - Closure returning a string (called each time)
      */
+    /**
+     * Additional resources beyond the auto-seeded owner resource.
+     * TenantUserObserver creates ONE resource per owner on creation; this
+     * method returns the rest. Each entry: name, subtitle, color_hex,
+     * max_appointments_per_day (nullable).
+     *
+     * Empty array = single-resource shop. Demo seeder respects that.
+     */
+    public function additionalResources(): array;
+
     public function workOrderSampleValues(): array;
 }

@@ -46,6 +46,7 @@ class DemoSeeder
         $this->log("Seeding tenant [{$tenant->id}] as {$this->industry->label()}...");
 
         $owner = $this->createOwner($tenant, $ownerName, $ownerEmail, $ownerPassword);
+        $this->seedAdditionalResources($tenant);
         $this->seedCapacityRules($tenant);
         $this->seedReceivingMethods($tenant);
         $this->seedFormFields($tenant);
@@ -76,6 +77,43 @@ class DemoSeeder
         ]);
         $this->log("  Owner user: {$name} <{$email}>");
         return $owner;
+    }
+
+    /**
+     * Seed industry-defined additional resources. The owner resource is
+     * auto-created by TenantUserObserver when createOwner() runs; this fills
+     * out the rest from the industry contract. Empty contract = single-resource.
+     */
+    private function seedAdditionalResources(Tenant $tenant): void
+    {
+        $rows = $this->industry->additionalResources();
+        if (empty($rows)) {
+            $this->log("  Resources: owner-only (industry has no additional resources).");
+            return;
+        }
+
+        // Owner resource was just created by TenantUserObserver and has
+        // sort_order = 0 (or whatever the observer set). New resources start
+        // after that.
+        $startSort = (int) (\App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->max('sort_order') ?? -1) + 1;
+
+        foreach ($rows as $i => $row) {
+            \App\Models\Tenant\TenantResource::create([
+                'id'                       => (string) \Illuminate\Support\Str::uuid(),
+                'tenant_id'                => $tenant->id,
+                'name'                     => $row['name'],
+                'subtitle'                 => $row['subtitle'] ?? null,
+                'color_hex'                => $row['color_hex'] ?? '#8A8A82',
+                'type'                     => $row['type'] ?? 'staff',
+                'sort_order'               => $startSort + $i,
+                'is_active'                => true,
+                'max_appointments_per_day' => $row['max_appointments_per_day'] ?? null,
+            ]);
+        }
+
+        $count = count($rows) + 1; // +1 for owner
+        $this->log("  Resources: {$count} total (owner + " . count($rows) . " seeded).");
     }
 
     private function seedCapacityRules(Tenant $tenant): void
@@ -379,6 +417,19 @@ class DemoSeeder
         $sampleResponses = $this->industry->sampleResponses();
         $today = Carbon::now()->startOfDay();
 
+        // Pull active resources once for round-robin assignment. Seeded
+        // appointments distribute across resources so the calendar populates
+        // with realistic resource diversity. If no resources exist (shouldn't
+        // happen post-seedAdditionalResources, but defensive), assignments
+        // remain NULL and calendar groups them under "unassigned."
+        $resourceIds = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->pluck('id')
+            ->all();
+        $resourceCount = count($resourceIds);
+        $resourceCursor = 0;
+
         $datePool = $this->buildSeasonalDatePool(self::APPOINTMENT_COUNT);
         $actualCount = count($datePool);
 
@@ -462,9 +513,15 @@ class DemoSeeder
 
             $raNumber = TenantAppointment::generateRaNumber($tenant->id, $date->toDateString());
 
+            // Round-robin resource assignment. Modulo handles any pool size.
+            $assignedResourceId = $resourceCount > 0
+                ? $resourceIds[$resourceCursor++ % $resourceCount]
+                : null;
+
             $appointment = TenantAppointment::create([
                 'tenant_id'                 => $tenant->id,
                 'customer_id'               => $customer->id,
+                'resource_id'               => $assignedResourceId,
                 'ra_number'                 => $raNumber,
                 'customer_first_name'       => $customer->first_name,
                 'customer_last_name'        => $customer->last_name,
