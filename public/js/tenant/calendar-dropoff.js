@@ -1,21 +1,26 @@
 /**
- * Drop-off calendar — drag-to-reschedule + drag-to-reassign.
+ * Drop-off calendar — drag-to-reschedule + drag-to-reassign + click-to-open-drawer.
  *
- * Handles two view modes (window.CAL_DROPOFF_BOOT.view):
+ * Two view modes (window.CAL_DROPOFF_BOOT.view):
  *   - 'day':  per-resource swimlanes within today; drag between columns
  *             reassigns the appointment to a different resource.
  *   - 'week': resource rows × day columns; drag between cells changes
  *             EITHER date OR resource (or both, if dragged diagonally).
  *
- * On drop, posts to rescheduleUrl with appointment_id, new_date, new_resource_id.
- * Server validates and persists. UI optimistically renders the new position;
- * a failure response triggers a page reload to restore truth.
+ * Click on a card opens the shared appointment drawer (window.ApptDrawer.open).
+ * Drag and click are disambiguated via SortableJS lifecycle: onEnd flips a
+ * short-lived flag that the click handler checks, so a drag-end doesn't fire
+ * a drawer open.
  */
 ( function () {
   'use strict';
 
   var boot = window.CAL_DROPOFF_BOOT;
   if ( !boot ) return;
+
+  // Drag-vs-click flag. Set true by Sortable's onEnd; cleared on next tick.
+  // The click event fires AFTER onEnd in Sortable's lifecycle, so this works.
+  var justDragged = false;
 
   document.addEventListener( 'DOMContentLoaded', function () {
     if ( !window.Sortable ) {
@@ -25,6 +30,8 @@
 
     if ( boot.view === 'day' )  initDayView();
     if ( boot.view === 'week' ) initWeekView();
+
+    initClickHandler();
   } );
 
   // ------------------------------------------------------------------
@@ -40,6 +47,7 @@
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
         onEnd: function ( evt ) {
+          markDragged();
           if ( evt.from === evt.to && evt.oldIndex === evt.newIndex ) return;
           var card        = evt.item;
           var apptId      = card.dataset.appointmentId;
@@ -63,11 +71,9 @@
         animation: 150,
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
-        // A cell may be empty initially (.cal-week-cell-empty placeholder).
-        // SortableJS won't accept drops into elements with no children unless
-        // we set this. The placeholder div is fine to leave in place.
         emptyInsertThreshold: 12,
         onEnd: function ( evt ) {
+          markDragged();
           if ( evt.from === evt.to && evt.oldIndex === evt.newIndex ) return;
           var card        = evt.item;
           var apptId      = card.dataset.appointmentId;
@@ -76,6 +82,43 @@
           reschedule( apptId, newDate, newResource, card );
         }
       } );
+    } );
+  }
+
+  // Mark that a drag just ended. Clear on the next macrotask so the
+  // click event that immediately follows is suppressed, but a subsequent
+  // intentional click (even within the same second) goes through.
+  function markDragged() {
+    justDragged = true;
+    setTimeout( function () { justDragged = false; }, 0 );
+  }
+
+  // ------------------------------------------------------------------
+  // Click handler — open drawer on card click. Suppressed if a drag
+  // just ended. Modifier keys (cmd/ctrl/shift, middle-click) fall
+  // through so power users can still get default behavior if we ever
+  // add an href.
+  // ------------------------------------------------------------------
+  function initClickHandler() {
+    document.addEventListener( 'click', function ( e ) {
+      if ( justDragged ) return;
+      if ( e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1 ) return;
+
+      var card = e.target.closest( '.cal-dropoff-card, .cal-week-card' );
+      if ( !card ) return;
+
+      var apptId = card.dataset.appointmentId;
+      if ( !apptId ) return;
+
+      e.preventDefault();
+
+      if ( !window.ApptDrawer || typeof window.ApptDrawer.open !== 'function' ) {
+        console.warn( 'calendar-dropoff: ApptDrawer not loaded' );
+        return;
+      }
+
+      var fullUrl = card.dataset.fullUrl || null;
+      window.ApptDrawer.open( apptId, fullUrl );
     } );
   }
 
@@ -94,7 +137,6 @@
       .then( function ( r ) { return r.json(); } )
       .then( function ( resp ) {
         if ( !resp || !resp.success ) {
-          // Reload to restore truth — server rejected the move.
           alert( 'Could not move that appointment: ' + ( resp && resp.message ? resp.message : 'unknown error' ) );
           window.location.reload();
         }

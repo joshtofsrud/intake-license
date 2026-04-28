@@ -81,6 +81,8 @@
   </div>
 @endif
 
+@include('tenant._appt-drawer')
+
 @endsection
 
 @push('styles')
