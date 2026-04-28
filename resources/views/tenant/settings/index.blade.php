@@ -433,7 +433,7 @@
       </span>
     </div>
 
-    @if(in_array($currentTenant->plan_tier, ['branded', 'custom']))
+    @if(in_array($currentTenant->plan_tier, ['branded', 'scale', 'custom']))
       <p style="font-size:13px;opacity:.5;margin-bottom:16px">
         Point a CNAME record from your domain to <code style="font-family:var(--ia-font-mono);font-size:12px">intake.works</code>,
         then enter it here.
@@ -447,7 +447,7 @@
       <button type="submit" class="ia-btn ia-btn--primary">Save domain</button>
     @else
       <p style="font-size:13px;opacity:.5">
-        Custom domains are available on the Branded and Custom plans.
+        Custom domains are available on the Branded, Scale, and Custom plans.
         <a href="{{ route('tenant.settings.index') }}?tab=billing" style="color:var(--ia-accent)">Upgrade →</a>
       </p>
     @endif

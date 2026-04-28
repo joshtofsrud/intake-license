@@ -56,7 +56,7 @@
     @if(session('impersonating_from'))
       <div style="background:#854F0B;color:#fff;padding:8px 20px;font-size:13px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
         <span>⚠ You are impersonating this tenant as an admin.</span>
-        <a href="{{ url('/admin/impersonate/stop') }}" style="color:#FCD34D;font-weight:600">Stop impersonating →</a>
+        <a href="{{ config('app.url') }}/admin/impersonate/stop" style="color:#FCD34D;font-weight:600">Stop impersonating →</a>
       </div>
     @endif
 
@@ -70,7 +70,7 @@
             👤 You are impersonating <strong>{{ session('impersonating_tenant_name', 'this tenant') }}</strong>.
             All actions you take are real.
           </span>
-          <a href="{{ url('/admin/impersonate/stop') }}"
+          <a href="{{ config('app.url') }}/admin/impersonate/stop"
              style="background:rgba(0,0,0,.2);color:#FAEEDA;padding:5px 14px;border-radius:6px;font-weight:600;font-size:12px">
             Stop impersonating →
           </a>
