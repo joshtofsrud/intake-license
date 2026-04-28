@@ -100,7 +100,7 @@ class CalendarController extends Controller
         $anchor = $this->resolveDate($request->query('date'), $tenant);
 
         // Sunday-anchored week (matches existing weekView convention).
-        $weekStart = $anchor->copy()->startOfWeek(Carbon\Carbon::SUNDAY);
+        $weekStart = $anchor->copy()->startOfWeek(Carbon::SUNDAY);
         $weekEnd   = $weekStart->copy()->addDays(6);
 
         $days = [];
