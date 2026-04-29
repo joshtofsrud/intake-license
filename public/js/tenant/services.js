@@ -372,9 +372,17 @@
     var ids = s.eligible_resource_ids || [];
     var allEligible = ids.length === 0;
     var chips = state.resources.map(function (r) {
-      var on = !allEligible && ids.indexOf(r.id) !== -1;
-      var dotStyle = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + esc(r.color_hex) + ';margin-right:6px;flex-shrink:0';
-      return '<button type="button" class="sv-elig-chip' + (on ? ' is-on' : '') + '"'
+      // Three visual states:
+      //   is-all  — all-eligible default (no specific selection yet)
+      //   is-on   — specific mode, this resource selected
+      //   is-off  — specific mode, this resource NOT selected (excluded)
+      var stateClass;
+      if (allEligible)                     stateClass = 'is-all';
+      else if (ids.indexOf(r.id) !== -1)   stateClass = 'is-on';
+      else                                 stateClass = 'is-off';
+
+      var dotStyle = 'background:' + esc(r.color_hex);
+      return '<button type="button" class="sv-elig-chip ' + stateClass + '"'
         + ' data-elig-service="' + esc(s.id) + '"'
         + ' data-elig-resource="' + esc(r.id) + '">'
         + '<span style="' + dotStyle + '"></span>'
@@ -383,8 +391,8 @@
     }).join('');
 
     var hint = allEligible
-      ? 'All resources can perform this service. Click any chip to limit eligibility.'
-      : 'Click a selected chip to remove. Deselect all to allow any resource.';
+      ? 'Anyone can perform this service. Click a chip to limit eligibility to specific staff.'
+      : 'Click an excluded chip to add. Click a selected chip to remove. Deselect all to allow anyone again.';
 
     return '<div class="sv-drawer-field">'
       + '<label class="sv-drawer-label">Available with</label>'

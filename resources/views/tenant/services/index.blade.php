@@ -92,12 +92,22 @@
 .sv-attach-btn:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
 .sv-drawer-actions{display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:18px;border-top:0.5px solid var(--ia-border)}
 .sv-elig-chips{display:flex;flex-wrap:wrap;gap:6px}
-.sv-elig-chip{display:inline-flex;align-items:center;padding:5px 10px;background:transparent;border:0.5px solid var(--ia-border);border-radius:14px;font-size:12px;color:var(--ia-text-3);cursor:pointer;transition:border-color var(--ia-t),background var(--ia-t),color var(--ia-t),opacity var(--ia-t);font-family:inherit;opacity:.55}
-.sv-elig-chip:hover{border-color:var(--ia-border-strong);color:var(--ia-text-2);opacity:.85}
-.sv-elig-chip > span:first-child{filter:saturate(.4)}
-.sv-elig-chip.is-on{background:var(--ia-accent-soft);border-color:var(--ia-accent);color:var(--ia-accent);opacity:1}
-.sv-elig-chip.is-on > span:first-child{filter:none}
+.sv-elig-chip{display:inline-flex;align-items:center;padding:5px 10px;border-radius:14px;font-size:12px;cursor:pointer;transition:background var(--ia-t),border-color var(--ia-t),color var(--ia-t),opacity var(--ia-t);font-family:inherit;border:0.5px solid var(--ia-border);background:transparent;color:var(--ia-text-2)}
+.sv-elig-chip > span:first-child{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;flex-shrink:0}
+
+/* State 1: all-eligible default — every chip reads as softly affirmed */
+.sv-elig-chip.is-all{background:rgba(56,138,221,0.10);border-color:rgba(56,138,221,0.35);color:#85B7EB}
+.sv-elig-chip.is-all:hover{background:rgba(56,138,221,0.16);border-color:rgba(56,138,221,0.5)}
+
+/* State 2: specific mode, chip on — lime accent, full color dot */
+.sv-elig-chip.is-on{background:var(--ia-accent-soft);border-color:var(--ia-accent);color:var(--ia-accent)}
 .sv-elig-chip.is-on:hover{filter:brightness(1.1)}
+
+/* State 3: specific mode, chip off — explicitly excluded */
+.sv-elig-chip.is-off{background:transparent;border-color:var(--ia-border);color:var(--ia-text-3);text-decoration:line-through;opacity:.7}
+.sv-elig-chip.is-off > span:first-child{filter:saturate(.2) brightness(.7);opacity:.5}
+.sv-elig-chip.is-off:hover{opacity:1;color:var(--ia-text-2);border-color:var(--ia-border-strong)}
+
 .sv-elig-hint{font-size:11.5px;color:var(--ia-text-3);margin-top:8px;line-height:1.5}
 .sv-drawer-actions-right{display:flex;gap:8px}
 .sv-table-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:auto}
