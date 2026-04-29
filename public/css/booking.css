@@ -325,6 +325,32 @@
   width: 14px; height: 1px; background: var(--p-text); opacity: 0.4;
 }
 
+/* Pulse a field that's blocking the express-path pill from advancing.
+   Subtle border + soft tinted bg, fades back to normal in ~1.8s. */
+.bk-flash-attention {
+  animation: bkFlashAttention 1.8s ease-out;
+}
+@keyframes bkFlashAttention {
+  0%   { box-shadow: 0 0 0 3px rgba(190,242,100,0.35); border-color: var(--p-accent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Inline note explaining what's blocking the pill's auto-advance. */
+.bk-earliest-blocker-note {
+  font-size: 12.5px;
+  color: var(--p-accent-text, #111);
+  background: rgba(190,242,100,0.18);
+  border: 1px solid var(--p-accent);
+  border-radius: var(--p-r);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  animation: bkNoteFadeIn 0.2s ease-out;
+}
+@keyframes bkNoteFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Order sidebar */
 .bk-sidebar {
   border: 1.5px solid rgba(0,0,0,.1);

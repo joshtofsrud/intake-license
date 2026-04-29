@@ -248,12 +248,52 @@
           calYear = targetDt.getFullYear();
           calMonth = targetDt.getMonth() + 1;
           loadMonth();
-          setTimeout(function () { selectDate(calEarliest.date); applyEarliestTime(); }, 250);
+          // Wait for loadMonth to finish before selecting + advancing.
+          setTimeout(function () {
+            selectDate(calEarliest.date);
+            applyEarliestTime();
+            tryAdvanceFromPill();
+          }, 250);
           return;
         }
         selectDate(calEarliest.date);
         applyEarliestTime();
+        // applyEarliestTime sets a 50ms timer for time-slot picking, so we
+        // wait a bit longer here so the time has actually been applied
+        // before we check whether Continue is unblocked.
+        setTimeout(tryAdvanceFromPill, 100);
       });
+    }
+  }
+
+  function tryAdvanceFromPill() {
+    var nextBtn = document.getElementById('bk-next-2');
+    if (nextBtn && !nextBtn.disabled) {
+      nextBtn.click();
+      return;
+    }
+    // Continue is blocked — most likely because a receiving method is
+    // required and not yet picked. Scroll the dropdown into view and
+    // pulse it so the customer sees what's blocking them.
+    var receiving = document.getElementById('bk-receiving');
+    if (receiving) {
+      receiving.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      receiving.classList.add('bk-flash-attention');
+      receiving.focus({ preventScroll: true });
+      setTimeout(function () { receiving.classList.remove('bk-flash-attention'); }, 1800);
+
+      // Show a brief inline note above the dropdown so the reason is
+      // explicit, not just a flash. Replace any existing note first.
+      var existingNote = document.getElementById('bk-earliest-blocker-note');
+      if (existingNote) existingNote.remove();
+      var note = document.createElement('div');
+      note.id = 'bk-earliest-blocker-note';
+      note.className = 'bk-earliest-blocker-note';
+      note.textContent = 'Pick how you\'re dropping off to continue.';
+      receiving.parentNode.insertBefore(note, receiving);
+      setTimeout(function () {
+        if (note && note.parentNode) note.parentNode.removeChild(note);
+      }, 4000);
     }
   }
 
