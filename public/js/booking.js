@@ -82,6 +82,8 @@
     var el = document.getElementById('bk-step-' + step);
     if (el) el.classList.add('active');
 
+    if (step === 3) populateStep3Recap();
+
     // Progress dots
     document.querySelectorAll('.bk-step').forEach(function (dot) {
       var ds = parseInt(dot.getAttribute('data-step'), 10);
@@ -212,6 +214,54 @@
       updateNext2();
       loadMonth();
     });
+  }
+
+  function populateStep3Recap() {
+    var card = document.getElementById('bk-step3-recap');
+    var whenEl = document.getElementById('bk-step3-recap-when');
+    var metaEl = document.getElementById('bk-step3-recap-meta');
+    var changeBtn = document.getElementById('bk-step3-recap-change');
+    if (!card || !whenEl || !metaEl) return;
+
+    if (!state.date) {
+      card.style.display = 'none';
+      return;
+    }
+
+    // Format the primary line: 'Wednesday, April 30 at 9:00 AM' (time-slot)
+    // or 'Wednesday, April 30' (drop-off without time).
+    var dt = parseDateString(state.date);
+    var dayLabel = dt.toLocaleDateString(undefined, {
+      weekday: 'long', month: 'long', day: 'numeric'
+    });
+    var primary = dayLabel;
+    if (state.appointmentTime) {
+      primary += ' at ' + formatTime12h(state.appointmentTime);
+    }
+    whenEl.textContent = primary;
+
+    // Meta line: receiving method (drop-off) and/or selected service summary.
+    var metaParts = [];
+    if (state.receivingMethod) metaParts.push(state.receivingMethod);
+    var sels = Object.values(state.selections || {});
+    if (sels.length) {
+      var firstName = sels[0].serviceName || '';
+      if (firstName) {
+        if (sels.length === 1) metaParts.push(firstName);
+        else                    metaParts.push(firstName + ' + ' + (sels.length - 1) + ' more');
+      }
+    }
+    metaEl.textContent = metaParts.join(' · ') || ' ';
+
+    card.style.display = '';
+
+    // Wire Change button once. Goes back to step 2.
+    if (changeBtn && !changeBtn.__bkBound) {
+      changeBtn.__bkBound = true;
+      changeBtn.addEventListener('click', function () {
+        window.goTo(2);
+      });
+    }
   }
 
   function renderEarliestPill() {

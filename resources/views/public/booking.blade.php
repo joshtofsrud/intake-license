@@ -270,6 +270,15 @@
     <div>
       <h1 class="bk-section-title">{{ $bk['step3_heading'] ?? 'Your details' }}</h1>
       <p class="bk-section-sub">{{ $bk['step3_sub'] ?? 'We\'ll use this to confirm your booking.' }}</p>
+
+      <div class="bk-step3-recap" id="bk-step3-recap" style="display:none">
+        <div class="bk-step3-recap-text">
+          <strong id="bk-step3-recap-when">—</strong>
+          <small id="bk-step3-recap-meta">—</small>
+        </div>
+        <button type="button" class="bk-step3-recap-change" id="bk-step3-recap-change">Change</button>
+      </div>
+
       <div class="bk-field-grid-2">
         <div class="bk-form-group">
           <label class="bk-label">First name *</label>
