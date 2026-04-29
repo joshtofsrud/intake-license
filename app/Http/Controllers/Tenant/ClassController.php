@@ -111,7 +111,7 @@ class ClassController extends Controller
 
         $sessions = TenantClassSession::where('tenant_id', $tenant->id)
             ->whereBetween('starts_at', [$from, $to->endOfDay()])
-            ->with(['template', 'instructorResource'])
+            ->with(['template', 'instructorResource', 'registrations.customer'])
             ->withCount(['activeRegistrations', 'waitlist'])
             ->orderBy('starts_at')
             ->get();
