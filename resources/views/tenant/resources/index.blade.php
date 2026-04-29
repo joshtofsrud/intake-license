@@ -60,7 +60,7 @@
     <div id="resource-list" data-csrf="{{ csrf_token() }}">
       @foreach($resources as $r)
         <div class="resource-row" data-resource-id="{{ $r->id }}"
-             style="display:grid;grid-template-columns:auto 1.2fr 1.2fr 1fr 90px auto auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border);background:var(--ia-surface);{{ $r->is_active ? '' : 'opacity:.45' }}">
+             style="display:grid;grid-template-columns:auto 1.2fr 1.2fr 1fr 90px auto;gap:14px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border);background:var(--ia-surface);{{ $r->is_active ? '' : 'opacity:.45' }}">
           <div class="drag-handle" style="cursor:grab;opacity:.4;font-size:14px;user-select:none">⋮⋮</div>
 
           <input type="text" data-field="name" value="{{ $r->name }}" maxlength="120" class="ia-input resource-edit" style="width:100%">
@@ -73,13 +73,8 @@
 
           <input type="number" data-field="max_appointments_per_day" min="0" value="{{ $r->max_appointments_per_day }}" placeholder="No cap" class="ia-input resource-edit" style="width:100%;text-align:right;font-size:13px" title="Max appointments per day. Blank = no cap.">
 
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-            <input type="checkbox" data-field="is_active" {{ $r->is_active ? 'checked' : '' }} class="resource-edit-toggle">
-            <span>{{ $r->is_active ? 'Active' : 'Inactive' }}</span>
-          </label>
-
-          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="deactivateResource('{{ $r->id }}')" style="font-size:11px">
-            {{ $r->is_active ? 'Deactivate' : 'Already off' }}
+          <button type="button" class="ia-toggle resource-row-toggle {{ $r->is_active ? 'on' : '' }}" data-field="is_active" title="{{ $r->is_active ? 'Click to deactivate' : 'Click to activate' }}">
+            <span class="ia-toggle-sr">{{ $r->is_active ? 'Active' : 'Inactive' }}</span>
           </button>
         </div>
       @endforeach
@@ -146,6 +141,42 @@
               row.style.outline = '1px solid #d04444';
               setTimeout(function () { row.style.outline = ''; }, 1500);
             }
+          });
+        });
+      });
+
+      // ia-toggle: active/inactive switch per resource row.
+      document.querySelectorAll('.resource-row-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.classList.contains('is-busy')) return;
+          var row    = btn.closest('.resource-row');
+          var id     = row.getAttribute('data-resource-id');
+          var field  = btn.getAttribute('data-field');
+          var newVal = !btn.classList.contains('on');
+          btn.classList.add('is-busy');
+          var body = {};
+          body[field] = newVal ? 1 : 0;
+          fetch("{{ url('admin/resources') }}/" + id, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrf,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(body),
+          }).then(function (r) {
+            btn.classList.remove('is-busy');
+            if (r.ok) {
+              btn.classList.toggle('on', newVal);
+              row.style.opacity = newVal ? '' : '.45';
+              btn.setAttribute('title', newVal ? 'Click to deactivate' : 'Click to activate');
+              btn.querySelector('.ia-toggle-sr').textContent = newVal ? 'Active' : 'Inactive';
+            } else {
+              row.style.outline = '1px solid #d04444';
+              setTimeout(function () { row.style.outline = ''; }, 1500);
+            }
+          }).catch(function () {
+            btn.classList.remove('is-busy');
           });
         });
       });

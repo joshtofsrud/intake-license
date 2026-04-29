@@ -1,0 +1,61 @@
+/**
+ * ia-toggle — iOS-style on/off switch.
+ *
+ * Usage:
+ *   <button type="button" class="ia-toggle on" data-toggle data-field="is_active">
+ *     <span class="ia-toggle-sr">Toggle active</span>
+ *   </button>
+ *
+ * The .on class controls visual state. Wire your own click handler to flip it
+ * and persist. The hidden .ia-toggle-sr text is for screen readers only.
+ *
+ * Lifted from prov-toggle-btn (settings/payments) and generalized so any page
+ * can drop it in. Use ia-toggle--sm for tighter rows.
+ */
+.ia-toggle {
+  width: 38px;
+  height: 22px;
+  background: var(--ia-border);
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: background .12s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.ia-toggle.on { background: var(--ia-accent); }
+.ia-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform .12s;
+}
+.ia-toggle.on::after { transform: translateX(16px); }
+.ia-toggle:focus-visible { box-shadow: 0 0 0 2px var(--ia-bg), 0 0 0 4px var(--ia-accent); }
+
+/* Smaller variant for dense rows */
+.ia-toggle--sm { width: 32px; height: 18px; border-radius: 9px; }
+.ia-toggle--sm::after { width: 12px; height: 12px; top: 3px; left: 3px; }
+.ia-toggle--sm.on::after { transform: translateX(14px); }
+
+/* Visually-hidden label for screen readers */
+.ia-toggle-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Disabled / busy state */
+.ia-toggle[disabled],
+.ia-toggle.is-busy { opacity: .5; cursor: not-allowed; }

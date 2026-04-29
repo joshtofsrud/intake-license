@@ -186,7 +186,7 @@
     <div id="method-list" style="border-top:0.5px solid var(--ia-border)">
       @foreach($receivingMethods as $m)
         <div class="method-row" data-method-id="{{ $m->id }}"
-             style="display:grid;grid-template-columns:auto 1.2fr 1.6fr auto auto auto auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);{{ $m->is_active ? '' : 'opacity:.45' }}">
+             style="display:grid;grid-template-columns:auto 1.2fr 1.6fr auto auto auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);{{ $m->is_active ? '' : 'opacity:.45' }}">
           <div class="drag-handle" style="cursor:grab;opacity:.4;font-size:14px;user-select:none">⋮⋮</div>
 
           <input type="text" data-field="name" value="{{ $m->name }}" maxlength="120" class="ia-input method-edit" style="width:100%">
@@ -203,13 +203,8 @@
             <span>Tracking</span>
           </label>
 
-          <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap">
-            <input type="checkbox" data-field="is_active" {{ $m->is_active ? 'checked' : '' }} class="method-edit-toggle">
-            <span>{{ $m->is_active ? 'Active' : 'Inactive' }}</span>
-          </label>
-
-          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="deactivateMethod('{{ $m->id }}')" style="font-size:11px">
-            {{ $m->is_active ? 'Deactivate' : 'Already off' }}
+          <button type="button" class="ia-toggle method-row-toggle {{ $m->is_active ? 'on' : '' }}" data-field="is_active" title="{{ $m->is_active ? 'Click to deactivate' : 'Click to activate' }}">
+            <span class="ia-toggle-sr">{{ $m->is_active ? 'Active' : 'Inactive' }}</span>
           </button>
         </div>
       @endforeach
@@ -296,6 +291,43 @@
               row.style.outline = '1px solid #d04444';
               setTimeout(function () { row.style.outline = ''; }, 1500);
             }
+          });
+        });
+      });
+
+      // ia-toggle: active/inactive switch on each row. PATCHes the same
+      // is_active field the previous checkbox + Deactivate button hit.
+      document.querySelectorAll('.method-row-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.classList.contains('is-busy')) return;
+          var row    = btn.closest('.method-row');
+          var id     = row.getAttribute('data-method-id');
+          var field  = btn.getAttribute('data-field');
+          var newVal = !btn.classList.contains('on');
+          btn.classList.add('is-busy');
+          var body = {};
+          body[field] = newVal ? 1 : 0;
+          fetch("{{ url('admin/receiving-methods') }}/" + id, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': csrf,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(body),
+          }).then(function (r) {
+            btn.classList.remove('is-busy');
+            if (r.ok) {
+              btn.classList.toggle('on', newVal);
+              row.style.opacity = newVal ? '' : '.45';
+              btn.setAttribute('title', newVal ? 'Click to deactivate' : 'Click to activate');
+              btn.querySelector('.ia-toggle-sr').textContent = newVal ? 'Active' : 'Inactive';
+            } else {
+              row.style.outline = '1px solid #d04444';
+              setTimeout(function () { row.style.outline = ''; }, 1500);
+            }
+          }).catch(function () {
+            btn.classList.remove('is-busy');
           });
         });
       });
