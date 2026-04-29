@@ -9,7 +9,7 @@
 .cl-subnav-tab.is-active{color:var(--ia-text);border-bottom-color:var(--ia-accent);font-weight:500}
 .cl-week-nav{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .cl-week-label{font-size:14px;font-weight:500;color:var(--ia-text);min-width:200px;text-align:center}
-.cl-week-btn{width:30px;height:30px;border-radius:6px;background:var(--ia-surface);border:0.5px solid var(--ia-border);color:var(--ia-text-muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ia-t)}
+.cl-week-btn{width:30px;height:30px;border-radius:6px;background:var(--ia-surface);border:0.5px solid var(--ia-border);color:var(--ia-text-muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--ia-t);text-decoration:none}
 .cl-week-btn:hover{background:var(--ia-hover);color:var(--ia-text)}
 .cl-session-grid{display:flex;flex-direction:column;gap:8px}
 .cl-session-card{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:hidden}
@@ -31,7 +31,7 @@
 .cl-status-pill.completed{background:var(--ia-surface-2);color:var(--ia-text-muted)}
 .cl-session-body{border-top:0.5px solid var(--ia-border);padding:16px;display:none;background:var(--ia-surface-2)}
 .cl-session-card.is-open .cl-session-body{display:block}
-.cl-session-actions{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.cl-session-actions{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .cl-reg-table{width:100%;border-collapse:collapse;font-size:13px}
 .cl-reg-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:500;padding:6px 10px;border-bottom:0.5px solid var(--ia-border)}
 .cl-reg-table td{padding:9px 10px;border-bottom:0.5px solid var(--ia-border);color:var(--ia-text)}
@@ -52,6 +52,8 @@
 .cl-field{margin-bottom:14px}
 .cl-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-muted);font-weight:500;margin-bottom:5px}
 .cl-modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:0.5px solid var(--ia-border)}
+.cl-action-btn{width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--ia-text-muted);background:none;border:none;cursor:pointer;transition:all var(--ia-t)}
+.cl-action-btn:hover{background:var(--ia-hover);color:var(--ia-text)}
 </style>
 @endpush
 
@@ -80,17 +82,18 @@
   <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('success') }}</div>
 @endif
 
-{{-- Week navigation --}}
 @php
+  $sub = request()->route('subdomain');
   $prevFrom = $from->copy()->subDays(7)->format('Y-m-d');
   $nextFrom = $from->copy()->addDays(7)->format('Y-m-d');
 @endphp
+
 <div class="cl-week-nav">
   <a href="{{ request()->fullUrlWithQuery(['from' => $prevFrom]) }}" class="cl-week-btn">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </a>
   <div class="cl-week-label">{{ $from->format('M j') }} – {{ $to->format('M j, Y') }}</div>
-  <a href="{{ request()->fullUrlWithQuery(['from' => $nextFrom]) }}" class="cl-week-btn">
+  <a href="{{ request()->fullUrlWithQuery(['from' => now()->startOfWeek()->format('Y-m-d')]) }}" class="cl-week-btn">
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </a>
   <a href="{{ request()->fullUrlWithQuery(['from' => now()->startOfWeek()->format('Y-m-d')]) }}" class="ia-btn ia-btn--ghost" style="margin-left:4px;font-size:12px;padding:5px 10px">Today</a>
@@ -109,6 +112,8 @@
           ? min(100, round(($session->active_registrations_count / $session->capacity_snapshot) * 100))
           : 0;
         $isFull = $pct >= 100;
+        $updateUrl = route('tenant.classes.sessions.update', ['subdomain' => $sub, 'id' => $session->id]);
+        $showUrl   = route('tenant.classes.sessions.show',   ['subdomain' => $sub, 'id' => $session->id]);
       @endphp
       <div class="cl-session-card" id="session-{{ $session->id }}">
         <div class="cl-session-head" onclick="toggleSession('{{ $session->id }}')">
@@ -135,23 +140,24 @@
         <div class="cl-session-body">
           <div class="cl-session-actions">
             @if($session->status === 'scheduled')
-              <form method="POST" action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}" style="display:inline">
-                @csrf @method('PATCH')
+              <form method="POST" action="{{ $updateUrl }}" style="display:inline">
+                @csrf
+                @method('PATCH')
                 <input type="hidden" name="status" value="confirmed">
                 <button type="submit" class="ia-btn ia-btn--ghost" style="font-size:12px;padding:5px 12px">Confirm session</button>
               </form>
             @endif
             @if(!in_array($session->status, ['cancelled','completed']))
-              <form method="POST" action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}" style="display:inline" onsubmit="return confirm('Cancel this session?')">
-                @csrf @method('PATCH')
-                <input type="hidden" name="status" value="cancelled">
-                <button type="submit" class="ia-btn ia-btn--ghost" style="font-size:12px;padding:5px 12px;color:#EF4444">Cancel session</button>
-              </form>
+              <button type="button"
+                class="ia-btn ia-btn--ghost"
+                style="font-size:12px;padding:5px 12px;color:#EF4444"
+                onclick="confirmCancel('{{ $updateUrl }}')">
+                Cancel session
+              </button>
             @endif
-            <a href="{{ route('tenant.classes.sessions.show', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}" class="ia-btn ia-btn--ghost" style="font-size:12px;padding:5px 12px">Full detail →</a>
+            <a href="{{ $showUrl }}" class="ia-btn ia-btn--ghost" style="font-size:12px;padding:5px 12px">Full detail →</a>
           </div>
 
-          {{-- Registrations --}}
           @if($session->active_registrations_count > 0)
             <table class="cl-reg-table">
               <thead>
@@ -177,12 +183,12 @@
                     </td>
                     <td style="text-align:right">
                       @if($reg->status === 'registered')
-                        <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" style="display:inline">
+                        <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['subdomain' => $sub, 'id' => $reg->id]) }}" style="display:inline">
                           @csrf
                           <button type="submit" class="cl-action-btn" title="Check in">✓</button>
                         </form>
                       @endif
-                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" style="display:inline" onsubmit="return confirm('Cancel this registration?')">
+                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => $sub, 'id' => $reg->id]) }}" style="display:inline" onsubmit="return confirm('Cancel this registration?')">
                         @csrf
                         <button type="submit" class="cl-action-btn" title="Cancel" style="color:#EF4444">✕</button>
                       </form>
@@ -195,16 +201,13 @@
             <p style="font-size:13px;color:var(--ia-text-muted);margin:0 0 14px">No registrations yet.</p>
           @endif
 
-          {{-- Add registration --}}
           @if(!in_array($session->status, ['cancelled','completed']))
-            <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
+            <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => $sub, 'id' => $session->id]) }}">
               @csrf
               <div class="cl-add-reg-row">
                 <div>
                   <label class="cl-label">Add customer</label>
-                  <input type="text" name="customer_search" class="cl-input" placeholder="Search by name or email" list="customers-{{ $session->id }}">
-                  <input type="hidden" name="customer_id" id="customer-id-{{ $session->id }}">
-                  <datalist id="customers-{{ $session->id }}"></datalist>
+                  <input type="text" name="customer_id" class="cl-input" placeholder="Customer UUID">
                 </div>
                 <div>
                   <label class="cl-label">Payment</label>
@@ -224,6 +227,23 @@
     @endforeach
   </div>
 @endif
+
+{{-- Cancel session confirmation modal --}}
+<div class="cl-modal-overlay" id="cancel-modal">
+  <div class="cl-modal">
+    <div class="cl-modal-title">Cancel this session?</div>
+    <p style="font-size:13px;color:var(--ia-text-muted);margin-bottom:20px">Registered customers will not be automatically notified. You can notify them manually via Campaigns.</p>
+    <form method="POST" id="cancel-form" action="">
+      @csrf
+      @method('PATCH')
+      <input type="hidden" name="status" value="cancelled">
+      <div class="cl-modal-footer">
+        <button type="button" class="ia-btn ia-btn--ghost" onclick="closeCancelModal()">Keep session</button>
+        <button type="submit" class="ia-btn ia-btn--primary" style="background:#EF4444;border-color:#EF4444">Yes, cancel it</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {{-- Add session modal --}}
 <div class="cl-modal-overlay" id="add-modal" onclick="if(event.target===this)closeAddModal()">
@@ -270,7 +290,22 @@
   };
   window.openAddModal  = function(){ document.getElementById('add-modal').classList.add('is-open'); }
   window.closeAddModal = function(){ document.getElementById('add-modal').classList.remove('is-open'); }
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeAddModal(); });
+
+  window.confirmCancel = function(url){
+    document.getElementById('cancel-form').action = url;
+    document.getElementById('cancel-modal').classList.add('is-open');
+  }
+  window.closeCancelModal = function(){
+    document.getElementById('cancel-modal').classList.remove('is-open');
+  }
+
+  document.getElementById('cancel-modal').addEventListener('click', function(e){
+    if(e.target === this) closeCancelModal();
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ closeAddModal(); closeCancelModal(); }
+  });
 })();
 </script>
 @endpush
