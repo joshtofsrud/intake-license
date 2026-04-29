@@ -62,7 +62,7 @@ class ClassController extends Controller
         return back()->with('success', 'Class template created.');
     }
 
-    public function updateTemplate(Request $request, string $id)
+    public function updateTemplate(Request $request, string $subdomain, string $id)
     {
         $tenant   = tenant();
         $template = TenantClassTemplate::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -84,7 +84,7 @@ class ClassController extends Controller
         return back()->with('success', 'Template updated.');
     }
 
-    public function destroyTemplate(string $id)
+    public function destroyTemplate(string $subdomain, string $id)
     {
         $tenant   = tenant();
         $template = TenantClassTemplate::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -122,7 +122,7 @@ class ClassController extends Controller
         return view('tenant.classes.sessions', compact('sessions', 'templates', 'from', 'to'));
     }
 
-    public function storeSession(Request $request)
+    public function storeSession(Request $request, string $subdomain)
     {
         $tenant = tenant();
 
@@ -161,7 +161,7 @@ class ClassController extends Controller
         return back()->with('success', 'Session created.');
     }
 
-    public function updateSession(Request $request, string $id)
+    public function updateSession(Request $request, string $subdomain, string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -189,7 +189,7 @@ class ClassController extends Controller
         return back()->with('success', 'Session updated.');
     }
 
-    public function destroySession(string $id)
+    public function destroySession(string $subdomain, string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -203,7 +203,7 @@ class ClassController extends Controller
         return back()->with('success', 'Session deleted.');
     }
 
-    public function showSession(string $id)
+    public function showSession(string $subdomain, string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)
@@ -219,7 +219,7 @@ class ClassController extends Controller
     // Registrations (admin actions)
     // ------------------------------------------------------------------
 
-    public function registerCustomer(Request $request, string $sessionId)
+    public function registerCustomer(Request $request, string $subdomain, string $sessionId)
     {
         $tenant = tenant();
 
@@ -242,7 +242,7 @@ class ClassController extends Controller
         );
     }
 
-    public function cancelRegistration(string $id)
+    public function cancelRegistration(string $subdomain, string $id)
     {
         $tenant = tenant();
         $this->registrationService->cancel($id, $tenant->id);
@@ -250,7 +250,7 @@ class ClassController extends Controller
         return back()->with('success', 'Registration cancelled.');
     }
 
-    public function checkIn(string $id)
+    public function checkIn(string $subdomain, string $id)
     {
         $tenant = tenant();
         $this->registrationService->checkIn($id, $tenant->id);
@@ -258,7 +258,7 @@ class ClassController extends Controller
         return back()->with('success', 'Checked in.');
     }
 
-    public function markNoShow(string $id)
+    public function markNoShow(string $subdomain, string $id)
     {
         $tenant = tenant();
         $this->registrationService->markNoShow($id, $tenant->id);
@@ -307,7 +307,7 @@ class ClassController extends Controller
         return back()->with('success', 'Membership product created.');
     }
 
-    public function updateMembershipProduct(Request $request, string $id)
+    public function updateMembershipProduct(Request $request, string $subdomain, string $id)
     {
         $tenant  = tenant();
         $product = TenantClassMembershipProduct::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -369,7 +369,7 @@ class ClassController extends Controller
         return back()->with('success', 'Pack product created.');
     }
 
-    public function updatePackProduct(Request $request, string $id)
+    public function updatePackProduct(Request $request, string $subdomain, string $id)
     {
         $tenant  = tenant();
         $product = TenantClassPackProduct::where('tenant_id', $tenant->id)->findOrFail($id);
