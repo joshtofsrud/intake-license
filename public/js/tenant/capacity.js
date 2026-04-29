@@ -7,8 +7,6 @@
  *    op=save_override       (date one-off)
  *    op=delete_override     (remove date one-off)
  *
- * No more dependence on the broken IntakeAdmin.ajaxUrl global.
- *
  * Save shape (op=save_defaults):
  *    days[d][is_closed]              boolean
  *    days[d][open_time]              "HH:MM" (omitted when closed)
@@ -25,8 +23,7 @@
     return;
   }
 
-  var DAY_LABELS = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ];
-  var DAY_LONG   = [ 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday' ];
+  var DAY_LONG = [ 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday' ];
 
   // ===================================================================
   // Boot
@@ -66,6 +63,30 @@
       input.addEventListener( 'change', scheduleSave );
       input.addEventListener( 'blur',   scheduleSave );
     } );
+
+    // Wire the per-row "clear" buttons. Each button targets the input
+    // identified by data-clears (a CSS selector relative to its row).
+    list.querySelectorAll( '[data-cap-clear]' ).forEach( function ( btn ) {
+      btn.addEventListener( 'click', function () {
+        var row    = btn.closest( '.cap-day-row' );
+        var target = row.querySelector( btn.dataset.capClear );
+        if ( !target ) return;
+        target.value = '';
+        // Fire 'input' so the save pipeline + visibility logic both update.
+        target.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+        updateClearButtonVisibility( row );
+      } );
+    } );
+
+    // Initialize clear-button visibility — only show when the field has a value.
+    list.querySelectorAll( '.cap-day-row' ).forEach( updateClearButtonVisibility );
+
+    // Re-evaluate clear-button visibility on every input.
+    list.querySelectorAll( 'input[data-field="max"]' ).forEach( function ( input ) {
+      input.addEventListener( 'input', function () {
+        updateClearButtonVisibility( input.closest( '.cap-day-row' ) );
+      } );
+    } );
   }
 
   function renderDayRow( day ) {
@@ -74,20 +95,24 @@
     var maxVal = ( day.max === null || day.max === undefined ) ? '' : day.max;
     var isDropOff = boot.mode === 'drop_off';
 
-    // Mode-aware fields:
-    //  - drop_off mode: show "Daily cap" field. Field overrides the resource-cap-sum
-    //    ceiling. Blank = use resource-cap-sum naturally.
-    //  - time_slots mode: show "Slot interval" field. The grid math (open/close/interval
-    //    × resources) governs primary capacity, so the daily cap field is hidden by
-    //    default — it's an advanced override exposed via Show advanced toggle.
-    var capField = isDropOff
-      ? ''
-        + '<div class="cap-day-max cap-day-fields-when-open">'
-        +   '<input type="number" min="0" placeholder="No limit" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="Optional daily cap. Leave blank to use the sum of staff caps from your Resources page.">'
-        + '</div>'
-      : '<div class="cap-day-max cap-day-fields-when-open cap-day-advanced-only">'
-        +   '<input type="number" min="0" placeholder="No override" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="Optional override on top of grid capacity. Rarely needed in time-slot mode.">'
-        + '</div>';
+    // The "max" field gets a clear button — primary cap field in drop-off mode,
+    // optional override in time-slot mode. Either way: clearing means "no limit".
+    var maxFieldClasses = isDropOff
+      ? 'cap-day-max cap-day-fields-when-open'
+      : 'cap-day-max cap-day-fields-when-open cap-day-advanced-only';
+
+    var maxPlaceholder = isDropOff ? 'No limit' : 'No override';
+    var maxTitle = isDropOff
+      ? 'Optional daily cap. Leave blank to use the sum of staff caps from your Resources page.'
+      : 'Optional override on top of grid capacity. Rarely needed in time-slot mode.';
+
+    var capField = ''
+      + '<div class="' + maxFieldClasses + '">'
+      +   '<div class="cap-input-wrap">'
+      +     '<input type="number" min="0" placeholder="' + maxPlaceholder + '" data-field="max" data-day="' + d + '" value="' + maxVal + '" title="' + maxTitle + '">'
+      +     '<button type="button" class="cap-input-clear" data-cap-clear=\'input[data-field="max"]\' title="Clear — no limit">&times;</button>'
+      +   '</div>'
+      + '</div>';
 
     var intervalField = isDropOff
       ? '<div class="cap-day-interval cap-day-fields-when-open cap-day-advanced-only">'
@@ -113,6 +138,14 @@
       +   capField
       +   intervalField
       + '</div>';
+  }
+
+  function updateClearButtonVisibility( row ) {
+    if ( !row ) return;
+    var input = row.querySelector( 'input[data-field="max"]' );
+    var btn   = row.querySelector( '[data-cap-clear]' );
+    if ( !input || !btn ) return;
+    btn.style.display = input.value === '' ? 'none' : '';
   }
 
   function bindAdvancedToggle() {
@@ -278,7 +311,6 @@
         .then( function ( r ) { return r.json(); } )
         .then( function ( resp ) {
           if ( resp && resp.success ) {
-            // Push the new/updated override into boot state and re-render.
             var existing = ( boot.overrides || [] ).filter( function ( o ) {
               return o.date !== resp.date;
             } );
