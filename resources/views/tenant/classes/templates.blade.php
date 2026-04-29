@@ -15,17 +15,13 @@
 .cl-table-row.is-inactive{opacity:.5}
 .cl-name{font-weight:500;color:var(--ia-text)}
 .cl-meta{font-size:12px;color:var(--ia-text-muted);margin-top:2px}
-.cl-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
-.cl-badge--active{background:var(--ia-accent-soft);color:var(--ia-accent)}
-.cl-badge--inactive{background:var(--ia-surface-2);color:var(--ia-text-muted)}
 .cl-num{text-align:right;font-variant-numeric:tabular-nums;color:var(--ia-text-muted);font-size:13px}
 .cl-actions{display:flex;gap:6px;justify-content:flex-end}
 .cl-action-btn{width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--ia-text-muted);background:none;border:none;cursor:pointer;transition:all var(--ia-t)}
 .cl-action-btn:hover{background:var(--ia-hover);color:var(--ia-text)}
-.cl-form-grid{display:grid;grid-template-columns:1.5fr 80px 80px 1fr 100px auto;gap:10px;align-items:end}
 .cl-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:400;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
 .cl-modal-overlay.is-open{opacity:1;pointer-events:all}
-.cl-modal{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);width:100%;max-width:520px;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.cl-modal{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);width:100%;max-width:520px;padding:24px}
 .cl-modal-title{font-size:15px;font-weight:600;margin-bottom:18px;color:var(--ia-text)}
 .cl-field{margin-bottom:14px}
 .cl-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-muted);font-weight:500;margin-bottom:5px}
@@ -39,6 +35,9 @@
 .cl-empty-icon{font-size:28px;margin-bottom:10px;opacity:.3}
 .cl-empty-title{font-size:15px;font-weight:500;color:var(--ia-text);margin-bottom:6px}
 .cl-empty-body{font-size:13px;color:var(--ia-text-muted)}
+.cl-price-wrap{position:relative}
+.cl-price-wrap .cl-input{padding-left:22px}
+.cl-price-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ia-text-muted);pointer-events:none}
 </style>
 @endpush
 
@@ -54,7 +53,6 @@
   </div>
 </div>
 
-{{-- Subnav --}}
 <nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab is-active">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
@@ -85,9 +83,7 @@
         <div class="cl-name">{{ $t->name }}</div>
         <div class="cl-meta">
           {{ $t->instructorResource?->name ?? 'No instructor set' }}
-          @if($t->description)
-            · {{ Str::limit($t->description, 60) }}
-          @endif
+          @if($t->description)· {{ Str::limit($t->description, 60) }}@endif
         </div>
       </div>
       <div class="cl-num">{{ $t->duration_minutes }}m</div>
@@ -124,11 +120,11 @@
       </div>
       <div class="cl-field">
         <label class="cl-label">Description (optional)</label>
-        <textarea name="description" class="cl-textarea" rows="2" maxlength="1000" placeholder="What customers will see on the class listing"></textarea>
+        <textarea name="description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
       </div>
       <div class="cl-field-triple">
         <div class="cl-field">
-          <label class="cl-label">Duration (minutes)</label>
+          <label class="cl-label">Duration (min)</label>
           <input type="number" name="duration_minutes" class="cl-input" required min="5" max="480" value="60">
         </div>
         <div class="cl-field">
@@ -136,8 +132,11 @@
           <input type="number" name="default_capacity" class="cl-input" required min="1" max="500" value="15">
         </div>
         <div class="cl-field">
-          <label class="cl-label">Price (cents)</label>
-          <input type="number" name="price_cents" class="cl-input" required min="0" value="0" placeholder="0 = free">
+          <label class="cl-label">Price</label>
+          <div class="cl-price-wrap">
+            <span class="cl-price-sym">$</span>
+            <input type="number" name="price_dollars" class="cl-input" required min="0" step="0.01" value="0" placeholder="0.00">
+          </div>
         </div>
       </div>
       <div class="cl-field">
@@ -188,8 +187,11 @@
           <input type="number" name="default_capacity" id="edit-capacity" class="cl-input" required min="1" max="500">
         </div>
         <div class="cl-field">
-          <label class="cl-label">Price (cents)</label>
-          <input type="number" name="price_cents" id="edit-price" class="cl-input" required min="0">
+          <label class="cl-label">Price</label>
+          <div class="cl-price-wrap">
+            <span class="cl-price-sym">$</span>
+            <input type="number" name="price_dollars" id="edit-price" class="cl-input" required min="0" step="0.01">
+          </div>
         </div>
       </div>
       <div class="cl-field">
@@ -215,7 +217,6 @@
   </div>
 </div>
 
-{{-- Delete form (hidden, submitted by JS) --}}
 <form method="POST" id="delete-form" action="" style="display:none">
   @csrf
   @method('DELETE')
@@ -241,7 +242,7 @@
     document.getElementById('edit-description').value = t.description || '';
     document.getElementById('edit-duration').value    = t.duration_minutes;
     document.getElementById('edit-capacity').value    = t.default_capacity;
-    document.getElementById('edit-price').value       = t.price_cents;
+    document.getElementById('edit-price').value       = (t.price_cents / 100).toFixed(2);
     document.getElementById('edit-active').checked    = t.is_active == 1;
     var sel = document.getElementById('edit-instructor');
     sel.value = t.instructor_resource_id || '';

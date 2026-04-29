@@ -37,9 +37,11 @@
 .cl-select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='rgba(255,255,255,.4)'><path d='M2 4l3 3 3-3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
 .cl-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cl-modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:0.5px solid var(--ia-border)}
-.cl-hint{font-size:11px;color:var(--ia-text-muted);margin-top:5px}
 .cl-limit-field{transition:opacity .2s}
 .cl-limit-field.is-hidden{opacity:0;pointer-events:none}
+.cl-price-wrap{position:relative}
+.cl-price-wrap .cl-input{padding-left:22px}
+.cl-price-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ia-text-muted);pointer-events:none}
 </style>
 @endpush
 
@@ -79,9 +81,7 @@
     <div class="cl-table-row {{ $p->is_active ? '' : 'is-inactive' }}">
       <div>
         <div class="cl-name">{{ $p->name }}</div>
-        <div class="cl-meta">
-          {{ $p->description ? Str::limit($p->description, 80) : ($p->isUnlimited() ? 'Unlimited classes per month' : $p->monthly_limit.' classes per month') }}
-        </div>
+        <div class="cl-meta">{{ $p->isUnlimited() ? 'Unlimited classes per month' : $p->monthly_limit.' classes per month' }}</div>
       </div>
       <div style="text-align:right">
         <span class="cl-badge cl-badge--{{ $p->type }}">{{ ucfirst($p->type) }}</span>
@@ -131,9 +131,11 @@
         </div>
       </div>
       <div class="cl-field">
-        <label class="cl-label">Price per month (cents)</label>
-        <input type="number" name="price_cents" class="cl-input" required min="0" placeholder="e.g. 7900 for $79">
-        <div class="cl-hint">Enter in cents — 7900 = $79.00/mo</div>
+        <label class="cl-label">Price per month</label>
+        <div class="cl-price-wrap">
+          <span class="cl-price-sym">$</span>
+          <input type="number" name="price_dollars" class="cl-input" required min="0" step="0.01" placeholder="0.00">
+        </div>
       </div>
       <div class="cl-field">
         <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -177,8 +179,11 @@
         </div>
       </div>
       <div class="cl-field">
-        <label class="cl-label">Price per month (cents)</label>
-        <input type="number" name="price_cents" id="edit-price" class="cl-input" required min="0">
+        <label class="cl-label">Price per month</label>
+        <div class="cl-price-wrap">
+          <span class="cl-price-sym">$</span>
+          <input type="number" name="price_dollars" id="edit-price" class="cl-input" required min="0" step="0.01">
+        </div>
       </div>
       <div class="cl-field">
         <label class="cl-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -219,7 +224,7 @@
     document.getElementById('edit-description').value   = p.description || '';
     document.getElementById('edit-type').value          = p.type;
     document.getElementById('edit-monthly-limit').value = p.monthly_limit || '';
-    document.getElementById('edit-price').value         = p.price_cents;
+    document.getElementById('edit-price').value         = (p.price_cents / 100).toFixed(2);
     document.getElementById('edit-active').checked      = p.is_active == 1;
     toggleLimitField('edit');
     editModal.classList.add('is-open');

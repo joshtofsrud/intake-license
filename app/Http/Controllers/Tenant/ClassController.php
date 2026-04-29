@@ -56,6 +56,7 @@ class ClassController extends Controller
         $data['tenant_id'] = $tenant->id;
         $data['slug']      = $this->uniqueSlug($data['name'], $tenant->id);
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
 
         TenantClassTemplate::create($data);
 
@@ -78,6 +79,7 @@ class ClassController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
 
         $template->update($data);
 
@@ -126,39 +128,75 @@ class ClassController extends Controller
     {
         $tenant = tenant();
 
-        $data = $request->validate([
-            'class_template_id'      => ['required', 'uuid', 'exists:tenant_class_templates,id'],
-            'starts_at'              => ['required', 'date', 'after:now'],
-            'instructor_resource_id' => ['nullable', 'uuid', 'exists:tenant_resources,id'],
-            'capacity_override'      => ['nullable', 'integer', 'min:1', 'max:500'],
-            'notes'                  => ['nullable', 'string', 'max:1000'],
+        $request->validate([
+            'class_template_id' => ['required', 'uuid', 'exists:tenant_class_templates,id'],
+            'starts_date'       => ['required', 'date', 'after_or_equal:today'],
+            'starts_time'       => ['required', 'date_format:H:i'],
+            'capacity_override' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'notes'             => ['nullable', 'string', 'max:1000'],
+            'repeat_until'      => ['nullable', 'date', 'after:starts_date'],
+            'repeat_until_daily'=> ['nullable', 'date', 'after:starts_date'],
+            'repeat_days'       => ['nullable', 'string'],
         ]);
 
         $template = TenantClassTemplate::where('tenant_id', $tenant->id)
-            ->findOrFail($data['class_template_id']);
+            ->findOrFail($request->class_template_id);
 
-        $startsAt  = Carbon::parse($data['starts_at']);
-        $endsAt    = $startsAt->copy()->addMinutes($template->duration_minutes);
-        $instructor = $data['instructor_resource_id']
-            ?? $template->instructor_resource_id;
+        $instructor = $template->instructor_resource_id;
+        $resource   = $instructor ? TenantResource::find($instructor) : null;
+        $capacity   = $request->capacity_override ?? $template->default_capacity;
+        $notes      = $request->notes;
 
-        $resource = $instructor
-            ? TenantResource::find($instructor)
-            : null;
+        // Build list of dates to create sessions for
+        $dates = [];
+        $startDate = Carbon::parse($request->starts_date);
+        $time      = $request->starts_time;
 
-        TenantClassSession::create([
-            'tenant_id'              => $tenant->id,
-            'class_template_id'      => $template->id,
-            'starts_at'              => $startsAt,
-            'ends_at'                => $endsAt,
-            'instructor_resource_id' => $instructor,
-            'instructor_snapshot'    => $resource?->name,
-            'capacity_snapshot'      => $data['capacity_override'] ?? $template->default_capacity,
-            'status'                 => 'confirmed',
-            'notes'                  => $data['notes'] ?? null,
-        ]);
+        if ($request->filled('repeat_days') && $request->filled('repeat_until')) {
+            // Weekly repeat — specific days of week
+            $dows  = array_map('intval', explode(',', $request->repeat_days));
+            $until = Carbon::parse($request->repeat_until)->endOfDay();
+            $cur   = $startDate->copy();
+            while ($cur->lte($until) && count($dates) < 365) {
+                if (in_array($cur->dayOfWeek, $dows)) {
+                    $dates[] = $cur->copy();
+                }
+                $cur->addDay();
+            }
+        } elseif ($request->filled('repeat_until_daily')) {
+            // Daily repeat
+            $until = Carbon::parse($request->repeat_until_daily)->endOfDay();
+            $cur   = $startDate->copy();
+            while ($cur->lte($until) && count($dates) < 365) {
+                $dates[] = $cur->copy();
+                $cur->addDay();
+            }
+        } else {
+            // Single session
+            $dates[] = $startDate->copy();
+        }
 
-        return back()->with('success', 'Session created.');
+        $created = 0;
+        foreach ($dates as $date) {
+            $startsAt = Carbon::parse($date->format('Y-m-d') . ' ' . $time);
+            $endsAt   = $startsAt->copy()->addMinutes($template->duration_minutes);
+
+            TenantClassSession::create([
+                'tenant_id'              => $tenant->id,
+                'class_template_id'      => $template->id,
+                'starts_at'              => $startsAt,
+                'ends_at'                => $endsAt,
+                'instructor_resource_id' => $instructor,
+                'instructor_snapshot'    => $resource?->name,
+                'capacity_snapshot'      => $capacity,
+                'status'                 => 'confirmed',
+                'notes'                  => $notes,
+            ]);
+            $created++;
+        }
+
+        $msg = $created === 1 ? 'Session created.' : "{$created} sessions created.";
+        return back()->with('success', $msg);
     }
 
     public function updateSession(Request $request, string $subdomain, string $id)
@@ -291,12 +329,13 @@ class ClassController extends Controller
             'type'          => ['required', 'in:unlimited,capped'],
             'monthly_limit' => ['nullable', 'integer', 'min:1', 'max:999',
                                 'required_if:type,capped'],
-            'price_cents'   => ['required', 'integer', 'min:0'],
+            'price_dollars' => ['required', 'numeric', 'min:0'],
             'is_active'     => ['boolean'],
         ]);
 
         $data['tenant_id'] = $tenant->id;
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
 
         if ($data['type'] === 'unlimited') {
             $data['monthly_limit'] = null;
@@ -318,11 +357,12 @@ class ClassController extends Controller
             'type'          => ['required', 'in:unlimited,capped'],
             'monthly_limit' => ['nullable', 'integer', 'min:1', 'max:999',
                                 'required_if:type,capped'],
-            'price_cents'   => ['required', 'integer', 'min:0'],
+            'price_dollars' => ['required', 'numeric', 'min:0'],
             'is_active'     => ['boolean'],
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
 
         if ($data['type'] === 'unlimited') {
             $data['monthly_limit'] = null;
@@ -363,6 +403,7 @@ class ClassController extends Controller
 
         $data['tenant_id'] = $tenant->id;
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
 
         TenantClassPackProduct::create($data);
 
@@ -384,6 +425,7 @@ class ClassController extends Controller
         ]);
 
         $data['is_active'] = $request->boolean('is_active', true);
+        $data['price_cents'] = (int) round($request->input('price_dollars', 0) * 100);
 
         $product->update($data);
 

@@ -31,10 +31,11 @@
 .cl-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-muted);font-weight:500;margin-bottom:5px}
 .cl-input,.cl-select,.cl-textarea{width:100%;padding:8px 11px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;outline:none;transition:border var(--ia-t);font-family:inherit}
 .cl-input:focus,.cl-select:focus,.cl-textarea:focus{border-color:var(--ia-accent)}
-.cl-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cl-field-triple{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .cl-modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:0.5px solid var(--ia-border)}
-.cl-hint{font-size:11px;color:var(--ia-text-muted);margin-top:5px}
+.cl-price-wrap{position:relative}
+.cl-price-wrap .cl-input{padding-left:22px}
+.cl-price-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ia-text-muted);pointer-events:none}
 .cl-per-credit{font-size:11px;color:var(--ia-text-muted);margin-top:4px}
 </style>
 @endpush
@@ -76,9 +77,7 @@
     <div class="cl-table-row {{ $p->is_active ? '' : 'is-inactive' }}">
       <div>
         <div class="cl-name">{{ $p->name }}</div>
-        <div class="cl-meta">
-          {{ $p->description ? Str::limit($p->description, 80) : '$'.number_format($p->price_cents / $p->credit_count / 100, 2).' per class' }}
-        </div>
+        <div class="cl-meta">${{ number_format($p->price_cents / $p->credit_count / 100, 2) }} per class</div>
       </div>
       <div class="cl-num">{{ $p->credit_count }}</div>
       <div class="cl-num">{{ $p->expiry_days }}d</div>
@@ -119,13 +118,15 @@
           <input type="number" name="credit_count" id="add-credits" class="cl-input" required min="1" max="999" value="10" oninput="updatePerCredit('add')">
         </div>
         <div class="cl-field">
-          <label class="cl-label">Expires after (days)</label>
+          <label class="cl-label">Expires (days)</label>
           <input type="number" name="expiry_days" class="cl-input" required min="1" max="730" value="180">
-          <div class="cl-hint">From purchase date</div>
         </div>
         <div class="cl-field">
-          <label class="cl-label">Price (cents)</label>
-          <input type="number" name="price_cents" id="add-price" class="cl-input" required min="0" value="10000" oninput="updatePerCredit('add')">
+          <label class="cl-label">Price</label>
+          <div class="cl-price-wrap">
+            <span class="cl-price-sym">$</span>
+            <input type="number" name="price_dollars" id="add-price" class="cl-input" required min="0" step="0.01" value="100.00" oninput="updatePerCredit('add')">
+          </div>
           <div class="cl-per-credit" id="add-per-credit">$10.00 per class</div>
         </div>
       </div>
@@ -163,12 +164,15 @@
           <input type="number" name="credit_count" id="edit-credits" class="cl-input" required min="1" max="999" oninput="updatePerCredit('edit')">
         </div>
         <div class="cl-field">
-          <label class="cl-label">Expires after (days)</label>
+          <label class="cl-label">Expires (days)</label>
           <input type="number" name="expiry_days" id="edit-expiry" class="cl-input" required min="1" max="730">
         </div>
         <div class="cl-field">
-          <label class="cl-label">Price (cents)</label>
-          <input type="number" name="price_cents" id="edit-price" class="cl-input" required min="0" oninput="updatePerCredit('edit')">
+          <label class="cl-label">Price</label>
+          <div class="cl-price-wrap">
+            <span class="cl-price-sym">$</span>
+            <input type="number" name="price_dollars" id="edit-price" class="cl-input" required min="0" step="0.01" oninput="updatePerCredit('edit')">
+          </div>
           <div class="cl-per-credit" id="edit-per-credit"></div>
         </div>
       </div>
@@ -197,9 +201,9 @@
   var baseUrl   = "{{ route('tenant.classes.packs', ['subdomain' => request()->route('subdomain')]) }}";
 
   window.updatePerCredit = function(prefix){
-    var credits = parseInt(document.getElementById(prefix+'-credits').value) || 1;
-    var price   = parseInt(document.getElementById(prefix+'-price').value)   || 0;
-    var per     = credits > 0 ? (price / credits / 100) : 0;
+    var credits = parseFloat(document.getElementById(prefix+'-credits').value) || 1;
+    var price   = parseFloat(document.getElementById(prefix+'-price').value)   || 0;
+    var per     = credits > 0 ? (price / credits) : 0;
     document.getElementById(prefix+'-per-credit').textContent = '$'+per.toFixed(2)+' per class';
   };
 
@@ -212,7 +216,7 @@
     document.getElementById('edit-description').value = p.description || '';
     document.getElementById('edit-credits').value     = p.credit_count;
     document.getElementById('edit-expiry').value      = p.expiry_days;
-    document.getElementById('edit-price').value       = p.price_cents;
+    document.getElementById('edit-price').value       = (p.price_cents / 100).toFixed(2);
     document.getElementById('edit-active').checked    = p.is_active == 1;
     updatePerCredit('edit');
     editModal.classList.add('is-open');
