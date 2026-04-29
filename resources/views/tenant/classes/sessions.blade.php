@@ -67,6 +67,8 @@
   </div>
 </div>
 
+<x-tenant.schedule-tabs active="classes" />
+
 <nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab is-active">Schedule</a>

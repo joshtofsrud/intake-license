@@ -1,5 +1,5 @@
 @props([
-  'active' => 'calendar',  // 'calendar' or 'appointments'
+  'active' => 'calendar',  // 'calendar', 'appointments', or 'classes'
 ])
 
 <div class="ia-schedule-toggle">
@@ -18,4 +18,14 @@
     </svg>
     Appointments
   </a>
+  @if($currentTenant->classes_enabled)
+  <a href="{{ route('tenant.classes.sessions') }}"
+     class="ia-schedule-pill {{ $active === 'classes' ? 'is-active' : '' }}">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+      <rect x="1" y="3" width="12" height="8" rx="1.2" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M5.5 5.5l3 1.5-3 1.5V5.5z" fill="currentColor"/>
+    </svg>
+    Classes
+  </a>
+  @endif
 </div>
