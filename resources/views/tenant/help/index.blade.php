@@ -527,26 +527,81 @@
   <div class="help-section" id="capacity">
     <div class="help-section-head">
       <span class="help-section-icon">🕐</span>
-      <span class="help-section-title">Capacity & Hours</span>
+      <span class="help-section-title">Capacity &amp; Hours</span>
     </div>
 
     <div class="help-card">
       <div class="help-text">
-        <p>Capacity settings control when customers can book and how many appointments you can handle per day.</p>
-        <ul>
-          <li><strong>Weekly schedule</strong> — set which days you're open and your hours for each day</li>
-          <li><strong>Daily capacity</strong> — how many appointment slots are available per day</li>
-          <li><strong>Booking window</strong> — how far in advance customers can book (e.g., 60 days)</li>
-          <li><strong>Minimum notice</strong> — how much notice you need before an appointment (e.g., 24 hours)</li>
-        </ul>
-        <p>The calendar on your booking form automatically shows only available dates based on these settings.</p>
+        <p>The Capacity page is where you tell Intake when you&rsquo;re open and how much work you can take on. Two sections share the page: <strong>Weekly defaults</strong> for your normal schedule, and <strong>Date overrides</strong> for one-off changes like holidays or vacations.</p>
+        <p>Customers only ever see dates that have remaining capacity. Closed days, full days, and dates outside your booking window stay hidden on the public booking calendar.</p>
       </div>
     </div>
 
     <div class="help-card">
-      <div class="help-card-title">Slot weights</div>
+      <div class="help-card-title"><span class="help-card-num">1</span> Weekly defaults</div>
       <div class="help-text">
-        <p>Some jobs take more capacity than others. When viewing an appointment, you can override the <strong>slot weight</strong> — a bigger job can count as 2, 3, or 4 slots. This reduces availability for that day accordingly.</p>
+        <p>One row per day of the week, Sunday through Saturday. For each day you set:</p>
+        <ul>
+          <li><strong>Closed</strong> — toggle if you&rsquo;re never open that day. The other fields hide automatically.</li>
+          <li><strong>Open hours</strong> — when bookings can start and end on that day.</li>
+          <li><strong>Daily cap</strong> — the maximum number of bookings you&rsquo;ll accept on that day. Leave blank to use the sum of your individual resource caps from the <strong>Resources</strong> page (e.g. three staff with 5 bookings each = 15/day total).</li>
+        </ul>
+        <p>Click <strong>Show advanced</strong> to expose the <strong>Slot interval</strong> field, which controls how long each bookable time slot is in time-slot mode. Most shops never need to touch this.</p>
+        <div class="help-tip">
+          <div class="help-tip-label">Tip</div>
+          The × button inside the Daily cap field clears it back to &ldquo;no limit.&rdquo; The cap then falls back to whatever your resources&rsquo; per-day caps add up to.
+        </div>
+      </div>
+    </div>
+
+    <div class="help-card">
+      <div class="help-card-title"><span class="help-card-num">2</span> Date overrides</div>
+      <div class="help-text">
+        <p>Overrides change capacity for specific dates without touching your weekly defaults. Use them for:</p>
+        <ul>
+          <li><strong>Holidays</strong> &mdash; closed for Christmas, Thanksgiving, etc.</li>
+          <li><strong>Vacations</strong> &mdash; closed for a week or two while you&rsquo;re away.</li>
+          <li><strong>Half-days</strong> &mdash; reduced capacity for early closures, training days, or special events.</li>
+          <li><strong>Busy days</strong> &mdash; lower the cap when you know a day will be unusually demanding (one big build, off-site service, etc.).</li>
+        </ul>
+        <p>Click <strong>+ Add override</strong> and the date picker opens. You can select <strong>any number of dates</strong> in one go — perfect for a multi-day vacation.</p>
+        <div class="help-flow">
+          <span class="help-flow-step">+ Add override</span>
+          <span class="help-flow-arrow">&rarr;</span>
+          <span class="help-flow-step">Pick dates on calendar</span>
+          <span class="help-flow-arrow">&rarr;</span>
+          <span class="help-flow-step">Closed or capped?</span>
+          <span class="help-flow-arrow">&rarr;</span>
+          <span class="help-flow-step">Save</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="help-card">
+      <div class="help-card-title">Closed vs. capped — which to pick</div>
+      <div class="help-text">
+        <p><strong>Closed on these dates</strong> means the shop is shut. No bookings, full stop. Use this for vacations and holidays.</p>
+        <p>Leaving the box <em>unchecked</em> and entering a <strong>Daily cap</strong> means the shop is still open, just with reduced capacity. Useful for shorter-than-normal days or when you want to limit yourself to a couple of bookings on a planning day.</p>
+        <div class="help-tip">
+          <div class="help-tip-label">Why this matters</div>
+          When you mark dates as closed, the daily cap is irrelevant — Intake hides the field entirely so you don&rsquo;t have to think about it. If you change your mind and uncheck the box, the cap field comes back.
+        </div>
+      </div>
+    </div>
+
+    <div class="help-card">
+      <div class="help-card-title">Updating an existing override</div>
+      <div class="help-text">
+        <p>Already-overridden dates show in <strong>amber</strong> on the date picker. Clicking one selects it again — when you save, the existing override is updated with your new settings (closed/cap/note), no duplicate created.</p>
+        <p>To remove an override entirely, find it in the list under the calendar and click the <strong>×</strong> on its row. The date returns to whatever your weekly default says for that day of the week.</p>
+      </div>
+    </div>
+
+    <div class="help-card">
+      <div class="help-card-title">Slot weights (advanced)</div>
+      <div class="help-text">
+        <p>Most jobs take one slot. But a full bike build or a complex repair might realistically eat 2&ndash;3 slots&rsquo; worth of bench time. When viewing an appointment, you can override its <strong>slot weight</strong> from 1 to 4. The day&rsquo;s remaining availability is reduced by that amount, not by 1.</p>
+        <p>This lives on the appointment detail page, not the Capacity page — slot weight is a per-job override, not a shop-wide setting.</p>
       </div>
     </div>
   </div>
