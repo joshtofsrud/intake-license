@@ -94,14 +94,41 @@ class BookingController extends Controller
     public function availability(Request $request)
     {
         $request->validate([
-            'year'  => ['required', 'integer', 'min:2024', 'max:2030'],
-            'month' => ['required', 'integer', 'min:1', 'max:12'],
+            'year'       => ['required', 'integer', 'min:2024', 'max:2030'],
+            'month'      => ['required', 'integer', 'min:1', 'max:12'],
+            'service_id' => ['nullable', 'string', 'uuid'],
         ]);
 
-        $tenant  = tenant();
-        $mode    = $tenant->booking_mode ?? 'drop_off';
-        $booking = app(BookingService::class);
-        $dates   = $booking->availableDates($tenant, (int) $request->input('year'), (int) $request->input('month'));
+        $tenant     = tenant();
+        $mode       = $tenant->booking_mode ?? 'drop_off';
+        $booking    = app(BookingService::class);
+        $year       = (int) $request->input('year');
+        $month      = (int) $request->input('month');
+        $serviceId  = $request->input('service_id');
+
+        $dates = $booking->availableDates($tenant, $year, $month, $serviceId);
+
+        $available   = array_flip($dates);
+        $unavailable = [];
+        $windowDays     = $tenant->booking_window_days ?? 60;
+        $minNoticeHours = $tenant->min_notice_hours    ?? 24;
+        $earliestDay = now()->addHours($minNoticeHours)->startOfDay();
+        $latestDay   = now()->addDays($windowDays)->endOfDay();
+        $monthStart  = \Carbon\Carbon::create($year, $month, 1)->max($earliestDay);
+        $monthEnd    = \Carbon\Carbon::create($year, $month, 1)->endOfMonth()->min($latestDay);
+        if ($monthStart->lte($monthEnd)) {
+            $cur = $monthStart->copy();
+            while ($cur->lte($monthEnd)) {
+                $ds = $cur->toDateString();
+                if (!isset($available[$ds])) $unavailable[] = $ds;
+                $cur->addDay();
+            }
+        }
+
+        $earliest = null;
+        if (!empty($dates)) {
+            $earliest = ['date' => $dates[0], 'time' => null];
+        }
 
         $slots = [];
         $slotResources = [];
@@ -142,13 +169,29 @@ class BookingController extends Controller
                     $slotResources[$date][$time] = $freeIds;
                 }
             }
+
+            // Fill in earliest.time from the first available day's first slot.
+            // We walk forward in case the first day happens to have no slots
+            // (rare edge case — e.g. all slots were just booked but the day
+            // hasn't fully tipped to 'unavailable' yet in the cap math).
+            if ($earliest !== null) {
+                foreach ($dates as $d) {
+                    if (!empty($slots[$d])) {
+                        $earliest['date'] = $d;
+                        $earliest['time'] = $slots[$d][0];
+                        break;
+                    }
+                }
+            }
         }
 
         return response()->json([
-            'dates'          => $dates,
-            'slots'          => $slots,
-            'slot_resources' => $slotResources,
-            'mode'           => $mode,
+            'dates'             => $dates,
+            'unavailable_dates' => $unavailable,
+            'earliest'          => $earliest,
+            'slots'             => $slots,
+            'slot_resources'    => $slotResources,
+            'mode'              => $mode,
         ]);
     }
 

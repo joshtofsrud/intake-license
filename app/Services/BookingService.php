@@ -290,7 +290,7 @@ class BookingService
         return "intake:{$tenantShort}:drop:{$dayKey}";
     }
 
-    public function availableDates(Tenant $tenant, int $year, int $month): array
+    public function availableDates(Tenant $tenant, int $year, int $month, ?string $serviceId = null): array
     {
         $windowDays     = $tenant->booking_window_days ?? 60;
         $minNoticeHours = $tenant->min_notice_hours    ?? 24;
@@ -309,14 +309,28 @@ class BookingService
             ->whereBetween('specific_date', [$start->toDateString(), $end->toDateString()])
             ->get()->keyBy(fn($r) => $r->specific_date->toDateString());
 
-        // Sum of per-resource daily caps. NULL caps mean "no per-resource limit"
-        // — those resources are excluded from the sum (their capacity is bounded
-        // only by the time grid in time-slot mode, or by shop-wide override in
-        // drop-off mode). Cached per call since it doesn't change day-to-day.
-        $resourceCapSum = (int) \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+        // Service-aware path: when a service is passed, the relevant capacity
+        // is only what its eligible resources can absorb. We scope both the
+        // resource_cap_sum AND the per-day used count by those resources.
+        // When no service is passed (legacy callers), behavior is unchanged.
+        $eligibleResourceIds = null;
+        if ($serviceId) {
+            $eligibleResourceIds = $this->eligibleResourcesForService($tenant->id, $serviceId);
+            if (empty($eligibleResourceIds)) {
+                // Service has no eligible (active) resources — nothing is bookable.
+                return [];
+            }
+        }
+
+        // Sum of per-resource daily caps. When service-aware, only sum the caps
+        // of eligible resources for that service.
+        $resourceCapQuery = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
             ->where('is_active', true)
-            ->whereNotNull('max_appointments_per_day')
-            ->sum('max_appointments_per_day');
+            ->whereNotNull('max_appointments_per_day');
+        if ($eligibleResourceIds !== null) {
+            $resourceCapQuery->whereIn('id', $eligibleResourceIds);
+        }
+        $resourceCapSum = (int) $resourceCapQuery->sum('max_appointments_per_day');
 
         $available = [];
         $cursor = $start->copy();
@@ -350,9 +364,13 @@ class BookingService
                 // Cap of 0 means closed for this day.
                 if ($effectiveCap === 0) { $cursor->addDay(); continue; }
 
-                $used = TenantAppointment::where('tenant_id', $tenant->id)
+                $usedQuery = TenantAppointment::where('tenant_id', $tenant->id)
                     ->whereNotIn('status', ['cancelled', 'refunded'])
-                    ->where('appointment_date', $dateStr)->sum('slot_weight');
+                    ->where('appointment_date', $dateStr);
+                if ($eligibleResourceIds !== null) {
+                    $usedQuery->whereIn('resource_id', $eligibleResourceIds);
+                }
+                $used = (int) $usedQuery->sum('slot_weight');
                 // null effectiveCap = unbounded, which keeps the day available.
                 if ($effectiveCap === null || $used < $effectiveCap) {
                     $available[] = $dateStr;
