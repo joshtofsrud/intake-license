@@ -322,13 +322,6 @@
         <div class="cl-card-head"><span class="cl-card-title">Actions</span></div>
         <div class="cl-card-body">
           <div class="cl-session-actions">
-            @if($session->status === 'scheduled')
-              <form method="POST" action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
-                @csrf @method('PATCH')
-                <input type="hidden" name="status" value="confirmed">
-                <button type="submit" class="cl-session-action-btn">Confirm session</button>
-              </form>
-            @endif
             @if($session->status === 'confirmed')
               <form method="POST" action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
                 @csrf @method('PATCH')

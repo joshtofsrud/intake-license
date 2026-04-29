@@ -154,7 +154,7 @@ class ClassController extends Controller
             'instructor_resource_id' => $instructor,
             'instructor_snapshot'    => $resource?->name,
             'capacity_snapshot'      => $data['capacity_override'] ?? $template->default_capacity,
-            'status'                 => 'scheduled',
+            'status'                 => 'confirmed',
             'notes'                  => $data['notes'] ?? null,
         ]);
 

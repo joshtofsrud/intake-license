@@ -139,14 +139,6 @@
 
         <div class="cl-session-body">
           <div class="cl-session-actions">
-            @if($session->status === 'scheduled')
-              <form method="POST" action="{{ $updateUrl }}" style="display:inline">
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="status" value="confirmed">
-                <button type="submit" class="ia-btn ia-btn--ghost" style="font-size:12px;padding:5px 12px">Confirm session</button>
-              </form>
-            @endif
             @if(!in_array($session->status, ['cancelled','completed']))
               <button type="button"
                 class="ia-btn ia-btn--ghost"
