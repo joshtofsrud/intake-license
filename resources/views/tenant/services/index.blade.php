@@ -92,9 +92,11 @@
 .sv-attach-btn:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
 .sv-drawer-actions{display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:18px;border-top:0.5px solid var(--ia-border)}
 .sv-elig-chips{display:flex;flex-wrap:wrap;gap:6px}
-.sv-elig-chip{display:inline-flex;align-items:center;padding:5px 10px;background:var(--ia-surface-2,rgba(255,255,255,0.04));border:0.5px solid var(--ia-border);border-radius:14px;font-size:12px;color:var(--ia-text-2);cursor:pointer;transition:border-color var(--ia-t),background var(--ia-t),color var(--ia-t);font-family:inherit}
-.sv-elig-chip:hover{border-color:var(--ia-border-strong);color:var(--ia-text)}
-.sv-elig-chip.is-on{background:var(--ia-accent-soft);border-color:var(--ia-accent);color:var(--ia-accent)}
+.sv-elig-chip{display:inline-flex;align-items:center;padding:5px 10px;background:transparent;border:0.5px solid var(--ia-border);border-radius:14px;font-size:12px;color:var(--ia-text-3);cursor:pointer;transition:border-color var(--ia-t),background var(--ia-t),color var(--ia-t),opacity var(--ia-t);font-family:inherit;opacity:.55}
+.sv-elig-chip:hover{border-color:var(--ia-border-strong);color:var(--ia-text-2);opacity:.85}
+.sv-elig-chip > span:first-child{filter:saturate(.4)}
+.sv-elig-chip.is-on{background:var(--ia-accent-soft);border-color:var(--ia-accent);color:var(--ia-accent);opacity:1}
+.sv-elig-chip.is-on > span:first-child{filter:none}
 .sv-elig-chip.is-on:hover{filter:brightness(1.1)}
 .sv-elig-hint{font-size:11.5px;color:var(--ia-text-3);margin-top:8px;line-height:1.5}
 .sv-drawer-actions-right{display:flex;gap:8px}
