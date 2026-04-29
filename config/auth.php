@@ -18,6 +18,12 @@ return [
             'driver'   => 'session',
             'provider' => 'tenant_users',
         ],
+
+        // Customer portal — tenant customers logging into their own account
+        'customer' => [
+            'driver'   => 'session',
+            'provider' => 'tenant_customers',
+        ],
     ],
 
     'providers' => [
@@ -29,6 +35,11 @@ return [
         'tenant_users' => [
             'driver' => 'eloquent',
             'model'  => App\Models\Tenant\TenantUser::class,
+        ],
+
+        'tenant_customers' => [
+            'driver' => 'eloquent',
+            'model'  => App\Models\Tenant\TenantCustomer::class,
         ],
     ],
 
