@@ -46,7 +46,7 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->unique(['class_session_id', 'customer_id', 'status'], 'one_active_registration');
-            $table->index(['tenant_id', 'class_session_id', 'status']);
+            $table->index(['tenant_id', 'class_session_id', 'status'], 'tcr_tenant_session_status');
             $table->index(['tenant_id', 'customer_id']);
             $table->index(['class_session_id', 'waitlist_position']);
             $table->index('stripe_payment_intent_id');
