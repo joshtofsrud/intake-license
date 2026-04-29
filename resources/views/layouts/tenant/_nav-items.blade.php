@@ -45,6 +45,13 @@
       'group'  => 'manage',
     ],
     [
+      'route'  => 'tenant.classes.templates',
+      'label'  => 'Classes',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l3 1.5-3 1.5V5.5z" fill="currentColor"/></svg>',
+      'group'  => 'manage',
+      'gate'   => 'classes_enabled',
+    ],
+    [
       'route'  => 'tenant.capacity.index',
       'label'  => 'Capacity',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1 5h12" stroke="currentColor" stroke-width="1.2"/><path d="M5 1v4M9 1v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
@@ -125,6 +132,10 @@
     }
     $url      = route($item['route']);
   @endphp
+
+  @if(!empty($item['gate']) && !$currentTenant->{$item['gate']})
+    @continue
+  @endif
 
   @if($item['group'] !== $lastGroup && $item['group'])
     @if($lastGroup !== null)
