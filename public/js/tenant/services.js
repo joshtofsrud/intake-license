@@ -421,15 +421,22 @@
     });
   }
 
+  // Delegated click handler — chips re-render on every renderList(),
+  // so per-element binding misses newly-rendered chips. One listener
+  // at document level catches all clicks regardless of when chips appear.
+  var _elgChipHandlerBound = false;
   function bindEligibilityChips() {
-    document.querySelectorAll('[data-elig-resource]').forEach(function (btn) {
-      if (btn.__svBound) return;
-      btn.__svBound = true;
-      btn.addEventListener('click', function () {
-        var sid = btn.getAttribute('data-elig-service');
-        var rid = btn.getAttribute('data-elig-resource');
-        toggleEligibilityChip(sid, rid);
-      });
+    if (_elgChipHandlerBound) return;
+    _elgChipHandlerBound = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-elig-resource]');
+      if (!btn) return;
+      if (btn.__svElgHandled) return;
+      btn.__svElgHandled = true;
+      setTimeout(function () { btn.__svElgHandled = false; }, 50);
+      var sid = btn.getAttribute('data-elig-service');
+      var rid = btn.getAttribute('data-elig-resource');
+      toggleEligibilityChip(sid, rid);
     });
   }
 
