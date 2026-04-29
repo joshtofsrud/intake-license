@@ -197,6 +197,31 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::delete('/waitlist/similar/{id}',    [TenantControllers\WaitlistAdminController::class, 'removeSimilarMapping'])->name('waitlist.similar.remove');
             Route::delete('/waitlist/entries/{id}',    [TenantControllers\WaitlistAdminController::class, 'cancelEntry'])->name('waitlist.cancel');
             // Feature-addon catalog (tenant-facing purchase + manage).
+            // Classes — templates, sessions, registrations, memberships, packs
+            Route::get('/classes/templates',                    [TenantControllers\ClassController::class, 'templates'])->name('classes.templates');
+            Route::post('/classes/templates',                   [TenantControllers\ClassController::class, 'storeTemplate'])->name('classes.templates.store');
+            Route::patch('/classes/templates/{id}',             [TenantControllers\ClassController::class, 'updateTemplate'])->name('classes.templates.update');
+            Route::delete('/classes/templates/{id}',            [TenantControllers\ClassController::class, 'destroyTemplate'])->name('classes.templates.destroy');
+
+            Route::get('/classes/sessions',                     [TenantControllers\ClassController::class, 'sessions'])->name('classes.sessions');
+            Route::post('/classes/sessions',                    [TenantControllers\ClassController::class, 'storeSession'])->name('classes.sessions.store');
+            Route::get('/classes/sessions/{id}',                [TenantControllers\ClassController::class, 'showSession'])->name('classes.sessions.show');
+            Route::patch('/classes/sessions/{id}',              [TenantControllers\ClassController::class, 'updateSession'])->name('classes.sessions.update');
+            Route::delete('/classes/sessions/{id}',             [TenantControllers\ClassController::class, 'destroySession'])->name('classes.sessions.destroy');
+
+            Route::post('/classes/sessions/{id}/register',      [TenantControllers\ClassController::class, 'registerCustomer'])->name('classes.sessions.register');
+            Route::post('/classes/registrations/{id}/cancel',   [TenantControllers\ClassController::class, 'cancelRegistration'])->name('classes.registrations.cancel');
+            Route::post('/classes/registrations/{id}/checkin',  [TenantControllers\ClassController::class, 'checkIn'])->name('classes.registrations.checkin');
+            Route::post('/classes/registrations/{id}/noshow',   [TenantControllers\ClassController::class, 'markNoShow'])->name('classes.registrations.noshow');
+
+            Route::get('/classes/memberships',                  [TenantControllers\ClassController::class, 'membershipProducts'])->name('classes.memberships');
+            Route::post('/classes/memberships',                 [TenantControllers\ClassController::class, 'storeMembershipProduct'])->name('classes.memberships.store');
+            Route::patch('/classes/memberships/{id}',           [TenantControllers\ClassController::class, 'updateMembershipProduct'])->name('classes.memberships.update');
+
+            Route::get('/classes/packs',                        [TenantControllers\ClassController::class, 'packProducts'])->name('classes.packs');
+            Route::post('/classes/packs',                       [TenantControllers\ClassController::class, 'storePackProduct'])->name('classes.packs.store');
+            Route::patch('/classes/packs/{id}',                 [TenantControllers\ClassController::class, 'updatePackProduct'])->name('classes.packs.update');
+
             // Note: 'feature-addons' path avoids collision with existing service-addon routes below.
             Route::get('/feature-addons',             [TenantControllers\AddonCatalogController::class, 'index'])->name('feature_addons.index');
             Route::post('/feature-addons/activate',   [TenantControllers\AddonCatalogController::class, 'activate'])->name('feature_addons.activate');
