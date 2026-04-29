@@ -91,6 +91,12 @@
 .sv-attach-btn{padding:7px 11px;background:transparent;border:0.5px dashed var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text-muted);font-size:12px;cursor:pointer;transition:all var(--ia-t);width:100%;text-align:left}
 .sv-attach-btn:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
 .sv-drawer-actions{display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:18px;border-top:0.5px solid var(--ia-border)}
+.sv-elig-chips{display:flex;flex-wrap:wrap;gap:6px}
+.sv-elig-chip{display:inline-flex;align-items:center;padding:5px 10px;background:var(--ia-surface-2,rgba(255,255,255,0.04));border:0.5px solid var(--ia-border);border-radius:14px;font-size:12px;color:var(--ia-text-2);cursor:pointer;transition:border-color var(--ia-t),background var(--ia-t),color var(--ia-t);font-family:inherit}
+.sv-elig-chip:hover{border-color:var(--ia-border-strong);color:var(--ia-text)}
+.sv-elig-chip.is-on{background:var(--ia-accent-soft);border-color:var(--ia-accent);color:var(--ia-accent)}
+.sv-elig-chip.is-on:hover{filter:brightness(1.1)}
+.sv-elig-hint{font-size:11.5px;color:var(--ia-text-3);margin-top:8px;line-height:1.5}
 .sv-drawer-actions-right{display:flex;gap:8px}
 .sv-table-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:auto}
 .sv-tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -480,6 +486,7 @@ body.sv-sheet-open{overflow:hidden !important}
 window.SvData = {
   categories: @json($jsCategories),
   library:    @json($jsLibrary),
+  resources:  @json($jsResources),
   mode:       @json($jsMode),
   csrf:       '{{ csrf_token() }}',
   urls: {

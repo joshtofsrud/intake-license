@@ -20,9 +20,10 @@ class ServiceController extends Controller
         $categories = TenantServiceCategory::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')
             ->with(['items' => function ($q) {
-                $q->orderBy('sort_order')->with(['serviceAddons' => function ($sa) {
-                    $sa->orderBy('sort_order')->with('addon');
-                }]);
+                $q->orderBy('sort_order')
+                  ->with(['serviceAddons' => function ($sa) {
+                      $sa->orderBy('sort_order')->with('addon');
+                  }, 'eligibleResources']);
             }])
             ->get();
 
@@ -51,6 +52,7 @@ class ServiceController extends Controller
                 'slot_weight'           => (int) $item->slot_weight,
                 'is_active'             => (bool) $item->is_active,
                 'sort_order'            => (int) $item->sort_order,
+                'eligible_resource_ids' => $item->eligibleResources->pluck('id')->values()->toArray(),
                 'addons'                => $item->serviceAddons->map(fn($pivot) => [
                     'attachment_id'             => $pivot->id,
                     'addon_id'                  => $pivot->addon_id,
@@ -445,6 +447,35 @@ class ServiceController extends Controller
                 ->update(['sort_order' => (int) $i]);
         }
         return response()->json(['ok' => true]);
+    }
+
+    private function setEligibility(Request $request, $tenant, ?string $id)
+    {
+        if (!$id) return $this->err('Service id is required.');
+        $service = TenantServiceItem::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $resourceIds = $request->input('resource_ids', []);
+        if (!is_array($resourceIds)) return $this->err('resource_ids must be an array.');
+
+        // Validate every requested ID belongs to this tenant and is active.
+        // We allow empty array (means "all resources eligible" by convention).
+        if (!empty($resourceIds)) {
+            $validCount = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->whereIn('id', $resourceIds)
+                ->count();
+            if ($validCount !== count($resourceIds)) {
+                return $this->err('One or more resource IDs are invalid or inactive.');
+            }
+        }
+
+        // sync() replaces the entire pivot for this service in one transaction.
+        $service->eligibleResources()->sync($resourceIds);
+
+        return response()->json(['ok' => true, 'data' => [
+            'id'                    => $service->id,
+            'eligible_resource_ids' => $resourceIds,
+        ]]);
     }
 
     private function pivotPayload(TenantServiceAddon $pivot): array

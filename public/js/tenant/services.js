@@ -19,6 +19,9 @@
     pickerForServiceId: null,
     categories: normalizeCategories(D.categories || []),
     library: normalizeLibrary(D.library || []),
+    resources: (D.resources || []).map(function (r) {
+      return { id: r.id, name: r.name || '', color_hex: r.color_hex || '#888' };
+    }),
   };
 
   var persistedView = readPersistedView();
@@ -47,6 +50,7 @@
       slot_weight: s.slot_weight|0 || 1,
       is_active: !!s.is_active,
       sort_order: s.sort_order|0,
+      eligible_resource_ids: Array.isArray(s.eligible_resource_ids) ? s.eligible_resource_ids.slice() : [],
       addons: (s.addons || []).map(normalizeAttachedAddon),
     };
   }
@@ -339,6 +343,7 @@
           + '<div class="sv-time-hint">Buffer for cleanup. Not shown to customer.</div>'
         + '</div>'
       + '</div>'
+      + (state.resources.length >= 2 ? renderEligibilityField(s) : '')
       + '<div class="sv-drawer-field">'
         + '<label class="sv-drawer-label">Add-ons attached <span style="color:var(--ia-text-dim);margin-left:6px;text-transform:none;letter-spacing:normal">(' + s.addons.length + ')</span></label>'
         + '<div class="sv-attached-addons">' + addonRows + '</div>'
@@ -356,6 +361,76 @@
         + '</div>'
       + '</div>'
       + '</div>';
+  }
+
+  // ====================================================================
+  // Eligibility chips — which resources can do this service.
+  // Empty selection = all resources eligible (backend convention).
+  // ====================================================================
+
+  function renderEligibilityField(s) {
+    var ids = s.eligible_resource_ids || [];
+    var allEligible = ids.length === 0;
+    var chips = state.resources.map(function (r) {
+      var on = !allEligible && ids.indexOf(r.id) !== -1;
+      var dotStyle = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + esc(r.color_hex) + ';margin-right:6px;flex-shrink:0';
+      return '<button type="button" class="sv-elig-chip' + (on ? ' is-on' : '') + '"'
+        + ' data-elig-service="' + esc(s.id) + '"'
+        + ' data-elig-resource="' + esc(r.id) + '">'
+        + '<span style="' + dotStyle + '"></span>'
+        + esc(r.name)
+        + '</button>';
+    }).join('');
+
+    var hint = allEligible
+      ? 'All resources can perform this service. Click any chip to limit eligibility.'
+      : 'Click a selected chip to remove. Deselect all to allow any resource.';
+
+    return '<div class="sv-drawer-field">'
+      + '<label class="sv-drawer-label">Available with</label>'
+      + '<div class="sv-elig-chips">' + chips + '</div>'
+      + '<div class="sv-elig-hint">' + hint + '</div>'
+    + '</div>';
+  }
+
+  function toggleEligibilityChip(serviceId, resourceId) {
+    var s = findService(serviceId);
+    if (!s) return;
+    var ids = (s.eligible_resource_ids || []).slice();
+    var idx = ids.indexOf(resourceId);
+    if (idx === -1) ids.push(resourceId);
+    else            ids.splice(idx, 1);
+
+    // Optimistic update
+    var prev = s.eligible_resource_ids;
+    s.eligible_resource_ids = ids;
+    renderList();
+
+    ajax(D.urls.servicesBase + '/' + encodeURIComponent(serviceId), 'PATCH', {
+      op: 'set_eligibility',
+      resource_ids: ids,
+    }).then(function (r) {
+      if (!serviceResponseOk(r)) {
+        s.eligible_resource_ids = prev;
+        renderList();
+        alert('Eligibility update failed: ' + serviceErrorMessage(r));
+        return;
+      }
+      // Server is source of truth — accept its array
+      s.eligible_resource_ids = (r.json.data && r.json.data.eligible_resource_ids) || ids;
+    });
+  }
+
+  function bindEligibilityChips() {
+    document.querySelectorAll('[data-elig-resource]').forEach(function (btn) {
+      if (btn.__svBound) return;
+      btn.__svBound = true;
+      btn.addEventListener('click', function () {
+        var sid = btn.getAttribute('data-elig-service');
+        var rid = btn.getAttribute('data-elig-resource');
+        toggleEligibilityChip(sid, rid);
+      });
+    });
   }
 
   // ====================================================================
@@ -1342,6 +1417,7 @@
     bindActiveToggles();
     bindAddButton();
     bindDrawerFields();
+    bindEligibilityChips();
     bindAddonLibEvents();
     bindMobileCardTap();
     syncSheetOpenState();
