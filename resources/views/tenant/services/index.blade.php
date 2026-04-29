@@ -49,10 +49,7 @@
 .sv-expand-btn:hover{background:var(--ia-hover);color:var(--ia-text)}
 .sv-expand-btn svg{width:14px;height:14px;transition:transform .15s}
 .sv-list-row.is-expanded .sv-expand-btn svg{transform:rotate(180deg)}
-.sv-toggle{width:34px;height:20px;background:var(--ia-border);border-radius:10px;position:relative;cursor:pointer;transition:background var(--ia-t);border:none;flex-shrink:0;padding:0;display:inline-block}
-.sv-toggle.is-on{background:var(--ia-accent)}
-.sv-toggle::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:white;transition:transform var(--ia-t)}
-.sv-toggle.is-on::after{transform:translateX(14px)}
+/* sv-toggle replaced by shared ia-toggle in public/css/tenant/toggle.css */
 .sv-cell-editable{padding:5px 8px;border-radius:var(--ia-r-sm);cursor:text;transition:box-shadow var(--ia-t),background var(--ia-t);display:inline-block;min-width:30px;outline:1px solid transparent}
 .sv-cell-editable:hover{background:var(--ia-hover);outline:1px solid var(--ia-border)}
 .sv-cell-editable.is-editing{background:var(--ia-input-bg);outline:1px solid var(--ia-accent);padding:4px 7px}

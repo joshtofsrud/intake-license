@@ -246,7 +246,7 @@
         + '<div class="sv-cat">' + esc(s._categoryName) + '</div>'
         + '<div class="sv-num"><span class="sv-cell-editable" data-field="price_cents" data-service="' + s.id + '">' + fmtMoney(s.price_cents) + '</span></div>'
         + '<div class="sv-num">' + timeCell + '</div>'
-        + '<div style="text-align:center"><button type="button" class="sv-toggle' + (s.is_active ? ' is-on' : '') + '" data-toggle-service="' + s.id + '"></button></div>'
+        + '<div style="text-align:center"><button type="button" class="ia-toggle' + (s.is_active ? ' is-on' : '') + '" data-toggle-service="' + s.id + '"></button></div>'
         + '<div><button type="button" class="sv-expand-btn" data-expand="' + s.id + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
         + '</div>'
         + (isExpanded ? renderDrawer(s) : '');
@@ -613,7 +613,7 @@
         + '<td class="num">' + durCell + '</td>'
         + '<td class="num"><span class="sv-cell-editable" data-field="cleanup_after_minutes" data-service="' + esc(s.id) + '">' + (s.cleanup_after_minutes ? s.cleanup_after_minutes + ' min' : '—') + '</span></td>'
         + '<td class="ctr">' + addonBadge + '</td>'
-        + '<td class="ctr"><button type="button" class="sv-toggle' + (s.is_active ? ' is-on' : '') + '" data-toggle-service="' + esc(s.id) + '"></button></td>'
+        + '<td class="ctr"><button type="button" class="ia-toggle' + (s.is_active ? ' is-on' : '') + '" data-toggle-service="' + esc(s.id) + '"></button></td>'
         + '<td><button type="button" class="sv-tbl-row-menu" data-tbl-expand="' + esc(s.id) + '" title="Open details">⋮</button></td>'
         + '</tr>';
     }).join('');
@@ -650,7 +650,7 @@
         + '<div class="sv-addon-row-time"><span class="sv-cell-editable" data-addonlib="' + esc(a.id) + '" data-field="default_duration_minutes">' + (a.default_duration_minutes|0) + ' min</span></div>'
         + '<div class="sv-addon-row-price"><span class="sv-cell-editable" data-addonlib="' + esc(a.id) + '" data-field="price_cents">' + fmtMoney(a.price_cents) + '</span></div>'
         + '<div class="sv-addon-row-usage">' + usageCell + '</div>'
-        + '<div style="text-align:center"><button type="button" class="sv-toggle' + (a.is_active ? ' is-on' : '') + '" data-toggle-addon="' + esc(a.id) + '"></button></div>'
+        + '<div style="text-align:center"><button type="button" class="ia-toggle' + (a.is_active ? ' is-on' : '') + '" data-toggle-addon="' + esc(a.id) + '"></button></div>'
         + '<div><button type="button" class="sv-expand-btn" data-delete-addon="' + esc(a.id) + '" data-addon-name="' + esc(a.name) + '" data-addon-usage="' + usage + '" title="Delete add-on">×</button></div>'
         + '</div>';
     }).join('');

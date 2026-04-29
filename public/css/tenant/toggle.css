@@ -25,7 +25,7 @@
   flex-shrink: 0;
   padding: 0;
 }
-.ia-toggle.on { background: var(--ia-accent); }
+.ia-toggle.on, .ia-toggle.is-on { background: var(--ia-accent); }
 .ia-toggle::after {
   content: '';
   position: absolute;
@@ -37,7 +37,7 @@
   background: white;
   transition: transform .12s;
 }
-.ia-toggle.on::after { transform: translateX(16px); }
+.ia-toggle.on::after, .ia-toggle.is-on::after { transform: translateX(16px); }
 .ia-toggle:focus-visible { box-shadow: 0 0 0 2px var(--ia-bg), 0 0 0 4px var(--ia-accent); }
 
 /* Smaller variant for dense rows */
