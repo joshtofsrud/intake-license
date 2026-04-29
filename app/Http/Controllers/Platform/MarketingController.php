@@ -44,6 +44,15 @@ class MarketingController extends Controller
         return $this->renderPage('features');
     }
 
+    public function whyIntake()
+    {
+        // The block-builder version doesn't exist in __platform yet, so always
+        // fall back to the hardcoded Blade. When a why-intake page is created
+        // via the block builder (post-launch), this method can swap to the
+        // standard useLegacy() / renderPage() pattern.
+        return view('marketing.why-intake', $this->legacyShared());
+    }
+
     /**
      * Public changelog — what shipped, by date.
      * Always served from the hardcoded Blade; data comes from changelog_entries.

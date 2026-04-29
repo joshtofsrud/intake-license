@@ -228,6 +228,7 @@
       intake
     </a>
     <div class="mk-nav-links">
+      <a href="{{ route('marketing.why-intake') }}" class="mk-nav-link {{ request()->routeIs('marketing.why-intake') ? 'active' : '' }}">Why Intake</a>
       <a href="{{ route('marketing.features') }}" class="mk-nav-link {{ request()->routeIs('marketing.features') ? 'active' : '' }}">Features</a>
       <a href="{{ route('marketing.pricing') }}"  class="mk-nav-link {{ request()->routeIs('marketing.pricing')  ? 'active' : '' }}">Pricing</a>
       <a href="{{ route('marketing.docs') }}"     class="mk-nav-link {{ request()->routeIs('marketing.docs')     ? 'active' : '' }}">Docs</a>
@@ -241,6 +242,7 @@
     </button>
   </div>
   <div class="mk-mobile-nav" id="mk-mobile-nav">
+    <a href="{{ route('marketing.why-intake') }}">Why Intake</a>
     <a href="{{ route('marketing.features') }}">Features</a>
     <a href="{{ route('marketing.pricing') }}">Pricing</a>
     <a href="{{ route('marketing.docs') }}">Docs</a>
@@ -265,9 +267,10 @@
       </div>
       <div>
         <div class="mk-footer-col-title">Product</div>
-        <a href="{{ route('marketing.features') }}" class="mk-footer-link">Features</a>
-        <a href="{{ route('marketing.pricing') }}"  class="mk-footer-link">Pricing</a>
-        <a href="{{ route('marketing.docs') }}"     class="mk-footer-link">Docs</a>
+        <a href="{{ route('marketing.why-intake') }}" class="mk-footer-link">Why Intake</a>
+        <a href="{{ route('marketing.features') }}"   class="mk-footer-link">Features</a>
+        <a href="{{ route('marketing.pricing') }}"    class="mk-footer-link">Pricing</a>
+        <a href="{{ route('marketing.docs') }}"       class="mk-footer-link">Docs</a>
       </div>
       <div>
         <div class="mk-footer-col-title">Company</div>

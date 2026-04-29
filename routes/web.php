@@ -46,6 +46,7 @@ Route::domain($domain)->group(function () {
     Route::get('/changelog', [Platform\MarketingController::class, 'changelog'])->name('marketing.changelog');
     Route::get('/roadmap',   [Platform\MarketingController::class, 'roadmap'])->name('marketing.roadmap');
     Route::get('/features', [Platform\MarketingController::class, 'features'])->name('marketing.features');
+    Route::get('/why-intake', [Platform\MarketingController::class, 'whyIntake'])->name('marketing.why-intake');
     Route::get('/docs',     [Platform\MarketingController::class, 'docs'])->name('marketing.docs');
     Route::get('/contact',  [Platform\MarketingController::class, 'contact'])->name('marketing.contact');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
