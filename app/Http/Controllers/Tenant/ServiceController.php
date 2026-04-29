@@ -470,7 +470,14 @@ class ServiceController extends Controller
         }
 
         // sync() replaces the entire pivot for this service in one transaction.
-        $service->eligibleResources()->sync($resourceIds);
+        // Pass tenant_id alongside each row so the pivot table's tenant_id
+        // column gets populated (otherwise sync() leaves it null and the
+        // not-null constraint blows up).
+        $syncPayload = [];
+        foreach ($resourceIds as $rid) {
+            $syncPayload[$rid] = ['tenant_id' => $tenant->id];
+        }
+        $service->eligibleResources()->sync($syncPayload);
 
         return response()->json(['ok' => true, 'data' => [
             'id'                    => $service->id,

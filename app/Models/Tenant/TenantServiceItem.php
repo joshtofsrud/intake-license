@@ -59,7 +59,9 @@ class TenantServiceItem extends Model
             'tenant_service_resource_eligibility',
             'service_item_id',
             'resource_id'
-        )->withTimestamps();
+        )->using(TenantServiceResourceEligibility::class)
+         ->withPivot(['id', 'tenant_id'])
+         ->withTimestamps();
     }
 
     public function customerMinutes(): int
