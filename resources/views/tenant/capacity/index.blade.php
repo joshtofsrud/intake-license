@@ -145,18 +145,29 @@
   <div class="cap-modal-back"></div>
   <div class="cap-modal-card">
     <div class="cap-modal-head">
-      <span class="ia-card-title">Date override</span>
-      <button type="button" class="cap-modal-x" id="cap-override-close">×</button>
+      <span class="ia-card-title">Date overrides</span>
+      <button type="button" class="cap-modal-x" id="cap-override-close">&times;</button>
     </div>
     <div class="cap-modal-body">
       <div class="ia-form-group">
-        <label class="ia-form-label">Date</label>
-        <input type="date" id="ov-date" class="ia-input">
+        <label class="ia-form-label">Pick one or more dates</label>
+        <div class="ov-cal" id="ov-cal">
+          <div class="ov-cal-head">
+            <button type="button" class="ov-cal-nav" id="ov-cal-prev" aria-label="Previous month">&lsaquo;</button>
+            <div class="ov-cal-title" id="ov-cal-title"></div>
+            <button type="button" class="ov-cal-nav" id="ov-cal-next" aria-label="Next month">&rsaquo;</button>
+          </div>
+          <div class="ov-cal-dows">
+            <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+          </div>
+          <div class="ov-cal-grid" id="ov-cal-grid"></div>
+          <div class="ov-cal-count" id="ov-cal-count">No dates selected</div>
+        </div>
       </div>
       <div class="ia-form-group">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="ov-is-closed">
-          <span>Closed on this date</span>
+          <span>Closed on the selected date(s)</span>
         </label>
       </div>
       <div class="ia-form-group" id="ov-max-group">
@@ -443,6 +454,111 @@
   gap: 10px; padding: 14px 20px;
   border-top: 0.5px solid var(--ia-border);
 }
+
+/* ============================================================
+   Multi-pick calendar — date overrides modal.
+   ============================================================ */
+.ov-cal {
+  background: var(--ia-surface-2, rgba(255,255,255,0.04));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 8px;
+  padding: 10px 10px 8px;
+}
+.ov-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ov-cal-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-feature-settings: "tnum";
+}
+.ov-cal-nav {
+  background: transparent;
+  border: 0.5px solid var(--ia-border);
+  border-radius: 5px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  color: var(--ia-text-2);
+  font-size: 14px;
+  line-height: 1;
+  font-family: inherit;
+}
+.ov-cal-nav:hover { color: var(--ia-text); border-color: var(--ia-border-strong); }
+.ov-cal-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+.ov-cal-dows {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ia-text-3);
+  font-weight: 600;
+  text-align: center;
+}
+.ov-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.ov-cal-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: none;
+  color: var(--ia-text-2);
+  font-family: inherit;
+  font-feature-settings: "tnum";
+  transition: background var(--ia-t), color var(--ia-t);
+}
+.ov-cal-cell:hover:not(:disabled):not(.is-empty) {
+  background: var(--ia-hover);
+  color: var(--ia-text);
+}
+.ov-cal-cell.is-empty { cursor: default; }
+.ov-cal-cell.is-past {
+  color: var(--ia-text-3);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.ov-cal-cell.is-today {
+  outline: 0.5px solid var(--ia-accent);
+  outline-offset: -1px;
+}
+.ov-cal-cell.is-existing {
+  background: rgba(245,158,11,0.12);
+  color: #F59E0B;
+  font-weight: 600;
+}
+.ov-cal-cell.is-existing:hover { background: rgba(245,158,11,0.22); }
+.ov-cal-cell.is-selected {
+  background: var(--ia-accent);
+  color: var(--ia-accent-text, #0a0a0a);
+  font-weight: 600;
+}
+.ov-cal-cell.is-selected:hover { filter: brightness(0.92); }
+.ov-cal-count {
+  font-size: 11px;
+  color: var(--ia-text-3);
+  text-align: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0.5px dashed var(--ia-border);
+  font-feature-settings: "tnum";
+}
+.ov-cal-count.has-selection { color: var(--ia-accent); font-weight: 600; }
 </style>
 @endpush
 

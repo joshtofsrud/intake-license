@@ -253,30 +253,143 @@
   }
 
   function bindOverrideModal() {
-    var addBtn  = document.getElementById( 'cap-add-override-btn' );
-    var modal   = document.getElementById( 'cap-override-modal' );
+    var addBtn   = document.getElementById( 'cap-add-override-btn' );
+    var modal    = document.getElementById( 'cap-override-modal' );
     var closeBtn = document.getElementById( 'cap-override-close' );
-    var cancelBtn = document.getElementById( 'cap-override-cancel' );
-    var saveBtn   = document.getElementById( 'cap-override-save' );
-    var dateInput = document.getElementById( 'ov-date' );
-    var closedCb  = document.getElementById( 'ov-is-closed' );
-    var maxInput  = document.getElementById( 'ov-max' );
-    var maxGroup  = document.getElementById( 'ov-max-group' );
-    var noteInput = document.getElementById( 'ov-note' );
+    var cancelBtn= document.getElementById( 'cap-override-cancel' );
+    var saveBtn  = document.getElementById( 'cap-override-save' );
+    var closedCb = document.getElementById( 'ov-is-closed' );
+    var maxInput = document.getElementById( 'ov-max' );
+    var maxGroup = document.getElementById( 'ov-max-group' );
+    var noteInput= document.getElementById( 'ov-note' );
 
-    if ( !addBtn || !modal ) return;
+    var calGrid  = document.getElementById( 'ov-cal-grid' );
+    var calTitle = document.getElementById( 'ov-cal-title' );
+    var calCount = document.getElementById( 'ov-cal-count' );
+    var prevBtn  = document.getElementById( 'ov-cal-prev' );
+    var nextBtn  = document.getElementById( 'ov-cal-next' );
+
+    if ( !addBtn || !modal || !calGrid ) return;
+
+    // Calendar state — viewing-month and selected dates.
+    // viewMonth is a Date pinned to day-1 of the current view.
+    // selected is a Set of YYYY-MM-DD strings.
+    var viewMonth = startOfMonth( new Date() );
+    var selected  = new Set();
+
+    function pad( n ) { return ( n < 10 ? '0' : '' ) + n; }
+    function fmtDate( d ) {
+      return d.getFullYear() + '-' + pad( d.getMonth() + 1 ) + '-' + pad( d.getDate() );
+    }
+    function startOfMonth( d ) { return new Date( d.getFullYear(), d.getMonth(), 1 ); }
+    function startOfDay( d )   { return new Date( d.getFullYear(), d.getMonth(), d.getDate() ); }
+    function isSameMonth( a, b ) {
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+    }
+
+    var MONTH_NAMES = [ 'January','February','March','April','May','June','July','August','September','October','November','December' ];
+
+    function existingOverrideDates() {
+      // Set of YYYY-MM-DD strings already saved as overrides — shown in amber.
+      var s = new Set();
+      ( boot.overrides || [] ).forEach( function ( o ) { s.add( o.date ); } );
+      return s;
+    }
+
+    function renderCalendar() {
+      var year  = viewMonth.getFullYear();
+      var month = viewMonth.getMonth();
+      calTitle.textContent = MONTH_NAMES[ month ] + ' ' + year;
+
+      // Disable prev when viewing the current month (can't override the past).
+      var today      = startOfDay( new Date() );
+      var todayMonth = startOfMonth( today );
+      prevBtn.disabled = ( viewMonth.getTime() <= todayMonth.getTime() );
+
+      // First day of month + grid offset (Sunday-anchored).
+      var first      = new Date( year, month, 1 );
+      var startDow   = first.getDay();
+      var daysInMon  = new Date( year, month + 1, 0 ).getDate();
+      var existing   = existingOverrideDates();
+
+      var html = '';
+      // Empty leading cells
+      for ( var i = 0; i < startDow; i++ ) {
+        html += '<button type="button" class="ov-cal-cell is-empty" disabled></button>';
+      }
+      for ( var d = 1; d <= daysInMon; d++ ) {
+        var date    = new Date( year, month, d );
+        var dateStr = fmtDate( date );
+        var isPast  = date.getTime() < today.getTime();
+        var isToday = date.getTime() === today.getTime();
+        var hasExisting = existing.has( dateStr );
+        var isSelected  = selected.has( dateStr );
+
+        var cls = 'ov-cal-cell';
+        if ( isPast )      cls += ' is-past';
+        if ( isToday )     cls += ' is-today';
+        if ( hasExisting ) cls += ' is-existing';
+        if ( isSelected )  cls += ' is-selected';
+
+        var title = '';
+        if ( hasExisting && !isSelected ) title = 'Already has an override — click to update it';
+        else if ( isPast )                title = 'Past dates can\'t be overridden';
+
+        html += '<button type="button" class="' + cls + '"'
+              + ( isPast ? ' disabled' : '' )
+              + ' data-cal-date="' + dateStr + '"'
+              + ( title ? ' title="' + title + '"' : '' )
+              + '>' + d + '</button>';
+      }
+
+      calGrid.innerHTML = html;
+      updateCount();
+    }
+
+    function updateCount() {
+      var n = selected.size;
+      if ( n === 0 ) {
+        calCount.textContent = 'No dates selected';
+        calCount.classList.remove( 'has-selection' );
+      } else {
+        calCount.textContent = n + ' date' + ( n === 1 ? '' : 's' ) + ' selected';
+        calCount.classList.add( 'has-selection' );
+      }
+    }
 
     function openModal() {
-      dateInput.value = '';
+      selected.clear();
+      viewMonth = startOfMonth( new Date() );
       closedCb.checked = false;
       maxInput.value = '';
       noteInput.value = '';
       maxGroup.style.display = '';
       modal.style.display = '';
+      renderCalendar();
     }
     function closeModal() {
       modal.style.display = 'none';
     }
+
+    // Calendar cell click — toggle selection.
+    calGrid.addEventListener( 'click', function ( e ) {
+      var btn = e.target.closest( '[data-cal-date]' );
+      if ( !btn || btn.disabled ) return;
+      var ds = btn.getAttribute( 'data-cal-date' );
+      if ( selected.has( ds ) ) selected.delete( ds );
+      else                       selected.add( ds );
+      renderCalendar();
+    } );
+
+    prevBtn.addEventListener( 'click', function () {
+      if ( prevBtn.disabled ) return;
+      viewMonth = new Date( viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1 );
+      renderCalendar();
+    } );
+    nextBtn.addEventListener( 'click', function () {
+      viewMonth = new Date( viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1 );
+      renderCalendar();
+    } );
 
     closedCb.addEventListener( 'change', function () {
       maxGroup.style.display = closedCb.checked ? 'none' : '';
@@ -289,19 +402,24 @@
       .addEventListener( 'click', closeModal );
 
     saveBtn.addEventListener( 'click', function () {
-      if ( !dateInput.value ) {
-        alert( 'Please pick a date.' );
+      if ( selected.size === 0 ) {
+        alert( 'Pick at least one date on the calendar.' );
         return;
       }
+      var dates = Array.from( selected ).sort();
+
       var fd = new FormData();
       fd.append( '_token', boot.csrf );
-      fd.append( 'op', 'save_override' );
-      fd.append( 'date', dateInput.value );
+      fd.append( 'op', 'save_overrides_bulk' );
+      dates.forEach( function ( d ) { fd.append( 'dates[]', d ); } );
       fd.append( 'is_closed', closedCb.checked ? '1' : '0' );
       if ( !closedCb.checked && maxInput.value !== '' ) {
         fd.append( 'max', maxInput.value );
       }
       fd.append( 'note', noteInput.value || '' );
+
+      saveBtn.disabled = true;
+      setStatus( 'Saving ' + dates.length + ' date' + ( dates.length === 1 ? '' : 's' ) + '…' );
 
       fetch( boot.saveUrl, {
         method: 'POST',
@@ -310,27 +428,26 @@
       } )
         .then( function ( r ) { return r.json(); } )
         .then( function ( resp ) {
+          saveBtn.disabled = false;
           if ( resp && resp.success ) {
-            var existing = ( boot.overrides || [] ).filter( function ( o ) {
-              return o.date !== resp.date;
-            } );
-            existing.push( {
-              id: resp.id,
-              date: resp.date,
-              max: resp.max,
-              is_closed: !!resp.is_closed,
-              note: resp.note,
+            // Merge each saved override into boot state, replacing any
+            // existing entry on the same date.
+            var existing = boot.overrides || [];
+            ( resp.overrides || [] ).forEach( function ( ov ) {
+              existing = existing.filter( function ( o ) { return o.date !== ov.date; } );
+              existing.push( ov );
             } );
             existing.sort( function ( a, b ) { return a.date.localeCompare( b.date ); } );
             boot.overrides = existing;
             renderOverrides();
             closeModal();
-            setStatus( 'Saved' );
+            setStatus( 'Saved ' + ( resp.count || dates.length ) + ' override' + ( ( resp.count || dates.length ) === 1 ? '' : 's' ) );
           } else {
             setStatus( 'Save failed', true );
           }
         } )
         .catch( function ( err ) {
+          saveBtn.disabled = false;
           console.error( 'Override save error:', err );
           setStatus( 'Save failed', true );
         } );

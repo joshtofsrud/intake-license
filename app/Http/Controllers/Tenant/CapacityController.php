@@ -143,6 +143,52 @@ class CapacityController extends Controller
             return response()->json(['success' => true]);
         }
 
+        if ($op === 'save_overrides_bulk') {
+            $request->validate([
+                'dates'     => ['required', 'array', 'min:1', 'max:366'],
+                'dates.*'   => ['required', 'date', 'after_or_equal:today'],
+                'max'       => ['nullable', 'integer', 'min:0'],
+                'is_closed' => ['nullable', 'boolean'],
+                'note'      => ['nullable', 'string', 'max:255'],
+            ]);
+
+            $isClosed = (bool) $request->input('is_closed', false);
+            $note     = $request->input('note', '');
+            $maxRaw   = $request->input('max');
+            $maxVal   = $isClosed
+                ? null
+                : (($maxRaw === null || $maxRaw === '') ? null : (int) $maxRaw);
+
+            $payload = [
+                'is_closed'        => $isClosed,
+                'note'             => $note,
+                'max_appointments' => $maxVal,
+            ];
+
+            $saved = [];
+            \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $request, $payload, &$saved) {
+                foreach ($request->input('dates', []) as $date) {
+                    $rule = TenantCapacityRule::updateOrCreate(
+                        ['tenant_id' => $tenant->id, 'rule_type' => 'override', 'specific_date' => $date],
+                        $payload
+                    );
+                    $saved[] = [
+                        'id'        => $rule->id,
+                        'date'      => $rule->specific_date->format('Y-m-d'),
+                        'max'       => $rule->max_appointments,
+                        'is_closed' => (bool) $rule->is_closed,
+                        'note'      => $rule->note,
+                    ];
+                }
+            });
+
+            return response()->json([
+                'success'   => true,
+                'overrides' => $saved,
+                'count'     => count($saved),
+            ]);
+        }
+
         if ($op === 'save_override') {
             $request->validate([
                 'date'      => ['required', 'date', 'after_or_equal:today'],
