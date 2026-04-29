@@ -34,7 +34,9 @@ class ClassRegistrationService
     ): TenantClassRegistration {
         $lockKey = "intake:{$tenantId}:class:{$sessionId}";
 
-        return MySQLLock::withLock($lockKey, function () use (
+        $lock = app(MySQLLock::class);
+
+        return $lock->withLock($lockKey, function () use (
             $sessionId, $customerId, $tenantId, $paymentMethod
         ) {
             return DB::transaction(function () use (
