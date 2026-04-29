@@ -167,12 +167,12 @@
       <div class="ia-form-group">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="ov-is-closed">
-          <span>Closed on the selected date(s)</span>
+          <span>Closed on these dates</span>
         </label>
       </div>
       <div class="ia-form-group" id="ov-max-group">
-        <label class="ia-form-label">Max bookings (leave blank to use resource sum)</label>
-        <input type="number" id="ov-max" class="ia-input" min="0" placeholder="Leave blank for resource sum">
+        <label class="ia-form-label">Daily cap (optional)</label>
+        <input type="number" id="ov-max" class="ia-input" min="0" placeholder="No cap — uses resource limits">
       </div>
       <div class="ia-form-group">
         <label class="ia-form-label">Note (optional)</label>
