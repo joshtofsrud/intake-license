@@ -224,6 +224,12 @@
 <div class="bk-section" id="bk-step-2">
   <h1 class="bk-section-title">{{ $bk['step2_heading'] ?? 'Pick a drop-off date' }}</h1>
   <p class="bk-section-sub">{{ $bk['step2_sub'] ?? 'Choose an available date for your service.' }}</p>
+  <button type="button" class="bk-earliest" id="bk-earliest" style="display:none">
+    <span class="bk-earliest-dot"></span>
+    <span class="bk-earliest-text" id="bk-earliest-text">Loading…</span>
+    <span class="bk-earliest-arrow">&rsaquo;</span>
+  </button>
+
   <div class="bk-calendar" id="bk-calendar">
     <div class="bk-cal-header">
       <button type="button" class="bk-cal-nav" id="cal-prev">‹</button>
@@ -236,6 +242,10 @@
       @endforeach
     </div>
     <div id="cal-loading" style="display:none;text-align:center;padding:16px;font-size:13px;opacity:.4">Loading…</div>
+    <div class="bk-cal-legend" id="bk-cal-legend" style="display:none">
+      <span class="bk-cal-legend-item"><span class="bk-cal-legend-dot"></span>has openings</span>
+      <span class="bk-cal-legend-item"><span class="bk-cal-legend-strike"></span>full or closed</span>
+    </div>
   </div>
   @if($receivingMethods->isNotEmpty())
     <div style="margin-top:24px;max-width:400px">

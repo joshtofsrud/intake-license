@@ -32,7 +32,7 @@
   };
 
   // Calendar state
-  var calYear, calMonth, calAvailable = {}, calTimeSlots = {}, calSlotResources = {};
+  var calYear, calMonth, calAvailable = {}, calUnavailable = {}, calEarliest = null, calTimeSlots = {}, calSlotResources = {};
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -214,6 +214,73 @@
     });
   }
 
+  function renderEarliestPill() {
+    var pill = document.getElementById('bk-earliest');
+    var text = document.getElementById('bk-earliest-text');
+    var legend = document.getElementById('bk-cal-legend');
+    if (!pill || !text) return;
+
+    if (legend) legend.style.display = (calEarliest || Object.keys(calAvailable).length) ? '' : 'none';
+
+    if (!calEarliest || state.date) {
+      pill.style.display = 'none';
+      return;
+    }
+
+    var dt = parseDateString(calEarliest.date);
+    var dayLabel = dt.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    var label;
+    if (calEarliest.time) {
+      var timeLabel = formatTime12h(calEarliest.time);
+      label = 'Earliest available: <strong>' + dayLabel + ' at ' + timeLabel + '</strong>';
+    } else {
+      label = 'Earliest available: <strong>' + dayLabel + '</strong>';
+    }
+    text.innerHTML = label;
+    pill.style.display = '';
+
+    if (!pill.__bkBound) {
+      pill.__bkBound = true;
+      pill.addEventListener('click', function () {
+        if (!calEarliest) return;
+        var targetDt = parseDateString(calEarliest.date);
+        if (targetDt.getFullYear() !== calYear || (targetDt.getMonth() + 1) !== calMonth) {
+          calYear = targetDt.getFullYear();
+          calMonth = targetDt.getMonth() + 1;
+          loadMonth();
+          setTimeout(function () { selectDate(calEarliest.date); applyEarliestTime(); }, 250);
+          return;
+        }
+        selectDate(calEarliest.date);
+        applyEarliestTime();
+      });
+    }
+  }
+
+  function applyEarliestTime() {
+    if (calEarliest && calEarliest.time && bookingMode === 'time_slots') {
+      setTimeout(function () {
+        var btn = document.querySelector('[data-bk-time="' + calEarliest.time + '"]');
+        if (btn) btn.click();
+      }, 50);
+    }
+  }
+
+  function parseDateString(s) {
+    var parts = s.split('-');
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  }
+
+  function formatTime12h(hhmm) {
+    var parts = hhmm.split(':');
+    var h = parseInt(parts[0], 10);
+    var m = parts[1];
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return h12 + ':' + m + ' ' + ampm;
+  }
+
   function initCalendar() {
     loadMonth();
   }
@@ -243,9 +310,13 @@
       if (loading) loading.style.display = 'none';
       calAvailable = {};
       (resp.dates || []).forEach(function (dt) { calAvailable[dt] = true; });
+      calUnavailable = {};
+      (resp.unavailable_dates || []).forEach(function (dt) { calUnavailable[dt] = true; });
+      calEarliest = resp.earliest || null;
       calTimeSlots = resp.slots || {};
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
+      renderEarliestPill();
     })
     .catch(function () {
       if (loading) loading.style.display = 'none';
@@ -285,6 +356,8 @@
         (function (ds) {
           cell.addEventListener('click', function () { selectDate(ds); });
         })(dateStr);
+      } else if (calUnavailable[dateStr]) {
+        cell.classList.add('unavailable');
       }
 
       grid.appendChild(cell);
@@ -307,6 +380,7 @@
       renderTimeSlots(dateStr);
     }
 
+    renderEarliestPill();
     updateNext2();
   }
 
