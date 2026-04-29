@@ -166,7 +166,7 @@
                 @foreach($session->registrations->whereIn('status', ['registered','checked_in','waitlisted']) as $reg)
                   <tr>
                     <td>
-                      {{ $reg->customer->name ?? 'Unknown' }}
+                      {{ $reg->customer?->fullName() ?? 'Unknown' }}
                       @if($reg->status === 'waitlisted')
                         <span class="cl-waitlist-label">#{{ $reg->waitlist_position }}</span>
                       @endif

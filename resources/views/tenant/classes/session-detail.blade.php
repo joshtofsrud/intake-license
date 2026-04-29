@@ -165,7 +165,7 @@
               @foreach($registered as $reg)
                 <tr>
                   <td>
-                    <div class="cl-reg-name">{{ $reg->customer->name ?? 'Unknown' }}</div>
+                    <div class="cl-reg-name">{{ $reg->customer?->fullName() ?? 'Unknown' }}</div>
                     <div class="cl-reg-email">{{ $reg->customer->email ?? '' }}</div>
                   </td>
                   <td><span class="cl-pay-method">{{ ucfirst(str_replace('_',' ',$reg->payment_method)) }}</span></td>
@@ -207,7 +207,7 @@
                     <div style="display:flex;align-items:center;gap:8px">
                       <span class="cl-waitlist-pos">{{ $reg->waitlist_position }}</span>
                       <div>
-                        <div class="cl-reg-name">{{ $reg->customer->name ?? 'Unknown' }}</div>
+                        <div class="cl-reg-name">{{ $reg->customer?->fullName() ?? 'Unknown' }}</div>
                         <div class="cl-reg-email">{{ $reg->customer->email ?? '' }}</div>
                       </div>
                     </div>
@@ -265,7 +265,7 @@
               @foreach($cancelled as $reg)
                 <tr style="opacity:.5">
                   <td>
-                    <div class="cl-reg-name">{{ $reg->customer->name ?? 'Unknown' }}</div>
+                    <div class="cl-reg-name">{{ $reg->customer?->fullName() ?? 'Unknown' }}</div>
                     <div class="cl-reg-email">{{ $reg->customer->email ?? '' }}</div>
                   </td>
                   <td><span class="cl-pay-method">{{ ucfirst(str_replace('_',' ',$reg->payment_method)) }}</span></td>
