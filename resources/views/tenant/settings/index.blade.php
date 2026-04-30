@@ -236,6 +236,28 @@
       var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       var list = document.getElementById('method-list');
 
+      // classes_enabled toggle
+      var classesToggle = document.getElementById('classes-toggle');
+      if(classesToggle) {
+        classesToggle.addEventListener('click', function(){
+          if(classesToggle.classList.contains('is-busy')) return;
+          classesToggle.classList.add('is-busy');
+          var newVal = !classesToggle.classList.contains('on');
+          fetch("{{ route('tenant.settings.update') }}", {
+            method: 'PATCH',
+            headers: {'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json'},
+            body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0})
+          }).then(function(r){
+            classesToggle.classList.remove('is-busy');
+            if(r.ok){
+              classesToggle.classList.toggle('on', newVal);
+              classesToggle.setAttribute('title', newVal ? 'Click to disable' : 'Click to enable');
+              classesToggle.querySelector('.ia-toggle-sr').textContent = newVal ? 'Enabled' : 'Disabled';
+            }
+          }).catch(function(){ classesToggle.classList.remove('is-busy'); });
+        });
+      }
+
       // Add new method
       var addForm = document.getElementById('add-method-form');
       if (addForm) {
@@ -310,28 +332,6 @@
           });
         });
       });
-
-      // classes_enabled toggle
-      var classesToggle = document.getElementById('classes-toggle');
-      if(classesToggle) {
-        classesToggle.addEventListener('click', function(){
-          if(classesToggle.classList.contains('is-busy')) return;
-          classesToggle.classList.add('is-busy');
-          var newVal = !classesToggle.classList.contains('on');
-          fetch("{{ route('tenant.settings.update') }}", {
-            method: 'PATCH',
-            headers: {'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json'},
-            body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0})
-          }).then(function(r){
-            classesToggle.classList.remove('is-busy');
-            if(r.ok){
-              classesToggle.classList.toggle('on', newVal);
-              classesToggle.setAttribute('title', newVal ? 'Click to disable' : 'Click to enable');
-              classesToggle.querySelector('.ia-toggle-sr').textContent = newVal ? 'Enabled' : 'Disabled';
-            }
-          }).catch(function(){ classesToggle.classList.remove('is-busy'); });
-        });
-      }
 
       // ia-toggle: active/inactive switch on each row. PATCHes the same
       // is_active field the previous checkbox + Deactivate button hit.
