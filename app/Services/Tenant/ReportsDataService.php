@@ -12,19 +12,13 @@ use Illuminate\Support\Facades\DB;
 /**
  * ReportsDataService
  *
- * Powers the /admin/reports page. Mirrors DashboardDataService's pattern —
- * one method per zone, return shape designed for the Blade view.
+ * Phase 3: single global date range drives every zone. Each zone method
+ * takes Carbon $from and Carbon $to directly. The controller is responsible
+ * for parsing 'today' | 'week' | 'month' | 'custom' into a date pair.
  *
- * Phase 2: per-zone time range toggle (Today / Week / Month).
- * Range strings are 'today', 'week', 'month' (anything else falls back
- * to 'today'). The controller parses query params and passes the chosen
- * range to each zone method independently.
- *
- * Status conventions (from session-locked pipeline + dog-food data):
- *   delivered = ['completed', 'closed']  — counts as fulfilled work
- *   cancelled = ['cancelled']
- *   no_show   = past appointments NOT in delivered/cancelled/refunded
- *   refunded  = ['refunded']
+ * Capacity zone is the one exception — it falls back to the last 14 days
+ * when the requested range is shorter than 7 days, since the day-of-week ×
+ * hour heatmap needs density to be readable.
  */
 class ReportsDataService
 {
@@ -32,43 +26,9 @@ class ReportsDataService
     private const CANCELLED_STATUSES = ['cancelled'];
     private const REFUNDED_STATUSES  = ['refunded'];
 
-    public const RANGES = ['today', 'week', 'month'];
-
     public function __construct(private readonly Tenant $tenant) {}
 
-    /** Convert a range string into a [from, to] Carbon pair. */
-    private function rangeBounds(string $range): array
-    {
-        $today = $this->tenant->localToday();
-        return match ($range) {
-            'week'  => [$today->copy()->subDays(6), $today->copy()],
-            'month' => [$today->copy()->startOfMonth(), $today->copy()],
-            default => [$today->copy(), $today->copy()],
-        };
-    }
-
-    /** Same range one period back (for delta-vs-prior comparisons). */
-    private function priorRangeBounds(string $range): array
-    {
-        $today = $this->tenant->localToday();
-        return match ($range) {
-            'week'  => [$today->copy()->subDays(13), $today->copy()->subDays(7)],
-            'month' => [$today->copy()->subMonth()->startOfMonth(), $today->copy()->subMonth()->endOfMonth()],
-            default => [$today->copy()->subWeek(), $today->copy()->subWeek()],
-        };
-    }
-
-    private function rangeLabel(string $range): string
-    {
-        $today = $this->tenant->localToday();
-        return match ($range) {
-            'week'  => 'last 7 days',
-            'month' => $today->format('F'),
-            default => 'today',
-        };
-    }
-
-    /** Top KPI row — always shows today's snapshot regardless of zone toggles. */
+    /** Top KPI row — always shows today's snapshot regardless of range. */
     public function topKpis(): array
     {
         $today = $this->tenant->localToday();
@@ -123,20 +83,19 @@ class ReportsDataService
         ];
     }
 
-    /** Zone 1: Revenue. Hourly breakdown for today; daily for week/month. */
-    public function zoneRevenue(string $range = 'today'): array
+    /** Zone 1: Revenue. */
+    public function zoneRevenue(Carbon $from, Carbon $to): array
     {
-        [$from, $to] = $this->rangeBounds($range);
-
+        $isSingleDay = $from->isSameDay($to);
         $totalCents = (int) TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('status', self::DELIVERED_STATUSES)
             ->where('payment_status', 'paid')
             ->sum('total_cents');
 
-        // Series: hourly for today, daily for week/month
+        // Hourly bars for single-day ranges; daily otherwise
         $series = [];
-        if ($range === 'today') {
+        if ($isSingleDay) {
             $hourly = TenantAppointment::where('tenant_id', $this->tenant->id)
                 ->where('appointment_date', $from->toDateString())
                 ->whereIn('status', self::DELIVERED_STATUSES)
@@ -162,10 +121,12 @@ class ReportsDataService
                 ->groupBy('d')
                 ->get()
                 ->keyBy('d');
+            $days = $from->diffInDays($to);
+            $labelFmt = $days <= 7 ? 'D' : ($days <= 31 ? 'j' : 'M j');
             for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
                 $row = $daily->get($d->toDateString());
                 $series[] = [
-                    'label' => $d->format($range === 'week' ? 'D' : 'j'),
+                    'label' => $d->format($labelFmt),
                     'cents' => (int) ($row->cents ?? 0),
                     'count' => (int) ($row->n ?? 0),
                 ];
@@ -174,7 +135,6 @@ class ReportsDataService
 
         $bestBucket = collect($series)->sortByDesc('cents')->first();
 
-        // Service mix for the same range
         $byService = DB::table('tenant_appointments as ta')
             ->where('ta.tenant_id', $this->tenant->id)
             ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()])
@@ -195,22 +155,20 @@ class ReportsDataService
             ->all();
 
         return [
-            'range'         => $range,
-            'range_label'   => $this->rangeLabel($range),
             'total_cents'   => $totalCents,
             'best_bucket'   => $bestBucket && $bestBucket['cents'] > 0
                 ? ['label' => $bestBucket['label'], 'cents' => $bestBucket['cents']]
                 : null,
             'series'        => $series,
-            'series_kind'   => $range === 'today' ? 'hourly' : 'daily',
+            'series_kind'   => $isSingleDay ? 'hourly' : 'daily',
             'by_service'    => $byService,
         ];
     }
 
     /** Zone 2: Bookings + cancellations. */
-    public function zoneBookings(string $range = 'week'): array
+    public function zoneBookings(Carbon $from, Carbon $to): array
     {
-        [$from, $to] = $this->rangeBounds($range);
+        $isSingleDay = $from->isSameDay($to);
 
         $confirmed = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
@@ -226,30 +184,12 @@ class ReportsDataService
 
         $walkins = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->whereColumn('created_at', '>=', 'appointment_date')
             ->whereRaw('DATE(created_at) = appointment_date')
             ->count();
 
-        // Daily timeline across the range
-        $daily = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
-            ->selectRaw('appointment_date as d, COUNT(*) as n')
-            ->groupBy('d')
-            ->pluck('n', 'd')
-            ->toArray();
-
+        // Hourly bars for single day, daily for ranges
         $timeline = [];
-        for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
-            $timeline[] = [
-                'date'  => $d->toDateString(),
-                'label' => $d->format($range === 'today' ? 'ga' : ($range === 'week' ? 'D' : 'j')),
-                'count' => (int) ($daily[$d->toDateString()] ?? 0),
-            ];
-        }
-
-        // For 'today' the daily chart is just one bar — replace with hourly.
-        if ($range === 'today') {
+        if ($isSingleDay) {
             $hourly = TenantAppointment::where('tenant_id', $this->tenant->id)
                 ->where('appointment_date', $from->toDateString())
                 ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
@@ -257,7 +197,6 @@ class ReportsDataService
                 ->groupBy('hour')
                 ->pluck('n', 'hour')
                 ->toArray();
-            $timeline = [];
             for ($h = 8; $h <= 18; $h++) {
                 $timeline[] = [
                     'date'  => $from->toDateString(),
@@ -265,26 +204,37 @@ class ReportsDataService
                     'count' => (int) ($hourly[$h] ?? 0),
                 ];
             }
+        } else {
+            $daily = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
+                ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+                ->selectRaw('appointment_date as d, COUNT(*) as n')
+                ->groupBy('d')
+                ->pluck('n', 'd')
+                ->toArray();
+            $days = $from->diffInDays($to);
+            $labelFmt = $days <= 7 ? 'D' : ($days <= 31 ? 'j' : 'M j');
+            for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+                $timeline[] = [
+                    'date'  => $d->toDateString(),
+                    'label' => $d->format($labelFmt),
+                    'count' => (int) ($daily[$d->toDateString()] ?? 0),
+                ];
+            }
         }
 
         return [
-            'range'       => $range,
-            'range_label' => $this->rangeLabel($range),
-            'confirmed'   => $confirmed,
-            'cancelled'   => $cancelled,
-            'no_shows'    => $noShows,
-            'walkins'     => $walkins,
-            'timeline'    => $timeline,
+            'confirmed' => $confirmed,
+            'cancelled' => $cancelled,
+            'no_shows'  => $noShows,
+            'walkins'   => $walkins,
+            'timeline'  => $timeline,
         ];
     }
 
     /** Zone 3: Customers + retention. */
-    public function zoneCustomers(string $range = 'month'): array
+    public function zoneCustomers(Carbon $from, Carbon $to): array
     {
-        [$from, $to] = $this->rangeBounds($range);
-        $today = $this->tenant->localToday();
-
-        // Daily new vs returning over the range
         $rangeAppts = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('status', self::DELIVERED_STATUSES)
@@ -292,7 +242,6 @@ class ReportsDataService
             ->get()
             ->groupBy(fn($r) => $r->appointment_date);
 
-        // "New this period" = customer created within the range
         $newCustIds = TenantCustomer::where('tenant_id', $this->tenant->id)
             ->whereBetween('created_at', [$from->toDateString() . ' 00:00:00', $to->toDateString() . ' 23:59:59'])
             ->pluck('id')
@@ -314,7 +263,6 @@ class ReportsDataService
             ];
         }
 
-        // Top customers by spend within the range
         $topCustomers = TenantCustomer::where('tenant_customers.tenant_id', $this->tenant->id)
             ->join('tenant_appointments as ta', function ($j) use ($from, $to) {
                 $j->on('ta.customer_id', '=', 'tenant_customers.id')
@@ -328,26 +276,22 @@ class ReportsDataService
             ->limit(5)
             ->get()
             ->map(fn($r) => [
-                'name'     => trim($r->first_name . ' ' . $r->last_name),
-                'cents'    => (int) $r->cents,
-                'visits'   => (int) $r->visits,
+                'name'             => trim($r->first_name . ' ' . $r->last_name),
+                'cents'            => (int) $r->cents,
+                'visits'           => (int) $r->visits,
                 'is_new_in_period' => Carbon::parse($r->created_at)->between($from, $to->copy()->endOfDay()),
             ])
             ->all();
 
         return [
-            'range'         => $range,
-            'range_label'   => $this->rangeLabel($range),
             'daily'         => $daily,
             'top_customers' => $topCustomers,
         ];
     }
 
     /** Zone 4: Service popularity. */
-    public function zoneServices(string $range = 'month'): array
+    public function zoneServices(Carbon $from, Carbon $to): array
     {
-        [$from, $to] = $this->rangeBounds($range);
-
         $rows = DB::table('tenant_appointments as ta')
             ->where('ta.tenant_id', $this->tenant->id)
             ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()])
@@ -363,8 +307,6 @@ class ReportsDataService
         $maxCents = $rows->max('cents') ?: 1;
 
         return [
-            'range'       => $range,
-            'range_label' => $this->rangeLabel($range),
             'services' => $rows->map(fn($r) => [
                 'name'      => $r->name,
                 'bookings'  => (int) $r->bookings,
@@ -375,11 +317,10 @@ class ReportsDataService
     }
 
     /** Zone 5: Staff utilization. */
-    public function zoneStaff(string $range = 'week'): array
+    public function zoneStaff(Carbon $from, Carbon $to): array
     {
-        [$from, $to] = $this->rangeBounds($range);
         $days = max(1, $from->diffInDays($to) + 1);
-        $availableMinutes = $days * 8 * 60;  // 8h/day baseline
+        $availableMinutes = $days * 8 * 60;
 
         $resources = TenantResource::where('tenant_id', $this->tenant->id)
             ->where('is_active', true)
@@ -404,20 +345,26 @@ class ReportsDataService
             ->toArray();
 
         $today = $this->tenant->localToday();
-        $noShowsByResource = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), min($to->toDateString(), $today->copy()->subDay()->toDateString())])
-            ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
-            ->selectRaw('resource_id, COUNT(*) as n')
-            ->groupBy('resource_id')
-            ->pluck('n', 'resource_id')
-            ->toArray();
+        $effectiveTo = min($to->toDateString(), $today->copy()->subDay()->toDateString());
 
-        $totalByResource = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->selectRaw('resource_id, COUNT(*) as n')
-            ->groupBy('resource_id')
-            ->pluck('n', 'resource_id')
-            ->toArray();
+        $noShowsByResource = [];
+        $totalByResource = [];
+        if ($from->toDateString() <= $effectiveTo) {
+            $noShowsByResource = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
+                ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+                ->selectRaw('resource_id, COUNT(*) as n')
+                ->groupBy('resource_id')
+                ->pluck('n', 'resource_id')
+                ->toArray();
+
+            $totalByResource = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
+                ->selectRaw('resource_id, COUNT(*) as n')
+                ->groupBy('resource_id')
+                ->pluck('n', 'resource_id')
+                ->toArray();
+        }
 
         $cards = $resources->map(function ($r) use ($bookedMinutes, $revenue, $noShowsByResource, $totalByResource, $availableMinutes) {
             $row = $bookedMinutes->get($r->id);
@@ -453,17 +400,24 @@ class ReportsDataService
             ];
         })->all();
 
-        return [
-            'range'       => $range,
-            'range_label' => $this->rangeLabel($range),
-            'cards'       => $cards,
-        ];
+        return ['cards' => $cards];
     }
 
-    /** Zone 6: Capacity heatmap. */
-    public function zoneCapacity(string $range = 'month'): array
+    /**
+     * Zone 6: Capacity heatmap.
+     * Falls back to last 14 days if the requested range is shorter than 7
+     * days — heatmap density needs that much data to be readable.
+     */
+    public function zoneCapacity(Carbon $from, Carbon $to): array
     {
-        [$from, $to] = $this->rangeBounds($range);
+        $rangeDays = $from->diffInDays($to) + 1;
+        $usedFallback = false;
+        if ($rangeDays < 7) {
+            $usedFallback = true;
+            $today = $this->tenant->localToday();
+            $from = $today->copy()->subDays(13);
+            $to = $today->copy();
+        }
 
         $cells = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
@@ -499,10 +453,12 @@ class ReportsDataService
         }
 
         return [
-            'range'        => $range,
-            'range_label'  => $this->rangeLabel($range),
-            'grid'         => $grid,
-            'hour_labels'  => array_map(
+            'grid'          => $grid,
+            'used_fallback' => $usedFallback,
+            'fallback_label' => $usedFallback
+                ? $from->format('M j') . ' – ' . $to->format('M j')
+                : null,
+            'hour_labels'   => array_map(
                 fn($h) => Carbon::createFromTime($h)->format('ga'),
                 range(8, 21)
             ),

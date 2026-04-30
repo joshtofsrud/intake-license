@@ -6,9 +6,44 @@
   .rep-h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
   .rep-sub { color: var(--ia-text-3, #888); font-size: 13.5px; margin-bottom: 24px; }
 
+  /* Global range bar */
+  .rep-rangebar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap;
+    padding: 14px 16px; margin-bottom: 24px;
+    background: var(--ia-surface, #131313);
+    border: 1px solid var(--ia-border, #1f1f1f);
+    border-radius: 12px;
+  }
+  .rep-rangebar-label {
+    font-size: 11.5px; color: var(--ia-text-3, #888);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  }
+  .rep-rangebar-current {
+    font-size: 14px; font-weight: 700; color: var(--ia-text, #f0f0f0);
+    margin-left: 8px;
+  }
+  .rep-rangebar-controls { display: inline-flex; gap: 6px; align-items: center; }
+  .rep-toggle { display: inline-flex; gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 8px; padding: 3px; }
+  .rep-toggle a { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: var(--ia-text-3, #888); text-decoration: none; border-radius: 5px; transition: all 0.12s; }
+  .rep-toggle a:hover { color: var(--ia-text, #f0f0f0); }
+  .rep-toggle a.active { background: #BEF264; color: #0a0a0a; }
+  .rep-customrange-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 600;
+    color: var(--ia-text-3, #888);
+    background: transparent;
+    border: 1px solid var(--ia-border, #1f1f1f);
+    border-radius: 8px; cursor: pointer;
+    font-family: inherit;
+    transition: all 0.12s;
+  }
+  .rep-customrange-btn:hover { color: var(--ia-text, #f0f0f0); border-color: var(--ia-border-2, #2a2a2a); }
+  .rep-customrange-btn.active { color: #0a0a0a; background: #BEF264; border-color: #BEF264; }
+
+  /* KPI cards */
   .rep-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
   @media (max-width: 1000px) { .rep-kpi-row { grid-template-columns: repeat(2, 1fr); } }
-
   .rep-kpi-card { background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 14px; padding: 18px 20px; transition: border-color 0.15s; }
   .rep-kpi-card:hover { border-color: var(--ia-border-2, #2a2a2a); }
   .rep-kpi-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ia-text-3, #888); font-weight: 700; margin-bottom: 8px; }
@@ -20,16 +55,14 @@
   .rep-delta.flat { background: rgba(255,255,255,0.04); color: var(--ia-text-3, #888); }
   .rep-kpi-period { color: var(--ia-text-3, #888); font-size: 11.5px; }
 
+  /* Zones */
   .rep-zone { background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
-  .rep-zone-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; gap: 14px; flex-wrap: wrap; }
+  .rep-zone-head { margin-bottom: 18px; }
   .rep-zone-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
   .rep-zone-sub { font-size: 12px; color: var(--ia-text-3, #888); font-weight: 500; margin-top: 2px; }
+  .rep-zone-warn { font-size: 11.5px; color: #F59E0B; font-weight: 600; margin-top: 4px; }
 
-  .rep-toggle { display: inline-flex; gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 8px; padding: 3px; }
-  .rep-toggle a { padding: 5px 11px; font-size: 11.5px; font-weight: 600; color: var(--ia-text-3, #888); text-decoration: none; border-radius: 5px; transition: all 0.12s; }
-  .rep-toggle a:hover { color: var(--ia-text, #f0f0f0); }
-  .rep-toggle a.active { background: #BEF264; color: #0a0a0a; }
-
+  /* Lists */
   .rep-list { display: flex; flex-direction: column; }
   .rep-list-row { display: grid; grid-template-columns: 1fr 90px 90px; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--ia-border, #1f1f1f); font-size: 13.5px; }
   .rep-list-row:last-child { border-bottom: none; }
@@ -42,6 +75,7 @@
   .rep-grid-2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
   @media (max-width: 1000px) { .rep-grid-2 { grid-template-columns: 1fr; } }
 
+  /* Staff cards */
   .rep-staff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 700px) { .rep-staff-grid { grid-template-columns: 1fr; } }
   .rep-staff-card { background: rgba(255,255,255,0.02); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 10px; padding: 14px 16px; }
@@ -56,6 +90,7 @@
   .rep-staff-stat-label { font-size: 9.5px; color: var(--ia-text-3, #888); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
   .rep-staff-stat-val { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; font-feature-settings: 'tnum'; }
 
+  /* Heatmap */
   .rep-heatmap { display: grid; grid-template-columns: 60px repeat(14, 1fr); gap: 2px; margin-top: 8px; }
   .rep-heatmap-row-label { font-size: 11px; color: var(--ia-text-3, #888); display: flex; align-items: center; padding-right: 6px; font-weight: 600; }
   .rep-heatmap-cell { aspect-ratio: 1.6 / 1; border-radius: 2px; background: rgba(255,255,255,0.02); }
@@ -69,25 +104,75 @@
   .rep-heatmap-axis-label { font-size: 9.5px; color: var(--ia-text-4, #5a5a5a); text-align: center; }
 
   .rep-empty { color: var(--ia-text-3, #888); font-size: 13px; padding: 12px 0; }
+
+  /* Custom range modal */
+  .rep-modal-backdrop {
+    position: fixed; inset: 0; z-index: 9998;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center;
+  }
+  .rep-modal-backdrop.show { display: flex; }
+  .rep-modal {
+    background: #131313;
+    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    padding: 20px 22px;
+    max-width: 360px; width: 92vw;
+    color: #f0f0f0;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+  }
+  .rep-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .rep-modal-title { font-size: 14px; font-weight: 700; }
+  .rep-modal-close { background: transparent; border: none; color: #888; cursor: pointer; font-size: 20px; padding: 0 4px; line-height: 1; font-family: inherit; }
+  .rep-modal-close:hover { color: #f0f0f0; }
+  .rep-modal-monthbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .rep-modal-monthlabel { font-size: 13px; font-weight: 600; }
+  .rep-modal-arrow { background: transparent; border: 1px solid #2a2a2a; border-radius: 50%; width: 26px; height: 26px; color: #888; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-family: inherit; }
+  .rep-modal-arrow:hover { color: #f0f0f0; border-color: #888; }
+  .rep-modal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .rep-modal-dow { font-size: 10px; color: #5a5a5a; text-align: center; padding: 6px 0; font-weight: 600; text-transform: uppercase; }
+  .rep-modal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; border-radius: 50%; color: #c8c8c8; transition: all 0.1s; user-select: none; }
+  .rep-modal-day:hover { background: rgba(255,255,255,0.06); color: #f0f0f0; }
+  .rep-modal-day.empty { cursor: default; pointer-events: none; }
+  .rep-modal-day.future { color: #3a3a3a; cursor: not-allowed; pointer-events: none; }
+  .rep-modal-day.start  { background: #BEF264; color: #0a0a0a; font-weight: 700; }
+  .rep-modal-day.end    { background: #BEF264; color: #0a0a0a; font-weight: 700; }
+  .rep-modal-day.in-range { background: rgba(190,242,100,0.18); color: #BEF264; border-radius: 0; }
+  .rep-modal-day.start.in-range { border-radius: 50% 0 0 50%; }
+  .rep-modal-day.end.in-range   { border-radius: 0 50% 50% 0; }
+  .rep-modal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #1f1f1f; }
+  .rep-modal-summary { font-size: 12px; color: #888; }
+  .rep-modal-summary strong { color: #f0f0f0; font-weight: 600; }
+  .rep-modal-actions { display: flex; gap: 8px; }
+  .rep-modal-btn { padding: 7px 14px; font-size: 12.5px; font-weight: 600; border-radius: 7px; cursor: pointer; font-family: inherit; border: 1px solid transparent; }
+  .rep-modal-btn--ghost { background: transparent; color: #888; border-color: #2a2a2a; }
+  .rep-modal-btn--ghost:hover { color: #f0f0f0; }
+  .rep-modal-btn--primary { background: #BEF264; color: #0a0a0a; }
+  .rep-modal-btn--primary:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 @endpush
-
-@php
-  // Helper for building zone toggle URLs that preserve all OTHER zones'
-  // current selections. Click "Week" on Revenue and the URL becomes
-  // ?revenue=week&bookings=$current&customers=$current...
-  $buildToggle = function (string $zone, string $newRange) use ($ranges) {
-      $params = $ranges;
-      $params[$zone] = $newRange;
-      return route('tenant.reports.index', array_merge(['subdomain' => tenant()->subdomain], $params));
-  };
-@endphp
 
 @section('content')
 <div style="padding: 32px 40px;">
 
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
+
+  {{-- GLOBAL RANGE BAR --}}
+  <div class="rep-rangebar">
+    <div>
+      <span class="rep-rangebar-label">Range</span>
+      <span class="rep-rangebar-current">{{ $range_label }}</span>
+    </div>
+    <div class="rep-rangebar-controls">
+      <nav class="rep-toggle">
+        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
+      <button type="button" id="rep-customrange-btn" class="rep-customrange-btn {{ $range === 'custom' ? 'active' : '' }}">📅 Custom range</button>
+    </div>
+  </div>
 
   {{-- KPI ROW --}}
   <div class="rep-kpi-row">
@@ -125,20 +210,13 @@
   {{-- ZONE: REVENUE --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
-      <div>
-        <div class="rep-zone-title">💰 Revenue</div>
-        <div class="rep-zone-sub">
-          ${{ number_format($revenue['total_cents'] / 100) }} {{ $revenue['range_label'] }}
-          @if($revenue['best_bucket'])
-            · best {{ $revenue['series_kind'] === 'hourly' ? 'hour' : 'day' }} {{ $revenue['best_bucket']['label'] }} (${{ number_format($revenue['best_bucket']['cents'] / 100) }})
-          @endif
-        </div>
+      <div class="rep-zone-title">💰 Revenue</div>
+      <div class="rep-zone-sub">
+        ${{ number_format($revenue['total_cents'] / 100) }} total
+        @if($revenue['best_bucket'])
+          · best {{ $revenue['series_kind'] === 'hourly' ? 'hour' : 'day' }} {{ $revenue['best_bucket']['label'] }} (${{ number_format($revenue['best_bucket']['cents'] / 100) }})
+        @endif
       </div>
-      <nav class="rep-toggle">
-        <a href="{{ $buildToggle('revenue', 'today') }}"  class="{{ $ranges['revenue'] === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ $buildToggle('revenue', 'week') }}"   class="{{ $ranges['revenue'] === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ $buildToggle('revenue', 'month') }}"  class="{{ $ranges['revenue'] === 'month' ? 'active' : '' }}">Month</a>
-      </nav>
     </div>
 
     <div class="rep-grid-2">
@@ -158,7 +236,7 @@
             @endforeach
           </div>
         @else
-          <div class="rep-empty">No paid revenue {{ $revenue['range_label'] }}.</div>
+          <div class="rep-empty">No paid revenue in this range.</div>
         @endif
       </div>
 
@@ -178,7 +256,7 @@
             @endforeach
           </div>
         @else
-          <div class="rep-empty">No service revenue {{ $revenue['range_label'] }}.</div>
+          <div class="rep-empty">No service revenue in this range.</div>
         @endif
       </div>
     </div>
@@ -187,15 +265,8 @@
   {{-- ZONE: BOOKINGS --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
-      <div>
-        <div class="rep-zone-title">📅 Bookings &amp; cancellations</div>
-        <div class="rep-zone-sub">{{ $bookings['confirmed'] }} confirmed · {{ $bookings['cancelled'] }} cancelled · {{ $bookings['no_shows'] }} no-show · {{ $bookings['walkins'] }} walk-in · {{ $bookings['range_label'] }}</div>
-      </div>
-      <nav class="rep-toggle">
-        <a href="{{ $buildToggle('bookings', 'today') }}" class="{{ $ranges['bookings'] === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ $buildToggle('bookings', 'week') }}"  class="{{ $ranges['bookings'] === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ $buildToggle('bookings', 'month') }}" class="{{ $ranges['bookings'] === 'month' ? 'active' : '' }}">Month</a>
-      </nav>
+      <div class="rep-zone-title">📅 Bookings &amp; cancellations</div>
+      <div class="rep-zone-sub">{{ $bookings['confirmed'] }} confirmed · {{ $bookings['cancelled'] }} cancelled · {{ $bookings['no_shows'] }} no-show · {{ $bookings['walkins'] }} walk-in</div>
     </div>
 
     @php $maxBkCount = max(array_column($bookings['timeline'], 'count')) ?: 1; @endphp
@@ -217,20 +288,13 @@
   {{-- ZONE: CUSTOMERS --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
-      <div>
-        <div class="rep-zone-title">👤 Customers &amp; retention</div>
-        <div class="rep-zone-sub">Top spenders + new vs. returning · {{ $customers['range_label'] }}</div>
-      </div>
-      <nav class="rep-toggle">
-        <a href="{{ $buildToggle('customers', 'today') }}" class="{{ $ranges['customers'] === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ $buildToggle('customers', 'week') }}"  class="{{ $ranges['customers'] === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ $buildToggle('customers', 'month') }}" class="{{ $ranges['customers'] === 'month' ? 'active' : '' }}">Month</a>
-      </nav>
+      <div class="rep-zone-title">👤 Customers &amp; retention</div>
+      <div class="rep-zone-sub">Top spenders + new vs. returning</div>
     </div>
 
     <div class="rep-grid-2">
       <div>
-        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">New vs returning · {{ $customers['range_label'] }}</div>
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">New vs returning</div>
         @php $maxDailyTotal = max(array_map(fn($d) => $d['new'] + $d['returning'], $customers['daily'])) ?: 1; @endphp
         <div style="display:flex;align-items:flex-end;gap:2px;height:160px;border-bottom:1px solid var(--ia-border, #1f1f1f);padding-bottom:8px;">
           @foreach($customers['daily'] as $day)
@@ -268,7 +332,7 @@
             @endforeach
           </div>
         @else
-          <div class="rep-empty">No customer revenue {{ $customers['range_label'] }}.</div>
+          <div class="rep-empty">No customer revenue in this range.</div>
         @endif
       </div>
     </div>
@@ -277,15 +341,8 @@
   {{-- ZONE: SERVICES --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
-      <div>
-        <div class="rep-zone-title">🔧 Service popularity</div>
-        <div class="rep-zone-sub">{{ count($services['services']) }} services with paid bookings · {{ $services['range_label'] }}</div>
-      </div>
-      <nav class="rep-toggle">
-        <a href="{{ $buildToggle('services', 'today') }}" class="{{ $ranges['services'] === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ $buildToggle('services', 'week') }}"  class="{{ $ranges['services'] === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ $buildToggle('services', 'month') }}" class="{{ $ranges['services'] === 'month' ? 'active' : '' }}">Month</a>
-      </nav>
+      <div class="rep-zone-title">🔧 Service popularity</div>
+      <div class="rep-zone-sub">{{ count($services['services']) }} services with paid bookings</div>
     </div>
 
     @if(count($services['services']))
@@ -307,22 +364,15 @@
         @endforeach
       </div>
     @else
-      <div class="rep-empty">No paid services {{ $services['range_label'] }}.</div>
+      <div class="rep-empty">No paid services in this range.</div>
     @endif
   </section>
 
   {{-- ZONE: STAFF --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
-      <div>
-        <div class="rep-zone-title">👥 Staff utilization</div>
-        <div class="rep-zone-sub">8h/day available baseline · {{ $staff['range_label'] }}</div>
-      </div>
-      <nav class="rep-toggle">
-        <a href="{{ $buildToggle('staff', 'today') }}" class="{{ $ranges['staff'] === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ $buildToggle('staff', 'week') }}"  class="{{ $ranges['staff'] === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ $buildToggle('staff', 'month') }}" class="{{ $ranges['staff'] === 'month' ? 'active' : '' }}">Month</a>
-      </nav>
+      <div class="rep-zone-title">👥 Staff utilization</div>
+      <div class="rep-zone-sub">8h/day available baseline</div>
     </div>
 
     @if(count($staff['cards']))
@@ -359,15 +409,11 @@
   {{-- ZONE: CAPACITY --}}
   <section class="rep-zone">
     <div class="rep-zone-head">
-      <div>
-        <div class="rep-zone-title">🔥 Capacity utilization</div>
-        <div class="rep-zone-sub">8a–9p · darker = busier · {{ $capacity['range_label'] }}</div>
-      </div>
-      <nav class="rep-toggle">
-        <a href="{{ $buildToggle('capacity', 'today') }}" class="{{ $ranges['capacity'] === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ $buildToggle('capacity', 'week') }}"  class="{{ $ranges['capacity'] === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ $buildToggle('capacity', 'month') }}" class="{{ $ranges['capacity'] === 'month' ? 'active' : '' }}">Month</a>
-      </nav>
+      <div class="rep-zone-title">🔥 Capacity utilization</div>
+      <div class="rep-zone-sub">8a–9p · darker = busier</div>
+      @if(!empty($capacity['used_fallback']))
+        <div class="rep-zone-warn">⚠ Range too short for heatmap — showing last 14 days ({{ $capacity['fallback_label'] }}) instead.</div>
+      @endif
     </div>
 
     <div class="rep-heatmap">
@@ -387,4 +433,205 @@
   </section>
 
 </div>
+
+{{-- CUSTOM RANGE MODAL --}}
+<div class="rep-modal-backdrop" id="rep-modal-backdrop" role="dialog" aria-modal="true">
+  <div class="rep-modal" id="rep-modal">
+    <div class="rep-modal-head">
+      <div class="rep-modal-title">Pick a date range</div>
+      <button type="button" class="rep-modal-close" id="rep-modal-close" aria-label="Close">×</button>
+    </div>
+    <div class="rep-modal-monthbar">
+      <button type="button" class="rep-modal-arrow" id="rep-modal-prev" aria-label="Previous month">‹</button>
+      <div class="rep-modal-monthlabel" id="rep-modal-monthlabel"></div>
+      <button type="button" class="rep-modal-arrow" id="rep-modal-next" aria-label="Next month">›</button>
+    </div>
+    <div class="rep-modal-grid" id="rep-modal-grid"></div>
+    <div class="rep-modal-foot">
+      <div class="rep-modal-summary" id="rep-modal-summary">Click a day to start.</div>
+      <div class="rep-modal-actions">
+        <button type="button" class="rep-modal-btn rep-modal-btn--ghost" id="rep-modal-clear">Clear</button>
+        <button type="button" class="rep-modal-btn rep-modal-btn--primary" id="rep-modal-apply" disabled>Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SUBDOMAIN = @json(tenant()->subdomain);
+  const TODAY     = @json(Carbon\Carbon::today()->toDateString());
+
+  // Pre-fill from URL if range=custom
+  const urlParams = new URLSearchParams(window.location.search);
+  let viewYear, viewMonth;  // currently displayed month in modal
+  let selStart = urlParams.get('range') === 'custom' ? urlParams.get('from') : null;
+  let selEnd   = urlParams.get('range') === 'custom' ? urlParams.get('to')   : null;
+
+  const todayDate = new Date(TODAY + 'T00:00:00');
+  if (selStart) {
+    const d = new Date(selStart + 'T00:00:00');
+    viewYear  = d.getFullYear();
+    viewMonth = d.getMonth();
+  } else {
+    viewYear  = todayDate.getFullYear();
+    viewMonth = todayDate.getMonth();
+  }
+
+  const backdrop  = document.getElementById('rep-modal-backdrop');
+  const closeBtn  = document.getElementById('rep-modal-close');
+  const openBtn   = document.getElementById('rep-customrange-btn');
+  const prevBtn   = document.getElementById('rep-modal-prev');
+  const nextBtn   = document.getElementById('rep-modal-next');
+  const monthLbl  = document.getElementById('rep-modal-monthlabel');
+  const grid      = document.getElementById('rep-modal-grid');
+  const summary   = document.getElementById('rep-modal-summary');
+  const clearBtn  = document.getElementById('rep-modal-clear');
+  const applyBtn  = document.getElementById('rep-modal-apply');
+
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DOWS   = ['S','M','T','W','T','F','S'];
+
+  function fmt(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function fmtPretty(s) {
+    const d = new Date(s + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function render() {
+    monthLbl.textContent = MONTHS[viewMonth] + ' ' + viewYear;
+    grid.innerHTML = '';
+
+    // DOW header row
+    DOWS.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'rep-modal-dow';
+      el.textContent = d;
+      grid.appendChild(el);
+    });
+
+    const firstOfMonth = new Date(viewYear, viewMonth, 1);
+    const startDow = firstOfMonth.getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+    // Empty cells before day 1
+    for (let i = 0; i < startDow; i++) {
+      const empty = document.createElement('div');
+      empty.className = 'rep-modal-day empty';
+      grid.appendChild(empty);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const cell = document.createElement('div');
+      cell.className = 'rep-modal-day';
+      cell.textContent = day;
+
+      const cellDate = new Date(viewYear, viewMonth, day);
+      const cellStr = fmt(cellDate);
+
+      if (cellDate > todayDate) {
+        cell.classList.add('future');
+      } else {
+        cell.addEventListener('click', () => onDayClick(cellStr));
+      }
+
+      // Decorate selection state
+      if (selStart && cellStr === selStart) cell.classList.add('start');
+      if (selEnd   && cellStr === selEnd)   cell.classList.add('end');
+      if (selStart && selEnd && cellStr > selStart && cellStr < selEnd) {
+        cell.classList.add('in-range');
+      }
+      if (selStart && selEnd && cellStr === selStart) cell.classList.add('in-range');
+      if (selStart && selEnd && cellStr === selEnd)   cell.classList.add('in-range');
+
+      grid.appendChild(cell);
+    }
+
+    // Update summary + apply button
+    if (selStart && selEnd) {
+      summary.innerHTML = '<strong>' + fmtPretty(selStart) + '</strong> to <strong>' + fmtPretty(selEnd) + '</strong>';
+      applyBtn.disabled = false;
+    } else if (selStart) {
+      summary.innerHTML = 'Start: <strong>' + fmtPretty(selStart) + '</strong> — click an end date.';
+      applyBtn.disabled = false;  // single day is valid
+    } else {
+      summary.textContent = 'Click a day to start.';
+      applyBtn.disabled = true;
+    }
+  }
+
+  function onDayClick(dateStr) {
+    if (!selStart || (selStart && selEnd)) {
+      // Start fresh
+      selStart = dateStr;
+      selEnd   = null;
+    } else {
+      // Already have a start — set end (or swap if user picked earlier)
+      if (dateStr < selStart) {
+        selEnd = selStart;
+        selStart = dateStr;
+      } else if (dateStr === selStart) {
+        // Clicking the same day: treat as a single-day selection
+        selEnd = dateStr;
+      } else {
+        selEnd = dateStr;
+      }
+    }
+    render();
+  }
+
+  function open() {
+    backdrop.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    render();
+  }
+  function close() {
+    backdrop.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+  prevBtn.addEventListener('click', () => {
+    viewMonth--;
+    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    render();
+  });
+  nextBtn.addEventListener('click', () => {
+    viewMonth++;
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    render();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    selStart = null;
+    selEnd   = null;
+    render();
+  });
+
+  applyBtn.addEventListener('click', () => {
+    if (!selStart) return;
+    const from = selStart;
+    const to   = selEnd || selStart;  // single-day = from === to
+    const url  = new URL(window.location.href);
+    url.searchParams.set('range', 'custom');
+    url.searchParams.set('from',  from);
+    url.searchParams.set('to',    to);
+    window.location.href = url.toString();
+  });
+
+  // If we land here with custom range, render once on load so the calendar
+  // is pre-populated when the modal opens.
+  render();
+})();
+</script>
 @endsection
