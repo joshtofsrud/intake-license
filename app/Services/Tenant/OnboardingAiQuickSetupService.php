@@ -35,7 +35,7 @@ use RuntimeException;
 class OnboardingAiQuickSetupService
 {
     private const MODEL = 'claude-sonnet-4-6';
-    private const MAX_TOKENS = 2000;
+    private const MAX_TOKENS = 4000;
 
     public function __construct(private AnthropicClient $client)
     {
@@ -132,6 +132,17 @@ class OnboardingAiQuickSetupService
             [['role' => 'user', 'content' => $userMessage]],
             ['system' => $system, 'temperature' => 0.4]
         );
+
+        // Detect truncation explicitly. If the model hit the token cap, the
+        // response is mid-string and trying to parse it as JSON will fail
+        // with a misleading "malformed output" error.
+        if (($response['stop_reason'] ?? null) === 'max_tokens') {
+            Log::warning('AI Quick Setup: response truncated at max_tokens', [
+                'tenant_id' => $tenant->id,
+                'usage'     => $response['usage'] ?? null,
+            ]);
+            throw new RuntimeException('AI response was cut short. Try a shorter description, or set things up manually.');
+        }
 
         $text = $this->client->extractText($response);
 
