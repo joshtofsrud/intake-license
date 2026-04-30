@@ -285,15 +285,45 @@ class OnboardingWizardController extends Controller
     }
 
     /**
-     * AI Quick Setup endpoint. Stub for now; wired in Phase 4 with the
-     * Claude API call + structured-output parser.
+     * AI Quick Setup endpoint. Takes a free-text business description, calls
+     * Claude with the industry context, and writes prefilled state across
+     * steps 3-6. Lands the user on Booking (step 3) for review since that's
+     * the most consequential AI-decided choice.
      */
     public function saveAiPrefill(string $subdomain, Request $request): JsonResponse
     {
+        $data = $request->validate([
+            'description' => ['required', 'string', 'min:10', 'max:1000'],
+        ]);
+
+        try {
+            $service = app(\App\Services\Tenant\OnboardingAiQuickSetupService::class);
+            $prefill = $service->run(tenant(), $data['description']);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'ok'    => false,
+                'error' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('AI Quick Setup failed', [
+                'tenant_id' => tenant()->id,
+                'message'   => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Something went wrong setting up. Try a different description, or set things up manually.',
+            ], 500);
+        }
+
         return response()->json([
-            'ok'    => false,
-            'error' => 'AI Quick Setup not yet implemented. Coming in Phase 4.',
-        ], 501);
+            'ok'       => true,
+            'prefill'  => [
+                'booking_mode'    => $prefill['booking_mode'],
+                'classes_enabled' => $prefill['classes_enabled'],
+                'service_count'   => count($prefill['services']),
+            ],
+            'next_url' => route('tenant.onboarding.wizard.booking', ['subdomain' => $subdomain]),
+        ]);
     }
 
     /** Helpers */
