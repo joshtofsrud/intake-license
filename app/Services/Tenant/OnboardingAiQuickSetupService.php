@@ -130,7 +130,7 @@ class OnboardingAiQuickSetupService
             self::MODEL,
             self::MAX_TOKENS,
             [['role' => 'user', 'content' => $userMessage]],
-            ['system' => $system, 'temperature' => 0.4]
+            ['system' => $system, 'temperature' => 0.1]
         );
 
         // Detect truncation explicitly. If the model hit the token cap, the
@@ -150,6 +150,15 @@ class OnboardingAiQuickSetupService
         // but models sometimes still wrap output, especially on shorter prompts.
         $text = preg_replace('/^```(?:json)?\s*/i', '', trim($text));
         $text = preg_replace('/\s*```$/', '', $text);
+
+        // Defensive: correct a class of model slip-ups where the model types
+        // a stray character between a JSON key and its value. Seen in the wild:
+        //   "price_cents">14500   (should be "price_cents":14500)
+        //   "duration_minutes",60 (should be "duration_minutes":60)
+        // Pattern: a quoted key, then any single non-colon char, then a digit.
+        // Replace the wrong char with a colon. Only matches keys followed by a
+        // digit so we never corrupt legitimate string values.
+        $text = preg_replace('/("[a-z_]+")\s*[^":\s][\s]*(\d)/i', '$1: $2', $text);
 
         $parsed = json_decode($text, true);
         if (!is_array($parsed)) {
