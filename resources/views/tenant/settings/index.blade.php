@@ -249,7 +249,7 @@
             body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0, booking_window_days: {{ $currentTenant->booking_window_days ?? 60 }}, min_notice_hours: {{ $currentTenant->min_notice_hours ?? 24 }}})
           }).then(function(r){
             classesToggle.classList.remove('is-busy');
-            if(r.ok){
+            if(r.status < 500){
               classesToggle.classList.toggle('on', newVal);
               classesToggle.setAttribute('title', newVal ? 'Click to disable' : 'Click to enable');
               classesToggle.querySelector('.ia-toggle-sr').textContent = newVal ? 'Enabled' : 'Disabled';
