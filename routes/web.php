@@ -176,6 +176,29 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/onboarding/dismiss',  [TenantControllers\OnboardingModalController::class, 'dismiss'])->name('onboarding.dismiss');
             Route::post('/onboarding/complete', [TenantControllers\OnboardingModalController::class, 'complete'])->name('onboarding.complete');
 
+            // 8-step onboarding wizard (replaces the modal for new tenants).
+            // Per-step submit: GET shows the screen, POST saves + bumps
+            // tenant.onboarding_step + returns JSON with next_url.
+            Route::prefix('onboarding/wizard')->name('onboarding.wizard.')->group(function () {
+                Route::get('/industry',    [TenantControllers\OnboardingWizardController::class, 'showIndustry'])->name('industry');
+                Route::post('/industry',   [TenantControllers\OnboardingWizardController::class, 'saveIndustry'])->name('industry.save');
+                Route::get('/identity',    [TenantControllers\OnboardingWizardController::class, 'showIdentity'])->name('identity');
+                Route::post('/identity',   [TenantControllers\OnboardingWizardController::class, 'saveIdentity'])->name('identity.save');
+                Route::get('/booking',     [TenantControllers\OnboardingWizardController::class, 'showBooking'])->name('booking');
+                Route::post('/booking',    [TenantControllers\OnboardingWizardController::class, 'saveBooking'])->name('booking.save');
+                Route::get('/hours',       [TenantControllers\OnboardingWizardController::class, 'showHours'])->name('hours');
+                Route::post('/hours',      [TenantControllers\OnboardingWizardController::class, 'saveHours'])->name('hours.save');
+                Route::get('/services',    [TenantControllers\OnboardingWizardController::class, 'showServices'])->name('services');
+                Route::post('/services',   [TenantControllers\OnboardingWizardController::class, 'saveServices'])->name('services.save');
+                Route::get('/team',        [TenantControllers\OnboardingWizardController::class, 'showTeam'])->name('team');
+                Route::post('/team',       [TenantControllers\OnboardingWizardController::class, 'saveTeam'])->name('team.save');
+                Route::get('/payment',     [TenantControllers\OnboardingWizardController::class, 'showPayment'])->name('payment');
+                Route::post('/payment',    [TenantControllers\OnboardingWizardController::class, 'savePayment'])->name('payment.save');
+                Route::get('/done',        [TenantControllers\OnboardingWizardController::class, 'showDone'])->name('done');
+                Route::post('/done',       [TenantControllers\OnboardingWizardController::class, 'complete'])->name('complete');
+                Route::post('/ai-prefill', [TenantControllers\OnboardingWizardController::class, 'saveAiPrefill'])->name('ai-prefill');
+            });
+
             // Calendar (admin) — day/week/month views of the tenant's schedule.
             Route::get('/calendar',             [TenantControllers\CalendarController::class, 'index'])->name('calendar.index');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
