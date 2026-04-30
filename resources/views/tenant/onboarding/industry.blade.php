@@ -1,10 +1,12 @@
 @extends('tenant.onboarding._layout')
 
 @section('extra-styles')
-  /* Belt-and-suspenders: force wizard colors over tenant theme injection. */
-  .screen, .screen * { color: #f0f0f0; }
-  .screen .screen-eyebrow { color: #D4FF3F; }
-  .screen .screen-sub, .screen .industry-tile-meta { color: #888; }
+  /* Force wizard colors over tenant theme injection (without breaking children that set their own color, like buttons). */
+  .screen { color: #f0f0f0; }
+  .screen .screen-eyebrow { color: #D4FF3F !important; }
+  .screen .screen-sub { color: #888 !important; }
+  .screen .btn-primary { color: #0a0a0a !important; background: #D4FF3F !important; }
+  .screen .btn-skip { color: #888 !important; }
   .industry-cat-label {
     font-size: 10px; font-weight: 700; color: #888 !important;
     text-transform: uppercase; letter-spacing: 0.08em;
