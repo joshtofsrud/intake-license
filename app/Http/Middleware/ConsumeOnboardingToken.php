@@ -42,17 +42,16 @@ class ConsumeOnboardingToken
             return $next($request);
         }
 
-        // Already authenticated on the tenant guard? Still strip the token
-        // from the URL so it doesn't linger in browser history.
-        if (Auth::guard('tenant')->check()) {
-            return $this->redirectWithoutToken($request);
-        }
-
         $cacheKey = 'onboarding_token_' . $token;
         $data     = Cache::get($cacheKey);
 
         if (! is_array($data) || empty($data['user_id']) || empty($data['tenant_id'])) {
-            // Invalid or expired — fall through to normal auth handling
+            // Invalid or expired — fall through to normal auth handling.
+            // If the user happens to already be authenticated, the early bail
+            // below at the next request will strip the bad token from the URL.
+            if (Auth::guard('tenant')->check()) {
+                return $this->redirectWithoutToken($request);
+            }
             return $next($request);
         }
 
@@ -72,6 +71,21 @@ class ConsumeOnboardingToken
         if (! $user) {
             Cache::forget($cacheKey);
             return $next($request);
+        }
+
+        // If the browser arrives with an EXISTING tenant session belonging to
+        // a different tenant (e.g. the user signed up while still logged in
+        // to another shop on a sibling subdomain — cookies are scoped to
+        // .intake.works), log out the stale session before consuming the
+        // token. Without this, RequireTenantAuth aborts(403) on the
+        // tenant_id mismatch the user can't see or fix.
+        if (Auth::guard('tenant')->check()) {
+            $existing = Auth::guard('tenant')->user();
+            if ($existing && $existing->tenant_id !== $data['tenant_id']) {
+                Auth::guard('tenant')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
         }
 
         // Log in on the tenant guard. Regenerate session ID to avoid
