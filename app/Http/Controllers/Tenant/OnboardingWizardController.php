@@ -129,10 +129,45 @@ class OnboardingWizardController extends Controller
 
     public function saveHours(string $subdomain, Request $request): JsonResponse
     {
-        // TODO Phase 3: validate + save weekly hours.
-        // Existing modal::saveHours() has working logic but a known gap —
-        // it persists day-of-week without actual times. Fix here; write
-        // open_time + close_time to TenantCapacityRule.
+        $data = $request->validate([
+            'hours'                => ['required', 'array', 'min:7', 'max:7'],
+            'hours.*.day'          => ['required', 'integer', 'between:0,6'],
+            'hours.*.open_time'    => ['nullable', 'string', 'date_format:H:i'],
+            'hours.*.close_time'   => ['nullable', 'string', 'date_format:H:i'],
+            'hours.*.closed'       => ['nullable'],
+        ]);
+
+        $tenantId = tenant()->id;
+
+        // Idempotent: wipe the default-rule rows and recreate from the
+        // submitted state. Single source of truth per save.
+        \DB::transaction(function () use ($tenantId, $data) {
+            \App\Models\Tenant\TenantCapacityRule::where('tenant_id', $tenantId)
+                ->where('rule_type', 'default')
+                ->whereNull('specific_date')
+                ->delete();
+
+            foreach ($data['hours'] as $entry) {
+                $isClosed = !empty($entry['closed']);
+                \App\Models\Tenant\TenantCapacityRule::create([
+                    'tenant_id'             => $tenantId,
+                    'rule_type'             => 'default',
+                    'day_of_week'           => $entry['day'],
+                    'specific_date'         => null,
+                    'is_closed'             => $isClosed,
+                    'open_time'             => $isClosed ? null : ($entry['open_time']  ?? null),
+                    'close_time'            => $isClosed ? null : ($entry['close_time'] ?? null),
+                    'max_appointments'      => 8,  // sensible default; capacity tuning happens later
+                    'slot_interval_minutes' => 30,
+                    'note'                  => null,
+                ]);
+            }
+        });
+
+        tenant()->update([
+            'onboarding_step' => max(5, tenant()->onboarding_step ?? 0),
+        ]);
+
         return $this->stepResponse(4, $subdomain, 'services');
     }
 
