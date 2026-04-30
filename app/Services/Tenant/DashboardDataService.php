@@ -278,15 +278,11 @@ class DashboardDataService
         // Statuses match dashboard.css: 'ok' (green), 'warn' (amber), 'err' (red/grey).
         $health = [];
 
-        // The tenant model carries the payment_processor and payment_processor_status
-        // columns added in the onboarding-wizard Phase 1 migration. Fetch once.
-        $tenant = \App\Models\Tenant::find($tenantId);
-
         // Payment processing — driven by actual processor connection state. Stripe
         // Connect / PayPal / Square aren't wired yet, so until a tenant finishes a
         // real connection flow this stays 'err' (or 'warn' if they recorded intent).
-        $ppStatus = $tenant?->payment_processor_status ?? 'not_started';
-        $ppLabel  = ucfirst($tenant?->payment_processor ?? 'Processor');
+        $ppStatus = $this->tenant->payment_processor_status ?? 'not_started';
+        $ppLabel  = ucfirst($this->tenant->payment_processor ?? 'Processor');
         $health[] = match ($ppStatus) {
             'connected' => [
                 'label'  => 'Payment processing',
