@@ -211,8 +211,48 @@ class OnboardingWizardController extends Controller
 
     public function saveTeam(string $subdomain, Request $request): JsonResponse
     {
-        // TODO Phase 3: solo vs multi. If multi, create additional
-        // TenantResource rows with auto-assigned curated colors.
+        $data = $request->validate([
+            'mode'                 => ['required', 'in:solo,multi'],
+            'members'              => ['nullable', 'array', 'max:25'],
+            'members.*.name'       => ['required_with:members', 'string', 'max:100'],
+            'members.*.subtitle'   => ['nullable', 'string', 'max:100'],
+            'members.*.color_hex'  => ['required_with:members', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        ]);
+
+        $tenantId = tenant()->id;
+
+        \DB::transaction(function () use ($tenantId, $data) {
+            // Wipe non-owner resources; owner is identified by a non-null
+            // staff_user_id (set by TenantUserObserver at signup) and never
+            // touched by this method.
+            \App\Models\Tenant\TenantResource::where('tenant_id', $tenantId)
+                ->whereNull('staff_user_id')
+                ->delete();
+
+            if ($data['mode'] === 'multi' && !empty($data['members'])) {
+                $sortStart = (int) (\App\Models\Tenant\TenantResource::where('tenant_id', $tenantId)
+                    ->max('sort_order') ?? 0) + 1;
+
+                foreach ($data['members'] as $i => $m) {
+                    \App\Models\Tenant\TenantResource::create([
+                        'tenant_id'                => $tenantId,
+                        'name'                     => $m['name'],
+                        'subtitle'                 => $m['subtitle'] ?? null,
+                        'color_hex'                => strtoupper($m['color_hex']),
+                        'type'                     => 'staff',
+                        'staff_user_id'            => null,
+                        'sort_order'               => $sortStart + $i,
+                        'is_active'                => true,
+                        'max_appointments_per_day' => null,
+                    ]);
+                }
+            }
+        });
+
+        tenant()->update([
+            'onboarding_step' => max(7, tenant()->onboarding_step ?? 0),
+        ]);
+
         return $this->stepResponse(6, $subdomain, 'payment');
     }
 
