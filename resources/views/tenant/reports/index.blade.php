@@ -266,7 +266,7 @@
   <section class="rep-zone">
     <div class="rep-zone-head">
       <div class="rep-zone-title">📅 Bookings &amp; cancellations</div>
-      <div class="rep-zone-sub">{{ $bookings['confirmed'] }} confirmed · {{ $bookings['cancelled'] }} cancelled · {{ $bookings['no_shows'] }} no-show · {{ $bookings['walkins'] }} walk-in</div>
+      <div class="rep-zone-sub">{{ $bookings['confirmed'] }} confirmed · {{ $bookings['cancelled'] }} cancelled · {{ $bookings['no_shows'] }} no-show · {{ $bookings['walkins'] }} same-day</div>
     </div>
 
     @php $maxBkCount = max(array_column($bookings['timeline'], 'count')) ?: 1; @endphp

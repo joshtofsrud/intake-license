@@ -319,8 +319,10 @@ class ReportsDataService
     /** Zone 5: Staff utilization. */
     public function zoneStaff(Carbon $from, Carbon $to): array
     {
-        $days = max(1, $from->diffInDays($to) + 1);
-        $availableMinutes = $days * 8 * 60;
+        // Real available minutes: sum each day's actual open-to-close window
+        // from tenant_capacity_rules (defaults + overrides). Days the shop is
+        // closed contribute zero; days with no rule fall back to 8h.
+        $availableMinutes = $this->openMinutesForRange($from, $to);
 
         $resources = TenantResource::where('tenant_id', $this->tenant->id)
             ->where('is_active', true)
@@ -467,6 +469,55 @@ class ReportsDataService
 
     // ---------- helpers ----------
 
+    /**
+     * Sum of "shop is open" minutes for every day in the range.
+     * Override rules win over default rules for a specific date. If a day
+     * has no rule at all, falls back to 8 hours so a brand-new tenant
+     * doesn't show 100%-of-zero utilization.
+     */
+    private function openMinutesForRange(Carbon $from, Carbon $to): int
+    {
+        $defaults = DB::table('tenant_capacity_rules')
+            ->where('tenant_id', $this->tenant->id)
+            ->where('rule_type', 'default')
+            ->whereNull('specific_date')
+            ->get(['day_of_week', 'is_closed', 'open_time', 'close_time'])
+            ->keyBy('day_of_week');
+
+        $overrides = DB::table('tenant_capacity_rules')
+            ->where('tenant_id', $this->tenant->id)
+            ->where('rule_type', 'override')
+            ->whereBetween('specific_date', [$from->toDateString(), $to->toDateString()])
+            ->get(['specific_date', 'is_closed', 'open_time', 'close_time'])
+            ->keyBy(fn($r) => $r->specific_date);
+
+        $totalMinutes = 0;
+        for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+            $rule = $overrides->get($d->toDateString()) ?? $defaults->get($d->dayOfWeek);
+
+            if (!$rule) {
+                $totalMinutes += 8 * 60;  // fallback when no rule exists
+                continue;
+            }
+            if (!empty($rule->is_closed)) continue;  // closed = 0 minutes
+            if (empty($rule->open_time) || empty($rule->close_time)) {
+                $totalMinutes += 8 * 60;  // partial rule, fallback
+                continue;
+            }
+
+            try {
+                $open  = Carbon::parse($rule->open_time);
+                $close = Carbon::parse($rule->close_time);
+                $mins  = max(0, $open->diffInMinutes($close));
+                $totalMinutes += $mins;
+            } catch (\Throwable $e) {
+                $totalMinutes += 8 * 60;
+            }
+        }
+
+        return $totalMinutes;
+    }
+
     private function revenueForDate(Carbon $date): int
     {
         return (int) TenantAppointment::where('tenant_id', $this->tenant->id)
@@ -504,28 +555,37 @@ class ReportsDataService
 
     private function noShowCountForDate(Carbon $date): int
     {
+        // Strict + 24h grace: only count yesterday-or-earlier confirmed
+        // appointments. Today's date returns 0 because grace hasn't elapsed.
         if ($date->gte($this->tenant->localToday())) return 0;
 
         return TenantAppointment::where('tenant_id', $this->tenant->id)
             ->where('appointment_date', $date->toDateString())
-            ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+            ->where('status', 'confirmed')
             ->count();
     }
 
     private function noShowCountForRange(Carbon $from, Carbon $to): int
     {
+        // Strict + 24h grace: only count appointments that were actually
+        // confirmed (not pending) AND whose date is at least one full day in
+        // the past. This prevents inflating no-show counts with appointments
+        // that simply haven't been status-updated yet.
         $today = $this->tenant->localToday();
         $effectiveTo = min($to->toDateString(), $today->copy()->subDay()->toDateString());
         if ($from->toDateString() > $effectiveTo) return 0;
 
         return TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
-            ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+            ->where('status', 'confirmed')
             ->count();
     }
 
     private function noShowRateForRange(Carbon $from, Carbon $to): float
     {
+        // Same strict + 24h grace as noShowCountForRange. Denominator is
+        // every non-cancelled appointment, numerator is just the confirmed
+        // ones that didn't make it to delivered.
         $today = $this->tenant->localToday();
         $effectiveTo = min($to->toDateString(), $today->copy()->subDay()->toDateString());
         if ($from->toDateString() > $effectiveTo) return 0;
@@ -539,7 +599,7 @@ class ReportsDataService
 
         $noShows = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
-            ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+            ->where('status', 'confirmed')
             ->count();
 
         return $noShows / $total;
