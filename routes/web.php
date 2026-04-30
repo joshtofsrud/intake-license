@@ -179,7 +179,13 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             // 8-step onboarding wizard (replaces the modal for new tenants).
             // Per-step submit: GET shows the screen, POST saves + bumps
             // tenant.onboarding_step + returns JSON with next_url.
-            Route::prefix('onboarding/wizard')->name('onboarding.wizard.')->group(function () {
+            // Gated by RequireOnboardingIncomplete: completed tenants get
+            // bounced to the dashboard so they can't re-run the wizard and
+            // clobber their data via idempotent saves.
+            Route::middleware('App\Http\Middleware\RequireOnboardingIncomplete')
+                ->prefix('onboarding/wizard')
+                ->name('onboarding.wizard.')
+                ->group(function () {
                 Route::get('/industry',    [TenantControllers\OnboardingWizardController::class, 'showIndustry'])->name('industry');
                 Route::post('/industry',   [TenantControllers\OnboardingWizardController::class, 'saveIndustry'])->name('industry.save');
                 Route::get('/identity',    [TenantControllers\OnboardingWizardController::class, 'showIdentity'])->name('identity');
