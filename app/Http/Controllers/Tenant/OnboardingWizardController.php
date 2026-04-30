@@ -173,8 +173,39 @@ class OnboardingWizardController extends Controller
 
     public function saveServices(string $subdomain, Request $request): JsonResponse
     {
-        // TODO Phase 3: validate + save first service.
-        // Existing modal::saveServices() has the working logic.
+        $data = $request->validate([
+            'name'     => ['required', 'string', 'max:100'],
+            'duration' => ['required', 'integer', 'min:5', 'max:480'],
+            'price'    => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $tenantId = tenant()->id;
+
+        // Default category — most tenants only need one bucket. Power users
+        // organize from the Services admin later.
+        $category = \App\Models\Tenant\TenantServiceCategory::firstOrCreate(
+            ['tenant_id' => $tenantId, 'slug' => 'services'],
+            ['name' => 'Services', 'is_active' => true, 'sort_order' => 0]
+        );
+
+        \App\Models\Tenant\TenantServiceItem::create([
+            'tenant_id'             => $tenantId,
+            'category_id'           => $category->id,
+            'name'                  => $data['name'],
+            'slug'                  => \Illuminate\Support\Str::slug($data['name']) . '-' . substr(md5(uniqid()), 0, 6),
+            'price_cents'           => (int) round($data['price'] * 100),
+            'duration_minutes'      => $data['duration'],
+            'prep_before_minutes'   => 0,
+            'cleanup_after_minutes' => 0,
+            'slot_weight'           => 1,
+            'is_active'             => true,
+            'sort_order'            => 0,
+        ]);
+
+        tenant()->update([
+            'onboarding_step' => max(6, tenant()->onboarding_step ?? 0),
+        ]);
+
         return $this->stepResponse(5, $subdomain, 'team');
     }
 
