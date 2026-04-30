@@ -1,33 +1,48 @@
 @extends('tenant.onboarding._layout')
 
 @section('extra-styles')
+  /* Belt-and-suspenders: force wizard colors over tenant theme injection. */
+  .screen, .screen * { color: #f0f0f0; }
+  .screen .screen-eyebrow { color: #D4FF3F; }
+  .screen .screen-sub, .screen .industry-tile-meta { color: #888; }
   .industry-cat-label {
-    font-size: 10.5px; font-weight: 700; color: var(--text-3);
+    font-size: 10px; font-weight: 700; color: #888 !important;
     text-transform: uppercase; letter-spacing: 0.08em;
-    margin: 22px 0 10px; padding-bottom: 8px;
-    border-bottom: 1px solid var(--line);
+    margin: 16px 0 8px; padding-bottom: 6px;
+    border-bottom: 1px solid #1f1f1f;
   }
   .industry-cat-label:first-child { margin-top: 0; }
   .industry-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
   }
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
+    .industry-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  @media (max-width: 800px) {
+    .industry-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 600px) {
     .industry-grid { grid-template-columns: repeat(2, 1fr); }
   }
   .industry-tile {
-    background: var(--bg-3); border: 1px solid var(--line-2);
-    border-radius: var(--r); padding: 18px 16px;
+    background: #1a1a1a !important; border: 1px solid #2a2a2a;
+    border-radius: 10px; padding: 12px 12px;
     cursor: pointer; transition: all 0.15s;
-    text-align: left;
+    text-align: left; color: #f0f0f0 !important;
   }
-  .industry-tile:hover { border-color: var(--text-4); transform: translateY(-1px); }
+  .industry-tile:hover { border-color: #5a5a5a; transform: translateY(-1px); }
   .industry-tile.selected {
-    border-color: var(--lime);
-    background: linear-gradient(180deg, rgba(212,255,63,0.08), var(--bg-3));
+    border-color: #D4FF3F;
+    background: linear-gradient(180deg, rgba(212,255,63,0.08), #1a1a1a) !important;
   }
-  .industry-tile-icon { font-size: 22px; margin-bottom: 6px; display: block; }
-  .industry-tile-name { font-size: 13px; font-weight: 700; line-height: 1.2; }
-  .industry-tile-meta { font-size: 10.5px; color: var(--text-3); margin-top: 3px; }
+  .industry-tile-icon { font-size: 18px; margin-bottom: 4px; display: block; }
+  .industry-tile-name {
+    font-size: 12px; font-weight: 700; line-height: 1.25;
+    color: #f0f0f0 !important;
+  }
+  .industry-tile-meta {
+    font-size: 10px; color: #888 !important; margin-top: 2px;
+  }
 @endsection
 
 @section('screen')
