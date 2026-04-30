@@ -35,7 +35,7 @@ use RuntimeException;
 class OnboardingAiQuickSetupService
 {
     private const MODEL = 'claude-sonnet-4-6';
-    private const MAX_TOKENS = 4000;
+    private const MAX_TOKENS = 8000;
 
     public function __construct(private AnthropicClient $client)
     {
@@ -154,8 +154,12 @@ class OnboardingAiQuickSetupService
         $parsed = json_decode($text, true);
         if (!is_array($parsed)) {
             Log::warning('AI Quick Setup: model returned non-JSON', [
-                'tenant_id' => $tenant->id,
-                'first_200' => substr($text, 0, 200),
+                'tenant_id'    => $tenant->id,
+                'stop_reason'  => $response['stop_reason'] ?? null,
+                'usage'        => $response['usage'] ?? null,
+                'text_length'  => strlen($text),
+                'full_text'    => $text,
+                'json_error'   => json_last_error_msg(),
             ]);
             throw new RuntimeException('AI returned malformed output. Try a different description.');
         }
