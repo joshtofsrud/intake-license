@@ -9,21 +9,10 @@
   .rep-kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
   @media (max-width: 1000px) { .rep-kpi-row { grid-template-columns: repeat(2, 1fr); } }
 
-  .rep-kpi-card {
-    background: var(--ia-surface, #131313);
-    border: 1px solid var(--ia-border, #1f1f1f);
-    border-radius: 14px; padding: 18px 20px;
-    transition: border-color 0.15s;
-  }
+  .rep-kpi-card { background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 14px; padding: 18px 20px; transition: border-color 0.15s; }
   .rep-kpi-card:hover { border-color: var(--ia-border-2, #2a2a2a); }
-  .rep-kpi-label {
-    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--ia-text-3, #888); font-weight: 700; margin-bottom: 8px;
-  }
-  .rep-kpi-value {
-    font-size: 28px; font-weight: 800; letter-spacing: -0.02em;
-    line-height: 1; font-feature-settings: 'tnum';
-  }
+  .rep-kpi-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ia-text-3, #888); font-weight: 700; margin-bottom: 8px; }
+  .rep-kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; font-feature-settings: 'tnum'; }
   .rep-kpi-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
   .rep-delta { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight: 700; }
   .rep-delta.up   { background: rgba(52,211,153,0.12); color: #34D399; }
@@ -31,33 +20,20 @@
   .rep-delta.flat { background: rgba(255,255,255,0.04); color: var(--ia-text-3, #888); }
   .rep-kpi-period { color: var(--ia-text-3, #888); font-size: 11.5px; }
 
-  .rep-zone {
-    background: var(--ia-surface, #131313);
-    border: 1px solid var(--ia-border, #1f1f1f);
-    border-radius: 14px; padding: 22px;
-    margin-bottom: 18px;
-  }
-  .rep-zone-head {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 18px; gap: 14px;
-  }
+  .rep-zone { background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
+  .rep-zone-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; gap: 14px; flex-wrap: wrap; }
   .rep-zone-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
   .rep-zone-sub { font-size: 12px; color: var(--ia-text-3, #888); font-weight: 500; margin-top: 2px; }
 
+  .rep-toggle { display: inline-flex; gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 8px; padding: 3px; }
+  .rep-toggle a { padding: 5px 11px; font-size: 11.5px; font-weight: 600; color: var(--ia-text-3, #888); text-decoration: none; border-radius: 5px; transition: all 0.12s; }
+  .rep-toggle a:hover { color: var(--ia-text, #f0f0f0); }
+  .rep-toggle a.active { background: #BEF264; color: #0a0a0a; }
+
   .rep-list { display: flex; flex-direction: column; }
-  .rep-list-row {
-    display: grid; grid-template-columns: 1fr 90px 90px;
-    gap: 14px; align-items: center;
-    padding: 11px 0;
-    border-bottom: 1px solid var(--ia-border, #1f1f1f);
-    font-size: 13.5px;
-  }
+  .rep-list-row { display: grid; grid-template-columns: 1fr 90px 90px; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--ia-border, #1f1f1f); font-size: 13.5px; }
   .rep-list-row:last-child { border-bottom: none; }
-  .rep-list-row.head {
-    color: var(--ia-text-3, #888); font-size: 10.5px;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    font-weight: 700; padding-bottom: 8px;
-  }
+  .rep-list-row.head { color: var(--ia-text-3, #888); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; padding-bottom: 8px; }
   .rep-list-row .num-cell { text-align: right; font-weight: 600; font-feature-settings: 'tnum'; }
   .rep-list-row .meta { font-size: 11px; font-weight: 500; color: var(--ia-text-3, #888); margin-top: 2px; }
   .rep-bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.04); overflow: hidden; margin-top: 6px; }
@@ -68,11 +44,7 @@
 
   .rep-staff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 700px) { .rep-staff-grid { grid-template-columns: 1fr; } }
-  .rep-staff-card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid var(--ia-border, #1f1f1f);
-    border-radius: 10px; padding: 14px 16px;
-  }
+  .rep-staff-card { background: rgba(255,255,255,0.02); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 10px; padding: 14px 16px; }
   .rep-staff-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .rep-swatch { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
   .rep-util-bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.04); margin: 8px 0 4px; overflow: hidden; }
@@ -100,11 +72,22 @@
 </style>
 @endpush
 
+@php
+  // Helper for building zone toggle URLs that preserve all OTHER zones'
+  // current selections. Click "Week" on Revenue and the URL becomes
+  // ?revenue=week&bookings=$current&customers=$current...
+  $buildToggle = function (string $zone, string $newRange) use ($ranges) {
+      $params = $ranges;
+      $params[$zone] = $newRange;
+      return route('tenant.reports.index', array_merge(['subdomain' => tenant()->subdomain], $params));
+  };
+@endphp
+
 @section('content')
 <div style="padding: 32px 40px;">
 
   <h1 class="rep-h1">Reports</h1>
-  <div class="rep-sub">{{ $today_label }} · daily ops view</div>
+  <div class="rep-sub">{{ $today_label }}</div>
 
   {{-- KPI ROW --}}
   <div class="rep-kpi-row">
@@ -145,34 +128,37 @@
       <div>
         <div class="rep-zone-title">💰 Revenue</div>
         <div class="rep-zone-sub">
-          ${{ number_format($revenue['total_cents'] / 100) }} today
-          @if($revenue['best_hour'])
-            · best hour {{ $revenue['best_hour']['label'] }} (${{ number_format($revenue['best_hour']['cents'] / 100) }})
+          ${{ number_format($revenue['total_cents'] / 100) }} {{ $revenue['range_label'] }}
+          @if($revenue['best_bucket'])
+            · best {{ $revenue['series_kind'] === 'hourly' ? 'hour' : 'day' }} {{ $revenue['best_bucket']['label'] }} (${{ number_format($revenue['best_bucket']['cents'] / 100) }})
           @endif
         </div>
       </div>
+      <nav class="rep-toggle">
+        <a href="{{ $buildToggle('revenue', 'today') }}"  class="{{ $ranges['revenue'] === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ $buildToggle('revenue', 'week') }}"   class="{{ $ranges['revenue'] === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ $buildToggle('revenue', 'month') }}"  class="{{ $ranges['revenue'] === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
     </div>
 
     <div class="rep-grid-2">
       <div>
-        @php
-          $maxHourCents = max(array_column($revenue['hourly'], 'cents')) ?: 1;
-        @endphp
+        @php $maxBucketCents = max(array_column($revenue['series'], 'cents')) ?: 1; @endphp
         @if($revenue['total_cents'] > 0)
           <div style="display:flex;align-items:flex-end;gap:4px;height:200px;border-bottom:1px solid var(--ia-border, #1f1f1f);padding-bottom:8px;">
-            @foreach($revenue['hourly'] as $hr)
+            @foreach($revenue['series'] as $bucket)
               <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
-                <div style="width:100%;background:#BEF264;border-radius:2px 2px 0 0;height:{{ max(2, round(($hr['cents'] / $maxHourCents) * 180)) }}px;opacity:{{ $hr['cents'] > 0 ? 1 : 0.15 }};"></div>
+                <div style="width:100%;background:#BEF264;border-radius:2px 2px 0 0;height:{{ max(2, round(($bucket['cents'] / $maxBucketCents) * 180)) }}px;opacity:{{ $bucket['cents'] > 0 ? 1 : 0.15 }};"></div>
               </div>
             @endforeach
           </div>
           <div style="display:flex;gap:4px;margin-top:6px;">
-            @foreach($revenue['hourly'] as $hr)
-              <div style="flex:1;text-align:center;font-size:9.5px;color:var(--ia-text-4,#5a5a5a);font-family:ui-monospace,monospace;">{{ $hr['label'] }}</div>
+            @foreach($revenue['series'] as $bucket)
+              <div style="flex:1;text-align:center;font-size:9.5px;color:var(--ia-text-4,#5a5a5a);font-family:ui-monospace,monospace;">{{ $bucket['label'] }}</div>
             @endforeach
           </div>
         @else
-          <div class="rep-empty">No paid revenue today yet.</div>
+          <div class="rep-empty">No paid revenue {{ $revenue['range_label'] }}.</div>
         @endif
       </div>
 
@@ -192,7 +178,7 @@
             @endforeach
           </div>
         @else
-          <div class="rep-empty">No service revenue today.</div>
+          <div class="rep-empty">No service revenue {{ $revenue['range_label'] }}.</div>
         @endif
       </div>
     </div>
@@ -203,24 +189,27 @@
     <div class="rep-zone-head">
       <div>
         <div class="rep-zone-title">📅 Bookings &amp; cancellations</div>
-        <div class="rep-zone-sub">{{ $bookings['confirmed'] }} confirmed · {{ $bookings['cancelled'] }} cancelled · {{ $bookings['no_shows'] }} no-show · {{ $bookings['walkins'] }} walk-in</div>
+        <div class="rep-zone-sub">{{ $bookings['confirmed'] }} confirmed · {{ $bookings['cancelled'] }} cancelled · {{ $bookings['no_shows'] }} no-show · {{ $bookings['walkins'] }} walk-in · {{ $bookings['range_label'] }}</div>
       </div>
+      <nav class="rep-toggle">
+        <a href="{{ $buildToggle('bookings', 'today') }}" class="{{ $ranges['bookings'] === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ $buildToggle('bookings', 'week') }}"  class="{{ $ranges['bookings'] === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ $buildToggle('bookings', 'month') }}" class="{{ $ranges['bookings'] === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
     </div>
 
-    @php
-      $maxBkCount = max(array_column($bookings['timeline'], 'count')) ?: 1;
-    @endphp
+    @php $maxBkCount = max(array_column($bookings['timeline'], 'count')) ?: 1; @endphp
     <div style="display:flex;align-items:flex-end;gap:6px;height:120px;border-bottom:1px solid var(--ia-border, #1f1f1f);padding-bottom:8px;">
-      @foreach($bookings['timeline'] as $day)
+      @foreach($bookings['timeline'] as $bk)
         <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
-          <div style="font-size:10px;color:var(--ia-text-3,#888);margin-bottom:4px;font-feature-settings:'tnum';">{{ $day['count'] }}</div>
-          <div style="width:100%;background:#BEF264;border-radius:2px 2px 0 0;height:{{ max(2, round(($day['count'] / $maxBkCount) * 90)) }}px;opacity:{{ $day['count'] > 0 ? 0.85 : 0.15 }};"></div>
+          <div style="font-size:10px;color:var(--ia-text-3,#888);margin-bottom:4px;font-feature-settings:'tnum';">{{ $bk['count'] }}</div>
+          <div style="width:100%;background:#BEF264;border-radius:2px 2px 0 0;height:{{ max(2, round(($bk['count'] / $maxBkCount) * 90)) }}px;opacity:{{ $bk['count'] > 0 ? 0.85 : 0.15 }};"></div>
         </div>
       @endforeach
     </div>
     <div style="display:flex;gap:6px;margin-top:6px;">
-      @foreach($bookings['timeline'] as $day)
-        <div style="flex:1;text-align:center;font-size:10px;color:var(--ia-text-4,#5a5a5a);font-family:ui-monospace,monospace;">{{ $day['label'] }}</div>
+      @foreach($bookings['timeline'] as $bk)
+        <div style="flex:1;text-align:center;font-size:10px;color:var(--ia-text-4,#5a5a5a);font-family:ui-monospace,monospace;">{{ $bk['label'] }}</div>
       @endforeach
     </div>
   </section>
@@ -230,16 +219,19 @@
     <div class="rep-zone-head">
       <div>
         <div class="rep-zone-title">👤 Customers &amp; retention</div>
-        <div class="rep-zone-sub">{{ $customers['month_label'] }} · top spenders + daily new vs. returning</div>
+        <div class="rep-zone-sub">Top spenders + new vs. returning · {{ $customers['range_label'] }}</div>
       </div>
+      <nav class="rep-toggle">
+        <a href="{{ $buildToggle('customers', 'today') }}" class="{{ $ranges['customers'] === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ $buildToggle('customers', 'week') }}"  class="{{ $ranges['customers'] === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ $buildToggle('customers', 'month') }}" class="{{ $ranges['customers'] === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
     </div>
 
     <div class="rep-grid-2">
       <div>
-        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">New vs returning · {{ $customers['month_label'] }}</div>
-        @php
-          $maxDailyTotal = max(array_map(fn($d) => $d['new'] + $d['returning'], $customers['daily'])) ?: 1;
-        @endphp
+        <div style="font-size:11px;color:var(--ia-text-3,#888);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:8px;">New vs returning · {{ $customers['range_label'] }}</div>
+        @php $maxDailyTotal = max(array_map(fn($d) => $d['new'] + $d['returning'], $customers['daily'])) ?: 1; @endphp
         <div style="display:flex;align-items:flex-end;gap:2px;height:160px;border-bottom:1px solid var(--ia-border, #1f1f1f);padding-bottom:8px;">
           @foreach($customers['daily'] as $day)
             @php
@@ -249,12 +241,8 @@
               $retH = $hPx - $newH;
             @endphp
             <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;">
-              @if($newH > 0)
-                <div style="background:rgba(190,242,100,0.4);height:{{ $newH }}px;"></div>
-              @endif
-              @if($retH > 0)
-                <div style="background:#BEF264;height:{{ $retH }}px;border-radius:0 0 1px 1px;"></div>
-              @endif
+              @if($newH > 0)<div style="background:rgba(190,242,100,0.4);height:{{ $newH }}px;"></div>@endif
+              @if($retH > 0)<div style="background:#BEF264;height:{{ $retH }}px;border-radius:0 0 1px 1px;"></div>@endif
             </div>
           @endforeach
         </div>
@@ -272,7 +260,7 @@
               <div class="rep-list-row">
                 <div>
                   <div style="font-weight:600;">{{ $c['name'] }}</div>
-                  <div class="meta">{{ $c['visits'] }} {{ $c['visits'] === 1 ? 'visit' : 'visits' }} · {{ $c['is_new_this_month'] ? 'new this month' : 'returning' }}</div>
+                  <div class="meta">{{ $c['visits'] }} {{ $c['visits'] === 1 ? 'visit' : 'visits' }} · {{ $c['is_new_in_period'] ? 'new this period' : 'returning' }}</div>
                 </div>
                 <div class="num-cell">${{ number_format($c['cents'] / 100) }}</div>
                 <div class="num-cell" style="color:var(--ia-text-3,#888);font-size:11.5px;">{{ $c['visits'] }}</div>
@@ -280,7 +268,7 @@
             @endforeach
           </div>
         @else
-          <div class="rep-empty">No customer revenue this month.</div>
+          <div class="rep-empty">No customer revenue {{ $customers['range_label'] }}.</div>
         @endif
       </div>
     </div>
@@ -291,8 +279,13 @@
     <div class="rep-zone-head">
       <div>
         <div class="rep-zone-title">🔧 Service popularity</div>
-        <div class="rep-zone-sub">Trailing 30 days · {{ count($services['services']) }} services with paid bookings</div>
+        <div class="rep-zone-sub">{{ count($services['services']) }} services with paid bookings · {{ $services['range_label'] }}</div>
       </div>
+      <nav class="rep-toggle">
+        <a href="{{ $buildToggle('services', 'today') }}" class="{{ $ranges['services'] === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ $buildToggle('services', 'week') }}"  class="{{ $ranges['services'] === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ $buildToggle('services', 'month') }}" class="{{ $ranges['services'] === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
     </div>
 
     @if(count($services['services']))
@@ -314,7 +307,7 @@
         @endforeach
       </div>
     @else
-      <div class="rep-empty">No paid services in the last 30 days.</div>
+      <div class="rep-empty">No paid services {{ $services['range_label'] }}.</div>
     @endif
   </section>
 
@@ -323,8 +316,13 @@
     <div class="rep-zone-head">
       <div>
         <div class="rep-zone-title">👥 Staff utilization</div>
-        <div class="rep-zone-sub">Trailing 7 days · 8h/day available baseline</div>
+        <div class="rep-zone-sub">8h/day available baseline · {{ $staff['range_label'] }}</div>
       </div>
+      <nav class="rep-toggle">
+        <a href="{{ $buildToggle('staff', 'today') }}" class="{{ $ranges['staff'] === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ $buildToggle('staff', 'week') }}"  class="{{ $ranges['staff'] === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ $buildToggle('staff', 'month') }}" class="{{ $ranges['staff'] === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
     </div>
 
     @if(count($staff['cards']))
@@ -346,18 +344,9 @@
               <span style="font-feature-settings:'tnum';">{{ $card['booked_hrs'] }} / {{ $card['available_hrs'] }} hrs</span>
             </div>
             <div class="rep-staff-stats">
-              <div>
-                <div class="rep-staff-stat-label">Appts</div>
-                <div class="rep-staff-stat-val">{{ $card['appts'] }}</div>
-              </div>
-              <div>
-                <div class="rep-staff-stat-label">Revenue</div>
-                <div class="rep-staff-stat-val">${{ number_format($card['revenue_cents'] / 100) }}</div>
-              </div>
-              <div>
-                <div class="rep-staff-stat-label">No-show</div>
-                <div class="rep-staff-stat-val">{{ $card['no_show_rate'] }}%</div>
-              </div>
+              <div><div class="rep-staff-stat-label">Appts</div><div class="rep-staff-stat-val">{{ $card['appts'] }}</div></div>
+              <div><div class="rep-staff-stat-label">Revenue</div><div class="rep-staff-stat-val">${{ number_format($card['revenue_cents'] / 100) }}</div></div>
+              <div><div class="rep-staff-stat-label">No-show</div><div class="rep-staff-stat-val">{{ $card['no_show_rate'] }}%</div></div>
             </div>
           </div>
         @endforeach
@@ -372,8 +361,13 @@
     <div class="rep-zone-head">
       <div>
         <div class="rep-zone-title">🔥 Capacity utilization</div>
-        <div class="rep-zone-sub">Last 14 days · 8a–9p · darker = busier</div>
+        <div class="rep-zone-sub">8a–9p · darker = busier · {{ $capacity['range_label'] }}</div>
       </div>
+      <nav class="rep-toggle">
+        <a href="{{ $buildToggle('capacity', 'today') }}" class="{{ $ranges['capacity'] === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ $buildToggle('capacity', 'week') }}"  class="{{ $ranges['capacity'] === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ $buildToggle('capacity', 'month') }}" class="{{ $ranges['capacity'] === 'month' ? 'active' : '' }}">Month</a>
+      </nav>
     </div>
 
     <div class="rep-heatmap">

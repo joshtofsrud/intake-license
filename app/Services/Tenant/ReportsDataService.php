@@ -6,7 +6,6 @@ use App\Models\Tenant;
 use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantResource;
-use App\Models\Tenant\TenantServiceItem;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -16,14 +15,15 @@ use Illuminate\Support\Facades\DB;
  * Powers the /admin/reports page. Mirrors DashboardDataService's pattern —
  * one method per zone, return shape designed for the Blade view.
  *
- * Phase 1 ships the "Daily ops · today" view of all six zones.
- * Phase 2 adds the Daily/Monthly toggle (range parameter on every method).
- * Phase 3 adds drilldowns + CSV/PDF export.
+ * Phase 2: per-zone time range toggle (Today / Week / Month).
+ * Range strings are 'today', 'week', 'month' (anything else falls back
+ * to 'today'). The controller parses query params and passes the chosen
+ * range to each zone method independently.
  *
  * Status conventions (from session-locked pipeline + dog-food data):
  *   delivered = ['completed', 'closed']  — counts as fulfilled work
  *   cancelled = ['cancelled']
- *   no_show   = appointments past their end time, status NOT IN delivered/cancelled/refunded
+ *   no_show   = past appointments NOT in delivered/cancelled/refunded
  *   refunded  = ['refunded']
  */
 class ReportsDataService
@@ -32,9 +32,43 @@ class ReportsDataService
     private const CANCELLED_STATUSES = ['cancelled'];
     private const REFUNDED_STATUSES  = ['refunded'];
 
+    public const RANGES = ['today', 'week', 'month'];
+
     public function __construct(private readonly Tenant $tenant) {}
 
-    /** Top-of-page KPI row: 4 cards. */
+    /** Convert a range string into a [from, to] Carbon pair. */
+    private function rangeBounds(string $range): array
+    {
+        $today = $this->tenant->localToday();
+        return match ($range) {
+            'week'  => [$today->copy()->subDays(6), $today->copy()],
+            'month' => [$today->copy()->startOfMonth(), $today->copy()],
+            default => [$today->copy(), $today->copy()],
+        };
+    }
+
+    /** Same range one period back (for delta-vs-prior comparisons). */
+    private function priorRangeBounds(string $range): array
+    {
+        $today = $this->tenant->localToday();
+        return match ($range) {
+            'week'  => [$today->copy()->subDays(13), $today->copy()->subDays(7)],
+            'month' => [$today->copy()->subMonth()->startOfMonth(), $today->copy()->subMonth()->endOfMonth()],
+            default => [$today->copy()->subWeek(), $today->copy()->subWeek()],
+        };
+    }
+
+    private function rangeLabel(string $range): string
+    {
+        $today = $this->tenant->localToday();
+        return match ($range) {
+            'week'  => 'last 7 days',
+            'month' => $today->format('F'),
+            default => 'today',
+        };
+    }
+
+    /** Top KPI row — always shows today's snapshot regardless of zone toggles. */
     public function topKpis(): array
     {
         $today = $this->tenant->localToday();
@@ -89,42 +123,65 @@ class ReportsDataService
         ];
     }
 
-    /** Zone 1: Revenue. Hourly breakdown for today + service mix. */
-    public function zoneRevenue(): array
+    /** Zone 1: Revenue. Hourly breakdown for today; daily for week/month. */
+    public function zoneRevenue(string $range = 'today'): array
     {
-        $today = $this->tenant->localToday();
+        [$from, $to] = $this->rangeBounds($range);
 
-        // Hourly revenue from delivered/paid appointments
-        $hourly = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->where('appointment_date', $today->toDateString())
+        $totalCents = (int) TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('status', self::DELIVERED_STATUSES)
             ->where('payment_status', 'paid')
-            ->selectRaw("HOUR(appointment_time) as hour, SUM(total_cents) as cents, COUNT(*) as n")
-            ->groupBy('hour')
-            ->get()
-            ->keyBy('hour');
+            ->sum('total_cents');
 
-        $hourSeries = [];
-        for ($h = 8; $h <= 18; $h++) {
-            $row = $hourly->get($h);
-            $hourSeries[] = [
-                'hour'    => $h,
-                'label'   => Carbon::createFromTime($h)->format('ga'),
-                'cents'   => (int) ($row->cents ?? 0),
-                'count'   => (int) ($row->n ?? 0),
-            ];
+        // Series: hourly for today, daily for week/month
+        $series = [];
+        if ($range === 'today') {
+            $hourly = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->where('appointment_date', $from->toDateString())
+                ->whereIn('status', self::DELIVERED_STATUSES)
+                ->where('payment_status', 'paid')
+                ->selectRaw("HOUR(appointment_time) as hour, SUM(total_cents) as cents, COUNT(*) as n")
+                ->groupBy('hour')
+                ->get()
+                ->keyBy('hour');
+            for ($h = 8; $h <= 18; $h++) {
+                $row = $hourly->get($h);
+                $series[] = [
+                    'label' => Carbon::createFromTime($h)->format('ga'),
+                    'cents' => (int) ($row->cents ?? 0),
+                    'count' => (int) ($row->n ?? 0),
+                ];
+            }
+        } else {
+            $daily = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
+                ->whereIn('status', self::DELIVERED_STATUSES)
+                ->where('payment_status', 'paid')
+                ->selectRaw('appointment_date as d, SUM(total_cents) as cents, COUNT(*) as n')
+                ->groupBy('d')
+                ->get()
+                ->keyBy('d');
+            for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+                $row = $daily->get($d->toDateString());
+                $series[] = [
+                    'label' => $d->format($range === 'week' ? 'D' : 'j'),
+                    'cents' => (int) ($row->cents ?? 0),
+                    'count' => (int) ($row->n ?? 0),
+                ];
+            }
         }
 
-        $totalCents = collect($hourSeries)->sum('cents');
-        $bestHour = collect($hourSeries)->sortByDesc('cents')->first();
+        $bestBucket = collect($series)->sortByDesc('cents')->first();
 
-        // Service mix for today
-        $byService = TenantAppointment::where('tenant_appointments.tenant_id', $this->tenant->id)
-            ->where('appointment_date', $today->toDateString())
-            ->whereIn('tenant_appointments.status', self::DELIVERED_STATUSES)
-            ->where('payment_status', 'paid')
-            ->join('tenant_appointment_items as tai', 'tai.appointment_id', '=', 'tenant_appointments.id')
-            ->selectRaw('tai.item_name_snapshot as name, SUM(COALESCE(tai.price_cents_override, tai.price_cents)) as cents, COUNT(DISTINCT tenant_appointments.id) as bookings')
+        // Service mix for the same range
+        $byService = DB::table('tenant_appointments as ta')
+            ->where('ta.tenant_id', $this->tenant->id)
+            ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()])
+            ->whereIn('ta.status', self::DELIVERED_STATUSES)
+            ->where('ta.payment_status', 'paid')
+            ->join('tenant_appointment_items as tai', 'tai.appointment_id', '=', 'ta.id')
+            ->selectRaw('tai.item_name_snapshot as name, SUM(COALESCE(tai.price_cents_override, tai.price_cents)) as cents, COUNT(DISTINCT ta.id) as bookings')
             ->groupBy('name')
             ->orderByDesc('cents')
             ->limit(5)
@@ -138,91 +195,115 @@ class ReportsDataService
             ->all();
 
         return [
+            'range'         => $range,
+            'range_label'   => $this->rangeLabel($range),
             'total_cents'   => $totalCents,
-            'best_hour'     => $bestHour && $bestHour['cents'] > 0
-                ? ['label' => $bestHour['label'], 'cents' => $bestHour['cents']]
+            'best_bucket'   => $bestBucket && $bestBucket['cents'] > 0
+                ? ['label' => $bestBucket['label'], 'cents' => $bestBucket['cents']]
                 : null,
-            'hourly'        => $hourSeries,
+            'series'        => $series,
+            'series_kind'   => $range === 'today' ? 'hourly' : 'daily',
             'by_service'    => $byService,
         ];
     }
 
     /** Zone 2: Bookings + cancellations. */
-    public function zoneBookings(): array
+    public function zoneBookings(string $range = 'week'): array
     {
-        $today = $this->tenant->localToday();
-        $weekAgo = $today->copy()->subDays(6);
+        [$from, $to] = $this->rangeBounds($range);
 
-        // KPI sub-row for today
         $confirmed = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->where('appointment_date', $today->toDateString())
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->count();
 
         $cancelled = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->where('appointment_date', $today->toDateString())
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('status', self::CANCELLED_STATUSES)
             ->count();
 
-        $noShows = $this->noShowCountForDate($today);
+        $noShows = $this->noShowCountForRange($from, $to);
+
         $walkins = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->where('appointment_date', $today->toDateString())
-            ->whereDate('created_at', $today->toDateString())
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
+            ->whereColumn('created_at', '>=', 'appointment_date')
+            ->whereRaw('DATE(created_at) = appointment_date')
             ->count();
 
-        // 7-day timeline
-        $timeline = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$weekAgo->toDateString(), $today->toDateString()])
+        // Daily timeline across the range
+        $daily = TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->selectRaw('appointment_date as d, COUNT(*) as n')
             ->groupBy('d')
             ->pluck('n', 'd')
             ->toArray();
 
-        $series = [];
-        for ($d = $weekAgo->copy(); $d->lte($today); $d->addDay()) {
-            $series[] = [
+        $timeline = [];
+        for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+            $timeline[] = [
                 'date'  => $d->toDateString(),
-                'label' => $d->format('D'),
-                'count' => (int) ($timeline[$d->toDateString()] ?? 0),
+                'label' => $d->format($range === 'today' ? 'ga' : ($range === 'week' ? 'D' : 'j')),
+                'count' => (int) ($daily[$d->toDateString()] ?? 0),
             ];
         }
 
+        // For 'today' the daily chart is just one bar — replace with hourly.
+        if ($range === 'today') {
+            $hourly = TenantAppointment::where('tenant_id', $this->tenant->id)
+                ->where('appointment_date', $from->toDateString())
+                ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+                ->selectRaw("HOUR(appointment_time) as hour, COUNT(*) as n")
+                ->groupBy('hour')
+                ->pluck('n', 'hour')
+                ->toArray();
+            $timeline = [];
+            for ($h = 8; $h <= 18; $h++) {
+                $timeline[] = [
+                    'date'  => $from->toDateString(),
+                    'label' => Carbon::createFromTime($h)->format('ga'),
+                    'count' => (int) ($hourly[$h] ?? 0),
+                ];
+            }
+        }
+
         return [
-            'confirmed' => $confirmed,
-            'cancelled' => $cancelled,
-            'no_shows'  => $noShows,
-            'walkins'   => $walkins,
-            'timeline'  => $series,
+            'range'       => $range,
+            'range_label' => $this->rangeLabel($range),
+            'confirmed'   => $confirmed,
+            'cancelled'   => $cancelled,
+            'no_shows'    => $noShows,
+            'walkins'     => $walkins,
+            'timeline'    => $timeline,
         ];
     }
 
-    /** Zone 3: Customers + retention. Defaults to current calendar month. */
-    public function zoneCustomers(): array
+    /** Zone 3: Customers + retention. */
+    public function zoneCustomers(string $range = 'month'): array
     {
+        [$from, $to] = $this->rangeBounds($range);
         $today = $this->tenant->localToday();
-        $monthStart = $today->copy()->startOfMonth();
 
-        // Daily new vs returning over the month
-        $monthCustomerIds = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$monthStart->toDateString(), $today->toDateString()])
+        // Daily new vs returning over the range
+        $rangeAppts = TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('status', self::DELIVERED_STATUSES)
             ->select('appointment_date', 'customer_id')
             ->get()
             ->groupBy(fn($r) => $r->appointment_date);
 
-        $newCustIdsThisMonth = TenantCustomer::where('tenant_id', $this->tenant->id)
-            ->whereBetween('created_at', [$monthStart->toDateString() . ' 00:00:00', $today->toDateString() . ' 23:59:59'])
+        // "New this period" = customer created within the range
+        $newCustIds = TenantCustomer::where('tenant_id', $this->tenant->id)
+            ->whereBetween('created_at', [$from->toDateString() . ' 00:00:00', $to->toDateString() . ' 23:59:59'])
             ->pluck('id')
             ->all();
-        $newSet = array_flip($newCustIdsThisMonth);
+        $newSet = array_flip($newCustIds);
 
         $daily = [];
-        for ($d = $monthStart->copy(); $d->lte($today); $d->addDay()) {
+        for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
             $key = $d->toDateString();
-            $newCount = 0;
-            $returningCount = 0;
-            foreach ($monthCustomerIds->get($key, collect()) as $row) {
+            $newCount = 0; $returningCount = 0;
+            foreach ($rangeAppts->get($key, collect()) as $row) {
                 if (isset($newSet[$row->customer_id])) $newCount++;
                 else $returningCount++;
             }
@@ -233,12 +314,13 @@ class ReportsDataService
             ];
         }
 
-        // Top customers this month by lifetime spend (matters more than this month alone)
+        // Top customers by spend within the range
         $topCustomers = TenantCustomer::where('tenant_customers.tenant_id', $this->tenant->id)
-            ->join('tenant_appointments as ta', function ($j) {
+            ->join('tenant_appointments as ta', function ($j) use ($from, $to) {
                 $j->on('ta.customer_id', '=', 'tenant_customers.id')
                   ->whereIn('ta.status', self::DELIVERED_STATUSES)
-                  ->where('ta.payment_status', 'paid');
+                  ->where('ta.payment_status', 'paid')
+                  ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()]);
             })
             ->selectRaw('tenant_customers.id, tenant_customers.first_name, tenant_customers.last_name, tenant_customers.created_at, SUM(ta.total_cents) as cents, COUNT(ta.id) as visits')
             ->groupBy('tenant_customers.id', 'tenant_customers.first_name', 'tenant_customers.last_name', 'tenant_customers.created_at')
@@ -249,26 +331,26 @@ class ReportsDataService
                 'name'     => trim($r->first_name . ' ' . $r->last_name),
                 'cents'    => (int) $r->cents,
                 'visits'   => (int) $r->visits,
-                'is_new_this_month' => Carbon::parse($r->created_at)->gte($monthStart),
+                'is_new_in_period' => Carbon::parse($r->created_at)->between($from, $to->copy()->endOfDay()),
             ])
             ->all();
 
         return [
-            'month_label'   => $today->format('F'),
+            'range'         => $range,
+            'range_label'   => $this->rangeLabel($range),
             'daily'         => $daily,
             'top_customers' => $topCustomers,
         ];
     }
 
-    /** Zone 4: Service popularity. Trailing 30 days. */
-    public function zoneServices(): array
+    /** Zone 4: Service popularity. */
+    public function zoneServices(string $range = 'month'): array
     {
-        $today = $this->tenant->localToday();
-        $thirtyAgo = $today->copy()->subDays(29);
+        [$from, $to] = $this->rangeBounds($range);
 
         $rows = DB::table('tenant_appointments as ta')
             ->where('ta.tenant_id', $this->tenant->id)
-            ->whereBetween('ta.appointment_date', [$thirtyAgo->toDateString(), $today->toDateString()])
+            ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('ta.status', self::DELIVERED_STATUSES)
             ->where('ta.payment_status', 'paid')
             ->join('tenant_appointment_items as tai', 'tai.appointment_id', '=', 'ta.id')
@@ -281,6 +363,8 @@ class ReportsDataService
         $maxCents = $rows->max('cents') ?: 1;
 
         return [
+            'range'       => $range,
+            'range_label' => $this->rangeLabel($range),
             'services' => $rows->map(fn($r) => [
                 'name'      => $r->name,
                 'bookings'  => (int) $r->bookings,
@@ -290,11 +374,12 @@ class ReportsDataService
         ];
     }
 
-    /** Zone 5: Staff utilization. Trailing 7 days. */
-    public function zoneStaff(): array
+    /** Zone 5: Staff utilization. */
+    public function zoneStaff(string $range = 'week'): array
     {
-        $today = $this->tenant->localToday();
-        $weekAgo = $today->copy()->subDays(6);
+        [$from, $to] = $this->rangeBounds($range);
+        $days = max(1, $from->diffInDays($to) + 1);
+        $availableMinutes = $days * 8 * 60;  // 8h/day baseline
 
         $resources = TenantResource::where('tenant_id', $this->tenant->id)
             ->where('is_active', true)
@@ -302,7 +387,7 @@ class ReportsDataService
             ->get();
 
         $bookedMinutes = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$weekAgo->toDateString(), $today->toDateString()])
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->selectRaw('resource_id, SUM(total_duration_minutes) as mins, COUNT(*) as n')
             ->groupBy('resource_id')
@@ -310,7 +395,7 @@ class ReportsDataService
             ->keyBy('resource_id');
 
         $revenue = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$weekAgo->toDateString(), $today->toDateString()])
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereIn('status', self::DELIVERED_STATUSES)
             ->where('payment_status', 'paid')
             ->selectRaw('resource_id, SUM(total_cents) as cents')
@@ -318,9 +403,9 @@ class ReportsDataService
             ->pluck('cents', 'resource_id')
             ->toArray();
 
+        $today = $this->tenant->localToday();
         $noShowsByResource = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$weekAgo->toDateString(), $today->toDateString()])
-            ->whereDate('appointment_date', '<', $today->toDateString())
+            ->whereBetween('appointment_date', [$from->toDateString(), min($to->toDateString(), $today->copy()->subDay()->toDateString())])
             ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->selectRaw('resource_id, COUNT(*) as n')
             ->groupBy('resource_id')
@@ -328,15 +413,11 @@ class ReportsDataService
             ->toArray();
 
         $totalByResource = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$weekAgo->toDateString(), $today->toDateString()])
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('resource_id, COUNT(*) as n')
             ->groupBy('resource_id')
             ->pluck('n', 'resource_id')
             ->toArray();
-
-        // Available minutes per resource: 7 days × 8 hour workday default
-        // (This is a heuristic for v1; later this should pull from actual hours.)
-        $availableMinutes = 7 * 8 * 60;
 
         $cards = $resources->map(function ($r) use ($bookedMinutes, $revenue, $noShowsByResource, $totalByResource, $availableMinutes) {
             $row = $bookedMinutes->get($r->id);
@@ -359,32 +440,33 @@ class ReportsDataService
             $noShowRate = $totalCount > 0 ? round(($noShows / $totalCount) * 100) : 0;
 
             return [
-                'name'        => $r->name,
-                'subtitle'    => $r->subtitle ?: 'Staff',
-                'color_hex'   => $r->color_hex,
-                'utilization' => $utilization,
-                'booked_hrs'  => round($booked / 60, 1),
-                'available_hrs' => round($availableMinutes / 60, 1),
-                'appts'       => $appts,
-                'revenue_cents' => $rev,
-                'no_show_rate'=> $noShowRate,
-                'health'      => $health,
+                'name'         => $r->name,
+                'subtitle'     => $r->subtitle ?: 'Staff',
+                'color_hex'    => $r->color_hex,
+                'utilization'  => $utilization,
+                'booked_hrs'   => round($booked / 60, 1),
+                'available_hrs'=> round($availableMinutes / 60, 1),
+                'appts'        => $appts,
+                'revenue_cents'=> $rev,
+                'no_show_rate' => $noShowRate,
+                'health'       => $health,
             ];
         })->all();
 
-        return ['cards' => $cards];
+        return [
+            'range'       => $range,
+            'range_label' => $this->rangeLabel($range),
+            'cards'       => $cards,
+        ];
     }
 
-    /** Zone 6: Capacity heatmap. Last 14 days × hours 8a-9p. */
-    public function zoneCapacity(): array
+    /** Zone 6: Capacity heatmap. */
+    public function zoneCapacity(string $range = 'month'): array
     {
-        $today = $this->tenant->localToday();
-        $start = $today->copy()->subDays(13);
+        [$from, $to] = $this->rangeBounds($range);
 
-        // Day-of-week × hour bucket map: count of bookings landing in that cell
-        // over the 14-day window. Days with no rows get all-zero rows.
         $cells = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$start->toDateString(), $today->toDateString()])
+            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
             ->whereNotIn('status', array_merge(self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->selectRaw("DAYOFWEEK(appointment_date) - 1 as dow, HOUR(appointment_time) as hour, COUNT(*) as n")
             ->groupBy('dow', 'hour')
@@ -399,7 +481,6 @@ class ReportsDataService
             for ($h = 8; $h <= 21; $h++) {
                 $cell = $cells->first(fn($c) => $c->dow == $dowIdx && $c->hour == $h);
                 $count = $cell ? (int) $cell->n : 0;
-                // Map count to 0-5 fill bucket
                 $fill = match (true) {
                     $count == 0           => 0,
                     $count <= $maxCellCount * 0.15 => 1,
@@ -418,6 +499,8 @@ class ReportsDataService
         }
 
         return [
+            'range'        => $range,
+            'range_label'  => $this->rangeLabel($range),
             'grid'         => $grid,
             'hour_labels'  => array_map(
                 fn($h) => Carbon::createFromTime($h)->format('ga'),
@@ -447,8 +530,6 @@ class ReportsDataService
 
     private function capacityForDate(Carbon $date): ?int
     {
-        // Pull from default capacity rule for that day-of-week, fall back to override
-        // for the specific date if one exists. Returns null if not gated.
         $dow = $date->dayOfWeek;
         $rule = DB::table('tenant_capacity_rules')
             ->where('tenant_id', $this->tenant->id)
@@ -467,7 +548,6 @@ class ReportsDataService
 
     private function noShowCountForDate(Carbon $date): int
     {
-        // Past appointments NOT delivered/cancelled/refunded = no-show
         if ($date->gte($this->tenant->localToday())) return 0;
 
         return TenantAppointment::where('tenant_id', $this->tenant->id)
@@ -476,19 +556,33 @@ class ReportsDataService
             ->count();
     }
 
+    private function noShowCountForRange(Carbon $from, Carbon $to): int
+    {
+        $today = $this->tenant->localToday();
+        $effectiveTo = min($to->toDateString(), $today->copy()->subDay()->toDateString());
+        if ($from->toDateString() > $effectiveTo) return 0;
+
+        return TenantAppointment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
+            ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
+            ->count();
+    }
+
     private function noShowRateForRange(Carbon $from, Carbon $to): float
     {
-        $endsBeforeToday = min($to->toDateString(), $this->tenant->localToday()->copy()->subDay()->toDateString());
+        $today = $this->tenant->localToday();
+        $effectiveTo = min($to->toDateString(), $today->copy()->subDay()->toDateString());
+        if ($from->toDateString() > $effectiveTo) return 0;
 
         $total = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), $endsBeforeToday])
+            ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
             ->whereNotIn('status', self::CANCELLED_STATUSES)
             ->count();
 
         if ($total === 0) return 0;
 
         $noShows = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), $endsBeforeToday])
+            ->whereBetween('appointment_date', [$from->toDateString(), $effectiveTo])
             ->whereNotIn('status', array_merge(self::DELIVERED_STATUSES, self::CANCELLED_STATUSES, self::REFUNDED_STATUSES))
             ->count();
 
