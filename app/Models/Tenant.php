@@ -21,7 +21,9 @@ class Tenant extends Model
         'font_heading', 'font_body', 'tagline',
         'email_from_name', 'email_from_address', 'email_reply_to',
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
-        'onboarding_status', 'onboarded_at',
+        'onboarding_status', 'onboarded_at', 'onboarding_step', 'industry_pack',
+        'payment_processor', 'payment_processor_status',
+        'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
         'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
@@ -39,6 +41,7 @@ class Tenant extends Model
         'booking_mode'        => 'string',
         'classes_enabled'     => 'boolean',
         'trial_ends_at'       => 'datetime',
+        'payment_processor_connected_at' => 'datetime',
     ];
 
     /**
