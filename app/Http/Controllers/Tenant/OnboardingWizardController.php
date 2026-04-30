@@ -89,8 +89,27 @@ class OnboardingWizardController extends Controller
 
     public function saveIdentity(string $subdomain, Request $request): JsonResponse
     {
-        // TODO Phase 3: validate + save name, tagline, logo, accent_color.
-        // Existing OnboardingModalController::saveBranding() has the working logic.
+        $data = $request->validate([
+            'name'         => ['required', 'string', 'max:255'],
+            'tagline'      => ['nullable', 'string', 'max:255'],
+            'accent_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'logo'         => ['nullable', 'image', 'max:2048'],
+        ]);
+
+        $update = [
+            'name'         => $data['name'],
+            'tagline'      => $data['tagline'] ?? null,
+            'accent_color' => $data['accent_color'] ?? null,
+        ];
+
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('tenant-logos', 'public');
+            $update['logo_url'] = \Illuminate\Support\Facades\Storage::url($path);
+        }
+
+        $update['onboarding_step'] = max(3, tenant()->onboarding_step ?? 0);
+        tenant()->update($update);
+
         return $this->stepResponse(2, $subdomain, 'booking');
     }
 
