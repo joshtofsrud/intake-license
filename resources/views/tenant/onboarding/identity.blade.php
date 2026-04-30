@@ -162,7 +162,7 @@
       <div class="field">
         <label class="label">Tell me about your business</label>
         <textarea class="textarea" id="ai-prompt" placeholder="e.g., I run a small bike repair shop. We do tune-ups, brake work, and drivetrain service. Tune-ups are $89-169. Open Tue-Sat 10-6."></textarea>
-        <div class="helper">The more detail, the better. Mention services, typical pricing, hours, and whether you offer classes or 1-on-1 appointments.</div>
+        <div class="helper">The more specific, the better. Include actual service names, prices, and your real hours (e.g., "Mon-Sat 8-5"). Vague descriptions get industry-typical defaults.</div>
       </div>
       <div class="ai-meta-row">
         @if($tenant->industry_pack)

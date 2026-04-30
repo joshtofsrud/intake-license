@@ -108,10 +108,12 @@ class OnboardingAiQuickSetupService
               (yoga, CrossFit, pilates, HIIT, group fitness, art/pottery classes, kids
               programs, etc). False for everything else.
 
-            - Hours: single block per day. The platform doesn't support split shifts, so if
-              the user describes split shifts, pick the larger or more typical block. Use
-              24-hour HH:MM format. is_closed=true for closed days, with open_time and
-              close_time set to null.
+            - Hours: prefer hours the user explicitly states. If the user says "Mon-Sat 8-5",
+              honor that exactly. Only fall back to industry-typical hours when the user
+              didn't mention hours at all. Single block per day — the platform doesn't
+              support split shifts, so if the user describes split shifts, pick the larger
+              or more typical block. Use 24-hour HH:MM format. is_closed=true for closed
+              days, with open_time and close_time set to null.
 
             - Services: 3-8 items. Use realistic prices and durations from the user's
               description. If they didn't specify prices, use industry-typical values.
