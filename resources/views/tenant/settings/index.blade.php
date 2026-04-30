@@ -245,11 +245,12 @@
           var newVal = !classesToggle.classList.contains('on');
           fetch("{{ url('/admin/settings') }}", {
             method: 'PATCH',
+            redirect: 'manual',
             headers: {'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json'},
             body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0, booking_window_days: {{ $currentTenant->booking_window_days ?? 60 }}, min_notice_hours: {{ $currentTenant->min_notice_hours ?? 24 }}})
           }).then(function(r){
             classesToggle.classList.remove('is-busy');
-            if(r.status < 500){
+            if(r.status < 500 || r.type === 'opaqueredirect'){
               classesToggle.classList.toggle('on', newVal);
               classesToggle.setAttribute('title', newVal ? 'Click to disable' : 'Click to enable');
               classesToggle.querySelector('.ia-toggle-sr').textContent = newVal ? 'Enabled' : 'Disabled';
