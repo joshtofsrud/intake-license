@@ -246,7 +246,7 @@
           fetch("{{ route('tenant.settings.update') }}", {
             method: 'PATCH',
             headers: {'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json'},
-            body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0})
+            body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0, booking_window_days: {{ $currentTenant->booking_window_days ?? 60 }}, min_notice_hours: {{ $currentTenant->min_notice_hours ?? 24 }}})
           }).then(function(r){
             classesToggle.classList.remove('is-busy');
             if(r.ok){
