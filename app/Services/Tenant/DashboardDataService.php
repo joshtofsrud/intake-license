@@ -274,10 +274,56 @@ class DashboardDataService
         $revenueSpark = $this->dailyRevenueSeries($tenantId, $thirtyAgo, $today);
         $customersSpark = $this->dailyCustomerSeries($tenantId, $thirtyAgo, $today);
 
-        $health = [
-            ['label' => 'Payment processing', 'detail' => 'Stripe connected, no failures', 'status' => 'ok'],
-            ['label' => 'Website',             'detail' => 'Published and indexed',        'status' => 'ok'],
-            ['label' => 'Email deliverability','detail' => 'Sending normally',             'status' => 'ok'],
+        // Honest operational health. Each item: ['label', 'detail', 'status'].
+        // Statuses match dashboard.css: 'ok' (green), 'warn' (amber), 'err' (red/grey).
+        $health = [];
+
+        // Payment processing — driven by actual processor connection state. Stripe
+        // Connect / PayPal / Square aren't wired yet, so until a tenant finishes a
+        // real connection flow this stays 'err' (or 'warn' if they recorded intent).
+        $ppStatus = $tenant->payment_processor_status ?? 'not_started';
+        $ppLabel  = ucfirst($tenant->payment_processor ?? 'Processor');
+        $health[] = match ($ppStatus) {
+            'connected' => [
+                'label'  => 'Payment processing',
+                'detail' => $ppLabel . ' connected',
+                'status' => 'ok',
+            ],
+            'intent_recorded', 'connecting' => [
+                'label'  => 'Payment processing',
+                'detail' => 'Pending — finish ' . $ppLabel . ' setup',
+                'status' => 'warn',
+            ],
+            default => [
+                'label'  => 'Payment processing',
+                'detail' => 'Not connected',
+                'status' => 'err',
+            ],
+        };
+
+        // Website — fresh tenants seed Home as is_published=false. Any published
+        // page means the tenant has actually pushed something live.
+        $publishedCount = \App\Models\Tenant\TenantPage::where('tenant_id', $tenant->id)
+            ->where('is_published', true)
+            ->count();
+        $health[] = $publishedCount > 0
+            ? [
+                'label'  => 'Website',
+                'detail' => $publishedCount . ' page' . ($publishedCount === 1 ? '' : 's') . ' published',
+                'status' => 'ok',
+            ]
+            : [
+                'label'  => 'Website',
+                'detail' => 'No pages published yet',
+                'status' => 'err',
+            ];
+
+        // Email deliverability — bounce/complaint webhook tracking isn't wired yet.
+        // Until we have real signal, show 'warn' rather than fake green.
+        $health[] = [
+            'label'  => 'Email deliverability',
+            'detail' => 'Setup not complete',
+            'status' => 'warn',
         ];
 
         return [
