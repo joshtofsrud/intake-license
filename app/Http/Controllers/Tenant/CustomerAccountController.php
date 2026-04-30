@@ -230,10 +230,24 @@ class CustomerAccountController extends Controller
             ->limit(5)
             ->get();
 
+        $pastClasses = $customer->classRegistrations()
+            ->whereIn('status', ['checked_in', 'no_show', 'cancelled'])
+            ->with(['session.template'])
+            ->whereHas('session', fn($q) => $q->where('starts_at', '<', now()))
+            ->orderBy('registered_at', 'desc')
+            ->limit(10)
+            ->get();
+
         $upcomingAppointments = $customer->appointments()
             ->whereIn('status', ['pending', 'confirmed', 'in_progress'])
             ->orderBy('appointment_date')
             ->limit(5)
+            ->get();
+
+        $pastAppointments = $customer->appointments()
+            ->whereIn('status', ['completed', 'cancelled'])
+            ->orderBy('appointment_date', 'desc')
+            ->limit(10)
             ->get();
 
         $activeMembership = $customer->activeMembership();
@@ -242,7 +256,9 @@ class CustomerAccountController extends Controller
         return view('public.account.portal', compact(
             'customer',
             'upcomingClasses',
+            'pastClasses',
             'upcomingAppointments',
+            'pastAppointments',
             'activeMembership',
             'activePacks'
         ));

@@ -118,8 +118,8 @@
     <div class="pb-add-panel" id="pb-add-panel">
       <div class="pb-type-grid">
         @php
-          $typeIcons  = ['hero'=>'🖼','services'=>'⚙','text_image'=>'📝','cta_banner'=>'📣','image_gallery'=>'🖼','contact_form'=>'✉','booking_embed'=>'📅','pricing_table'=>'💲','feature_grid'=>'▦','step_timeline'=>'🔢','testimonial_carousel'=>'💬','logo_bar'=>'⚑','faq_accordion'=>'❓','comparison_table'=>'📊','industry_pack_showcase'=>'🏷','stats_row'=>'📈'];
-          $typeLabels = ['hero'=>'Hero','services'=>'Services','text_image'=>'Text + Image','cta_banner'=>'CTA Banner','image_gallery'=>'Gallery','contact_form'=>'Contact','booking_embed'=>'Booking','pricing_table'=>'Pricing','feature_grid'=>'Feature grid','step_timeline'=>'Step timeline','testimonial_carousel'=>'Testimonials','logo_bar'=>'Logo bar','faq_accordion'=>'FAQ','comparison_table'=>'Comparison','industry_pack_showcase'=>'Industries','stats_row'=>'Stats'];
+          $typeIcons  = ['hero'=>'🖼','services'=>'⚙','text_image'=>'📝','cta_banner'=>'📣','image_gallery'=>'🖼','contact_form'=>'✉','booking_embed'=>'📅','classes_embed'=>'🎯','pricing_table'=>'💲','feature_grid'=>'▦','step_timeline'=>'🔢','testimonial_carousel'=>'💬','logo_bar'=>'⚑','faq_accordion'=>'❓','comparison_table'=>'📊','industry_pack_showcase'=>'🏷','stats_row'=>'📈'];
+          $typeLabels = ['hero'=>'Hero','services'=>'Services','text_image'=>'Text + Image','cta_banner'=>'CTA Banner','image_gallery'=>'Gallery','contact_form'=>'Contact','booking_embed'=>'Booking','classes_embed'=>'Classes','pricing_table'=>'Pricing','feature_grid'=>'Feature grid','step_timeline'=>'Step timeline','testimonial_carousel'=>'Testimonials','logo_bar'=>'Logo bar','faq_accordion'=>'FAQ','comparison_table'=>'Comparison','industry_pack_showcase'=>'Industries','stats_row'=>'Stats'];
 
           // Filter section list based on context — tenant sites don't need marketing
           // sections, and marketing pages don't need "services" or "booking_embed"

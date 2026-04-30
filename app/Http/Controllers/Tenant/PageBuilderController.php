@@ -29,7 +29,8 @@ class PageBuilderController extends Controller
         'cta_banner'    => ['headline'=>'Ready to book?','subheading'=>'','cta_label'=>'Book Now','cta_url'=>'/book','bg_color'=>'','text_color'=>''],
         'image_gallery' => ['images'=>[],'columns'=>3],
         'contact_form'  => ['eyebrow'=>'','heading'=>'Get in touch','subheading'=>'','show_phone'=>true,'show_message'=>true],
-        'booking_embed' => ['heading'=>'Book online'],
+        'booking_embed'  => ['heading'=>'Book online'],
+        'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
         'footer'        => ['show_logo'=>true,'show_copyright'=>true,'copyright_text'=>''],
 
         'pricing_table' => [

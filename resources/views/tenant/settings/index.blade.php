@@ -143,6 +143,22 @@
     </div>
   </div>
 
+  <div class="ia-card" style="margin-bottom:24px">
+    <div class="ia-card-head"><span class="ia-card-title">Class bookings</span></div>
+    <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+      <div>
+        <div style="font-size:14px;font-weight:500">Enable class bookings</div>
+        <div style="font-size:12px;opacity:.5;margin-top:2px">Adds a Classes section to your admin and a customer-facing /classes page.</div>
+      </div>
+      <button type="button"
+        class="ia-toggle {{ $currentTenant->classes_enabled ? 'on' : '' }}"
+        id="classes-toggle"
+        title="{{ $currentTenant->classes_enabled ? 'Click to disable' : 'Click to enable' }}">
+        <span class="ia-toggle-sr">{{ $currentTenant->classes_enabled ? 'Enabled' : 'Disabled' }}</span>
+      </button>
+    </div>
+  </div>
+
   <button type="submit" class="ia-btn ia-btn--primary">Save booking settings</button>
 </form>
 
@@ -294,6 +310,28 @@
           });
         });
       });
+
+      // classes_enabled toggle
+      var classesToggle = document.getElementById('classes-toggle');
+      if(classesToggle) {
+        classesToggle.addEventListener('click', function(){
+          if(classesToggle.classList.contains('is-busy')) return;
+          classesToggle.classList.add('is-busy');
+          var newVal = !classesToggle.classList.contains('on');
+          fetch("{{ route('tenant.settings.update') }}", {
+            method: 'PATCH',
+            headers: {'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json'},
+            body: JSON.stringify({tab:'booking', classes_enabled: newVal ? 1 : 0})
+          }).then(function(r){
+            classesToggle.classList.remove('is-busy');
+            if(r.ok){
+              classesToggle.classList.toggle('on', newVal);
+              classesToggle.setAttribute('title', newVal ? 'Click to disable' : 'Click to enable');
+              classesToggle.querySelector('.ia-toggle-sr').textContent = newVal ? 'Enabled' : 'Disabled';
+            }
+          }).catch(function(){ classesToggle.classList.remove('is-busy'); });
+        });
+      }
 
       // ia-toggle: active/inactive switch on each row. PATCHes the same
       // is_active field the previous checkbox + Deactivate button hit.

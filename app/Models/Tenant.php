@@ -23,7 +23,7 @@ class Tenant extends Model
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
         'onboarding_status', 'onboarded_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
-        'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at',
+        'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
     ];
@@ -37,6 +37,7 @@ class Tenant extends Model
         'booking_window_days' => 'integer',
         'min_notice_hours'    => 'integer',
         'booking_mode'        => 'string',
+        'classes_enabled'     => 'boolean',
         'trial_ends_at'       => 'datetime',
     ];
 

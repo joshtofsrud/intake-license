@@ -10,6 +10,7 @@
     'image_gallery'          => 'Image gallery',
     'contact_form'           => 'Contact form',
     'booking_embed'          => 'Booking form embed',
+    'classes_embed'           => 'Classes schedule embed',
     'footer'                 => 'Footer',
     'feature_grid'           => 'Feature grid',
     'step_timeline'          => 'Step timeline',
@@ -24,7 +25,7 @@
   $typeIcons = [
     'nav'=>'🧭','hero'=>'🖼','services'=>'⚙','text_image'=>'📝',
     'cta_banner'=>'📣','image_gallery'=>'🖼','contact_form'=>'✉',
-    'booking_embed'=>'📅','footer'=>'⬇',
+    'booking_embed'=>'📅','classes_embed'=>'🎯','footer'=>'⬇',
     'feature_grid'=>'▦','step_timeline'=>'🔢','pricing_table'=>'💲',
     'faq_accordion'=>'❓','testimonial_carousel'=>'💬','logo_bar'=>'⚑',
     'comparison_table'=>'📊','industry_pack_showcase'=>'🏷','stats_row'=>'📈',
@@ -299,6 +300,23 @@
       <div class="pb-field-row">
         <div class="pb-field-label">Button text</div>
         <input type="text" class="pb-input" data-field="btn_label" value="{{ $c['btn_label'] ?? 'Book an appointment' }}">
+      </div>
+
+    {{-- ============================================================ CLASSES EMBED ============================================================ --}}
+    @elseif($type === 'classes_embed')
+      <div class="pb-field-row">
+        <div class="pb-field-label">Section heading</div>
+        <input type="text" class="pb-input" data-field="heading" value="{{ $c['heading'] ?? 'Upcoming classes' }}">
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Show filters</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+          <input type="checkbox" data-field="show_filters" data-type="bool" {{ ($c['show_filters'] ?? true) ? 'checked' : '' }}> Show class type filter
+        </label>
+      </div>
+      <div class="pb-field-row">
+        <div class="pb-field-label">Weeks ahead</div>
+        <input type="number" class="pb-input" data-field="weeks_ahead" value="{{ $c['weeks_ahead'] ?? 2 }}" min="1" max="12" style="width:80px">
       </div>
 
     {{-- ============================================================ FOOTER ============================================================ --}}

@@ -38,10 +38,11 @@ class SettingsController extends Controller
         if ($tab === 'booking') {
             $request->validate([
                 'booking_window_days' => ['required', 'integer', 'min:1', 'max:365'],
+                'classes_enabled'     => ['nullable', 'boolean'],
                 'min_notice_hours'    => ['required', 'integer', 'min:0', 'max:168'],
             ]);
             $tenant->update($request->only([
-                'booking_window_days', 'min_notice_hours',
+                'booking_window_days', 'min_notice_hours', 'classes_enabled',
             ]));
             return back()->with('success', 'Booking settings saved.');
         }
