@@ -176,6 +176,62 @@
     </div>
   </div>
 
+  {{-- Reports --}}
+  <div class="mk-feature-block">
+    <div class="mk-feature-text">
+      <div class="mk-feature-eyebrow">Reports</div>
+      <h2 class="mk-feature-h3">Know what's actually happening</h2>
+      <p class="mk-feature-desc">Daily-ops or monthly-money — flip between the two views and Intake reframes everything. Revenue, bookings, customer growth, service mix, staff utilization, and capacity heatmaps. Every number is clickable, every trend is honest.</p>
+      <div class="mk-feature-points">
+        @foreach(['Daily ops vs. monthly money — one toggle reframes every chart','Revenue by hour, day, service, and customer','Bookings, cancellations, no-shows tracked side-by-side','New vs. returning customer growth','Per-staff utilization with healthy / under-used / overloaded flags','Capacity heatmap surfaces your hot windows and dead zones','Click any number to drill into the underlying appointments','Export PDF, CSV, or copy a summary for your accountant'] as $pt)
+          <div class="mk-feature-point"><div class="mk-feature-point-dot"></div>{{ $pt }}</div>
+        @endforeach
+      </div>
+    </div>
+    <div class="mk-feature-visual">
+      <div style="font-size:11px;color:var(--mk-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Today's report</div>
+
+      <div class="mk-visual-stat-grid" style="margin-bottom:12px">
+        <div class="mk-visual-stat">
+          <div class="mk-visual-stat-val">$2,847</div>
+          <div class="mk-visual-stat-lbl">Revenue</div>
+        </div>
+        <div class="mk-visual-stat">
+          <div class="mk-visual-stat-val" style="color:#85B7EB">14</div>
+          <div class="mk-visual-stat-lbl">Bookings</div>
+        </div>
+        <div class="mk-visual-stat">
+          <div class="mk-visual-stat-val" style="color:#EF9F27">3</div>
+          <div class="mk-visual-stat-lbl">New cust.</div>
+        </div>
+      </div>
+
+      <div class="mk-visual-row">
+        <div class="mk-visual-row-head" style="margin-bottom:8px">
+          <span class="mk-visual-label">7-day bookings</span>
+          <span class="mk-visual-badge green">↑ 23%</span>
+        </div>
+        <svg viewBox="0 0 240 50" preserveAspectRatio="none" style="width:100%;height:48px;display:block">
+          <defs>
+            <linearGradient id="mk-rep-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#BEF264" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#BEF264" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M 0,38 L 40,30 L 80,22 L 120,28 L 160,16 L 200,20 L 240,8 L 240,50 L 0,50 Z" fill="url(#mk-rep-grad)"/>
+          <polyline points="0,38 40,30 80,22 120,28 160,16 200,20 240,8" fill="none" stroke="#BEF264" stroke-width="1.5"/>
+        </svg>
+      </div>
+
+      <div class="mk-visual-row">
+        <div class="mk-visual-row-head">
+          <span class="mk-visual-label" style="font-size:12px">Friday's hot window</span>
+          <span class="mk-visual-sub">11am–2pm · 92% full</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 {{-- CTA --}}
