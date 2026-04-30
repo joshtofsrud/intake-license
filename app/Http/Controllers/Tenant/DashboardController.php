@@ -11,6 +11,24 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $tenant = tenant();
+
+        // Onboarding wizard takes priority over the dashboard for any tenant
+        // who hasn't completed setup. The wizard tracks its own step in
+        // tenant.onboarding_step (1..8); a NULL step on an incomplete tenant
+        // means they haven't started — send to step 1.
+        if ($tenant->onboarding_status !== 'complete') {
+            $stepSlugs = [
+                1 => 'industry', 2 => 'identity', 3 => 'booking', 4 => 'hours',
+                5 => 'services', 6 => 'team',     7 => 'payment', 8 => 'done',
+            ];
+            $stepNum  = $tenant->onboarding_step ?? 1;
+            $stepSlug = $stepSlugs[$stepNum] ?? 'industry';
+
+            return redirect()->route('tenant.onboarding.wizard.' . $stepSlug, [
+                'subdomain' => $tenant->subdomain,
+            ]);
+        }
+
         $service = new DashboardDataService($tenant);
 
         // When impersonating, the master admin is on the 'web' guard AND

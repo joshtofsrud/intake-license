@@ -361,7 +361,11 @@ class DashboardDataService
             'services'   => $servicesDone,
             'hours'      => $hoursDone,
             'all_done'   => $allDone,
-            'show_modal' => !$allDone && !$dismissedThisSession,
+            // The 8-step onboarding wizard replaces this modal entirely. The
+            // dashboard now redirects incomplete tenants to the wizard up front,
+            // so the modal never needs to fire. Leaving the field for backward
+            // compatibility with the Blade partial; flag is permanently false.
+            'show_modal' => false,
         ];
     }
 
