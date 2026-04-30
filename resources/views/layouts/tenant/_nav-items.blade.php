@@ -8,6 +8,12 @@
       'group'  => null,
     ],
     [
+      'route'  => 'tenant.reports.index',
+      'label'  => 'Reports',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="8" width="2.5" height="4.5" rx="0.5" fill="currentColor"/><rect x="5.75" y="5" width="2.5" height="7.5" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="2.5" height="10.5" rx="0.5" fill="currentColor"/></svg>',
+      'group'  => null,
+    ],
+    [
       'route'  => 'tenant.calendar.index',
       'label'  => 'Schedule',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2.5" width="12" height="10.5" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M4 1.5V3.5M10 1.5V3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M1 5.5h12" stroke="currentColor" stroke-width="1.2"/><circle cx="4.5" cy="9" r="0.7" fill="currentColor"/><circle cx="7" cy="9" r="0.7" fill="currentColor"/><circle cx="9.5" cy="9" r="0.7" fill="currentColor"/></svg>',
