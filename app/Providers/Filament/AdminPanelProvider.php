@@ -12,6 +12,7 @@ use App\Filament\Resources\RoadmapEntryResource;
 use App\Filament\Resources\TenantResource;
 use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\PlatformStatsWidget;
+use App\Filament\Widgets\ServerHealthWidget;
 use App\Filament\Widgets\StatsOverview;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -54,6 +55,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\BillingConfiguration::class,
             ])
             ->widgets([
+                ServerHealthWidget::class,
                 PlatformStatsWidget::class,
                 StatsOverview::class,
                 DebugLogHeaderStats::class,
