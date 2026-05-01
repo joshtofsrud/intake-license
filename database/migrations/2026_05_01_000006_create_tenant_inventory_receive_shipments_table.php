@@ -11,10 +11,6 @@ use Illuminate\Support\Facades\Schema;
  * and add line items. v2 will add purchase_orders and link shipments to POs.
  *
  * Status flow: draft -> committed (one-way, no edits after commit).
- * On commit, each line item writes a movement of type 'receive'.
- *
- * Per the wireframe in the POS spec gallery: stat strip shows
- * expected/received/backorder/unexpected counts. Computed from line items.
  */
 return new class extends Migration
 {
@@ -24,14 +20,11 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('tenant_id')->constrained()->cascadeOnDelete();
 
-            // Shipment identity — tenant-scoped sequential number for human reference
-            $table->string('shipment_number', 30); // 'SHIP-2026-04-26-0471'
+            $table->string('shipment_number', 30);
 
-            // Distributor reference — text, not FK
             $table->string('distributor_code', 32)->nullable();
             $table->string('distributor_name', 128)->nullable();
 
-            // Future PO link (v2); nullable for v1
             $table->uuid('purchase_order_id')->nullable();
 
             $table->enum('status', ['draft', 'committed', 'voided'])->default('draft');
@@ -39,7 +32,6 @@ return new class extends Migration
             $table->date('received_date')->nullable();
             $table->integer('shipping_cost_cents')->default(0);
 
-            // Cached counts for the wireframe stat strip
             $table->integer('expected_count')->default(0);
             $table->integer('received_count')->default(0);
             $table->integer('backorder_count')->default(0);
@@ -47,7 +39,6 @@ return new class extends Migration
 
             $table->text('notes')->nullable();
 
-            // Audit
             $table->foreignUuid('created_by_user_id')
                 ->nullable()
                 ->constrained('users')
@@ -61,10 +52,11 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['tenant_id', 'shipment_number']);
-            $table->index(['tenant_id', 'status']);
-            $table->index(['tenant_id', 'received_date']);
-            $table->index(['tenant_id', 'distributor_code']);
+            // Explicit short index names — MySQL has a 64-char identifier limit
+            $table->unique(['tenant_id', 'shipment_number'], 'tirs_tenant_shipnum_unique');
+            $table->index(['tenant_id', 'status'], 'tirs_tenant_status_idx');
+            $table->index(['tenant_id', 'received_date'], 'tirs_tenant_received_idx');
+            $table->index(['tenant_id', 'distributor_code'], 'tirs_tenant_dist_idx');
         });
     }
 

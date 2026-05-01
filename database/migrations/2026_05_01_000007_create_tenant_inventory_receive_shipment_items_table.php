@@ -7,13 +7,6 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Line items for a receiving shipment.
  *
- * Each line resolves in one of three ways at commit time:
- *   - matched: inventory_item_id is set, increments stock
- *   - unexpected: came in shipment but not on the (future) PO; shop owner
- *                 decides per-item: 'add_to_inventory' or 'hold_for_return'
- *   - backorder: expected but didn't arrive; line stays for record but
- *                doesn't write a movement
- *
  * On shipment commit, every line with status='received' AND inventory_item_id
  * IS NOT NULL writes a movement of type 'receive'.
  */
@@ -28,13 +21,11 @@ return new class extends Migration
                 ->constrained('tenant_inventory_receive_shipments')
                 ->cascadeOnDelete();
 
-            // Item match — nullable because unexpected items may not match yet
             $table->foreignUuid('inventory_item_id')
                 ->nullable()
                 ->constrained('tenant_inventory_items')
                 ->nullOnDelete();
 
-            // Identity at receive time
             $table->string('name', 255);
             $table->string('sku', 64)->nullable();
             $table->string('upc', 20)->nullable();
@@ -43,11 +34,9 @@ return new class extends Migration
                 ->constrained('platform_distributor_catalogs')
                 ->nullOnDelete();
 
-            // Counts
             $table->integer('expected_quantity')->default(0);
             $table->integer('received_quantity')->default(0);
 
-            // Status of this line
             $table->enum('status', [
                 'expected',
                 'received',
@@ -57,7 +46,6 @@ return new class extends Migration
                 'unexpected_hold',
             ])->default('expected');
 
-            // Costs
             $table->integer('unit_cost_cents')->nullable();
             $table->integer('total_cost_cents')->nullable();
 
@@ -65,10 +53,11 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->index(['tenant_id', 'shipment_id']);
-            $table->index('inventory_item_id');
-            $table->index(['shipment_id', 'status']);
-            $table->index('upc');
+            // Explicit short index names — MySQL has a 64-char identifier limit
+            $table->index(['tenant_id', 'shipment_id'], 'tirsi_tenant_ship_idx');
+            $table->index('inventory_item_id', 'tirsi_item_idx');
+            $table->index(['shipment_id', 'status'], 'tirsi_ship_status_idx');
+            $table->index('upc', 'tirsi_upc_idx');
         });
     }
 

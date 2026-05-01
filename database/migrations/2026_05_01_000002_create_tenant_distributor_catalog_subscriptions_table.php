@@ -6,13 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Per-tenant toggle for which distributor catalogs are active.
- *
- * Bike shop on BTI + QBP but not J&B? Two rows, both is_active = true,
- * no row for J&B. UPC scan only searches across distributors the tenant
- * has subscribed to.
- *
- * Decoupled from billing — Bike Pack add-on gates whether ANY distributor
- * sync is available, but within that, the tenant chooses which feeds.
  */
 return new class extends Migration
 {
@@ -22,24 +15,21 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('tenant_id')->constrained()->cascadeOnDelete();
 
-            // Distributor — references the platform-level catalog by code, not FK
-            // (one subscription = whole distributor, not per-row)
             $table->string('distributor_code', 32);
 
-            // Tenant-specific config
             $table->boolean('is_active')->default(true);
-            $table->string('account_number', 64)->nullable();    // shop's account # with the distributor
-            $table->json('credentials_encrypted')->nullable();   // EDI creds for v2 ordering integration
+            $table->string('account_number', 64)->nullable();
+            $table->json('credentials_encrypted')->nullable();
 
-            // Sync state
             $table->timestamp('last_sync_at')->nullable();
-            $table->string('last_sync_status', 32)->nullable();  // 'success', 'partial', 'failed'
+            $table->string('last_sync_status', 32)->nullable();
             $table->text('last_sync_error')->nullable();
 
             $table->timestamps();
 
-            $table->unique(['tenant_id', 'distributor_code']);
-            $table->index(['tenant_id', 'is_active']);
+            // Explicit short index names — MySQL has a 64-char identifier limit
+            $table->unique(['tenant_id', 'distributor_code'], 'tdcs_tenant_dist_unique');
+            $table->index(['tenant_id', 'is_active'], 'tdcs_tenant_active_idx');
         });
     }
 
