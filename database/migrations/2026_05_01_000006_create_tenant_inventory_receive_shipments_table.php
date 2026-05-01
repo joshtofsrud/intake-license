@@ -6,11 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Receiving header: one row per shipment received against a (future) PO.
- *
- * v1 ships without proper PO management — shops manually create a shipment
- * and add line items. v2 will add purchase_orders and link shipments to POs.
- *
- * Status flow: draft -> committed (one-way, no edits after commit).
  */
 return new class extends Migration
 {
@@ -39,11 +34,12 @@ return new class extends Migration
 
             $table->text('notes')->nullable();
 
-            $table->foreignUuid('created_by_user_id')
+            // users.id is bigint
+            $table->foreignId('created_by_user_id')
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
-            $table->foreignUuid('committed_by_user_id')
+            $table->foreignId('committed_by_user_id')
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
@@ -52,7 +48,6 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            // Explicit short index names — MySQL has a 64-char identifier limit
             $table->unique(['tenant_id', 'shipment_number'], 'tirs_tenant_shipnum_unique');
             $table->index(['tenant_id', 'status'], 'tirs_tenant_status_idx');
             $table->index(['tenant_id', 'received_date'], 'tirs_tenant_received_idx');
