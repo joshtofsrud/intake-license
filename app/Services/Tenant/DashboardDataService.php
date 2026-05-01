@@ -137,10 +137,10 @@ class DashboardDataService
         if ($unconfirmedCount > 0) {
             $cards[] = [
                 'count' => $unconfirmedCount,
-                'title' => 'Unconfirmed bookings',
+                'title' => 'Pending bookings',
                 'desc'  => $unconfirmedCount === 1
-                    ? '1 booking awaiting confirmation'
-                    : $unconfirmedCount . ' bookings awaiting confirmation',
+                    ? '1 booking awaiting confirmation or drop-off'
+                    : $unconfirmedCount . ' bookings awaiting confirmation or drop-off',
                 'tone'  => 'red',  // your action: review and confirm
                 'link'  => route('tenant.appointments.index', ['filter' => 'unconfirmed_bookings']),
             ];
