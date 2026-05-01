@@ -56,11 +56,53 @@ class AppointmentController extends Controller
         $payment  = $request->input('payment', '');
         $dateFrom = $request->input('date_from', '');
         $dateTo   = $request->input('date_to', '');
+        $filter   = $request->input('filter', '');
         $sort     = $request->input('sort', 'date_desc');
         $page     = max(1, (int) $request->input('page', 1));
         $perPage  = 25;
 
+        // Mapping from dashboard "Needs your attention" card slugs to query scopes.
+        // Keep in sync with DashboardDataService::zoneAttention(). Each slug here
+        // mirrors a card on the dashboard so clicking the card lands here filtered.
+        $filterLabels = [
+            'unconfirmed_bookings' => 'Unconfirmed bookings',
+            'unpaid_completed'     => 'Unpaid completed jobs',
+            'ready_pickup'         => 'Ready for pickup',
+            'overdue_unstarted'    => 'Overdue: not started',
+            'overdue_in_progress'  => 'Overdue: in progress',
+            'stale_pickups'        => 'Stale pickups',
+        ];
+        $filter = array_key_exists($filter, $filterLabels) ? $filter : '';
+
         $q = TenantAppointment::where('tenant_id', $tenant->id);
+
+        // Apply the high-level filter slug from the dashboard cards.
+        $today = now($tenant->timezone())->toDateString();
+        switch ($filter) {
+            case 'unconfirmed_bookings':
+                $q->where('status', 'pending')
+                  ->whereDate('appointment_date', '>=', $today);
+                break;
+            case 'unpaid_completed':
+                $q->whereIn('status', ['completed', 'shipped', 'closed'])
+                  ->whereIn('payment_status', ['unpaid', 'partial']);
+                break;
+            case 'ready_pickup':
+                $q->where('status', 'completed');
+                break;
+            case 'overdue_unstarted':
+                $q->whereIn('status', ['pending', 'confirmed'])
+                  ->whereDate('appointment_date', '<', $today);
+                break;
+            case 'overdue_in_progress':
+                $q->where('status', 'in_progress')
+                  ->whereDate('appointment_date', '<', $today);
+                break;
+            case 'stale_pickups':
+                $q->where('status', 'completed')
+                  ->where('updated_at', '<', now()->subDays(3));
+                break;
+        }
 
         if ($search) {
             $q->where(function ($q2) use ($search) {
@@ -109,7 +151,8 @@ class AppointmentController extends Controller
 
         return view('tenant.appointments.index', compact(
             'appointments', 'total', 'page', 'totalPages',
-            'search', 'status', 'payment', 'dateFrom', 'dateTo', 'sort'
+            'search', 'status', 'payment', 'dateFrom', 'dateTo', 'sort',
+            'filter', 'filterLabels'
         ));
     }
 

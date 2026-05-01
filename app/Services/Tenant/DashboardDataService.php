@@ -141,8 +141,8 @@ class DashboardDataService
                 'desc'  => $unconfirmedCount === 1
                     ? '1 booking awaiting confirmation'
                     : $unconfirmedCount . ' bookings awaiting confirmation',
-                'tone'  => 'amber',
-                'link'  => route('tenant.appointments.index') . '?status=pending',
+                'tone'  => 'red',  // your action: review and confirm
+                'link'  => route('tenant.appointments.index', ['filter' => 'unconfirmed_bookings']),
             ];
         }
 
@@ -151,8 +151,8 @@ class DashboardDataService
                 'count' => $unpaidDoneCount,
                 'title' => 'Unpaid completed jobs',
                 'desc'  => '$' . number_format($unpaidDoneSumCents / 100, 0) . ' outstanding on finished work',
-                'tone'  => 'red',
-                'link'  => route('tenant.appointments.index') . '?payment_status=unpaid',
+                'tone'  => 'amber',  // customer's action: send payment
+                'link'  => route('tenant.appointments.index', ['filter' => 'unpaid_completed']),
             ];
         }
 
@@ -163,8 +163,8 @@ class DashboardDataService
                 'desc'  => $readyPickupCount === 1
                     ? 'Customer ready to receive their bike'
                     : 'Customers ready to receive their bikes',
-                'tone'  => 'green',
-                'link'  => route('tenant.appointments.index') . '?status=completed',
+                'tone'  => 'amber',  // customer's action: collect their item
+                'link'  => route('tenant.appointments.index', ['filter' => 'ready_pickup']),
             ];
         }
 
@@ -175,7 +175,7 @@ class DashboardDataService
                 'desc'  => $waitlistCount === 1
                     ? 'Customer waiting for an opening'
                     : 'Customers waiting for an opening',
-                'tone'  => 'green',
+                'tone'  => 'amber',  // customer's action: accept the opening (waitlist page, not appointments)
                 'link'  => route('tenant.waitlist.index'),
             ];
         }
@@ -194,7 +194,7 @@ class DashboardDataService
                     ? 'Appointment past its scheduled date and never started'
                     : 'Appointments past their scheduled date and never started',
                 'tone'  => 'red',
-                'link'  => route('tenant.appointments.index') . '?overdue=unstarted',
+                'link'  => route('tenant.appointments.index', ['filter' => 'overdue_unstarted']),
             ];
         }
 
@@ -210,8 +210,8 @@ class DashboardDataService
                 'desc'  => $overdueInProgressCount === 1
                     ? 'Job started but not closed out'
                     : 'Jobs started but not closed out',
-                'tone'  => 'amber',
-                'link'  => route('tenant.appointments.index') . '?overdue=in_progress',
+                'tone'  => 'red',  // your action: close out the job (more concerning than unstarted)
+                'link'  => route('tenant.appointments.index', ['filter' => 'overdue_in_progress']),
             ];
         }
 
@@ -228,7 +228,7 @@ class DashboardDataService
                     ? 'Completed 3+ days ago, customer not collected'
                     : 'Completed 3+ days ago, customers not collected',
                 'tone'  => 'amber',
-                'link'  => route('tenant.appointments.index') . '?overdue=stale_pickup',
+                'link'  => route('tenant.appointments.index', ['filter' => 'stale_pickups']),
             ];
         }
 

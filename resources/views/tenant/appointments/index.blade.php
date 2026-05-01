@@ -26,8 +26,16 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Appointments</h1>
-    <p class="ia-page-subtitle">Every booking, every status.</p>
+    @if(!empty($filter) && !empty($filterLabels[$filter]))
+      <h1 class="ia-page-title">{{ $filterLabels[$filter] }}</h1>
+      <p class="ia-page-subtitle">
+        {{ $total }} {{ Str::plural('appointment', $total) }} · 
+        <a href="{{ route('tenant.appointments.index') }}" style="color: inherit; text-decoration: underline">Clear filter</a>
+      </p>
+    @else
+      <h1 class="ia-page-title">Appointments</h1>
+      <p class="ia-page-subtitle">Every booking, every status.</p>
+    @endif
   </div>
   <div class="ia-page-actions">
     <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
@@ -37,6 +45,26 @@
 </div>
 
 <x-tenant.schedule-tabs active="appointments" />
+
+@php
+  // Inline-fetch the attention cards so the same row appears on this page.
+  // Cheap — same query the dashboard runs.
+  try {
+    $svc = new \App\Services\Tenant\DashboardDataService(tenant());
+    $attentionForBar = $svc->zoneAttention();
+  } catch (\Throwable $e) {
+    $attentionForBar = ['cards' => [], 'total_items' => 0];
+  }
+@endphp
+
+@if(!empty($attentionForBar['cards']))
+  <div style="margin-bottom: 24px;">
+    @include('tenant.dashboard._attention_cards', [
+      'cards' => $attentionForBar['cards'],
+      'activeFilter' => $filter ?? '',
+    ])
+  </div>
+@endif
 
 <form method="get" action="{{ route('tenant.appointments.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
