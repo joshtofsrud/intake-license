@@ -16,22 +16,29 @@ return new class extends Migration
     {
         Schema::create('tenant_inventory_receive_shipment_items', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('tenant_id')->constrained()->cascadeOnDelete();
+
+            // FK names explicit because the table name (39 chars) plus auto-generated
+            // suffix exceeds MySQL's 64-char identifier limit on several columns.
+            $table->foreignUuid('tenant_id')
+                ->constrained(table: 'tenants', indexName: 'tirsi_tenant_fk')
+                ->cascadeOnDelete();
+
             $table->foreignUuid('shipment_id')
-                ->constrained('tenant_inventory_receive_shipments')
+                ->constrained(table: 'tenant_inventory_receive_shipments', indexName: 'tirsi_ship_fk')
                 ->cascadeOnDelete();
 
             $table->foreignUuid('inventory_item_id')
                 ->nullable()
-                ->constrained('tenant_inventory_items')
+                ->constrained(table: 'tenant_inventory_items', indexName: 'tirsi_inv_item_fk')
                 ->nullOnDelete();
 
             $table->string('name', 255);
             $table->string('sku', 64)->nullable();
             $table->string('upc', 20)->nullable();
+
             $table->foreignUuid('distributor_catalog_id')
                 ->nullable()
-                ->constrained('platform_distributor_catalogs')
+                ->constrained(table: 'platform_distributor_catalogs', indexName: 'tirsi_dist_cat_fk')
                 ->nullOnDelete();
 
             $table->integer('expected_quantity')->default(0);
