@@ -75,7 +75,7 @@ class OnboardingAiQuickSetupService
             - The JSON must validate against this schema exactly:
 
             {
-              "booking_mode": "time_slot" | "drop_off",
+              "booking_mode": "time_slots" | "drop_off",
               "classes_enabled": boolean,
               "tagline": string (max 100 chars),
               "hours": [
@@ -101,8 +101,8 @@ class OnboardingAiQuickSetupService
 
             - Pick "drop_off" for repair-style businesses where customers leave items and pick
               up later (bike shop, tailor, electronics repair, auto detailing, jewelry, etc).
-              Pick "time_slot" for everything else (salon, yoga, fitness, classes, lessons,
-              massage, photography). When unsure, pick "time_slot" — it's the platform default.
+              Pick "time_slots" for everything else (salon, yoga, fitness, classes, lessons,
+              massage, photography). When unsure, pick "time_slots" — it's the platform default.
 
             - Set "classes_enabled" true when the business runs group classes with capacity
               (yoga, CrossFit, pilates, HIIT, group fitness, art/pottery classes, kids
@@ -192,7 +192,7 @@ class OnboardingAiQuickSetupService
             }
         }
 
-        if (!in_array($data['booking_mode'], ['time_slot', 'drop_off'], true)) {
+        if (!in_array($data['booking_mode'], ['time_slots', 'drop_off'], true)) {
             throw new RuntimeException("AI output has invalid booking_mode: {$data['booking_mode']}");
         }
 

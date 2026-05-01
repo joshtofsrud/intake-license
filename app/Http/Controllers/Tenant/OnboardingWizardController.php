@@ -116,7 +116,7 @@ class OnboardingWizardController extends Controller
     public function saveBooking(string $subdomain, Request $request): JsonResponse
     {
         $data = $request->validate([
-            'booking_mode'    => ['required', 'in:time_slot,drop_off'],
+            'booking_mode'    => ['required', 'in:time_slots,drop_off'],
             'classes_enabled' => ['required', 'boolean'],
         ]);
         tenant()->update([

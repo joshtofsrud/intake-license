@@ -94,11 +94,11 @@
     <div class="booking-section-sub">Pick one. Time slots is the default for most businesses; drop-off works better for repair-style shops.</div>
     <div class="mode-grid">
       @php
-        $currentMode = $tenant->booking_mode ?: 'time_slot';
+        $currentMode = $tenant->booking_mode ?: 'time_slots';
       @endphp
 
-      <div class="mode-card {{ $currentMode === 'time_slot' ? 'selected' : '' }}" data-mode="time_slot">
-        @if($currentMode === 'time_slot')<div class="mode-rec">Default</div>@endif
+      <div class="mode-card {{ $currentMode === 'time_slots' ? 'selected' : '' }}" data-mode="time_slots">
+        @if($currentMode === 'time_slots')<div class="mode-rec">Default</div>@endif
         <span class="mode-card-icon">⏰</span>
         <div class="mode-card-name">Time slot</div>
         <div class="mode-card-desc">Customer picks a specific time on a specific day. Best for studios, stylists, trainers, and most appointment-based shops.</div>
@@ -139,7 +139,7 @@
   const cont    = document.getElementById('ob-continue');
   const errBox  = document.getElementById('ob-error');
 
-  let selectedMode    = @json($tenant->booking_mode ?: 'time_slot');
+  let selectedMode    = @json($tenant->booking_mode ?: 'time_slots');
   let classesEnabled  = @json((bool) $tenant->classes_enabled);
 
   function csrf() {
