@@ -12,11 +12,9 @@ use Illuminate\Support\Facades\Schema;
  *
  * Stock count for an item = SUM(quantity_delta) WHERE inventory_item_id = ?
  *
- * NEVER UPDATED. NEVER DELETED. Append-only by convention and enforced by
- * InventoryService.
+ * NEVER UPDATED. NEVER DELETED. Append-only.
  *
- * Snapshot-on-write per Design Principle P13: item_name and item_sku are
- * captured at write time.
+ * Snapshot-on-write per Design Principle P13.
  */
 return new class extends Migration
 {
@@ -53,14 +51,14 @@ return new class extends Migration
             $table->string('reason', 64)->nullable();
             $table->text('notes')->nullable();
 
-            $table->foreignUuid('user_id')
+            // users.id is bigint (Laravel default), not UUID
+            $table->foreignId('user_id')
                 ->nullable()
                 ->constrained('users')
                 ->nullOnDelete();
 
             $table->timestamp('created_at')->useCurrent();
 
-            // Explicit short index names — MySQL has a 64-char identifier limit
             $table->index(['inventory_item_id', 'created_at'], 'tim_item_created_idx');
             $table->index(['tenant_id', 'created_at'], 'tim_tenant_created_idx');
             $table->index(['reference_type', 'reference_id'], 'tim_ref_idx');

@@ -53,7 +53,6 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Explicit short index names — MySQL has a 64-char identifier limit
             $table->index(['tenant_id', 'shipment_id'], 'tirsi_tenant_ship_idx');
             $table->index('inventory_item_id', 'tirsi_item_idx');
             $table->index(['shipment_id', 'status'], 'tirsi_ship_status_idx');
