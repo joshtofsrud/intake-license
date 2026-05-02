@@ -260,13 +260,14 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                     Route::delete('/{id}/items/{itemId}',        [TenantControllers\ReceiveShipmentController::class, 'removeItem'])->name('items.destroy');
                     Route::post('/{id}/commit',                  [TenantControllers\ReceiveShipmentController::class, 'commit'])->name('commit');
                     Route::post('/{id}/items/new-inventory-item', [TenantControllers\ReceiveShipmentController::class, 'quickCreateItem'])->name('items.quick.create');
+                    Route::get('/items/{id}/quick',     [TenantControllers\ReceiveShipmentController::class, 'quickShowItem'])->name('items.quick.show');
+                    Route::patch('/items/{id}/quick',   [TenantControllers\ReceiveShipmentController::class, 'quickUpdateItem'])->name('items.quick.update');
+                    Route::get('/categories/list',      [TenantControllers\ReceiveShipmentController::class, 'categoriesForModal'])->name('categories.list');
                 });
 
                 // Item search (used by receiving line-add modal, will be reused by register UI)
                 Route::get('/items/search', [TenantControllers\ReceiveShipmentController::class, 'searchItems'])->name('items.search');
-                Route::get('/items/{id}/quick',     [TenantControllers\ReceiveShipmentController::class, 'quickShowItem'])->name('items.quick.show');
-                Route::patch('/items/{id}/quick',   [TenantControllers\ReceiveShipmentController::class, 'quickUpdateItem'])->name('items.quick.update');
-                Route::get('/categories/list',      [TenantControllers\ReceiveShipmentController::class, 'categoriesForModal'])->name('categories.list');
+
 
                 Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
                 Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
