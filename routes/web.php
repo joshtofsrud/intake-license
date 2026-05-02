@@ -246,13 +246,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
                 Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');
                 Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');
-                Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
-                Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
-                Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
-                Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
-                Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
-
-                // Receiving — POS Phase 1, gated by retail capability
+// Receiving — POS Phase 1, gated by retail capability
                 Route::prefix('receiving')->name('receiving.')->group(function () {
                     Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');
                     Route::get('/create',                        [TenantControllers\ReceiveShipmentController::class, 'create'])->name('create');
@@ -269,6 +263,12 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
                 // Item search (used by receiving line-add modal, will be reused by register UI)
                 Route::get('/items/search', [TenantControllers\ReceiveShipmentController::class, 'searchItems'])->name('items.search');
+
+                Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
+                Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
+                Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
+                Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
+                Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
             });
 
             Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');
