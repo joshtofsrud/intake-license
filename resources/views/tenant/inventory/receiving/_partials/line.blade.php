@@ -32,9 +32,9 @@
     </select>
   </td>
   <td style="text-align:right">
-    <input class="ia-input rcv-cell" data-field="unit_cost_cents" type="number" min="0"
-           value="{{ $line->unit_cost_cents }}"
-           style="width:90px;padding:3px 6px;text-align:right" placeholder="—">
+    <input class="ia-input rcv-cell" data-field="unit_cost_dollars" type="text" inputmode="decimal"
+           value="{{ $line->unit_cost_cents !== null ? number_format($line->unit_cost_cents / 100, 2, '.', '') : '' }}"
+           style="width:80px;padding:3px 6px;text-align:right" placeholder="0.00">
   </td>
   <td style="text-align:right">
     <button type="button" class="ia-btn ia-btn--ghost"

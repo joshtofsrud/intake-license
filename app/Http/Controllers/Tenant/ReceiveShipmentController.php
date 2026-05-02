@@ -224,8 +224,14 @@ class ReceiveShipmentController extends Controller
             'distributor_name'   => ['nullable', 'string', 'max:128'],
             'distributor_code'   => ['nullable', 'string', 'max:32'],
             'shipping_cost_cents' => ['nullable', 'integer', 'min:0'],
+            'shipping_cost_dollars' => ['nullable', 'string', 'max:20'],
             'notes'              => ['nullable', 'string', 'max:2000'],
         ]);
+
+        if (array_key_exists('shipping_cost_dollars', $data) && $data['shipping_cost_dollars'] !== null && $data['shipping_cost_dollars'] !== '') {
+            $cleaned = preg_replace('/[^0-9.\-]/', '', $data['shipping_cost_dollars']);
+            $data['shipping_cost_cents'] = (int) round(((float) $cleaned) * 100);
+        }
 
         if ($data['shipment_number'] !== $shipment->shipment_number
             && TenantInventoryReceiveShipment::where('tenant_id', $tenant->id)
@@ -278,7 +284,13 @@ class ReceiveShipmentController extends Controller
             'expected_quantity' => ['nullable', 'integer', 'min:0', 'max:99999'],
             'received_quantity' => ['nullable', 'integer', 'min:0', 'max:99999'],
             'unit_cost_cents'   => ['nullable', 'integer', 'min:0'],
+            'unit_cost_dollars' => ['nullable', 'string', 'max:20'],
         ]);
+
+        if (array_key_exists('unit_cost_dollars', $data) && $data['unit_cost_dollars'] !== null && $data['unit_cost_dollars'] !== '') {
+            $cleaned = preg_replace('/[^0-9.\-]/', '', $data['unit_cost_dollars']);
+            $data['unit_cost_cents'] = (int) round(((float) $cleaned) * 100);
+        }
 
         $item = null;
         if (! empty($data['inventory_item_id'])) {
@@ -347,8 +359,14 @@ class ReceiveShipmentController extends Controller
             'received_quantity' => ['nullable', 'integer', 'min:0', 'max:99999'],
             'status'            => ['nullable', 'in:expected,received,backorder,unexpected_pending,unexpected_added,unexpected_hold'],
             'unit_cost_cents'   => ['nullable', 'integer', 'min:0'],
+            'unit_cost_dollars' => ['nullable', 'string', 'max:20'],
             'notes'             => ['nullable', 'string', 'max:500'],
         ]);
+
+        if (array_key_exists('unit_cost_dollars', $data) && $data['unit_cost_dollars'] !== null && $data['unit_cost_dollars'] !== '') {
+            $cleaned = preg_replace('/[^0-9.\-]/', '', $data['unit_cost_dollars']);
+            $data['unit_cost_cents'] = (int) round(((float) $cleaned) * 100);
+        }
 
         if (array_key_exists('expected_quantity', $data) && $data['expected_quantity'] !== null) {
             $line->expected_quantity = (int) $data['expected_quantity'];
