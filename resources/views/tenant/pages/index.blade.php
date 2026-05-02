@@ -34,7 +34,7 @@
   </form>
 </div>
 
-<div class="ia-card" style="padding:0;overflow:hidden">
+<div class="ia-table-wrap">
   <table class="ia-table">
     <thead>
       <tr>

@@ -24,7 +24,7 @@
     <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('item', $total) }}</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn ia-btn--ghost">Receiving →</a>
+    <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn">Receiving ↓</a>
     @if($hasCategories)
       <a href="{{ route('tenant.inventory.create') }}" class="ia-btn ia-btn--primary">+ New item</a>
     @else
@@ -80,6 +80,7 @@
       No items match your filters.
     </div>
   @else
+<div class="ia-table-wrap">
     <table class="ia-table">
       <thead>
         <tr>
@@ -98,6 +99,7 @@
         @endforeach
       </tbody>
     </table>
+</div>
   @endif
 </div>
 

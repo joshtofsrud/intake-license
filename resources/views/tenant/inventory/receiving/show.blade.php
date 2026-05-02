@@ -82,7 +82,7 @@
   </div>
 </div>
 
-<div class="ia-card">
+<div class="ia-table-wrap">
   <table class="ia-table">
     <thead>
       <tr>

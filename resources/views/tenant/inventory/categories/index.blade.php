@@ -47,6 +47,7 @@
       No categories yet. Add your first one above.
     </div>
   @else
+<div class="ia-table-wrap">
     <table class="ia-table">
       <thead>
         <tr>
@@ -67,6 +68,7 @@
         @endforeach
       </tbody>
     </table>
+</div>
   @endif
 </div>
 

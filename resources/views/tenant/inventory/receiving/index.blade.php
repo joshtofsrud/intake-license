@@ -4,19 +4,6 @@
   $tabs = ['draft' => 'Drafts', 'committed' => 'Committed', 'voided' => 'Voided'];
 @endphp
 
-@push('styles')
-<style>
-.rcv-table-wrap{background:var(--ia-surface,#0e0e0e);border:0.5px solid var(--ia-border,#222);border-radius:var(--ia-r-lg,10px);overflow:hidden;margin-bottom:0}
-.rcv-table-wrap table.ia-table{width:100%;border-collapse:collapse;margin:0}
-.rcv-table-wrap table.ia-table thead th{padding:11px 14px;background:var(--ia-surface-2,#161616);border-bottom:0.5px solid var(--ia-border,#222);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted,#888);font-weight:500;text-align:left}
-.rcv-table-wrap table.ia-table thead th[style*="text-align:right"]{text-align:right}
-.rcv-table-wrap table.ia-table tbody tr{border-bottom:0.5px solid var(--ia-border,#222);transition:background .12s}
-.rcv-table-wrap table.ia-table tbody tr:last-child{border-bottom:none}
-.rcv-table-wrap table.ia-table tbody tr:hover{background:var(--ia-hover,rgba(255,255,255,.02))}
-.rcv-table-wrap table.ia-table tbody td{padding:12px 14px}
-</style>
-@endpush
-
 @section('content')
 
 <div class="ia-page-head">
@@ -76,6 +63,7 @@
       @endif
     </div>
   @else
+<div class="ia-table-wrap">
     <table class="ia-table">
       <thead>
         <tr>
@@ -113,6 +101,7 @@
         @endforeach
       </tbody>
     </table>
+</div>
   @endif
 </div>
 
