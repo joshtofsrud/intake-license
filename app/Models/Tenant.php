@@ -231,6 +231,28 @@ class Tenant extends Model
     {
         return $this->hasOne(\App\Models\Tenant\TenantWaitlistSettings::class, 'tenant_id');
     }
+    // ─── Capability accessors (delegate to FeatureAccessService) ──────
+    // These let blade templates and existing nav code use a simple boolean
+    // syntax (e.g. $tenant->retail_enabled) while the resolution still
+    // flows through the addons table + tier inclusion logic.
+
+    public function getRetailEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'retail');
+    }
+
+    public function getPosEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'pos');
+    }
+
+    public function getMultiLocationEnabledAttribute(): bool
+    {
+        $svc = app(\App\Services\FeatureAccessService::class);
+        return $svc->hasAddon($this, 'multi_location_calendar')
+            || $svc->hasAddon($this, 'multi_location_pos');
+    }
+
     // ─── POS + Multi-Location Relationships ───────────────────────────
 
     public function locations(): HasMany

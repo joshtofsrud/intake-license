@@ -239,6 +239,20 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/customers',           [TenantControllers\CustomerController::class, 'store'])->name('customers.store');
             Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');
 
+            // Inventory (POS Phase 1) — gated by `retail` capability via FeatureAccessService
+            Route::prefix('inventory')->name('inventory.')->group(function () {
+                Route::get('/',                  [TenantControllers\InventoryController::class, 'index'])->name('index');
+                Route::get('/create',            [TenantControllers\InventoryController::class, 'create'])->name('create');
+                Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
+                Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');
+                Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');
+                Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
+                Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
+                Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
+                Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
+                Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
+            });
+
             Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');
             Route::get('/waitlist/settings',           [TenantControllers\WaitlistAdminController::class, 'settings'])->name('waitlist.settings');
             Route::patch('/waitlist/settings',         [TenantControllers\WaitlistAdminController::class, 'updateSettings'])->name('waitlist.settings.update');
