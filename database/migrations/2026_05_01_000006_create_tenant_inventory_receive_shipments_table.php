@@ -34,14 +34,13 @@ return new class extends Migration
 
             $table->text('notes')->nullable();
 
-            // users.id is bigint
-            $table->foreignId('created_by_user_id')
+            $table->foreignUuid('created_by_tenant_user_id')
                 ->nullable()
-                ->constrained('users')
+                ->constrained(table: 'tenant_users', indexName: 'tirs_created_by_fk')
                 ->nullOnDelete();
-            $table->foreignId('committed_by_user_id')
+            $table->foreignUuid('committed_by_tenant_user_id')
                 ->nullable()
-                ->constrained('users')
+                ->constrained(table: 'tenant_users', indexName: 'tirs_committed_by_fk')
                 ->nullOnDelete();
             $table->timestamp('committed_at')->nullable();
 

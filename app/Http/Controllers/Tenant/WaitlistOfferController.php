@@ -15,7 +15,7 @@ class WaitlistOfferController extends Controller
     /**
      * GET /waitlist/offer/{token}  — customer lands here after clicking SMS/email.
      */
-    public function show(string $token)
+    public function show(string $subdomain, string $token)
     {
         $tenant = tenant();
         abort_unless($tenant->hasWaitlistFeature(), 404);
@@ -69,7 +69,7 @@ class WaitlistOfferController extends Controller
     /**
      * POST /waitlist/offer/{token}/accept  — customer confirms.
      */
-    public function accept(Request $request, string $token)
+    public function accept(Request $request, string $subdomain, string $token)
     {
         $tenant = tenant();
         abort_unless($tenant->hasWaitlistFeature(), 404);
@@ -147,7 +147,7 @@ class WaitlistOfferController extends Controller
     /**
      * GET /waitlist/offer/{token}/confirmed  — post-accept thank-you page.
      */
-    public function confirmed(string $token)
+    public function confirmed(string $subdomain, string $token)
     {
         $tenant = tenant();
         $offer = TenantWaitlistOffer::with(['entry.serviceItem', 'resultingAppointment'])
