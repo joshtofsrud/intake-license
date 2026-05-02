@@ -251,6 +251,24 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
                 Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
                 Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
+
+                // Receiving — POS Phase 1, gated by retail capability
+                Route::prefix('receiving')->name('receiving.')->group(function () {
+                    Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');
+                    Route::get('/create',                        [TenantControllers\ReceiveShipmentController::class, 'create'])->name('create');
+                    Route::post('/',                             [TenantControllers\ReceiveShipmentController::class, 'store'])->name('store');
+                    Route::get('/{id}',                          [TenantControllers\ReceiveShipmentController::class, 'show'])->name('show');
+                    Route::get('/{id}/edit',                     [TenantControllers\ReceiveShipmentController::class, 'edit'])->name('edit');
+                    Route::patch('/{id}',                        [TenantControllers\ReceiveShipmentController::class, 'update'])->name('update');
+                    Route::delete('/{id}',                       [TenantControllers\ReceiveShipmentController::class, 'destroy'])->name('destroy');
+                    Route::post('/{id}/items',                   [TenantControllers\ReceiveShipmentController::class, 'addItem'])->name('items.store');
+                    Route::patch('/{id}/items/{itemId}',         [TenantControllers\ReceiveShipmentController::class, 'updateItem'])->name('items.update');
+                    Route::delete('/{id}/items/{itemId}',        [TenantControllers\ReceiveShipmentController::class, 'removeItem'])->name('items.destroy');
+                    Route::post('/{id}/commit',                  [TenantControllers\ReceiveShipmentController::class, 'commit'])->name('commit');
+                });
+
+                // Item search (used by receiving line-add modal, will be reused by register UI)
+                Route::get('/items/search', [TenantControllers\ReceiveShipmentController::class, 'searchItems'])->name('items.search');
             });
 
             Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');

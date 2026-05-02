@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\Tenant\TenantInventoryReceiveShipmentItem;
+use App\Observers\Pos\TenantInventoryReceiveShipmentItemObserver;
+
 use App\Listeners\LogAuthEvents;
 use App\Listeners\LogMailEvents;
 use App\Listeners\LogQueueEvents;
@@ -28,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        TenantInventoryReceiveShipmentItem::observe(TenantInventoryReceiveShipmentItemObserver::class);
+
         \Illuminate\Database\Eloquent\Model::shouldBeStrict(
             ! app()->isProduction()
         );

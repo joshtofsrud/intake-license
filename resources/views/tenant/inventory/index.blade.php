@@ -24,6 +24,7 @@
     <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('item', $total) }}</p>
   </div>
   <div class="ia-page-actions">
+    <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn ia-btn--ghost">Receiving →</a>
     @if($hasCategories)
       <a href="{{ route('tenant.inventory.create') }}" class="ia-btn ia-btn--primary">+ New item</a>
     @else
