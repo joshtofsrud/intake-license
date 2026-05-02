@@ -231,4 +231,48 @@ class Tenant extends Model
     {
         return $this->hasOne(\App\Models\Tenant\TenantWaitlistSettings::class, 'tenant_id');
     }
+    // ─── POS + Multi-Location Relationships ───────────────────────────
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantLocation::class)->orderBy('sort_order');
+    }
+
+    public function activeLocations(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantLocation::class)
+            ->where('is_active', true)
+            ->orderBy('sort_order');
+    }
+
+    public function defaultLocation(): HasOne
+    {
+        return $this->hasOne(Tenant\TenantLocation::class)->where('is_default', true);
+    }
+
+    public function inventoryCategories(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantInventoryCategory::class);
+    }
+
+    public function inventoryItems(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantInventoryItem::class);
+    }
+
+    public function inventoryMovements(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantInventoryMovement::class);
+    }
+
+    public function receiveShipments(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantInventoryReceiveShipment::class);
+    }
+
+    public function distributorCatalogSubscriptions(): HasMany
+    {
+        return $this->hasMany(Tenant\TenantDistributorCatalogSubscription::class);
+    }
+
 }
