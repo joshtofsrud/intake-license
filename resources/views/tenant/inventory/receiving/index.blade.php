@@ -4,6 +4,19 @@
   $tabs = ['draft' => 'Drafts', 'committed' => 'Committed', 'voided' => 'Voided'];
 @endphp
 
+@push('styles')
+<style>
+.rcv-table-wrap{background:var(--ia-surface,#0e0e0e);border:0.5px solid var(--ia-border,#222);border-radius:var(--ia-r-lg,10px);overflow:hidden;margin-bottom:0}
+.rcv-table-wrap table.ia-table{width:100%;border-collapse:collapse;margin:0}
+.rcv-table-wrap table.ia-table thead th{padding:11px 14px;background:var(--ia-surface-2,#161616);border-bottom:0.5px solid var(--ia-border,#222);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted,#888);font-weight:500;text-align:left}
+.rcv-table-wrap table.ia-table thead th[style*="text-align:right"]{text-align:right}
+.rcv-table-wrap table.ia-table tbody tr{border-bottom:0.5px solid var(--ia-border,#222);transition:background .12s}
+.rcv-table-wrap table.ia-table tbody tr:last-child{border-bottom:none}
+.rcv-table-wrap table.ia-table tbody tr:hover{background:var(--ia-hover,rgba(255,255,255,.02))}
+.rcv-table-wrap table.ia-table tbody td{padding:12px 14px}
+</style>
+@endpush
+
 @section('content')
 
 <div class="ia-page-head">
@@ -13,7 +26,10 @@
   </div>
   <div class="ia-page-actions">
     <a href="{{ route('tenant.inventory.index') }}" class="ia-btn ia-btn--ghost">← Inventory</a>
-    <a href="{{ route('tenant.inventory.receiving.create') }}" class="ia-btn ia-btn--primary">+ New shipment</a>
+    <form method="POST" action="{{ route('tenant.inventory.receiving.create') }}" style="display:inline">
+      @csrf
+      <button type="submit" class="ia-btn ia-btn--primary">+ New shipment</button>
+    </form>
   </div>
 </div>
 
@@ -54,7 +70,7 @@
   @if($shipments->isEmpty())
     <div class="ia-card-body" style="text-align:center;padding:40px 20px;color:var(--ia-text-muted)">
       @if($tab === 'draft')
-        No draft shipments. <a href="{{ route('tenant.inventory.receiving.create') }}">Start one</a>.
+        No draft shipments. Click "+ New shipment" above to start one.
       @else
         No {{ $tab }} shipments yet.
       @endif

@@ -36,7 +36,12 @@
            value="{{ $line->unit_cost_cents !== null ? number_format($line->unit_cost_cents / 100, 2, '.', '') : '' }}"
            style="width:80px;padding:3px 6px;text-align:right" placeholder="0.00">
   </td>
-  <td style="text-align:right">
+  <td style="text-align:right;white-space:nowrap">
+    @if($line->inventory_item_id)
+      <button type="button" class="ia-btn ia-btn--ghost"
+              onclick="rcvEditItem('{{ $line->inventory_item_id }}', '{{ $line->id }}')"
+              style="padding:2px 6px;color:var(--ia-text-muted);margin-right:2px" title="Edit item">✎</button>
+    @endif
     <button type="button" class="ia-btn ia-btn--ghost"
             onclick="rcvRemoveLine('{{ $line->id }}')"
             style="padding:2px 8px;color:var(--ia-text-muted)" title="Remove">×</button>

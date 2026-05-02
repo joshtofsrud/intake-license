@@ -83,7 +83,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function create(Request $request): View|RedirectResponse
+    public function create(Request $request): RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
@@ -99,13 +99,19 @@ class ReceiveShipmentController extends Controller
                 ->with('flash', ['type' => 'error', 'message' => 'Add a location first before receiving.']);
         }
 
-        return view('tenant.inventory.receiving.create', [
-            'locations'         => $locations,
-            'defaultLocationId' => $tenant->defaultLocation?->id ?? $locations->first()->id,
-            'defaultNumber'     => $this->generateShipmentNumber($tenant),
-            'today'             => now($tenant->timezone ?? 'UTC')->toDateString(),
-            'pageTitle'         => 'New shipment',
-        ]);
+        $location = $tenant->defaultLocation ?? $locations->first();
+
+        $shipment = new TenantInventoryReceiveShipment();
+        $shipment->tenant_id                 = $tenant->id;
+        $shipment->location_id               = $location->id;
+        $shipment->shipment_number           = $this->generateShipmentNumber($tenant);
+        $shipment->received_date             = now($tenant->timezone ?? 'UTC')->toDateString();
+        $shipment->status                    = 'draft';
+        $shipment->shipping_cost_cents       = 0;
+        $shipment->created_by_tenant_user_id = auth('tenant')->id();
+        $shipment->save();
+
+        return redirect()->route('tenant.inventory.receiving.edit', ['id' => $shipment->id]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -531,6 +537,223 @@ class ReceiveShipmentController extends Controller
         return redirect()
             ->route('tenant.inventory.receiving.show', ['id' => $shipment->id])
             ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.']);
+    }
+
+    public function quickShowItem(string $subdomain, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
+
+        $item = TenantInventoryItem::with('category:id,name')
+            ->where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->first();
+
+        if (! $item) {
+            return response()->json(['ok' => false, 'message' => 'Item not found.'], 404);
+        }
+
+        $categories = \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json([
+            'ok'   => true,
+            'item' => [
+                'id'                     => $item->id,
+                'category_id'            => $item->category_id,
+                'category_name'          => $item->category?->name,
+                'sku'                    => $item->sku,
+                'name'                   => $item->name,
+                'description'            => $item->description,
+                'shop_cost_dollars'      => $item->shop_cost_cents !== null ? number_format($item->shop_cost_cents / 100, 2, '.', '') : null,
+                'shop_sell_price_dollars'=> $item->shop_sell_price_cents !== null ? number_format($item->shop_sell_price_cents / 100, 2, '.', '') : null,
+                'shop_case_quantity'     => $item->shop_case_quantity,
+                'shop_reorder_threshold' => $item->shop_reorder_threshold,
+                'shop_reorder_quantity'  => $item->shop_reorder_quantity,
+                'shop_bin_location'      => $item->shop_bin_location,
+                'is_active'              => (bool) $item->is_active,
+                'allow_oversell'         => (bool) $item->allow_oversell,
+                'catalog_upc'            => $item->catalog_upc,
+                'catalog_synced_at'      => $item->catalog_synced_at?->toIso8601String(),
+            ],
+            'categories' => $categories,
+        ]);
+    }
+
+    public function quickUpdateItem(Request $request, string $subdomain, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
+
+        $item = TenantInventoryItem::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->first();
+
+        if (! $item) {
+            return response()->json(['ok' => false, 'message' => 'Item not found.'], 404);
+        }
+
+        $data = $request->validate([
+            'category_id'             => ['required', 'uuid'],
+            'sku'                     => ['required', 'string', 'max:64'],
+            'name'                    => ['required', 'string', 'max:255'],
+            'description'             => ['nullable', 'string'],
+            'shop_cost_dollars'       => ['nullable', 'numeric', 'min:0'],
+            'shop_sell_price_dollars' => ['nullable', 'numeric', 'min:0'],
+            'shop_case_quantity'      => ['nullable', 'integer', 'min:1'],
+            'shop_reorder_threshold'  => ['nullable', 'integer', 'min:0'],
+            'shop_reorder_quantity'   => ['nullable', 'integer', 'min:1'],
+            'shop_bin_location'       => ['nullable', 'string', 'max:50'],
+            'is_active'               => ['nullable', 'boolean'],
+            'allow_oversell'          => ['nullable', 'boolean'],
+        ]);
+
+        \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->where('id', $data['category_id'])
+            ->firstOrFail();
+
+        if ($data['sku'] !== $item->sku) {
+            $taken = TenantInventoryItem::where('tenant_id', $tenant->id)
+                ->where('sku', $data['sku'])
+                ->where('id', '!=', $item->id)
+                ->exists();
+            if ($taken) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => "SKU '{$data['sku']}' is already taken.",
+                ], 422);
+            }
+        }
+
+        $item->update([
+            'category_id'            => $data['category_id'],
+            'sku'                    => $data['sku'],
+            'name'                   => $data['name'],
+            'description'            => $data['description'] ?? null,
+            'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
+            'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
+            'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
+            'shop_reorder_threshold' => $data['shop_reorder_threshold'] ?? null,
+            'shop_reorder_quantity'  => $data['shop_reorder_quantity'] ?? null,
+            'shop_bin_location'      => $data['shop_bin_location'] ?? null,
+            'is_active'              => (bool) ($data['is_active'] ?? true),
+            'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
+        ]);
+
+        return response()->json([
+            'ok'   => true,
+            'item' => [
+                'id'   => $item->id,
+                'sku'  => $item->sku,
+                'name' => $item->name,
+            ],
+        ]);
+    }
+
+    public function quickCreateItem(Request $request, string $subdomain, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
+
+        $shipment = $this->findOrFail($tenant, $id);
+        $this->assertDraftJson($shipment);
+
+        $data = $request->validate([
+            'category_id'             => ['required', 'uuid'],
+            'sku'                     => ['required', 'string', 'max:64'],
+            'name'                    => ['required', 'string', 'max:255'],
+            'description'             => ['nullable', 'string'],
+            'shop_cost_dollars'       => ['nullable', 'numeric', 'min:0'],
+            'shop_sell_price_dollars' => ['nullable', 'numeric', 'min:0'],
+            'shop_case_quantity'      => ['nullable', 'integer', 'min:1'],
+            'shop_reorder_threshold'  => ['nullable', 'integer', 'min:0'],
+            'shop_reorder_quantity'   => ['nullable', 'integer', 'min:1'],
+            'shop_bin_location'       => ['nullable', 'string', 'max:50'],
+            'is_active'               => ['nullable', 'boolean'],
+            'allow_oversell'          => ['nullable', 'boolean'],
+            'add_as_line'             => ['nullable', 'boolean'],
+            'received_quantity'       => ['nullable', 'integer', 'min:0', 'max:99999'],
+        ]);
+
+        \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->where('id', $data['category_id'])
+            ->firstOrFail();
+
+        $skuTaken = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('sku', $data['sku'])
+            ->exists();
+        if ($skuTaken) {
+            return response()->json([
+                'ok' => false,
+                'message' => "SKU '{$data['sku']}' already exists.",
+            ], 422);
+        }
+
+        $result = DB::transaction(function () use ($tenant, $shipment, $data) {
+            $item = TenantInventoryItem::create([
+                'tenant_id'              => $tenant->id,
+                'category_id'            => $data['category_id'],
+                'sku'                    => $data['sku'],
+                'name'                   => $data['name'],
+                'description'            => $data['description'] ?? null,
+                'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
+                'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
+                'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
+                'shop_reorder_threshold' => $data['shop_reorder_threshold'] ?? null,
+                'shop_reorder_quantity'  => $data['shop_reorder_quantity'] ?? null,
+                'shop_bin_location'      => $data['shop_bin_location'] ?? null,
+                'is_active'              => (bool) ($data['is_active'] ?? true),
+                'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
+            ]);
+
+            $line = null;
+            if (! empty($data['add_as_line'])) {
+                $receivedQty = (int) ($data['received_quantity'] ?? 1);
+                $line = new TenantInventoryReceiveShipmentItem();
+                $line->tenant_id         = $tenant->id;
+                $line->shipment_id       = $shipment->id;
+                $line->inventory_item_id = $item->id;
+                $line->name              = $item->name;
+                $line->sku               = $item->sku;
+                $line->expected_quantity = 0;
+                $line->received_quantity = $receivedQty;
+                $line->status            = 'received';
+                $line->unit_cost_cents   = $item->shop_cost_cents;
+                $line->total_cost_cents  = $line->unit_cost_cents ? $line->unit_cost_cents * $receivedQty : null;
+                $line->save();
+            }
+
+            return ['item' => $item, 'line' => $line];
+        });
+
+        $line = $result['line'];
+        $shipment->refresh();
+
+        return response()->json([
+            'ok'     => true,
+            'item'   => [
+                'id'   => $result['item']->id,
+                'sku'  => $result['item']->sku,
+                'name' => $result['item']->name,
+            ],
+            'line'   => $line ? $this->serializeLine($line->fresh(['item.category'])) : null,
+            'totals' => $this->serializeTotals($shipment),
+        ]);
+    }
+
+    public function categoriesForModal(): JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
+
+        $categories = \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json(['ok' => true, 'categories' => $categories]);
     }
 
     private function findOrFail($tenant, string $id): TenantInventoryReceiveShipment
