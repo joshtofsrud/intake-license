@@ -9,6 +9,7 @@ use App\Listeners\LogAuthEvents;
 use App\Listeners\LogMailEvents;
 use App\Listeners\LogQueueEvents;
 use App\Models\Tenant\TenantUser;
+use App\Observers\TenantLocationObserver;
 use App\Observers\TenantUserObserver;
 use App\Services\DebugLogService;
 use App\Support\MySQLLock;
@@ -45,5 +46,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Model observers
         TenantUser::observe(TenantUserObserver::class);
+        \App\Models\Tenant\TenantLocation::observe(TenantLocationObserver::class);
     }
 }
