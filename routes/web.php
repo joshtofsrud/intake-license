@@ -173,6 +173,10 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/select-location',  [TenantControllers\AuthController::class, 'selectLocation'])->name('select-location.store');
             Route::post('/switch-location',  [TenantControllers\AuthController::class, 'switchLocation'])->name('switch-location');
 
+            // Everything below requires a current_location_id set in session.
+            // Picker routes above are exempt (chicken/egg).
+            Route::middleware([\App\Http\Middleware\RequireCurrentLocation::class])->group(function () {
+
             Route::get('/',                 [TenantControllers\DashboardController::class, 'index'])->name('dashboard');
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
@@ -383,6 +387,8 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             // Stripe billing portal (card update, invoices, cancel).
             // Plan changes happen in-app, not via the portal.
             Route::get('/billing/portal',       [TenantControllers\BillingController::class, 'portal'])->name('billing.portal');
+
+            }); // close RequireCurrentLocation group
 
         });
 
