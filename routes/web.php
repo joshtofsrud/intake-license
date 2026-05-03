@@ -168,6 +168,11 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             'App\Http\Middleware\ApplyTenantTheme',
         ])->group(function () {
 
+            // Multi-location: picker + switch (no RequireCurrentLocation gate; chicken/egg)
+            Route::get('/select-location',   [TenantControllers\AuthController::class, 'showLocationPicker'])->name('select-location');
+            Route::post('/select-location',  [TenantControllers\AuthController::class, 'selectLocation'])->name('select-location.store');
+            Route::post('/switch-location',  [TenantControllers\AuthController::class, 'switchLocation'])->name('switch-location');
+
             Route::get('/',                 [TenantControllers\DashboardController::class, 'index'])->name('dashboard');
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');

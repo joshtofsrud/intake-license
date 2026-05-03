@@ -56,7 +56,7 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return redirect()->intended(route('tenant.dashboard'));
+        return $this->resolveLocationAndContinue($request, $user);
     }
 
     public function logout(Request $request)
@@ -144,5 +144,93 @@ class AuthController extends Controller
 
         return redirect()->route('tenant.dashboard')
             ->with('success', 'Password updated successfully.');
+    }
+
+    /**
+     * After successful login, branch on user's active locations:
+     *   0 -> error (account misconfigured; owner should attach locations)
+     *   1 -> set session, redirect to dashboard
+     *   2+ -> redirect to location picker
+     */
+    protected function resolveLocationAndContinue(Request $request, TenantUser $user)
+    {
+        $locations = $user->activeLocations()->orderBy('is_default', 'desc')->orderBy('name')->get();
+
+        if ($locations->isEmpty()) {
+            Auth::guard('tenant')->logout();
+            $request->session()->invalidate();
+            return back()
+                ->withInput($request->only('email'))
+                ->withErrors(['email' => 'Your account has no location access. Contact your shop owner.']);
+        }
+
+        if ($locations->count() === 1) {
+            $request->session()->put('current_location_id', $locations->first()->id);
+            return redirect()->intended(route('tenant.dashboard'));
+        }
+
+        return redirect()->route('tenant.select-location');
+    }
+
+    /**
+     * GET /admin/select-location
+     */
+    public function showLocationPicker(Request $request)
+    {
+        $user = Auth::guard('tenant')->user();
+        if (!$user) {
+            return redirect()->route('tenant.login');
+        }
+
+        $locations = $user->activeLocations()->orderBy('is_default', 'desc')->orderBy('name')->get();
+
+        if ($locations->count() === 1) {
+            $request->session()->put('current_location_id', $locations->first()->id);
+            return redirect()->route('tenant.dashboard');
+        }
+
+        if ($locations->isEmpty()) {
+            Auth::guard('tenant')->logout();
+            return redirect()->route('tenant.login')
+                ->withErrors(['email' => 'Your account has no location access. Contact your shop owner.']);
+        }
+
+        return view('tenant.auth.select-location', [
+            'locations'         => $locations,
+            'currentLocationId' => $request->session()->get('current_location_id'),
+        ]);
+    }
+
+    /**
+     * POST /admin/select-location
+     */
+    public function selectLocation(Request $request)
+    {
+        $request->validate(['location_id' => ['required', 'uuid']]);
+
+        $user = Auth::guard('tenant')->user();
+        if (!$user) {
+            return redirect()->route('tenant.login');
+        }
+
+        $hasAccess = $user->activeLocations()
+            ->where('tenant_locations.id', $request->input('location_id'))
+            ->exists();
+
+        if (!$hasAccess) {
+            return back()->withErrors(['location_id' => 'You do not have access to that location.']);
+        }
+
+        $request->session()->put('current_location_id', $request->input('location_id'));
+        return redirect()->intended(route('tenant.dashboard'));
+    }
+
+    /**
+     * POST /admin/switch-location
+     */
+    public function switchLocation(Request $request)
+    {
+        $request->session()->forget('current_location_id');
+        return redirect()->route('tenant.select-location');
     }
 }
