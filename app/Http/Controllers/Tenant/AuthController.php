@@ -157,6 +157,15 @@ class AuthController extends Controller
         $locations = $user->activeLocations()->orderBy('is_default', 'desc')->orderBy('name')->get();
 
         if ($locations->isEmpty()) {
+            // If onboarding is incomplete, let them through — the wizard
+            // doesn't need a current_location_id, and TenantObserver should
+            // have seeded a default location on tenant creation. This branch
+            // catches edge cases (legacy tenants, manual setup, observer failure).
+            $tenant = tenant();
+            if ($tenant && $tenant->onboarding_status !== 'complete') {
+                return redirect()->route('tenant.dashboard');
+            }
+
             Auth::guard('tenant')->logout();
             $request->session()->invalidate();
             return back()
