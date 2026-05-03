@@ -27,7 +27,7 @@ return new class extends Migration {
             $table->enum('type', ['service', 'product', 'open_item', 'gift_card']);
 
             // Source references (conditional on type)
-            $table->foreignUuid('service_id')->nullable()->constrained('tenant_services')->onDelete('restrict');
+            $table->foreignUuid('service_id')->nullable()->constrained('tenant_service_items')->onDelete('restrict');
             $table->foreignUuid('inventory_item_id')->nullable()->constrained('tenant_inventory_items')->onDelete('restrict');
             $table->uuid('gift_card_id')->nullable(); // FK reserved; tenant_gift_cards table not yet built
 
