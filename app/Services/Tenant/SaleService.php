@@ -1,0 +1,224 @@
+<?php
+
+namespace App\Services\Tenant;
+
+use App\Models\Tenant\TenantSale;
+use App\Models\Tenant\TenantSaleItem;
+use App\Models\Tenant\TenantSaleCounter;
+use App\Models\Tenant\TenantServiceItem;
+use App\Models\Tenant\TenantInventoryItem;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
+
+class SaleService
+{
+    /**
+     * Generate the next sale_number for a tenant on a given date.
+     * Uses row-level lock-and-increment on tenant_sale_counters to prevent
+     * collision under concurrent register writes.
+     *
+     * Format: S-YYYYMMDD-### (zero-padded sequence).
+     */
+    public function nextSaleNumber(string $tenantId, ?string $saleDate = null): string
+    {
+        $date = $saleDate ? Carbon::parse($saleDate) : Carbon::today();
+        $datePart = $date->format('Ymd');
+
+        return DB::transaction(function () use ($tenantId, $date, $datePart) {
+            $counter = TenantSaleCounter::where('tenant_id', $tenantId)
+                ->whereDate('counter_date', $date->toDateString())
+                ->lockForUpdate()
+                ->first();
+
+            if (!$counter) {
+                $counter = TenantSaleCounter::create([
+                    'tenant_id'    => $tenantId,
+                    'counter_date' => $date->toDateString(),
+                    'last_seq'     => 0,
+                ]);
+            }
+
+            $counter->increment('last_seq');
+            $seq = str_pad((string) $counter->last_seq, 3, '0', STR_PAD_LEFT);
+
+            return "S-{$datePart}-{$seq}";
+        });
+    }
+
+    /**
+     * Create a sale and its line items atomically.
+     */
+    public function createSale(array $data): TenantSale
+    {
+        $items = $data['items'] ?? [];
+        unset($data['items']);
+
+        // Customer-required-for-service validation
+        $hasServiceLine = collect($items)->contains(fn ($i) => ($i['type'] ?? null) === 'service');
+        if ($hasServiceLine && empty($data['customer_id'])) {
+            throw new SaleValidationException(
+                'Customer is required when the sale has any service line.'
+            );
+        }
+
+        return DB::transaction(function () use ($data, $items) {
+            $tenantId = $data['tenant_id'];
+            $saleDate = $data['sale_date'] ?? Carbon::today()->toDateString();
+
+            $sale = TenantSale::create([
+                'tenant_id'          => $tenantId,
+                'sale_number'        => $this->nextSaleNumber($tenantId, $saleDate),
+                'sale_date'          => $saleDate,
+                'status'             => $data['status'] ?? 'pending',
+                'payment_status'     => $data['payment_status'] ?? 'unpaid',
+                'customer_id'        => $data['customer_id'] ?? null,
+                'assigned_staff_id'  => $data['assigned_staff_id'] ?? null,
+                'appointment_id'     => $data['appointment_id'] ?? null,
+                'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                'notes'              => $data['notes'] ?? null,
+                'subtotal_cents'     => 0,
+                'discount_cents'     => 0,
+                'tax_cents'          => 0,
+                'surcharge_cents'    => 0,
+                'tip_cents'          => 0,
+                'total_cents'        => 0,
+            ]);
+
+            $position = 0;
+            foreach ($items as $itemData) {
+                $this->createSaleItem($sale, $itemData, $position++);
+            }
+
+            return $this->recalculate($sale->fresh('items'));
+        });
+    }
+
+    /**
+     * Create a single line item on a sale, snapshotting fields from source.
+     */
+    protected function createSaleItem(TenantSale $sale, array $data, int $position): TenantSaleItem
+    {
+        $type = $data['type'] ?? 'open_item';
+
+        $name           = $data['name_snapshot'] ?? null;
+        $description    = $data['description_snapshot'] ?? null;
+        $unitPriceCents = $data['unit_price_cents'] ?? null;
+        $costCents      = $data['cost_cents_snapshot'] ?? null;
+        $isTaxable      = $data['is_taxable'] ?? true;
+        $serviceId      = $data['service_id'] ?? null;
+        $inventoryItemId= $data['inventory_item_id'] ?? null;
+        $giftCardId     = $data['gift_card_id'] ?? null;
+
+        // Snapshot from source records when available
+        if ($type === 'service' && $serviceId) {
+            $service = TenantServiceItem::find($serviceId);
+            if ($service) {
+                $name           = $name           ?? $service->name;
+                $description    = $description    ?? $service->description;
+                $unitPriceCents = $unitPriceCents ?? (int) ($service->price_cents ?? 0);
+            }
+        } elseif ($type === 'product' && $inventoryItemId) {
+            $item = TenantInventoryItem::find($inventoryItemId);
+            if ($item) {
+                $name           = $name           ?? ($item->name ?? '');
+                $description    = $description    ?? ($item->description ?? null);
+                $unitPriceCents = $unitPriceCents ?? (int) ($item->price_cents ?? 0);
+                $costCents      = $costCents      ?? (int) ($item->cost_cents ?? 0);
+                $isTaxable      = $data['is_taxable'] ?? ($item->is_taxable ?? true);
+            }
+        }
+
+        if ($name === null || $name === '') {
+            throw new SaleValidationException(
+                'Sale item is missing a name_snapshot (required for type=' . $type . ').'
+            );
+        }
+        if ($unitPriceCents === null) {
+            throw new SaleValidationException(
+                'Sale item is missing unit_price_cents (required for type=' . $type . ').'
+            );
+        }
+
+        $quantity      = (float) ($data['quantity'] ?? 1);
+        $discountCents = (int) ($data['discount_cents'] ?? 0);
+
+        $grossCents     = (int) round($unitPriceCents * $quantity);
+        $lineTotalCents = max(0, $grossCents - $discountCents);
+
+        return TenantSaleItem::create([
+            'tenant_id'           => $sale->tenant_id,
+            'sale_id'             => $sale->id,
+            'type'                => $type,
+            'service_id'          => $serviceId,
+            'inventory_item_id'   => $inventoryItemId,
+            'gift_card_id'        => $giftCardId,
+            'name_snapshot'       => $name,
+            'description_snapshot'=> $description,
+            'cost_cents_snapshot' => $costCents,
+            'quantity'            => $quantity,
+            'unit_price_cents'    => $unitPriceCents,
+            'discount_cents'      => $discountCents,
+            'tax_rate_snapshot'   => null,
+            'is_taxable'          => $isTaxable,
+            'tax_cents'           => 0,
+            'tip_cents'           => 0,
+            'line_total_cents'    => $lineTotalCents,
+            'assigned_staff_id'   => $data['assigned_staff_id'] ?? null,
+            'position'            => $data['position'] ?? $position,
+            'notes'               => $data['notes'] ?? null,
+        ]);
+    }
+
+    /**
+     * Recompute sale totals from its items + tenant settings.
+     * Does NOT include surcharge — that is settlement-time logic.
+     */
+    public function recalculate(TenantSale $sale): TenantSale
+    {
+        $tenant = $sale->tenant;
+        $taxRate = (float) ($tenant->default_tax_rate ?? 0);
+        $taxServicesByDefault = (bool) ($tenant->tax_services_default ?? true);
+
+        $subtotal = 0;
+        $discount = 0;
+        $tax      = 0;
+
+        foreach ($sale->items as $item) {
+            $subtotal += $item->line_total_cents;
+            $discount += $item->discount_cents;
+
+            $shouldTax = $item->is_taxable
+                && ($item->type !== 'service' || $taxServicesByDefault);
+
+            if ($shouldTax && $taxRate > 0) {
+                $lineTax = (int) round($item->line_total_cents * ($taxRate / 100));
+                if ($lineTax !== $item->tax_cents
+                    || (string) $taxRate !== (string) $item->tax_rate_snapshot) {
+                    $item->update([
+                        'tax_cents'         => $lineTax,
+                        'tax_rate_snapshot' => $taxRate,
+                    ]);
+                }
+                $tax += $lineTax;
+            } else {
+                if ($item->tax_cents !== 0 || $item->tax_rate_snapshot !== null) {
+                    $item->update([
+                        'tax_cents'         => 0,
+                        'tax_rate_snapshot' => null,
+                    ]);
+                }
+            }
+        }
+
+        $total = $subtotal + $tax + $sale->tip_cents + $sale->surcharge_cents;
+
+        $sale->update([
+            'subtotal_cents' => $subtotal,
+            'discount_cents' => $discount,
+            'tax_cents'      => $tax,
+            'total_cents'    => $total,
+        ]);
+
+        return $sale->fresh('items');
+    }
+}
