@@ -86,9 +86,9 @@ class InventoryService
             'item_name_snapshot'  => $invItem->name,
             'item_sku_snapshot'   => $invItem->sku,
             'cost_cents_at_time'  => $invItem->effectiveCostCents(),
+            'location_id'         => $locationId,
             'reason'              => null,
             'notes'               => null,
-            'user_id'             => null,
             'created_at'          => now(),
         ]);
 
@@ -147,9 +147,9 @@ class InventoryService
             'item_name_snapshot'  => $invItem->name,
             'item_sku_snapshot'   => $invItem->sku,
             'cost_cents_at_time'  => $invItem->effectiveCostCents(),
+            'location_id'         => $locationId,
             'reason'              => null,
             'notes'               => null,
-            'user_id'             => null,
             'created_at'          => now(),
         ]);
 
