@@ -87,12 +87,15 @@ class SaleService
                 'appointment_id'     => $data['appointment_id'] ?? null,
                 'rang_up_by_user_id' => $data['rang_up_by_user_id'],
                 'location_id'        => $data['location_id'],
+                'payment_method'     => $data['payment_method'] ?? null,
+                'payment_reference'  => $data['payment_reference'] ?? null,
+                'paid_at'            => $data['paid_at'] ?? null,
                 'notes'              => $data['notes'] ?? null,
                 'subtotal_cents'     => 0,
                 'discount_cents'     => 0,
                 'tax_cents'          => 0,
                 'surcharge_cents'    => 0,
-                'tip_cents'          => 0,
+                'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
                 'total_cents'        => 0,
             ]);
 
