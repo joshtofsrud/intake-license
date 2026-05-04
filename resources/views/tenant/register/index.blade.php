@@ -425,11 +425,17 @@ function renderResults(data) {
   if (highlighted >= visibleResults.length) highlighted = 0;
   applyHighlight();
 
-  // Click handler — add the row's item
+  // Click handler — add the row's item, then clear search and refocus (same as Enter)
   resultsArea.querySelectorAll('[data-i]').forEach(row => {
     row.addEventListener('click', () => {
       const i = parseInt(row.dataset.i, 10);
       addToCart(visibleResults[i]);
+      searchInput.value = '';
+      visibleResults = [];
+      highlighted = 0;
+      resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+      document.getElementById('regHint').style.display = 'none';
+      searchInput.focus();
     });
   });
 
