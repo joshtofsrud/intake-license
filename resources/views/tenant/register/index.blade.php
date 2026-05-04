@@ -162,7 +162,7 @@
     <p class="ia-page-subtitle">Walk-in sales and retail checkouts.</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.register.refunds.index') }}" class="ia-btn ia-btn--ghost">Refunds</a>
+    <a href="{{ route('tenant.register.refunds.index') }}" class="ia-btn ia-btn--primary">Refunds</a>
   </div>
 </div>
 

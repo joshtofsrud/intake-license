@@ -15,7 +15,7 @@
     <p class="ia-page-subtitle">{{ $greeting['date_long'] }}</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--ghost">
+    <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
       + New sale
     </a>
     <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--primary">
