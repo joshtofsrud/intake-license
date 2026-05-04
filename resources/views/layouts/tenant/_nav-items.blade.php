@@ -42,6 +42,12 @@
       'gate'   => 'retail_enabled',
     ],
     [
+      'route'  => 'tenant.register.index',
+      'label'  => 'Register',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="3.5" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 3.5V2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10.5 3.5V2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M4 6h6M4 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => null,
+    ],
+    [
       'route'  => 'tenant.services.index',
       'label'  => 'Services',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',

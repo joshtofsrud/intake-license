@@ -1,408 +1,341 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Register — {{ $tenant->name }}</title>
-  @if($tenant->favicon_url)
-    <link rel="icon" href="{{ $tenant->favicon_url }}">
-  @endif
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;font-size:14px}
-    :root{
-      --accent: {{ $tenant->accent_color ?? '#BEF264' }};
-      --accent-text: {{ \App\Support\ColorHelper::accentTextColor($tenant->accent_color ?? '#BEF264') }};
-      --bg:     #0f0f0f;
-      --bg2:    #1a1a1a;
-      --bg3:    #232323;
-      --text:   #f0f0f0;
-      --muted:  rgba(255,255,255,.45);
-      --muted2: rgba(255,255,255,.65);
-      --border: rgba(255,255,255,.1);
-      --border2:rgba(255,255,255,.18);
-      --danger: #F09595;
-      --danger-bg: rgba(226,75,74,.15);
-    }
+@extends('layouts.tenant.app')
 
-    .topbar{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:12px 24px;background:var(--bg2);border-bottom:0.5px solid var(--border);
-      position:sticky;top:0;z-index:50
-    }
-    .topbar-left{display:flex;align-items:center;gap:14px}
-    .topbar-brand{font-weight:600;font-size:15px}
-    .loc-pill{
-      display:inline-flex;align-items:center;gap:6px;
-      padding:5px 10px;border-radius:99px;
-      background:rgba(190,242,100,.08);border:0.5px solid var(--border2);
-      font-size:12px;color:var(--muted2)
-    }
-    .loc-pill .dot{width:6px;height:6px;border-radius:99px;background:var(--accent)}
-    .topbar-right{display:flex;align-items:center;gap:18px;font-size:13px}
-    .topbar-right a{color:var(--muted2);transition:color .12s}
-    .topbar-right a:hover{color:var(--text)}
+@php $pageTitle = 'Register'; @endphp
 
-    .main{
-      display:grid;grid-template-columns:1fr 420px;gap:18px;
-      max-width:1400px;margin:0 auto;padding:18px 24px;
-      min-height:calc(100vh - 50px)
-    }
-    @media(max-width:900px){
-      .main{grid-template-columns:1fr;padding:14px}
-    }
+@push('styles')
+<style>
+  .reg-page { --reg-danger: #F09595; --reg-danger-bg: rgba(226,75,74,.15); }
 
-    .panel{background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:18px}
-    .search-input{
-      width:100%;padding:12px 14px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:10px;color:var(--text);font-size:14px;font-family:inherit
-    }
-    .search-input:focus{outline:none;border-color:var(--accent)}
-    .search-tabs{display:flex;gap:6px;margin:12px 0 14px}
-    .search-tab{
-      padding:6px 12px;background:transparent;border:0.5px solid var(--border);
-      border-radius:99px;color:var(--muted);font-size:12px;font-family:inherit;cursor:pointer
-    }
-    .search-tab.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+  .reg-grid {
+    display:grid;grid-template-columns:1fr 420px;gap:18px;
+  }
+  @media(max-width:900px){ .reg-grid{grid-template-columns:1fr} }
 
-    .results-section{margin-top:14px}
-    .results-section h3{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
-    .result-row{
-      display:flex;align-items:center;justify-content:space-between;gap:12px;
-      padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .12s
-    }
-    .result-row:hover{background:var(--bg3)}
-    .result-name{font-weight:500;font-size:14px}
-    .result-meta{font-size:12px;color:var(--muted)}
-    .result-price{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap}
+  .reg-panel{
+    background:var(--ia-surface);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-lg);padding:18px
+  }
 
-    .open-item-btn{
-      width:100%;margin-top:10px;padding:10px 14px;
-      background:transparent;border:0.5px dashed var(--border2);border-radius:10px;
-      color:var(--muted2);font-size:13px;font-family:inherit;cursor:pointer;transition:all .12s
-    }
-    .open-item-btn:hover{border-color:var(--accent);color:var(--text)}
+  .reg-search{
+    width:100%;padding:12px 14px;background:var(--ia-input-bg);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);
+    color:var(--ia-text);font-size:14px;font-family:inherit
+  }
+  .reg-search:focus{outline:none;border-color:var(--ia-accent)}
 
-    .cart-customer{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      padding:10px 12px;background:var(--bg3);border-radius:10px;margin-bottom:14px;
-      font-size:13px
-    }
-    .cart-customer .name{font-weight:500}
-    .cart-customer .clear{color:var(--muted);cursor:pointer;font-size:11px}
-    .cart-customer .clear:hover{color:var(--danger)}
-    .attach-customer{
-      width:100%;padding:10px;background:transparent;border:0.5px dashed var(--border2);
-      border-radius:10px;color:var(--muted2);font-size:13px;font-family:inherit;cursor:pointer;transition:all .12s;margin-bottom:14px
-    }
-    .attach-customer:hover{border-color:var(--accent);color:var(--text)}
+  .reg-tabs{display:flex;gap:6px;margin:12px 0 14px}
+  .reg-tab{
+    padding:6px 12px;background:transparent;border:0.5px solid var(--ia-border);
+    border-radius:99px;color:var(--ia-text-dim);font-size:12px;font-family:inherit;cursor:pointer
+  }
+  .reg-tab.active{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
 
-    .cart-lines{
-      max-height:340px;overflow-y:auto;margin:0 -4px 14px;padding:0 4px;
-      border-bottom:0.5px solid var(--border);padding-bottom:14px
-    }
-    .cart-line{
-      display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;
-      padding:10px 4px
-    }
-    .cart-line .name{font-size:13px;font-weight:500;line-height:1.3}
-    .cart-line .meta{font-size:11px;color:var(--muted);margin-top:2px}
-    .cart-line .qty{
-      width:50px;padding:5px 8px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:6px;color:var(--text);font-size:13px;font-family:inherit;text-align:center
-    }
-    .cart-line .qty:focus{outline:none;border-color:var(--accent)}
-    .cart-line .total{font-size:13px;font-weight:600;text-align:right;min-width:62px}
-    .cart-line .remove{
-      background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1
-    }
-    .cart-line .remove:hover{color:var(--danger)}
-    .empty-cart{padding:30px 0;text-align:center;color:var(--muted);font-size:13px}
+  .reg-results-section{margin-top:14px}
+  .reg-results-section h3{
+    font-size:11px;font-weight:600;color:var(--ia-text-dim);
+    text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px
+  }
+  .reg-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:10px 12px;border-radius:var(--ia-r-md);cursor:pointer;transition:background var(--ia-t)
+  }
+  .reg-row:hover{background:var(--ia-hover)}
+  .reg-row .name{font-weight:500;font-size:14px}
+  .reg-row .meta{font-size:12px;color:var(--ia-text-dim)}
+  .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
 
-    .totals{font-size:13px}
-    .totals-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--muted2)}
-    .totals-row.grand{font-size:18px;font-weight:600;color:var(--text);padding-top:10px;margin-top:6px;border-top:0.5px solid var(--border)}
+  .reg-open-item{
+    width:100%;margin-top:10px;padding:10px 14px;
+    background:transparent;border:0.5px dashed var(--ia-border-strong);
+    border-radius:var(--ia-r-md);color:var(--ia-text-muted);
+    font-size:13px;font-family:inherit;cursor:pointer;transition:all var(--ia-t)
+  }
+  .reg-open-item:hover{border-color:var(--ia-accent);color:var(--ia-text)}
 
-    .pay-btn{
-      width:100%;margin-top:16px;padding:14px;background:var(--accent);color:var(--accent-text);
-      border:none;border-radius:10px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;
-      transition:filter .12s
-    }
-    .pay-btn:hover:not(:disabled){filter:brightness(.93)}
-    .pay-btn:disabled{opacity:.4;cursor:not-allowed}
+  .reg-cust{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 12px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);
+    margin-bottom:14px;font-size:13px
+  }
+  .reg-cust .name{font-weight:500}
+  .reg-cust .clear{color:var(--ia-text-dim);cursor:pointer;font-size:11px}
+  .reg-cust .clear:hover{color:var(--reg-danger)}
 
-    .err-banner{
-      background:var(--danger-bg);color:var(--danger);border-radius:8px;
-      padding:10px 12px;font-size:13px;margin-bottom:12px
-    }
+  .reg-attach{
+    width:100%;padding:10px;background:transparent;border:0.5px dashed var(--ia-border-strong);
+    border-radius:var(--ia-r-md);color:var(--ia-text-muted);font-size:13px;
+    font-family:inherit;cursor:pointer;transition:all var(--ia-t);margin-bottom:14px
+  }
+  .reg-attach:hover{border-color:var(--ia-accent);color:var(--ia-text)}
 
-    .modal-bg{
-      position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100;padding:20px
-    }
-    .modal-bg.open{display:flex}
-    .modal{
-      background:var(--bg2);border:0.5px solid var(--border);border-radius:16px;
-      padding:24px;width:100%;max-width:420px
-    }
-    .modal h2{font-size:18px;font-weight:600;margin-bottom:8px}
-    .modal .lede{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .reg-lines{
+    max-height:340px;overflow-y:auto;margin:0 -4px 14px;padding:0 4px;
+    border-bottom:0.5px solid var(--ia-border);padding-bottom:14px
+  }
+  .reg-line{
+    display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 4px
+  }
+  .reg-line .name{font-size:13px;font-weight:500;line-height:1.3}
+  .reg-line .meta{font-size:11px;color:var(--ia-text-dim);margin-top:2px}
+  .reg-line .qty{
+    width:50px;padding:5px 8px;background:var(--ia-input-bg);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
+    color:var(--ia-text);font-size:13px;font-family:inherit;text-align:center
+  }
+  .reg-line .qty:focus{outline:none;border-color:var(--ia-accent)}
+  .reg-line .total{font-size:13px;font-weight:600;text-align:right;min-width:62px}
+  .reg-line .remove{background:transparent;border:none;color:var(--ia-text-dim);font-size:16px;cursor:pointer;padding:0 4px;line-height:1}
+  .reg-line .remove:hover{color:var(--reg-danger)}
+  .reg-empty{padding:30px 0;text-align:center;color:var(--ia-text-dim);font-size:13px}
 
-    .tender-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-    .tender-btn{
-      padding:14px 12px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:10px;color:var(--text);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;
-      transition:all .12s;text-align:left
-    }
-    .tender-btn:hover{border-color:var(--accent)}
-    .tender-btn.selected{border-color:var(--accent);background:rgba(190,242,100,.05)}
+  .reg-totals{font-size:13px}
+  .reg-totals-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--ia-text-muted)}
+  .reg-totals-row.grand{font-size:18px;font-weight:600;color:var(--ia-text);padding-top:10px;margin-top:6px;border-top:0.5px solid var(--ia-border)}
 
-    .tip-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
-    .tip-btn{
-      padding:12px 10px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:10px;color:var(--text);font-size:13px;font-family:inherit;cursor:pointer;
-      transition:all .12s
-    }
-    .tip-btn:hover{border-color:var(--accent)}
-    .tip-btn.selected{border-color:var(--accent);background:rgba(190,242,100,.05)}
-    .tip-custom-row{display:flex;gap:8px;align-items:center;margin-top:6px}
-    .tip-custom-row input{
-      flex:1;padding:10px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:8px;color:var(--text);font-size:14px;font-family:inherit
-    }
-    .tip-custom-row input:focus{outline:none;border-color:var(--accent)}
+  .reg-pay{
+    width:100%;margin-top:16px;padding:14px;background:var(--ia-accent);color:var(--ia-accent-text);
+    border:none;border-radius:var(--ia-r-md);font-size:15px;font-weight:600;
+    font-family:inherit;cursor:pointer;transition:filter var(--ia-t)
+  }
+  .reg-pay:hover:not(:disabled){filter:brightness(.93)}
+  .reg-pay:disabled{opacity:.4;cursor:not-allowed}
 
-    .modal-actions{display:flex;gap:8px;margin-top:18px}
-    .btn-secondary{
-      flex:1;padding:11px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:8px;color:var(--text);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .12s
-    }
-    .btn-secondary:hover{border-color:var(--border2)}
-    .btn-primary{
-      flex:1;padding:11px;background:var(--accent);color:var(--accent-text);
-      border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:filter .12s
-    }
-    .btn-primary:hover:not(:disabled){filter:brightness(.93)}
-    .btn-primary:disabled{opacity:.4;cursor:not-allowed}
+  .reg-err{background:var(--reg-danger-bg);color:var(--reg-danger);border-radius:var(--ia-r-sm);padding:10px 12px;font-size:13px;margin-bottom:12px}
 
-    .modal input[type=text]{
-      width:100%;padding:10px;background:var(--bg3);border:0.5px solid var(--border);
-      border-radius:8px;color:var(--text);font-size:14px;font-family:inherit
-    }
-    .modal input[type=text]:focus{outline:none;border-color:var(--accent)}
+  .reg-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+  .reg-modal-bg.open{display:flex}
+  .reg-modal{
+    background:var(--ia-surface);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-xl);padding:24px;width:100%;max-width:420px
+  }
+  .reg-modal h2{font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ia-text)}
+  .reg-modal .lede{color:var(--ia-text-dim);font-size:13px;margin-bottom:18px}
 
-    .receipt{text-align:center}
-    .receipt h2{font-size:24px;margin-bottom:6px}
-    .receipt .num{font-size:13px;color:var(--muted);margin-bottom:18px;font-family:'SF Mono','Menlo',monospace}
-    .receipt .total{font-size:36px;font-weight:700;margin:14px 0}
-    .receipt-actions{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+  .reg-tender-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .reg-tender-btn{
+    padding:14px 12px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;font-weight:500;
+    font-family:inherit;cursor:pointer;transition:all var(--ia-t);text-align:left
+  }
+  .reg-tender-btn:hover{border-color:var(--ia-accent)}
+  .reg-tender-btn.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
 
-    .cust-results{
-      position:absolute;top:100%;left:0;right:0;background:var(--bg2);
-      border:0.5px solid var(--border);border-radius:10px;margin-top:4px;
-      max-height:240px;overflow-y:auto;z-index:10
-    }
-    .cust-results .row{padding:10px 12px;cursor:pointer;border-bottom:0.5px solid var(--border)}
-    .cust-results .row:hover{background:var(--bg3)}
-    .cust-results .row:last-child{border-bottom:none}
+  .reg-tip-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+  .reg-tip-btn{
+    padding:12px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;font-family:inherit;cursor:pointer;transition:all var(--ia-t)
+  }
+  .reg-tip-btn:hover{border-color:var(--ia-accent)}
+  .reg-tip-btn.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
 
-  </style>
-</head>
-<body>
+  .reg-tip-custom{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .reg-tip-custom input{flex:1;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
+  .reg-tip-custom input:focus{outline:none;border-color:var(--ia-accent)}
 
-<div class="topbar">
-  <div class="topbar-left">
-    <span class="topbar-brand">{{ $tenant->name }} — Register</span>
-    <span class="loc-pill" id="locPill">
-      <span class="dot"></span>
-      <span id="locName">…</span>
-    </span>
+  .reg-modal-actions{display:flex;gap:8px;margin-top:18px}
+  .reg-btn-secondary{flex:1;padding:11px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all var(--ia-t)}
+  .reg-btn-secondary:hover{border-color:var(--ia-border-strong)}
+  .reg-btn-primary{flex:1;padding:11px;background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:var(--ia-r-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:filter var(--ia-t)}
+  .reg-btn-primary:hover:not(:disabled){filter:brightness(.93)}
+  .reg-btn-primary:disabled{opacity:.4;cursor:not-allowed}
+
+  .reg-modal input[type=text]{width:100%;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
+  .reg-modal input[type=text]:focus{outline:none;border-color:var(--ia-accent)}
+
+  .reg-receipt{text-align:center}
+  .reg-receipt h2{font-size:24px;margin-bottom:6px}
+  .reg-receipt .num{font-size:13px;color:var(--ia-text-dim);margin-bottom:18px;font-family:var(--ia-font-mono)}
+  .reg-receipt .total{font-size:36px;font-weight:700;margin:14px 0}
+
+  .reg-cust-results{position:absolute;top:100%;left:0;right:0;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);margin-top:4px;max-height:240px;overflow-y:auto;z-index:10}
+  .reg-cust-results .row{padding:10px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border)}
+  .reg-cust-results .row:hover{background:var(--ia-hover)}
+  .reg-cust-results .row:last-child{border-bottom:none}
+</style>
+@endpush
+
+@section('content')
+
+<div class="ia-page-head">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">Register</h1>
+    <p class="ia-page-subtitle">Walk-in sales and retail checkouts.</p>
   </div>
-  <div class="topbar-right">
-    <a href="{{ route('tenant.register.refunds.index') }}">Refunds</a>
-    <a href="{{ route('tenant.dashboard') }}">Dashboard</a>
-    <a href="#" id="logoutLink">Sign out</a>
-    <form id="logoutForm" method="POST" action="{{ route('tenant.logout') }}" style="display:none">@csrf</form>
+  <div class="ia-page-actions">
+    <a href="{{ route('tenant.register.refunds.index') }}" class="ia-btn ia-btn--ghost">Refunds</a>
   </div>
 </div>
 
-<div class="main">
+<div class="reg-page">
 
-  <div class="panel">
-    <input type="text" class="search-input" id="searchInput" placeholder="Search products, services, customers…" autocomplete="off">
+  <div class="reg-grid">
 
-    <div class="search-tabs">
-      <button type="button" class="search-tab active" data-type="all">All</button>
-      <button type="button" class="search-tab" data-type="product">Products</button>
-      <button type="button" class="search-tab" data-type="service">Services</button>
+    <div class="reg-panel">
+      <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off">
+
+      <div class="reg-tabs">
+        <button type="button" class="reg-tab active" data-type="all">All</button>
+        <button type="button" class="reg-tab" data-type="product">Products</button>
+        <button type="button" class="reg-tab" data-type="service">Services</button>
+      </div>
+
+      <div id="resultsArea">
+        <div class="reg-empty">Type to search products and services.</div>
+      </div>
+
+      <button type="button" class="reg-open-item" id="addOpenItemBtn">+ Add custom item</button>
     </div>
 
-    <div id="resultsArea">
-      <div class="empty-cart" id="emptyResults">Type to search products and services.</div>
+    <div class="reg-panel">
+      <div id="errBanner" class="reg-err" style="display:none"></div>
+
+      <div id="customerSlot">
+        <button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>
+      </div>
+
+      <div class="reg-lines" id="cartLines">
+        <div class="reg-empty">Cart is empty.</div>
+      </div>
+
+      <div class="reg-totals">
+        <div class="reg-totals-row"><span>Subtotal</span><span id="subVal">$0.00</span></div>
+        <div class="reg-totals-row" id="discountRow" style="display:none"><span>Discount</span><span id="discVal">-$0.00</span></div>
+        <div class="reg-totals-row"><span>Tax</span><span id="taxVal">$0.00</span></div>
+        <div class="reg-totals-row" id="surchargeRow" style="display:none"><span id="surchLabel">Surcharge</span><span id="surchVal">$0.00</span></div>
+        <div class="reg-totals-row" id="tipRow" style="display:none"><span>Tip</span><span id="tipVal">$0.00</span></div>
+        <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
+      </div>
+
+      <button type="button" class="reg-pay" id="payBtn" disabled>Mark Paid</button>
     </div>
 
-    <button type="button" class="open-item-btn" id="addOpenItemBtn">+ Add custom item</button>
-  </div>
-
-  <div class="panel" id="cartPanel">
-
-    <div id="errBanner" class="err-banner" style="display:none"></div>
-
-    <div id="customerSlot">
-      <button type="button" class="attach-customer" id="attachCustBtn">+ Attach customer</button>
-    </div>
-
-    <div class="cart-lines" id="cartLines">
-      <div class="empty-cart">Cart is empty.</div>
-    </div>
-
-    <div class="totals">
-      <div class="totals-row"><span>Subtotal</span><span id="subVal">$0.00</span></div>
-      <div class="totals-row" id="discountRow" style="display:none"><span>Discount</span><span id="discVal">-$0.00</span></div>
-      <div class="totals-row"><span>Tax</span><span id="taxVal">$0.00</span></div>
-      <div class="totals-row" id="surchargeRow" style="display:none"><span id="surchLabel">Surcharge</span><span id="surchVal">$0.00</span></div>
-      <div class="totals-row" id="tipRow" style="display:none"><span>Tip</span><span id="tipVal">$0.00</span></div>
-      <div class="totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
-    </div>
-
-    <button type="button" class="pay-btn" id="payBtn" disabled>Mark Paid</button>
   </div>
 
 </div>
 
-<div class="modal-bg" id="tenderModal">
-  <div class="modal">
+<div class="reg-modal-bg" id="tenderModal">
+  <div class="reg-modal">
     <h2>Choose tender</h2>
     <div class="lede">How is the customer paying?</div>
-    <div class="tender-grid">
-      <button type="button" class="tender-btn" data-tender="cash">Cash</button>
-      <button type="button" class="tender-btn" data-tender="card">Card</button>
-      <button type="button" class="tender-btn" data-tender="check">Check</button>
-      <button type="button" class="tender-btn" data-tender="store_credit">Store credit</button>
-      <button type="button" class="tender-btn" data-tender="mark_paid">Mark paid (no tender)</button>
+    <div class="reg-tender-grid">
+      <button type="button" class="reg-tender-btn" data-tender="cash">Cash</button>
+      <button type="button" class="reg-tender-btn" data-tender="card">Card</button>
+      <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
+      <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
+      <button type="button" class="reg-tender-btn" data-tender="mark_paid">Mark paid (no tender)</button>
     </div>
     <div id="tenderRefRow" style="display:none;margin-bottom:14px">
-      <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
       <input type="text" id="tenderRefInput" placeholder="Check #, last 4 of card, etc.">
     </div>
-    <div class="modal-actions">
-      <button type="button" class="btn-secondary" data-close-modal="tenderModal">Cancel</button>
-      <button type="button" class="btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
     </div>
   </div>
 </div>
 
-<div class="modal-bg" id="tipModal">
-  <div class="modal">
+<div class="reg-modal-bg" id="tipModal">
+  <div class="reg-modal">
     <h2>Add tip?</h2>
     <div class="lede">Optional. Choose an amount or skip.</div>
-    <div class="tip-grid" id="tipGrid"></div>
-    <div class="tip-custom-row">
+    <div class="reg-tip-grid" id="tipGrid"></div>
+    <div class="reg-tip-custom">
       <input type="text" id="tipCustomInput" placeholder="Custom amount">
-      <button type="button" class="btn-secondary" id="tipClearBtn" style="padding:10px 14px;flex:0">Clear</button>
+      <button type="button" class="reg-btn-secondary" id="tipClearBtn" style="padding:10px 14px;flex:0">Clear</button>
     </div>
-    <div class="modal-actions">
-      <button type="button" class="btn-secondary" id="tipSkipBtn">Skip tip</button>
-      <button type="button" class="btn-primary" id="tipConfirmBtn">Add tip & continue</button>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="tipSkipBtn">Skip tip</button>
+      <button type="button" class="reg-btn-primary" id="tipConfirmBtn">Add tip & continue</button>
     </div>
   </div>
 </div>
 
-<div class="modal-bg" id="openItemModal">
-  <div class="modal">
+<div class="reg-modal-bg" id="openItemModal">
+  <div class="reg-modal">
     <h2>Custom item</h2>
     <div class="lede">For one-off items not in inventory.</div>
     <div style="margin-bottom:12px">
-      <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Description</label>
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Description</label>
       <input type="text" id="openItemName" placeholder="What is it?">
     </div>
     <div style="margin-bottom:6px">
-      <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Price</label>
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Price</label>
       <input type="text" id="openItemPrice" placeholder="0.00" inputmode="decimal">
     </div>
-    <div class="modal-actions">
-      <button type="button" class="btn-secondary" data-close-modal="openItemModal">Cancel</button>
-      <button type="button" class="btn-primary" id="openItemAddBtn">Add to cart</button>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="openItemModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="openItemAddBtn">Add to cart</button>
     </div>
   </div>
 </div>
 
-<div class="modal-bg" id="customerModal">
-  <div class="modal">
+<div class="reg-modal-bg" id="customerModal">
+  <div class="reg-modal">
     <h2>Attach customer</h2>
     <div style="margin-bottom:12px;position:relative">
       <input type="text" id="customerSearchInput" placeholder="Name, email, or phone" autocomplete="off">
-      <div class="cust-results" id="customerResults" style="display:none"></div>
+      <div class="reg-cust-results" id="customerResults" style="display:none"></div>
     </div>
-    <div class="modal-actions">
-      <button type="button" class="btn-secondary" data-close-modal="customerModal">Cancel</button>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="customerModal">Cancel</button>
     </div>
   </div>
 </div>
 
-<div class="modal-bg" id="receiptModal">
-  <div class="modal receipt">
+<div class="reg-modal-bg" id="receiptModal">
+  <div class="reg-modal reg-receipt">
     <h2>Sale complete</h2>
     <div class="num" id="receiptNum"></div>
     <div class="total" id="receiptTotal"></div>
-    <div class="receipt-actions">
-      <button type="button" class="btn-primary" id="receiptNewSale">New sale</button>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-primary" id="receiptNewSale">New sale</button>
     </div>
   </div>
 </div>
 
+@endsection
+
+@push('scripts')
 <script>
 const ROUTES = {
-  search:        @json(route('tenant.register.search')),
-  storeSale:     @json(route('tenant.register.sales.store')),
+  search:    @json(route('tenant.register.search')),
+  storeSale: @json(route('tenant.register.sales.store')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
-  taxRate:       {{ $taxRate ?? 0 }},
-  taxLabel:      @json($taxLabel ?? ''),
-  tipsEnabled:   {{ $tipsConfig['enabled'] ? 'true' : 'false' }},
-  tipMethod:     @json($tipsConfig['method'] ?? null),
-  tipOptions:    @json($tipsConfig['options'] ?? []),
-  tipAllowCustom:{{ $tipsConfig['allow_custom'] ? 'true' : 'false' }},
-  surchargeOn:   {{ $surchargeConfig['enabled'] ? 'true' : 'false' }},
-  surchargePct:  {{ $surchargeConfig['percent'] ?? 0 }},
-  surchargeLabel:@json($surchargeConfig['label'] ?? 'Surcharge'),
+  taxRate:        {{ $taxRate ?? 0 }},
+  taxLabel:       @json($taxLabel ?? ''),
+  tipsEnabled:    {{ $tipsConfig['enabled'] ? 'true' : 'false' }},
+  tipMethod:      @json($tipsConfig['method'] ?? null),
+  tipOptions:     @json($tipsConfig['options'] ?? []),
+  tipAllowCustom: {{ $tipsConfig['allow_custom'] ? 'true' : 'false' }},
+  surchargeOn:    {{ $surchargeConfig['enabled'] ? 'true' : 'false' }},
+  surchargePct:   {{ $surchargeConfig['percent'] ?? 0 }},
+  surchargeLabel: @json($surchargeConfig['label'] ?? 'Surcharge'),
 };
 
 const cart = {
-  customer: null,
-  items: [],
-  tipCents: 0,
-  discountCents: 0,
-  payment_method: null,
-  payment_reference: null,
+  customer: null, items: [], tipCents: 0, discountCents: 0,
+  payment_method: null, payment_reference: null,
 };
-
 const fmt = (cents) => '$' + (cents / 100).toFixed(2);
 const fmtNeg = (cents) => '-$' + (cents / 100).toFixed(2);
 let lineKey = 0;
-
-async function loadLocation() {
-  document.getElementById('locName').textContent = 'Current location';
-}
-loadLocation();
 
 const searchInput = document.getElementById('searchInput');
 const resultsArea = document.getElementById('resultsArea');
 let searchType = 'all';
 let searchTimer = null;
 
-document.querySelectorAll('.search-tab').forEach(tab => {
+document.querySelectorAll('.reg-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.reg-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     searchType = tab.dataset.type;
     runSearch();
   });
 });
-
 searchInput.addEventListener('input', () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(runSearch, 250);
@@ -411,7 +344,7 @@ searchInput.addEventListener('input', () => {
 async function runSearch() {
   const q = searchInput.value.trim();
   if (q.length < 2) {
-    resultsArea.innerHTML = '<div class="empty-cart" id="emptyResults">Type to search products and services.</div>';
+    resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
     return;
   }
   try {
@@ -422,35 +355,34 @@ async function runSearch() {
     const data = await res.json();
     renderResults(data);
   } catch (e) {
-    resultsArea.innerHTML = '<div class="empty-cart">Search failed.</div>';
+    resultsArea.innerHTML = '<div class="reg-empty">Search failed.</div>';
   }
 }
 
 function renderResults(data) {
   let html = '';
   if (data.products && data.products.length) {
-    html += '<div class="results-section"><h3>Products</h3>';
+    html += '<div class="reg-results-section"><h3>Products</h3>';
     data.products.forEach(p => {
-      html += `<div class="result-row" data-add='${JSON.stringify({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable})}'>
-        <div><div class="result-name">${escapeHtml(p.name)}</div><div class="result-meta">${escapeHtml(p.sku || '')}</div></div>
-        <div class="result-price">${fmt(p.price_cents)}</div>
+      html += `<div class="reg-row" data-add='${JSON.stringify({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable})}'>
+        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.sku || '')}</div></div>
+        <div class="price">${fmt(p.price_cents)}</div>
       </div>`;
     });
     html += '</div>';
   }
   if (data.services && data.services.length) {
-    html += '<div class="results-section"><h3>Services</h3>';
+    html += '<div class="reg-results-section"><h3>Services</h3>';
     data.services.forEach(s => {
-      html += `<div class="result-row" data-add='${JSON.stringify({type:'service',source_id:s.id,name:s.name,price_cents:s.price_cents,is_taxable:true})}'>
-        <div><div class="result-name">${escapeHtml(s.name)}</div><div class="result-meta">${s.duration_minutes || 0} min</div></div>
-        <div class="result-price">${fmt(s.price_cents)}</div>
+      html += `<div class="reg-row" data-add='${JSON.stringify({type:'service',source_id:s.id,name:s.name,price_cents:s.price_cents,is_taxable:true})}'>
+        <div><div class="name">${escapeHtml(s.name)}</div><div class="meta">${s.duration_minutes || 0} min</div></div>
+        <div class="price">${fmt(s.price_cents)}</div>
       </div>`;
     });
     html += '</div>';
   }
-  if (!html) html = '<div class="empty-cart">No matches.</div>';
+  if (!html) html = '<div class="reg-empty">No matches.</div>';
   resultsArea.innerHTML = html;
-
   resultsArea.querySelectorAll('[data-add]').forEach(row => {
     row.addEventListener('click', () => {
       const data = JSON.parse(row.dataset.add);
@@ -467,28 +399,19 @@ function escapeHtml(s) {
 
 function addToCart(item) {
   cart.items.push({
-    key: ++lineKey,
-    type: item.type,
-    source_id: item.source_id,
-    name: item.name,
-    price_cents: item.price_cents,
-    qty: 1,
+    key: ++lineKey, type: item.type, source_id: item.source_id,
+    name: item.name, price_cents: item.price_cents, qty: 1,
     is_taxable: item.is_taxable !== false,
   });
   renderCart();
 }
-
 function removeLine(key) {
   cart.items = cart.items.filter(i => i.key !== key);
   renderCart();
 }
-
 function updateQty(key, qty) {
   const n = parseFloat(qty);
-  if (isNaN(n) || n <= 0) {
-    removeLine(key);
-    return;
-  }
+  if (isNaN(n) || n <= 0) { removeLine(key); return; }
   const line = cart.items.find(i => i.key === key);
   if (line) line.qty = n;
   renderCart();
@@ -497,11 +420,11 @@ function updateQty(key, qty) {
 function renderCart() {
   const lines = document.getElementById('cartLines');
   if (!cart.items.length) {
-    lines.innerHTML = '<div class="empty-cart">Cart is empty.</div>';
+    lines.innerHTML = '<div class="reg-empty">Cart is empty.</div>';
     document.getElementById('payBtn').disabled = true;
   } else {
     lines.innerHTML = cart.items.map(i => `
-      <div class="cart-line">
+      <div class="reg-line">
         <div>
           <div class="name">${escapeHtml(i.name)}</div>
           <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
@@ -515,7 +438,6 @@ function renderCart() {
     `).join('');
     document.getElementById('payBtn').disabled = false;
   }
-
   lines.querySelectorAll('[data-key]').forEach(input => {
     input.addEventListener('change', () => updateQty(parseInt(input.dataset.key, 10), input.value));
   });
@@ -526,7 +448,7 @@ function renderCart() {
   const slot = document.getElementById('customerSlot');
   if (cart.customer) {
     slot.innerHTML = `
-      <div class="cart-customer">
+      <div class="reg-cust">
         <div><span class="name">${escapeHtml(cart.customer.name)}</span></div>
         <span class="clear" id="clearCust">Remove</span>
       </div>`;
@@ -535,22 +457,17 @@ function renderCart() {
       renderCart();
     });
   } else {
-    slot.innerHTML = `<button type="button" class="attach-customer" id="attachCustBtn">+ Attach customer</button>`;
+    slot.innerHTML = `<button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>`;
     document.getElementById('attachCustBtn').addEventListener('click', openCustomerModal);
   }
-
   renderTotals();
 }
 
-function calcSubtotal() {
-  return cart.items.reduce((sum, i) => sum + Math.round(i.price_cents * i.qty), 0);
-}
+function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(i.price_cents * i.qty), 0); }
 function calcTax() {
   if (!CFG.taxRate) return 0;
   let taxable = 0;
-  cart.items.forEach(i => {
-    if (i.is_taxable) taxable += Math.round(i.price_cents * i.qty);
-  });
+  cart.items.forEach(i => { if (i.is_taxable) taxable += Math.round(i.price_cents * i.qty); });
   return Math.round(taxable * (CFG.taxRate / 100));
 }
 function calcSurcharge() {
@@ -571,27 +488,12 @@ function renderTotals() {
   document.getElementById('taxVal').textContent = fmt(tax);
   document.getElementById('totalVal').textContent = fmt(total);
 
-  if (disc > 0) {
-    document.getElementById('discountRow').style.display = '';
-    document.getElementById('discVal').textContent = fmtNeg(disc);
-  } else {
-    document.getElementById('discountRow').style.display = 'none';
-  }
-
-  if (surch > 0) {
-    document.getElementById('surchargeRow').style.display = '';
-    document.getElementById('surchLabel').textContent = CFG.surchargeLabel;
-    document.getElementById('surchVal').textContent = fmt(surch);
-  } else {
-    document.getElementById('surchargeRow').style.display = 'none';
-  }
-
-  if (tip > 0) {
-    document.getElementById('tipRow').style.display = '';
-    document.getElementById('tipVal').textContent = fmt(tip);
-  } else {
-    document.getElementById('tipRow').style.display = 'none';
-  }
+  if (disc > 0) { document.getElementById('discountRow').style.display = ''; document.getElementById('discVal').textContent = fmtNeg(disc); }
+  else { document.getElementById('discountRow').style.display = 'none'; }
+  if (surch > 0) { document.getElementById('surchargeRow').style.display = ''; document.getElementById('surchLabel').textContent = CFG.surchargeLabel; document.getElementById('surchVal').textContent = fmt(surch); }
+  else { document.getElementById('surchargeRow').style.display = 'none'; }
+  if (tip > 0) { document.getElementById('tipRow').style.display = ''; document.getElementById('tipVal').textContent = fmt(tip); }
+  else { document.getElementById('tipRow').style.display = 'none'; }
 }
 
 document.getElementById('addOpenItemBtn').addEventListener('click', () => {
@@ -631,14 +533,14 @@ async function searchCustomers() {
     const res = await fetch(url, {headers:{'Accept':'application/json'}});
     const data = await res.json();
     if (!data.customers || !data.customers.length) {
-      box.innerHTML = '<div class="row" style="color:var(--muted)">No matches.</div>';
+      box.innerHTML = '<div class="row" style="color:var(--ia-text-dim)">No matches.</div>';
       box.style.display = '';
       return;
     }
     box.innerHTML = data.customers.map(c => `
       <div class="row" data-cust='${JSON.stringify(c)}'>
         <div style="font-weight:500">${escapeHtml(c.name || '(no name)')}</div>
-        <div style="font-size:11px;color:var(--muted)">${escapeHtml(c.email || c.phone || '')}</div>
+        <div style="font-size:11px;color:var(--ia-text-dim)">${escapeHtml(c.email || c.phone || '')}</div>
       </div>
     `).join('');
     box.querySelectorAll('[data-cust]').forEach(row => {
@@ -650,7 +552,7 @@ async function searchCustomers() {
     });
     box.style.display = '';
   } catch (e) {
-    box.innerHTML = '<div class="row" style="color:var(--danger)">Search failed.</div>';
+    box.innerHTML = '<div class="row" style="color:#F09595">Search failed.</div>';
     box.style.display = '';
   }
 }
@@ -661,13 +563,13 @@ document.getElementById('payBtn').addEventListener('click', () => {
   document.getElementById('tenderRefRow').style.display = 'none';
   document.getElementById('tenderRefInput').value = '';
   document.getElementById('tenderConfirmBtn').disabled = true;
-  document.querySelectorAll('.tender-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.reg-tender-btn').forEach(b => b.classList.remove('selected'));
   openModal('tenderModal');
 });
 
-document.querySelectorAll('.tender-btn').forEach(btn => {
+document.querySelectorAll('.reg-tender-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tender-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     cart.payment_method = btn.dataset.tender;
     document.getElementById('tenderConfirmBtn').disabled = false;
@@ -680,11 +582,7 @@ document.querySelectorAll('.tender-btn').forEach(btn => {
 document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
   closeModal('tenderModal');
-  if (CFG.tipsEnabled) {
-    openTipModal();
-  } else {
-    commitSale();
-  }
+  if (CFG.tipsEnabled) openTipModal(); else commitSale();
 });
 
 function openTipModal() {
@@ -704,10 +602,10 @@ function openTipModal() {
     }
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'tip-btn';
+    btn.className = 'reg-tip-btn';
     btn.textContent = label;
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.tip-btn').forEach(b => b.classList.remove('selected'));
+      document.querySelectorAll('.reg-tip-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       cart.tipCents = cents;
       document.getElementById('tipCustomInput').value = '';
@@ -721,13 +619,13 @@ document.getElementById('tipCustomInput').addEventListener('input', () => {
   const v = parseFloat(document.getElementById('tipCustomInput').value);
   if (!isNaN(v) && v >= 0) {
     cart.tipCents = Math.round(v * 100);
-    document.querySelectorAll('.tip-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('.reg-tip-btn').forEach(b => b.classList.remove('selected'));
   }
 });
 document.getElementById('tipClearBtn').addEventListener('click', () => {
   cart.tipCents = 0;
   document.getElementById('tipCustomInput').value = '';
-  document.querySelectorAll('.tip-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.reg-tip-btn').forEach(b => b.classList.remove('selected'));
 });
 document.getElementById('tipSkipBtn').addEventListener('click', () => {
   cart.tipCents = 0;
@@ -747,11 +645,7 @@ async function commitSale() {
     payment_method: cart.payment_method,
     payment_reference: cart.payment_reference,
     items: cart.items.map(i => {
-      const out = {
-        type: i.type,
-        quantity: i.qty,
-        is_taxable: i.is_taxable,
-      };
+      const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
       if (i.type === 'product') out.inventory_item_id = i.source_id;
       if (i.type === 'service') out.service_id = i.source_id;
       if (i.type === 'open_item') {
@@ -768,18 +662,11 @@ async function commitSale() {
   try {
     const res = await fetch(ROUTES.storeSale, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-CSRF-TOKEN': CSRF,
-      },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!data.ok) {
-      showError(data.error || 'Could not complete the sale.');
-      return;
-    }
+    if (!data.ok) { showError(data.error || 'Could not complete the sale.'); return; }
     showReceipt(data);
   } catch (e) {
     showError('Network error. Please try again.');
@@ -793,7 +680,6 @@ function showError(msg) {
   el.textContent = msg;
   el.style.display = '';
 }
-
 function showReceipt(data) {
   document.getElementById('receiptNum').textContent = data.sale_number;
   document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
@@ -801,16 +687,12 @@ function showReceipt(data) {
 }
 
 document.getElementById('receiptNewSale').addEventListener('click', () => {
-  cart.customer = null;
-  cart.items = [];
-  cart.tipCents = 0;
-  cart.discountCents = 0;
-  cart.payment_method = null;
-  cart.payment_reference = null;
+  cart.customer = null; cart.items = []; cart.tipCents = 0; cart.discountCents = 0;
+  cart.payment_method = null; cart.payment_reference = null;
   closeModal('receiptModal');
   renderCart();
   searchInput.value = '';
-  resultsArea.innerHTML = '<div class="empty-cart">Type to search products and services.</div>';
+  resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
 });
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -819,13 +701,6 @@ document.querySelectorAll('[data-close-modal]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
 });
 
-document.getElementById('logoutLink').addEventListener('click', (e) => {
-  e.preventDefault();
-  document.getElementById('logoutForm').submit();
-});
-
 renderCart();
 </script>
-
-</body>
-</html>
+@endpush
