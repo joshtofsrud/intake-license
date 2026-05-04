@@ -243,4 +243,120 @@ class SaleService
 
         return $sale->fresh('items');
     }
+
+    /**
+     * Create a refund row referencing an original sale.
+     * Refunds are negative-effect sale rows: line items mirror the originals,
+     * inventory is restocked via InventoryService::incrementForRefund(), and
+     * the original's payment_status flips to 'refunded' (full) or 'partial'.
+     *
+     * Expected $data:
+     *   tenant_id (required)
+     *   original_sale_id (required)
+     *   rang_up_by_user_id (required)
+     *   refund_method (required) — cash | card | check | store_credit | mark_paid
+     *   reason (optional)
+     *   notes (optional)
+     *   item_ids (required, array of original sale_item ids to refund)
+     */
+    public function createRefund(array $data): TenantSale
+    {
+        $original = TenantSale::where('id', $data['original_sale_id'] ?? null)
+            ->where('tenant_id', $data['tenant_id'] ?? null)
+            ->with('items')
+            ->first();
+
+        if (!$original) {
+            throw new SaleValidationException('Original sale not found.');
+        }
+        if ($original->payment_status !== 'paid' && $original->payment_status !== 'partial') {
+            throw new SaleValidationException('Only paid sales can be refunded.');
+        }
+        if ($original->refund_of_sale_id !== null) {
+            throw new SaleValidationException('Cannot refund a refund row.');
+        }
+        if (empty($data['item_ids']) || !is_array($data['item_ids'])) {
+            throw new SaleValidationException('No items selected to refund.');
+        }
+
+        $itemsToRefund = $original->items->whereIn('id', $data['item_ids']);
+        if ($itemsToRefund->isEmpty()) {
+            throw new SaleValidationException('No matching items to refund.');
+        }
+        if (empty($original->location_id)) {
+            throw new SaleValidationException('Original sale has no location_id; cannot refund.');
+        }
+
+        return DB::transaction(function () use ($data, $original, $itemsToRefund) {
+            $tenantId = $data['tenant_id'];
+            $today = Carbon::today()->toDateString();
+            $reason = trim((string) ($data['reason'] ?? ''));
+            $notes  = trim((string) ($data['notes'] ?? ''));
+            $combinedNotes = trim($reason . ($reason && $notes ? "\n" : '') . $notes);
+
+            $refund = TenantSale::create([
+                'tenant_id'          => $tenantId,
+                'sale_number'        => $this->nextSaleNumber($tenantId, $today),
+                'sale_date'          => $today,
+                'status'             => 'completed',
+                'payment_status'     => 'refunded',
+                'customer_id'        => $original->customer_id,
+                'assigned_staff_id'  => null,
+                'appointment_id'     => null,
+                'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                'refund_of_sale_id'  => $original->id,
+                'location_id'        => $original->location_id,
+                'notes'              => $combinedNotes !== '' ? $combinedNotes : null,
+                'subtotal_cents'     => 0,
+                'discount_cents'     => 0,
+                'tax_cents'          => 0,
+                'surcharge_cents'    => 0,
+                'tip_cents'          => 0,
+                'total_cents'        => 0,
+                'paid_at'            => Carbon::now(),
+                'payment_method'     => $data['refund_method'],
+            ]);
+
+            $position = 0;
+            foreach ($itemsToRefund as $orig) {
+                $line = TenantSaleItem::create([
+                    'tenant_id'           => $tenantId,
+                    'sale_id'             => $refund->id,
+                    'type'                => $orig->type,
+                    'service_id'          => $orig->service_id,
+                    'inventory_item_id'   => $orig->inventory_item_id,
+                    'gift_card_id'        => $orig->gift_card_id,
+                    'name_snapshot'       => $orig->name_snapshot,
+                    'description_snapshot'=> $orig->description_snapshot,
+                    'cost_cents_snapshot' => $orig->cost_cents_snapshot,
+                    'quantity'            => $orig->quantity,
+                    'unit_price_cents'    => $orig->unit_price_cents,
+                    'discount_cents'      => $orig->discount_cents,
+                    'tax_rate_snapshot'   => $orig->tax_rate_snapshot,
+                    'is_taxable'          => $orig->is_taxable,
+                    'tax_cents'           => $orig->tax_cents,
+                    'tip_cents'           => 0,
+                    'line_total_cents'    => $orig->line_total_cents,
+                    'assigned_staff_id'   => null,
+                    'position'            => $position++,
+                    'notes'               => null,
+                ]);
+
+                // Restock inventory for refunded product lines
+                if ($line->type === 'product') {
+                    $this->inventory->incrementForRefund($refund, $line, $original->location_id);
+                }
+            }
+
+            // Flip original's payment_status:
+            //   - all items refunded -> 'refunded'
+            //   - some items refunded -> 'partial'
+            $allRefunded = $itemsToRefund->count() === $original->items->count();
+            $original->update([
+                'payment_status' => $allRefunded ? 'refunded' : 'partial',
+            ]);
+
+            return $this->recalculate($refund->fresh('items'));
+        });
+    }
 }
