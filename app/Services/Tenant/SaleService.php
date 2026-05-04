@@ -143,9 +143,10 @@ class SaleService
             if ($item) {
                 $name           = $name           ?? ($item->name ?? '');
                 $description    = $description    ?? ($item->description ?? null);
-                $unitPriceCents = $unitPriceCents ?? (int) ($item->price_cents ?? 0);
-                $costCents      = $costCents      ?? (int) ($item->cost_cents ?? 0);
-                $isTaxable      = $data['is_taxable'] ?? ($item->is_taxable ?? true);
+                $unitPriceCents = $unitPriceCents ?? (int) ($item->effectiveSellPriceCents() ?? 0);
+                $costCents      = $costCents      ?? (int) ($item->effectiveCostCents() ?? 0);
+                // tax_class_code may be 'exempt'; default true otherwise
+                $isTaxable      = $data['is_taxable'] ?? (($item->tax_class_code ?? null) !== 'exempt');
             }
         }
 
