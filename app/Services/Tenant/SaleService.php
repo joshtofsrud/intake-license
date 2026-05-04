@@ -12,6 +12,10 @@ use Illuminate\Support\Carbon;
 
 class SaleService
 {
+    public function __construct(protected InventoryService $inventory)
+    {
+    }
+
     /**
      * Generate the next sale_number for a tenant on a given date.
      * Uses row-level lock-and-increment on tenant_sale_counters to prevent
@@ -61,6 +65,13 @@ class SaleService
             );
         }
 
+        // Location is required (DB allows null for legacy/imports; app enforces presence).
+        if (empty($data['location_id'])) {
+            throw new SaleValidationException(
+                'location_id is required to create a sale.'
+            );
+        }
+
         return DB::transaction(function () use ($data, $items) {
             $tenantId = $data['tenant_id'];
             $saleDate = $data['sale_date'] ?? Carbon::today()->toDateString();
@@ -75,6 +86,7 @@ class SaleService
                 'assigned_staff_id'  => $data['assigned_staff_id'] ?? null,
                 'appointment_id'     => $data['appointment_id'] ?? null,
                 'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                'location_id'        => $data['location_id'],
                 'notes'              => $data['notes'] ?? null,
                 'subtotal_cents'     => 0,
                 'discount_cents'     => 0,
@@ -87,6 +99,15 @@ class SaleService
             $position = 0;
             foreach ($items as $itemData) {
                 $this->createSaleItem($sale, $itemData, $position++);
+            }
+
+            // Decrement inventory for product lines, in same transaction.
+            // Throws InventoryStockException if stock insufficient and no allow_oversell.
+            $sale->load('items');
+            foreach ($sale->items as $line) {
+                if ($line->type === 'product') {
+                    $this->inventory->decrementForSaleItem($sale, $line, $data['location_id']);
+                }
             }
 
             return $this->recalculate($sale->fresh('items'));
