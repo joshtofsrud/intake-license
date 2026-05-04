@@ -279,6 +279,49 @@ class RegisterController extends Controller
     }
 
     /**
+     * Fetch a single draft with full line items, for resume into cart.
+     */
+    public function showDraft(Request $request, string $subdomain, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $draft = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->with(['customer', 'items'])
+            ->first();
+
+        if (!$draft) {
+            return response()->json(['ok' => false, 'error' => 'Draft not found.'], 404);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'draft' => [
+                'id'          => $draft->id,
+                'customer'    => $draft->customer ? [
+                    'id'    => $draft->customer->id,
+                    'name'  => trim(($draft->customer->first_name ?? '') . ' ' . ($draft->customer->last_name ?? '')),
+                    'email' => $draft->customer->email ?? '',
+                    'phone' => $draft->customer->phone ?? '',
+                ] : null,
+                'tip_cents'   => $draft->tip_cents,
+                'notes'       => $draft->notes,
+                'items'       => $draft->items->map(fn ($i) => [
+                    'type'              => $i->type,
+                    'source_id'         => $i->service_id ?? $i->inventory_item_id,
+                    'inventory_item_id' => $i->inventory_item_id,
+                    'service_id'        => $i->service_id,
+                    'name'              => $i->name_snapshot,
+                    'price_cents'       => $i->unit_price_cents,
+                    'qty'               => (float) $i->quantity,
+                    'is_taxable'        => (bool) $i->is_taxable,
+                ])->values(),
+            ],
+        ]);
+    }
+
+    /**
      * Permanently discard a draft.
      */
     public function discardDraft(Request $request, string $subdomain, string $id): JsonResponse

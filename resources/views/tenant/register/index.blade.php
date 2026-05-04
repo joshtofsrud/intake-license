@@ -169,6 +169,29 @@
   .reg-cust-results .row{padding:10px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border)}
   .reg-cust-results .row:hover{background:var(--ia-hover)}
   .reg-cust-results .row:last-child{border-bottom:none}
+
+  .reg-drafts-banner{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:10px 14px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);margin-bottom:14px;font-size:13px;cursor:pointer;
+    transition:border-color var(--ia-t)
+  }
+  .reg-drafts-banner:hover{border-color:var(--ia-accent)}
+  .reg-drafts-banner .label{color:var(--ia-text)}
+  .reg-drafts-banner .cta{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em}
+
+  .reg-drafts-list{max-height:380px;overflow-y:auto;margin:-4px -4px 14px;padding:4px}
+  .reg-draft-row{
+    display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;
+    padding:12px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);margin-bottom:8px
+  }
+  .reg-draft-row .meta-line{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+  .reg-draft-row .total{font-size:14px;font-weight:600;text-align:right;min-width:62px}
+  .reg-draft-row .actions{display:flex;gap:6px}
+  .reg-draft-row .btn-resume{padding:6px 12px;background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:var(--ia-r-sm);font-size:12px;font-weight:500;font-family:inherit;cursor:pointer}
+  .reg-draft-row .btn-resume:hover{filter:brightness(.93)}
+  .reg-draft-row .btn-discard{padding:6px 10px;background:transparent;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text-dim);font-size:12px;font-family:inherit;cursor:pointer}
+  .reg-draft-row .btn-discard:hover{color:var(--reg-danger);border-color:var(--reg-danger)}
 </style>
 @endpush
 
@@ -212,6 +235,11 @@
 
     <div class="reg-panel">
       <div id="errBanner" class="reg-err" style="display:none"></div>
+
+      <div id="draftsBanner" class="reg-drafts-banner" style="display:none">
+        <span class="label" id="draftsBannerLabel"></span>
+        <span class="cta">View →</span>
+      </div>
 
       <div id="customerSlot">
         <button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>
@@ -307,6 +335,17 @@
   </div>
 </div>
 
+<div class="reg-modal-bg" id="draftsModal">
+  <div class="reg-modal" style="max-width:560px">
+    <h2>Open drafts</h2>
+    <div class="lede">Carts saved at this location.</div>
+    <div class="reg-drafts-list" id="draftsList"></div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="draftsModal" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="receiptModal">
   <div class="reg-modal reg-receipt">
     <h2>Sale complete</h2>
@@ -326,6 +365,8 @@ const ROUTES = {
   search:      @json(route('tenant.register.search')),
   storeSale:   @json(route('tenant.register.sales.store')),
   storeDraft:  @json(route('tenant.register.drafts.store')),
+  listDrafts:  @json(route('tenant.register.drafts.index')),
+  draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
@@ -895,6 +936,141 @@ document.querySelectorAll('[data-close-modal]').forEach(btn => {
   btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
 });
 
+// --- Drafts banner / resume / discard ---
+async function loadDrafts() {
+  try {
+    const res = await fetch(ROUTES.listDrafts, {headers:{'Accept':'application/json'}});
+    const data = await res.json();
+    return data.drafts || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function refreshDraftsBanner(drafts) {
+  const banner = document.getElementById('draftsBanner');
+  // Filter out the current cart's own draft from the count.
+  const others = drafts.filter(d => d.id !== cart.draft_id);
+  if (!others.length) { banner.style.display = 'none'; return; }
+  const word = others.length === 1 ? 'draft' : 'drafts';
+  document.getElementById('draftsBannerLabel').textContent =
+    others.length + ' open ' + word + ' at this location';
+  banner.style.display = '';
+}
+
+function fmtAge(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const mins = Math.floor((now - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+function renderDraftsList(drafts) {
+  const list = document.getElementById('draftsList');
+  const others = drafts.filter(d => d.id !== cart.draft_id);
+  if (!others.length) {
+    list.innerHTML = '<div class="reg-empty">No other open drafts.</div>';
+    return;
+  }
+  list.innerHTML = others.map(d => {
+    const itemWord = d.item_count === 1 ? 'item' : 'items';
+    const meta = [
+      d.item_count + ' ' + itemWord,
+      d.customer || 'no customer',
+      d.started_by ? 'by ' + d.started_by : null,
+      fmtAge(d.updated_at),
+    ].filter(Boolean).join(' · ');
+    return '<div class="reg-draft-row" data-id="' + d.id + '">' +
+      '<div>' +
+        '<div style="font-weight:500">' + escapeHtml(d.customer || 'Walk-in') + '</div>' +
+        '<div class="meta-line">' + escapeHtml(meta) + '</div>' +
+      '</div>' +
+      '<div class="total">' + fmt(d.total_cents) + '</div>' +
+      '<div class="actions">' +
+        '<button type="button" class="btn-resume" data-resume="' + d.id + '">Resume</button>' +
+        '<button type="button" class="btn-discard" data-discard="' + d.id + '">Discard</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  list.querySelectorAll('[data-resume]').forEach(btn => {
+    btn.addEventListener('click', () => resumeDraft(btn.dataset.resume));
+  });
+  list.querySelectorAll('[data-discard]').forEach(btn => {
+    btn.addEventListener('click', () => discardDraftFromList(btn.dataset.discard));
+  });
+}
+
+document.getElementById('draftsBanner').addEventListener('click', async () => {
+  const drafts = await loadDrafts();
+  renderDraftsList(drafts);
+  openModal('draftsModal');
+});
+
+async function resumeDraft(id) {
+  if (cart.items.length > 0) {
+    if (!confirm('Replace the current cart with this draft?')) return;
+  }
+  try {
+    const res = await fetch(ROUTES.draftBase + '/' + id, {headers:{'Accept':'application/json'}});
+    const data = await res.json();
+    if (!data.ok) { showError(data.error || 'Could not load draft.'); closeModal('draftsModal'); return; }
+    // Cancel any pending save for the OLD cart before we overwrite state.
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    cart.draft_id = data.draft.id;
+    cart.customer = data.draft.customer;
+    cart.tipCents = data.draft.tip_cents || 0;
+    cart.items = (data.draft.items || []).map(i => ({
+      key: ++lineKey,
+      type: i.type,
+      source_id: i.source_id,
+      name: i.name,
+      price_cents: i.price_cents,
+      qty: i.qty,
+      is_taxable: i.is_taxable,
+    }));
+    closeModal('draftsModal');
+    renderCart();
+    refreshDraftsBanner(await loadDrafts());
+  } catch (e) {
+    showError('Network error loading draft.');
+    closeModal('draftsModal');
+  }
+}
+
+async function discardDraftFromList(id) {
+  if (!confirm('Permanently discard this draft?')) return;
+  try {
+    const res = await fetch(ROUTES.draftBase + '/' + id, {
+      method: 'DELETE',
+      headers: {'Accept':'application/json', 'X-CSRF-TOKEN': CSRF},
+    });
+    const data = await res.json();
+    if (!data.ok) { showError(data.error || 'Could not discard draft.'); return; }
+    // If we just discarded the cart's own draft, clear it too.
+    if (cart.draft_id === id) {
+      cart.draft_id = null;
+      cart.items = [];
+      cart.customer = null;
+      cart.tipCents = 0;
+      renderCart();
+    }
+    const drafts = await loadDrafts();
+    renderDraftsList(drafts);
+    refreshDraftsBanner(drafts);
+  } catch (e) {
+    showError('Network error discarding draft.');
+  }
+}
+
 renderCart();
+
+// On page load, populate the banner.
+loadDrafts().then(refreshDraftsBanner);
 </script>
 @endpush
