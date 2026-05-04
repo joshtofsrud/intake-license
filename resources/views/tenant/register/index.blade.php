@@ -7,9 +7,9 @@
   .reg-page { --reg-danger: #F09595; --reg-danger-bg: rgba(226,75,74,.15); }
 
   .reg-grid {
-    display:grid;grid-template-columns:1fr 420px;gap:18px;
+    display:grid;grid-template-columns:1fr 360px;gap:18px;
   }
-  @media(max-width:900px){ .reg-grid{grid-template-columns:1fr} }
+  @media(max-width:1200px){ .reg-grid{grid-template-columns:1fr} }
 
   .reg-panel{
     background:var(--ia-surface);border:0.5px solid var(--ia-border);
