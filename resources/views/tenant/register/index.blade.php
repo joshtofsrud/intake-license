@@ -398,6 +398,7 @@ function escapeHtml(s) {
 }
 
 function addToCart(item) {
+  console.log('[REGISTER DEBUG] addToCart called with:', item, 'stack:', new Error().stack);
   cart.items.push({
     key: ++lineKey, type: item.type, source_id: item.source_id,
     name: item.name, price_cents: item.price_cents, qty: 1,
