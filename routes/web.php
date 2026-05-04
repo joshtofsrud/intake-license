@@ -179,6 +179,14 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
             Route::get('/',                 [TenantControllers\DashboardController::class, 'index'])->name('dashboard');
 
+            // Register (POS) — walk-in retail + service jobs
+            Route::get('/register',                  [TenantControllers\RegisterController::class, 'index'])->name('register.index');
+            Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
+            Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
+            Route::get('/register/refunds',          [TenantControllers\RegisterController::class, 'refundIndex'])->name('register.refunds.index');
+            Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
+            Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
+
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
             Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');
             Route::post('/onboarding/hours',    [TenantControllers\OnboardingModalController::class, 'saveHours'])->name('onboarding.hours');
