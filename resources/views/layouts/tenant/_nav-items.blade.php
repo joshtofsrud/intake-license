@@ -8,9 +8,9 @@
       'group'  => null,
     ],
     [
-      'route'  => 'tenant.reports.index',
-      'label'  => 'Reports',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="8" width="2.5" height="4.5" rx="0.5" fill="currentColor"/><rect x="5.75" y="5" width="2.5" height="7.5" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="2.5" height="10.5" rx="0.5" fill="currentColor"/></svg>',
+      'route'  => 'tenant.register.index',
+      'label'  => 'Register',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="3.5" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 3.5V2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10.5 3.5V2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M4 6h6M4 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
       'group'  => null,
     ],
     [
@@ -42,9 +42,9 @@
       'gate'   => 'retail_enabled',
     ],
     [
-      'route'  => 'tenant.register.index',
-      'label'  => 'Register',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="3.5" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 3.5V2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10.5 3.5V2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M4 6h6M4 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'route'  => 'tenant.reports.index',
+      'label'  => 'Reports',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="8" width="2.5" height="4.5" rx="0.5" fill="currentColor"/><rect x="5.75" y="5" width="2.5" height="7.5" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="2.5" height="10.5" rx="0.5" fill="currentColor"/></svg>',
       'group'  => null,
     ],
     [
