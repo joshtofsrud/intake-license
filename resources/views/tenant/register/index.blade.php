@@ -323,8 +323,10 @@
 @push('scripts')
 <script>
 const ROUTES = {
-  search:    @json(route('tenant.register.search')),
-  storeSale: @json(route('tenant.register.sales.store')),
+  search:      @json(route('tenant.register.search')),
+  storeSale:   @json(route('tenant.register.sales.store')),
+  storeDraft:  @json(route('tenant.register.drafts.store')),
+  commitDraft: @json(url('/admin/register/drafts')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -340,12 +342,85 @@ const CFG = {
 };
 
 const cart = {
+  draft_id: null,
   customer: null, items: [], tipCents: 0, discountCents: 0,
   payment_method: null, payment_reference: null,
 };
 const fmt = (cents) => '$' + (cents / 100).toFixed(2);
 const fmtNeg = (cents) => '-$' + (cents / 100).toFixed(2);
 let lineKey = 0;
+
+// --- Draft auto-save infrastructure ---
+// Cart changes debounce a save to /register/drafts. First save creates the
+// draft and stores its id on cart.draft_id. Subsequent saves include the id
+// to update in place. Mark Paid awaits any pending save, then commits.
+const DRAFT_DEBOUNCE_MS = 1500;
+let draftSaveTimer = null;
+let draftSaveInFlight = null; // Promise of currently-firing save, or null.
+
+function buildDraftPayload() {
+  return {
+    id: cart.draft_id,
+    customer_id: cart.customer ? cart.customer.id : null,
+    tip_cents: cart.tipCents,
+    items: cart.items.map(i => {
+      const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+      if (i.type === 'product') out.inventory_item_id = i.source_id;
+      if (i.type === 'service') out.service_id = i.source_id;
+      if (i.type === 'open_item') {
+        out.name_snapshot = i.name;
+        out.unit_price_cents = i.price_cents;
+      }
+      return out;
+    }),
+  };
+}
+
+async function fireDraftSave() {
+  // If a save is already in flight, wait for it and re-queue this one.
+  // Last-write-wins: the next save will include the latest cart state.
+  if (draftSaveInFlight) {
+    await draftSaveInFlight;
+  }
+  const payload = buildDraftPayload();
+  draftSaveInFlight = (async () => {
+    try {
+      const res = await fetch(ROUTES.storeDraft, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.ok && data.draft_id) {
+        cart.draft_id = data.draft_id;
+      }
+    } catch (e) {
+      // Silent failure on auto-save. Cart still works locally; commit will
+      // fall back to the storeSale path if draft_id is still null.
+      console.warn('[draft] save failed', e);
+    } finally {
+      draftSaveInFlight = null;
+    }
+  })();
+  return draftSaveInFlight;
+}
+
+function queueDraftSave() {
+  // Empty cart with no existing draft — nothing to save.
+  if (!cart.items.length && !cart.draft_id) return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(fireDraftSave, DRAFT_DEBOUNCE_MS);
+}
+
+async function flushDraftSave() {
+  // Cancel any pending debounce, fire immediately, await any in-flight save.
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = null;
+  if (cart.items.length || cart.draft_id) {
+    await fireDraftSave();
+  }
+  if (draftSaveInFlight) await draftSaveInFlight;
+}
 
 const searchInput = document.getElementById('searchInput');
 const resultsArea = document.getElementById('resultsArea');
@@ -492,17 +567,18 @@ function escapeHtml(s) {
 }
 
 function addToCart(item) {
-  console.log('[REGISTER DEBUG] addToCart called with:', item, 'stack:', new Error().stack);
   cart.items.push({
     key: ++lineKey, type: item.type, source_id: item.source_id,
     name: item.name, price_cents: item.price_cents, qty: 1,
     is_taxable: item.is_taxable !== false,
   });
   renderCart();
+  queueDraftSave();
 }
 function removeLine(key) {
   cart.items = cart.items.filter(i => i.key !== key);
   renderCart();
+  queueDraftSave();
 }
 function updateQty(key, qty) {
   const n = parseFloat(qty);
@@ -510,6 +586,7 @@ function updateQty(key, qty) {
   const line = cart.items.find(i => i.key === key);
   if (line) line.qty = n;
   renderCart();
+  queueDraftSave();
 }
 
 function renderCart() {
@@ -550,6 +627,7 @@ function renderCart() {
     document.getElementById('clearCust').addEventListener('click', () => {
       cart.customer = null;
       renderCart();
+      queueDraftSave();
     });
   } else {
     slot.innerHTML = `<button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>`;
@@ -643,6 +721,7 @@ async function searchCustomers() {
         cart.customer = JSON.parse(row.dataset.cust);
         closeModal('customerModal');
         renderCart();
+        queueDraftSave();
       });
     });
     box.style.display = '';
@@ -733,29 +812,48 @@ document.getElementById('tipConfirmBtn').addEventListener('click', () => {
 });
 
 async function commitSale() {
-  const payload = {
-    customer_id: cart.customer ? cart.customer.id : null,
-    tip_cents: cart.tipCents,
-    discount_cents: cart.discountCents,
-    payment_method: cart.payment_method,
-    payment_reference: cart.payment_reference,
-    items: cart.items.map(i => {
-      const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
-      if (i.type === 'product') out.inventory_item_id = i.source_id;
-      if (i.type === 'service') out.service_id = i.source_id;
-      if (i.type === 'open_item') {
-        out.name_snapshot = i.name;
-        out.unit_price_cents = i.price_cents;
-      }
-      return out;
-    }),
-  };
-
   document.getElementById('payBtn').disabled = true;
   document.getElementById('errBanner').style.display = 'none';
 
+  // Make sure any pending or in-flight draft save lands before commit, so the
+  // server has the latest line items before promoting to a sale.
+  await flushDraftSave();
+
   try {
-    const res = await fetch(ROUTES.storeSale, {
+    let url, payload;
+    if (cart.draft_id) {
+      // Draft-backed path: server already has the items. Send only payment fields.
+      url = ROUTES.commitDraft + '/' + cart.draft_id + '/commit';
+      payload = {
+        payment_method: cart.payment_method,
+        payment_reference: cart.payment_reference,
+        tip_cents: cart.tipCents,
+        customer_id: cart.customer ? cart.customer.id : null,
+      };
+    } else {
+      // Fallback path: draft never saved (network failed, or commit clicked
+      // faster than first debounce). Send the full cart to storeSale.
+      url = ROUTES.storeSale;
+      payload = {
+        customer_id: cart.customer ? cart.customer.id : null,
+        tip_cents: cart.tipCents,
+        discount_cents: cart.discountCents,
+        payment_method: cart.payment_method,
+        payment_reference: cart.payment_reference,
+        items: cart.items.map(i => {
+          const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+          if (i.type === 'product') out.inventory_item_id = i.source_id;
+          if (i.type === 'service') out.service_id = i.source_id;
+          if (i.type === 'open_item') {
+            out.name_snapshot = i.name;
+            out.unit_price_cents = i.price_cents;
+          }
+          return out;
+        }),
+      };
+    }
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
       body: JSON.stringify(payload),
@@ -782,6 +880,7 @@ function showReceipt(data) {
 }
 
 document.getElementById('receiptNewSale').addEventListener('click', () => {
+  cart.draft_id = null;
   cart.customer = null; cart.items = []; cart.tipCents = 0; cart.discountCents = 0;
   cart.payment_method = null; cart.payment_reference = null;
   closeModal('receiptModal');

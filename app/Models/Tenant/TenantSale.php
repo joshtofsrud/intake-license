@@ -25,11 +25,13 @@ class TenantSale extends Model
         'paid_at', 'payment_method', 'payment_reference',
         'register_id',
         'location_id',
+        'quote_expires_at',
     ];
 
     protected $casts = [
         'sale_date'      => 'date',
         'paid_at'        => 'datetime',
+        'quote_expires_at' => 'datetime',
         'subtotal_cents' => 'integer',
         'discount_cents' => 'integer',
         'tax_cents'      => 'integer',
@@ -51,8 +53,13 @@ class TenantSale extends Model
     public function scopeActive($q)            { return $q->whereNotIn('status', ['cancelled']); }
     public function scopeUnpaid($q)            { return $q->where('payment_status', 'unpaid'); }
     public function scopePaid($q)              { return $q->where('payment_status', 'paid'); }
+    public function scopeDrafts($q)            { return $q->where('payment_status', 'draft'); }
+    public function scopeQuotes($q)            { return $q->where('payment_status', 'quote'); }
+    public function scopeCommitted($q)         { return $q->whereIn('payment_status', ['unpaid', 'partial', 'paid', 'refunded']); }
 
     public function isPaid(): bool             { return $this->payment_status === 'paid'; }
+    public function isDraft(): bool            { return $this->payment_status === 'draft'; }
+    public function isQuote(): bool            { return $this->payment_status === 'quote'; }
     public function isRefunded(): bool         { return $this->payment_status === 'refunded'; }
     public function isCompleted(): bool        { return $this->status === 'completed'; }
     public function isCancelled(): bool        { return $this->status === 'cancelled'; }

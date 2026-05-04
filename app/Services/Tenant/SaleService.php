@@ -118,6 +118,198 @@ class SaleService
     }
 
     /**
+     * Save a cart as a draft. Like createSale but:
+     *   - skips inventory decrement
+     *   - skips customer-required-for-service validation
+     *   - leaves sale_number null
+     *   - sets payment_status to 'draft'
+     *
+     * If $data contains 'id', updates that draft (nuke-and-rebuild items).
+     * Otherwise creates a new draft.
+     *
+     * Required: tenant_id, location_id, rang_up_by_user_id.
+     */
+    public function saveDraft(array $data): TenantSale
+    {
+        if (empty($data['location_id'])) {
+            throw new SaleValidationException(
+                'location_id is required to save a draft.'
+            );
+        }
+
+        $items = $data['items'] ?? [];
+        unset($data['items']);
+
+        return DB::transaction(function () use ($data, $items) {
+            $existingId = $data['id'] ?? null;
+
+            if ($existingId) {
+                $draft = TenantSale::where('id', $existingId)
+                    ->where('tenant_id', $data['tenant_id'])
+                    ->where('payment_status', 'draft')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$draft) {
+                    throw new SaleValidationException('Draft not found.');
+                }
+
+                $draft->update([
+                    'customer_id'        => $data['customer_id']        ?? $draft->customer_id,
+                    'assigned_staff_id'  => $data['assigned_staff_id']  ?? $draft->assigned_staff_id,
+                    'appointment_id'     => $data['appointment_id']     ?? $draft->appointment_id,
+                    'location_id'        => $data['location_id'],
+                    'tip_cents'          => (int) ($data['tip_cents'] ?? $draft->tip_cents),
+                    'notes'              => $data['notes']              ?? $draft->notes,
+                ]);
+
+                // Nuke-and-rebuild items. Drafts are transient; IDs don't matter.
+                $draft->items()->delete();
+            } else {
+                $saleDate = $data['sale_date'] ?? Carbon::today()->toDateString();
+                $draft = TenantSale::create([
+                    'tenant_id'          => $data['tenant_id'],
+                    'sale_number'        => null,
+                    'sale_date'          => $saleDate,
+                    'status'             => 'pending',
+                    'payment_status'     => 'draft',
+                    'customer_id'        => $data['customer_id']        ?? null,
+                    'assigned_staff_id'  => $data['assigned_staff_id']  ?? null,
+                    'appointment_id'     => $data['appointment_id']     ?? null,
+                    'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                    'location_id'        => $data['location_id'],
+                    'notes'              => $data['notes'] ?? null,
+                    'subtotal_cents'     => 0,
+                    'discount_cents'     => 0,
+                    'tax_cents'          => 0,
+                    'surcharge_cents'    => 0,
+                    'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
+                    'total_cents'        => 0,
+                ]);
+            }
+
+            $position = 0;
+            foreach ($items as $itemData) {
+                $this->createSaleItem($draft, $itemData, $position++);
+            }
+
+            return $this->recalculate($draft->fresh('items'));
+        });
+    }
+
+    /**
+     * Save a cart as a quote. Like saveDraft but:
+     *   - requires customer_id
+     *   - requires quote_expires_at
+     *   - sets payment_status to 'quote'
+     *
+     * Quotes are tenant-wide (not location-scoped for listing purposes), but
+     * are stamped with a location_id like any sale row.
+     */
+    public function saveQuote(array $data): TenantSale
+    {
+        if (empty($data['customer_id'])) {
+            throw new SaleValidationException(
+                'A customer is required to save a quote.'
+            );
+        }
+        if (empty($data['quote_expires_at'])) {
+            throw new SaleValidationException(
+                'quote_expires_at is required to save a quote.'
+            );
+        }
+
+        // Reuse draft path, then flip status + set expiry.
+        $sale = $this->saveDraft($data);
+
+        $sale->update([
+            'payment_status'   => 'quote',
+            'quote_expires_at' => $data['quote_expires_at'],
+        ]);
+
+        return $sale->fresh('items');
+    }
+
+    /**
+     * Permanently delete a draft (or quote) and its items.
+     * Caller is responsible for tenant scoping; we double-check here.
+     */
+    public function discardDraft(string $tenantId, string $saleId): void
+    {
+        $sale = TenantSale::where('id', $saleId)
+            ->where('tenant_id', $tenantId)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->first();
+
+        if (!$sale) {
+            throw new SaleValidationException('Draft not found or not discardable.');
+        }
+
+        DB::transaction(function () use ($sale) {
+            $sale->items()->delete();
+            $sale->delete();
+        });
+    }
+
+    /**
+     * Promote a draft (or quote) into a committed sale.
+     * Assigns sale_number, runs inventory decrement, flips payment_status.
+     *
+     * $data may include: payment_status (default 'paid'), payment_method,
+     * payment_reference, paid_at, tip_cents, notes, customer_id.
+     */
+    public function commitDraft(string $tenantId, string $saleId, array $data): TenantSale
+    {
+        return DB::transaction(function () use ($tenantId, $saleId, $data) {
+            $sale = TenantSale::where('id', $saleId)
+                ->where('tenant_id', $tenantId)
+                ->whereIn('payment_status', ['draft', 'quote'])
+                ->with('items')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$sale) {
+                throw new SaleValidationException('Draft not found or already committed.');
+            }
+
+            // Customer-required-for-service is enforced HERE, at commit, not at draft save.
+            $hasServiceLine = $sale->items->contains(fn ($i) => $i->type === 'service');
+            $customerId = $data['customer_id'] ?? $sale->customer_id;
+            if ($hasServiceLine && empty($customerId)) {
+                throw new SaleValidationException(
+                    'Customer is required when the sale has any service line.'
+                );
+            }
+
+            $newPaymentStatus = $data['payment_status'] ?? 'paid';
+            $paidAt = $newPaymentStatus === 'paid'
+                ? ($data['paid_at'] ?? Carbon::now())
+                : null;
+
+            $sale->update([
+                'sale_number'       => $this->nextSaleNumber($tenantId, $sale->sale_date),
+                'payment_status'    => $newPaymentStatus,
+                'customer_id'       => $customerId,
+                'payment_method'    => $data['payment_method']    ?? null,
+                'payment_reference' => $data['payment_reference'] ?? null,
+                'paid_at'           => $paidAt,
+                'tip_cents'         => (int) ($data['tip_cents'] ?? $sale->tip_cents),
+                'notes'             => $data['notes'] ?? $sale->notes,
+                'quote_expires_at'  => null,
+            ]);
+
+            // Decrement inventory for product lines now that we're committing.
+            foreach ($sale->items as $line) {
+                if ($line->type === 'product') {
+                    $this->inventory->decrementForSaleItem($sale, $line, $sale->location_id);
+                }
+            }
+
+            return $this->recalculate($sale->fresh('items'));
+        });
+    }
+
+    /**
      * Create a single line item on a sale, snapshotting fields from source.
      */
     protected function createSaleItem(TenantSale $sale, array $data, int $position): TenantSaleItem

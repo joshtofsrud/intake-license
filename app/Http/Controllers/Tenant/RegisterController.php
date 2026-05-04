@@ -183,6 +183,165 @@ class RegisterController extends Controller
         }
     }
 
+    /**
+     * Save (or update) a draft cart.
+     * Called on every cart change with debounce. First call creates,
+     * subsequent calls include 'id' and update.
+     */
+    public function storeDraft(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'id'               => 'nullable|uuid',
+            'customer_id'      => 'nullable|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'items'            => 'nullable|array',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        try {
+            $draft = $this->sales->saveDraft([
+                'id'                 => $validated['id'] ?? null,
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'items'              => $validated['items'] ?? [],
+            ]);
+
+            return response()->json([
+                'ok'             => true,
+                'draft_id'       => $draft->id,
+                'subtotal_cents' => $draft->subtotal_cents,
+                'tax_cents'      => $draft->tax_cents,
+                'total_cents'    => $draft->total_cents,
+                'updated_at'     => $draft->updated_at?->toIso8601String(),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * List open drafts at the current location.
+     * Used by the resume banner on register load.
+     */
+    public function listDrafts(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['drafts' => []]);
+        }
+
+        $drafts = TenantSale::where('tenant_id', $tenant->id)
+            ->where('location_id', $locationId)
+            ->drafts()
+            ->with(['customer', 'rangUpBy', 'items'])
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get()
+            ->map(function ($d) {
+                return [
+                    'id'           => $d->id,
+                    'item_count'   => $d->items->count(),
+                    'total_cents'  => $d->total_cents,
+                    'customer'     => $d->customer
+                        ? trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? ''))
+                        : null,
+                    'started_by'   => $d->rangUpBy
+                        ? trim(($d->rangUpBy->first_name ?? '') . ' ' . ($d->rangUpBy->last_name ?? ''))
+                        : null,
+                    'updated_at'   => $d->updated_at?->toIso8601String(),
+                ];
+            });
+
+        return response()->json(['drafts' => $drafts]);
+    }
+
+    /**
+     * Permanently discard a draft.
+     */
+    public function discardDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        try {
+            $this->sales->discardDraft($tenant->id, $id);
+            return response()->json(['ok' => true]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 404);
+        }
+    }
+
+    /**
+     * Promote a draft to a paid sale. Replaces storeSale for draft-backed flow.
+     */
+    public function commitDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'payment_method'    => 'required|string|in:cash,card,check,store_credit,mark_paid,split',
+            'payment_reference' => 'nullable|string',
+            'tip_cents'         => 'nullable|integer|min:0',
+            'customer_id'       => 'nullable|uuid',
+            'notes'             => 'nullable|string',
+        ]);
+
+        try {
+            $sale = $this->sales->commitDraft($tenant->id, $id, [
+                'payment_status'    => 'paid',
+                'payment_method'    => $validated['payment_method'],
+                'payment_reference' => $validated['payment_reference'] ?? null,
+                'paid_at'           => Carbon::now(),
+                'tip_cents'         => $validated['tip_cents'] ?? null,
+                'customer_id'       => $validated['customer_id'] ?? null,
+                'notes'             => $validated['notes'] ?? null,
+            ]);
+
+            // Apply card surcharge same as storeSale path.
+            if ($validated['payment_method'] === 'card' && $tenant->passthrough_card_fees) {
+                $surcharge = (int) round($sale->subtotal_cents * (($tenant->card_surcharge_percent ?? 0) / 100));
+                if ($surcharge > 0) {
+                    $sale->update(['surcharge_cents' => $surcharge]);
+                    $sale = $this->sales->recalculate($sale->fresh('items'));
+                }
+            }
+
+            return response()->json([
+                'ok'          => true,
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+                'redirect'    => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
     public function refundIndex(Request $request)
     {
         $tenant = tenant();
