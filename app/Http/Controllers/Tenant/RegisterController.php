@@ -281,7 +281,7 @@ class RegisterController extends Controller
     /**
      * Permanently discard a draft.
      */
-    public function discardDraft(Request $request, string $id): JsonResponse
+    public function discardDraft(Request $request, string $subdomain, string $id): JsonResponse
     {
         $tenant = tenant();
 
@@ -296,7 +296,7 @@ class RegisterController extends Controller
     /**
      * Promote a draft to a paid sale. Replaces storeSale for draft-backed flow.
      */
-    public function commitDraft(Request $request, string $id): JsonResponse
+    public function commitDraft(Request $request, string $subdomain, string $id): JsonResponse
     {
         $tenant = tenant();
 
