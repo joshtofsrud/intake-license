@@ -40,9 +40,27 @@
     padding:10px 12px;border-radius:var(--ia-r-md);cursor:pointer;transition:background var(--ia-t)
   }
   .reg-row:hover{background:var(--ia-hover)}
+  .reg-row.highlighted{background:var(--ia-hover)}
+  .reg-results-section.mouse-active .reg-row.highlighted:not(:hover){background:transparent}
   .reg-row .name{font-weight:500;font-size:14px}
   .reg-row .meta{font-size:12px;color:var(--ia-text-dim)}
   .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
+
+  .reg-hint{
+    display:flex;gap:14px;align-items:center;
+    font-size:11px;color:var(--ia-text-dim);
+    margin:8px 4px 6px;padding:0 4px
+  }
+  .reg-hint kbd{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:18px;height:18px;padding:0 5px;
+    background:var(--ia-surface-2);
+    border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-sm);
+    font-family:var(--ia-font-mono);
+    font-size:10px;color:var(--ia-text-muted);
+    margin:0 2px
+  }
 
   .reg-open-item{
     width:100%;margin-top:10px;padding:10px 14px;
@@ -177,6 +195,12 @@
         <button type="button" class="reg-tab active" data-type="all">All</button>
         <button type="button" class="reg-tab" data-type="product">Products</button>
         <button type="button" class="reg-tab" data-type="service">Services</button>
+      </div>
+
+      <div class="reg-hint" id="regHint" style="display:none">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> add</span>
+        <span><kbd>esc</kbd> clear</span>
       </div>
 
       <div id="resultsArea">
@@ -359,12 +383,19 @@ async function runSearch() {
   }
 }
 
+// Keyboard nav state
+let highlighted = 0;
+let visibleResults = [];
+
 function renderResults(data) {
   let html = '';
+  visibleResults = [];
   if (data.products && data.products.length) {
     html += '<div class="reg-results-section"><h3>Products</h3>';
     data.products.forEach(p => {
-      html += `<div class="reg-row" data-add='${JSON.stringify({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable})}'>
+      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable});
+      const idx = visibleResults.length - 1;
+      html += `<div class="reg-row" data-i="${idx}">
         <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.sku || '')}</div></div>
         <div class="price">${fmt(p.price_cents)}</div>
       </div>`;
@@ -372,9 +403,11 @@ function renderResults(data) {
     html += '</div>';
   }
   if (data.services && data.services.length) {
-    html += '<div class="reg-results-section"><h3>Services</h3>';
+    html += '<div class="reg-results-section mouse-defer"><h3>Services</h3>';
     data.services.forEach(s => {
-      html += `<div class="reg-row" data-add='${JSON.stringify({type:'service',source_id:s.id,name:s.name,price_cents:s.price_cents,is_taxable:true})}'>
+      visibleResults.push({type:'service',source_id:s.id,name:s.name,price_cents:s.price_cents,is_taxable:true});
+      const idx = visibleResults.length - 1;
+      html += `<div class="reg-row" data-i="${idx}">
         <div><div class="name">${escapeHtml(s.name)}</div><div class="meta">${s.duration_minutes || 0} min</div></div>
         <div class="price">${fmt(s.price_cents)}</div>
       </div>`;
@@ -383,13 +416,68 @@ function renderResults(data) {
   }
   if (!html) html = '<div class="reg-empty">No matches.</div>';
   resultsArea.innerHTML = html;
-  resultsArea.querySelectorAll('[data-add]').forEach(row => {
+
+  // Show/hide keyboard hint based on whether results exist
+  const hint = document.getElementById('regHint');
+  hint.style.display = visibleResults.length ? '' : 'none';
+
+  // Reset highlight to first row
+  if (highlighted >= visibleResults.length) highlighted = 0;
+  applyHighlight();
+
+  // Click handler — add the row's item
+  resultsArea.querySelectorAll('[data-i]').forEach(row => {
     row.addEventListener('click', () => {
-      const data = JSON.parse(row.dataset.add);
-      addToCart(data);
+      const i = parseInt(row.dataset.i, 10);
+      addToCart(visibleResults[i]);
     });
   });
+
+  // Wire mouse-active class to the search panel's results sections
+  resultsArea.querySelectorAll('.reg-results-section').forEach(section => {
+    section.addEventListener('mouseenter', () => section.classList.add('mouse-active'));
+    section.addEventListener('mouseleave', () => section.classList.remove('mouse-active'));
+  });
 }
+
+function applyHighlight() {
+  resultsArea.querySelectorAll('.reg-row').forEach((row, i) => {
+    if (parseInt(row.dataset.i, 10) === highlighted) {
+      row.classList.add('highlighted');
+    } else {
+      row.classList.remove('highlighted');
+    }
+  });
+}
+
+// Keyboard navigation on the search input
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (highlighted < visibleResults.length - 1) { highlighted++; applyHighlight(); }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (highlighted > 0) { highlighted--; applyHighlight(); }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (visibleResults[highlighted]) {
+      addToCart(visibleResults[highlighted]);
+      // Clear search and refocus for next item
+      searchInput.value = '';
+      visibleResults = [];
+      highlighted = 0;
+      resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+      document.getElementById('regHint').style.display = 'none';
+      searchInput.focus();
+    }
+  } else if (e.key === 'Escape') {
+    searchInput.value = '';
+    visibleResults = [];
+    highlighted = 0;
+    resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+    document.getElementById('regHint').style.display = 'none';
+  }
+});
 
 function escapeHtml(s) {
   const div = document.createElement('div');
