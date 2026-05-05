@@ -347,7 +347,7 @@
   </div>
 </div>
 
-<div class="reg-modal-bg" id="confirmModal">
+<div class="reg-modal-bg" id="confirmModal" style="z-index:1100">
   <div class="reg-modal" style="max-width:380px">
     <h2 id="confirmTitle">Are you sure?</h2>
     <div class="lede" id="confirmMessage"></div>
