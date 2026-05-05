@@ -329,6 +329,106 @@
     font-weight: 700;
 }
 
+/* ── Financials ──────────────────────────────────────────────── */
+.iv-fin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 32px;
+    border: 0.5px solid var(--mk-border);
+    border-radius: var(--mk-r-lg);
+    overflow: hidden;
+    table-layout: fixed;
+}
+.iv-fin-table th,
+.iv-fin-table td {
+    padding: 16px 20px;
+    text-align: right;
+    font-size: 14px;
+    border-bottom: 0.5px solid var(--mk-border);
+    font-variant-numeric: tabular-nums;
+}
+.iv-fin-table th:first-child,
+.iv-fin-table td:first-child {
+    text-align: left;
+    color: var(--mk-text);
+    font-weight: 500;
+}
+.iv-fin-table thead th {
+    background: rgba(255,255,255,.02);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--mk-dim);
+    font-weight: 600;
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+.iv-fin-table thead th:not(:first-child) {
+    color: var(--mk-accent);
+}
+.iv-fin-table tbody td:not(:first-child) {
+    color: rgba(255,255,255,.78);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px;
+}
+.iv-fin-table tbody tr:last-child td {
+    border-bottom: none;
+    background: rgba(190,242,100,.04);
+    font-weight: 600;
+    font-size: 15px;
+}
+.iv-fin-table tbody tr:last-child td:not(:first-child) {
+    color: var(--mk-accent);
+}
+
+.iv-fin-prose {
+    margin-top: 28px;
+    max-width: 720px;
+}
+.iv-fin-prose p {
+    font-size: 15px;
+    line-height: 1.7;
+    color: rgba(255,255,255,.78);
+    margin-bottom: 16px;
+}
+.iv-fin-prose p:last-child { margin-bottom: 0; }
+
+.iv-fin-callout {
+    margin-top: 32px;
+    padding: 24px 28px;
+    background: rgba(255,255,255,.03);
+    border: 0.5px solid var(--mk-border2);
+    border-left: 3px solid var(--mk-accent);
+    border-radius: var(--mk-r-lg);
+}
+.iv-fin-callout-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--mk-accent);
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+.iv-fin-callout-list {
+    list-style: none;
+}
+.iv-fin-callout-list li {
+    font-size: 14px;
+    line-height: 1.65;
+    color: rgba(255,255,255,.78);
+    padding: 10px 0;
+    border-bottom: 0.5px solid var(--mk-border);
+}
+.iv-fin-callout-list li:last-child { border-bottom: none; padding-bottom: 0; }
+.iv-fin-callout-list li:first-child { padding-top: 0; }
+.iv-fin-callout-list strong {
+    color: var(--mk-text);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+    font-size: 14px;
+}
+
 /* ── Vision timeline ─────────────────────────────────────────── */
 .iv-timeline {
     display: grid;
@@ -896,6 +996,81 @@
                 <li><strong>First employee at 100 tenants</strong> — the moment customer support becomes a real workload</li>
                 <li><strong>Live Google Ads campaign</strong> in all four verticals (campaign design complete; needs spend)</li>
                 <li><strong>Legal cleanup</strong> to make a future priced round straightforward</li>
+            </ul>
+        </div>
+
+    </div>
+</section>
+
+{{-- ── FINANCIALS ─────────────────────────────────────────────── --}}
+<section class="mk-section">
+    <div class="mk-container">
+
+        <p class="mk-eyebrow">The numbers</p>
+        <h2 class="mk-section-title">The unit economics work at small scale.</h2>
+        <p class="mk-section-sub">This is built to be a profitable business, not a venture-backed loss machine. The architecture and team structure are designed to make the math work at modest tenant counts.</p>
+
+        <table class="iv-fin-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Year 1</th>
+                    <th>Year 3</th>
+                    <th>Year 5</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Tenants</td>
+                    <td>500</td>
+                    <td>2,000</td>
+                    <td>4,000</td>
+                </tr>
+                <tr>
+                    <td>ARR</td>
+                    <td>$360k</td>
+                    <td>$1.44M</td>
+                    <td>$2.88M</td>
+                </tr>
+                <tr>
+                    <td>Headcount</td>
+                    <td>1 FT + 1 PT</td>
+                    <td>2 FT + 1 PT</td>
+                    <td>3 FT + 1 PT</td>
+                </tr>
+                <tr>
+                    <td>Operating margin</td>
+                    <td>break-even</td>
+                    <td>~65%</td>
+                    <td>~70%</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="iv-fin-prose">
+            <p>
+                Break-even arrives early because the architecture is honestly thin and the team is intentionally small. Multi-tenant infrastructure means adding the 4,001st tenant costs nearly nothing. No marketplace means no content moderation team, no dispute resolution org, no third-party customer acquisition. Founder-led support through the first 100 tenants keeps the cost-of-acquisition feedback loop tight where it matters most.
+            </p>
+            <p>
+                Cost-of-doing-business sits at roughly 13% of revenue at scale — Stripe processing (~3%), hosting and infrastructure (~3%), software and tooling (~2%), insurance and legal (~2%), marketing and paid acquisition (~3-5%, the variable line). Payroll grows linearly with tenant count, not multiplicatively.
+            </p>
+        </div>
+
+        <div class="iv-fin-callout">
+            <div class="iv-fin-callout-title">What this projection assumes — and where it could be wrong</div>
+            <ul class="iv-fin-callout-list">
+                <li>
+                    <strong>Marketing efficiency.</strong>
+                    The 70% margin assumes paid CAC stays under 5% of revenue. Real-world CAC inflation in years 2-3 is the most likely place this curve compresses. A more conservative 60% margin assumes marketing spend doubles.
+                </li>
+                <li>
+                    <strong>Self-serve product.</strong>
+                    Customer support ratio at year 5 is roughly one human per 1,500 tenants. That works for opinionated, self-serve SaaS — Mindbody runs 1:200 because their product requires hand-holding. Our bet is the product is opinionated enough to need less. That's a real bet, not a sure thing.
+                </li>
+                <li>
+                    <strong>Net-positive growth.</strong>
+                    Numbers above are gross. SMB SaaS churn typically runs 2-3% monthly. To stay flat at 2,000 tenants, we need to acquire ~50-60 new tenants every month. The Google Ads campaign is the first answer to that math.
+                </li>
             </ul>
         </div>
 
