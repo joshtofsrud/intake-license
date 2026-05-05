@@ -6,6 +6,18 @@
 <style>
   .reg-page { --reg-danger: #F09595; --reg-danger-bg: rgba(226,75,74,.15); }
 
+  .reg-tabs-bar{
+    display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
+    flex-wrap:wrap
+  }
+  .reg-tab-link{
+    padding:10px 18px;font-size:13px;font-weight:500;color:var(--ia-text-dim);
+    text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-0.5px;
+    transition:color var(--ia-t),border-color var(--ia-t)
+  }
+  .reg-tab-link:hover{color:var(--ia-text)}
+  .reg-tab-link.active{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
+
   .reg-grid {
     display:grid;grid-template-columns:1fr 360px;gap:18px;
   }
@@ -110,13 +122,32 @@
   .reg-totals-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--ia-text-muted)}
   .reg-totals-row.grand{font-size:18px;font-weight:600;color:var(--ia-text);padding-top:10px;margin-top:6px;border-top:0.5px solid var(--ia-border)}
 
+  .reg-pay-row{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:16px}
   .reg-pay{
-    width:100%;margin-top:16px;padding:14px;background:var(--ia-accent);color:var(--ia-accent-text);
+    padding:14px;background:var(--ia-accent);color:var(--ia-accent-text);
     border:none;border-radius:var(--ia-r-md);font-size:15px;font-weight:600;
     font-family:inherit;cursor:pointer;transition:filter var(--ia-t)
   }
   .reg-pay:hover:not(:disabled){filter:brightness(.93)}
   .reg-pay:disabled{opacity:.4;cursor:not-allowed}
+
+  .reg-quote-btn{
+    padding:14px;background:rgba(var(--ia-accent-rgb,255,255,255),.10);
+    border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:14px;font-weight:500;
+    font-family:inherit;cursor:pointer;transition:all var(--ia-t)
+  }
+  .reg-quote-btn:hover:not(:disabled){border-color:var(--ia-accent);background:var(--ia-accent-soft)}
+  .reg-quote-btn:disabled{opacity:.4;cursor:not-allowed}
+
+  .reg-cust.warning{
+    background:var(--reg-danger-bg);
+    border:0.5px solid var(--reg-danger);
+  }
+  .reg-attach.warning{
+    border:0.5px dashed var(--reg-danger);
+    color:var(--reg-danger)
+  }
 
   .reg-err{background:var(--reg-danger-bg);color:var(--reg-danger);border-radius:var(--ia-r-sm);padding:10px 12px;font-size:13px;margin-bottom:12px}
 
@@ -212,9 +243,12 @@
     <h1 class="ia-page-title">Register</h1>
     <p class="ia-page-subtitle">Walk-in sales and retail checkouts.</p>
   </div>
-  <div class="ia-page-actions">
-    <a href="{{ route('tenant.register.refunds.index') }}" class="ia-btn ia-btn--primary">Refunds</a>
-  </div>
+</div>
+
+<div class="reg-tabs-bar">
+  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Sale</a>
+  <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
+  <a href="{{ route('tenant.register.refunds.index') }}" class="reg-tab-link">Refunds</a>
 </div>
 
 <div class="reg-page">
@@ -270,7 +304,10 @@
         <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
       </div>
 
-      <button type="button" class="reg-pay" id="payBtn" disabled>Mark Paid</button>
+      <div class="reg-pay-row">
+        <button type="button" class="reg-quote-btn" id="quoteBtn" disabled>Save quote</button>
+        <button type="button" class="reg-pay" id="payBtn" disabled>Mark Paid</button>
+      </div>
     </div>
 
   </div>
@@ -369,6 +406,21 @@
   </div>
 </div>
 
+<div class="reg-modal-bg" id="quoteModal">
+  <div class="reg-modal">
+    <h2>Save as quote</h2>
+    <div class="lede">The customer can come back later to pick up where they left off.</div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Notes (optional)</label>
+      <input type="text" id="quoteNotesInput" placeholder="Anything the customer should know">
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="quoteModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="quoteSaveBtn">Save quote</button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="receiptModal">
   <div class="reg-modal reg-receipt">
     <h2>Sale complete</h2>
@@ -391,6 +443,8 @@ const ROUTES = {
   listDrafts:  @json(route('tenant.register.drafts.index')),
   draftBase:   @json(url('/admin/register/drafts')),
   commitDraft: @json(url('/admin/register/drafts')),
+  storeQuote:  @json(route('tenant.register.quotes.store')),
+  quotesIndex: @json(route('tenant.register.quotes.index')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -701,6 +755,7 @@ function renderCart() {
   if (!cart.items.length) {
     lines.innerHTML = '<div class="reg-empty">Cart is empty.</div>';
     document.getElementById('payBtn').disabled = true;
+    document.getElementById('quoteBtn').disabled = true;
   } else {
     lines.innerHTML = cart.items.map(i => `
       <div class="reg-line">
@@ -716,6 +771,7 @@ function renderCart() {
       </div>
     `).join('');
     document.getElementById('payBtn').disabled = false;
+    document.getElementById('quoteBtn').disabled = false;
   }
   lines.querySelectorAll('[data-key]').forEach(input => {
     input.addEventListener('change', () => updateQty(parseInt(input.dataset.key, 10), input.value));
@@ -736,9 +792,13 @@ function renderCart() {
       renderCart();
       queueDraftSave();
     });
+    // Customer is now attached — clear any prior warning.
+    if (customerWarningActive) applyCustomerWarning(false);
   } else {
     slot.innerHTML = `<button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>`;
     document.getElementById('attachCustBtn').addEventListener('click', openCustomerModal);
+    // Re-apply warning class if a prior quote attempt set it.
+    if (customerWarningActive) applyCustomerWarning(true);
   }
   renderTotals();
 }
@@ -837,6 +897,96 @@ async function searchCustomers() {
     box.style.display = '';
   }
 }
+
+// --- Save as Quote flow ---
+let customerWarningActive = false;
+
+function applyCustomerWarning(on) {
+  customerWarningActive = on;
+  const slot = document.getElementById('customerSlot');
+  const cust = slot.querySelector('.reg-cust');
+  const attach = slot.querySelector('.reg-attach');
+  if (on) {
+    if (cust) cust.classList.add('warning');
+    if (attach) attach.classList.add('warning');
+  } else {
+    if (cust) cust.classList.remove('warning');
+    if (attach) attach.classList.remove('warning');
+  }
+}
+
+document.getElementById('quoteBtn').addEventListener('click', async () => {
+  if (!cart.customer) {
+    applyCustomerWarning(true);
+    const ok = await confirmDialog(
+      'Quotes need a customer attached so you can find and follow up later.',
+      'Attach customer',
+      'Customer required'
+    );
+    if (ok) openCustomerModal();
+    return;
+  }
+  // Customer is attached — clear any prior warning state and open quote modal.
+  applyCustomerWarning(false);
+  document.getElementById('quoteNotesInput').value = '';
+  openModal('quoteModal');
+  setTimeout(() => document.getElementById('quoteNotesInput').focus(), 50);
+});
+
+document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('quoteSaveBtn');
+  btn.disabled = true;
+
+  // Make sure any pending draft save lands first — same flush pattern as commit.
+  await flushDraftSave();
+
+  const payload = {
+    id: cart.draft_id,
+    customer_id: cart.customer.id,
+    notes: document.getElementById('quoteNotesInput').value.trim() || null,
+    tip_cents: cart.tipCents,
+    items: cart.items.map(i => {
+      const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+      if (i.type === 'product') out.inventory_item_id = i.source_id;
+      if (i.type === 'service') out.service_id = i.source_id;
+      if (i.type === 'open_item') {
+        out.name_snapshot = i.name;
+        out.unit_price_cents = i.price_cents;
+      }
+      return out;
+    }),
+  };
+
+  try {
+    const res = await fetch(ROUTES.storeQuote, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showError(data.error || 'Could not save the quote.');
+      closeModal('quoteModal');
+      return;
+    }
+    // Success — clear the cart so register is ready for the next sale.
+    closeModal('quoteModal');
+    cart.draft_id = null;
+    cart.customer = null;
+    cart.items = [];
+    cart.tipCents = 0;
+    cart.discountCents = 0;
+    cart.payment_method = null;
+    cart.payment_reference = null;
+    renderCart();
+    refreshDraftsBanner(await loadDrafts());
+  } catch (e) {
+    showError('Network error saving quote.');
+    closeModal('quoteModal');
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 document.getElementById('payBtn').addEventListener('click', () => {
   cart.payment_method = null;

@@ -213,18 +213,13 @@ class SaleService
                 'A customer is required to save a quote.'
             );
         }
-        if (empty($data['quote_expires_at'])) {
-            throw new SaleValidationException(
-                'quote_expires_at is required to save a quote.'
-            );
-        }
 
-        // Reuse draft path, then flip status + set expiry.
+        // Reuse draft path, then flip status. Expiry is opt-in.
         $sale = $this->saveDraft($data);
 
         $sale->update([
             'payment_status'   => 'quote',
-            'quote_expires_at' => $data['quote_expires_at'],
+            'quote_expires_at' => $data['quote_expires_at'] ?? null,
         ]);
 
         return $sale->fresh('items');

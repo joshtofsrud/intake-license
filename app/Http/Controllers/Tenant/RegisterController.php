@@ -391,6 +391,68 @@ class RegisterController extends Controller
         return view('tenant.register.refund', ['tenant' => $tenant]);
     }
 
+    /**
+     * Stub quotes index. Real list view lands in a follow-up patch.
+     */
+    public function quotesIndex(Request $request)
+    {
+        $tenant = tenant();
+        return view('tenant.register.quotes', ['tenant' => $tenant]);
+    }
+
+    /**
+     * Save the current cart as a quote.
+     * Customer is required (the modal enforces it client-side too).
+     */
+    public function storeQuote(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'id'               => 'nullable|uuid',
+            'customer_id'      => 'required|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'items'            => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        try {
+            $quote = $this->sales->saveQuote([
+                'id'                 => $validated['id'] ?? null,
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'],
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'items'              => $validated['items'],
+            ]);
+
+            return response()->json([
+                'ok'          => true,
+                'quote_id'    => $quote->id,
+                'total_cents' => $quote->total_cents,
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
     public function searchRefundables(Request $request): JsonResponse
     {
         $tenant = tenant();
