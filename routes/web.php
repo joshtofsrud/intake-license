@@ -188,6 +188,8 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');
             Route::delete('/register/drafts/{id}',     [TenantControllers\RegisterController::class, 'discardDraft'])->name('register.drafts.destroy');
             Route::post('/register/drafts/{id}/commit',[TenantControllers\RegisterController::class, 'commitDraft'])->name('register.drafts.commit');
+            Route::get('/register/quotes',           [TenantControllers\RegisterController::class, 'quotesIndex'])->name('register.quotes.index');
+            Route::post('/register/quotes',          [TenantControllers\RegisterController::class, 'storeQuote'])->name('register.quotes.store');
             Route::get('/register/refunds',          [TenantControllers\RegisterController::class, 'refundIndex'])->name('register.refunds.index');
             Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
             Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
