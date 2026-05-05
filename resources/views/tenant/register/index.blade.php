@@ -172,13 +172,23 @@
 
   .reg-drafts-banner{
     display:flex;align-items:center;justify-content:space-between;gap:10px;
-    padding:10px 14px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    padding:11px 14px 11px 13px;
+    background:var(--ia-accent-soft);
+    border:0.5px solid var(--ia-border);
+    border-left:3px solid var(--ia-accent);
     border-radius:var(--ia-r-md);margin-bottom:14px;font-size:13px;cursor:pointer;
-    transition:border-color var(--ia-t)
+    transition:filter var(--ia-t)
   }
-  .reg-drafts-banner:hover{border-color:var(--ia-accent)}
-  .reg-drafts-banner .label{color:var(--ia-text)}
-  .reg-drafts-banner .cta{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em}
+  .reg-drafts-banner:hover{filter:brightness(1.08)}
+  .reg-drafts-banner .label{color:var(--ia-text);font-weight:500}
+  .reg-drafts-banner .cta{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em;font-weight:500}
+
+  .reg-save-status{
+    font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em;
+    margin-bottom:8px;height:14px;line-height:14px;
+    transition:opacity var(--ia-t);opacity:0
+  }
+  .reg-save-status.visible{opacity:1}
 
   .reg-drafts-list{max-height:380px;overflow-y:auto;margin:-4px -4px 14px;padding:4px}
   .reg-draft-row{
@@ -235,6 +245,8 @@
 
     <div class="reg-panel">
       <div id="errBanner" class="reg-err" style="display:none"></div>
+
+      <div id="saveStatus" class="reg-save-status"></div>
 
       <div id="draftsBanner" class="reg-drafts-banner" style="display:none">
         <span class="label" id="draftsBannerLabel"></span>
@@ -335,6 +347,17 @@
   </div>
 </div>
 
+<div class="reg-modal-bg" id="confirmModal">
+  <div class="reg-modal" style="max-width:380px">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <div class="lede" id="confirmMessage"></div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="draftsModal">
   <div class="reg-modal" style="max-width:560px">
     <h2>Open drafts</h2>
@@ -381,6 +404,29 @@ const CFG = {
   surchargePct:   {{ $surchargeConfig['percent'] ?? 0 }},
   surchargeLabel: @json($surchargeConfig['label'] ?? 'Surcharge'),
 };
+
+// Reusable confirm dialog. Returns a promise that resolves true/false.
+// Usage: const ok = await confirmDialog('Replace cart?', 'Replace');
+function confirmDialog(message, confirmLabel = 'Confirm', title = 'Are you sure?') {
+  return new Promise(resolve => {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    const okBtn = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    okBtn.textContent = confirmLabel;
+    const cleanup = (result) => {
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      closeModal('confirmModal');
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    openModal('confirmModal');
+  });
+}
 
 const cart = {
   draft_id: null,
@@ -434,11 +480,13 @@ async function fireDraftSave() {
       const data = await res.json();
       if (data.ok && data.draft_id) {
         cart.draft_id = data.draft_id;
+        setSaveStatus('saved');
       }
     } catch (e) {
       // Silent failure on auto-save. Cart still works locally; commit will
       // fall back to the storeSale path if draft_id is still null.
       console.warn('[draft] save failed', e);
+      setSaveStatus('idle');
     } finally {
       draftSaveInFlight = null;
     }
@@ -451,6 +499,24 @@ function queueDraftSave() {
   if (!cart.items.length && !cart.draft_id) return;
   clearTimeout(draftSaveTimer);
   draftSaveTimer = setTimeout(fireDraftSave, DRAFT_DEBOUNCE_MS);
+  setSaveStatus('pending');
+}
+
+let saveStatusTimer = null;
+function setSaveStatus(state) {
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  clearTimeout(saveStatusTimer);
+  if (state === 'pending' || state === 'saving') {
+    el.textContent = 'Saving…';
+    el.classList.add('visible');
+  } else if (state === 'saved') {
+    el.textContent = 'Saved';
+    el.classList.add('visible');
+    saveStatusTimer = setTimeout(() => el.classList.remove('visible'), 1500);
+  } else {
+    el.classList.remove('visible');
+  }
 }
 
 async function flushDraftSave() {
@@ -920,7 +986,7 @@ function showReceipt(data) {
   openModal('receiptModal');
 }
 
-document.getElementById('receiptNewSale').addEventListener('click', () => {
+document.getElementById('receiptNewSale').addEventListener('click', async () => {
   cart.draft_id = null;
   cart.customer = null; cart.items = []; cart.tipCents = 0; cart.discountCents = 0;
   cart.payment_method = null; cart.payment_reference = null;
@@ -928,6 +994,8 @@ document.getElementById('receiptNewSale').addEventListener('click', () => {
   renderCart();
   searchInput.value = '';
   resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+  // Refresh banner — count just changed (one draft promoted to paid).
+  refreshDraftsBanner(await loadDrafts());
 });
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -1013,7 +1081,12 @@ document.getElementById('draftsBanner').addEventListener('click', async () => {
 
 async function resumeDraft(id) {
   if (cart.items.length > 0) {
-    if (!confirm('Replace the current cart with this draft?')) return;
+    const ok = await confirmDialog(
+      'Your current cart will be replaced with this draft.',
+      'Replace cart',
+      'Replace current cart?'
+    );
+    if (!ok) return;
   }
   try {
     const res = await fetch(ROUTES.draftBase + '/' + id, {headers:{'Accept':'application/json'}});
@@ -1044,7 +1117,12 @@ async function resumeDraft(id) {
 }
 
 async function discardDraftFromList(id) {
-  if (!confirm('Permanently discard this draft?')) return;
+  const ok = await confirmDialog(
+    'This draft will be permanently deleted.',
+    'Discard draft',
+    'Discard this draft?'
+  );
+  if (!ok) return;
   try {
     const res = await fetch(ROUTES.draftBase + '/' + id, {
       method: 'DELETE',
