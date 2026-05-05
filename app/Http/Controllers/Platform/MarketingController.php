@@ -54,6 +54,16 @@ class MarketingController extends Controller
     }
 
     /**
+     * Republic equity crowdfunding raise page.
+     * Hardcoded Blade — content rarely changes during a campaign and
+     * compliance copy benefits from version-controlled review.
+     */
+    public function invest()
+    {
+        return view('marketing.invest', $this->legacyShared());
+    }
+
+    /**
      * Public changelog — what shipped, by date.
      * Always served from the hardcoded Blade; data comes from changelog_entries.
      */

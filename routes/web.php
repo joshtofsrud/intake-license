@@ -49,6 +49,7 @@ Route::domain($domain)->group(function () {
     Route::get('/why-intake', [Platform\MarketingController::class, 'whyIntake'])->name('marketing.why-intake');
     Route::get('/docs',     [Platform\MarketingController::class, 'docs'])->name('marketing.docs');
     Route::get('/contact',  [Platform\MarketingController::class, 'contact'])->name('marketing.contact');
+    Route::get('/invest',   [Platform\MarketingController::class, 'invest'])->name('marketing.invest');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
 
     // --- Industry landing pages: /for/bike-shops, /for/massage-therapy, etc. ---
