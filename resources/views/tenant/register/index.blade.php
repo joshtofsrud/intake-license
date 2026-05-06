@@ -1207,9 +1207,9 @@ document.getElementById('refundTenderConfirmBtn').addEventListener('click', () =
   commitTransaction({});
 });
 
-document.querySelectorAll('.reg-tender-btn').forEach(btn => {
+document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.reg-tender-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     cart.payment_method = btn.dataset.tender;
     document.getElementById('tenderConfirmBtn').disabled = false;
