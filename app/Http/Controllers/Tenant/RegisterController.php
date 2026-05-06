@@ -392,12 +392,41 @@ class RegisterController extends Controller
     }
 
     /**
-     * Stub quotes index. Real list view lands in a follow-up patch.
+     * Quotes list — all quotes for the tenant, regardless of location.
+     * Convert and discard actions fire client-side.
      */
     public function quotesIndex(Request $request)
     {
         $tenant = tenant();
-        return view('tenant.register.quotes', ['tenant' => $tenant]);
+
+        $quotes = TenantSale::where('tenant_id', $tenant->id)
+            ->quotes()
+            ->with(['customer', 'rangUpBy', 'items', 'location'])
+            ->orderByDesc('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(function ($q) {
+                return [
+                    'id'           => $q->id,
+                    'item_count'   => $q->items->count(),
+                    'total_cents'  => $q->total_cents,
+                    'customer'     => $q->customer
+                        ? trim(($q->customer->first_name ?? '') . ' ' . ($q->customer->last_name ?? ''))
+                        : null,
+                    'customer_email' => $q->customer->email ?? null,
+                    'started_by'   => $q->rangUpBy
+                        ? trim(($q->rangUpBy->first_name ?? '') . ' ' . ($q->rangUpBy->last_name ?? ''))
+                        : null,
+                    'location_name' => $q->location->name ?? null,
+                    'notes'        => $q->notes,
+                    'updated_at'   => $q->updated_at?->toIso8601String(),
+                ];
+            });
+
+        return view('tenant.register.quotes', [
+            'tenant' => $tenant,
+            'quotes' => $quotes,
+        ]);
     }
 
     /**

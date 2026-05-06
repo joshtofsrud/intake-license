@@ -1300,5 +1300,18 @@ renderCart();
 
 // On page load, populate the banner.
 loadDrafts().then(refreshDraftsBanner);
+
+// If we were redirected here from the Quotes page with ?resume=<id>,
+// load that quote into the cart automatically.
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const resumeId = params.get('resume');
+  if (!resumeId) return;
+  // Strip the param from the URL so a refresh doesn't re-trigger.
+  const cleanUrl = window.location.pathname;
+  window.history.replaceState({}, '', cleanUrl);
+  // Reuse the existing resumeDraft path — it handles drafts and quotes both.
+  resumeDraft(resumeId);
+})();
 </script>
 @endpush
