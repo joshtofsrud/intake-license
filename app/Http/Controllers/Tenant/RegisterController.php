@@ -669,6 +669,7 @@ class RegisterController extends Controller
                     'location_name' => $q->location->name ?? null,
                     'notes'        => $q->notes,
                     'updated_at'   => $q->updated_at?->toIso8601String(),
+                    'created_at'   => $q->created_at?->toIso8601String(),
                 ];
             });
 

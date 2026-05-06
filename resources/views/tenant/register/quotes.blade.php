@@ -247,12 +247,15 @@
             $updatedDays = $q['updated_at']
               ? (int) \Carbon\Carbon::parse($q['updated_at'])->diffInDays(now())
               : 0;
+            $createdDays = $q['created_at']
+              ? (int) \Carbon\Carbon::parse($q['created_at'])->diffInDays(now())
+              : 0;
             $rowFlags = [];
+            // Aging is based on last activity (updated_at) — a quote that was
+            // edited yesterday isn't aging even if it was first saved 30 days ago.
             if ($updatedDays >= 14) $rowFlags[] = 'aging';
-            // 'new_this_week' is computed against created_at, but we don't carry that in
-            // the mapped array. Approximation via updated_at is good enough since quotes
-            // rarely get edited after save. Tighten later if needed.
-            if ($updatedDays <= 7) $rowFlags[] = 'new_this_week';
+            // 'new_this_week' uses created_at — when the quote was first saved.
+            if ($createdDays <= 7) $rowFlags[] = 'new_this_week';
           @endphp
           <tr data-quote-id="{{ $q['id'] }}"
               data-customer="{{ strtolower($q['customer'] ?? '') }}"
