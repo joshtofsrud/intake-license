@@ -348,4 +348,6 @@ class FitnessData implements IndustryDataContract
             ],
         ];
     }
+
+    public function bookingMode(): string { return 'time_slots'; }
 }

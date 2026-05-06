@@ -57,6 +57,20 @@ interface IndustryDataContract
     public function workOrderSampleValues(): array;
 
     /**
+     * The booking mode this industry's tenants run in. Determines which
+     * receiving methods the seeder uses to generate appointment data:
+     *   - 'drop_off'   → seeded appointments use the drop-off receiving
+     *                    method, no appointment_time set. Calendar shows
+     *                    them via the drop-off (capacity bar) view.
+     *   - 'time_slots' → seeded appointments use methods with
+     *                    ask_for_time=true and get a real time slot.
+     *
+     * Other receiving methods (e.g. mail-in) stay installed on the tenant
+     * for admin use, but aren't picked by the seeder.
+     */
+    public function bookingMode(): string;
+
+    /**
      * Class templates for industries that run scheduled group classes
      * (yoga, fitness, etc). Empty array = no classes; demo seeder skips
      * the entire class pipeline (templates / sessions / memberships /

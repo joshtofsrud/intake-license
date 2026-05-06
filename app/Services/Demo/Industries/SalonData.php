@@ -212,5 +212,6 @@ class SalonData implements IndustryDataContract
     public function classTemplates(): array { return []; }
     public function membershipProducts(): array { return []; }
     public function packProducts(): array { return []; }
+    public function bookingMode(): string { return 'time_slots'; }
 
 }

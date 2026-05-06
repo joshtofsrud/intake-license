@@ -53,6 +53,11 @@ class DemoSeeder
     ): void {
         $this->log("Seeding tenant [{$tenant->id}] as {$this->industry->label()}...");
 
+        // Lock booking_mode from the industry contract before any appointment
+        // generation. The seeder picks receiving methods downstream based on
+        // this setting.
+        $tenant->update(['booking_mode' => $this->industry->bookingMode()]);
+
         $owner = $this->createOwner($tenant, $ownerName, $ownerEmail, $ownerPassword);
         $this->seedAdditionalResources($tenant);
         $this->seedCapacityRules($tenant);
@@ -507,13 +512,48 @@ class DemoSeeder
                 ? $this->weightedPick(['stripe' => 70, 'cash' => 20, 'paypal' => 10])
                 : null;
 
-            $receivingMethods = ['Drop-off at shop', 'Mail-in', 'Scheduled appointment'];
-            $receivingIdx = $this->weightedPickIndex([70, 15, 15]);
-            $receivingName = $receivingMethods[$receivingIdx];
+            // Pick a receiving method that matches the tenant's booking_mode.
+            //
+            // drop_off mode → seed only drop-off-style methods (ask_for_time=false).
+            //                 No appointment_time set; calendar shows them via
+            //                 the drop-off (capacity bar) view.
+            // time_slots mode → seed only time-bound methods (ask_for_time=true).
+            //                   appointment_time gets a real slot.
+            //
+            // Other methods (e.g. mail-in) stay installed for admin use but
+            // aren't picked by the seeder. Mixing modes in seeded data would
+            // produce appointments that can't render in the active calendar.
+            $industryMethods = $this->industry->receivingMethods();
+            $isTimeSlots = $this->industry->bookingMode() === 'time_slots';
+
+            $eligibleMethods = array_values(array_filter(
+                $industryMethods,
+                fn($m) => $isTimeSlots ? !empty($m['ask_for_time']) : empty($m['ask_for_time']),
+            ));
+
+            if (empty($eligibleMethods)) {
+                // Defensive fallback — shouldn't happen if industry data is
+                // consistent with bookingMode(), but rather than throw on a
+                // mismatched contract, just use the first method as-is.
+                $eligibleMethods = $industryMethods;
+            }
+
+            $methodCount = count($eligibleMethods);
+            if ($methodCount === 1) {
+                $method = $eligibleMethods[0];
+            } else {
+                // First eligible method weighted heaviest; rest split evenly.
+                $weights = array_fill(0, $methodCount, (int) floor(30 / ($methodCount - 1)));
+                $weights[0] = 70;
+                $methodIdx = $this->weightedPickIndex($weights);
+                $method = $eligibleMethods[$methodIdx];
+            }
+            $receivingName = $method['name'];
+
             $appointmentTime = null;
             $appointmentEndTime = null;
             $receivingTime = null;
-            if ($receivingIdx === 2) {
+            if (!empty($method['ask_for_time'])) {
                 $hour = random_int(9, 16);
                 $minute = [0, 30][array_rand([0, 30])];
                 $appointmentTime = sprintf('%02d:%02d:00', $hour, $minute);
@@ -521,7 +561,9 @@ class DemoSeeder
                 $appointmentEndTime = sprintf('%02d:%02d:00', intdiv($endMinutes, 60) % 24, $endMinutes % 60);
                 $receivingTime = sprintf('%d:%02d %s', ($hour > 12 ? $hour - 12 : $hour), $minute, $hour >= 12 ? 'PM' : 'AM');
             }
-            $trackingNumber = $receivingIdx === 1 ? '1Z' . strtoupper(Str::random(16)) : null;
+            $trackingNumber = !empty($method['ask_for_tracking'])
+                ? '1Z' . strtoupper(Str::random(16))
+                : null;
 
             $raNumber = TenantAppointment::generateRaNumber($tenant->id, $date->toDateString());
 
