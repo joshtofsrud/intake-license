@@ -459,6 +459,73 @@ class RegisterController extends Controller
         ]);
     }
 
+    /**
+     * Commit a multi-row transaction (mixed sale + refund, or pure refund).
+     * Pure sales still use storeSale or commitDraft.
+     */
+    public function storeTransaction(Request $request, string $subdomain): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'      => 'nullable|uuid',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'payment_method'   => 'required|string|in:cash,card,check,store_credit,mark_paid,split',
+            'payment_reference'=> 'nullable|string',
+            'items'            => 'nullable|array',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'refund'                       => 'required|array',
+            'refund.original_sale_id'      => 'required|uuid',
+            'refund.item_ids'              => 'required|array|min:1',
+            'refund.item_ids.*'            => 'uuid',
+            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid',
+        ]);
+
+        try {
+            $result = $this->sales->createTransaction([
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'payment_method'     => $validated['payment_method'],
+                'payment_reference'  => $validated['payment_reference'] ?? null,
+                'items'              => $validated['items'] ?? [],
+                'refund'             => $validated['refund'],
+            ]);
+
+            // Build a unified receipt response.
+            $sale = $result['sale'];
+            $refund = $result['refund'];
+
+            return response()->json([
+                'ok'             => true,
+                'transaction_id' => $result['transaction_id'],
+                'sale_id'        => $sale?->id,
+                'sale_number'    => $sale?->sale_number ?? $refund?->sale_number,
+                'total_cents'    => ($sale?->total_cents ?? 0) - ($refund?->total_cents ?? 0),
+                'sale_total'     => $sale?->total_cents ?? 0,
+                'refund_total'   => $refund?->total_cents ?? 0,
+                'redirect'       => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
     public function refundIndex(Request $request)
     {
         $tenant = tenant();

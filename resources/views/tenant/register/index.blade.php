@@ -347,12 +347,29 @@
 
       <div class="reg-pay-row">
         <button type="button" class="reg-quote-btn" id="quoteBtn" disabled>Save quote</button>
-        <button type="button" class="reg-pay" id="payBtn" disabled>Mark Paid</button>
+        <button type="button" class="reg-pay" id="payBtn" disabled>Collect payment</button>
       </div>
     </div>
 
   </div>
 
+</div>
+
+<div class="reg-modal-bg" id="refundTenderModal">
+  <div class="reg-modal">
+    <h2>Refund to customer</h2>
+    <div class="lede" id="refundTenderLede">How is the refund being given?</div>
+    <div class="reg-tender-grid">
+      <button type="button" class="reg-tender-btn" data-refund-tender="card">Refund to card</button>
+      <button type="button" class="reg-tender-btn" data-refund-tender="cash">Cash from drawer</button>
+      <button type="button" class="reg-tender-btn" data-refund-tender="check">Check</button>
+      <button type="button" class="reg-tender-btn" data-refund-tender="store_credit">Store credit</button>
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="refundTenderModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="refundTenderConfirmBtn" disabled>Continue</button>
+    </div>
+  </div>
 </div>
 
 <div class="reg-modal-bg" id="tenderModal">
@@ -364,7 +381,7 @@
       <button type="button" class="reg-tender-btn" data-tender="card">Card</button>
       <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
-      <button type="button" class="reg-tender-btn" data-tender="mark_paid">Mark paid (no tender)</button>
+      <button type="button" class="reg-tender-btn" data-tender="mark_paid">No tender (already paid)</button>
     </div>
     <div id="tenderRefRow" style="display:none;margin-bottom:14px">
       <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
@@ -499,6 +516,7 @@ const ROUTES = {
   storeQuote:  @json(route('tenant.register.quotes.store')),
   quotesIndex: @json(route('tenant.register.quotes.index')),
   lookupSale:  @json(route('tenant.register.lookup-sale')),
+  commitTxn:   @json(route('tenant.register.transactions.store')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -1060,6 +1078,10 @@ function applyCustomerWarning(on) {
 }
 
 document.getElementById('quoteBtn').addEventListener('click', async () => {
+  if (cart.refund_lines.length > 0) {
+    showError('Quotes can\'t include refund items. Remove the refund lines or commit the transaction.');
+    return;
+  }
   if (!cart.customer) {
     applyCustomerWarning(true);
     const ok = await confirmDialog(
@@ -1133,13 +1155,56 @@ document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('payBtn').addEventListener('click', () => {
+  // Net total decides which path we take.
+  const sub = calcSubtotal();
+  const refundSub = calcRefundSubtotal();
+  const tax = calcTax();
+  const surch = calcSurcharge();
+  const tip = cart.tipCents;
+  const disc = cart.discountCents;
+  const net = (sub - disc + tax + surch + tip) - refundSub;
+
+  if (net === 0 && cart.refund_lines.length > 0) {
+    // Even exchange — skip tender, commit immediately.
+    commitTransaction({ even_exchange: true });
+    return;
+  }
+
+  if (net < 0) {
+    // Refund-direction transaction.
+    cart.payment_method = null;
+    document.getElementById('refundTenderConfirmBtn').disabled = true;
+    document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('refundTenderLede').textContent =
+      'Customer is owed ' + fmt(Math.abs(net)) + '. How is the refund being given?';
+    openModal('refundTenderModal');
+    return;
+  }
+
+  // Standard sale-direction tender flow (net > 0).
   cart.payment_method = null;
   cart.payment_reference = null;
   document.getElementById('tenderRefRow').style.display = 'none';
   document.getElementById('tenderRefInput').value = '';
   document.getElementById('tenderConfirmBtn').disabled = true;
-  document.querySelectorAll('.reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   openModal('tenderModal');
+});
+
+// Refund-tender modal handlers
+document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    cart.payment_method = btn.dataset.refundTender;
+    document.getElementById('refundTenderConfirmBtn').disabled = false;
+  });
+});
+
+document.getElementById('refundTenderConfirmBtn').addEventListener('click', () => {
+  closeModal('refundTenderModal');
+  // Refund-direction commits skip the tip step entirely.
+  commitTransaction({});
 });
 
 document.querySelectorAll('.reg-tender-btn').forEach(btn => {
@@ -1157,7 +1222,7 @@ document.querySelectorAll('.reg-tender-btn').forEach(btn => {
 document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
   closeModal('tenderModal');
-  if (CFG.tipsEnabled) openTipModal(); else commitSale();
+  if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
 });
 
 function openTipModal() {
@@ -1205,25 +1270,43 @@ document.getElementById('tipClearBtn').addEventListener('click', () => {
 document.getElementById('tipSkipBtn').addEventListener('click', () => {
   cart.tipCents = 0;
   closeModal('tipModal');
-  commitSale();
+  commitTransaction({});
 });
 document.getElementById('tipConfirmBtn').addEventListener('click', () => {
   closeModal('tipModal');
-  commitSale();
+  commitTransaction({});
 });
 
-async function commitSale() {
+async function commitTransaction(opts = {}) {
   document.getElementById('payBtn').disabled = true;
   document.getElementById('errBanner').style.display = 'none';
 
-  // Make sure any pending or in-flight draft save lands before commit, so the
-  // server has the latest line items before promoting to a sale.
+  // Make sure any pending or in-flight draft save lands before commit.
   await flushDraftSave();
+
+  const hasRefund = cart.refund_lines.length > 0;
+  const hasNewSale = cart.items.length > 0;
 
   try {
     let url, payload;
-    if (cart.draft_id) {
-      // Draft-backed path: server already has the items. Send only payment fields.
+
+    if (hasRefund) {
+      // Mixed or pure-refund transaction — use the new endpoint that handles both.
+      url = ROUTES.commitTxn;
+      payload = {
+        customer_id: cart.customer ? cart.customer.id : null,
+        tip_cents: cart.tipCents,
+        payment_method: cart.payment_method,
+        payment_reference: cart.payment_reference,
+        items: hasNewSale ? cart.items.map(serializeLine) : [],
+        refund: {
+          original_sale_id: cart.refund_meta.original_sale_id,
+          item_ids: cart.refund_lines.map(r => r.original_item_id),
+          refund_method: cart.payment_method,
+        },
+      };
+    } else if (cart.draft_id) {
+      // Draft-backed pure sale — promote draft to paid (existing path).
       url = ROUTES.commitDraft + '/' + cart.draft_id + '/commit';
       payload = {
         payment_method: cart.payment_method,
@@ -1232,8 +1315,7 @@ async function commitSale() {
         customer_id: cart.customer ? cart.customer.id : null,
       };
     } else {
-      // Fallback path: draft never saved (network failed, or commit clicked
-      // faster than first debounce). Send the full cart to storeSale.
+      // Fallback path — pure sale, no draft, send full cart.
       url = ROUTES.storeSale;
       payload = {
         customer_id: cart.customer ? cart.customer.id : null,
@@ -1241,16 +1323,7 @@ async function commitSale() {
         discount_cents: cart.discountCents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
-        items: cart.items.map(i => {
-          const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
-          if (i.type === 'product') out.inventory_item_id = i.source_id;
-          if (i.type === 'service') out.service_id = i.source_id;
-          if (i.type === 'open_item') {
-            out.name_snapshot = i.name;
-            out.unit_price_cents = i.price_cents;
-          }
-          return out;
-        }),
+        items: cart.items.map(serializeLine),
       };
     }
 
@@ -1260,13 +1333,24 @@ async function commitSale() {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!data.ok) { showError(data.error || 'Could not complete the sale.'); return; }
+    if (!data.ok) { showError(data.error || 'Could not complete the transaction.'); return; }
     showReceipt(data);
   } catch (e) {
     showError('Network error. Please try again.');
   } finally {
-    document.getElementById('payBtn').disabled = cart.items.length === 0;
+    document.getElementById('payBtn').disabled = (cart.items.length === 0 && cart.refund_lines.length === 0);
   }
+}
+
+function serializeLine(i) {
+  const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+  if (i.type === 'product') out.inventory_item_id = i.source_id;
+  if (i.type === 'service') out.service_id = i.source_id;
+  if (i.type === 'open_item') {
+    out.name_snapshot = i.name;
+    out.unit_price_cents = i.price_cents;
+  }
+  return out;
 }
 
 function showError(msg) {
@@ -1282,13 +1366,16 @@ function showReceipt(data) {
 
 document.getElementById('receiptNewSale').addEventListener('click', async () => {
   cart.draft_id = null;
-  cart.customer = null; cart.items = []; cart.tipCents = 0; cart.discountCents = 0;
+  cart.customer = null;
+  cart.items = [];
+  cart.refund_lines = [];
+  cart.refund_meta = null;
+  cart.tipCents = 0; cart.discountCents = 0;
   cart.payment_method = null; cart.payment_reference = null;
   closeModal('receiptModal');
   renderCart();
   searchInput.value = '';
   resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
-  // Refresh banner — count just changed (one draft promoted to paid).
   refreshDraftsBanner(await loadDrafts());
 });
 
