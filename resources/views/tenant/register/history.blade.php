@@ -200,10 +200,12 @@
                 <div class="h-meta">refund of {{ $r['refund_of_sale_number'] }}</div>
               @endif
             </td>
-            <td class="h-meta">
-              {{ $r['paid_at']
-                ? \Carbon\Carbon::parse($r['paid_at'])->diffForHumans()
-                : ($r['updated_at'] ? \Carbon\Carbon::parse($r['updated_at'])->diffForHumans() : '—') }}
+            @php
+              $dateRaw = $r['paid_at'] ?? $r['updated_at'];
+              $dateObj = $dateRaw ? \Carbon\Carbon::parse($dateRaw) : null;
+            @endphp
+            <td class="h-meta" title="{{ $dateObj?->format('M j, Y g:i A') ?? '' }}">
+              {{ $dateObj?->format('Y-m-d') ?? '—' }}
             </td>
             <td class="h-meta">{{ $r['started_by'] ?? '—' }}</td>
           </tr>
