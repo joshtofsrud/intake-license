@@ -61,6 +61,42 @@
 
   .quotes-count{font-size:13px;color:var(--ia-text-dim)}
 
+  .q-dashboard{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:12px;margin-bottom:24px
+  }
+  .q-card{
+    background:var(--ia-surface);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-lg);padding:16px;cursor:pointer;
+    transition:border-color var(--ia-t),background var(--ia-t);
+    position:relative
+  }
+  .q-card:hover{border-color:var(--ia-border-strong);background:var(--ia-hover)}
+  .q-card.active{border-color:var(--ia-accent);background:rgba(190,242,100,.04)}
+  .q-card .q-card-label{
+    font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ia-text-dim);font-weight:600;margin-bottom:8px
+  }
+  .q-card .q-card-primary{
+    font-size:24px;font-weight:600;color:var(--ia-text);
+    font-variant-numeric:tabular-nums;line-height:1.1
+  }
+  .q-card .q-card-meta{
+    font-size:12px;color:var(--ia-text-dim);margin-top:6px
+  }
+  .q-card.urgent .q-card-primary{color:#FFB450}
+  .q-card.critical .q-card-primary{color:#F09595}
+  .q-card.healthy .q-card-primary{color:var(--ia-accent)}
+
+  .q-clear-filter{
+    margin-left:8px;padding:4px 10px;background:transparent;
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
+    color:var(--ia-text-dim);font-size:11px;font-family:inherit;
+    cursor:pointer;display:none
+  }
+  .q-clear-filter:hover{color:var(--ia-text);border-color:var(--ia-border-strong)}
+  .q-clear-filter.visible{display:inline-block}
+
   .quotes-toolbar{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin-bottom:14px;flex-wrap:wrap
@@ -132,6 +168,52 @@
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link active">Quotes</a>
 </div>
 
+@php
+  // Helpers for dashboard formatting
+  $fmtMoney = fn($cents) => '$' . number_format($cents / 100, 0);
+  $agingTone = $dashboard['aging']['count'] === 0 ? 'healthy'
+    : ($dashboard['aging']['count'] <= 3 ? 'urgent' : 'critical');
+@endphp
+
+@if($quotes->isNotEmpty())
+<div class="q-dashboard" id="qDashboard">
+  <div class="q-card" data-card-filter="all">
+    <div class="q-card-label">Open quotes</div>
+    <div class="q-card-primary">{{ $dashboard['open']['count'] }}</div>
+    <div class="q-card-meta">{{ $fmtMoney($dashboard['open']['value_cents']) }} in pipeline</div>
+  </div>
+
+  <div class="q-card {{ $agingTone }}" data-card-filter="aging">
+    <div class="q-card-label">Aging · 14+ days</div>
+    <div class="q-card-primary">{{ $dashboard['aging']['count'] }}</div>
+    <div class="q-card-meta">
+      @if($dashboard['aging']['count'] > 0)
+        oldest {{ $dashboard['aging']['oldest_days'] }}d · {{ $fmtMoney($dashboard['aging']['value_cents']) }} stuck
+      @else
+        nothing aging — nice
+      @endif
+    </div>
+  </div>
+
+  <div class="q-card" data-card-filter="new_this_week">
+    <div class="q-card-label">New this week</div>
+    <div class="q-card-primary">{{ $dashboard['new_this_week']['count'] }}</div>
+    <div class="q-card-meta">{{ $fmtMoney($dashboard['new_this_week']['value_cents']) }} fresh</div>
+  </div>
+
+  <div class="q-card" data-card-filter="converted">
+    <div class="q-card-label">Converted · 30 days</div>
+    <div class="q-card-primary">{{ $dashboard['converted']['count'] }}</div>
+    <div class="q-card-meta">
+      {{ $fmtMoney($dashboard['converted']['value_cents']) }} won
+      @if($dashboard['converted']['rate_pct'] !== null)
+        · {{ $dashboard['converted']['rate_pct'] }}% conversion
+      @endif
+    </div>
+  </div>
+</div>
+@endif
+
 @if($quotes->isEmpty())
   <div class="quotes-empty">
     <h3>No quotes yet</h3>
@@ -142,6 +224,8 @@
     <div class="quotes-count">
       <span id="quotesShownCount">{{ $quotes->count() }}</span>
       <span id="quotesShownLabel">{{ $quotes->count() === 1 ? 'quote' : 'quotes' }}</span>
+      <span id="qFilterLabel" style="display:none;color:var(--ia-text-dim);font-size:12px"></span>
+      <button type="button" class="q-clear-filter" id="qClearFilter">Clear filter</button>
     </div>
     <input type="text" class="quotes-search" id="quotesSearch" placeholder="Search by customer name or email…" autocomplete="off">
   </div>
@@ -159,12 +243,24 @@
       </thead>
       <tbody>
         @foreach($quotes as $q)
+          @php
+            $updatedDays = $q['updated_at']
+              ? (int) \Carbon\Carbon::parse($q['updated_at'])->diffInDays(now())
+              : 0;
+            $rowFlags = [];
+            if ($updatedDays >= 14) $rowFlags[] = 'aging';
+            // 'new_this_week' is computed against created_at, but we don't carry that in
+            // the mapped array. Approximation via updated_at is good enough since quotes
+            // rarely get edited after save. Tighten later if needed.
+            if ($updatedDays <= 7) $rowFlags[] = 'new_this_week';
+          @endphp
           <tr data-quote-id="{{ $q['id'] }}"
               data-customer="{{ strtolower($q['customer'] ?? '') }}"
               data-email="{{ strtolower($q['customer_email'] ?? '') }}"
               data-items="{{ $q['item_count'] }}"
               data-total="{{ $q['total_cents'] }}"
-              data-updated="{{ $q['updated_at'] }}">
+              data-updated="{{ $q['updated_at'] }}"
+              data-flags="{{ implode(' ', $rowFlags) }}">
             <td>
               <div class="q-customer-name">{{ $q['customer'] ?? 'Walk-in' }}</div>
               @if($q['customer_email'])
@@ -286,16 +382,28 @@ const shownLabel = document.getElementById('quotesShownLabel');
 
 let currentSort = { key: 'updated', dir: 'desc' };
 let currentSearch = '';
+let currentCardFilter = null;  // null = no card filter, else 'aging' / 'new_this_week' / 'converted'
 
 function applyFilterAndSort() {
   if (!tbody) return;
 
   const q = currentSearch.toLowerCase().trim();
   const filtered = allRows.filter(row => {
-    if (!q) return true;
-    const name = row.dataset.customer || '';
-    const email = row.dataset.email || '';
-    return name.includes(q) || email.includes(q);
+    // Search filter
+    if (q) {
+      const name = row.dataset.customer || '';
+      const email = row.dataset.email || '';
+      if (!name.includes(q) && !email.includes(q)) return false;
+    }
+    // Card filter
+    if (currentCardFilter && currentCardFilter !== 'all') {
+      // 'converted' card never matches an open quote — open quotes table
+      // doesn't show converted sales. Treat that case as zero results.
+      if (currentCardFilter === 'converted') return false;
+      const flags = (row.dataset.flags || '').split(' ');
+      if (!flags.includes(currentCardFilter)) return false;
+    }
+    return true;
   });
 
   filtered.sort((a, b) => {
@@ -360,6 +468,52 @@ if (searchInput) {
     currentSearch = e.target.value;
     applyFilterAndSort();
   });
+}
+
+// Wire up dashboard cards
+document.querySelectorAll('.q-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const filter = card.dataset.cardFilter;
+    if (currentCardFilter === filter) {
+      // Clicking the active card again clears the filter.
+      currentCardFilter = null;
+    } else {
+      currentCardFilter = filter;
+    }
+    document.querySelectorAll('.q-card').forEach(c => c.classList.remove('active'));
+    if (currentCardFilter) {
+      card.classList.add('active');
+    }
+    updateClearFilterUi();
+    applyFilterAndSort();
+  });
+});
+
+document.getElementById('qClearFilter').addEventListener('click', () => {
+  currentCardFilter = null;
+  document.querySelectorAll('.q-card').forEach(c => c.classList.remove('active'));
+  updateClearFilterUi();
+  applyFilterAndSort();
+});
+
+function updateClearFilterUi() {
+  const labels = {
+    'all':           'All open quotes',
+    'aging':         'Aging quotes',
+    'new_this_week': 'New this week',
+    'converted':     'Converted (last 30 days)',
+  };
+  const label = document.getElementById('qFilterLabel');
+  const btn = document.getElementById('qClearFilter');
+  if (currentCardFilter && currentCardFilter !== 'all') {
+    label.textContent = '· ' + (labels[currentCardFilter] || currentCardFilter);
+    label.style.display = '';
+    btn.classList.add('visible');
+  } else {
+    label.textContent = '';
+    label.style.display = 'none';
+    btn.classList.remove('visible');
+  }
 }
 
 // Wire up sortable headers

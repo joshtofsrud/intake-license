@@ -573,12 +573,80 @@ class RegisterController extends Controller
     }
 
     /**
-     * Quotes list — all quotes for the tenant, regardless of location.
-     * Convert and discard actions fire client-side.
+     * Quotes list with dashboard metrics on top.
+     * Cards: open quotes, aging (>14 days), new this week, recently converted.
      */
     public function quotesIndex(Request $request)
     {
         $tenant = tenant();
+        $now = Carbon::now();
+        $agingThreshold = $now->copy()->subDays(14);
+        $oneWeekAgo = $now->copy()->subDays(7);
+        $thirtyDaysAgo = $now->copy()->subDays(30);
+
+        // Open quotes: total count + dollar value.
+        $openQuotesQuery = TenantSale::where('tenant_id', $tenant->id)->quotes();
+        $openCount = (clone $openQuotesQuery)->count();
+        $openValueCents = (clone $openQuotesQuery)->sum('total_cents');
+
+        // Aging: quotes where updated_at < 14 days ago.
+        $agingQuery = (clone $openQuotesQuery)->where('updated_at', '<', $agingThreshold);
+        $agingCount = (clone $agingQuery)->count();
+        $agingValueCents = (clone $agingQuery)->sum('total_cents');
+        $oldestAging = (clone $agingQuery)->orderBy('updated_at')->value('updated_at');
+        $oldestAgingDays = $oldestAging
+            ? (int) Carbon::parse($oldestAging)->diffInDays($now)
+            : 0;
+
+        // New this week: quotes created (created_at) in last 7 days.
+        $newThisWeekQuery = (clone $openQuotesQuery)->where('created_at', '>=', $oneWeekAgo);
+        $newThisWeekCount = (clone $newThisWeekQuery)->count();
+        $newThisWeekValueCents = (clone $newThisWeekQuery)->sum('total_cents');
+
+        // Recently converted: paid sales with was_quote=true in last 30 days.
+        $convertedQuery = TenantSale::where('tenant_id', $tenant->id)
+            ->where('was_quote', true)
+            ->where('payment_status', 'paid')
+            ->where('paid_at', '>=', $thirtyDaysAgo);
+        $convertedCount = (clone $convertedQuery)->count();
+        $convertedValueCents = (clone $convertedQuery)->sum('total_cents');
+
+        // Conversion rate: of all quotes created in last 30 days, what fraction are now converted?
+        $quotesCreated30d = TenantSale::where('tenant_id', $tenant->id)
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->where(function ($q) {
+                // Either currently a quote, or was one and is now paid.
+                $q->where('payment_status', 'quote')
+                  ->orWhere(function ($qq) {
+                      $qq->where('was_quote', true)->where('payment_status', 'paid');
+                  });
+            })
+            ->count();
+        $conversionRate = $quotesCreated30d > 0
+            ? round(($convertedCount / $quotesCreated30d) * 100)
+            : null;
+
+        $dashboard = [
+            'open' => [
+                'count' => $openCount,
+                'value_cents' => (int) $openValueCents,
+            ],
+            'aging' => [
+                'count' => $agingCount,
+                'value_cents' => (int) $agingValueCents,
+                'oldest_days' => $oldestAgingDays,
+            ],
+            'new_this_week' => [
+                'count' => $newThisWeekCount,
+                'value_cents' => (int) $newThisWeekValueCents,
+            ],
+            'converted' => [
+                'count' => $convertedCount,
+                'value_cents' => (int) $convertedValueCents,
+                'rate_pct' => $conversionRate,
+            ],
+            'aging_threshold_days' => 14,
+        ];
 
         $quotes = TenantSale::where('tenant_id', $tenant->id)
             ->quotes()
@@ -605,8 +673,9 @@ class RegisterController extends Controller
             });
 
         return view('tenant.register.quotes', [
-            'tenant' => $tenant,
-            'quotes' => $quotes,
+            'tenant'    => $tenant,
+            'quotes'    => $quotes,
+            'dashboard' => $dashboard,
         ]);
     }
 
