@@ -59,7 +59,34 @@
   }
   .q-btn-discard:hover{color:#F09595;border-color:#F09595}
 
-  .quotes-count{font-size:13px;color:var(--ia-text-dim);margin-bottom:14px}
+  .quotes-count{font-size:13px;color:var(--ia-text-dim)}
+
+  .quotes-toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-bottom:14px;flex-wrap:wrap
+  }
+  .quotes-search{
+    flex:1;min-width:220px;max-width:360px;padding:9px 12px;
+    background:var(--ia-input-bg);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;
+    font-family:inherit
+  }
+  .quotes-search:focus{outline:none;border-color:var(--ia-accent)}
+
+  .quotes-table thead th.sortable{cursor:pointer;user-select:none}
+  .quotes-table thead th.sortable:hover{color:var(--ia-text)}
+  .quotes-table thead th .sort-arrow{
+    display:inline-block;margin-left:4px;font-size:10px;
+    color:var(--ia-text-muted);opacity:.5
+  }
+  .quotes-table thead th.sort-active .sort-arrow{
+    color:var(--ia-accent);opacity:1
+  }
+
+  .quotes-empty-search{
+    padding:40px 20px;text-align:center;color:var(--ia-text-dim);
+    font-size:13px
+  }
 
   .reg-modal-bg{
     position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
@@ -111,24 +138,33 @@
     <p>Save a cart as a quote from the register and it'll appear here. Quotes stay live until you discard them.</p>
   </div>
 @else
-  <div class="quotes-count">
-    {{ $quotes->count() }} {{ $quotes->count() === 1 ? 'quote' : 'quotes' }}
+  <div class="quotes-toolbar">
+    <div class="quotes-count">
+      <span id="quotesShownCount">{{ $quotes->count() }}</span>
+      <span id="quotesShownLabel">{{ $quotes->count() === 1 ? 'quote' : 'quotes' }}</span>
+    </div>
+    <input type="text" class="quotes-search" id="quotesSearch" placeholder="Search by customer name or email…" autocomplete="off">
   </div>
   <div class="quotes-table-wrap">
     <table class="quotes-table">
       <thead>
         <tr>
-          <th>Customer</th>
-          <th>Items</th>
-          <th style="text-align:right">Total</th>
-          <th>Saved</th>
+          <th class="sortable" data-sort="customer">Customer<span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-sort="items">Items<span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-sort="total" style="text-align:right">Total<span class="sort-arrow">↕</span></th>
+          <th class="sortable sort-active" data-sort="updated">Saved<span class="sort-arrow">↓</span></th>
           <th>Staff</th>
           <th style="text-align:right">Actions</th>
         </tr>
       </thead>
       <tbody>
         @foreach($quotes as $q)
-          <tr data-quote-id="{{ $q['id'] }}">
+          <tr data-quote-id="{{ $q['id'] }}"
+              data-customer="{{ strtolower($q['customer'] ?? '') }}"
+              data-email="{{ strtolower($q['customer_email'] ?? '') }}"
+              data-items="{{ $q['item_count'] }}"
+              data-total="{{ $q['total_cents'] }}"
+              data-updated="{{ $q['updated_at'] }}">
             <td>
               <div class="q-customer-name">{{ $q['customer'] ?? 'Walk-in' }}</div>
               @if($q['customer_email'])
@@ -239,6 +275,110 @@ document.querySelectorAll('[data-discard]').forEach(btn => {
     } catch (e) {
       alert('Network error discarding quote.');
     }
+  });
+});
+
+// --- Search + sort ---
+const tbody = document.querySelector('.quotes-table tbody');
+const allRows = tbody ? Array.from(tbody.querySelectorAll('tr[data-quote-id]')) : [];
+const shownCount = document.getElementById('quotesShownCount');
+const shownLabel = document.getElementById('quotesShownLabel');
+
+let currentSort = { key: 'updated', dir: 'desc' };
+let currentSearch = '';
+
+function applyFilterAndSort() {
+  if (!tbody) return;
+
+  const q = currentSearch.toLowerCase().trim();
+  const filtered = allRows.filter(row => {
+    if (!q) return true;
+    const name = row.dataset.customer || '';
+    const email = row.dataset.email || '';
+    return name.includes(q) || email.includes(q);
+  });
+
+  filtered.sort((a, b) => {
+    let av, bv;
+    switch (currentSort.key) {
+      case 'customer':
+        av = a.dataset.customer || '';
+        bv = b.dataset.customer || '';
+        break;
+      case 'items':
+        av = parseInt(a.dataset.items, 10) || 0;
+        bv = parseInt(b.dataset.items, 10) || 0;
+        break;
+      case 'total':
+        av = parseInt(a.dataset.total, 10) || 0;
+        bv = parseInt(b.dataset.total, 10) || 0;
+        break;
+      case 'updated':
+      default:
+        av = a.dataset.updated || '';
+        bv = b.dataset.updated || '';
+        break;
+    }
+    if (av < bv) return currentSort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return currentSort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Re-render: remove all rows, append in new order.
+  allRows.forEach(r => r.remove());
+  filtered.forEach(r => tbody.appendChild(r));
+
+  // Show 'no results' state if search filtered everything out.
+  let emptyMsg = tbody.querySelector('.empty-search-row');
+  if (filtered.length === 0 && q) {
+    if (!emptyMsg) {
+      emptyMsg = document.createElement('tr');
+      emptyMsg.className = 'empty-search-row';
+      emptyMsg.innerHTML = '<td colspan="6" class="quotes-empty-search">No quotes match "' + q.replace(/[<>&"]/g, '') + '".</td>';
+      tbody.appendChild(emptyMsg);
+    }
+  } else if (emptyMsg) {
+    emptyMsg.remove();
+  }
+
+  // Update count label.
+  if (shownCount && shownLabel) {
+    shownCount.textContent = filtered.length;
+    shownLabel.textContent = filtered.length === 1 ? 'quote' : 'quotes';
+  }
+}
+
+// Wire up search input
+const searchInput = document.getElementById('quotesSearch');
+if (searchInput) {
+  searchInput.addEventListener('input', (e) => {
+    currentSearch = e.target.value;
+    applyFilterAndSort();
+  });
+}
+
+// Wire up sortable headers
+document.querySelectorAll('.quotes-table thead th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (currentSort.key === key) {
+      currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentSort.key = key;
+      currentSort.dir = key === 'updated' ? 'desc' : 'asc';
+    }
+
+    // Update header arrow indicators
+    document.querySelectorAll('.quotes-table thead th.sortable').forEach(h => {
+      h.classList.remove('sort-active');
+      const arrow = h.querySelector('.sort-arrow');
+      if (arrow) arrow.textContent = '↕';
+    });
+    th.classList.add('sort-active');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = currentSort.dir === 'asc' ? '↑' : '↓';
+
+    applyFilterAndSort();
   });
 });
 </script>
