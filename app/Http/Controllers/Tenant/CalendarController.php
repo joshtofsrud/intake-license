@@ -492,11 +492,15 @@ class CalendarController extends Controller
      * Resolve which resources to show based on the ?resources= query param.
      * Returns: [allResources, visibleResources, visibleIds, myResource, filterMode].
      *
-     * - "all"            → every active resource
+     * - "all" or absent  → every active resource (default — users can narrow
+     *                      via the chips, and their selection is persisted to
+     *                      localStorage on the client and replayed on next visit)
      * - "uuid1,uuid2"    → just those (intersected with active)
-     * - absent + linked  → just the user's own resource
-     * - absent + no link → all
      * - empty result     → falls back to all
+     *
+     * `myResource` is still surfaced (for "highlight my appointments" UI hooks
+     * elsewhere) but no longer drives the default filter — the user starts
+     * with everyone visible and clicks names to narrow.
      */
     protected function resolveResources($tenant, Request $request): array
     {
@@ -513,12 +517,7 @@ class CalendarController extends Controller
             : null;
 
         $filterParam = trim((string) $request->query('resources', ''));
-        if ($filterParam === '') {
-            $visibleIds = $myResource
-                ? [$myResource->id]
-                : $allResources->pluck('id')->all();
-            $filterMode = $myResource ? 'self' : 'all';
-        } elseif ($filterParam === 'all') {
+        if ($filterParam === '' || $filterParam === 'all') {
             $visibleIds = $allResources->pluck('id')->all();
             $filterMode = 'all';
         } else {
@@ -526,8 +525,10 @@ class CalendarController extends Controller
             $visibleIds = $allResources->whereIn('id', $requestedIds)->pluck('id')->all();
             if (empty($visibleIds)) {
                 $visibleIds = $allResources->pluck('id')->all();
+                $filterMode = 'all';
+            } else {
+                $filterMode = 'custom';
             }
-            $filterMode = 'custom';
         }
 
         $resources = $allResources->whereIn('id', $visibleIds)->values();

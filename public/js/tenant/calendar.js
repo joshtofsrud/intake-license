@@ -331,12 +331,42 @@
 
   // ==========================================================================
   // Resource filter chips
-  // - Single click toggles the chip on/off
-  // - Double-click solos that resource (deselects all others)
-  // - Solo button (hover icon) does the same as double-click
+  // - Click toggles the chip on/off
   // - "All" chip resets to all-on
   // - URL drives state via ?resources=uuid1,uuid2 or ?resources=all
+  // - Last selection persisted to localStorage (per-tenant key) and replayed
+  //   on cold landing when no ?resources= param is in the URL
   // ==========================================================================
+  var FILTER_STORAGE_KEY = 'ia.calendar.filter.resources';
+
+  function tenantFilterKey() {
+    // Scope the saved selection per-tenant so switching tenants doesn't bleed
+    // resource IDs that don't exist in the current tenant.
+    return FILTER_STORAGE_KEY + ':' + (window.location.host || 'default');
+  }
+
+  function readStoredFilter() {
+    try { return localStorage.getItem(tenantFilterKey()); }
+    catch (e) { return null; }
+  }
+
+  function writeStoredFilter(value) {
+    try { localStorage.setItem(tenantFilterKey(), value); }
+    catch (e) { /* localStorage disabled / private mode — no-op */ }
+  }
+
+  // Cold-landing restore: if URL has no ?resources= and we have a saved
+  // selection, redirect once with the saved value applied. Runs synchronously
+  // before any DOM handlers bind so it doesn't fight the filter UI.
+  function restoreFilterFromStorageIfNeeded() {
+    var u = new URL(window.location.href);
+    if (u.searchParams.has('resources')) return; // URL wins, leave it
+    var stored = readStoredFilter();
+    if (!stored) return; // no prior session
+    u.searchParams.set('resources', stored);
+    window.location.replace(u.toString());
+  }
+
   function initFilterChips() {
     var bar = document.getElementById('ia-cal-filter-bar');
     if (!bar) return;
@@ -351,6 +381,7 @@
     }
 
     function navigate(resourceParam) {
+      writeStoredFilter(resourceParam);
       var u = new URL(window.location.href);
       u.searchParams.set('resources', resourceParam);
       window.location.href = u.toString();
@@ -373,41 +404,21 @@
       });
     }
 
-    // Per-resource chips: single click toggles, double click solos
+    // Per-resource chips: click toggles. No double-click solo behavior —
+    // users multi-select by clicking names; single-pick is achieved by
+    // clicking one then clicking the rest off (or just having only the
+    // ones they want on).
     bar.querySelectorAll('.ia-cal-fchip[data-resource-id]').forEach(function (chip) {
-      var clickTimer = null;
       var id = chip.getAttribute('data-resource-id');
-
-      chip.addEventListener('click', function (e) {
-        // Differentiate single vs double click via timer.
-        // A real dblclick event would also fire — we cancel single behavior on dbl.
-        if (clickTimer) return;
-        clickTimer = setTimeout(function () {
-          clickTimer = null;
-          var current = getCurrentSelection();
-          var idx = current.indexOf(id);
-          if (idx >= 0) {
-            current.splice(idx, 1);
-          } else {
-            current.push(id);
-          }
-          navigateWithIds(current);
-        }, 220);
-      });
-
-      chip.addEventListener('dblclick', function (e) {
-        // Solo this resource (cancel pending single-click)
-        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-        navigate(id);
-      });
-    });
-
-    // Solo button (bullseye icon) → solo this resource
-    bar.querySelectorAll('.ia-cal-fchip-solo').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var id = btn.getAttribute('data-resource-id');
-        navigate(id);
+      chip.addEventListener('click', function () {
+        var current = getCurrentSelection();
+        var idx = current.indexOf(id);
+        if (idx >= 0) {
+          current.splice(idx, 1);
+        } else {
+          current.push(id);
+        }
+        navigateWithIds(current);
       });
     });
   }
@@ -437,8 +448,7 @@
       this.sheet.querySelectorAll('.ia-cal-sheet-row').forEach(function (row) {
         var action = row.getAttribute('data-action');
         var resourceId = row.getAttribute('data-resource-id');
-        row.addEventListener('click', function (e) {
-          if (e.target.closest('.ia-cal-sheet-row-solo')) return;
+        row.addEventListener('click', function () {
           if (action === 'all') {
             self.navigate('all');
           } else if (resourceId) {
@@ -463,6 +473,7 @@
     },
 
     navigate: function (resourceParam) {
+      writeStoredFilter(resourceParam);
       var u = new URL(window.location.href);
       u.searchParams.set('resources', resourceParam);
       window.location.href = u.toString();
@@ -483,14 +494,14 @@
         this.navigate(current.join(','));
       }
     },
-
-    solo: function (id) {
-      this.navigate(id);
-    },
   };
   window.CalendarFilterSheet = CalendarFilterSheet;
 
   function boot() {
+    // First: restore filter from localStorage (may redirect — must run
+    // before any DOM handlers wire up to avoid duplicate work)
+    restoreFilterFromStorageIfNeeded();
+
     initNowLine();
     initCalendarClicks();
     bindSearch();
