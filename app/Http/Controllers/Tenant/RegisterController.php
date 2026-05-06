@@ -385,6 +385,80 @@ class RegisterController extends Controller
         }
     }
 
+    /**
+     * Look up a past sale by sale_number for the refund picker.
+     * Returns the sale's line items with refundable quantities.
+     */
+    public function lookupSaleForRefund(Request $request, string $subdomain): JsonResponse
+    {
+        $tenant = tenant();
+        $saleNumber = trim((string) $request->input('sale_number', ''));
+
+        if ($saleNumber === '') {
+            return response()->json(['ok' => false, 'error' => 'Sale number required.'], 422);
+        }
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('sale_number', $saleNumber)
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->whereNull('refund_of_sale_id')
+            ->with(['customer', 'items', 'refunds.items'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found or not refundable.'], 404);
+        }
+
+        // For each original line, compute quantity already refunded across all
+        // prior refund rows. Refundable_qty = original_qty - already_refunded_qty.
+        $refundedByOrigItem = [];
+        foreach ($sale->refunds as $refund) {
+            foreach ($refund->items as $rline) {
+                // Refund lines snapshot the same product/service/etc.
+                // We match by (type, source_id, name_snapshot) since refund lines
+                // don't carry a back-reference to the original line.
+                $key = $rline->type . '|'
+                    . ($rline->inventory_item_id ?? $rline->service_id ?? '')
+                    . '|' . $rline->name_snapshot;
+                $refundedByOrigItem[$key] = ($refundedByOrigItem[$key] ?? 0) + (float) $rline->quantity;
+            }
+        }
+
+        $items = $sale->items->map(function ($i) use ($refundedByOrigItem) {
+            $key = $i->type . '|'
+                . ($i->inventory_item_id ?? $i->service_id ?? '')
+                . '|' . $i->name_snapshot;
+            $already = $refundedByOrigItem[$key] ?? 0;
+            $remaining = max(0, (float) $i->quantity - $already);
+            return [
+                'id'                => $i->id,
+                'type'              => $i->type,
+                'name'              => $i->name_snapshot,
+                'quantity'          => (float) $i->quantity,
+                'already_refunded'  => $already,
+                'remaining'         => $remaining,
+                'unit_price_cents'  => $i->unit_price_cents,
+                'line_total_cents'  => $i->line_total_cents,
+            ];
+        })->values();
+
+        return response()->json([
+            'ok'   => true,
+            'sale' => [
+                'id'             => $sale->id,
+                'sale_number'    => $sale->sale_number,
+                'sale_date'      => $sale->sale_date?->toDateString(),
+                'paid_at'        => $sale->paid_at?->toDateTimeString(),
+                'total_cents'    => $sale->total_cents,
+                'tender'         => $sale->payment_method,
+                'customer'       => $sale->customer
+                    ? trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? ''))
+                    : null,
+                'items'          => $items,
+            ],
+        ]);
+    }
+
     public function refundIndex(Request $request)
     {
         $tenant = tenant();

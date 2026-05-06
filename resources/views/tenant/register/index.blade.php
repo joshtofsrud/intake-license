@@ -197,6 +197,47 @@
   .reg-receipt .total{font-size:36px;font-weight:700;margin:14px 0}
 
   .reg-cust-results{position:absolute;top:100%;left:0;right:0;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);margin-top:4px;max-height:240px;overflow-y:auto;z-index:10}
+
+  .reg-refund-result{
+    padding:12px;background:rgba(190,242,100,.04);
+    border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-md);
+    margin-bottom:10px;cursor:pointer;transition:filter var(--ia-t)
+  }
+  .reg-refund-result:hover{filter:brightness(1.1)}
+  .reg-refund-result .label{font-size:11px;color:var(--ia-accent);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:4px}
+  .reg-refund-result .name{font-size:14px;font-weight:500}
+  .reg-refund-result .meta{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+
+  .reg-refund-list{max-height:380px;overflow-y:auto;margin:-4px 0 14px;padding:4px 0}
+  .reg-refund-row{
+    display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;
+    padding:10px 12px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);
+    margin-bottom:6px
+  }
+  .reg-refund-row.disabled{opacity:.4}
+  .reg-refund-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--ia-accent)}
+  .reg-refund-row .name{font-size:13px;font-weight:500}
+  .reg-refund-row .meta{font-size:11px;color:var(--ia-text-dim);margin-top:2px}
+  .reg-refund-row .qty-input{
+    width:60px;padding:5px 8px;background:var(--ia-input-bg);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
+    color:var(--ia-text);font-size:13px;font-family:inherit;text-align:center
+  }
+  .reg-refund-row .qty-input:focus{outline:none;border-color:var(--ia-accent)}
+  .reg-refund-row .qty-input:disabled{opacity:.4;cursor:not-allowed}
+  .reg-refund-row .total{font-size:13px;font-weight:600;text-align:right;min-width:70px}
+
+  .reg-cart-section-label{
+    font-size:10px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.08em;
+    font-weight:600;padding:8px 4px 4px;border-top:0.5px solid var(--ia-border);
+    margin-top:8px
+  }
+  .reg-cart-section-label:first-child{border-top:none;margin-top:0}
+  .reg-cart-section-label.refund{color:#F09595}
+
+  .reg-line.refund-line{background:rgba(226,75,74,.04)}
+  .reg-line.refund-line .total{color:#F09595}
+  .reg-line.refund-line .meta{color:#F09595;opacity:.7}
   .reg-cust-results .row{padding:10px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border)}
   .reg-cust-results .row:hover{background:var(--ia-hover)}
   .reg-cust-results .row:last-child{border-bottom:none}
@@ -421,6 +462,18 @@
   </div>
 </div>
 
+<div class="reg-modal-bg" id="refundModal">
+  <div class="reg-modal" style="max-width:600px">
+    <h2>Add refund items</h2>
+    <div class="lede" id="refundModalLede">Select items to refund.</div>
+    <div class="reg-refund-list" id="refundList"></div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="refundModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="refundAddBtn" disabled>Add to transaction</button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="receiptModal">
   <div class="reg-modal reg-receipt">
     <h2>Sale complete</h2>
@@ -445,6 +498,7 @@ const ROUTES = {
   commitDraft: @json(url('/admin/register/drafts')),
   storeQuote:  @json(route('tenant.register.quotes.store')),
   quotesIndex: @json(route('tenant.register.quotes.index')),
+  lookupSale:  @json(route('tenant.register.lookup-sale')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -484,7 +538,11 @@ function confirmDialog(message, confirmLabel = 'Confirm', title = 'Are you sure?
 
 const cart = {
   draft_id: null,
-  customer: null, items: [], tipCents: 0, discountCents: 0,
+  customer: null,
+  items: [],            // new-sale lines
+  refund_lines: [],     // refund lines, each: {key, original_sale_id, original_item_id, name, qty, price_cents, type}
+  refund_meta: null,    // {original_sale_id, original_sale_number, refund_method} — set when first refund line added
+  tipCents: 0, discountCents: 0,
   payment_method: null, payment_reference: null,
 };
 const fmt = (cents) => '$' + (cents / 100).toFixed(2);
@@ -601,19 +659,40 @@ searchInput.addEventListener('input', () => {
   searchTimer = setTimeout(runSearch, 250);
 });
 
+// Detect sale-number pattern: S-YYYYMMDD-NNN (case-insensitive, optional spaces around dashes)
+function looksLikeSaleNumber(q) {
+  return /^s[\s-]*\d{8}[\s-]*\d{1,4}$/i.test(q.trim());
+}
+function normalizeSaleNumber(q) {
+  return q.trim().toUpperCase().replace(/\s+/g, '').replace(/^S(\d)/, 'S-$1').replace(/(\d{8})(\d)/, '$1-$2');
+}
+
 async function runSearch() {
   const q = searchInput.value.trim();
   if (q.length < 2) {
     resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
     return;
   }
+
+  // Sale-number lookup runs in parallel with regular search.
+  let refundResult = null;
+  if (looksLikeSaleNumber(q)) {
+    try {
+      const lookupUrl = new URL(ROUTES.lookupSale, window.location.origin);
+      lookupUrl.searchParams.set('sale_number', normalizeSaleNumber(q));
+      const r = await fetch(lookupUrl, {headers: {'Accept': 'application/json'}});
+      const d = await r.json();
+      if (d.ok) refundResult = d.sale;
+    } catch (e) { /* silent — fall through to regular search */ }
+  }
+
   try {
     const url = new URL(ROUTES.search, window.location.origin);
     url.searchParams.set('q', q);
     url.searchParams.set('type', searchType);
     const res = await fetch(url, {headers: {'Accept': 'application/json'}});
     const data = await res.json();
-    renderResults(data);
+    renderResults(data, refundResult);
   } catch (e) {
     resultsArea.innerHTML = '<div class="reg-empty">Search failed.</div>';
   }
@@ -623,9 +702,20 @@ async function runSearch() {
 let highlighted = 0;
 let visibleResults = [];
 
-function renderResults(data) {
+function renderResults(data, refundResult) {
   let html = '';
   visibleResults = [];
+
+  // If a refund-eligible sale was matched, render it first as a distinctive card.
+  if (refundResult) {
+    html += '<div class="reg-refund-result" data-refund-sale="' + refundResult.id + '">';
+    html +=   '<div class="label">Refund from sale</div>';
+    html +=   '<div class="name">#' + escapeHtml(refundResult.sale_number) + '</div>';
+    html +=   '<div class="meta">' + (refundResult.customer ? escapeHtml(refundResult.customer) + ' · ' : '');
+    html +=     fmt(refundResult.total_cents) + ' · ' + (refundResult.items.length) + ' items</div>';
+    html += '</div>';
+  }
+
   if (data.products && data.products.length) {
     html += '<div class="reg-results-section"><h3>Products</h3>';
     data.products.forEach(p => {
@@ -674,6 +764,17 @@ function renderResults(data) {
       searchInput.focus();
     });
   });
+
+  // Wire refund-result click → open picker modal.
+  const refundEl = resultsArea.querySelector('[data-refund-sale]');
+  if (refundEl) {
+    // Stash the refund result on the element via dataset for the click handler.
+    refundEl.addEventListener('click', () => {
+      // Re-fetch the sale to get fresh refundable quantities (in case anything changed).
+      const saleId = refundEl.dataset.refundSale;
+      openRefundPicker(saleId);
+    });
+  }
 
   // Wire mouse-active class to the search panel's results sections
   resultsArea.querySelectorAll('.reg-results-section').forEach(section => {
@@ -752,24 +853,54 @@ function updateQty(key, qty) {
 
 function renderCart() {
   const lines = document.getElementById('cartLines');
-  if (!cart.items.length) {
+  const totalCount = cart.items.length + cart.refund_lines.length;
+  if (totalCount === 0) {
     lines.innerHTML = '<div class="reg-empty">Cart is empty.</div>';
     document.getElementById('payBtn').disabled = true;
     document.getElementById('quoteBtn').disabled = true;
   } else {
-    lines.innerHTML = cart.items.map(i => `
-      <div class="reg-line">
-        <div>
-          <div class="name">${escapeHtml(i.name)}</div>
-          <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
+    let html = '';
+
+    // Refund section — render first (visually on top) when present.
+    if (cart.refund_lines.length > 0) {
+      html += '<div class="reg-cart-section-label refund">Returning to customer · sale #' +
+        escapeHtml(cart.refund_meta?.original_sale_number ?? '') + '</div>';
+      html += cart.refund_lines.map(r => `
+        <div class="reg-line refund-line">
+          <div>
+            <div class="name">${escapeHtml(r.name)}</div>
+            <div class="meta">refund · ${r.qty} × ${fmt(r.price_cents)}</div>
+          </div>
+          <div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="total">-${fmt(Math.round(r.price_cents * r.qty))}</span>
+            <button type="button" class="remove" data-remove-refund="${r.key}">×</button>
+          </div>
         </div>
-        <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
-        <div style="display:flex;align-items:center;gap:6px">
-          <span class="total">${fmt(Math.round(i.price_cents * i.qty))}</span>
-          <button type="button" class="remove" data-remove="${i.key}">×</button>
+      `).join('');
+    }
+
+    // New-sale section
+    if (cart.items.length > 0) {
+      if (cart.refund_lines.length > 0) {
+        html += '<div class="reg-cart-section-label">Adding to cart</div>';
+      }
+      html += cart.items.map(i => `
+        <div class="reg-line">
+          <div>
+            <div class="name">${escapeHtml(i.name)}</div>
+            <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
+          </div>
+          <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="total">${fmt(Math.round(i.price_cents * i.qty))}</span>
+            <button type="button" class="remove" data-remove="${i.key}">×</button>
+          </div>
         </div>
-      </div>
-    `).join('');
+      `).join('');
+    }
+
+    lines.innerHTML = html;
     document.getElementById('payBtn').disabled = false;
     document.getElementById('quoteBtn').disabled = false;
   }
@@ -778,6 +909,14 @@ function renderCart() {
   });
   lines.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.remove, 10)));
+  });
+  lines.querySelectorAll('[data-remove-refund]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = parseInt(btn.dataset.removeRefund, 10);
+      cart.refund_lines = cart.refund_lines.filter(r => r.key !== key);
+      if (cart.refund_lines.length === 0) cart.refund_meta = null;
+      renderCart();
+    });
   });
 
   const slot = document.getElementById('customerSlot');
@@ -804,6 +943,9 @@ function renderCart() {
 }
 
 function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(i.price_cents * i.qty), 0); }
+function calcRefundSubtotal() {
+  return cart.refund_lines.reduce((sum, r) => sum + Math.round(r.price_cents * r.qty), 0);
+}
 function calcTax() {
   if (!CFG.taxRate) return 0;
   let taxable = 0;
@@ -818,11 +960,13 @@ function calcSurcharge() {
 
 function renderTotals() {
   const sub = calcSubtotal();
+  const refundSub = calcRefundSubtotal();
   const tax = calcTax();
   const surch = calcSurcharge();
   const tip = cart.tipCents;
   const disc = cart.discountCents;
-  const total = sub - disc + tax + surch + tip;
+  // Net total = new sale total - refund subtotal. May be negative.
+  const total = (sub - disc + tax + surch + tip) - refundSub;
 
   document.getElementById('subVal').textContent = fmt(sub);
   document.getElementById('taxVal').textContent = fmt(tax);
@@ -1297,6 +1441,118 @@ async function discardDraftFromList(id) {
 }
 
 renderCart();
+
+// --- Refund picker ---
+let refundPickerSale = null;  // the full sale object from lookupSale, kept while modal is open
+
+async function openRefundPicker(saleId) {
+  // We don't have a per-id endpoint yet; the sale_number-based lookup is what we have.
+  // Re-trigger the search to get fresh data (cheap — last query is still in input).
+  const q = searchInput.value.trim();
+  if (!q || !looksLikeSaleNumber(q)) {
+    showError('Could not load sale. Try searching the sale number again.');
+    return;
+  }
+  try {
+    const url = new URL(ROUTES.lookupSale, window.location.origin);
+    url.searchParams.set('sale_number', normalizeSaleNumber(q));
+    const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+    const d = await r.json();
+    if (!d.ok) { showError(d.error || 'Sale not found.'); return; }
+    refundPickerSale = d.sale;
+    renderRefundPicker();
+    openModal('refundModal');
+  } catch (e) {
+    showError('Network error loading sale.');
+  }
+}
+
+function renderRefundPicker() {
+  const sale = refundPickerSale;
+  if (!sale) return;
+  document.getElementById('refundModalLede').textContent =
+    'Sale #' + sale.sale_number + (sale.customer ? ' · ' + sale.customer : '') + ' · ' + fmt(sale.total_cents);
+
+  const list = document.getElementById('refundList');
+  if (!sale.items.length) {
+    list.innerHTML = '<div class="reg-empty">No items on this sale.</div>';
+    return;
+  }
+  list.innerHTML = sale.items.map((it, idx) => {
+    const disabled = it.remaining <= 0;
+    const meta = disabled
+      ? 'fully refunded'
+      : (it.already_refunded > 0 ? it.already_refunded + ' of ' + it.quantity + ' already refunded · ' + it.remaining + ' available' : it.quantity + ' available');
+    return '<div class="reg-refund-row ' + (disabled ? 'disabled' : '') + '" data-idx="' + idx + '">' +
+      '<input type="checkbox" data-pick="' + idx + '" ' + (disabled ? 'disabled' : '') + '>' +
+      '<div>' +
+        '<div class="name">' + escapeHtml(it.name) + '</div>' +
+        '<div class="meta">' + escapeHtml(meta) + '</div>' +
+      '</div>' +
+      '<input type="number" class="qty-input" data-qty="' + idx + '" min="0" max="' + it.remaining + '" step="1" value="' + it.remaining + '" ' + (disabled ? 'disabled' : '') + '>' +
+      '<div class="total">' + fmt(it.unit_price_cents) + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Wire checkbox + qty change to update the Add button state.
+  list.querySelectorAll('[data-pick]').forEach(cb => cb.addEventListener('change', updateRefundAddBtn));
+  list.querySelectorAll('[data-qty]').forEach(inp => inp.addEventListener('input', updateRefundAddBtn));
+  updateRefundAddBtn();
+}
+
+function updateRefundAddBtn() {
+  const list = document.getElementById('refundList');
+  let anyChecked = false;
+  list.querySelectorAll('[data-pick]:checked').forEach(cb => {
+    const idx = cb.dataset.pick;
+    const qty = parseFloat(list.querySelector('[data-qty="' + idx + '"]').value);
+    if (qty > 0) anyChecked = true;
+  });
+  document.getElementById('refundAddBtn').disabled = !anyChecked;
+}
+
+document.getElementById('refundAddBtn').addEventListener('click', () => {
+  const sale = refundPickerSale;
+  if (!sale) return;
+  const list = document.getElementById('refundList');
+
+  // If cart already has refund lines from a different sale, block.
+  if (cart.refund_meta && cart.refund_meta.original_sale_id !== sale.id) {
+    showError('Cart already has refund lines from a different sale. Discard or commit those first.');
+    return;
+  }
+
+  list.querySelectorAll('[data-pick]:checked').forEach(cb => {
+    const idx = parseInt(cb.dataset.pick, 10);
+    const item = sale.items[idx];
+    const qty = parseFloat(list.querySelector('[data-qty="' + idx + '"]').value);
+    if (!qty || qty <= 0) return;
+    cart.refund_lines.push({
+      key: ++lineKey,
+      original_sale_id:  sale.id,
+      original_item_id:  item.id,
+      type:              item.type,
+      name:              item.name,
+      qty:               qty,
+      price_cents:       item.unit_price_cents,
+    });
+  });
+
+  if (cart.refund_lines.length > 0 && !cart.refund_meta) {
+    cart.refund_meta = {
+      original_sale_id:    sale.id,
+      original_sale_number: sale.sale_number,
+      refund_method:       null,  // resolved at tender time
+    };
+  }
+
+  closeModal('refundModal');
+  refundPickerSale = null;
+  searchInput.value = '';
+  resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+  renderCart();
+  searchInput.focus();
+});
 
 // On page load, populate the banner.
 loadDrafts().then(refreshDraftsBanner);
