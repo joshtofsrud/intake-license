@@ -169,25 +169,12 @@
               data-action="all">All</button>
       @foreach($allResources as $r)
         @php $isVisible = in_array($r->id, $resources->pluck('id')->all()); @endphp
-        <span class="ia-cal-fchip-wrap">
-          <button type="button"
-                  class="ia-cal-fchip {{ $isVisible ? 'is-on' : '' }}"
-                  data-resource-id="{{ $r->id }}"
-                  title="Click to toggle · Double-click to solo">
-            <span class="ia-cal-fchip-dot" style="background: {{ $r->color_hex ?: '#888' }};"></span>
-            {{ $r->name }}
-          </button>
-          <button type="button"
-                  class="ia-cal-fchip-solo"
-                  data-resource-id="{{ $r->id }}"
-                  title="Show only {{ $r->name }}"
-                  aria-label="Show only {{ $r->name }}">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-              <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1"/>
-              <circle cx="5.5" cy="5.5" r="1.5" fill="currentColor"/>
-            </svg>
-          </button>
-        </span>
+        <button type="button"
+                class="ia-cal-fchip {{ $isVisible ? 'is-on' : '' }}"
+                data-resource-id="{{ $r->id }}">
+          <span class="ia-cal-fchip-dot" style="background: {{ $r->color_hex ?: '#888' }};"></span>
+          {{ $r->name }}
+        </button>
       @endforeach
     </div>
 
@@ -220,11 +207,7 @@
                   <span class="ia-cal-sheet-row-sub">· {{ $r->subtitle }}</span>
                 @endif
               </span>
-              <button type="button" class="ia-cal-sheet-row-solo"
-                      data-resource-id="{{ $r->id }}"
-                      onclick="event.stopPropagation(); CalendarFilterSheet.solo('{{ $r->id }}');"
-                      aria-label="Show only {{ $r->name }}">Only</button>
-              @if($isVisible)
+@if($isVisible)
                 <span class="ia-cal-sheet-check" aria-hidden="true">✓</span>
               @endif
             </button>
