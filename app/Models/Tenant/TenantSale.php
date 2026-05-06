@@ -20,6 +20,7 @@ class TenantSale extends Model
         'customer_id', 'assigned_staff_id', 'appointment_id',
         'rang_up_by_user_id', 'refund_of_sale_id',
         'transaction_id',
+        'was_quote',
         'notes',
         'subtotal_cents', 'discount_cents', 'tax_cents',
         'surcharge_cents', 'tip_cents', 'total_cents',
@@ -39,6 +40,7 @@ class TenantSale extends Model
         'surcharge_cents'=> 'integer',
         'tip_cents'      => 'integer',
         'total_cents'    => 'integer',
+        'was_quote'      => 'boolean',
     ];
 
     public function tenant(): BelongsTo        { return $this->belongsTo(Tenant::class); }

@@ -281,6 +281,10 @@ class SaleService
                 ? ($data['paid_at'] ?? Carbon::now())
                 : null;
 
+            // If this row was a quote and is now becoming paid, stamp was_quote=true
+            // so the dashboard's 'Recently converted' card can find it.
+            $wasQuote = $sale->payment_status === 'quote' && $newPaymentStatus === 'paid';
+
             $sale->update([
                 'sale_number'       => $this->nextSaleNumber($tenantId, $sale->sale_date),
                 'payment_status'    => $newPaymentStatus,
@@ -291,6 +295,7 @@ class SaleService
                 'tip_cents'         => (int) ($data['tip_cents'] ?? $sale->tip_cents),
                 'notes'             => $data['notes'] ?? $sale->notes,
                 'quote_expires_at'  => null,
+                'was_quote'         => $wasQuote ?: $sale->was_quote,
             ]);
 
             // Decrement inventory for product lines now that we're committing.
