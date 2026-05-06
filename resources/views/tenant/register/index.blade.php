@@ -287,9 +287,9 @@
 </div>
 
 <div class="reg-tabs-bar">
-  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Sale</a>
+  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Transaction</a>
+  <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
-  <a href="{{ route('tenant.register.refunds.index') }}" class="reg-tab-link">Refunds</a>
 </div>
 
 <div class="reg-page">

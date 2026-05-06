@@ -127,9 +127,9 @@
 </div>
 
 <div class="reg-tabs-bar">
-  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Sale</a>
+  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
+  <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link active">Quotes</a>
-  <a href="{{ route('tenant.register.refunds.index') }}" class="reg-tab-link">Refunds</a>
 </div>
 
 @if($quotes->isEmpty())

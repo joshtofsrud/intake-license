@@ -526,10 +526,50 @@ class RegisterController extends Controller
         }
     }
 
-    public function refundIndex(Request $request)
+    /**
+     * Transaction History — list view of every tenant_sales row,
+     * including drafts/quotes/paid/partial/refunded.
+     * Filtered and sorted client-side by the page JS.
+     */
+    public function historyIndex(Request $request)
     {
         $tenant = tenant();
-        return view('tenant.register.refund', ['tenant' => $tenant]);
+
+        $rows = TenantSale::where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'location'])
+            ->orderByDesc('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'id'             => $r->id,
+                    'sale_number'    => $r->sale_number,
+                    'payment_status' => $r->payment_status,
+                    'item_count'     => $r->items->count(),
+                    'total_cents'    => $r->total_cents,
+                    'transaction_id' => $r->transaction_id,
+                    'customer'       => $r->customer
+                        ? trim(($r->customer->first_name ?? '') . ' ' . ($r->customer->last_name ?? ''))
+                        : null,
+                    'customer_email' => $r->customer->email ?? null,
+                    'started_by'     => $r->rangUpBy
+                        ? trim(($r->rangUpBy->first_name ?? '') . ' ' . ($r->rangUpBy->last_name ?? ''))
+                        : null,
+                    'location_name'  => $r->location->name ?? null,
+                    'is_refund'      => $r->refund_of_sale_id !== null,
+                    'refund_of_sale_number' => $r->refund_of_sale_id
+                        ? \App\Models\Tenant\TenantSale::where('id', $r->refund_of_sale_id)->value('sale_number')
+                        : null,
+                    'updated_at'     => $r->updated_at?->toIso8601String(),
+                    'paid_at'        => $r->paid_at?->toIso8601String(),
+                    'sale_date'      => $r->sale_date?->toDateString(),
+                ];
+            });
+
+        return view('tenant.register.history', [
+            'tenant' => $tenant,
+            'rows'   => $rows,
+        ]);
     }
 
     /**
