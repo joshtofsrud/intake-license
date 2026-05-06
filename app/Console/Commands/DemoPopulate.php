@@ -5,7 +5,9 @@ namespace App\Console\Commands;
 use App\Models\Tenant;
 use App\Services\Demo\DemoSeeder;
 use App\Services\Demo\Industries\BikeShopData;
+use App\Services\Demo\Industries\FitnessData;
 use App\Services\Demo\Industries\IndustryDataContract;
+use App\Services\Demo\Industries\SalonData;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -24,7 +26,9 @@ class DemoPopulate extends Command
     protected $description = 'Populate a demo tenant with industry-specific services, customers, and appointments.';
 
     private const INDUSTRY_MAP = [
-        'bike-shops' => BikeShopData::class,
+        'bike-shops'      => BikeShopData::class,
+        'hair-salons'     => SalonData::class,
+        'fitness-studios' => FitnessData::class,
     ];
 
     public function handle(): int

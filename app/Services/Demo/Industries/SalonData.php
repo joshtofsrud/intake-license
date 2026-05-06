@@ -172,7 +172,7 @@ class SalonData implements IndustryDataContract
         // the additional stylists. Time-slot mode: caps populated for demo
         // visibility but grid math governs primary capacity.
         return [
-            ['name' => 'Sage Whitman', 'subtitle' => 'Vinyasa & cuts',   'color_hex' => '#3B82F6', 'max_appointments_per_day' => 8],
+            ['name' => 'Sage Whitman', 'subtitle' => 'Cuts & styling',   'color_hex' => '#3B82F6', 'max_appointments_per_day' => 8],
             ['name' => 'Theo Park',    'subtitle' => 'Color specialist', 'color_hex' => '#34D399', 'max_appointments_per_day' => 8],
             ['name' => 'River Quinn',  'subtitle' => 'Bridal & events',  'color_hex' => '#F472B6', 'max_appointments_per_day' => 6],
         ];
@@ -208,5 +208,9 @@ class SalonData implements IndustryDataContract
             'Card on File' => ['Yes', 'No'],
         ];
     }
+
+    public function classTemplates(): array { return []; }
+    public function membershipProducts(): array { return []; }
+    public function packProducts(): array { return []; }
 
 }

@@ -55,4 +55,36 @@ interface IndustryDataContract
     public function additionalResources(): array;
 
     public function workOrderSampleValues(): array;
+
+    /**
+     * Class templates for industries that run scheduled group classes
+     * (yoga, fitness, etc). Empty array = no classes; demo seeder skips
+     * the entire class pipeline (templates / sessions / memberships /
+     * packs / customer assignments) and leaves classes_enabled=false.
+     *
+     * Each entry:
+     *   name, slug, description, duration_minutes, default_capacity,
+     *   price_cents, instructor_index (int — index into additionalResources(),
+     *   or null = owner), schedule (array of ['dow' => int, 'time' => 'HH:MM']
+     *   pairs — each becomes a recurring weekly session for ~2 weeks).
+     */
+    public function classTemplates(): array;
+
+    /**
+     * Recurring class membership products (monthly subscriptions).
+     * Each entry: name, description, type ('unlimited'|'capped'),
+     * monthly_limit (int|null — required when type=capped), price_cents.
+     *
+     * Empty array = no memberships seeded.
+     */
+    public function membershipProducts(): array;
+
+    /**
+     * Class pack products (bundles of class credits).
+     * Each entry: name, description, credit_count, expiry_days,
+     * price_cents.
+     *
+     * Empty array = no packs seeded.
+     */
+    public function packProducts(): array;
 }

@@ -205,4 +205,8 @@ class BikeShopData implements IndustryDataContract
         ];
     }
 
+    public function classTemplates(): array { return []; }
+    public function membershipProducts(): array { return []; }
+    public function packProducts(): array { return []; }
+
 }

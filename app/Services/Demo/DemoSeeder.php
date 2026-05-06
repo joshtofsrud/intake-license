@@ -8,10 +8,18 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentNote;
 use App\Models\Tenant\TenantAppointmentResponse;
 use App\Models\Tenant\TenantCapacityRule;
+use App\Models\Tenant\TenantClassMembershipProduct;
+use App\Models\Tenant\TenantClassPackProduct;
+use App\Models\Tenant\TenantClassRegistration;
+use App\Models\Tenant\TenantClassSession;
+use App\Models\Tenant\TenantClassTemplate;
 use App\Models\Tenant\TenantCustomer;
+use App\Models\Tenant\TenantCustomerMembership;
+use App\Models\Tenant\TenantCustomerPack;
 use App\Models\Tenant\TenantFormField;
 use App\Models\Tenant\TenantFormSection;
 use App\Models\Tenant\TenantReceivingMethod;
+use App\Models\Tenant\TenantResource;
 use App\Models\Tenant\TenantServiceAddon;
 use App\Models\Tenant\TenantServiceCategory;
 use App\Models\Tenant\TenantServiceItem;
@@ -54,6 +62,10 @@ class DemoSeeder
         $addonsByService = $this->seedAddons($tenant, $servicesBySlug);
         $customers = $this->seedCustomers($tenant);
         $this->seedAppointments($tenant, $owner, $customers, $servicesBySlug, $addonsByService);
+
+        // Class architecture (yoga/fitness/etc). No-op for industries that
+        // return [] from classTemplates/membershipProducts/packProducts.
+        $this->seedClasses($tenant, $customers);
 
         // Sub-seeders (waitlist, campaigns, pages)
         // Work-order field definitions + responses (must run after appointments exist)
@@ -645,6 +657,490 @@ class DemoSeeder
         ];
         return $notes[array_rand($notes)];
     }
+
+    // ------------------------------------------------------------------
+    // Class architecture (yoga/fitness/etc.)
+    // ------------------------------------------------------------------
+
+    /**
+     * Seed class templates, sessions, membership/pack products, and a
+     * realistic mix of customer assignments + registrations. No-op when
+     * the industry contract returns no class data.
+     *
+     * Generated:
+     *  - Templates from classTemplates(), instructor resolved by index
+     *  - 28 days of sessions (-14 to +14 from today) per template/schedule pair
+     *  - Membership products from membershipProducts()
+     *  - Pack products from packProducts()
+     *  - Active memberships for ~25% of customers, packs for ~20%
+     *  - Past registrations marked completed/no_show, future registrations
+     *    consuming the right payment source, with some sessions filled to
+     *    full to demonstrate waitlist behavior.
+     */
+    private function seedClasses(Tenant $tenant, array $customers): void
+    {
+        $templates = $this->industry->classTemplates();
+        $memberships = $this->industry->membershipProducts();
+        $packs = $this->industry->packProducts();
+
+        if (empty($templates) && empty($memberships) && empty($packs)) {
+            return; // Industry has no class architecture — clean skip.
+        }
+
+        // Flip the gate so the sidebar and customer-facing UI surface classes.
+        $tenant->update(['classes_enabled' => true]);
+
+        // Resolve instructor resources by sort_order index. Index 0 = owner
+        // (auto-seeded), 1+ = additional resources.
+        $resources = TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->values();
+
+        $templatesBySlug = $this->seedClassTemplates($tenant, $templates, $resources);
+        $sessionsByTemplate = $this->seedClassSessions($tenant, $templatesBySlug);
+        $membershipProducts = $this->seedMembershipProducts($tenant, $memberships);
+        $packProducts = $this->seedPackProducts($tenant, $packs);
+
+        // Customer assignments + registrations only happen when there's
+        // something to register against AND someone to register.
+        if (!empty($sessionsByTemplate) && !empty($customers)) {
+            $customerMemberships = $this->seedCustomerMemberships(
+                $tenant, $customers, $membershipProducts
+            );
+            $customerPacks = $this->seedCustomerPacks(
+                $tenant, $customers, $packProducts
+            );
+            $this->seedClassRegistrations(
+                $tenant, $sessionsByTemplate, $customers,
+                $customerMemberships, $customerPacks
+            );
+        }
+
+        $this->log("  Classes: enabled.");
+    }
+
+    private function seedClassTemplates(Tenant $tenant, array $templates, $resources): array
+    {
+        $bySlug = [];
+        foreach ($templates as $t) {
+            $instructorIdx = $t['instructor_index'] ?? null;
+            $instructor = ($instructorIdx !== null && isset($resources[$instructorIdx]))
+                ? $resources[$instructorIdx]
+                : ($resources[0] ?? null); // owner fallback
+
+            $bySlug[$t['slug']] = TenantClassTemplate::create([
+                'tenant_id'              => $tenant->id,
+                'name'                   => $t['name'],
+                'slug'                   => $t['slug'],
+                'description'            => $t['description'] ?? null,
+                'duration_minutes'       => $t['duration_minutes'],
+                'default_capacity'       => $t['default_capacity'],
+                'instructor_resource_id' => $instructor?->id,
+                'price_cents'            => $t['price_cents'],
+                'is_active'              => true,
+                'metadata'               => ['schedule' => $t['schedule'] ?? []],
+            ]);
+        }
+        $this->log("  Class templates: " . count($bySlug));
+        return $bySlug;
+    }
+
+    /**
+     * Generate 28 days of sessions (-14 to +14 from today) per template/schedule
+     * pair. Past sessions get status=completed, future sessions get
+     * status=confirmed.
+     *
+     * Returns: ['template-slug' => [TenantClassSession, ...]] split into
+     * past and future for downstream registration seeding.
+     */
+    private function seedClassSessions(Tenant $tenant, array $templatesBySlug): array
+    {
+        $byTemplate = [];
+        $today = Carbon::now()->startOfDay();
+        $start = $today->copy()->subDays(14);
+        $end = $today->copy()->addDays(14);
+
+        $totalSessions = 0;
+
+        foreach ($templatesBySlug as $slug => $template) {
+            $byTemplate[$slug] = ['past' => [], 'future' => []];
+            $schedule = $template->metadata['schedule'] ?? [];
+
+            foreach ($schedule as $slot) {
+                $cursor = $start->copy();
+                while ($cursor->lessThanOrEqualTo($end)) {
+                    if ($cursor->dayOfWeek === $slot['dow']) {
+                        [$h, $m] = explode(':', $slot['time']);
+                        $startsAt = $cursor->copy()->setTime((int) $h, (int) $m);
+                        $endsAt = $startsAt->copy()->addMinutes($template->duration_minutes);
+
+                        $isPast = $startsAt->isPast();
+                        $instructorName = null;
+                        if ($template->instructor_resource_id) {
+                            $instructorName = TenantResource::find($template->instructor_resource_id)?->name;
+                        }
+
+                        $session = TenantClassSession::create([
+                            'tenant_id'              => $tenant->id,
+                            'class_template_id'      => $template->id,
+                            'starts_at'              => $startsAt,
+                            'ends_at'                => $endsAt,
+                            'instructor_resource_id' => $template->instructor_resource_id,
+                            'instructor_snapshot'    => $instructorName,
+                            'capacity_snapshot'      => $template->default_capacity,
+                            'status'                 => $isPast ? 'completed' : 'confirmed',
+                        ]);
+
+                        $byTemplate[$slug][$isPast ? 'past' : 'future'][] = $session;
+                        $totalSessions++;
+                    }
+                    $cursor->addDay();
+                }
+            }
+        }
+
+        $this->log("  Class sessions: {$totalSessions} (past + future across all templates).");
+        return $byTemplate;
+    }
+
+    private function seedMembershipProducts(Tenant $tenant, array $memberships): array
+    {
+        $products = [];
+        foreach ($memberships as $m) {
+            $products[] = TenantClassMembershipProduct::create([
+                'tenant_id'     => $tenant->id,
+                'name'          => $m['name'],
+                'description'   => $m['description'] ?? null,
+                'type'          => $m['type'],
+                'monthly_limit' => $m['type'] === 'capped' ? $m['monthly_limit'] : null,
+                'price_cents'   => $m['price_cents'],
+                'is_active'     => true,
+            ]);
+        }
+        $this->log("  Membership products: " . count($products));
+        return $products;
+    }
+
+    private function seedPackProducts(Tenant $tenant, array $packs): array
+    {
+        $products = [];
+        foreach ($packs as $p) {
+            $products[] = TenantClassPackProduct::create([
+                'tenant_id'    => $tenant->id,
+                'name'         => $p['name'],
+                'description'  => $p['description'] ?? null,
+                'credit_count' => $p['credit_count'],
+                'expiry_days'  => $p['expiry_days'],
+                'price_cents'  => $p['price_cents'],
+                'is_active'    => true,
+            ]);
+        }
+        $this->log("  Pack products: " . count($products));
+        return $products;
+    }
+
+    /**
+     * Assign active memberships to ~25% of customers. Period starts somewhere
+     * between 0 and 28 days ago (so some are mid-period, some near rollover).
+     *
+     * Returns: ['customer_id' => TenantCustomerMembership]
+     */
+    private function seedCustomerMemberships(Tenant $tenant, array $customers, array $products): array
+    {
+        if (empty($products)) { return []; }
+
+        $byCustomer = [];
+        $today = Carbon::now()->startOfDay();
+
+        // ~25% of customers get a membership.
+        $count = (int) round(count($customers) * 0.25);
+        $picked = collect($customers)->shuffle()->take($count);
+
+        foreach ($picked as $customer) {
+            $product = $products[array_rand($products)];
+
+            // Period starts 0-28 days ago, runs 30 days from there.
+            $daysIntoPeriod = random_int(0, 28);
+            $periodStart = $today->copy()->subDays($daysIntoPeriod);
+            $periodEnd = $periodStart->copy()->addDays(30);
+
+            // For capped memberships, use up some classes so the dashboard
+            // shows realistic "X of Y used" numbers.
+            $used = 0;
+            if ($product->type === 'capped' && $product->monthly_limit) {
+                $maxAlreadyUsed = (int) floor($product->monthly_limit * ($daysIntoPeriod / 30));
+                $used = random_int(0, min($maxAlreadyUsed, $product->monthly_limit - 1));
+            } elseif ($product->type === 'unlimited') {
+                $used = random_int(0, max(1, $daysIntoPeriod / 3));
+            }
+
+            $membership = TenantCustomerMembership::create([
+                'tenant_id'                => $tenant->id,
+                'customer_id'              => $customer->id,
+                'product_id'               => $product->id,
+                'status'                   => 'active',
+                'current_period_start'     => $periodStart->toDateString(),
+                'current_period_end'       => $periodEnd->toDateString(),
+                'classes_used_this_period' => $used,
+            ]);
+
+            $byCustomer[$customer->id] = $membership;
+        }
+
+        $this->log("  Customer memberships: " . count($byCustomer) . " active.");
+        return $byCustomer;
+    }
+
+    /**
+     * Assign packs to ~20% of customers. Mix of fresh, partially-used, and
+     * close-to-expiry packs so the customer portal shows variety.
+     *
+     * Returns: ['customer_id' => [TenantCustomerPack, ...]]
+     */
+    private function seedCustomerPacks(Tenant $tenant, array $customers, array $products): array
+    {
+        if (empty($products)) { return []; }
+
+        $byCustomer = [];
+        $today = Carbon::now()->startOfDay();
+
+        // ~20% of customers get at least one pack.
+        $count = (int) round(count($customers) * 0.20);
+        $picked = collect($customers)->shuffle()->take($count);
+
+        foreach ($picked as $customer) {
+            // 80% one pack, 20% two (different sizes).
+            $packCount = $this->weightedPick([1 => 80, 2 => 20]);
+            $usedProductIds = [];
+
+            for ($i = 0; $i < $packCount; $i++) {
+                $available = array_filter($products, fn($p) => !in_array($p->id, $usedProductIds, true));
+                if (empty($available)) { break; }
+                $product = $available[array_rand($available)];
+                $usedProductIds[] = $product->id;
+
+                // Variety in pack age:
+                //  - 50% recently bought (< 1/3 used)
+                //  - 30% mid-life (1/3 to 2/3 used)
+                //  - 20% near-empty or near-expiry
+                $stage = $this->weightedPick(['fresh' => 50, 'mid' => 30, 'late' => 20]);
+                $remaining = match ($stage) {
+                    'fresh' => max(1, (int) round($product->credit_count * (random_int(70, 100) / 100))),
+                    'mid'   => max(1, (int) round($product->credit_count * (random_int(35, 65) / 100))),
+                    'late'  => random_int(1, max(1, (int) floor($product->credit_count * 0.25))),
+                };
+
+                // Bought somewhere between 1 day and (expiry_days - 7) ago.
+                $maxAge = max(1, $product->expiry_days - 7);
+                $boughtDaysAgo = random_int(1, $maxAge);
+                $expiresAt = $today->copy()->subDays($boughtDaysAgo)->addDays($product->expiry_days);
+
+                $pack = TenantCustomerPack::create([
+                    'tenant_id'         => $tenant->id,
+                    'customer_id'       => $customer->id,
+                    'product_id'        => $product->id,
+                    'credits_total'     => $product->credit_count,
+                    'credits_remaining' => $remaining,
+                    'expires_at'        => $expiresAt->toDateString(),
+                    'status'            => 'active',
+                ]);
+
+                $byCustomer[$customer->id][] = $pack;
+            }
+        }
+
+        $totalPacks = array_sum(array_map('count', $byCustomer));
+        $this->log("  Customer packs: {$totalPacks} active across " . count($byCustomer) . " customers.");
+        return $byCustomer;
+    }
+
+    /**
+     * Seed class registrations:
+     *   - Past sessions: ~70-90% capacity, status=completed (a few no_show/cancelled)
+     *   - Future sessions: 30-80% capacity, status=registered (one or two
+     *     filled to capacity to demonstrate waitlist UI)
+     *
+     * Bypasses ClassRegistrationService and writes directly because:
+     *   1. Speed (bulk seeds)
+     *   2. We control the historical mix of statuses
+     *   3. Membership counters and pack credits are already pre-set to realistic
+     *      values in seedCustomerMemberships/seedCustomerPacks; double-counting
+     *      every historical registration would over-deplete them
+     */
+    private function seedClassRegistrations(
+        Tenant $tenant,
+        array $sessionsByTemplate,
+        array $customers,
+        array $customerMemberships,
+        array $customerPacks,
+    ): void {
+        $totalRegs = 0;
+        $waitlistsCreated = 0;
+        $customersById = [];
+        foreach ($customers as $c) { $customersById[$c->id] = $c; }
+        $allCustomerIds = array_keys($customersById);
+
+        // Track per-session registered customer IDs to enforce the unique
+        // (session, customer, status) constraint.
+        $sessionRegistrants = [];
+
+        foreach ($sessionsByTemplate as $slug => $buckets) {
+            // Past sessions
+            foreach ($buckets['past'] as $session) {
+                $fillRate = random_int(60, 90) / 100;
+                $targetCount = (int) round($session->capacity_snapshot * $fillRate);
+                $registered = 0;
+
+                $shuffled = collect($allCustomerIds)->shuffle()->all();
+                $sessionRegistrants[$session->id] = [];
+
+                foreach ($shuffled as $cid) {
+                    if ($registered >= $targetCount) { break; }
+                    if (in_array($cid, $sessionRegistrants[$session->id], true)) { continue; }
+
+                    $payment = $this->pickHistoricalPayment($cid, $customerMemberships, $customerPacks);
+
+                    // Outcome mix for past sessions
+                    $outcome = $this->weightedPick([
+                        'completed'  => 80,
+                        'no_show'    => 10,
+                        'cancelled'  => 10,
+                    ]);
+
+                    // checked_in == "showed up." Map completed (legacy term in
+                    // some industry copy) to checked_in for active-state correctness.
+                    $status = $outcome === 'completed' ? 'checked_in' : $outcome;
+
+                    TenantClassRegistration::create([
+                        'tenant_id'        => $tenant->id,
+                        'class_session_id' => $session->id,
+                        'customer_id'      => $cid,
+                        'status'           => $status,
+                        'payment_method'   => $payment['method'],
+                        'membership_id'    => $payment['membership_id'],
+                        'pack_id'          => $payment['pack_id'],
+                        'paid_cents'       => $payment['paid_cents'],
+                        'registered_at'    => $session->starts_at->copy()->subDays(random_int(1, 5)),
+                        'cancelled_at'     => $status === 'cancelled' ? $session->starts_at->copy()->subHours(random_int(2, 24)) : null,
+                    ]);
+
+                    $sessionRegistrants[$session->id][] = $cid;
+                    $registered++;
+                    $totalRegs++;
+                }
+            }
+
+            // Future sessions — pick one to fill to capacity for waitlist demo
+            $futureSessions = $buckets['future'];
+            $fillToCapIdx = !empty($futureSessions) && random_int(1, 3) === 1
+                ? array_rand($futureSessions)
+                : null;
+
+            foreach ($futureSessions as $idx => $session) {
+                $isFillToCap = $idx === $fillToCapIdx;
+                if ($isFillToCap) {
+                    // Fill to capacity, then 2-4 waitlisters
+                    $targetCount = $session->capacity_snapshot;
+                    $waitlistTarget = random_int(2, 4);
+                } else {
+                    $fillRate = random_int(30, 80) / 100;
+                    $targetCount = (int) round($session->capacity_snapshot * $fillRate);
+                    $waitlistTarget = 0;
+                }
+
+                $registered = 0;
+                $waitlisted = 0;
+                $waitlistPos = 0;
+                $shuffled = collect($allCustomerIds)->shuffle()->all();
+                $sessionRegistrants[$session->id] = [];
+
+                foreach ($shuffled as $cid) {
+                    if ($registered >= $targetCount && $waitlisted >= $waitlistTarget) { break; }
+                    if (in_array($cid, $sessionRegistrants[$session->id], true)) { continue; }
+
+                    $payment = $this->pickHistoricalPayment($cid, $customerMemberships, $customerPacks);
+
+                    if ($registered < $targetCount) {
+                        $status = 'registered';
+                        $waitlistPosForRow = null;
+                        $registered++;
+                    } else {
+                        $status = 'waitlisted';
+                        $waitlistPos++;
+                        $waitlistPosForRow = $waitlistPos;
+                        $waitlisted++;
+                        $waitlistsCreated++;
+                    }
+
+                    TenantClassRegistration::create([
+                        'tenant_id'         => $tenant->id,
+                        'class_session_id'  => $session->id,
+                        'customer_id'       => $cid,
+                        'status'            => $status,
+                        'payment_method'    => $payment['method'],
+                        'membership_id'     => $payment['membership_id'],
+                        'pack_id'           => $payment['pack_id'],
+                        'paid_cents'        => $payment['paid_cents'],
+                        'waitlist_position' => $waitlistPosForRow,
+                        'registered_at'     => Carbon::now()->subDays(random_int(0, 7))->subHours(random_int(0, 23)),
+                    ]);
+
+                    $sessionRegistrants[$session->id][] = $cid;
+                    $totalRegs++;
+                }
+            }
+        }
+
+        $this->log("  Class registrations: {$totalRegs} ({$waitlistsCreated} on waitlists across full sessions).");
+    }
+
+    /**
+     * Pick a payment method snapshot for a historical/seeded registration.
+     * Doesn't decrement live balances — this is purely for the registration
+     * row's payment provenance fields. Customer membership/pack balances are
+     * pre-seeded with realistic usage in seedCustomerMemberships/Packs.
+     */
+    private function pickHistoricalPayment(
+        string $customerId,
+        array $customerMemberships,
+        array $customerPacks,
+    ): array {
+        $hasMembership = isset($customerMemberships[$customerId]);
+        $hasPack = isset($customerPacks[$customerId]) && !empty($customerPacks[$customerId]);
+
+        if ($hasMembership) {
+            return [
+                'method'        => 'membership',
+                'membership_id' => $customerMemberships[$customerId]->id,
+                'pack_id'       => null,
+                'paid_cents'    => 0,
+            ];
+        }
+
+        if ($hasPack) {
+            return [
+                'method'        => 'pack',
+                'membership_id' => null,
+                'pack_id'       => $customerPacks[$customerId][0]->id,
+                'paid_cents'    => 0,
+            ];
+        }
+
+        // Drop-in pricing — grab a sane default. Per-class is the one that
+        // shows up as paid_cents on the registration.
+        return [
+            'method'        => $this->weightedPick(['per_class' => 70, 'cash' => 30]),
+            'membership_id' => null,
+            'pack_id'       => null,
+            'paid_cents'    => 2500, // Matches typical drop-in price.
+        ];
+    }
+
+    // ------------------------------------------------------------------
+    // Random helpers
+    // ------------------------------------------------------------------
 
     private function weightedPick(array $weightMap): string|int
     {
