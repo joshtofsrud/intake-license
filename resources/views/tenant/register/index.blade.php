@@ -1166,6 +1166,10 @@ document.getElementById('payBtn').addEventListener('click', () => {
 
   if (net === 0 && cart.refund_lines.length > 0) {
     // Even exchange — skip tender, commit immediately.
+    // No money changes hands, but the payload still requires a payment method
+    // for the validator. 'even_exchange' is a sentinel that the controller treats
+    // the same as 'mark_paid' (no actual tender).
+    cart.payment_method = 'even_exchange';
     commitTransaction({ even_exchange: true });
     return;
   }

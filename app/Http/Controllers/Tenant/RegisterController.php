@@ -475,7 +475,7 @@ class RegisterController extends Controller
         $validated = $request->validate([
             'customer_id'      => 'nullable|uuid',
             'tip_cents'        => 'nullable|integer|min:0',
-            'payment_method'   => 'required|string|in:cash,card,check,store_credit,mark_paid,split',
+            'payment_method'   => 'required|string|in:cash,card,check,store_credit,mark_paid,split,even_exchange',
             'payment_reference'=> 'nullable|string',
             'items'            => 'nullable|array',
             'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
@@ -489,7 +489,7 @@ class RegisterController extends Controller
             'refund.original_sale_id'      => 'required|uuid',
             'refund.item_ids'              => 'required|array|min:1',
             'refund.item_ids.*'            => 'uuid',
-            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid',
+            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange',
         ]);
 
         try {
