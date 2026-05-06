@@ -19,6 +19,7 @@ class TenantSale extends Model
         'status', 'payment_status',
         'customer_id', 'assigned_staff_id', 'appointment_id',
         'rang_up_by_user_id', 'refund_of_sale_id',
+        'transaction_id',
         'notes',
         'subtotal_cents', 'discount_cents', 'tax_cents',
         'surcharge_cents', 'tip_cents', 'total_cents',

@@ -549,4 +549,93 @@ class SaleService
             return $this->recalculate($refund->fresh('items'));
         });
     }
+
+    /**
+     * Create a multi-row transaction (sale + optional refund of prior sale).
+     *
+     * Use cases:
+     *   - Pure sale: $data['items'] has new lines, no $data['refund'] block. Behaves like createSale.
+     *   - Pure refund: no $data['items'], $data['refund'] block has original_sale_id + item_ids. Behaves like createRefund.
+     *   - Exchange: both — refund happens against original sale, new sale is rung up, both rows share transaction_id.
+     *
+     * Tender direction is the caller's responsibility. This method just composes
+     * the two writes inside one DB transaction and stamps a shared transaction_id.
+     *
+     * Expected $data:
+     *   tenant_id (required)
+     *   rang_up_by_user_id (required)
+     *   location_id (required)
+     *   customer_id (optional)
+     *   notes (optional)
+     *   tip_cents (optional, applies to new-sale row only)
+     *   payment_method (required if any net payment is moving)
+     *   payment_reference (optional)
+     *   items (optional array — new sale lines)
+     *   refund (optional array):
+     *     original_sale_id (required if refund present)
+     *     item_ids (required if refund present)
+     *     reason (optional)
+     *     refund_method (required if refund present — cash/card/check/store_credit/mark_paid)
+     *
+     * Returns:
+     *   array with keys 'sale' (TenantSale|null) and 'refund' (TenantSale|null) and 'transaction_id'.
+     *   At least one of sale/refund will be non-null.
+     */
+    public function createTransaction(array $data): array
+    {
+        $hasNewSale = !empty($data['items']);
+        $hasRefund  = !empty($data['refund']) && !empty($data['refund']['item_ids']);
+
+        if (!$hasNewSale && !$hasRefund) {
+            throw new SaleValidationException(
+                'Transaction needs at least one new sale line or a refund.'
+            );
+        }
+
+        $transactionId = (string) \Illuminate\Support\Str::uuid();
+
+        return DB::transaction(function () use ($data, $hasNewSale, $hasRefund, $transactionId) {
+            $refundRow = null;
+            $saleRow   = null;
+
+            if ($hasRefund) {
+                $refundData = $data['refund'];
+                $refundRow = $this->createRefund([
+                    'tenant_id'          => $data['tenant_id'],
+                    'original_sale_id'   => $refundData['original_sale_id'],
+                    'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                    'refund_method'      => $refundData['refund_method'],
+                    'reason'             => $refundData['reason'] ?? null,
+                    'notes'              => $refundData['notes'] ?? null,
+                    'item_ids'           => $refundData['item_ids'],
+                ]);
+                $refundRow->update(['transaction_id' => $transactionId]);
+            }
+
+            if ($hasNewSale) {
+                $saleRow = $this->createSale([
+                    'tenant_id'          => $data['tenant_id'],
+                    'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                    'location_id'        => $data['location_id'],
+                    'customer_id'        => $data['customer_id'] ?? null,
+                    'status'             => 'completed',
+                    'payment_status'     => $data['payment_status'] ?? 'paid',
+                    'payment_method'     => $data['payment_method'] ?? null,
+                    'payment_reference'  => $data['payment_reference'] ?? null,
+                    'paid_at'            => $data['paid_at'] ?? Carbon::now(),
+                    'notes'              => $data['notes'] ?? null,
+                    'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
+                    'discount_cents'     => (int) ($data['discount_cents'] ?? 0),
+                    'items'              => $data['items'],
+                ]);
+                $saleRow->update(['transaction_id' => $transactionId]);
+            }
+
+            return [
+                'transaction_id' => $transactionId,
+                'sale'           => $saleRow,
+                'refund'         => $refundRow,
+            ];
+        });
+    }
 }
