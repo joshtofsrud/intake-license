@@ -334,7 +334,11 @@ function applyFilterAndSort() {
     if (!emptyMsg) {
       emptyMsg = document.createElement('tr');
       emptyMsg.className = 'empty-search-row';
-      emptyMsg.innerHTML = '<td colspan="6" class="quotes-empty-search">No quotes match "' + q.replace(/[<>&"]/g, '') + '".</td>';
+      const cell = document.createElement('td');
+      cell.setAttribute('colspan', '6');
+      cell.className = 'quotes-empty-search';
+      cell.textContent = 'No quotes match "' + q + '".';
+      emptyMsg.appendChild(cell);
       tbody.appendChild(emptyMsg);
     }
   } else if (emptyMsg) {
