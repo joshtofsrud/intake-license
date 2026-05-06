@@ -337,10 +337,11 @@ function applyFilterAndSort() {
       const cell = document.createElement('td');
       cell.setAttribute('colspan', '6');
       cell.className = 'quotes-empty-search';
-      cell.textContent = 'No quotes match "' + q + '".';
       emptyMsg.appendChild(cell);
       tbody.appendChild(emptyMsg);
     }
+    // Always update the text — q changes as the user types.
+    emptyMsg.querySelector('.quotes-empty-search').textContent = 'No quotes match "' + q + '".';
   } else if (emptyMsg) {
     emptyMsg.remove();
   }
