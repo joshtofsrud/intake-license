@@ -210,8 +210,8 @@ class CalendarController extends Controller
             ->first();
 
         $hasRule  = $rule && $rule->open_time && $rule->close_time;
-        $openMin  = $hasRule ? $this->timeToMinutes($rule->open_time)  : 9 * 60;
-        $closeMin = $hasRule ? $this->timeToMinutes($rule->close_time) : 17 * 60;
+        $rawOpen  = $hasRule ? $this->timeToMinutes($rule->open_time)  : 9 * 60;
+        $rawClose = $hasRule ? $this->timeToMinutes($rule->close_time) : 17 * 60;
         $slotMin  = max((int) ($rule->slot_interval_minutes ?? 30), 15);
 
         $appointments = TenantAppointment::query()
@@ -227,6 +227,28 @@ class CalendarController extends Controller
                 'appointment_time', 'appointment_end_time', 'total_duration_minutes',
                 'status', 'total_cents', 'needs_time_review',
             ]);
+
+        // Render bounds extend beyond the capacity rule's open/close hours so
+        // adjacent context (early-morning prep, post-close wrap-up, classes
+        // running outside business hours) is visible. The bounds:
+        //   1. Always show ±60 min around open/close as buffer.
+        //   2. Stretch further to include any appointments that fall outside.
+        //   3. Clamped to [0, 1440] so we never render past midnight either way.
+        $bufferMin = 60;
+        $earliestApptMin = $rawOpen;
+        $latestApptMin   = $rawClose;
+        foreach ($appointments as $a) {
+            $startMin = $this->timeToMinutes($a->appointment_time);
+            if ($startMin === null) { continue; }
+            $endMin = $a->appointment_end_time
+                ? $this->timeToMinutes($a->appointment_end_time)
+                : $startMin + (int) ($a->total_duration_minutes ?? 60);
+            $earliestApptMin = min($earliestApptMin, $startMin);
+            $latestApptMin   = max($latestApptMin, $endMin);
+        }
+
+        $openMin  = max(0,    min($rawOpen,  $earliestApptMin) - $bufferMin);
+        $closeMin = min(1440, max($rawClose, $latestApptMin)   + $bufferMin);
 
         $breakWindows = $this->collectBreakWindows($tenant->id, $date);
         $holdWindows  = $this->collectHoldWindows($tenant->id, $date);
