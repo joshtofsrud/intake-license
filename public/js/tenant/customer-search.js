@@ -58,6 +58,14 @@
             document.addEventListener('click', (e) => {
                 if (!this.root.contains(e.target)) this.close();
             });
+
+            // Reposition on scroll/resize so the dropdown follows its input.
+            // Passive scroll listener is cheap; only re-anchors when shown.
+            const reposition = () => {
+                if (!this.results.hidden) this.positionResults();
+            };
+            window.addEventListener('scroll', reposition, true);
+            window.addEventListener('resize', reposition);
         }
 
         onFocus() {
@@ -134,6 +142,7 @@
 
             if (customers.length === 0) {
                 this.results.innerHTML = '<div class="ia-cs-empty">No matches</div>';
+                this.positionResults();
                 this.results.hidden = false;
                 return;
             }
@@ -152,7 +161,21 @@
                 });
             });
 
+            this.positionResults();
             this.results.hidden = false;
+        }
+
+        /**
+         * Anchor the dropdown directly below the input using viewport
+         * coordinates. Required because the dropdown is position:fixed
+         * (to escape ancestor overflow:hidden) and so doesn't auto-flow
+         * under its DOM parent. Re-runs on scroll/resize while open.
+         */
+        positionResults() {
+            const r = this.input.getBoundingClientRect();
+            this.results.style.top   = (r.bottom + 4) + 'px';
+            this.results.style.left  = r.left + 'px';
+            this.results.style.width = r.width + 'px';
         }
 
         select(c) {

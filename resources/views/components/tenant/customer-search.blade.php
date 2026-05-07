@@ -66,17 +66,17 @@
 }
 .ia-cs-clear:hover { background: var(--ia-border-strong); }
 .ia-cs-results {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
+    /* Fixed positioning escapes any ancestor with overflow:hidden
+       (e.g. .cl-session-card / .cl-card on the class pages). The JS sets
+       top/left/width on every show via getBoundingClientRect(). */
+    position: fixed;
     background: var(--ia-surface);
     border: 0.5px solid var(--ia-border);
     border-radius: var(--ia-r-md);
     box-shadow: 0 8px 24px rgba(0,0,0,.4);
     max-height: 300px;
     overflow-y: auto;
-    z-index: 50;
+    z-index: 9999;
 }
 .ia-cs-row {
     padding: 9px 12px;
