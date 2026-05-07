@@ -266,12 +266,19 @@ class ClassController extends Controller
             'payment_method' => ['required', 'in:membership,pack,per_class,cash'],
         ]);
 
-        $registration = $this->registrationService->register(
-            $sessionId,
-            $data['customer_id'],
-            $tenant->id,
-            $data['payment_method']
-        );
+        // resolvePayment() throws RuntimeException when admin explicitly picks
+        // pack/membership and the customer has neither. Surface that as a flash
+        // message instead of letting it bubble to a 500.
+        try {
+            $registration = $this->registrationService->register(
+                $sessionId,
+                $data['customer_id'],
+                $tenant->id,
+                $data['payment_method']
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success',
             $registration->status === 'waitlisted'
