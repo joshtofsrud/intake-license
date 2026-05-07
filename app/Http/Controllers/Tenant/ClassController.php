@@ -266,6 +266,14 @@ class ClassController extends Controller
             'payment_method' => ['required', 'in:membership,pack,per_class,cash'],
         ]);
 
+        // Cash diverts to the register flow: open a draft sale with the class
+        // drop-in as a line item, redirect admin to the register where they
+        // take payment (cash, card, gift card, etc.). On sale commit, the
+        // hook in SaleService::commitDraft() creates the registration row.
+        if ($data['payment_method'] === 'cash') {
+            return $this->registerViaCash($subdomain, $sessionId, $data['customer_id']);
+        }
+
         // resolvePayment() throws RuntimeException when admin explicitly picks
         // pack/membership and the customer has neither. Surface that as a flash
         // message instead of letting it bubble to a 500.
@@ -285,6 +293,77 @@ class ClassController extends Controller
                 ? 'Customer added to waitlist.'
                 : 'Customer registered.'
         );
+    }
+
+    /**
+     * Cash-pays-for-class flow.
+     *
+     * Creates a draft sale with a single open_item line for the class drop-in,
+     * stashes the class_session_id in sale metadata so the commit hook knows
+     * to register the customer afterward, then redirects to the register with
+     * ?draft={id} so the cart loads automatically.
+     *
+     * Why open_item rather than a real product/service: drop-ins are dynamic
+     * — the line description includes the specific session date/time which
+     * would otherwise need a product per session. open_item with a snapshot
+     * price from the template is the cleanest path.
+     */
+    private function registerViaCash(string $subdomain, string $sessionId, string $customerId)
+    {
+        $tenant = tenant();
+
+        $session = \App\Models\Tenant\TenantClassSession::where('tenant_id', $tenant->id)
+            ->with('template')
+            ->findOrFail($sessionId);
+
+        if (in_array($session->status, ['cancelled', 'completed'])) {
+            return back()->with('error', 'This class session is not accepting registrations.');
+        }
+
+        $price = (int) ($session->template->price_cents ?? 0);
+        if ($price <= 0) {
+            return back()->with('error', 'This class has no drop-in price set. Set a price on the template first.');
+        }
+
+        $locationId = request()->session()->get('current_location_id');
+        if (!$locationId) {
+            return back()->with('error', 'Pick a register location first.');
+        }
+
+        // Snapshot the line description with specific session details. Same
+        // pattern as service-line snapshotting elsewhere — protects the cart
+        // display if the template is renamed later.
+        $lineName = sprintf(
+            'Drop-in: %s · %s %s',
+            $session->template->name,
+            $session->starts_at->format('D M j'),
+            $session->starts_at->format('g:i A')
+        );
+
+        $draft = app(\App\Services\Tenant\SaleService::class)->saveDraft([
+            'tenant_id'          => $tenant->id,
+            'rang_up_by_user_id' => auth('tenant')->id(),
+            'location_id'        => $locationId,
+            'customer_id'        => $customerId,
+            'notes'              => null,
+            'tip_cents'          => 0,
+            'metadata'           => [
+                'kind'             => 'class_drop_in',
+                'class_session_id' => $sessionId,
+            ],
+            'items'              => [[
+                'type'             => 'open_item',
+                'name_snapshot'    => $lineName,
+                'unit_price_cents' => $price,
+                'quantity'         => 1,
+                'is_taxable'       => true,
+            ]],
+        ]);
+
+        return redirect()->route('tenant.register.index', [
+            'subdomain' => $subdomain,
+            'draft'     => $draft->id,
+        ])->with('success', 'Cart prepared — take payment to complete registration.');
     }
 
     public function cancelRegistration(string $subdomain, string $id)

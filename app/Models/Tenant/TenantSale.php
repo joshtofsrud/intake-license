@@ -22,6 +22,7 @@ class TenantSale extends Model
         'transaction_id',
         'was_quote',
         'notes',
+        'metadata',
         'subtotal_cents', 'discount_cents', 'tax_cents',
         'surcharge_cents', 'tip_cents', 'total_cents',
         'paid_at', 'payment_method', 'payment_reference',
@@ -41,6 +42,7 @@ class TenantSale extends Model
         'tip_cents'      => 'integer',
         'total_cents'    => 'integer',
         'was_quote'      => 'boolean',
+        'metadata'       => 'array',
     ];
 
     public function tenant(): BelongsTo        { return $this->belongsTo(Tenant::class); }

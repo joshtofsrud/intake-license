@@ -1533,6 +1533,21 @@ async function discardDraftFromList(id) {
 
 renderCart();
 
+// Auto-load a draft from ?draft=X in the URL. Used by the cash-pays-for-class
+// flow in ClassController::registerViaCash, which prepares a drop-in cart and
+// redirects here so the admin can take payment. Removes the param after load
+// so a refresh doesn't re-trigger.
+(function autoloadDraftFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const draftId = params.get('draft');
+  if (!draftId) return;
+  // Strip the param so this only fires once.
+  params.delete('draft');
+  const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  window.history.replaceState({}, '', cleanUrl);
+  resumeDraft(draftId);
+})();
+
 // --- Refund picker ---
 let refundPickerSale = null;  // the full sale object from lookupSale, kept while modal is open
 

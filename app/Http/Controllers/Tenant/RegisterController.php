@@ -202,6 +202,7 @@ class RegisterController extends Controller
             'customer_id'      => 'nullable|uuid',
             'notes'            => 'nullable|string',
             'tip_cents'        => 'nullable|integer|min:0',
+            'metadata'         => 'nullable|array',
             'items'            => 'nullable|array',
             'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
             'items.*.service_id'       => 'nullable|uuid',
@@ -224,6 +225,7 @@ class RegisterController extends Controller
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'notes'              => $validated['notes'] ?? null,
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'metadata'           => $validated['metadata'] ?? null,
                 'items'              => $validated['items'] ?? [],
             ]);
 
