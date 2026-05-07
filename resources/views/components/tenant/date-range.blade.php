@@ -157,7 +157,7 @@
     transition: background var(--ia-t), color var(--ia-t);
     position: relative;
 }
-.ia-dr-cell:hover:not(:disabled):not(.is-empty) { background: var(--ia-hover); color: var(--ia-text); }
+.ia-dr-cell:hover:not(:disabled):not(.is-empty):not(.is-range-start):not(.is-range-end):not(.is-in-range) { background: var(--ia-hover); color: var(--ia-text); }
 .ia-dr-cell.is-empty { cursor: default; pointer-events: none; }
 .ia-dr-cell.is-today { outline: 0.5px solid var(--ia-accent); outline-offset: -1px; }
 
@@ -218,6 +218,10 @@
 @endpush
 
 @push('scripts')
-<script src="{{ asset('js/tenant/date-range.js') }}?v={{ filemtime(public_path('js/tenant/date-range.js')) }}"></script>
+@php
+    $drJsPath = public_path('js/tenant/date-range.js');
+    $drJsVer = file_exists($drJsPath) ? filemtime($drJsPath) : time();
+@endphp
+<script src="{{ asset('js/tenant/date-range.js') }}?v={{ $drJsVer }}"></script>
 @endpush
 @endonce
