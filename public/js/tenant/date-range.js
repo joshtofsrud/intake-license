@@ -220,6 +220,13 @@
          * Click-on-cell logic. Two clicks = a range.
          */
         selectDate(d) {
+            // Cancel any pending hover-render — it could otherwise rebuild
+            // the grid after the click lands and visually undo our update.
+            if (this._hoverRaf) {
+                cancelAnimationFrame(this._hoverRaf);
+                this._hoverRaf = null;
+            }
+
             if (!this.from || (this.from && this.to)) {
                 // First click, or starting fresh after a complete range
                 this.from = d;
@@ -337,10 +344,23 @@
                 cell.addEventListener('click', () => this.selectDate(cellDate));
                 cell.addEventListener('mouseenter', () => {
                     // Only show hover preview when mid-selection
-                    if (this.from && !this.to) {
-                        this.hoverDate = cellDate;
+                    if (!this.from || this.to) return;
+
+                    // Skip if hovering the same date as before — avoids
+                    // a re-render storm that destroys the cell DOM mid-click
+                    // and swallows the user's second click.
+                    if (this.hoverDate && isSameDay(this.hoverDate, cellDate)) return;
+
+                    this.hoverDate = cellDate;
+
+                    // Defer the re-render so it can't race with a pending
+                    // click event on this same cell. requestAnimationFrame
+                    // gives the browser a chance to dispatch the click first.
+                    if (this._hoverRaf) cancelAnimationFrame(this._hoverRaf);
+                    this._hoverRaf = requestAnimationFrame(() => {
+                        this._hoverRaf = null;
                         this.render();
-                    }
+                    });
                 });
                 this.grid.appendChild(cell);
             }
