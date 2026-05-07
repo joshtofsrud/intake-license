@@ -143,16 +143,25 @@ class AppointmentController extends Controller
         }
 
         $total = $q->count();
-        $appointments = $q->offset(($page - 1) * $perPage)
+        $appointments = $q->with('resource:id,name,color_hex')
+                          ->offset(($page - 1) * $perPage)
                           ->limit($perPage)
                           ->get();
 
         $totalPages = max(1, ceil($total / $perPage));
 
+        // Active resources for the inline-edit dropdown on the table.
+        // Cheap query; tenants typically have <20 active resources.
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'color_hex']);
+
         return view('tenant.appointments.index', compact(
             'appointments', 'total', 'page', 'totalPages',
             'search', 'status', 'payment', 'dateFrom', 'dateTo', 'sort',
-            'filter', 'filterLabels'
+            'filter', 'filterLabels', 'resources'
         ));
     }
 
