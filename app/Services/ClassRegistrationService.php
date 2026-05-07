@@ -110,6 +110,12 @@ class ClassRegistrationService
                 throw new RuntimeException('Registration is not in a cancellable state.');
             }
 
+            // Restore the payment source on the cancelled registration BEFORE
+            // marking it cancelled. Pack credits go back, membership usage
+            // counter ticks back. Per-class and cash never had pre-consumption,
+            // so nothing to restore for those methods.
+            $this->restorePaymentSource($registration, $tenantId);
+
             $registration->cancel();
 
             // Promote next waitlisted customer
@@ -235,5 +241,35 @@ class ClassRegistrationService
             'pack'       => $resolved['source']->deductCredit(),
             default      => null, // per_class and cash: no pre-consumption
         };
+    }
+
+    /**
+     * Restore the payment source for a cancelled registration. Reverses what
+     * consumePaymentSource() did at registration time.
+     *
+     * Intentionally tolerant — if the source no longer exists (admin revoked
+     * the pack/membership manually), or the registration was per_class/cash,
+     * we silently no-op. The registration still gets cancelled either way.
+     *
+     * Edge case: membership usage shouldn't go negative. If the period rolled
+     * over since registration (so classes_used_this_period was already reset
+     * to 0), decrementing would underflow. Guard with a max(0, x-1) pattern.
+     */
+    private function restorePaymentSource(TenantClassRegistration $registration, string $tenantId): void
+    {
+        if ($registration->payment_method === 'pack' && $registration->pack_id) {
+            $pack = TenantCustomerPack::where('tenant_id', $tenantId)
+                ->find($registration->pack_id);
+            if ($pack) {
+                $pack->restoreCredit();
+            }
+        } elseif ($registration->payment_method === 'membership' && $registration->membership_id) {
+            $membership = TenantCustomerMembership::where('tenant_id', $tenantId)
+                ->find($registration->membership_id);
+            if ($membership && $membership->classes_used_this_period > 0) {
+                $membership->decrement('classes_used_this_period');
+            }
+        }
+        // per_class, cash, or unrecognized methods: no pre-consumption to undo.
     }
 }

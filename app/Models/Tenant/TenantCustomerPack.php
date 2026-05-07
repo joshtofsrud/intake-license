@@ -86,4 +86,25 @@ class TenantCustomerPack extends Model
             $this->update(['status' => 'exhausted']);
         }
     }
+
+    /**
+     * Restore one credit. Called when a registration paid via this pack is
+     * cancelled. Re-activates an exhausted pack if it had been zeroed out
+     * AND it hasn't expired in the meantime.
+     */
+    public function restoreCredit(): void
+    {
+        $wasExhausted = $this->status === 'exhausted';
+        $this->increment('credits_remaining');
+
+        if ($wasExhausted) {
+            $stillValid = $this->expires_at && $this->expires_at->gte(now()->toDateString());
+            if ($stillValid) {
+                $this->update(['status' => 'active']);
+            }
+            // If expired, leave status as-is; the credit is restored on the row
+            // for accounting accuracy but the pack still won't be usable. This
+            // keeps the audit trail honest.
+        }
+    }
 }
