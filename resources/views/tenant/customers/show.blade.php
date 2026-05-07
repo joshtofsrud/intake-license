@@ -20,6 +20,32 @@
 .appt-row-main { flex: 1; }
 .appt-row-ra { font-size: 13px; font-weight: 500; }
 .appt-row-date { font-size: 12px; opacity: .45; margin-top: 1px; }
+
+/* Memberships & Packs card */
+.cust-mp-row { display: flex; align-items: center; gap: 12px; padding: 10px; background: var(--ia-surface-2); border-radius: 6px; border: 0.5px solid var(--ia-border); }
+.cust-mp-row--history { opacity: .55; padding: 6px 10px; background: transparent; border: 0; border-bottom: 0.5px solid var(--ia-border); border-radius: 0; }
+.cust-mp-row--history:last-child { border-bottom: none; }
+.cust-mp-row-main { flex: 1; min-width: 0; }
+.cust-mp-row-title { font-size: 13px; font-weight: 500; }
+.cust-mp-row-sub { font-size: 12px; color: var(--ia-text-muted); margin-top: 2px; }
+.cust-mp-bar { height: 4px; background: var(--ia-border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.cust-mp-bar-fill { height: 100%; background: var(--ia-accent); border-radius: 2px; transition: width .3s; }
+
+/* Grant modal */
+.cust-mp-modal { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; display: none; align-items: center; justify-content: center; }
+.cust-mp-modal.is-open { display: flex; }
+.cust-mp-modal-inner { background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 10px; padding: 20px; max-width: 480px; width: 92%; }
+.cust-mp-modal-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.cust-mp-modal-sub { font-size: 12px; color: var(--ia-text-muted); margin-bottom: 16px; }
+.cust-mp-product-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
+.cust-mp-product { display: flex; align-items: center; padding: 10px 12px; background: var(--ia-surface-2); border: 0.5px solid var(--ia-border); border-radius: 6px; cursor: pointer; transition: all var(--ia-t); }
+.cust-mp-product:hover { border-color: var(--ia-border-strong); }
+.cust-mp-product.is-selected { border-color: var(--ia-accent); background: var(--ia-accent-soft); }
+.cust-mp-product-main { flex: 1; }
+.cust-mp-product-name { font-size: 13px; font-weight: 500; }
+.cust-mp-product-meta { font-size: 11px; color: var(--ia-text-muted); margin-top: 2px; }
+.cust-mp-product-price { font-size: 13px; font-weight: 500; }
+
 @media (max-width: 900px) {
   .cust-layout { grid-template-columns: 1fr; }
   .cust-info-grid { grid-template-columns: 1fr; }
@@ -138,6 +164,98 @@
       </form>
     </div>
 
+    {{-- Memberships & Packs (classes-enabled tenants only) --}}
+    @if($currentTenant->classes_enabled)
+      @php
+        $activeMembership = $customerMemberships->where('status', 'active')->first();
+        $activePacks      = $customerPacks->where('status', 'active');
+        $historyMemberships = $customerMemberships->where('status', '!=', 'active');
+        $historyPacks       = $customerPacks->where('status', '!=', 'active');
+      @endphp
+      <div class="ia-card" id="cust-mp-card">
+        <div class="ia-card-head">
+          <span class="ia-card-title">Memberships &amp; Packs</span>
+          <div style="display:flex;gap:6px">
+            @if(!$activeMembership && $membershipProducts->isNotEmpty())
+              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="openGrantModal('membership')">+ Grant membership</button>
+            @endif
+            @if($packProducts->isNotEmpty())
+              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="openGrantModal('pack')">+ Grant pack</button>
+            @endif
+          </div>
+        </div>
+
+        @if(!$activeMembership && $activePacks->isEmpty() && $historyMemberships->isEmpty() && $historyPacks->isEmpty())
+          <p style="font-size:13px;opacity:.5">No memberships or packs yet.</p>
+        @else
+          <div style="display:flex;flex-direction:column;gap:8px">
+            @if($activeMembership)
+              <div class="cust-mp-row" data-mp-id="{{ $activeMembership->id }}" data-mp-kind="membership">
+                <div class="cust-mp-row-main">
+                  <div class="cust-mp-row-title">{{ $activeMembership->product?->name ?? 'Membership' }}</div>
+                  <div class="cust-mp-row-sub">
+                    @if($activeMembership->product?->type === 'unlimited')
+                      Unlimited · used {{ $activeMembership->classes_used_this_period }} this period
+                    @else
+                      {{ $activeMembership->classes_used_this_period }} / {{ $activeMembership->product?->monthly_limit ?? '?' }} used this period
+                    @endif
+                    · renews {{ $activeMembership->current_period_end?->format('M j, Y') }}
+                  </div>
+                </div>
+                <span class="ia-badge ia-badge--confirmed">Active</span>
+                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="revokeMP('membership','{{ $activeMembership->id }}')">Cancel</button>
+              </div>
+            @endif
+
+            @foreach($activePacks as $pack)
+              @php $pct = $pack->credits_total > 0 ? round(($pack->credits_remaining / $pack->credits_total) * 100) : 0; @endphp
+              <div class="cust-mp-row" data-mp-id="{{ $pack->id }}" data-mp-kind="pack">
+                <div class="cust-mp-row-main">
+                  <div class="cust-mp-row-title">{{ $pack->product?->name ?? 'Pack' }}</div>
+                  <div class="cust-mp-row-sub">
+                    {{ $pack->credits_remaining }} of {{ $pack->credits_total }} credits left ·
+                    expires {{ $pack->expires_at?->format('M j, Y') }}
+                  </div>
+                  <div class="cust-mp-bar"><div class="cust-mp-bar-fill" style="width:{{ $pct }}%"></div></div>
+                </div>
+                <span class="ia-badge ia-badge--confirmed">Active</span>
+                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="revokeMP('pack','{{ $pack->id }}')">Cancel</button>
+              </div>
+            @endforeach
+          </div>
+
+          @if($historyMemberships->isNotEmpty() || $historyPacks->isNotEmpty())
+            <details style="margin-top:12px">
+              <summary style="cursor:pointer;font-size:12px;color:var(--ia-text-muted)">History</summary>
+              <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+                @foreach($historyMemberships as $m)
+                  <div class="cust-mp-row cust-mp-row--history">
+                    <div class="cust-mp-row-main">
+                      <div class="cust-mp-row-title">{{ $m->product?->name ?? 'Membership' }}</div>
+                      <div class="cust-mp-row-sub">
+                        Status: {{ ucfirst($m->status) }}
+                        @if($m->current_period_end) · ended {{ $m->current_period_end->format('M j, Y') }} @endif
+                      </div>
+                    </div>
+                  </div>
+                @endforeach
+                @foreach($historyPacks as $p)
+                  <div class="cust-mp-row cust-mp-row--history">
+                    <div class="cust-mp-row-main">
+                      <div class="cust-mp-row-title">{{ $p->product?->name ?? 'Pack' }}</div>
+                      <div class="cust-mp-row-sub">
+                        Status: {{ ucfirst($p->status) }} · {{ $p->credits_remaining }} credits remained
+                      </div>
+                    </div>
+                  </div>
+                @endforeach
+              </div>
+            </details>
+          @endif
+        @endif
+      </div>
+    @endif
+
     {{-- Work orders --}}
     <div class="ia-card">
       <div class="ia-card-head">
@@ -243,6 +361,56 @@
   </div>
 
 </div>
+
+@if($currentTenant->classes_enabled)
+  <div class="cust-mp-modal" id="cust-mp-modal"
+       data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id]) }}"
+       data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id]) }}"
+       data-revoke-membership-url-tpl="{{ route('tenant.customers.memberships.revoke', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id, 'id' => '__ID__']) }}"
+       data-revoke-pack-url-tpl="{{ route('tenant.customers.packs.revoke', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id, 'id' => '__ID__']) }}">
+    <div class="cust-mp-modal-inner">
+      <div class="cust-mp-modal-title" id="cust-mp-modal-title">Grant membership</div>
+      <div class="cust-mp-modal-sub" id="cust-mp-modal-sub">Pick a product to assign to this customer.</div>
+      <div class="cust-mp-product-list" id="cust-mp-product-list">
+        @foreach($membershipProducts as $p)
+          <div class="cust-mp-product" data-kind="membership" data-id="{{ $p->id }}">
+            <div class="cust-mp-product-main">
+              <div class="cust-mp-product-name">{{ $p->name }}</div>
+              <div class="cust-mp-product-meta">
+                @if($p->type === 'unlimited')
+                  Unlimited classes / month
+                @else
+                  {{ $p->monthly_limit }} classes / month
+                @endif
+              </div>
+            </div>
+            <div class="cust-mp-product-price">{{ format_money($p->price_cents) }}/mo</div>
+          </div>
+        @endforeach
+        @foreach($packProducts as $p)
+          <div class="cust-mp-product" data-kind="pack" data-id="{{ $p->id }}" hidden>
+            <div class="cust-mp-product-main">
+              <div class="cust-mp-product-name">{{ $p->name }}</div>
+              <div class="cust-mp-product-meta">
+                {{ $p->credit_count }} credits · expires after {{ $p->expiry_days }} days
+              </div>
+            </div>
+            <div class="cust-mp-product-price">{{ format_money($p->price_cents) }}</div>
+          </div>
+        @endforeach
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin-bottom:4px">Note (optional)</label>
+        <input type="text" id="cust-mp-modal-note" class="ia-input" placeholder="e.g. Comp for referral, manager comp, etc.">
+      </div>
+      <div id="cust-mp-modal-error" style="display:none;color:#EF4444;font-size:12px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="ia-btn ia-btn--ghost" onclick="closeGrantModal()">Cancel</button>
+        <button type="button" class="ia-btn ia-btn--primary" id="cust-mp-modal-grant" onclick="confirmGrant()" disabled>Grant</button>
+      </div>
+    </div>
+  </div>
+@endif
 
 @endsection
 
@@ -372,5 +540,142 @@
   function hide(el)       { if (el) el.style.display = 'none'; }
   function esc(s)         { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 }());
+
+(function () {
+  var modal = document.getElementById('cust-mp-modal');
+  if (!modal) return;
+
+  var titleEl   = document.getElementById('cust-mp-modal-title');
+  var subEl     = document.getElementById('cust-mp-modal-sub');
+  var listEl    = document.getElementById('cust-mp-product-list');
+  var noteEl    = document.getElementById('cust-mp-modal-note');
+  var errEl     = document.getElementById('cust-mp-modal-error');
+  var grantBtn  = document.getElementById('cust-mp-modal-grant');
+  var grantMembershipUrl  = modal.dataset.grantMembershipUrl;
+  var grantPackUrl        = modal.dataset.grantPackUrl;
+  var revokeMembershipTpl = modal.dataset.revokeMembershipUrlTpl;
+  var revokePackTpl       = modal.dataset.revokePackUrlTpl;
+  var csrf = window.IntakeAdmin.csrfToken;
+
+  var currentKind = null;
+  var selectedId  = null;
+
+  window.openGrantModal = function (kind) {
+    currentKind = kind;
+    selectedId  = null;
+    titleEl.textContent = kind === 'membership' ? 'Grant membership' : 'Grant pack';
+    subEl.textContent = kind === 'membership'
+      ? 'Pick a membership tier to assign. Period starts today.'
+      : 'Pick a pack to assign. Credits available immediately, expiry counts from today.';
+    noteEl.value = '';
+    errEl.style.display = 'none';
+    grantBtn.disabled = true;
+    listEl.querySelectorAll('.cust-mp-product').forEach(function (row) {
+      var match = row.dataset.kind === kind;
+      row.hidden = !match;
+      row.classList.remove('is-selected');
+    });
+    modal.classList.add('is-open');
+  };
+
+  window.closeGrantModal = function () { modal.classList.remove('is-open'); };
+
+  listEl.addEventListener('click', function (e) {
+    var row = e.target.closest('.cust-mp-product');
+    if (!row || row.dataset.kind !== currentKind) return;
+    listEl.querySelectorAll('.cust-mp-product').forEach(function (r) { r.classList.remove('is-selected'); });
+    row.classList.add('is-selected');
+    selectedId = row.dataset.id;
+    grantBtn.disabled = false;
+  });
+
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal) window.closeGrantModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.classList.contains('is-open')) window.closeGrantModal();
+  });
+
+  window.confirmGrant = function () {
+    if (!selectedId || !currentKind) return;
+    grantBtn.disabled = true;
+    grantBtn.textContent = 'Granting...';
+    errEl.style.display = 'none';
+
+    var url = currentKind === 'membership' ? grantMembershipUrl : grantPackUrl;
+    var fd = new FormData();
+    fd.append('_token', csrf);
+    fd.append('product_id', selectedId);
+    fd.append('note', noteEl.value || '');
+
+    fetch(url, {
+      method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+      credentials: 'same-origin',
+    })
+      .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; }); })
+      .then(function (res) {
+        if (res.ok && res.body && res.body.ok) {
+          window.location.reload();
+        } else {
+          errEl.textContent = (res.body && res.body.message) || 'Grant failed.';
+          errEl.style.display = '';
+          grantBtn.disabled = false;
+          grantBtn.textContent = 'Grant';
+        }
+      })
+      .catch(function () {
+        errEl.textContent = 'Network error. Try again.';
+        errEl.style.display = '';
+        grantBtn.disabled = false;
+        grantBtn.textContent = 'Grant';
+      });
+  };
+
+  window.revokeMP = function (kind, id) {
+    var label = kind === 'membership' ? 'membership' : 'pack';
+    var title = kind === 'membership' ? 'Cancel membership?' : 'Cancel pack?';
+    var message = kind === 'membership'
+      ? 'This will deactivate the membership immediately. The customer loses access to their classes-included tier. An audit note is added to the customer record.'
+      : 'This will deactivate the pack and forfeit any remaining credits. An audit note is added to the customer record.';
+
+    window.IntakeConfirm.show({
+      title: title, message: message,
+      confirmText: 'Cancel ' + label, cancelText: 'Keep it', danger: true,
+    }).then(function (ok) {
+      if (!ok) return;
+      var tpl = kind === 'membership' ? revokeMembershipTpl : revokePackTpl;
+      var url = tpl.replace('__ID__', id);
+      var fd = new FormData();
+      fd.append('_token', csrf);
+      fd.append('_method', 'DELETE');
+
+      fetch(url, {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+      })
+        .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; }); })
+        .then(function (res) {
+          if (res.ok && res.body && res.body.ok) {
+            window.location.reload();
+          } else {
+            window.IntakeConfirm.show({
+              title: 'Cancel failed',
+              message: (res.body && res.body.message) || 'Something went wrong. Please try again.',
+              confirmText: 'OK', cancelText: '',
+            });
+          }
+        })
+        .catch(function () {
+          window.IntakeConfirm.show({
+            title: 'Network error',
+            message: 'Could not reach the server. Try again.',
+            confirmText: 'OK', cancelText: '',
+          });
+        });
+    });
+  };
+})();
 </script>
 @endpush
