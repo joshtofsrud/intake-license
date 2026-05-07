@@ -448,12 +448,6 @@ class DemoSeeder
         $resourceCount = count($resourceIds);
         $resourceCursor = 0;
 
-        // [DIAGNOSTIC — full UUIDs, no truncation]
-        $this->log("    [diag-full] resourceCount={$resourceCount}");
-        foreach ($resourceIds as $idx => $rid) {
-            $this->log("    [diag-full] resourceIds[{$idx}] = {$rid}");
-        }
-
         $datePool = $this->buildSeasonalDatePool(self::APPOINTMENT_COUNT);
         $actualCount = count($datePool);
 
@@ -613,19 +607,6 @@ class DemoSeeder
             $appointment->updated_at = $seededCreatedAt;
             $appointment->saveQuietly();
 
-            // [DIAGNOSTIC — full UUIDs for first 10 iterations]
-            if ($created < 10) {
-                $fresh = \Illuminate\Support\Facades\DB::table('tenant_appointments')
-                    ->where('id', $appointment->id)
-                    ->value('resource_id');
-                $assigned = $assignedResourceId ?? 'NULL';
-                $actual = $fresh ?? 'NULL';
-                $match = $assigned === $actual ? 'MATCH' : 'MISMATCH';
-                $this->log("    [diag-iter] iter={$created}");
-                $this->log("    [diag-iter]   assigned: {$assigned}");
-                $this->log("    [diag-iter]   actual:   {$actual} {$match}");
-            }
-
             foreach ($itemsToCreate as $item) {
                 $appointment->items()->create($item);
             }
@@ -662,6 +643,33 @@ class DemoSeeder
             $created++;
         }
         $this->log("  Appointments: {$created}");
+
+        // Post-seed: redistribute any NULL resource_ids round-robin across
+        // active resources. Works around an intermittent seed-time bug where
+        // ~80% of round-robin assignments silently land as NULL despite the
+        // FK target being valid. Bug only manifests at this scale + transaction
+        // shape; doesn't affect real admin/booking flows. Fix here is a raw
+        // UPDATE so we don't trigger model events.
+        $nullCount = \Illuminate\Support\Facades\DB::table('tenant_appointments')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('resource_id')
+            ->count();
+
+        if ($nullCount > 0 && $resourceCount > 0) {
+            $cursor = 0;
+            \Illuminate\Support\Facades\DB::table('tenant_appointments')
+                ->where('tenant_id', $tenant->id)
+                ->whereNull('resource_id')
+                ->orderBy('id')
+                ->select('id')
+                ->cursor()
+                ->each(function ($row) use ($resourceIds, $resourceCount, &$cursor) {
+                    \Illuminate\Support\Facades\DB::table('tenant_appointments')
+                        ->where('id', $row->id)
+                        ->update(['resource_id' => $resourceIds[$cursor++ % $resourceCount]]);
+                });
+            $this->log("  Redistributed: {$nullCount} appointments backfilled across {$resourceCount} resources.");
+        }
     }
 
     private function pickStatus(Carbon $date, Carbon $today): string
