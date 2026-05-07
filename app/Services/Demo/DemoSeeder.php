@@ -572,12 +572,6 @@ class DemoSeeder
                 ? $resourceIds[$resourceCursor++ % $resourceCount]
                 : null;
 
-            // [DIAGNOSTIC — remove after debugging]
-            // Log the first 6 iterations so we see the assignment pattern.
-            if ($created < 6) {
-                $this->log("    [diag] iter={$created} cursor=" . ($resourceCursor - 1) . " assignedId=" . var_export($assignedResourceId, true));
-            }
-
             $appointment = TenantAppointment::create([
                 'tenant_id'                 => $tenant->id,
                 'customer_id'               => $customer->id,
@@ -613,10 +607,15 @@ class DemoSeeder
             $appointment->saveQuietly();
 
             // [DIAGNOSTIC — remove after debugging]
-            // Re-read from DB to see what actually landed.
-            if ($created < 6) {
+            // Sample wide: first 10 iterations, then every 200th. Re-read
+            // from DB to see what the row actually looks like after save.
+            $shouldDiag = $created < 10 || $created % 200 === 0;
+            if ($shouldDiag) {
                 $fresh = TenantAppointment::find($appointment->id);
-                $this->log("    [diag] iter={$created} after-create resource_id=" . var_export($fresh->resource_id, true));
+                $assignedShort = $assignedResourceId ? substr($assignedResourceId, 0, 8) : 'NULL';
+                $actualShort = $fresh->resource_id ? substr($fresh->resource_id, 0, 8) : 'NULL';
+                $match = $assignedResourceId === $fresh->resource_id ? 'OK' : 'MISMATCH';
+                $this->log("    [diag] iter={$created} cursor=" . ($resourceCursor - 1) . " assigned={$assignedShort} actual={$actualShort} {$match}");
             }
 
             foreach ($itemsToCreate as $item) {
