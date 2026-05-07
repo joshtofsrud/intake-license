@@ -236,8 +236,8 @@
             @csrf
             <div class="cl-add-reg-grid">
               <div>
-                <label class="cl-label">Add customer by ID</label>
-                <input type="text" name="customer_id" class="cl-input" placeholder="Customer UUID" required>
+                <label class="cl-label">Customer</label>
+                <x-tenant.customer-search name="customer_id" required />
               </div>
               <div>
                 <label class="cl-label">Payment</label>

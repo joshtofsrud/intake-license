@@ -262,6 +262,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
+            Route::get('/customers/search',     [TenantControllers\CustomerController::class, 'search'])->name('customers.search');
             Route::get('/customers/{id}',       [TenantControllers\CustomerController::class, 'show'])->name('customers.show');
             Route::post('/customers',           [TenantControllers\CustomerController::class, 'store'])->name('customers.store');
             Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');

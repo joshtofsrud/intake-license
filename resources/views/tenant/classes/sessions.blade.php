@@ -215,7 +215,7 @@
               <div class="cl-add-reg-row">
                 <div>
                   <label class="cl-label">Add customer</label>
-                  <input type="text" name="customer_id" class="cl-input" placeholder="Customer UUID">
+                  <x-tenant.customer-search name="customer_id" required />
                 </div>
                 <div>
                   <label class="cl-label">Payment</label>

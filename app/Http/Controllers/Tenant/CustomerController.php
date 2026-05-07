@@ -63,7 +63,7 @@ class CustomerController extends Controller
                 ->whereIn('customer_email', $emails)
                 ->selectRaw('
                     customer_email,
-                    MAX(CASE WHEN status IN (\'completed\',\'closed\',\'shipped\') THEN appointment_date END) AS last_service_date,
+                    MAX(CASE WHEN status = \'completed\' THEN appointment_date END) AS last_service_date,
                     COALESCE(SUM(CASE WHEN payment_status = \'paid\' THEN total_cents ELSE 0 END), 0) AS total_spend_cents
                 ')
                 ->groupBy('customer_email')
@@ -91,6 +91,56 @@ class CustomerController extends Controller
         ));
     }
 
+    /**
+     * Lightweight customer search endpoint for typeahead pickers throughout
+     * the admin (class registration, future POS, etc). Returns JSON with up
+     * to 12 matches across name, email, phone — narrow result set so we don't
+     * ship 5000 rows over the wire.
+     *
+     * Empty query returns the 12 most-recent customers as a "default browse"
+     * convenience for clicking through without typing.
+     */
+    public function search(Request $request)
+    {
+        $tenant = tenant();
+        $q      = trim((string) $request->input('q', ''));
+        $limit  = 12;
+
+        $query = TenantCustomer::where('tenant_id', $tenant->id);
+
+        if ($q !== '') {
+            $query->where(function ($qb) use ($q) {
+                $qb->where('first_name', 'like', "%{$q}%")
+                   ->orWhere('last_name', 'like', "%{$q}%")
+                   ->orWhere('email',     'like', "%{$q}%")
+                   ->orWhere('phone',     'like', "%{$q}%");
+            });
+            // Name match wins over partial — order by best match heuristically
+            $query->orderByRaw("
+                CASE
+                    WHEN first_name LIKE ? OR last_name LIKE ? THEN 0
+                    WHEN email LIKE ? THEN 1
+                    ELSE 2
+                END
+            ", ["{$q}%", "{$q}%", "{$q}%"]);
+        } else {
+            $query->orderByDesc('created_at');
+        }
+
+        $rows = $query->limit($limit)
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone'])
+            ->map(fn($c) => [
+                'id'         => $c->id,
+                'first_name' => $c->first_name,
+                'last_name'  => $c->last_name,
+                'email'      => $c->email,
+                'phone'      => $c->phone,
+                'label'      => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')),
+            ]);
+
+        return response()->json(['customers' => $rows]);
+    }
+
     public function show(Request $request, string $subdomain, string $id)
     {
         if ($request->expectsJson() || $request->ajax()) {
@@ -112,7 +162,7 @@ class CustomerController extends Controller
         // The relationship is on notes() — call explicitly to get the collection.
         $notes       = $customer->notes()->orderByDesc('created_at')->get();
         $totalSpend  = (int) $appointments->where('payment_status', 'paid')->sum('total_cents');
-        $lastService = $appointments->whereIn('status', ['completed', 'closed', 'shipped'])->first()?->appointment_date;
+        $lastService = $appointments->where('status', 'completed')->first()?->appointment_date;
         $updateUrl   = route('tenant.customers.update', $customer->id);
 
         // Memberships & packs — only loaded when the tenant has classes enabled.
@@ -196,7 +246,7 @@ class CustomerController extends Controller
             ->orderByDesc('appointment_date')->orderByDesc('created_at')->get();
 
         $totalSpend = $appointments->where('payment_status', 'paid')->sum('total_cents');
-        $lastService = $appointments->whereIn('status', ['completed','closed','shipped'])->max('appointment_date');
+        $lastService = $appointments->where('status', 'completed')->max('appointment_date');
         $totalAppts = $appointments->count();
 
         return response()->json([
