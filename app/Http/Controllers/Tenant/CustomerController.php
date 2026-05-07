@@ -115,9 +115,38 @@ class CustomerController extends Controller
         $lastService = $appointments->whereIn('status', ['completed', 'closed', 'shipped'])->first()?->appointment_date;
         $updateUrl   = route('tenant.customers.update', $customer->id);
 
+        // Memberships & packs — only loaded when the tenant has classes enabled.
+        // Saves a query for non-class tenants and prevents UI clutter.
+        $customerMemberships = collect();
+        $customerPacks       = collect();
+        $membershipProducts  = collect();
+        $packProducts        = collect();
+        if ($tenant->classes_enabled) {
+            $customerMemberships = \App\Models\Tenant\TenantCustomerMembership::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->with('product:id,name,type,monthly_limit,price_cents')
+                ->orderByDesc('created_at')
+                ->get();
+            $customerPacks = \App\Models\Tenant\TenantCustomerPack::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->with('product:id,name,credit_count,expiry_days,price_cents')
+                ->orderByDesc('created_at')
+                ->get();
+            $membershipProducts = \App\Models\Tenant\TenantClassMembershipProduct::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'monthly_limit', 'price_cents']);
+            $packProducts = \App\Models\Tenant\TenantClassPackProduct::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'credit_count', 'expiry_days', 'price_cents']);
+        }
+
         return view('tenant.customers.show', compact(
             'customer', 'appointments', 'notes',
-            'totalSpend', 'lastService', 'updateUrl'
+            'totalSpend', 'lastService', 'updateUrl',
+            'customerMemberships', 'customerPacks',
+            'membershipProducts', 'packProducts'
         ));
     }
 

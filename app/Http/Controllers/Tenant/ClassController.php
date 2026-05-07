@@ -449,4 +449,205 @@ class ClassController extends Controller
 
         return $slug;
     }
+
+    // ------------------------------------------------------------------
+    // Customer-side: grant memberships and packs to specific customers.
+    // These are "comp/manual" grants for v1 — Stripe purchase flow comes
+    // later. For real purchases, customer-facing flow will create rows
+    // here too but with stripe_*_id populated.
+    // ------------------------------------------------------------------
+
+    /**
+     * Grant a membership to a customer. Enforces "one active membership per
+     * customer" by refusing if one already exists. Creates an audit note on
+     * the customer record.
+     */
+    public function grantCustomerMembership(Request $request, string $subdomain, string $customerId)
+    {
+        $tenant = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($customerId);
+
+        $data = $request->validate([
+            'product_id' => ['required', 'string'],
+            'note'       => ['nullable', 'string', 'max:300'],
+        ]);
+
+        $product = TenantClassMembershipProduct::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->findOrFail($data['product_id']);
+
+        // One-active-membership rule. Existing one must be cancelled first.
+        $existing = TenantCustomerMembership::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->where('status', 'active')
+            ->first();
+        if ($existing) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Customer already has an active membership. Cancel it first.',
+            ], 422);
+        }
+
+        // Period: starts today, ends one calendar month from today.
+        // Period rollover command (TODO) will advance these monthly.
+        $start = now($tenant->timezone())->startOfDay();
+        $end   = $start->copy()->addMonth();
+
+        $membership = TenantCustomerMembership::create([
+            'tenant_id'                => $tenant->id,
+            'customer_id'              => $customer->id,
+            'product_id'               => $product->id,
+            'status'                   => 'active',
+            'current_period_start'     => $start,
+            'current_period_end'       => $end,
+            'classes_used_this_period' => 0,
+            'stripe_subscription_id'   => null,
+            'metadata'                 => ['granted_by' => 'admin', 'granted_at' => now()->toIso8601String()],
+        ]);
+
+        $this->writeCustomerAuditNote($customer, sprintf(
+            'Membership granted: %s (period %s → %s).%s',
+            $product->name,
+            $start->format('M j'),
+            $end->format('M j, Y'),
+            !empty($data['note']) ? ' Note: ' . $data['note'] : ''
+        ));
+
+        return response()->json([
+            'ok'         => true,
+            'membership' => [
+                'id'           => $membership->id,
+                'product_name' => $product->name,
+                'period_end'   => $end->format('M j, Y'),
+            ],
+        ]);
+    }
+
+    /**
+     * Cancel an active membership. Sets status='cancelled' (kept for audit),
+     * does not soft-delete. Records audit note.
+     */
+    public function revokeCustomerMembership(Request $request, string $subdomain, string $customerId, string $membershipId)
+    {
+        $tenant = tenant();
+        $membership = TenantCustomerMembership::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->findOrFail($membershipId);
+
+        if ($membership->status !== 'active') {
+            return response()->json(['ok' => false, 'message' => 'Membership is not active.'], 422);
+        }
+
+        $membership->update(['status' => 'cancelled']);
+
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->find($customerId);
+        if ($customer) {
+            $productName = $membership->product?->name ?? 'membership';
+            $this->writeCustomerAuditNote($customer, "Membership cancelled: {$productName}.");
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Grant a pack to a customer. Multiple active packs are allowed (booking
+     * service uses oldest-expiry-first). Sets credits_remaining = credit_count.
+     */
+    public function grantCustomerPack(Request $request, string $subdomain, string $customerId)
+    {
+        $tenant = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($customerId);
+
+        $data = $request->validate([
+            'product_id' => ['required', 'string'],
+            'note'       => ['nullable', 'string', 'max:300'],
+        ]);
+
+        $product = TenantClassPackProduct::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->findOrFail($data['product_id']);
+
+        $expiresAt = now($tenant->timezone())->startOfDay()->addDays((int) $product->expiry_days);
+
+        $pack = TenantCustomerPack::create([
+            'tenant_id'                => $tenant->id,
+            'customer_id'              => $customer->id,
+            'product_id'               => $product->id,
+            'credits_total'            => (int) $product->credit_count,
+            'credits_remaining'        => (int) $product->credit_count,
+            'expires_at'               => $expiresAt,
+            'status'                   => 'active',
+            'stripe_payment_intent_id' => null,
+            'metadata'                 => ['granted_by' => 'admin', 'granted_at' => now()->toIso8601String()],
+        ]);
+
+        $this->writeCustomerAuditNote($customer, sprintf(
+            '%d-class pack granted: %s (expires %s).%s',
+            $product->credit_count,
+            $product->name,
+            $expiresAt->format('M j, Y'),
+            !empty($data['note']) ? ' Note: ' . $data['note'] : ''
+        ));
+
+        return response()->json([
+            'ok'   => true,
+            'pack' => [
+                'id'                => $pack->id,
+                'product_name'      => $product->name,
+                'credits_remaining' => $pack->credits_remaining,
+                'credits_total'     => $pack->credits_total,
+                'expires_at'        => $expiresAt->format('M j, Y'),
+            ],
+        ]);
+    }
+
+    /**
+     * Revoke a pack. Sets status='cancelled' (preserves credit history).
+     */
+    public function revokeCustomerPack(Request $request, string $subdomain, string $customerId, string $packId)
+    {
+        $tenant = tenant();
+        $pack = TenantCustomerPack::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->findOrFail($packId);
+
+        if ($pack->status !== 'active') {
+            return response()->json(['ok' => false, 'message' => 'Pack is not active.'], 422);
+        }
+
+        $pack->update(['status' => 'cancelled']);
+
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->find($customerId);
+        if ($customer) {
+            $productName = $pack->product?->name ?? 'pack';
+            $remaining = $pack->credits_remaining;
+            $this->writeCustomerAuditNote($customer, "Pack cancelled: {$productName} ({$remaining} credits forfeited).");
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Helper for writing system notes to the customer history. Used by all
+     * grant/revoke actions so admins have a clear record of comps and changes.
+     */
+    private function writeCustomerAuditNote(TenantCustomer $customer, string $note): void
+    {
+        try {
+            \App\Models\Tenant\TenantCustomerNote::create([
+                'tenant_id'   => $customer->tenant_id,
+                'customer_id' => $customer->id,
+                'user_id'     => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+                'note'        => $note,
+                'created_at'  => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Non-fatal — audit note failure shouldn't block the grant/revoke action.
+            \Illuminate\Support\Facades\Log::warning('writeCustomerAuditNote failed', [
+                'customer_id' => $customer->id,
+                'note'        => $note,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+    }
 }

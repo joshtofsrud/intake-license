@@ -335,6 +335,15 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/classes/packs',                       [TenantControllers\ClassController::class, 'storePackProduct'])->name('classes.packs.store');
             Route::patch('/classes/packs/{id}',                 [TenantControllers\ClassController::class, 'updatePackProduct'])->name('classes.packs.update');
 
+            // Customer-side grant/revoke for memberships and packs. Comp/manual
+            // for v1 — Stripe purchase flow comes later. Endpoints are POST
+            // (create) and DELETE (cancel). Routed under /customers/{id}/...
+            // so they appear naturally on the customer detail page.
+            Route::post('/customers/{customerId}/memberships',                [TenantControllers\ClassController::class, 'grantCustomerMembership'])->name('customers.memberships.grant');
+            Route::delete('/customers/{customerId}/memberships/{id}',         [TenantControllers\ClassController::class, 'revokeCustomerMembership'])->name('customers.memberships.revoke');
+            Route::post('/customers/{customerId}/packs',                      [TenantControllers\ClassController::class, 'grantCustomerPack'])->name('customers.packs.grant');
+            Route::delete('/customers/{customerId}/packs/{id}',               [TenantControllers\ClassController::class, 'revokeCustomerPack'])->name('customers.packs.revoke');
+
             // Note: 'feature-addons' path avoids collision with existing service-addon routes below.
             Route::get('/feature-addons',             [TenantControllers\AddonCatalogController::class, 'index'])->name('feature_addons.index');
             Route::post('/feature-addons/activate',   [TenantControllers\AddonCatalogController::class, 'activate'])->name('feature_addons.activate');
