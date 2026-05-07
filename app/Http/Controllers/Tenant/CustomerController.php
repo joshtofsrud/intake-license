@@ -165,6 +165,14 @@ class CustomerController extends Controller
         $lastService = $appointments->where('status', 'completed')->first()?->appointment_date;
         $updateUrl   = route('tenant.customers.update', $customer->id);
 
+        // Unified activity timeline. Service merges appointments, sales,
+        // class registrations, and pack/membership grants into a single
+        // chronological feed grouped by month.
+        $timelineService = app(\App\Services\Tenant\CustomerTimelineService::class);
+        $timelineEvents  = $timelineService->buildForCustomer($tenant->id, $customer->id);
+        $timelineMonths  = $timelineService->groupByMonth($timelineEvents);
+        $timelineCount   = $timelineEvents->count();
+
         // Memberships & packs — only loaded when the tenant has classes enabled.
         // Saves a query for non-class tenants and prevents UI clutter.
         $customerMemberships = collect();
@@ -196,7 +204,8 @@ class CustomerController extends Controller
             'customer', 'appointments', 'notes',
             'totalSpend', 'lastService', 'updateUrl',
             'customerMemberships', 'customerPacks',
-            'membershipProducts', 'packProducts'
+            'membershipProducts', 'packProducts',
+            'timelineMonths', 'timelineCount'
         ));
     }
 

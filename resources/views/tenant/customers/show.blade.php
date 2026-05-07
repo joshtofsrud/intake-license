@@ -38,7 +38,6 @@
 .cust-mp-modal-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
 .cust-mp-modal-sub { font-size: 12px; color: var(--ia-text-muted); margin-bottom: 16px; }
 .cust-mp-product-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
-.cust-mp-product.is-mp-hidden { display: none !important; }
 .cust-mp-product { display: flex; align-items: center; padding: 10px 12px; background: var(--ia-surface-2); border: 0.5px solid var(--ia-border); border-radius: 6px; cursor: pointer; transition: all var(--ia-t); }
 .cust-mp-product:hover { border-color: var(--ia-border-strong); }
 .cust-mp-product.is-selected { border-color: var(--ia-accent); background: var(--ia-accent-soft); }
@@ -51,6 +50,69 @@
   .cust-layout { grid-template-columns: 1fr; }
   .cust-info-grid { grid-template-columns: 1fr; }
 }
+
+/* Activity timeline (unified customer history). */
+.act-month { margin-bottom: 4px; }
+.act-month-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 4px; cursor: pointer;
+  border-bottom: 0.5px solid var(--ia-border);
+  font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ia-text-muted); font-weight: 500;
+  transition: color var(--ia-t);
+}
+.act-month-head:hover { color: var(--ia-text); }
+.act-month-label { display: flex; align-items: center; gap: 4px; }
+.act-chevron { font-size: 12px; opacity: .6; }
+.act-month-count { color: var(--ia-text-dim); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: 4px; }
+.act-month-total { font-variant-numeric: tabular-nums; color: var(--ia-text); }
+.act-row {
+  display: grid;
+  grid-template-columns: 28px 60px 1fr auto auto;
+  gap: 10px; align-items: center;
+  padding: 10px 4px;
+  border-bottom: 0.5px solid var(--ia-border);
+  transition: background var(--ia-t);
+}
+.act-row:hover { background: var(--ia-hover); }
+.act-row:last-child { border-bottom: none; }
+.act-icon {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  background: var(--ia-surface-2);
+  color: var(--ia-text-muted);
+}
+.act-icon--sale               { background: rgba(190,242,100,.15); color: var(--ia-accent); }
+.act-icon--appointment        { background: rgba(250,180,106,.18); color: #FAB46A; }
+.act-icon--class_registration { background: rgba(117,168,224,.18); color: #75A8E0; }
+.act-icon--pack_grant         { background: rgba(190,242,100,.15); color: var(--ia-accent); }
+.act-icon--membership_grant   { background: rgba(244,115,115,.15); color: #F47373; }
+.act-date {
+  font-size: 11px; color: var(--ia-text-muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.act-main { min-width: 0; }
+.act-title { font-size: 13px; font-weight: 500; color: var(--ia-text); }
+.act-id { color: var(--ia-text-muted); font-weight: 400; margin-left: 4px; }
+.act-sub {
+  font-size: 11.5px; color: var(--ia-text-muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.act-pill {
+  font-size: 10px; padding: 2px 7px; border-radius: 20px;
+  white-space: nowrap;
+}
+.act-pill--success  { background: rgba(190,242,100,.15); color: var(--ia-accent); }
+.act-pill--warning  { background: rgba(250,180,106,.15); color: #FAB46A; }
+.act-pill--danger   { background: rgba(244,115,115,.15); color: #F47373; }
+.act-pill--neutral  { background: var(--ia-surface-2); color: var(--ia-text-muted); }
+.act-amount {
+  font-size: 13px; font-weight: 500; min-width: 65px; text-align: right;
+  font-variant-numeric: tabular-nums; color: var(--ia-text);
+}
+.act-amount.is-refunded { text-decoration: line-through; color: var(--ia-text-muted); }
 </style>
 @endpush
 
@@ -189,6 +251,7 @@
         @if(!$activeMembership && $activePacks->isEmpty() && $historyMemberships->isEmpty() && $historyPacks->isEmpty())
           <p style="font-size:13px;opacity:.5">No memberships or packs yet.</p>
         @else
+          {{-- Active items --}}
           <div style="display:flex;flex-direction:column;gap:8px">
             @if($activeMembership)
               <div class="cust-mp-row" data-mp-id="{{ $activeMembership->id }}" data-mp-kind="membership">
@@ -209,7 +272,9 @@
             @endif
 
             @foreach($activePacks as $pack)
-              @php $pct = $pack->credits_total > 0 ? round(($pack->credits_remaining / $pack->credits_total) * 100) : 0; @endphp
+              @php
+                $pct = $pack->credits_total > 0 ? round(($pack->credits_remaining / $pack->credits_total) * 100) : 0;
+              @endphp
               <div class="cust-mp-row" data-mp-id="{{ $pack->id }}" data-mp-kind="pack">
                 <div class="cust-mp-row-main">
                   <div class="cust-mp-row-title">{{ $pack->product?->name ?? 'Pack' }}</div>
@@ -225,6 +290,7 @@
             @endforeach
           </div>
 
+          {{-- History --}}
           @if($historyMemberships->isNotEmpty() || $historyPacks->isNotEmpty())
             <details style="margin-top:12px">
               <summary style="cursor:pointer;font-size:12px;color:var(--ia-text-muted)">History</summary>
@@ -257,31 +323,78 @@
       </div>
     @endif
 
-    {{-- Work orders --}}
+    {{-- Activity — unified timeline of all customer events.
+         Powered by CustomerTimelineService. Replaces the previous
+         appointments-only section. Groups by month, current+previous
+         expanded by default, older months collapsible. Filterable
+         via single dropdown at top. --}}
     <div class="ia-card">
       <div class="ia-card-head">
-        <span class="ia-card-title">Work orders</span>
-        <span style="font-size:12px;opacity:.4">{{ $appointments->count() }}</span>
+        <span class="ia-card-title">Activity</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;opacity:.4">{{ $timelineCount }} events</span>
+          <select id="activity-filter" style="background:var(--ia-input-bg);border:0.5px solid var(--ia-border);color:var(--ia-text);font-size:12px;padding:4px 22px 4px 8px;border-radius:4px;appearance:none;cursor:pointer;background-image:url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='rgba(255,255,255,.45)'><path d='M2 4l3 3 3-3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>&quot;);background-repeat:no-repeat;background-position:right 6px center;font-family:inherit">
+            <option value="all">All activity</option>
+            <option value="appointment">Appointments</option>
+            <option value="sale">Sales</option>
+            <option value="class_registration">Class registrations</option>
+            <option value="grant">Memberships &amp; packs</option>
+          </select>
+        </div>
       </div>
 
-      @if($appointments->isEmpty())
-        <p style="font-size:13px;opacity:.4">No appointments yet.</p>
+      @if($timelineCount === 0)
+        <p style="font-size:13px;opacity:.4;padding:8px 0">No activity yet.</p>
       @else
-        @foreach($appointments as $appt)
-          <div class="appt-row"
-            onclick="window.location='{{ route('tenant.appointments.show', $appt->id) }}'">
-            <div class="appt-row-main">
-              <div class="appt-row-ra">{{ $appt->ra_number }}</div>
-              <div class="appt-row-date">{{ $appt->appointment_date->format('M j, Y') }}</div>
+        @foreach($timelineMonths as $monthKey => $month)
+          <div class="act-month" data-act-month="{{ $monthKey }}" data-expanded="{{ $month['expanded'] ? '1' : '0' }}">
+            <div class="act-month-head" onclick="toggleActMonth(this)">
+              <span class="act-month-label">
+                <i class="act-chevron ti ti-chevron-down" style="display:{{ $month['expanded'] ? 'inline-block' : 'none' }}"></i>
+                <i class="act-chevron ti ti-chevron-right" style="display:{{ $month['expanded'] ? 'none' : 'inline-block' }}"></i>
+                {{ $month['label'] }}
+                @if(!$month['expanded'])
+                  <span class="act-month-count">· {{ $month['events']->count() }} events</span>
+                @endif
+              </span>
+              <span class="act-month-total">{{ format_money($month['total_cents']) }}</span>
             </div>
-            <span class="ia-badge ia-badge--{{ str_replace('_','-',$appt->status) }}">
-              {{ ucwords(str_replace('_',' ',$appt->status)) }}
-            </span>
-            <span class="ia-badge ia-badge--{{ $appt->payment_status }}">
-              {{ ucfirst($appt->payment_status) }}
-            </span>
-            <div style="font-size:13px;font-weight:500;min-width:60px;text-align:right">
-              {{ format_money($appt->total_cents) }}
+            <div class="act-month-body" style="display:{{ $month['expanded'] ? 'block' : 'none' }}">
+              @foreach($month['events'] as $e)
+                @php
+                  $kindClass = $e['kind'] === 'pack_grant' || $e['kind'] === 'membership_grant'
+                    ? 'grant' : $e['kind'];
+                  $iconMap = [
+                    'sale'              => 'ti-cash',
+                    'appointment'       => 'ti-calendar',
+                    'class_registration'=> 'ti-users',
+                    'pack_grant'        => 'ti-ticket',
+                    'membership_grant'  => 'ti-id-badge',
+                  ];
+                  $icon = $iconMap[$e['kind']] ?? 'ti-circle';
+                @endphp
+                <div class="act-row" data-act-kind="{{ $kindClass }}" @if($e['href']) onclick="window.location='{{ $e['href'] }}'" style="cursor:pointer" @endif>
+                  <div class="act-icon act-icon--{{ $e['kind'] }}"><i class="ti {{ $icon }}"></i></div>
+                  <div class="act-date">{{ $e['date']->format('M j') }}</div>
+                  <div class="act-main">
+                    <div class="act-title">
+                      {{ $e['title'] }}
+                      @if($e['identifier'])
+                        <span class="act-id">{{ $e['identifier'] }}</span>
+                      @endif
+                    </div>
+                    <div class="act-sub">{{ $e['subtitle'] }}</div>
+                  </div>
+                  <span class="act-pill act-pill--{{ $e['status_tone'] }}">{{ $e['status'] }}</span>
+                  <div class="act-amount {{ $e['is_refunded'] ? 'is-refunded' : '' }}">
+                    @if($e['amount_cents'] !== null)
+                      {{ format_money($e['amount_cents']) }}
+                    @else
+                      <span style="opacity:.4">—</span>
+                    @endif
+                  </div>
+                </div>
+              @endforeach
             </div>
           </div>
         @endforeach
@@ -302,7 +415,7 @@
         <span class="cust-stat-value">{{ format_money((int)$totalSpend) }}</span>
       </div>
       <div class="cust-stat">
-        <span class="cust-stat-label">Work orders</span>
+        <span class="cust-stat-label">Appointments</span>
         <span class="cust-stat-value">{{ $appointments->count() }}</span>
       </div>
       <div class="cust-stat">
@@ -372,7 +485,9 @@
     <div class="cust-mp-modal-inner">
       <div class="cust-mp-modal-title" id="cust-mp-modal-title">Grant membership</div>
       <div class="cust-mp-modal-sub" id="cust-mp-modal-sub">Pick a product to assign to this customer.</div>
+
       <div class="cust-mp-product-list" id="cust-mp-product-list">
+        {{-- Membership options --}}
         @foreach($membershipProducts as $p)
           <div class="cust-mp-product" data-kind="membership" data-id="{{ $p->id }}">
             <div class="cust-mp-product-main">
@@ -388,8 +503,9 @@
             <div class="cust-mp-product-price">{{ format_money($p->price_cents) }}/mo</div>
           </div>
         @endforeach
+        {{-- Pack options --}}
         @foreach($packProducts as $p)
-          <div class="cust-mp-product is-mp-hidden" data-kind="pack" data-id="{{ $p->id }}">
+          <div class="cust-mp-product" data-kind="pack" data-id="{{ $p->id }}" hidden>
             <div class="cust-mp-product-main">
               <div class="cust-mp-product-name">{{ $p->name }}</div>
               <div class="cust-mp-product-meta">
@@ -400,11 +516,14 @@
           </div>
         @endforeach
       </div>
+
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin-bottom:4px">Note (optional)</label>
         <input type="text" id="cust-mp-modal-note" class="ia-input" placeholder="e.g. Comp for referral, manager comp, etc.">
       </div>
+
       <div id="cust-mp-modal-error" style="display:none;color:#EF4444;font-size:12px;margin-bottom:10px"></div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button type="button" class="ia-btn ia-btn--ghost" onclick="closeGrantModal()">Cancel</button>
         <button type="button" class="ia-btn ia-btn--primary" id="cust-mp-modal-grant" onclick="confirmGrant()" disabled>Grant</button>
@@ -542,9 +661,14 @@
   function esc(s)         { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 }());
 
+/**
+ * Grant/revoke membership and pack flow. Lives outside the IIFE above so the
+ * inline onclick handlers in the blade can reach these globals. Modal toggles
+ * which kind (membership/pack) is selectable.
+ */
 (function () {
   var modal = document.getElementById('cust-mp-modal');
-  if (!modal) return;
+  if (!modal) return; // tenant doesn't have classes enabled
 
   var titleEl   = document.getElementById('cust-mp-modal-title');
   var subEl     = document.getElementById('cust-mp-modal-sub');
@@ -556,7 +680,7 @@
   var grantPackUrl        = modal.dataset.grantPackUrl;
   var revokeMembershipTpl = modal.dataset.revokeMembershipUrlTpl;
   var revokePackTpl       = modal.dataset.revokePackUrlTpl;
-  var csrf = window.IntakeAdmin.csrfToken;
+  var csrf       = window.IntakeAdmin.csrfToken;
 
   var currentKind = null;
   var selectedId  = null;
@@ -565,22 +689,27 @@
     currentKind = kind;
     selectedId  = null;
     titleEl.textContent = kind === 'membership' ? 'Grant membership' : 'Grant pack';
-    subEl.textContent = kind === 'membership'
+    subEl.textContent   = kind === 'membership'
       ? 'Pick a membership tier to assign. Period starts today.'
       : 'Pick a pack to assign. Credits available immediately, expiry counts from today.';
     noteEl.value = '';
     errEl.style.display = 'none';
     grantBtn.disabled = true;
+
+    // Show only the relevant kind in the product list
     listEl.querySelectorAll('.cust-mp-product').forEach(function (row) {
       var match = row.dataset.kind === kind;
-      row.classList.toggle('is-mp-hidden', !match);
+      row.hidden = !match;
       row.classList.remove('is-selected');
     });
     modal.classList.add('is-open');
   };
 
-  window.closeGrantModal = function () { modal.classList.remove('is-open'); };
+  window.closeGrantModal = function () {
+    modal.classList.remove('is-open');
+  };
 
+  // Click product → select
   listEl.addEventListener('click', function (e) {
     var row = e.target.closest('.cust-mp-product');
     if (!row || row.dataset.kind !== currentKind) return;
@@ -590,6 +719,7 @@
     grantBtn.disabled = false;
   });
 
+  // Click outside / Esc closes
   modal.addEventListener('click', function (e) {
     if (e.target === modal) window.closeGrantModal();
   });
@@ -600,23 +730,29 @@
   window.confirmGrant = function () {
     if (!selectedId || !currentKind) return;
     grantBtn.disabled = true;
-    grantBtn.textContent = 'Granting...';
+    grantBtn.textContent = 'Granting…';
     errEl.style.display = 'none';
 
+    var path = currentKind === 'membership' ? 'memberships' : 'packs';
     var url = currentKind === 'membership' ? grantMembershipUrl : grantPackUrl;
+
     var fd = new FormData();
     fd.append('_token', csrf);
     fd.append('product_id', selectedId);
     fd.append('note', noteEl.value || '');
 
     fetch(url, {
-      method: 'POST', body: fd,
+      method: 'POST',
+      body: fd,
       headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
       credentials: 'same-origin',
     })
-      .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; }); })
+      .then(function (r) {
+        return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
+      })
       .then(function (res) {
         if (res.ok && res.body && res.body.ok) {
+          // Reload to reflect the new state. Cheaper than rebuilding card client-side.
           window.location.reload();
         } else {
           errEl.textContent = (res.body && res.body.message) || 'Grant failed.';
@@ -633,6 +769,11 @@
       });
   };
 
+  /**
+   * Revoke flow — uses the app's confirm modal, then DELETEs. Audit note is
+   * written server-side automatically. Reloads page on success to show the
+   * updated state (history entry appears, active row removed).
+   */
   window.revokeMP = function (kind, id) {
     var label = kind === 'membership' ? 'membership' : 'pack';
     var title = kind === 'membership' ? 'Cancel membership?' : 'Cancel pack?';
@@ -641,22 +782,30 @@
       : 'This will deactivate the pack and forfeit any remaining credits. An audit note is added to the customer record.';
 
     window.IntakeConfirm.show({
-      title: title, message: message,
-      confirmText: 'Cancel ' + label, cancelText: 'Keep it', danger: true,
+      title: title,
+      message: message,
+      confirmText: 'Cancel ' + label,
+      cancelText: 'Keep it',
+      danger: true,
     }).then(function (ok) {
       if (!ok) return;
-      var tpl = kind === 'membership' ? revokeMembershipTpl : revokePackTpl;
-      var url = tpl.replace('__ID__', id);
+
+      var tpl  = kind === 'membership' ? revokeMembershipTpl : revokePackTpl;
+      var url  = tpl.replace('__ID__', id);
+
       var fd = new FormData();
       fd.append('_token', csrf);
       fd.append('_method', 'DELETE');
 
       fetch(url, {
-        method: 'POST', body: fd,
+        method: 'POST',
+        body: fd,
         headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
         credentials: 'same-origin',
       })
-        .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; }); })
+        .then(function (r) {
+          return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
+        })
         .then(function (res) {
           if (res.ok && res.body && res.body.ok) {
             window.location.reload();
@@ -664,7 +813,8 @@
             window.IntakeConfirm.show({
               title: 'Cancel failed',
               message: (res.body && res.body.message) || 'Something went wrong. Please try again.',
-              confirmText: 'OK', cancelText: '',
+              confirmText: 'OK',
+              cancelText: '',
             });
           }
         })
@@ -672,11 +822,50 @@
           window.IntakeConfirm.show({
             title: 'Network error',
             message: 'Could not reach the server. Try again.',
-            confirmText: 'OK', cancelText: '',
+            confirmText: 'OK',
+            cancelText: '',
           });
         });
     });
   };
 })();
+</script>
+@endpush
+
+@push('scripts')
+<script>
+  // Activity timeline — month collapse and dropdown filter.
+  // Both behaviors are local-only state (refresh resets) — keeps the
+  // implementation small and avoids per-customer preference storage.
+  function toggleActMonth(headEl) {
+    const monthEl = headEl.parentElement;
+    const body = monthEl.querySelector('.act-month-body');
+    const chevDown = monthEl.querySelector('.ti-chevron-down');
+    const chevRight = monthEl.querySelector('.ti-chevron-right');
+    const isExpanded = body.style.display !== 'none';
+
+    body.style.display = isExpanded ? 'none' : 'block';
+    chevDown.style.display = isExpanded ? 'none' : 'inline-block';
+    chevRight.style.display = isExpanded ? 'inline-block' : 'none';
+  }
+
+  (function bindActivityFilter() {
+    const sel = document.getElementById('activity-filter');
+    if (!sel) return;
+    sel.addEventListener('change', () => {
+      const value = sel.value;
+      document.querySelectorAll('.act-row').forEach(row => {
+        const kind = row.dataset.actKind;
+        const show = value === 'all' || kind === value;
+        row.style.display = show ? 'grid' : 'none';
+      });
+      // Hide month headers for months with zero matching events.
+      // Empty months are noise; collapse them out of view entirely.
+      document.querySelectorAll('.act-month').forEach(month => {
+        const visible = month.querySelectorAll('.act-row:not([style*="display: none"])').length > 0;
+        month.style.display = visible ? 'block' : 'none';
+      });
+    });
+  })();
 </script>
 @endpush
