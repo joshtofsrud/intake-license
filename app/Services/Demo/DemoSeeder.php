@@ -440,19 +440,6 @@ class DemoSeeder
         // happen post-seedAdditionalResources, but defensive), assignments
         // remain NULL and calendar groups them under "unassigned."
 
-        // [DIAGNOSTIC — pluck investigation]
-        // Multiple variants of the same query to compare what each returns
-        $countAll       = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->count();
-        $countActive    = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->where('is_active', true)->count();
-        $rawIds         = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->pluck('id')->all();
-        $rawActive      = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->where('is_active', true)->pluck('id')->all();
-        $rawDb          = \Illuminate\Support\Facades\DB::table('tenant_resources')->where('tenant_id', $tenant->id)->pluck('id')->all();
-        $this->log("    [diag-pluck] tenant_id={$tenant->id}");
-        $this->log("    [diag-pluck] count(all)=" . $countAll . " count(active)=" . $countActive);
-        $this->log("    [diag-pluck] eloquent all ids: " . implode(',', array_map(fn($id) => substr($id, 0, 8), $rawIds)));
-        $this->log("    [diag-pluck] eloquent active ids: " . implode(',', array_map(fn($id) => substr($id, 0, 8), $rawActive)));
-        $this->log("    [diag-pluck] DB::table all ids: " . implode(',', array_map(fn($id) => substr($id, 0, 8), $rawDb)));
-
         $resourceIds = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
@@ -460,6 +447,12 @@ class DemoSeeder
             ->all();
         $resourceCount = count($resourceIds);
         $resourceCursor = 0;
+
+        // [DIAGNOSTIC — full UUIDs, no truncation]
+        $this->log("    [diag-full] resourceCount={$resourceCount}");
+        foreach ($resourceIds as $idx => $rid) {
+            $this->log("    [diag-full] resourceIds[{$idx}] = {$rid}");
+        }
 
         $datePool = $this->buildSeasonalDatePool(self::APPOINTMENT_COUNT);
         $actualCount = count($datePool);
@@ -619,6 +612,19 @@ class DemoSeeder
             $appointment->created_at = $seededCreatedAt;
             $appointment->updated_at = $seededCreatedAt;
             $appointment->saveQuietly();
+
+            // [DIAGNOSTIC — full UUIDs for first 10 iterations]
+            if ($created < 10) {
+                $fresh = \Illuminate\Support\Facades\DB::table('tenant_appointments')
+                    ->where('id', $appointment->id)
+                    ->value('resource_id');
+                $assigned = $assignedResourceId ?? 'NULL';
+                $actual = $fresh ?? 'NULL';
+                $match = $assigned === $actual ? 'MATCH' : 'MISMATCH';
+                $this->log("    [diag-iter] iter={$created}");
+                $this->log("    [diag-iter]   assigned: {$assigned}");
+                $this->log("    [diag-iter]   actual:   {$actual} {$match}");
+            }
 
             foreach ($itemsToCreate as $item) {
                 $appointment->items()->create($item);
