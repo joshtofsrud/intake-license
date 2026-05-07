@@ -103,10 +103,13 @@ class ClassReportsService
             ->count();
 
         // Estimated ARR at risk: sum of monthly prices for those memberships.
-        $arrAtRisk = (int) TenantCustomerMembership::where('tenant_id', $tenantId)
-            ->whereIn('status', ['cancelled', 'expired'])
-            ->where('updated_at', '>=', $now->copy()->subDays(self::CANCELLED_WINDOW_DAYS))
+        // All filter columns must be table-qualified — both joined tables
+        // have tenant_id/status/updated_at and MySQL can't disambiguate.
+        $arrAtRisk = (int) TenantCustomerMembership::query()
             ->join('tenant_class_membership_products', 'tenant_customer_memberships.product_id', '=', 'tenant_class_membership_products.id')
+            ->where('tenant_customer_memberships.tenant_id', $tenantId)
+            ->whereIn('tenant_customer_memberships.status', ['cancelled', 'expired'])
+            ->where('tenant_customer_memberships.updated_at', '>=', $now->copy()->subDays(self::CANCELLED_WINDOW_DAYS))
             ->sum('tenant_class_membership_products.price_cents');
 
         return [
