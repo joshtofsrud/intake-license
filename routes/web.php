@@ -345,6 +345,10 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/customers/{customerId}/packs',                      [TenantControllers\ClassController::class, 'grantCustomerPack'])->name('customers.packs.grant');
             Route::delete('/customers/{customerId}/packs/{id}',               [TenantControllers\ClassController::class, 'revokeCustomerPack'])->name('customers.packs.revoke');
 
+            // Classes reports — panel page + CSV exports per panel
+            Route::get('/classes/reports',                                    [TenantControllers\ClassController::class, 'reports'])->name('classes.reports');
+            Route::get('/classes/reports/export/{panel}',                     [TenantControllers\ClassController::class, 'reportExport'])->name('classes.reports.export');
+
             // Note: 'feature-addons' path avoids collision with existing service-addon routes below.
             Route::get('/feature-addons',             [TenantControllers\AddonCatalogController::class, 'index'])->name('feature_addons.index');
             Route::post('/feature-addons/activate',   [TenantControllers\AddonCatalogController::class, 'activate'])->name('feature_addons.activate');

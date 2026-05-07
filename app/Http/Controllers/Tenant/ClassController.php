@@ -650,4 +650,85 @@ class ClassController extends Controller
             ]);
         }
     }
+
+    // ------------------------------------------------------------------
+    // Reports — member health, churn signals, conversion targets
+    // ------------------------------------------------------------------
+
+    /**
+     * /admin/classes/reports — full panel page. Pulls all 6 panels at once.
+     * If page-load time becomes a problem at scale, lazy-load some panels
+     * via AJAX. For now batch fetch is fine — total query count is bounded.
+     */
+    public function reports(\App\Services\Tenant\ClassReportsService $service)
+    {
+        $tenant = tenant();
+        $tid    = $tenant->id;
+
+        $headline           = $service->headline($tid);
+        $dropInRegulars     = $service->dropInRegulars($tid);
+        $atRiskMembers      = $service->atRiskMembers($tid, 30);
+        $usedUpPacks        = $service->usedUpPacks($tid);
+        $recentlyCancelled  = $service->recentlyCancelled($tid);
+        $lapsedMemberships  = $service->lapsedMemberships($tid);
+        $topProducts        = $service->topEarningProducts($tid);
+
+        return view('tenant.classes.reports', compact(
+            'headline',
+            'dropInRegulars',
+            'atRiskMembers',
+            'usedUpPacks',
+            'recentlyCancelled',
+            'lapsedMemberships',
+            'topProducts'
+        ));
+    }
+
+    /**
+     * CSV export for any panel. Single endpoint, panel slug routes to the
+     * right service method. We pass a generous limit so exports return
+     * the full set, not just the page-rendered first 25.
+     *
+     * Slugs match the panel keys used in the blade for consistency. If a
+     * future panel is added, register it here and in the service.
+     */
+    public function reportExport(string $subdomain, string $panel, \App\Services\Tenant\ClassReportsService $service)
+    {
+        $tenant = tenant();
+        $tid    = $tenant->id;
+        $exportLimit = 5000; // soft cap; one tenant is unlikely to exceed this
+
+        $rows = match ($panel) {
+            'drop-in-regulars'      => $service->dropInRegulars($tid, $exportLimit),
+            'at-risk-members'       => $service->atRiskMembers($tid, 30, $exportLimit),
+            'used-up-packs'         => $service->usedUpPacks($tid, $exportLimit),
+            'recently-cancelled'    => $service->recentlyCancelled($tid, $exportLimit),
+            'lapsed-memberships'    => $service->lapsedMemberships($tid, $exportLimit),
+            default                 => abort(404, 'Unknown report panel'),
+        };
+
+        $filename = sprintf(
+            'classes-report-%s-%s.csv',
+            $panel,
+            now()->format('Y-m-d')
+        );
+
+        return response()->streamDownload(function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            // Headers: customer-facing columns
+            fputcsv($out, ['Customer name', 'Email', 'Detail', 'Date', 'Customer ID']);
+            foreach ($rows as $row) {
+                fputcsv($out, [
+                    $row['name'],
+                    $row['email'] ?? '',
+                    $row['fact'],
+                    $row['meta'],
+                    $row['customer_id'],
+                ]);
+            }
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
 }

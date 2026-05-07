@@ -62,6 +62,7 @@
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab is-active">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
+  <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
 </nav>
 
 @if(session('success'))
