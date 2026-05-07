@@ -74,5 +74,75 @@
     });
   }
 
-  window.IntakeConfirm = { show: show };
+  /**
+   * Single-button alert variant. Same modal as show() but with one OK button
+   * and no resolution semantics (resolves true when dismissed). Use for flash
+   * errors and other "you need to know about this" messages where there's
+   * nothing to confirm — just acknowledgment. Mobile-safe out of the box
+   * because it reuses the same backdrop/card CSS.
+   */
+  function alert(opts) {
+    opts = opts || {};
+    var title   = opts.title   || 'Heads up';
+    var message = opts.message || '';
+    var okText  = opts.okText  || 'Got it';
+
+    return new Promise(function (resolve) {
+      var backdrop = document.createElement('div');
+      backdrop.className = 'ia-confirm-backdrop';
+
+      var card = document.createElement('div');
+      card.className = 'ia-confirm-card';
+      card.setAttribute('role', 'dialog');
+      card.setAttribute('aria-modal', 'true');
+
+      var titleEl = document.createElement('div');
+      titleEl.className = 'ia-confirm-title';
+      titleEl.textContent = title;
+      card.appendChild(titleEl);
+
+      if (message) {
+        var msgEl = document.createElement('div');
+        msgEl.className = 'ia-confirm-message';
+        msgEl.textContent = message;
+        card.appendChild(msgEl);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'ia-confirm-actions';
+
+      var okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.className = 'ia-confirm-btn ia-confirm-btn--primary';
+      okBtn.textContent = okText;
+
+      actions.appendChild(okBtn);
+      card.appendChild(actions);
+      backdrop.appendChild(card);
+      document.body.appendChild(backdrop);
+
+      void backdrop.offsetWidth;
+      backdrop.classList.add('is-shown');
+      setTimeout(function () { okBtn.focus(); }, 50);
+
+      function cleanup() {
+        backdrop.classList.remove('is-shown');
+        setTimeout(function () {
+          if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+          document.removeEventListener('keydown', onKey);
+        }, 160);
+        resolve(true);
+      }
+
+      function onKey(e) {
+        if (e.key === 'Escape' || e.key === 'Enter') cleanup();
+      }
+
+      okBtn.addEventListener('click', cleanup);
+      backdrop.addEventListener('click', function (e) { if (e.target === backdrop) cleanup(); });
+      document.addEventListener('keydown', onKey);
+    });
+  }
+
+  window.IntakeConfirm = { show: show, alert: alert };
 }());

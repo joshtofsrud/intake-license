@@ -78,14 +78,40 @@
         </div>
       @endif
 
-      {{-- Flash messages: success (green) + error (red). Rendered above
-           every page's content so any controller can call back()->with('error', ...)
-           or back()->with('success', ...) and have it surface immediately. --}}
+      {{-- Flash messages.
+           Success → inline green banner (non-blocking, just confirms an action).
+           Error   → IntakeConfirm.alert() modal (blocks until acknowledged so
+           it can't be missed when the page is long, e.g. class session list). --}}
       @if(session('success'))
         <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
       @endif
       @if(session('error'))
-        <div class="ia-flash ia-flash--error">{{ session('error') }}</div>
+        @push('scripts')
+        <script>
+          (function () {
+            function pop() {
+              if (window.IntakeConfirm && typeof window.IntakeConfirm.alert === 'function') {
+                window.IntakeConfirm.alert({
+                  title:   'Couldn\'t do that',
+                  message: @json(session('error')),
+                });
+              } else {
+                // Fallback if confirm.js hasn't loaded for some reason. Same
+                // visual pattern as the inline banner — never silently swallow.
+                var d = document.createElement('div');
+                d.className = 'ia-flash ia-flash--error';
+                d.textContent = @json(session('error'));
+                document.body.insertBefore(d, document.body.firstChild);
+              }
+            }
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', pop);
+            } else {
+              pop();
+            }
+          })();
+        </script>
+        @endpush
       @endif
 
       @yield('content')
