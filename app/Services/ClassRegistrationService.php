@@ -186,14 +186,29 @@ class ClassRegistrationService
         string $tenantId,
         string $requestedMethod
     ): array {
-        // 1. Check for active membership first (membership always wins over pack)
+        // Look up coverage. Both lookups are cheap and we may need either
+        // depending on what the caller requested.
         $membership = TenantCustomerMembership::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
             ->where('status', 'active')
             ->with('product')
             ->first();
 
-        if ($membership && $membership->canCoverClass()) {
+        $pack = TenantCustomerPack::where('tenant_id', $tenantId)
+            ->where('customer_id', $customerId)
+            ->consumptionOrder()
+            ->first();
+
+        // If admin explicitly picked membership or pack, honor that choice
+        // strictly — do NOT silently fall back to per_class. A silent fallback
+        // here means the admin thinks coverage was used when it wasn't, the
+        // customer never gets billed, and the audit trail is wrong.
+        if ($requestedMethod === 'membership') {
+            if (!$membership || !$membership->canCoverClass()) {
+                throw new RuntimeException(
+                    'Customer has no active membership with capacity. Pick a different payment method.'
+                );
+            }
             return [
                 'method'        => 'membership',
                 'membership_id' => $membership->id,
@@ -203,11 +218,34 @@ class ClassRegistrationService
             ];
         }
 
-        // 2. Check for usable pack (oldest expiry first)
-        $pack = TenantCustomerPack::where('tenant_id', $tenantId)
-            ->where('customer_id', $customerId)
-            ->consumptionOrder()
-            ->first();
+        if ($requestedMethod === 'pack') {
+            if (!$pack) {
+                throw new RuntimeException(
+                    'Customer has no usable pack. Pick a different payment method.'
+                );
+            }
+            return [
+                'method'        => 'pack',
+                'membership_id' => null,
+                'pack_id'       => $pack->id,
+                'paid_cents'    => 0,
+                'source'        => $pack,
+            ];
+        }
+
+        // For per_class / cash / customer-portal flows where the requestedMethod
+        // is permissive, prefer best-available coverage automatically: membership
+        // first, then pack, then fall through to the requested cash/per_class.
+        // This path is the one the customer self-service portal uses.
+        if ($membership && $membership->canCoverClass()) {
+            return [
+                'method'        => 'membership',
+                'membership_id' => $membership->id,
+                'pack_id'       => null,
+                'paid_cents'    => 0,
+                'source'        => $membership,
+            ];
+        }
 
         if ($pack) {
             return [
@@ -219,14 +257,13 @@ class ClassRegistrationService
             ];
         }
 
-        // 3. Fall through to requested method (per_class or cash)
         return [
             'method'        => in_array($requestedMethod, ['per_class', 'cash'])
                                 ? $requestedMethod
                                 : 'per_class',
             'membership_id' => null,
             'pack_id'       => null,
-            'paid_cents'    => 0, // Stripe amount set by controller when per_class
+            'paid_cents'    => 0,
         ];
     }
 
