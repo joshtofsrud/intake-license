@@ -105,9 +105,6 @@
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
 </nav>
 
-@if(session('success'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('success') }}</div>
-@endif
 
 @php
   $sub = request()->route('subdomain');
