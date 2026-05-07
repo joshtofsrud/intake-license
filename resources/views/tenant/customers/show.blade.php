@@ -38,6 +38,7 @@
 .cust-mp-modal-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
 .cust-mp-modal-sub { font-size: 12px; color: var(--ia-text-muted); margin-bottom: 16px; }
 .cust-mp-product-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
+.cust-mp-product.is-mp-hidden { display: none !important; }
 .cust-mp-product { display: flex; align-items: center; padding: 10px 12px; background: var(--ia-surface-2); border: 0.5px solid var(--ia-border); border-radius: 6px; cursor: pointer; transition: all var(--ia-t); }
 .cust-mp-product:hover { border-color: var(--ia-border-strong); }
 .cust-mp-product.is-selected { border-color: var(--ia-accent); background: var(--ia-accent-soft); }
@@ -388,7 +389,7 @@
           </div>
         @endforeach
         @foreach($packProducts as $p)
-          <div class="cust-mp-product" data-kind="pack" data-id="{{ $p->id }}" hidden>
+          <div class="cust-mp-product is-mp-hidden" data-kind="pack" data-id="{{ $p->id }}">
             <div class="cust-mp-product-main">
               <div class="cust-mp-product-name">{{ $p->name }}</div>
               <div class="cust-mp-product-meta">
@@ -572,7 +573,7 @@
     grantBtn.disabled = true;
     listEl.querySelectorAll('.cust-mp-product').forEach(function (row) {
       var match = row.dataset.kind === kind;
-      row.hidden = !match;
+      row.classList.toggle('is-mp-hidden', !match);
       row.classList.remove('is-selected');
     });
     modal.classList.add('is-open');
