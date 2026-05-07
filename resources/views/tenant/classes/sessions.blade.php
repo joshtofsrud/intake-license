@@ -197,7 +197,7 @@
                           <button type="submit" class="cl-action-btn" title="Check in">✓</button>
                         </form>
                       @endif
-                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => $sub, 'id' => $reg->id]) }}" style="display:inline" onsubmit="return confirm('Cancel this registration?')">
+                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => $sub, 'id' => $reg->id]) }}" style="display:inline" onsubmit="return iaConfirmCancelRegistration(this, event)">
                         @csrf
                         <button type="submit" class="cl-action-btn" title="Cancel" style="color:#EF4444">✕</button>
                       </form>
@@ -484,6 +484,29 @@
   window.openAddModal  = function(){ document.getElementById('add-modal').classList.add('is-open'); initCal(); }
   window.closeAddModal = function(){ document.getElementById('add-modal').classList.remove('is-open'); }
   window.confirmCancel = function(url){ document.getElementById('cancel-form').action=url; document.getElementById('cancel-modal').classList.add('is-open'); }
+
+  /**
+   * Cancel-a-single-registration confirm. Replaces the native browser confirm()
+   * with the IntakeConfirm modal so it matches the rest of the app and looks
+   * good on mobile. Returns false to block the synchronous form submit, then
+   * resubmits programmatically if the user confirms.
+   */
+  window.iaConfirmCancelRegistration = function(form, ev){
+    ev.preventDefault();
+    if (!window.IntakeConfirm) {
+      // Fallback if confirm.js hasn't loaded — keep the action working.
+      if (window.confirm('Cancel this registration?')) form.submit();
+      return false;
+    }
+    window.IntakeConfirm.show({
+      title:       'Remove customer from class?',
+      message:     'Their pack credit or membership usage will be restored if applicable.',
+      confirmText: 'Remove',
+      cancelText:  'Keep',
+      danger:      true,
+    }).then(function(ok){ if (ok) form.submit(); });
+    return false;
+  }
   window.closeCancelModal = function(){ document.getElementById('cancel-modal').classList.remove('is-open'); }
 
   document.getElementById('cancel-modal').addEventListener('click',function(e){ if(e.target===this) closeCancelModal(); });
