@@ -243,7 +243,7 @@
                 <label class="cl-label">Payment</label>
                 <select name="payment_method" class="cl-select">
                   <option value="cash">Cash</option>
-                  <option value="per_class">Per class</option>
+                  
                   <option value="pack">Pack</option>
                   <option value="membership">Membership</option>
                 </select>
