@@ -46,7 +46,21 @@
 .cl-action-btn.success:hover{background:rgba(34,197,94,.08)}
 .cl-waitlist-pos{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(239,68,68,.1);color:#EF4444;font-size:11px;font-weight:600}
 .cl-section-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:500;padding:10px 14px;background:var(--ia-surface-2);border-bottom:0.5px solid var(--ia-border)}
-.cl-add-reg-form{padding:16px;border-top:0.5px solid var(--ia-border);background:var(--ia-surface-2)}
+
+/* Add-registration row.
+   Lives inside the Roster card directly under the card-head. Sticky to the
+   top of the viewport while scrolling so admins can keep adding walk-ins
+   without scrolling back up past the existing roster. The flipped border
+   (border-bottom instead of border-top) visually attaches it to the rows
+   below now that it sits above them, not below. */
+.cl-add-reg-form{
+  padding:14px 16px;
+  border-bottom:0.5px solid var(--ia-border);
+  background:var(--ia-surface-2);
+  position:sticky;
+  top:0;
+  z-index:5;
+}
 .cl-add-reg-grid{display:grid;grid-template-columns:1fr 160px auto;gap:8px;align-items:end}
 .cl-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-muted);font-weight:500;margin-bottom:5px}
 .cl-input,.cl-select{padding:8px 11px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;outline:none;transition:border var(--ia-t);width:100%;font-family:inherit}
@@ -138,6 +152,31 @@
         <span style="font-size:12px;color:var(--ia-text-muted)">{{ $active }} registered · {{ $checkedIn }} checked in</span>
       </div>
 
+      {{-- Add registration: moved to top of card, sticky while scrolling.
+           Keeps walk-in registration always available without scrolling back up. --}}
+      @if(!in_array($session->status, ['cancelled','completed']))
+        <div class="cl-add-reg-form">
+          <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
+            @csrf
+            <div class="cl-add-reg-grid">
+              <div>
+                <label class="cl-label">Customer</label>
+                <x-tenant.customer-search name="customer_id" required />
+              </div>
+              <div>
+                <label class="cl-label">Payment</label>
+                <select name="payment_method" class="cl-select">
+                  <option value="cash">Cash</option>
+                  <option value="pack">Pack</option>
+                  <option value="membership">Membership</option>
+                </select>
+              </div>
+              <button type="submit" class="ia-btn ia-btn--primary" style="white-space:nowrap;align-self:flex-end">Add</button>
+            </div>
+          </form>
+        </div>
+      @endif
+
       @php
         $registered = $session->registrations->whereIn('status',['registered','checked_in'])->sortBy('registered_at');
         $waitlisted = $session->registrations->where('status','waitlisted')->sortBy('waitlist_position');
@@ -224,31 +263,6 @@
             </tbody>
           </table>
         @endif
-      @endif
-
-      {{-- Add registration --}}
-      @if(!in_array($session->status, ['cancelled','completed']))
-        <div class="cl-add-reg-form">
-          <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
-            @csrf
-            <div class="cl-add-reg-grid">
-              <div>
-                <label class="cl-label">Customer</label>
-                <x-tenant.customer-search name="customer_id" required />
-              </div>
-              <div>
-                <label class="cl-label">Payment</label>
-                <select name="payment_method" class="cl-select">
-                  <option value="cash">Cash</option>
-                  
-                  <option value="pack">Pack</option>
-                  <option value="membership">Membership</option>
-                </select>
-              </div>
-              <button type="submit" class="ia-btn ia-btn--primary" style="white-space:nowrap;align-self:flex-end">Add</button>
-            </div>
-          </form>
-        </div>
       @endif
 
       {{-- Cancelled / no-show --}}
@@ -338,5 +352,21 @@
 
   </div>
 </div>
+
+{{-- Reusable IntakeConfirm wrapper for all confirmable forms on this page.
+     Same pattern as sessions.blade.php — parameterized by an opts object. --}}
+@push('scripts')
+<script>
+  window.iaConfirmAction = function(form, ev, opts){
+    ev.preventDefault();
+    if (!window.IntakeConfirm) {
+      if (window.confirm((opts && opts.title) || 'Are you sure?')) form.submit();
+      return false;
+    }
+    window.IntakeConfirm.show(opts || {}).then(function(ok){ if (ok) form.submit(); });
+    return false;
+  }
+</script>
+@endpush
 
 @endsection
