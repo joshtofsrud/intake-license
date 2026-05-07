@@ -78,6 +78,16 @@
         </div>
       @endif
 
+      {{-- Flash messages: success (green) + error (red). Rendered above
+           every page's content so any controller can call back()->with('error', ...)
+           or back()->with('success', ...) and have it surface immediately. --}}
+      @if(session('success'))
+        <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
+      @endif
+      @if(session('error'))
+        <div class="ia-flash ia-flash--error">{{ session('error') }}</div>
+      @endif
+
       @yield('content')
 
     </main>
