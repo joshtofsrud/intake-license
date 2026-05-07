@@ -439,6 +439,20 @@ class DemoSeeder
         // with realistic resource diversity. If no resources exist (shouldn't
         // happen post-seedAdditionalResources, but defensive), assignments
         // remain NULL and calendar groups them under "unassigned."
+
+        // [DIAGNOSTIC — pluck investigation]
+        // Multiple variants of the same query to compare what each returns
+        $countAll       = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->count();
+        $countActive    = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->where('is_active', true)->count();
+        $rawIds         = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->pluck('id')->all();
+        $rawActive      = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)->where('is_active', true)->pluck('id')->all();
+        $rawDb          = \Illuminate\Support\Facades\DB::table('tenant_resources')->where('tenant_id', $tenant->id)->pluck('id')->all();
+        $this->log("    [diag-pluck] tenant_id={$tenant->id}");
+        $this->log("    [diag-pluck] count(all)=" . $countAll . " count(active)=" . $countActive);
+        $this->log("    [diag-pluck] eloquent all ids: " . implode(',', array_map(fn($id) => substr($id, 0, 8), $rawIds)));
+        $this->log("    [diag-pluck] eloquent active ids: " . implode(',', array_map(fn($id) => substr($id, 0, 8), $rawActive)));
+        $this->log("    [diag-pluck] DB::table all ids: " . implode(',', array_map(fn($id) => substr($id, 0, 8), $rawDb)));
+
         $resourceIds = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('sort_order')
@@ -605,18 +619,6 @@ class DemoSeeder
             $appointment->created_at = $seededCreatedAt;
             $appointment->updated_at = $seededCreatedAt;
             $appointment->saveQuietly();
-
-            // [DIAGNOSTIC — remove after debugging]
-            // Sample wide: first 10 iterations, then every 200th. Re-read
-            // from DB to see what the row actually looks like after save.
-            $shouldDiag = $created < 10 || $created % 200 === 0;
-            if ($shouldDiag) {
-                $fresh = TenantAppointment::find($appointment->id);
-                $assignedShort = $assignedResourceId ? substr($assignedResourceId, 0, 8) : 'NULL';
-                $actualShort = $fresh->resource_id ? substr($fresh->resource_id, 0, 8) : 'NULL';
-                $match = $assignedResourceId === $fresh->resource_id ? 'OK' : 'MISMATCH';
-                $this->log("    [diag] iter={$created} cursor=" . ($resourceCursor - 1) . " assigned={$assignedShort} actual={$actualShort} {$match}");
-            }
 
             foreach ($itemsToCreate as $item) {
                 $appointment->items()->create($item);
