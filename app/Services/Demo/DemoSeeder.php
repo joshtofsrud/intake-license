@@ -572,6 +572,12 @@ class DemoSeeder
                 ? $resourceIds[$resourceCursor++ % $resourceCount]
                 : null;
 
+            // [DIAGNOSTIC — remove after debugging]
+            // Log the first 6 iterations so we see the assignment pattern.
+            if ($created < 6) {
+                $this->log("    [diag] iter={$created} cursor=" . ($resourceCursor - 1) . " assignedId=" . var_export($assignedResourceId, true));
+            }
+
             $appointment = TenantAppointment::create([
                 'tenant_id'                 => $tenant->id,
                 'customer_id'               => $customer->id,
@@ -605,6 +611,13 @@ class DemoSeeder
             $appointment->created_at = $seededCreatedAt;
             $appointment->updated_at = $seededCreatedAt;
             $appointment->saveQuietly();
+
+            // [DIAGNOSTIC — remove after debugging]
+            // Re-read from DB to see what actually landed.
+            if ($created < 6) {
+                $fresh = TenantAppointment::find($appointment->id);
+                $this->log("    [diag] iter={$created} after-create resource_id=" . var_export($fresh->resource_id, true));
+            }
 
             foreach ($itemsToCreate as $item) {
                 $appointment->items()->create($item);
