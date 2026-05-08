@@ -7,15 +7,15 @@
    ========================================================================== */
 
 body.ia-theme-b {
-  --ia-bg:           #f8f8f6;
+  --ia-bg:           #f4f4f1;
   --ia-surface:      #ffffff;
-  --ia-surface-2:    #f2f2ef;
-  --ia-border:       rgba(0,0,0,.08);
-  --ia-border-strong: rgba(0,0,0,.15);
+  --ia-surface-2:    #ecebe7;
+  --ia-border:       rgba(0,0,0,.12);
+  --ia-border-strong: rgba(0,0,0,.20);
   --ia-text:         #111111;
-  --ia-text-muted:   rgba(0,0,0,.45);
-  --ia-text-dim:     rgba(0,0,0,.25);
-  --ia-hover:        rgba(0,0,0,.04);
+  --ia-text-muted:   rgba(0,0,0,.62);
+  --ia-text-dim:     rgba(0,0,0,.42);
+  --ia-hover:        rgba(0,0,0,.06);
   --ia-input-bg:     #ffffff;
 
   /* Sidebar — stays dark even in light mode */

@@ -4,16 +4,16 @@
    ========================================================================== */
 
 body.ia-theme-c {
-  --ia-bg:           #111111;
-  --ia-surface:      #1a1a1a;
-  --ia-surface-2:    #222222;
-  --ia-border:       rgba(255,255,255,.08);
-  --ia-border-strong: rgba(255,255,255,.15);
+  --ia-bg:           #0d0d0d;
+  --ia-surface:      #1c1c1c;
+  --ia-surface-2:    #262626;
+  --ia-border:       rgba(255,255,255,.13);
+  --ia-border-strong: rgba(255,255,255,.22);
   --ia-text:         #f0f0f0;
-  --ia-text-muted:   rgba(255,255,255,.6);
-  --ia-text-dim:     rgba(255,255,255,.4);
-  --ia-hover:        rgba(255,255,255,.05);
-  --ia-input-bg:     rgba(255,255,255,.05);
+  --ia-text-muted:   rgba(255,255,255,.78);
+  --ia-text-dim:     rgba(255,255,255,.55);
+  --ia-hover:        rgba(255,255,255,.07);
+  --ia-input-bg:     rgba(255,255,255,.07);
 
   /* Sidebar */
   --ia-side-bg:      #0c0c0c;
