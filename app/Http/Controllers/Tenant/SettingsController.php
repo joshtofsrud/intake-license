@@ -97,8 +97,8 @@ class SettingsController extends Controller
             'bg_color'          => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'font_heading'      => ['nullable', 'string', 'max:100'],
             'font_body'         => ['nullable', 'string', 'max:100'],
-            'logo_size_admin'   => ['nullable', 'in:small,medium,large'],
-            'logo_size_booking' => ['nullable', 'in:small,medium,large'],
+            'logo_size_admin'   => ['nullable', 'integer', 'min:16', 'max:80'],
+            'logo_size_booking' => ['nullable', 'integer', 'min:16', 'max:120'],
         ]);
 
         $data = $request->only([

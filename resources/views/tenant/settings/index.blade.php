@@ -607,29 +607,70 @@
 
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Logo display size</span></div>
-      <p style="font-size:13px;opacity:.5;margin-bottom:16px">
-        Controls how big the uploaded logo renders. Doesn't affect the file itself — re-uploading isn't needed.
+      <p style="font-size:13px;opacity:.5;margin-bottom:18px">
+        Drag the sliders to set how big the uploaded logo renders. The preview shows what it'll look like.
+        Doesn't affect the file itself — re-uploading isn't needed.
       </p>
-      <div class="ia-input-grid-2">
-        <div class="ia-form-group">
-          <label class="ia-form-label">Admin sidebar</label>
-          <select name="logo_size_admin" class="ia-input">
-            @php $adminSize = old('logo_size_admin', $currentTenant->logo_size_admin ?? 'medium'); @endphp
-            <option value="small"  @selected($adminSize === 'small')>Small (22px)</option>
-            <option value="medium" @selected($adminSize === 'medium')>Medium (26px)</option>
-            <option value="large"  @selected($adminSize === 'large')>Large (36px)</option>
-          </select>
-          <p style="font-size:11px;opacity:.5;margin-top:4px">What you see in the left navigation</p>
+
+      @php
+        // Pulled into PHP vars so JS init values match what's in the DB.
+        $adminPx   = (int) ($currentTenant->logo_size_admin   ?? 26);
+        $bookingPx = (int) ($currentTenant->logo_size_booking ?? 28);
+        // Pick whichever logo will actually render in each surface.
+        $adminLogo = \App\Support\ColorHelper::pickLogo($currentTenant, '#0c0c0c'); // dark sidebar
+        $bookLogo  = \App\Support\ColorHelper::pickLogo($currentTenant, $currentTenant->bg_color ?? '#ffffff'); // booking bg
+      @endphp
+
+      {{-- Admin sidebar --}}
+      <div style="margin-bottom:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="ia-form-label" style="margin:0">Admin sidebar</label>
+          <span style="font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums">
+            <span id="logo-admin-readout">{{ $adminPx }}</span>px
+          </span>
         </div>
-        <div class="ia-form-group">
-          <label class="ia-form-label">Booking page</label>
-          <select name="logo_size_booking" class="ia-input">
-            @php $bookSize = old('logo_size_booking', $currentTenant->logo_size_booking ?? 'medium'); @endphp
-            <option value="small"  @selected($bookSize === 'small')>Small (22px)</option>
-            <option value="medium" @selected($bookSize === 'medium')>Medium (28px)</option>
-            <option value="large"  @selected($bookSize === 'large')>Large (44px)</option>
-          </select>
-          <p style="font-size:11px;opacity:.5;margin-top:4px">What customers see at the top of your booking form</p>
+        <input type="range" name="logo_size_admin" id="logo-admin-slider"
+               min="16" max="80" step="1" value="{{ $adminPx }}"
+               style="width:100%;margin:0">
+        <div style="font-size:11px;opacity:.45;margin-top:4px;display:flex;justify-content:space-between">
+          <span>16px</span><span>80px</span>
+        </div>
+
+        {{-- Mini preview chip — mimics the sidebar logo block --}}
+        <div style="margin-top:14px;background:#0c0c0c;border-radius:var(--ia-r-md);padding:14px 16px;display:flex;align-items:center;gap:10px;min-height:60px">
+          @if($adminLogo)
+            <img id="logo-admin-preview" src="{{ $adminLogo }}" alt="Admin logo preview"
+                 style="height:{{ $adminPx }}px;width:auto;border-radius:4px;max-width:160px;object-fit:contain;transition:height .05s linear">
+          @else
+            <span style="color:#999;font-size:12px;font-style:italic">Upload a logo above to preview</span>
+          @endif
+        </div>
+      </div>
+
+      {{-- Booking page --}}
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="ia-form-label" style="margin:0">Booking page</label>
+          <span style="font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums">
+            <span id="logo-booking-readout">{{ $bookingPx }}</span>px
+          </span>
+        </div>
+        <input type="range" name="logo_size_booking" id="logo-booking-slider"
+               min="16" max="120" step="1" value="{{ $bookingPx }}"
+               style="width:100%;margin:0">
+        <div style="font-size:11px;opacity:.45;margin-top:4px;display:flex;justify-content:space-between">
+          <span>16px</span><span>120px</span>
+        </div>
+
+        {{-- Mini preview chip — mimics the booking page top bar --}}
+        @php $previewBg = $currentTenant->bg_color ?? '#ffffff'; @endphp
+        <div style="margin-top:14px;background:{{ $previewBg }};border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:14px 16px;display:flex;align-items:center;gap:10px;min-height:80px">
+          @if($bookLogo)
+            <img id="logo-booking-preview" src="{{ $bookLogo }}" alt="Booking logo preview"
+                 style="height:{{ $bookingPx }}px;width:auto;border-radius:4px;max-width:240px;object-fit:contain;transition:height .05s linear">
+          @else
+            <span style="color:#999;font-size:12px;font-style:italic">Upload a logo above to preview</span>
+          @endif
         </div>
       </div>
     </div>
@@ -1381,6 +1422,28 @@
       });
     });
   }
+
+  /* -----------------------------------------------------------------------
+   * Logo size sliders — live preview chip resize
+   *
+   * Slider input dispatches 'input' on every drag tick. We mutate the
+   * preview img's height directly. The slider itself is a normal form input
+   * so dirty tracking + save bar fire automatically.
+   * ----------------------------------------------------------------------- */
+  function bindLogoSlider(sliderId, readoutId, previewId) {
+    var slider  = document.getElementById(sliderId);
+    var readout = document.getElementById(readoutId);
+    var preview = document.getElementById(previewId);
+    if (!slider) return;
+    slider.addEventListener('input', function() {
+      var v = parseInt(slider.value, 10) || 16;
+      if (readout) readout.textContent = v;
+      if (preview) preview.style.height = v + 'px';
+    });
+  }
+  bindLogoSlider('logo-admin-slider',   'logo-admin-readout',   'logo-admin-preview');
+  bindLogoSlider('logo-booking-slider', 'logo-booking-readout', 'logo-booking-preview');
+
 })();
 
 /* -----------------------------------------------------------------------

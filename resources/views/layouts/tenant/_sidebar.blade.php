@@ -2,9 +2,9 @@
   $sidebarBg = ($adminTheme === 'c') ? '#0c0c0c' : (($adminTheme === 'a') ? '#0f0f0f' : '#ffffff');
   $sidebarLogo = \App\Support\ColorHelper::pickLogo($currentTenant, $sidebarBg);
 
-  // Logo height per tenant setting. Mirrors the values in the Branding tab.
-  $adminLogoHeights = ['small' => 22, 'medium' => 26, 'large' => 36];
-  $adminLogoHeight  = $adminLogoHeights[$currentTenant->logo_size_admin ?? 'medium'] ?? 26;
+  // Logo height in pixels. Clamp defensively in case bad data sneaks in.
+  $adminLogoHeight = (int) ($currentTenant->logo_size_admin ?? 26);
+  $adminLogoHeight = max(16, min(80, $adminLogoHeight));
 @endphp
 
 <aside class="ia-sidebar">
@@ -12,7 +12,7 @@
   {{-- Logo (image only when uploaded, fallback to letter + name when not) --}}
   <div class="ia-sidebar-logo">
     @if($sidebarLogo)
-      <img src="{{ $sidebarLogo }}" alt="{{ $currentTenant->name }}" style="height:{{ $adminLogoHeight }}px;width:auto;border-radius:4px">
+      <img src="{{ $sidebarLogo }}" alt="{{ $currentTenant->name }}" style="height:{{ $adminLogoHeight }}px;width:auto;border-radius:4px;max-width:160px;object-fit:contain">
     @else
       <div class="ia-sidebar-logo-mark">{{ strtoupper(substr($currentTenant->name, 0, 1)) }}</div>
       <span class="ia-sidebar-logo-name">{{ $currentTenant->name }}</span>

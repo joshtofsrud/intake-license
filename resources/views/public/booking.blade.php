@@ -22,9 +22,9 @@
   $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
 
-  // Booking-page logo height per tenant setting.
-  $bookingLogoHeights = ['small' => 22, 'medium' => 28, 'large' => 44];
-  $bookingLogoHeight  = $bookingLogoHeights[$currentTenant->logo_size_booking ?? 'medium'] ?? 28;
+  // Booking-page logo height. Clamp defensively to the validated range.
+  $bookingLogoHeight = (int) ($currentTenant->logo_size_booking ?? 28);
+  $bookingLogoHeight = max(16, min(120, $bookingLogoHeight));
 @endphp
 <!DOCTYPE html>
 <html lang="en">
