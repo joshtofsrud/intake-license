@@ -43,6 +43,7 @@ class TenantAppointment extends Model
     public function resource(): BelongsTo  { return $this->belongsTo(TenantResource::class, 'resource_id'); }
     public function items(): HasMany       { return $this->hasMany(TenantAppointmentItem::class, 'appointment_id'); }
     public function addons(): HasMany      { return $this->hasMany(TenantAppointmentAddon::class, 'appointment_id'); }
+    public function parts(): HasMany       { return $this->hasMany(TenantAppointmentPart::class, 'appointment_id'); }
     public function responses(): HasMany   { return $this->hasMany(TenantAppointmentResponse::class, 'appointment_id'); }
     public function notes(): HasMany       { return $this->hasMany(TenantAppointmentNote::class, 'appointment_id')->orderBy('created_at'); }
     public function charges(): HasMany     { return $this->hasMany(TenantAppointmentCharge::class, 'appointment_id'); }

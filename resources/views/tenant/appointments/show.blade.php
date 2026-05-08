@@ -248,6 +248,84 @@
       </div>
     </div>
 
+    {{-- ===================================================================
+         Parts & Add-ons (physical inventory consumed during the appointment)
+         =================================================================== --}}
+    @php
+      $isCommittedStatus = in_array($appointment->status, ['completed', 'shipped', 'closed']);
+    @endphp
+    <div class="ia-card" id="parts-card">
+      <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Parts & Add-ons</span>
+        @if($isCommittedStatus)
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;padding:2px 8px;border-radius:99px;background:var(--ia-surface-2)">Committed</span>
+        @endif
+      </div>
+
+      <table class="appt-line-items" id="parts-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="ia-num" style="width:90px">Qty</th>
+            <th class="ia-num" style="width:90px">Price</th>
+            <th class="ia-num" style="width:90px">Total</th>
+            <th style="width:32px"></th>
+          </tr>
+        </thead>
+        <tbody id="parts-body">
+          @foreach($appointment->parts as $part)
+            @php
+              $invItem = $part->inventoryItem;
+              $stockNow = $invItem ? (int) ($invItem->computed_stock_count ?? 0) : null;
+              $stockProjected = ($stockNow !== null && !$part->isCommitted())
+                ? $stockNow - (int) $part->quantity
+                : null;
+            @endphp
+            <tr class="part-row" data-part-id="{{ $part->id }}" data-committed="{{ $part->isCommitted() ? '1' : '0' }}">
+              <td>
+                <div style="font-weight:500">{{ $part->item_name_snapshot }}</div>
+                @if($part->item_sku_snapshot)
+                  <div style="font-size:11px;opacity:.45;font-family:var(--ia-font-mono);margin-top:2px">{{ $part->item_sku_snapshot }}</div>
+                @endif
+                @if($stockNow !== null)
+                  <div style="font-size:11px;opacity:.55;margin-top:3px">
+                    @if($part->isCommitted())
+                      Stock decremented · current: {{ $stockNow }}
+                    @else
+                      Stock: {{ $stockNow }} → {{ $stockProjected }} on completion
+                    @endif
+                  </div>
+                @endif
+              </td>
+              <td class="ia-num">
+                <input type="number" min="1" max="999"
+                  class="part-qty-edit ia-input ia-input--sm"
+                  value="{{ $part->quantity }}"
+                  data-part-id="{{ $part->id }}"
+                  {{ $part->isCommitted() ? 'disabled' : '' }}
+                  style="width:60px;text-align:right">
+              </td>
+              <td class="ia-num">{{ format_money($part->effectiveUnitPriceCents()) }}</td>
+              <td class="ia-num" data-line-total>{{ format_money($part->lineTotalCents()) }}</td>
+              <td>
+                <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm part-remove" data-part-id="{{ $part->id }}" title="Remove">&#x2715;</button>
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+
+      @if($appointment->parts->isEmpty())
+        <p style="font-size:13px;opacity:.4;margin:8px 0 12px">No parts added yet.</p>
+      @endif
+
+      <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--ia-border);align-items:center;position:relative">
+        <input type="text" id="part-picker-input" class="ia-input ia-input--sm" placeholder="+ Add part from inventory…" style="flex:1" autocomplete="off">
+        <div id="part-picker-results" style="display:none;position:absolute;top:100%;left:0;right:64px;margin-top:4px;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);max-height:280px;overflow-y:auto;z-index:20"></div>
+      </div>
+    </div>
+    {{-- ================================================================== --}}
+
     {{-- Work order (staff-filled equipment details) --}}
     @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
     @php
@@ -973,6 +1051,165 @@
       woForm.style.display = 'none';
       woDisplay.style.display = 'block';
       if (woToggle) woToggle.style.display = '';
+    });
+  }
+
+  /* ===================================================================
+     Parts & Add-ons — picker, add, remove, quantity edit
+     =================================================================== */
+  var partPickerInput   = document.getElementById('part-picker-input');
+  var partPickerResults = document.getElementById('part-picker-results');
+  var partsBody         = document.getElementById('parts-body');
+
+  function searchInventory(q) {
+    var url = '{{ route("tenant.appointments.inventory-search", ["subdomain" => $currentTenant->subdomain]) }}?q=' + encodeURIComponent(q);
+    return fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function(r) { return r.json(); });
+  }
+
+  function renderPickerResults(items) {
+    if (!items.length) {
+      partPickerResults.innerHTML = '<div style="padding:10px;font-size:12px;opacity:.5">No matches.</div>';
+      partPickerResults.style.display = 'block';
+      return;
+    }
+    var html = items.map(function(it) {
+      var stockClass = it.stock <= 0 && !it.allow_oversell ? 'opacity:.4' : '';
+      var stockNote  = it.stock <= 0 && !it.allow_oversell
+        ? '<span style="color:#F09595">Out of stock</span>'
+        : 'In stock: ' + it.stock;
+      return '<div class="part-pick-row" data-id="' + it.id + '" style="padding:9px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border);' + stockClass + '">'
+           + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'
+           + '<div style="font-weight:500;font-size:13px">' + escapeHtml(it.name) + '</div>'
+           + '<div style="font-size:12px;opacity:.7">' + it.price_display + '</div>'
+           + '</div>'
+           + '<div style="font-size:11px;opacity:.5;margin-top:2px;display:flex;justify-content:space-between">'
+           + '<span>' + (it.sku ? escapeHtml(it.sku) : '') + '</span>'
+           + '<span>' + stockNote + '</span>'
+           + '</div>'
+           + '</div>';
+    }).join('');
+    partPickerResults.innerHTML = html;
+    partPickerResults.style.display = 'block';
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  if (partPickerInput) {
+    var debounceTimer = null;
+    partPickerInput.addEventListener('input', function() {
+      var q = partPickerInput.value.trim();
+      clearTimeout(debounceTimer);
+      if (q.length < 1) {
+        partPickerResults.style.display = 'none';
+        return;
+      }
+      debounceTimer = setTimeout(function() {
+        searchInventory(q).then(function(d) {
+          if (d.ok) renderPickerResults(d.items);
+        });
+      }, 180);
+    });
+
+    partPickerInput.addEventListener('focus', function() {
+      // Show top results on focus to make discovery easier.
+      if (!partPickerInput.value.trim()) {
+        searchInventory('').then(function(d) {
+          if (d.ok && d.items.length) renderPickerResults(d.items);
+        });
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!partPickerInput.contains(e.target) && !partPickerResults.contains(e.target)) {
+        partPickerResults.style.display = 'none';
+      }
+    });
+
+    // Click a result → add it to the appointment.
+    partPickerResults.addEventListener('click', function(e) {
+      var row = e.target.closest('.part-pick-row');
+      if (!row) return;
+      var id = row.getAttribute('data-id');
+      addPart(id);
+    });
+  }
+
+  function addPart(inventoryItemId) {
+    fetch(updateUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
+      body: JSON.stringify({
+        op: 'add_part',
+        inventory_item_id: inventoryItemId,
+        quantity: 1,
+      }),
+    }).then(function(r) {
+      return r.json().then(function(d) { return { ok: r.ok, body: d }; });
+    }).then(function(res) {
+      if (!res.ok || !res.body.ok) {
+        alert(res.body && res.body.message || 'Could not add part.');
+        return;
+      }
+      // Reload — easiest way to get fresh totals + stock displays everywhere.
+      window.location.reload();
+    });
+  }
+
+  // Remove
+  if (partsBody) {
+    partsBody.addEventListener('click', function(e) {
+      var btn = e.target.closest('.part-remove');
+      if (!btn) return;
+      var partId = btn.getAttribute('data-part-id');
+      if (!confirm('Remove this part?')) return;
+      fetch(updateUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
+        body: JSON.stringify({ op: 'remove_part', part_id: partId }),
+      }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, body: d }; });
+      }).then(function(res) {
+        if (!res.ok || !res.body.ok) {
+          alert(res.body && res.body.message || 'Could not remove part.');
+          return;
+        }
+        window.location.reload();
+      });
+    });
+
+    // Quantity edit (debounced blur)
+    partsBody.addEventListener('change', function(e) {
+      var inp = e.target.closest('.part-qty-edit');
+      if (!inp) return;
+      var partId = inp.getAttribute('data-part-id');
+      var qty    = parseInt(inp.value, 10);
+      if (!qty || qty < 1) {
+        inp.value = 1;
+        qty = 1;
+      }
+      fetch(updateUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
+        body: JSON.stringify({ op: 'update_part_quantity', part_id: partId, quantity: qty }),
+      }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, body: d }; });
+      }).then(function(res) {
+        if (!res.ok || !res.body.ok) {
+          alert(res.body && res.body.message || 'Could not update quantity.');
+          window.location.reload();
+          return;
+        }
+        // Update the line total cell inline for snappier feel.
+        var row  = inp.closest('.part-row');
+        var cell = row && row.querySelector('[data-line-total]');
+        if (cell) cell.textContent = res.body.line_total_display;
+      });
     });
   }
 

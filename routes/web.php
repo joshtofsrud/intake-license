@@ -261,6 +261,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
             Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');
             Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
+            Route::get('/appointments-inventory-search', [TenantControllers\AppointmentController::class, 'searchInventoryItems'])->name('appointments.inventory-search');
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
             Route::get('/customers/search',     [TenantControllers\CustomerController::class, 'search'])->name('customers.search');

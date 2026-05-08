@@ -6,13 +6,20 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentNote;
 use App\Models\Tenant\TenantAppointmentCharge;
+use App\Models\Tenant\TenantAppointmentPart;
 use App\Models\Tenant\TenantCustomer;
+use App\Models\Tenant\TenantInventoryItem;
+use App\Services\Tenant\AppointmentInventoryService;
+use App\Services\Tenant\InventoryStockException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
 {
+    public function __construct(protected AppointmentInventoryService $appointmentInventory) {}
+
     // Active statuses can move freely between each other (forward or backward).
     // Terminal statuses (cancelled/refunded) can only be reopened to pending.
     // The UI is responsible for confirming destructive or backward moves;
@@ -220,7 +227,7 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields'])
+            ->with(['items', 'addons', 'parts.inventoryItem', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields'])
             ->firstOrFail();
 
         $transitions = self::TRANSITIONS[$appointment->status] ?? [];
@@ -390,7 +397,37 @@ class AppointmentController extends Controller
             $newStatus = $request->input('status');
             $allowed = self::TRANSITIONS[$appointment->status] ?? [];
             if (!in_array($newStatus, $allowed, true)) return response()->json(['ok' => false, 'message' => 'Invalid status transition.'], 422);
+
+            $oldStatus = $appointment->status;
+            $wasCommitted = AppointmentInventoryService::isCommittedStatus($oldStatus);
+            $willCommit   = AppointmentInventoryService::isCommittedStatus($newStatus);
+
+            // Inventory transitions:
+            //   not-committed → committed       : commit (decrement)
+            //   committed     → not-committed   : revert (increment)
+            //   committed     → committed (e.g. completed → shipped) : no-op
+            //   not-committed → not-committed   : no-op
+            //
+            // We commit BEFORE writing the status so a stock failure doesn't
+            // leave the appointment in a "completed but inventory not deducted"
+            // state. Revert happens AFTER status change since it can't fail
+            // for stock reasons (incrementing always succeeds).
+            if (!$wasCommitted && $willCommit) {
+                try {
+                    $this->appointmentInventory->commitParts($appointment);
+                } catch (InventoryStockException $e) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => 'Cannot complete: ' . $e->getMessage(),
+                    ], 422);
+                }
+            }
+
             $appointment->update(['status' => $newStatus]);
+
+            if ($wasCommitted && !$willCommit) {
+                $this->appointmentInventory->revertParts($appointment);
+            }
 
             if ($newStatus === 'cancelled' && $appointment->appointment_date) {
                 try {
@@ -559,6 +596,175 @@ class AppointmentController extends Controller
             $addon->delete();
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);
+        }
+
+        // -------------------------------------------------------------------
+        // Parts: physical inventory items consumed during the appointment.
+        // Snapshot-on-add. Stock is checked at add-time (overcommit possible
+        // if stock changes between now and completion — by design, we don't
+        // hold a reservation). Stock isn't actually decremented until the
+        // appointment transitions to a committed status (see status op).
+        // -------------------------------------------------------------------
+
+        if ($op === 'add_part') {
+            $request->validate([
+                'inventory_item_id' => ['required', 'uuid'],
+                'quantity'          => ['nullable', 'integer', 'min:1', 'max:999'],
+            ]);
+
+            $invItem = TenantInventoryItem::where('id', $request->input('inventory_item_id'))
+                ->where('tenant_id', $tenant->id)
+                ->first();
+            if (!$invItem) {
+                return response()->json(['ok' => false, 'message' => 'Inventory item not found.'], 422);
+            }
+
+            $qty = (int) ($request->input('quantity') ?? 1);
+
+            // Add-time stock check — warn if we'd go negative without oversell.
+            // We don't hard-block; the caller can set allow_oversell on items
+            // that should be reservable beyond stock. But for normal items,
+            // surface the issue clearly so the front desk knows to order more.
+            $currentStock = (int) ($invItem->computed_stock_count ?? 0);
+            if ($qty > $currentStock && !$invItem->allow_oversell) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => "Only {$currentStock} in stock. Adjust quantity, mark the item as oversellable, or order more.",
+                ], 422);
+            }
+
+            $part = TenantAppointmentPart::create([
+                'appointment_id'     => $appointment->id,
+                'inventory_item_id'  => $invItem->id,
+                'item_name_snapshot' => $invItem->name,
+                'item_sku_snapshot'  => $invItem->sku,
+                'quantity'           => $qty,
+                'unit_price_cents'   => (int) ($invItem->effectiveSellPriceCents() ?? 0),
+                'cost_cents_at_time' => $invItem->effectiveCostCents(),
+                'is_taxable'         => true,
+                'committed_at'       => null,
+            ]);
+
+            // Audit note for the activity log.
+            TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => sprintf(
+                    '%s added from inventory (qty %d)',
+                    $invItem->name,
+                    $qty
+                ),
+                'created_at'          => now(),
+            ]);
+
+            $this->recalcAppointmentTotals($appointment);
+
+            return response()->json([
+                'ok'   => true,
+                'part' => [
+                    'id'                 => $part->id,
+                    'name'               => $part->item_name_snapshot,
+                    'sku'                => $part->item_sku_snapshot,
+                    'quantity'           => $part->quantity,
+                    'unit_price_cents'   => $part->unit_price_cents,
+                    'unit_price_display' => format_money($part->unit_price_cents),
+                    'line_total_cents'   => $part->lineTotalCents(),
+                    'line_total_display' => format_money($part->lineTotalCents()),
+                    'current_stock'      => $currentStock,
+                    'projected_stock'    => $currentStock - $qty,
+                ],
+            ]);
+        }
+
+        if ($op === 'remove_part') {
+            $partId = $request->input('part_id');
+            $part = TenantAppointmentPart::where('id', $partId)
+                ->where('appointment_id', $appointment->id)
+                ->first();
+            if (!$part) {
+                return response()->json(['ok' => false, 'message' => 'Part not found.'], 422);
+            }
+
+            // If this part has already been committed (decremented from stock),
+            // we need to give it back BEFORE deleting the row, otherwise the
+            // increment helper has nothing to operate on and committed_at
+            // tracking is lost.
+            if ($part->isCommitted()) {
+                $tenantModel = $appointment->tenant;
+                $loc = $tenantModel?->defaultLocation;
+                if ($loc) {
+                    DB::transaction(function () use ($appointment, $part, $loc) {
+                        app(\App\Services\Tenant\InventoryService::class)
+                            ->incrementForAppointmentPart($appointment, $part, $loc->id);
+                    });
+                }
+            }
+
+            $name = $part->item_name_snapshot;
+            $part->delete();
+
+            TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => sprintf('%s removed', $name),
+                'created_at'          => now(),
+            ]);
+
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'update_part_quantity') {
+            $partId = $request->input('part_id');
+            $newQty = (int) $request->input('quantity', 0);
+            if ($newQty < 1) {
+                return response()->json(['ok' => false, 'message' => 'Quantity must be at least 1.'], 422);
+            }
+
+            $part = TenantAppointmentPart::where('id', $partId)
+                ->where('appointment_id', $appointment->id)
+                ->first();
+            if (!$part) {
+                return response()->json(['ok' => false, 'message' => 'Part not found.'], 422);
+            }
+
+            // Prevent quantity edits after the appointment has been completed.
+            // Inventory is already decremented; changing quantity post-commit
+            // would require a delta movement we haven't designed for. To
+            // change the quantity, the user must move the appointment back to
+            // in_progress (which reverts the part), edit, then re-complete.
+            if ($part->isCommitted()) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Move appointment back to In Progress to edit committed parts.',
+                ], 422);
+            }
+
+            // Add-time stock re-check on the new quantity.
+            if ($part->inventory_item_id) {
+                $invItem = TenantInventoryItem::find($part->inventory_item_id);
+                if ($invItem) {
+                    $stock = (int) ($invItem->computed_stock_count ?? 0);
+                    if ($newQty > $stock && !$invItem->allow_oversell) {
+                        return response()->json([
+                            'ok'      => false,
+                            'message' => "Only {$stock} in stock.",
+                        ], 422);
+                    }
+                }
+            }
+
+            $part->update(['quantity' => $newQty]);
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json([
+                'ok' => true,
+                'line_total_cents'   => $part->lineTotalCents(),
+                'line_total_display' => format_money($part->lineTotalCents()),
+            ]);
         }
 
         if ($op === 'update_line_item') {
@@ -830,22 +1036,99 @@ class AppointmentController extends Controller
      * Recalculate appointment totals from current items + addons.
      * Uses effective (override-aware) values. Called after any line-item mutation.
      */
+    /**
+     * Search active inventory items for the part-picker autocomplete.
+     * Returns minimal payload so the picker can render fast.
+     */
+    public function searchInventoryItems(Request $request, string $subdomain)
+    {
+        $tenant = tenant();
+        $q = trim((string) $request->input('q', ''));
+
+        $query = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true);
+
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                  ->orWhere('sku',  'like', "%{$q}%");
+            });
+        }
+
+        $items = $query->orderBy('name')->limit(15)->get(['id', 'name', 'sku', 'shop_sell_price_cents', 'catalog_msrp_cents', 'computed_stock_count', 'allow_oversell']);
+
+        return response()->json([
+            'ok'    => true,
+            'items' => $items->map(function ($i) {
+                $price = (int) ($i->effectiveSellPriceCents() ?? 0);
+                return [
+                    'id'             => $i->id,
+                    'name'           => $i->name,
+                    'sku'            => $i->sku,
+                    'price_cents'    => $price,
+                    'price_display'  => format_money($price),
+                    'stock'          => (int) ($i->computed_stock_count ?? 0),
+                    'allow_oversell' => (bool) $i->allow_oversell,
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * Recompute subtotal, tax, and total for an appointment based on the
+     * current items, addons, and parts. Honors:
+     *   - tenant.tax_services_default for service items + addons
+     *   - per-part is_taxable for parts
+     *   - tenant.default_tax_rate for the actual rate
+     *
+     * Tax is computed on each line independently (not on the subtotal) so
+     * fractional cents from rounding don't compound.
+     */
     protected function recalcAppointmentTotals(\App\Models\Tenant\TenantAppointment $appointment): void
     {
-        $appointment->load(['items', 'addons']);
+        $appointment->load(['items', 'addons', 'parts', 'tenant']);
 
-        $subtotalCents  = 0;
-        $totalDuration  = 0;
+        $tenant = $appointment->tenant;
+        $taxRate = (float) ($tenant->default_tax_rate ?? 0); // e.g. 8.875 for 8.875%
+        $servicesTaxable = (bool) ($tenant->tax_services_default ?? true);
 
+        $subtotalCents = 0;
+        $taxCents      = 0;
+        $totalDuration = 0;
+
+        // Services
         foreach ($appointment->items as $item) {
-            $subtotalCents += $item->effectivePriceCents();
+            $line = (int) $item->effectivePriceCents();
+            $subtotalCents += $line;
             $totalDuration += (int) $item->prep_before_minutes_snapshot
                             + $item->effectiveDurationMinutes()
                             + (int) $item->cleanup_after_minutes_snapshot;
+
+            if ($servicesTaxable && $taxRate > 0) {
+                $taxCents += (int) round($line * $taxRate / 100);
+            }
         }
+
+        // Addons (treated like services for taxability — they're service extras)
         foreach ($appointment->addons as $addon) {
-            $subtotalCents += $addon->effectivePriceCents();
+            $line = (int) $addon->effectivePriceCents();
+            $subtotalCents += $line;
             $totalDuration += $addon->effectiveDurationMinutes();
+
+            if ($servicesTaxable && $taxRate > 0) {
+                $taxCents += (int) round($line * $taxRate / 100);
+            }
+        }
+
+        // Parts (per-row taxability)
+        foreach ($appointment->parts as $part) {
+            $line = (int) $part->lineTotalCents();
+            $subtotalCents += $line;
+            // Parts don't have a duration — they're physical goods.
+
+            if ($part->is_taxable && $taxRate > 0) {
+                $taxCents += (int) round($line * $taxRate / 100);
+            }
         }
 
         // Recompute appointment_end_time if the appointment has a start time
@@ -858,7 +1141,8 @@ class AppointmentController extends Controller
 
         $appointment->update([
             'subtotal_cents'         => $subtotalCents,
-            'total_cents'            => $subtotalCents + (int) $appointment->tax_cents,
+            'tax_cents'              => $taxCents,
+            'total_cents'            => $subtotalCents + $taxCents,
             'total_duration_minutes' => $totalDuration,
             'appointment_end_time'   => $endTime,
         ]);
