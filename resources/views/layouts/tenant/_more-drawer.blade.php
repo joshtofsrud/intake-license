@@ -10,7 +10,6 @@
     ['route' => 'tenant.booking-editor.index',  'label' => 'Intake Form Editor'],
     ['route' => 'tenant.emails.index',          'label' => 'Email'],
     ['route' => 'tenant.campaigns.index',       'label' => 'Campaigns'],
-    ['route' => 'tenant.branding.index',        'label' => 'Branding'],
     ['route' => 'tenant.team.index',            'label' => 'Team'],
     ['route' => 'tenant.settings.index',        'label' => 'Settings'],
     ['route' => 'tenant.help.index',            'label' => 'Help & Guides'],

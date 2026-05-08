@@ -28,6 +28,14 @@ class Tenant extends Model
         'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
+        // Tax (Path B onboarding)
+        'default_tax_rate', 'tax_services_default', 'tax_supports_exempt',
+        // Card surcharge (Path 2)
+        'passthrough_card_fees', 'card_surcharge_percent', 'card_surcharge_label',
+        'surcharge_disclaimer_ack_at',
+        // Tips (off by default)
+        'tips_enabled', 'tip_default_method', 'tip_default_options',
+        'tip_allow_custom', 'tip_attributable',
     ];
 
     protected $casts = [
@@ -42,6 +50,17 @@ class Tenant extends Model
         'classes_enabled'     => 'boolean',
         'trial_ends_at'       => 'datetime',
         'payment_processor_connected_at' => 'datetime',
+        // POS / tax / surcharge / tips
+        'default_tax_rate'            => 'decimal:3',
+        'tax_services_default'        => 'boolean',
+        'tax_supports_exempt'         => 'boolean',
+        'passthrough_card_fees'       => 'boolean',
+        'card_surcharge_percent'      => 'decimal:2',
+        'surcharge_disclaimer_ack_at' => 'datetime',
+        'tips_enabled'                => 'boolean',
+        'tip_default_options'         => 'array',
+        'tip_allow_custom'            => 'boolean',
+        'tip_attributable'            => 'boolean',
     ];
 
     /**

@@ -407,10 +407,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/campaign-images',          [TenantControllers\CampaignImageController::class, 'upload'])->name('campaign-images.upload');
             Route::delete('/campaign-images/{id}',   [TenantControllers\CampaignImageController::class, 'destroy'])->name('campaign-images.destroy');
 
-            Route::get('/branding',             [TenantControllers\BrandingController::class, 'index'])->name('branding.index');
-            Route::patch('/branding',           [TenantControllers\BrandingController::class, 'update'])->name('branding.update');
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
+            Route::post('/settings/test-sms',   [TenantControllers\SettingsController::class, 'sendTestSms'])->name('settings.test-sms');
 
             Route::get('/team',                 [TenantControllers\TeamController::class, 'index'])->name('team.index');
             Route::post('/team',                [TenantControllers\TeamController::class, 'store'])->name('team.store');
