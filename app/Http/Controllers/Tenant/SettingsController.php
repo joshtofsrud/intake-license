@@ -90,18 +90,21 @@ class SettingsController extends Controller
     private function updateBranding(Request $request, $tenant)
     {
         $request->validate([
-            'name'         => ['required', 'string', 'max:255'],
-            'tagline'      => ['nullable', 'string', 'max:255'],
-            'accent_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'text_color'   => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'bg_color'     => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'font_heading' => ['nullable', 'string', 'max:100'],
-            'font_body'    => ['nullable', 'string', 'max:100'],
+            'name'              => ['required', 'string', 'max:255'],
+            'tagline'           => ['nullable', 'string', 'max:255'],
+            'accent_color'      => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'text_color'        => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'bg_color'          => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'font_heading'      => ['nullable', 'string', 'max:100'],
+            'font_body'         => ['nullable', 'string', 'max:100'],
+            'logo_size_admin'   => ['nullable', 'in:small,medium,large'],
+            'logo_size_booking' => ['nullable', 'in:small,medium,large'],
         ]);
 
         $data = $request->only([
             'name', 'tagline', 'accent_color', 'text_color',
             'bg_color', 'font_heading', 'font_body',
+            'logo_size_admin', 'logo_size_booking',
         ]);
 
         if ($request->hasFile('logo')) {

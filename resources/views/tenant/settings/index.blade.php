@@ -606,6 +606,35 @@
     </div>
 
     <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Logo display size</span></div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:16px">
+        Controls how big the uploaded logo renders. Doesn't affect the file itself — re-uploading isn't needed.
+      </p>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Admin sidebar</label>
+          <select name="logo_size_admin" class="ia-input">
+            @php $adminSize = old('logo_size_admin', $currentTenant->logo_size_admin ?? 'medium'); @endphp
+            <option value="small"  @selected($adminSize === 'small')>Small (22px)</option>
+            <option value="medium" @selected($adminSize === 'medium')>Medium (26px)</option>
+            <option value="large"  @selected($adminSize === 'large')>Large (36px)</option>
+          </select>
+          <p style="font-size:11px;opacity:.5;margin-top:4px">What you see in the left navigation</p>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Booking page</label>
+          <select name="logo_size_booking" class="ia-input">
+            @php $bookSize = old('logo_size_booking', $currentTenant->logo_size_booking ?? 'medium'); @endphp
+            <option value="small"  @selected($bookSize === 'small')>Small (22px)</option>
+            <option value="medium" @selected($bookSize === 'medium')>Medium (28px)</option>
+            <option value="large"  @selected($bookSize === 'large')>Large (44px)</option>
+          </select>
+          <p style="font-size:11px;opacity:.5;margin-top:4px">What customers see at the top of your booking form</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Colors</span></div>
       @foreach([
         ['accent_color', 'Accent color', $currentTenant->accent_color ?? '#BEF264', 'Used for buttons, links, and active states'],

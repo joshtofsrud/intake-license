@@ -21,6 +21,10 @@
   ];
   $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
+
+  // Booking-page logo height per tenant setting.
+  $bookingLogoHeights = ['small' => 22, 'medium' => 28, 'large' => 44];
+  $bookingLogoHeight  = $bookingLogoHeights[$currentTenant->logo_size_booking ?? 'medium'] ?? 28;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -75,7 +79,7 @@
     button { font-family: inherit; }
     .bk-top-bar { border-bottom: 1px solid rgba(0,0,0,.08); padding: 14px var(--p-gutter); display: flex; align-items: center; justify-content: space-between; max-width: var(--p-max); margin: 0 auto; }
     .bk-top-logo { font-family: var(--p-font-heading); font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .bk-top-logo img { height: 28px; width: auto; border-radius: 4px; }
+    .bk-top-logo img { height: {{ $bookingLogoHeight }}px; width: auto; border-radius: 4px; }
     .bk-top-back { font-size: 13px; opacity: .5; transition: opacity .12s; }
     .bk-top-back:hover { opacity: 1; }
   </style>
