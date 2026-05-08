@@ -249,14 +249,15 @@
     </div>
 
     {{-- ===================================================================
-         Parts & Add-ons (physical inventory consumed during the appointment)
+         Products & Add-ons (physical inventory and custom items consumed
+         during the appointment)
          =================================================================== --}}
     @php
       $isCommittedStatus = in_array($appointment->status, ['completed', 'shipped', 'closed']);
     @endphp
     <div class="ia-card" id="parts-card">
       <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Parts & Add-ons</span>
+        <span>Products & Add-ons</span>
         @if($isCommittedStatus)
           <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;padding:2px 8px;border-radius:99px;background:var(--ia-surface-2)">Committed</span>
         @endif
@@ -283,7 +284,12 @@
             @endphp
             <tr class="part-row" data-part-id="{{ $part->id }}" data-committed="{{ $part->isCommitted() ? '1' : '0' }}">
               <td>
-                <div style="font-weight:500">{{ $part->item_name_snapshot }}</div>
+                <div style="font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span>{{ $part->item_name_snapshot }}</span>
+                  @if(!$part->inventory_item_id)
+                    <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;padding:1px 7px;border-radius:99px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border)">Custom</span>
+                  @endif
+                </div>
                 @if($part->item_sku_snapshot)
                   <div style="font-size:11px;opacity:.45;font-family:var(--ia-font-mono);margin-top:2px">{{ $part->item_sku_snapshot }}</div>
                 @endif
@@ -302,7 +308,7 @@
                   class="part-qty-edit ia-input ia-input--sm"
                   value="{{ $part->quantity }}"
                   data-part-id="{{ $part->id }}"
-                  {{ $part->isCommitted() ? 'disabled' : '' }}
+                  {{ ($part->isCommitted() && $part->inventory_item_id) ? 'disabled' : '' }}
                   style="width:60px;text-align:right">
               </td>
               <td class="ia-num">{{ format_money($part->effectiveUnitPriceCents()) }}</td>
@@ -316,12 +322,40 @@
       </table>
 
       @if($appointment->parts->isEmpty())
-        <p style="font-size:13px;opacity:.4;margin:8px 0 12px">No parts added yet.</p>
+        <p style="font-size:13px;opacity:.4;margin:8px 0 12px">No products added yet.</p>
       @endif
 
       <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--ia-border);align-items:center;position:relative">
-        <input type="text" id="part-picker-input" class="ia-input ia-input--sm" placeholder="+ Add part from inventory…" style="flex:1" autocomplete="off">
+        <input type="text" id="part-picker-input" class="ia-input ia-input--sm" placeholder="+ Add product from inventory or custom item…" style="flex:1" autocomplete="off">
         <div id="part-picker-results" style="display:none;position:absolute;top:100%;left:0;right:64px;margin-top:4px;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);max-height:280px;overflow-y:auto;z-index:20"></div>
+      </div>
+
+      {{-- Custom item inline form (shown when user clicks "+ Custom item" in the picker) --}}
+      <div id="custom-item-form" style="display:none;margin-top:10px;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);background:var(--ia-surface-2)">
+        <div style="font-size:12px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">
+          <span>Custom item</span>
+          <button type="button" id="custom-item-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="padding:2px 8px;font-size:11px">Cancel</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1.6fr 0.7fr 0.5fr auto;gap:8px;align-items:end">
+          <div>
+            <label class="ia-form-label" style="font-size:11px;margin-bottom:4px">Name</label>
+            <input type="text" id="custom-item-name" class="ia-input ia-input--sm" maxlength="255" placeholder="e.g. Scratched paint touch-up" style="width:100%">
+          </div>
+          <div>
+            <label class="ia-form-label" style="font-size:11px;margin-bottom:4px">Price</label>
+            <input type="number" id="custom-item-price" class="ia-input ia-input--sm" min="0" step="0.01" placeholder="0.00" style="width:100%;text-align:right">
+          </div>
+          <div>
+            <label class="ia-form-label" style="font-size:11px;margin-bottom:4px">Qty</label>
+            <input type="number" id="custom-item-qty" class="ia-input ia-input--sm" min="1" max="999" value="1" style="width:100%;text-align:right">
+          </div>
+          <div>
+            <button type="button" id="custom-item-add" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;cursor:pointer;opacity:.75">
+          <input type="checkbox" id="custom-item-taxable" checked> Taxable
+        </label>
       </div>
     </div>
     {{-- ================================================================== --}}
@@ -1055,7 +1089,7 @@
   }
 
   /* ===================================================================
-     Parts & Add-ons — picker, add, remove, quantity edit
+     Products & Add-ons — picker, add, remove, quantity edit, custom item
      =================================================================== */
   var partPickerInput   = document.getElementById('part-picker-input');
   var partPickerResults = document.getElementById('part-picker-results');
@@ -1067,28 +1101,36 @@
       .then(function(r) { return r.json(); });
   }
 
+  // The custom-item pin row is always shown at the top of the picker so
+  // users have an obvious escape hatch when no inventory match exists.
+  var customItemPinHtml =
+      '<div class="part-pick-row part-pick-custom" style="padding:9px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border);background:var(--ia-surface-2)">'
+    + '<div style="font-weight:500;font-size:13px;color:var(--ia-accent)">+ Custom item</div>'
+    + '<div style="font-size:11px;opacity:.55;margin-top:2px">One-off item not in inventory</div>'
+    + '</div>';
+
   function renderPickerResults(items) {
+    var html = customItemPinHtml;
     if (!items.length) {
-      partPickerResults.innerHTML = '<div style="padding:10px;font-size:12px;opacity:.5">No matches.</div>';
-      partPickerResults.style.display = 'block';
-      return;
+      html += '<div style="padding:10px;font-size:12px;opacity:.5">No matching products in inventory.</div>';
+    } else {
+      html += items.map(function(it) {
+        var stockClass = it.stock <= 0 && !it.allow_oversell ? 'opacity:.4' : '';
+        var stockNote  = it.stock <= 0 && !it.allow_oversell
+          ? '<span style="color:#F09595">Out of stock</span>'
+          : 'In stock: ' + it.stock;
+        return '<div class="part-pick-row" data-id="' + it.id + '" style="padding:9px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border);' + stockClass + '">'
+             + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'
+             + '<div style="font-weight:500;font-size:13px">' + escapeHtml(it.name) + '</div>'
+             + '<div style="font-size:12px;opacity:.7">' + it.price_display + '</div>'
+             + '</div>'
+             + '<div style="font-size:11px;opacity:.5;margin-top:2px;display:flex;justify-content:space-between">'
+             + '<span>' + (it.sku ? escapeHtml(it.sku) : '') + '</span>'
+             + '<span>' + stockNote + '</span>'
+             + '</div>'
+             + '</div>';
+      }).join('');
     }
-    var html = items.map(function(it) {
-      var stockClass = it.stock <= 0 && !it.allow_oversell ? 'opacity:.4' : '';
-      var stockNote  = it.stock <= 0 && !it.allow_oversell
-        ? '<span style="color:#F09595">Out of stock</span>'
-        : 'In stock: ' + it.stock;
-      return '<div class="part-pick-row" data-id="' + it.id + '" style="padding:9px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border);' + stockClass + '">'
-           + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">'
-           + '<div style="font-weight:500;font-size:13px">' + escapeHtml(it.name) + '</div>'
-           + '<div style="font-size:12px;opacity:.7">' + it.price_display + '</div>'
-           + '</div>'
-           + '<div style="font-size:11px;opacity:.5;margin-top:2px;display:flex;justify-content:space-between">'
-           + '<span>' + (it.sku ? escapeHtml(it.sku) : '') + '</span>'
-           + '<span>' + stockNote + '</span>'
-           + '</div>'
-           + '</div>';
-    }).join('');
     partPickerResults.innerHTML = html;
     partPickerResults.style.display = 'block';
   }
@@ -1106,7 +1148,8 @@
       var q = partPickerInput.value.trim();
       clearTimeout(debounceTimer);
       if (q.length < 1) {
-        partPickerResults.style.display = 'none';
+        // Still show the pin so "+ Custom item" is reachable from an empty box.
+        renderPickerResults([]);
         return;
       }
       debounceTimer = setTimeout(function() {
@@ -1117,10 +1160,11 @@
     });
 
     partPickerInput.addEventListener('focus', function() {
-      // Show top results on focus to make discovery easier.
-      if (!partPickerInput.value.trim()) {
+      // Always show on focus — the pin is reachable here even with no matches.
+      var q = partPickerInput.value.trim();
+      if (!q) {
         searchInventory('').then(function(d) {
-          if (d.ok && d.items.length) renderPickerResults(d.items);
+          renderPickerResults(d.ok ? d.items : []);
         });
       }
     });
@@ -1131,10 +1175,15 @@
       }
     });
 
-    // Click a result → add it to the appointment.
+    // Click a result → either open custom-item form or add the inventory part.
     partPickerResults.addEventListener('click', function(e) {
       var row = e.target.closest('.part-pick-row');
       if (!row) return;
+      partPickerResults.style.display = 'none';
+      if (row.classList.contains('part-pick-custom')) {
+        openCustomItemForm();
+        return;
+      }
       var id = row.getAttribute('data-id');
       addPart(id);
     });
@@ -1153,11 +1202,83 @@
       return r.json().then(function(d) { return { ok: r.ok, body: d }; });
     }).then(function(res) {
       if (!res.ok || !res.body.ok) {
-        alert(res.body && res.body.message || 'Could not add part.');
+        alert(res.body && res.body.message || 'Could not add item.');
         return;
       }
       // Reload — easiest way to get fresh totals + stock displays everywhere.
       window.location.reload();
+    });
+  }
+
+  // Custom item form
+  var customForm    = document.getElementById('custom-item-form');
+  var customCancel  = document.getElementById('custom-item-cancel');
+  var customAdd     = document.getElementById('custom-item-add');
+  var customName    = document.getElementById('custom-item-name');
+  var customPrice   = document.getElementById('custom-item-price');
+  var customQty     = document.getElementById('custom-item-qty');
+  var customTaxable = document.getElementById('custom-item-taxable');
+
+  function openCustomItemForm() {
+    if (!customForm) return;
+    customForm.style.display = 'block';
+    customName.value = '';
+    customPrice.value = '';
+    customQty.value = '1';
+    if (customTaxable) customTaxable.checked = true;
+    customName.focus();
+  }
+  function closeCustomItemForm() {
+    if (!customForm) return;
+    customForm.style.display = 'none';
+  }
+
+  if (customCancel) customCancel.addEventListener('click', closeCustomItemForm);
+
+  if (customAdd) {
+    customAdd.addEventListener('click', function() {
+      var name  = (customName.value || '').trim();
+      var price = parseFloat(customPrice.value || '0');
+      var qty   = parseInt(customQty.value, 10) || 1;
+      if (!name) { customName.focus(); return; }
+      if (isNaN(price) || price < 0) { customPrice.focus(); return; }
+      if (qty < 1) qty = 1;
+
+      customAdd.disabled = true;
+      customAdd.textContent = 'Adding…';
+      fetch(updateUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
+        body: JSON.stringify({
+          op: 'add_custom_item',
+          name: name,
+          unit_price_cents: Math.round(price * 100),
+          quantity: qty,
+          is_taxable: customTaxable && customTaxable.checked ? 1 : 0,
+        }),
+      }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, body: d }; });
+      }).then(function(res) {
+        if (!res.ok || !res.body.ok) {
+          alert(res.body && res.body.message || 'Could not add custom item.');
+          customAdd.disabled = false;
+          customAdd.textContent = 'Add';
+          return;
+        }
+        window.location.reload();
+      }).catch(function() {
+        alert('Network error.');
+        customAdd.disabled = false;
+        customAdd.textContent = 'Add';
+      });
+    });
+
+    // Enter in the name or price field submits.
+    [customName, customPrice, customQty].forEach(function(inp) {
+      if (!inp) return;
+      inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); customAdd.click(); }
+      });
     });
   }
 
@@ -1167,7 +1288,7 @@
       var btn = e.target.closest('.part-remove');
       if (!btn) return;
       var partId = btn.getAttribute('data-part-id');
-      if (!confirm('Remove this part?')) return;
+      if (!confirm('Remove this item?')) return;
       fetch(updateUrl, {
         method: 'PATCH',
         headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
@@ -1176,7 +1297,7 @@
         return r.json().then(function(d) { return { ok: r.ok, body: d }; });
       }).then(function(res) {
         if (!res.ok || !res.body.ok) {
-          alert(res.body && res.body.message || 'Could not remove part.');
+          alert(res.body && res.body.message || 'Could not remove item.');
           return;
         }
         window.location.reload();

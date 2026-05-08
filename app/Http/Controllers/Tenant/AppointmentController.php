@@ -678,13 +678,69 @@ class AppointmentController extends Controller
             ]);
         }
 
+        // Custom item: name + price, no inventory link, doesn't move stock.
+        // Useful for one-off shop charges that aren't worth tracking in the
+        // inventory module ("scratched paint touch-up — $15"). Stored as a
+        // part row with inventory_item_id=null; the inventory service's
+        // existing null-check makes commit/refund a no-op for these rows.
+        if ($op === 'add_custom_item') {
+            $request->validate([
+                'name'             => ['required', 'string', 'max:255'],
+                'unit_price_cents' => ['required', 'integer', 'min:0', 'max:99999999'],
+                'quantity'         => ['nullable', 'integer', 'min:1', 'max:999'],
+                'is_taxable'       => ['nullable', 'boolean'],
+            ]);
+
+            $qty = (int) ($request->input('quantity') ?? 1);
+
+            $part = TenantAppointmentPart::create([
+                'appointment_id'     => $appointment->id,
+                'inventory_item_id'  => null,
+                'item_name_snapshot' => trim($request->input('name')),
+                'item_sku_snapshot'  => null,
+                'quantity'           => $qty,
+                'unit_price_cents'   => (int) $request->input('unit_price_cents'),
+                'cost_cents_at_time' => null,
+                'is_taxable'         => $request->boolean('is_taxable', true),
+                'committed_at'       => null,
+            ]);
+
+            TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => sprintf(
+                    'Custom item added: %s (qty %d)',
+                    $part->item_name_snapshot,
+                    $qty
+                ),
+                'created_at'          => now(),
+            ]);
+
+            $this->recalcAppointmentTotals($appointment);
+
+            return response()->json([
+                'ok'   => true,
+                'part' => [
+                    'id'                 => $part->id,
+                    'name'               => $part->item_name_snapshot,
+                    'quantity'           => $part->quantity,
+                    'unit_price_cents'   => $part->unit_price_cents,
+                    'unit_price_display' => format_money($part->unit_price_cents),
+                    'line_total_cents'   => $part->lineTotalCents(),
+                    'line_total_display' => format_money($part->lineTotalCents()),
+                ],
+            ]);
+        }
+
         if ($op === 'remove_part') {
             $partId = $request->input('part_id');
             $part = TenantAppointmentPart::where('id', $partId)
                 ->where('appointment_id', $appointment->id)
                 ->first();
             if (!$part) {
-                return response()->json(['ok' => false, 'message' => 'Part not found.'], 422);
+                return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
             }
 
             // If this part has already been committed (decremented from stock),
@@ -729,18 +785,17 @@ class AppointmentController extends Controller
                 ->where('appointment_id', $appointment->id)
                 ->first();
             if (!$part) {
-                return response()->json(['ok' => false, 'message' => 'Part not found.'], 422);
+                return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
             }
 
-            // Prevent quantity edits after the appointment has been completed.
-            // Inventory is already decremented; changing quantity post-commit
-            // would require a delta movement we haven't designed for. To
-            // change the quantity, the user must move the appointment back to
-            // in_progress (which reverts the part), edit, then re-complete.
-            if ($part->isCommitted()) {
+            // Prevent quantity edits after the appointment has been completed
+            // — but only for inventory-linked parts where stock is actually
+            // decremented. Custom items don't move stock, so editing their
+            // quantity post-commit is harmless.
+            if ($part->isCommitted() && $part->inventory_item_id) {
                 return response()->json([
                     'ok'      => false,
-                    'message' => 'Move appointment back to In Progress to edit committed parts.',
+                    'message' => 'Move appointment back to In Progress to edit committed items.',
                 ], 422);
             }
 
