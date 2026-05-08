@@ -575,6 +575,95 @@ class RegisterController extends Controller
     }
 
     /**
+     * Return a single sale as JSON for the sale-detail modal.
+     * Read-only. Used by the history page and customer activity timeline.
+     */
+    public function showSaleJson(Request $request, string $subdomain, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'location', 'refundOf:id,sale_number'])
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Load related refunds (children) so the modal can summarize them.
+        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('created_at')
+            ->get(['id', 'sale_number', 'total_cents', 'paid_at', 'created_at'])
+            ->map(fn ($r) => [
+                'id'          => $r->id,
+                'sale_number' => $r->sale_number,
+                'total_cents' => (int) $r->total_cents,
+                'paid_at'     => $r->paid_at?->toIso8601String() ?? $r->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        $items = $sale->items
+            ->sortBy(fn ($i) => $i->position ?? 0)
+            ->values()
+            ->map(fn ($i) => [
+                'type'             => $i->type,
+                'name'             => $i->name_snapshot,
+                'description'      => $i->description_snapshot,
+                'quantity'         => (float) $i->quantity,
+                'unit_price_cents' => (int) $i->unit_price_cents,
+                'discount_cents'   => (int) $i->discount_cents,
+                'tax_cents'        => (int) $i->tax_cents,
+                'is_taxable'       => (bool) $i->is_taxable,
+                'line_total_cents' => (int) $i->line_total_cents,
+            ]);
+
+        return response()->json([
+            'ok'   => true,
+            'sale' => [
+                'id'             => $sale->id,
+                'sale_number'    => $sale->sale_number,
+                'status'         => $sale->status,
+                'payment_status' => $sale->payment_status,
+                'is_refund'      => $sale->refund_of_sale_id !== null,
+                'is_quote'       => $sale->payment_status === 'quote',
+                'is_draft'       => $sale->payment_status === 'draft',
+                'sale_date'      => $sale->sale_date?->toDateString(),
+                'paid_at'        => $sale->paid_at?->toIso8601String(),
+                'created_at'     => $sale->created_at?->toIso8601String(),
+                'updated_at'     => $sale->updated_at?->toIso8601String(),
+                'transaction_id' => $sale->transaction_id,
+                'payment_method' => $sale->payment_method,
+                'payment_reference' => $sale->payment_reference,
+                'notes'          => $sale->notes,
+                'subtotal_cents' => (int) $sale->subtotal_cents,
+                'discount_cents' => (int) $sale->discount_cents,
+                'tax_cents'      => (int) $sale->tax_cents,
+                'surcharge_cents'=> (int) $sale->surcharge_cents,
+                'tip_cents'      => (int) $sale->tip_cents,
+                'total_cents'    => (int) $sale->total_cents,
+                'customer'       => $sale->customer ? [
+                    'id'    => $sale->customer->id,
+                    'name'  => trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? '')),
+                    'email' => $sale->customer->email,
+                    'phone' => $sale->customer->phone,
+                ] : null,
+                'rang_up_by'     => $sale->rangUpBy
+                    ? trim(($sale->rangUpBy->first_name ?? '') . ' ' . ($sale->rangUpBy->last_name ?? ''))
+                    : null,
+                'location_name'  => $sale->location->name ?? null,
+                'refund_of'      => $sale->refundOf ? [
+                    'id'          => $sale->refundOf->id,
+                    'sale_number' => $sale->refundOf->sale_number,
+                ] : null,
+                'refunds'        => $refunds,
+                'items'          => $items,
+            ],
+        ]);
+    }
+
+    /**
      * Quotes list with dashboard metrics on top.
      * Cards: open quotes, aging (>14 days), new this week, recently converted.
      */

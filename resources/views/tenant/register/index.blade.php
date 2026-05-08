@@ -1573,6 +1573,34 @@ async function openRefundPicker(saleId) {
   }
 }
 
+// Auto-open the refund picker when arriving from the sale-detail modal's
+// "Refund this sale" button (?refund=SALE_NUMBER). Looks the sale up by
+// number directly so it doesn't depend on the search input being populated.
+(function autoloadRefundFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const saleNumber = params.get('refund');
+  if (!saleNumber) return;
+  // Strip the param so a refresh doesn't re-trigger.
+  params.delete('refund');
+  const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  window.history.replaceState({}, '', cleanUrl);
+
+  (async () => {
+    try {
+      const url = new URL(ROUTES.lookupSale, window.location.origin);
+      url.searchParams.set('sale_number', saleNumber);
+      const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+      const d = await r.json();
+      if (!d.ok) { showError(d.error || 'Sale not found.'); return; }
+      refundPickerSale = d.sale;
+      renderRefundPicker();
+      openModal('refundModal');
+    } catch (e) {
+      showError('Network error loading sale.');
+    }
+  })();
+})();
+
 function renderRefundPicker() {
   const sale = refundPickerSale;
   if (!sale) return;

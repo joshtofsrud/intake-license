@@ -76,6 +76,7 @@
     border-bottom:0.5px solid var(--ia-border);vertical-align:middle
   }
   .h-table tbody tr:last-child td{border-bottom:none}
+  .h-table tbody tr{cursor:pointer}
   .h-table tbody tr:hover{background:var(--ia-hover)}
 
   .h-sale-num{font-family:'SF Mono',Menlo,monospace;font-size:12px}
@@ -104,6 +105,8 @@
 @endpush
 
 @section('content')
+
+<x-tenant.sale-detail-modal />
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -330,6 +333,16 @@ document.querySelectorAll('.h-chip').forEach(chip => {
       c.classList.toggle('active', activeFilters.has(c.dataset.filter));
     });
     applyFilters();
+  });
+});
+
+// Row click → open sale detail modal
+allRows.forEach(row => {
+  row.addEventListener('click', () => {
+    const id = row.dataset.id;
+    if (id && typeof window.openSaleModal === 'function') {
+      window.openSaleModal(id);
+    }
   });
 });
 

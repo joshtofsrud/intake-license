@@ -118,6 +118,8 @@
 
 @section('content')
 
+<x-tenant.sale-detail-modal />
+
 {{-- Header --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -373,7 +375,12 @@
                   ];
                   $icon = $iconMap[$e['kind']] ?? 'ti-circle';
                 @endphp
-                <div class="act-row" data-act-kind="{{ $kindClass }}" @if($e['href']) onclick="window.location='{{ $e['href'] }}'" style="cursor:pointer" @endif>
+                <div class="act-row" data-act-kind="{{ $kindClass }}"
+                     @if(!empty($e['sale_id']))
+                       onclick="window.openSaleModal && window.openSaleModal('{{ $e['sale_id'] }}')" style="cursor:pointer"
+                     @elseif($e['href'])
+                       onclick="window.location='{{ $e['href'] }}'" style="cursor:pointer"
+                     @endif>
                   <div class="act-icon act-icon--{{ $e['kind'] }}"><i class="ti {{ $icon }}"></i></div>
                   <div class="act-date">{{ $e['date']->format('M j') }}</div>
                   <div class="act-main">

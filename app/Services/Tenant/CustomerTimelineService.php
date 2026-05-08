@@ -178,6 +178,7 @@ class CustomerTimelineService
 
                 return [
                     'kind'         => 'sale',
+                    'sale_id'      => $s->id,
                     'date'         => $s->sale_date,
                     'title'        => $isRefund ? 'POS refund' : 'POS sale',
                     'identifier'   => $s->sale_number ? '#' . $s->sale_number : null,
@@ -186,7 +187,7 @@ class CustomerTimelineService
                     'status_tone'  => $statusTone,
                     'amount_cents' => (int) $s->total_cents,
                     'is_refunded'  => $isRefund || $s->payment_status === 'refunded',
-                    'href'         => null, // No per-sale detail route exists yet; history index is too coarse
+                    'href'         => null, // sales open in a modal via openSaleModal(sale_id)
                 ];
             });
     }
