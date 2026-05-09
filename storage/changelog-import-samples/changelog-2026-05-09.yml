@@ -7,7 +7,7 @@
 # Valid categories: Calendar, Booking, Stripe, Customer, Workflow, Bugfix, Polish
 
 entries:
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Payment ledger Phase 1
     category: Stripe
     highlight: true
@@ -18,7 +18,7 @@ entries:
       appointments complete with a balance due. Refunds are method-aware
       and create signed ledger rows.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: tax_locked flag for externally-computed tax
     category: Stripe
     body: |
@@ -27,7 +27,7 @@ entries:
       auto-saves and recalc. New tax_locked column with backfill for any
       existing appointment-sourced sales.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Sale detail modal
     category: Workflow
     body: |
@@ -35,7 +35,7 @@ entries:
       timeline to see the sale details — line items, totals, payment
       method, and a Refund this sale button if applicable.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Settings page restyle
     category: Polish
     body: |
@@ -43,14 +43,14 @@ entries:
       Business, Branding, Communication, Account, Appearance, Payments.
       Sticky save bar at the top of each panel with dirty-tracking.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Logo size slider in Branding
     category: Polish
     body: |
       Drag to resize your logo in the admin header. Preview updates live;
       save when satisfied.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Products & Add-ons on appointments
     category: Workflow
     body: |
@@ -58,14 +58,14 @@ entries:
       parts and supplies on a service appointment. Inventory decrements
       when the appointment is marked Completed; tax rolls up correctly.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Custom items on appointments
     category: Workflow
     body: |
       Add ad-hoc parts to an appointment without inventory linkage, or
       rename any line item. Snapshot pricing preserved on completion.
 
-  - date: 2026-05-09
+  - date: '2026-05-09'
     title: Theme contrast bump
     category: Polish
     body: |

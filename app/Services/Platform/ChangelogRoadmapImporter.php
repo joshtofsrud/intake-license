@@ -163,13 +163,22 @@ class ChangelogRoadmapImporter
             ]];
         }
 
-        // Date parse
+        // Date parse — Symfony YAML may hand us a string, int (epoch), or DateTime.
+        $rawDate = $entry['date'];
         try {
-            $shippedOn = Carbon::parse((string) $entry['date'])->toDateString();
+            if ($rawDate instanceof \DateTimeInterface) {
+                $shippedOn = Carbon::instance($rawDate)->toDateString();
+            } elseif (is_int($rawDate)) {
+                // YAML auto-parsed an unquoted ISO date as an epoch timestamp.
+                $shippedOn = Carbon::createFromTimestampUTC($rawDate)->toDateString();
+            } else {
+                $shippedOn = Carbon::parse((string) $rawDate)->toDateString();
+            }
         } catch (\Throwable $e) {
+            $display = is_scalar($rawDate) ? (string) $rawDate : gettype($rawDate);
             return ['bucket' => 'errors', 'payload' => [
                 'line'    => null,
-                'message' => "Entry #{$entryNum}: invalid date '{$entry['date']}'.",
+                'message' => "Entry #{$entryNum}: invalid date '{$display}'.",
                 'raw'     => $entry,
             ]];
         }
