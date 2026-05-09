@@ -138,6 +138,20 @@ class RoadmapEntryResource extends Resource
                 Tables\Columns\ToggleColumn::make('is_published')->label('Pub'),
             ])
             ->defaultSort('display_order')
+            ->groups([
+                Tables\Grouping\Group::make('status')
+                    ->label('Status')
+                    ->getTitleFromRecordUsing(fn (RoadmapEntry $record) => $record->statusLabel())
+                    ->collapsible(),
+                Tables\Grouping\Group::make('tier')
+                    ->label('Tier')
+                    ->getTitleFromRecordUsing(fn (RoadmapEntry $record) => $record->tierLabel() ?? 'Uncategorized')
+                    ->collapsible(),
+                Tables\Grouping\Group::make('category')
+                    ->label('Category')
+                    ->collapsible(),
+            ])
+            ->defaultGroup('status')
             ->modifyQueryUsing(function (\Illuminate\Database\Eloquent\Builder $query) {
                 // Status-aware multi-key ordering:
                 //   shipped       → newest ship first
