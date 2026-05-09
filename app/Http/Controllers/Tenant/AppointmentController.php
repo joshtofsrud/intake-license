@@ -291,9 +291,12 @@ class AppointmentController extends Controller
     }
 
     /**
-     * JSON endpoint that powers the create-appointment modal — returns the
-     * tenant's services, customers (filtered by search), and resources
-     * needed to populate the picker UI.
+     * JSON endpoint that powers the create-appointment modal.
+     *
+     * Modes:
+     *   - Default: services + customers + resources (full picker setup)
+     *   - With service_ids[]: ALSO returns next-available + per-resource
+     *     alternatives via BookingService availability methods
      */
     public function pickerData(Request $request)
     {
@@ -302,9 +305,9 @@ class AppointmentController extends Controller
 
         $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
             ->where('is_active', true)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get(['id', 'name', 'duration_minutes', 'price_cents']);
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'duration_minutes', 'price_cents',
+                   'prep_before_minutes', 'cleanup_after_minutes']);
 
         $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
         if ($search !== '') {
@@ -325,10 +328,37 @@ class AppointmentController extends Controller
             ->orderBy('sort_order')->orderBy('name')
             ->get(['id', 'name', 'subtitle']);
 
+        $availability = null;
+        $serviceIds = (array) $request->query('service_ids', []);
+        $serviceIds = array_values(array_filter($serviceIds, fn($id) => is_string($id) && $id !== ''));
+
+        if (!empty($serviceIds)) {
+            $picked = $services->whereIn('id', $serviceIds);
+            $required = 0;
+            foreach ($picked as $svc) {
+                $required += (int) ($svc->prep_before_minutes ?? 0)
+                           + (int) ($svc->duration_minutes ?? 0)
+                           + (int) ($svc->cleanup_after_minutes ?? 0);
+            }
+
+            if ($required > 0) {
+                $bookingService = app(\App\Services\BookingService::class);
+                $earliest = $bookingService->nextAvailableSlot($tenant, $required, null);
+                $perResource = $bookingService->nextAvailablePerResource($tenant, $required);
+
+                $availability = [
+                    'required_minutes' => $required,
+                    'earliest'         => $earliest,
+                    'per_resource'     => $perResource,
+                ];
+            }
+        }
+
         return response()->json([
-            'services'  => $services,
-            'customers' => $customers,
-            'resources' => $resources,
+            'services'     => $services,
+            'customers'    => $customers,
+            'resources'    => $resources,
+            'availability' => $availability,
         ]);
     }
 

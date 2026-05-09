@@ -1,3 +1,287 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# Intake — Availability-first appointment modal
+#
+# What ships:
+#   1. BookingService.nextAvailableSlot + .nextAvailablePerResource (Redis 60s TTL)
+#   2. AppointmentController::pickerData accepts ?service_ids[] and returns
+#      computed availability (earliest + per-resource alternatives)
+#   3. _create_modal.blade.php redesigned: availability-first with manual
+#      override expansion, debounced re-fetch on service change
+#
+# Usage on Mac:  bash intake-availability-first-patch.sh
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+[ -f artisan ] || { echo "ABORT: not a Laravel root"; exit 1; }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 1: BookingService
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Phase 1: BookingService — nextAvailableSlot + nextAvailablePerResource"
+
+python3 <<'PY'
+from pathlib import Path
+p = Path("app/Services/BookingService.php")
+s = p.read_text()
+
+if "nextAvailableSlot" in s:
+    print("    skip: already patched")
+else:
+    old = """        return $slots;
+    }
+
+    /**
+     * Expand break records into concrete time windows for a given date."""
+
+    new = """        return $slots;
+    }
+
+    /**
+     * Walk forward day-by-day to find the earliest available slot for a service
+     * of the given duration. Optionally scoped to a specific resource. Cached
+     * in Redis (60s TTL) keyed by tenant + duration + resource.
+     *
+     * Returns: ['date' => 'Y-m-d', 'time' => 'H:i', 'resource_id' => ?string]
+     *          or null if nothing fits within $maxDaysAhead.
+     */
+    public function nextAvailableSlot(
+        Tenant $tenant,
+        int $requiredMinutes,
+        ?string $resourceId = null,
+        ?int $maxDaysAhead = null
+    ): ?array {
+        $maxDaysAhead = $maxDaysAhead ?? ($tenant->booking_window_days ?? 60);
+
+        $cacheKey = sprintf(
+            'avail:next:%s:%d:%s',
+            $tenant->id,
+            $requiredMinutes,
+            $resourceId ?? 'any'
+        );
+
+        $cached = \\Illuminate\\Support\\Facades\\Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached === 'NULL_SENTINEL' ? null : $cached;
+        }
+
+        $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
+        $earliest = now()->addHours($minNoticeHours);
+
+        $cursor = $earliest->copy()->startOfDay();
+        $stopAt = $earliest->copy()->addDays($maxDaysAhead);
+
+        while ($cursor->lte($stopAt)) {
+            $date = $cursor->toDateString();
+            $slots = $this->availableSlotsForDate(
+                $tenant,
+                $date,
+                $resourceId,
+                $requiredMinutes
+            );
+
+            if ($cursor->isSameDay($earliest)) {
+                $earliestTime = $earliest->format('H:i');
+                $slots = array_values(array_filter($slots, fn($t) => $t >= $earliestTime));
+            }
+
+            if (!empty($slots)) {
+                $result = [
+                    'date'        => $date,
+                    'time'        => $slots[0],
+                    'resource_id' => $resourceId,
+                ];
+                \\Illuminate\\Support\\Facades\\Cache::put($cacheKey, $result, 60);
+                return $result;
+            }
+            $cursor->addDay();
+        }
+
+        \\Illuminate\\Support\\Facades\\Cache::put($cacheKey, 'NULL_SENTINEL', 60);
+        return null;
+    }
+
+    /**
+     * Like nextAvailableSlot, but returns one entry per active resource.
+     * Sorted by earliest-available first.
+     */
+    public function nextAvailablePerResource(
+        Tenant $tenant,
+        int $requiredMinutes,
+        ?int $maxDaysAhead = null
+    ): array {
+        $resources = \\App\\Models\\Tenant\\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name']);
+
+        $out = [];
+        foreach ($resources as $r) {
+            $slot = $this->nextAvailableSlot($tenant, $requiredMinutes, $r->id, $maxDaysAhead);
+            if ($slot) {
+                $out[] = [
+                    'resource_id' => $r->id,
+                    'name'        => $r->name,
+                    'date'        => $slot['date'],
+                    'time'        => $slot['time'],
+                ];
+            }
+        }
+
+        usort($out, function ($a, $b) {
+            if ($a['date'] !== $b['date']) return strcmp($a['date'], $b['date']);
+            return strcmp($a['time'], $b['time']);
+        });
+
+        return $out;
+    }
+
+    /**
+     * Expand break records into concrete time windows for a given date."""
+
+    assert s.count(old) == 1, f"ABORT: BookingService anchor matched {s.count(old)}"
+    p.write_text(s.replace(old, new))
+    print("    patched: BookingService.php")
+PY
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 2: pickerData
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Phase 2: pickerData accepts service_ids[] for availability"
+
+python3 <<'PY'
+from pathlib import Path
+p = Path("app/Http/Controllers/Tenant/AppointmentController.php")
+s = p.read_text()
+
+if "nextAvailablePerResource" in s:
+    print("    skip: already patched")
+else:
+    old = """    /**
+     * JSON endpoint that powers the create-appointment modal — returns the
+     * tenant's services, customers (filtered by search), and resources
+     * needed to populate the picker UI.
+     */
+    public function pickerData(Request $request)
+    {
+        $tenant = tenant();
+        $search = trim((string) $request->query('q', ''));
+
+        $services = \\App\\Models\\Tenant\\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'duration_minutes', 'price_cents']);
+
+        $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($search !== '') {
+            $customersQuery->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', \"%{$search}%\")
+                  ->orWhere('last_name',  'like', \"%{$search}%\")
+                  ->orWhere('email',      'like', \"%{$search}%\")
+                  ->orWhere('phone',      'like', \"%{$search}%\");
+            });
+        }
+        $customers = $customersQuery
+            ->orderBy('last_name')->orderBy('first_name')
+            ->limit(15)
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone']);
+
+        $resources = \\App\\Models\\Tenant\\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'subtitle']);
+
+        return response()->json([
+            'services'  => $services,
+            'customers' => $customers,
+            'resources' => $resources,
+        ]);
+    }"""
+
+    new = """    /**
+     * JSON endpoint that powers the create-appointment modal.
+     *
+     * Modes:
+     *   - Default: services + customers + resources (full picker setup)
+     *   - With service_ids[]: ALSO returns next-available + per-resource
+     *     alternatives via BookingService availability methods
+     */
+    public function pickerData(Request $request)
+    {
+        $tenant = tenant();
+        $search = trim((string) $request->query('q', ''));
+
+        $services = \\App\\Models\\Tenant\\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'duration_minutes', 'price_cents',
+                   'prep_before_minutes', 'cleanup_after_minutes']);
+
+        $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($search !== '') {
+            $customersQuery->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', \"%{$search}%\")
+                  ->orWhere('last_name',  'like', \"%{$search}%\")
+                  ->orWhere('email',      'like', \"%{$search}%\")
+                  ->orWhere('phone',      'like', \"%{$search}%\");
+            });
+        }
+        $customers = $customersQuery
+            ->orderBy('last_name')->orderBy('first_name')
+            ->limit(15)
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone']);
+
+        $resources = \\App\\Models\\Tenant\\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'subtitle']);
+
+        $availability = null;
+        $serviceIds = (array) $request->query('service_ids', []);
+        $serviceIds = array_values(array_filter($serviceIds, fn($id) => is_string($id) && $id !== ''));
+
+        if (!empty($serviceIds)) {
+            $picked = $services->whereIn('id', $serviceIds);
+            $required = 0;
+            foreach ($picked as $svc) {
+                $required += (int) ($svc->prep_before_minutes ?? 0)
+                           + (int) ($svc->duration_minutes ?? 0)
+                           + (int) ($svc->cleanup_after_minutes ?? 0);
+            }
+
+            if ($required > 0) {
+                $bookingService = app(\\App\\Services\\BookingService::class);
+                $earliest = $bookingService->nextAvailableSlot($tenant, $required, null);
+                $perResource = $bookingService->nextAvailablePerResource($tenant, $required);
+
+                $availability = [
+                    'required_minutes' => $required,
+                    'earliest'         => $earliest,
+                    'per_resource'     => $perResource,
+                ];
+            }
+        }
+
+        return response()->json([
+            'services'     => $services,
+            'customers'    => $customers,
+            'resources'    => $resources,
+            'availability' => $availability,
+        ]);
+    }"""
+
+    assert s.count(old) == 1, f"ABORT: pickerData anchor matched {s.count(old)}"
+    p.write_text(s.replace(old, new))
+    print("    patched: AppointmentController.php")
+PY
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Phase 3: modal redesign — write file fresh
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Phase 3: rewriting _create_modal.blade.php"
+
+cat > resources/views/tenant/appointments/_create_modal.blade.php <<'BLADE_FILE'
 {{--
   New Appointment modal — availability-first design.
 
@@ -678,3 +962,28 @@ window.ApptModal = (function () {
 window.openApptModal  = function () { ApptModal.open(); };
 window.closeApptModal = function () { ApptModal.close(); };
 </script>
+BLADE_FILE
+echo "    wrote: _create_modal.blade.php"
+
+echo ""
+echo "==> Linting"
+for f in app/Services/BookingService.php app/Http/Controllers/Tenant/AppointmentController.php; do
+  if command -v php >/dev/null 2>&1; then php -l "$f"; else echo "    (no php — skip lint $f)"; fi
+done
+
+echo ""
+echo "==> Patch complete."
+echo ""
+echo "Files touched:"
+echo "  app/Services/BookingService.php"
+echo "  app/Http/Controllers/Tenant/AppointmentController.php"
+echo "  resources/views/tenant/appointments/_create_modal.blade.php"
+echo ""
+echo "Next:"
+echo "  git add -A && git commit -m 'Availability-first appointment modal with Redis caching'"
+echo "  git push"
+echo ""
+echo "Server:"
+echo "  cd /var/www/intake && git pull"
+echo "  php artisan optimize:clear && php artisan view:clear && php artisan cache:clear"
+echo "  sudo systemctl restart php8.3-fpm"

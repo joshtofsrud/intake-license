@@ -605,6 +605,105 @@ class BookingService
     }
 
     /**
+     * Walk forward day-by-day to find the earliest available slot for a service
+     * of the given duration. Optionally scoped to a specific resource. Cached
+     * in Redis (60s TTL) keyed by tenant + duration + resource.
+     *
+     * Returns: ['date' => 'Y-m-d', 'time' => 'H:i', 'resource_id' => ?string]
+     *          or null if nothing fits within $maxDaysAhead.
+     */
+    public function nextAvailableSlot(
+        Tenant $tenant,
+        int $requiredMinutes,
+        ?string $resourceId = null,
+        ?int $maxDaysAhead = null
+    ): ?array {
+        $maxDaysAhead = $maxDaysAhead ?? ($tenant->booking_window_days ?? 60);
+
+        $cacheKey = sprintf(
+            'avail:next:%s:%d:%s',
+            $tenant->id,
+            $requiredMinutes,
+            $resourceId ?? 'any'
+        );
+
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached === 'NULL_SENTINEL' ? null : $cached;
+        }
+
+        $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
+        $earliest = now()->addHours($minNoticeHours);
+
+        $cursor = $earliest->copy()->startOfDay();
+        $stopAt = $earliest->copy()->addDays($maxDaysAhead);
+
+        while ($cursor->lte($stopAt)) {
+            $date = $cursor->toDateString();
+            $slots = $this->availableSlotsForDate(
+                $tenant,
+                $date,
+                $resourceId,
+                $requiredMinutes
+            );
+
+            if ($cursor->isSameDay($earliest)) {
+                $earliestTime = $earliest->format('H:i');
+                $slots = array_values(array_filter($slots, fn($t) => $t >= $earliestTime));
+            }
+
+            if (!empty($slots)) {
+                $result = [
+                    'date'        => $date,
+                    'time'        => $slots[0],
+                    'resource_id' => $resourceId,
+                ];
+                \Illuminate\Support\Facades\Cache::put($cacheKey, $result, 60);
+                return $result;
+            }
+            $cursor->addDay();
+        }
+
+        \Illuminate\Support\Facades\Cache::put($cacheKey, 'NULL_SENTINEL', 60);
+        return null;
+    }
+
+    /**
+     * Like nextAvailableSlot, but returns one entry per active resource.
+     * Sorted by earliest-available first.
+     */
+    public function nextAvailablePerResource(
+        Tenant $tenant,
+        int $requiredMinutes,
+        ?int $maxDaysAhead = null
+    ): array {
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name']);
+
+        $out = [];
+        foreach ($resources as $r) {
+            $slot = $this->nextAvailableSlot($tenant, $requiredMinutes, $r->id, $maxDaysAhead);
+            if ($slot) {
+                $out[] = [
+                    'resource_id' => $r->id,
+                    'name'        => $r->name,
+                    'date'        => $slot['date'],
+                    'time'        => $slot['time'],
+                ];
+            }
+        }
+
+        usort($out, function ($a, $b) {
+            if ($a['date'] !== $b['date']) return strcmp($a['date'], $b['date']);
+            return strcmp($a['time'], $b['time']);
+        });
+
+        return $out;
+    }
+
+    /**
      * Expand break records into concrete time windows for a given date.
      * Handles one-offs and recurring (daily/weekly/monthly) records.
      *
