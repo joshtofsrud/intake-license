@@ -259,6 +259,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::get('/appointments/picker-data', [TenantControllers\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');
+            Route::get('/appointments/day-strip',   [TenantControllers\AppointmentController::class, 'dayStrip'])->name('appointments.day-strip');
+            Route::get('/appointments/day-times',   [TenantControllers\AppointmentController::class, 'dayTimes'])->name('appointments.day-times');
+            Route::get('/appointments/resolve-resource', [TenantControllers\AppointmentController::class, 'resolveResource'])->name('appointments.resolve-resource');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
             Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');

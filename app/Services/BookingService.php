@@ -704,6 +704,96 @@ class BookingService
     }
 
     /**
+     * For a window of N days starting from $startDate, return the count of
+     * available slots per day plus a status (open/closed/past/full/beyond_window).
+     */
+    public function dayCounts(
+        Tenant $tenant,
+        int $requiredMinutes,
+        string $startDate,
+        int $days = 7
+    ): array {
+        $cacheKey = sprintf(
+            'avail:counts:%s:%d:%s:%d',
+            $tenant->id,
+            $requiredMinutes,
+            $startDate,
+            $days
+        );
+
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
+        $minNoticeAt = now()->addHours($minNoticeHours);
+        $windowDays = (int) ($tenant->booking_window_days ?? 60);
+        $windowEnd = now()->addDays($windowDays);
+
+        $cursor = \Carbon\Carbon::parse($startDate)->startOfDay();
+        $out = [];
+
+        for ($i = 0; $i < $days; $i++) {
+            $date = $cursor->toDateString();
+            $entry = ['date' => $date, 'count' => 0, 'status' => 'open'];
+
+            if ($cursor->isPast() && !$cursor->isToday()) {
+                $entry['status'] = 'past';
+            }
+            elseif ($cursor->gt($windowEnd)) {
+                $entry['status'] = 'beyond_window';
+            }
+            else {
+                $slots = $this->availableSlotsForDate($tenant, $date, null, $requiredMinutes);
+
+                if ($cursor->isToday()) {
+                    $earliestTime = $minNoticeAt->format('H:i');
+                    $slots = array_values(array_filter($slots, fn($t) => $t >= $earliestTime));
+                }
+
+                $count = count($slots);
+                $entry['count'] = $count;
+
+                if ($count === 0) {
+                    $entry['status'] = $cursor->isToday() ? 'full' : 'closed';
+                }
+            }
+
+            $out[] = $entry;
+            $cursor->addDay();
+        }
+
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $out, 60);
+        return $out;
+    }
+
+    /**
+     * Find the first active resource that's free for the given window.
+     * Used by the day-strip auto-assign flow.
+     */
+    public function resolveResourceForSlot(
+        Tenant $tenant,
+        string $date,
+        string $time,
+        int $requiredMinutes
+    ): ?string {
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id']);
+
+        foreach ($resources as $r) {
+            $slots = $this->availableSlotsForDate($tenant, $date, $r->id, $requiredMinutes);
+            if (in_array($time, $slots, true)) {
+                return $r->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Expand break records into concrete time windows for a given date.
      * Handles one-offs and recurring (daily/weekly/monthly) records.
      *

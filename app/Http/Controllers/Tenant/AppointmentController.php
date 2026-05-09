@@ -362,6 +362,121 @@ class AppointmentController extends Controller
         ]);
     }
 
+    public function dayStrip(Request $request)
+    {
+        $tenant = tenant();
+
+        $serviceIds = (array) $request->query('service_ids', []);
+        $serviceIds = array_values(array_filter($serviceIds, fn($id) => is_string($id) && $id !== ''));
+
+        if (empty($serviceIds)) {
+            return response()->json(['days' => [], 'required_minutes' => 0]);
+        }
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->whereIn('id', $serviceIds)
+            ->get(['duration_minutes', 'prep_before_minutes', 'cleanup_after_minutes']);
+
+        $required = 0;
+        foreach ($services as $svc) {
+            $required += (int) ($svc->prep_before_minutes ?? 0)
+                       + (int) ($svc->duration_minutes ?? 0)
+                       + (int) ($svc->cleanup_after_minutes ?? 0);
+        }
+
+        if ($required === 0) {
+            return response()->json(['days' => [], 'required_minutes' => 0]);
+        }
+
+        $startDate = (string) $request->query('start_date', now()->toDateString());
+        $days      = max(1, min(14, (int) $request->query('days', 7)));
+
+        $bookingService = app(\App\Services\BookingService::class);
+        $dayData = $bookingService->dayCounts($tenant, $required, $startDate, $days);
+
+        return response()->json([
+            'days'             => $dayData,
+            'required_minutes' => $required,
+        ]);
+    }
+
+    public function dayTimes(Request $request)
+    {
+        $tenant = tenant();
+
+        $serviceIds = (array) $request->query('service_ids', []);
+        $serviceIds = array_values(array_filter($serviceIds, fn($id) => is_string($id) && $id !== ''));
+        $date = (string) $request->query('date', '');
+
+        if (empty($serviceIds) || $date === '') {
+            return response()->json(['times' => [], 'required_minutes' => 0]);
+        }
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->whereIn('id', $serviceIds)
+            ->get(['duration_minutes', 'prep_before_minutes', 'cleanup_after_minutes']);
+
+        $required = 0;
+        foreach ($services as $svc) {
+            $required += (int) ($svc->prep_before_minutes ?? 0)
+                       + (int) ($svc->duration_minutes ?? 0)
+                       + (int) ($svc->cleanup_after_minutes ?? 0);
+        }
+
+        if ($required === 0) {
+            return response()->json(['times' => [], 'required_minutes' => 0]);
+        }
+
+        $bookingService = app(\App\Services\BookingService::class);
+        $times = $bookingService->availableSlotsForDate($tenant, $date, null, $required);
+
+        if (\Carbon\Carbon::parse($date)->isToday()) {
+            $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
+            $cutoff = now()->addHours($minNoticeHours)->format('H:i');
+            $times = array_values(array_filter($times, fn($t) => $t >= $cutoff));
+        }
+
+        return response()->json([
+            'times'            => $times,
+            'required_minutes' => $required,
+        ]);
+    }
+
+    public function resolveResource(Request $request)
+    {
+        $tenant = tenant();
+
+        $serviceIds = (array) $request->query('service_ids', []);
+        $serviceIds = array_values(array_filter($serviceIds, fn($id) => is_string($id) && $id !== ''));
+        $date = (string) $request->query('date', '');
+        $time = (string) $request->query('time', '');
+
+        if (empty($serviceIds) || $date === '' || $time === '') {
+            return response()->json(['resource_id' => null]);
+        }
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->whereIn('id', $serviceIds)
+            ->get(['duration_minutes', 'prep_before_minutes', 'cleanup_after_minutes']);
+
+        $required = 0;
+        foreach ($services as $svc) {
+            $required += (int) ($svc->prep_before_minutes ?? 0)
+                       + (int) ($svc->duration_minutes ?? 0)
+                       + (int) ($svc->cleanup_after_minutes ?? 0);
+        }
+
+        if ($required === 0) {
+            return response()->json(['resource_id' => null]);
+        }
+
+        $bookingService = app(\App\Services\BookingService::class);
+        $resourceId = $bookingService->resolveResourceForSlot($tenant, $date, $time, $required);
+
+        return response()->json(['resource_id' => $resourceId]);
+    }
+
+
     public function show(Request $request, string $subdomain, string $id)
     {
         if ($request->expectsJson() || $request->ajax()) {
