@@ -673,7 +673,69 @@ class SaleService
                 'payment_status' => $allRefunded ? 'refunded' : 'partial',
             ]);
 
-            return $this->recalculate($refund->fresh('items'));
+            $finalRefund = $this->recalculate($refund->fresh('items'));
+
+            // Appointment-payment ledger hook for refunds.
+            //
+            // If the original sale was tied to an appointment, write a refund
+            // ledger row against the most recent inbound payment on that
+            // appointment. The refund is tied to the new refund-sale via
+            // register_sale_id and to the original payment via reference_payment_id.
+            //
+            // Wrapped to never roll back the refund-sale on failure: the cash
+            // movement is real even if the ledger write trips. Logged for
+            // manual reconciliation.
+            //
+            // Phase 1 limitation: refunds against a single inbound payment.
+            // If refund amount exceeds that one row, we log and bail rather
+            // than half-implementing a cascade across deposit + balance.
+            if ($original->appointment_id) {
+                try {
+                    $refundCents = (int) abs($finalRefund->total_cents);
+                    if ($refundCents > 0) {
+                        $originalPayment = \App\Models\Tenant\TenantAppointmentPayment::query()
+                            ->where('register_sale_id', $original->id)
+                            ->whereIn('kind', [
+                                \App\Models\Tenant\TenantAppointmentPayment::KIND_DEPOSIT,
+                                \App\Models\Tenant\TenantAppointmentPayment::KIND_BALANCE,
+                            ])
+                            ->orderByDesc('recorded_at')
+                            ->first();
+
+                        if (! $originalPayment) {
+                            \Illuminate\Support\Facades\Log::warning('Refund ledger: no original payment row found for sale', [
+                                'refund_sale_id'   => $finalRefund->id,
+                                'original_sale_id' => $original->id,
+                                'appointment_id'   => $original->appointment_id,
+                            ]);
+                        } elseif ($refundCents > $originalPayment->amount_cents) {
+                            \Illuminate\Support\Facades\Log::warning('Refund ledger: refund exceeds single original payment, skipping auto-write', [
+                                'refund_sale_id'      => $finalRefund->id,
+                                'refund_cents'        => $refundCents,
+                                'original_payment_id' => $originalPayment->id,
+                                'original_amount'     => $originalPayment->amount_cents,
+                            ]);
+                        } else {
+                            app(\App\Services\Tenant\AppointmentPaymentService::class)->refund(
+                                original:       $originalPayment,
+                                amountCents:    $refundCents,
+                                method:         $data['refund_method'] ?? null,
+                                registerSaleId: $finalRefund->id,
+                                notes:          "Refund via sale {$finalRefund->sale_number}",
+                            );
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Appointment refund ledger write failed', [
+                        'refund_sale_id'   => $finalRefund->id,
+                        'original_sale_id' => $original->id,
+                        'appointment_id'   => $original->appointment_id,
+                        'error'            => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return $finalRefund;
         });
     }
 
