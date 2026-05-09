@@ -579,6 +579,7 @@ const cart = {
   refund_meta: null,    // {original_sale_id, original_sale_number, refund_method} — set when first refund line added
   tipCents: 0, discountCents: 0,
   payment_method: null, payment_reference: null,
+  tax_locked: false,    // when true, calcTax sums per-line tax_cents instead of computing from rate
 };
 const fmt = (cents) => '$' + (cents / 100).toFixed(2);
 const fmtNeg = (cents) => '-$' + (cents / 100).toFixed(2);
@@ -599,6 +600,11 @@ function buildDraftPayload() {
     tip_cents: cart.tipCents,
     items: cart.items.map(i => {
       const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+      // Round-trip per-line tax for tax_locked sales so recalc preserves it.
+      if (cart.tax_locked) {
+        out.tax_cents = i.tax_cents || 0;
+        if (i.tax_rate_snapshot != null) out.tax_rate_snapshot = i.tax_rate_snapshot;
+      }
       if (i.type === 'product') out.inventory_item_id = i.source_id;
       if (i.type === 'service') out.service_id = i.source_id;
       if (i.type === 'open_item') {
@@ -982,6 +988,10 @@ function calcRefundSubtotal() {
   return cart.refund_lines.reduce((sum, r) => sum + Math.round(r.price_cents * r.qty), 0);
 }
 function calcTax() {
+  // tax_locked: per-line tax was set externally (e.g. by the appointment bridge).
+  if (cart.tax_locked) {
+    return cart.items.reduce((s, i) => s + (i.tax_cents || 0), 0);
+  }
   if (!CFG.taxRate) return 0;
   let taxable = 0;
   cart.items.forEach(i => { if (i.is_taxable) taxable += Math.round(i.price_cents * i.qty); });
@@ -1500,6 +1510,7 @@ async function resumeDraft(id) {
     cart.draft_id = data.draft.id;
     cart.customer = data.draft.customer;
     cart.tipCents = data.draft.tip_cents || 0;
+    cart.tax_locked = !!data.draft.tax_locked;
     cart.items = (data.draft.items || []).map(i => ({
       key: ++lineKey,
       type: i.type,
@@ -1508,6 +1519,8 @@ async function resumeDraft(id) {
       price_cents: i.price_cents,
       qty: i.qty,
       is_taxable: i.is_taxable,
+      tax_cents: i.tax_cents || 0,
+      tax_rate_snapshot: i.tax_rate_snapshot,
     }));
     closeModal('draftsModal');
     renderCart();

@@ -489,9 +489,9 @@ class SaleService
             'quantity'            => $quantity,
             'unit_price_cents'    => $unitPriceCents,
             'discount_cents'      => $discountCents,
-            'tax_rate_snapshot'   => null,
+            'tax_rate_snapshot'   => $data['tax_rate_snapshot'] ?? null,
             'is_taxable'          => $isTaxable,
-            'tax_cents'           => 0,
+            'tax_cents'           => (int) ($data['tax_cents'] ?? 0),
             'tip_cents'           => 0,
             'line_total_cents'    => $lineTotalCents,
             'assigned_staff_id'   => $data['assigned_staff_id'] ?? null,
@@ -507,6 +507,7 @@ class SaleService
     public function recalculate(TenantSale $sale): TenantSale
     {
         $tenant = $sale->tenant;
+        $taxLocked = (bool) ($sale->tax_locked ?? false);
         $taxRate = (float) ($tenant->default_tax_rate ?? 0);
         $taxServicesByDefault = (bool) ($tenant->tax_services_default ?? true);
 
@@ -517,6 +518,13 @@ class SaleService
         foreach ($sale->items as $item) {
             $subtotal += $item->line_total_cents;
             $discount += $item->discount_cents;
+
+            // tax_locked sales (e.g. bridge-created from appointments) carry
+            // pre-computed per-line tax that we must preserve, not recompute.
+            if ($taxLocked) {
+                $tax += (int) $item->tax_cents;
+                continue;
+            }
 
             $shouldTax = $item->is_taxable
                 && ($item->type !== 'service' || $taxServicesByDefault);

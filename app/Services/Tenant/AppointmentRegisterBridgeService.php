@@ -127,6 +127,7 @@ class AppointmentRegisterBridgeService
                 'subtotal_cents'      => (int) $appointment->subtotal_cents,
                 'tax_cents'           => (int) $appointment->tax_cents,
                 'total_cents'         => (int) $appointment->total_cents,
+                'tax_locked'          => true,
                 'notes'               => 'Auto-created from appointment ' . ($appointment->ra_number ?? $appointment->id),
             ]);
 
@@ -242,7 +243,7 @@ class AppointmentRegisterBridgeService
             'tax_cents'          => $taxCents,
             'tax_rate_snapshot'  => $data['tax_rate_snapshot'] ?? null,
             'is_taxable'         => (bool) ($data['is_taxable'] ?? false),
-            'line_total_cents'   => $subtotal + $taxCents,
+            'line_total_cents'   => $subtotal,
             'position'           => $data['position'],
             'notes'              => $data['notes'] ?? null,
             'created_at'         => now(),

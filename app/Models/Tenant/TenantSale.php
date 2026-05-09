@@ -25,6 +25,7 @@ class TenantSale extends Model
         'metadata',
         'subtotal_cents', 'discount_cents', 'tax_cents',
         'surcharge_cents', 'tip_cents', 'total_cents',
+        'tax_locked',
         'paid_at', 'payment_method', 'payment_reference',
         'register_id',
         'location_id',
@@ -42,6 +43,7 @@ class TenantSale extends Model
         'tip_cents'      => 'integer',
         'total_cents'    => 'integer',
         'was_quote'      => 'boolean',
+        'tax_locked'     => 'boolean',
         'metadata'       => 'array',
     ];
 

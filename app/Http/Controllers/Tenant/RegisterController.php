@@ -356,6 +356,8 @@ class RegisterController extends Controller
                 ] : null,
                 'tip_cents'   => $draft->tip_cents,
                 'notes'       => $draft->notes,
+                'tax_locked'  => (bool) $draft->tax_locked,
+                'tax_cents'   => (int) $draft->tax_cents,
                 'items'       => $draft->items->map(fn ($i) => [
                     'type'              => $i->type,
                     'source_id'         => $i->service_id ?? $i->inventory_item_id,
@@ -365,6 +367,8 @@ class RegisterController extends Controller
                     'price_cents'       => $i->unit_price_cents,
                     'qty'               => (float) $i->quantity,
                     'is_taxable'        => (bool) $i->is_taxable,
+                    'tax_cents'         => (int) $i->tax_cents,
+                    'tax_rate_snapshot' => $i->tax_rate_snapshot,
                 ])->values(),
             ],
         ]);
