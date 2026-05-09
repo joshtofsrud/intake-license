@@ -1,0 +1,73 @@
+# Sample changelog import file for May 9, 2026 ships.
+# Upload via Master Admin → Changelog → Import from file.
+# All entries import as drafts; you publish manually after review.
+#
+# Required fields: date (YYYY-MM-DD), title, body
+# Optional fields: category, highlight (true/false)
+# Valid categories: Calendar, Booking, Stripe, Customer, Workflow, Bugfix, Polish
+
+entries:
+  - date: 2026-05-09
+    title: Payment ledger Phase 1
+    category: Stripe
+    highlight: true
+    body: |
+      Every dollar now flows through the register and gets a ledger row.
+      New tenant_appointment_payments table, AppointmentRegisterBridgeService,
+      AppointmentPaymentService. Bridge auto-creates draft sales when
+      appointments complete with a balance due. Refunds are method-aware
+      and create signed ledger rows.
+
+  - date: 2026-05-09
+    title: tax_locked flag for externally-computed tax
+    category: Stripe
+    body: |
+      Sales created by external integrations (appointment bridge, future
+      Stripe Connect deposits) preserve their tax allocation through JS
+      auto-saves and recalc. New tax_locked column with backfill for any
+      existing appointment-sourced sales.
+
+  - date: 2026-05-09
+    title: Sale detail modal
+    category: Workflow
+    body: |
+      Click any row in admin/register/history or in customer activity
+      timeline to see the sale details — line items, totals, payment
+      method, and a Refund this sale button if applicable.
+
+  - date: 2026-05-09
+    title: Settings page restyle
+    category: Polish
+    body: |
+      Six-tab unified settings page replaces the old multi-page split.
+      Business, Branding, Communication, Account, Appearance, Payments.
+      Sticky save bar at the top of each panel with dirty-tracking.
+
+  - date: 2026-05-09
+    title: Logo size slider in Branding
+    category: Polish
+    body: |
+      Drag to resize your logo in the admin header. Preview updates live;
+      save when satisfied.
+
+  - date: 2026-05-09
+    title: Products & Add-ons on appointments
+    category: Workflow
+    body: |
+      Bike repair shops, salons, and other service businesses can now bill
+      parts and supplies on a service appointment. Inventory decrements
+      when the appointment is marked Completed; tax rolls up correctly.
+
+  - date: 2026-05-09
+    title: Custom items on appointments
+    category: Workflow
+    body: |
+      Add ad-hoc parts to an appointment without inventory linkage, or
+      rename any line item. Snapshot pricing preserved on completion.
+
+  - date: 2026-05-09
+    title: Theme contrast bump
+    category: Polish
+    body: |
+      Theme B and Theme C tokens nudged for better readability without
+      changing hue. Affects every dark-theme page.

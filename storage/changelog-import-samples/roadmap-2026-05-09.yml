@@ -1,0 +1,54 @@
+# Sample roadmap import file.
+# Upload via Master Admin → Roadmap → Import from file.
+#
+# Required fields: status, title, body
+# Optional fields: category, timeframe, order
+# Valid statuses: shipped, in_progress, next_up, considering
+
+entries:
+  # Promotions to "shipped" from May 9 work
+  - status: shipped
+    title: Payment ledger architecture
+    body: |
+      Every dollar through the register, every dollar gets a ledger row.
+      New tenant_appointment_payments table tracks deposits, balance
+      payments, refunds, and overage refunds. Future-proofed for Stripe
+      Connect partial payments via the tax_locked flag.
+
+  - status: shipped
+    title: Sale detail modal
+    body: |
+      Click any sale row in register history or customer activity to see
+      details — line items, totals, payment method, refund button.
+
+  - status: shipped
+    title: Settings page restyle
+    body: |
+      Six-tab unified page (Business, Branding, Communication, Account,
+      Appearance, Payments) replaces the old multi-page split.
+
+  - status: shipped
+    title: Products & Add-ons on appointments
+    body: |
+      Service appointments can now bill parts from inventory. Each line
+      shows stock impact. Inventory commits on Completed status.
+
+  # Next up
+  - status: next_up
+    title: Refund modal wiring
+    timeframe: ~30 min
+    order: 1
+    body: |
+      Wire the existing sale-detail modal's "Refund this sale" button to
+      AppointmentPaymentService::refund(). Creates a refund ledger row
+      tied to the original payment.
+
+  - status: next_up
+    title: Stripe Connect onboarding & deposits
+    timeframe: multi-session
+    order: 2
+    body: |
+      Connect account onboarding for tenants. Webhook for partial-payment
+      deposits (will arrive with their own tax allocation — exactly the
+      case tax_locked was designed for). Reconciliation. The actual
+      last-step launch blocker.
