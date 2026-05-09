@@ -95,7 +95,7 @@ class RoadmapEntryResource extends Resource
                 Tables\Columns\TextColumn::make('category')->badge(),
                 Tables\Columns\TextColumn::make('rough_timeframe')->label('Timing'),
                 Tables\Columns\TextColumn::make('display_order')->label('Order')->sortable(),
-                Tables\Columns\IconColumn::make('is_published')->boolean()->label('Pub'),
+                Tables\Columns\ToggleColumn::make('is_published')->label('Pub'),
             ])
             ->defaultSort('display_order')
             ->filters([
@@ -103,7 +103,21 @@ class RoadmapEntryResource extends Resource
                 Tables\Filters\SelectFilter::make('status')->options(RoadmapEntry::STATUSES),
             ])
             ->actions([Tables\Actions\EditAction::make()])
-            ->bulkActions([Tables\Actions\DeleteBulkAction::make()]);
+            ->bulkActions([
+                Tables\Actions\BulkAction::make('publish')
+                    ->label('Publish selected')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->action(fn ($records) => $records->each->update(['is_published' => true])),
+                Tables\Actions\BulkAction::make('unpublish')
+                    ->label('Unpublish selected')
+                    ->icon('heroicon-o-eye-slash')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->action(fn ($records) => $records->each->update(['is_published' => false])),
+                Tables\Actions\DeleteBulkAction::make(),
+            ]);
     }
 
     public static function getPages(): array

@@ -78,8 +78,8 @@ class ChangelogEntryResource extends Resource
                 Tables\Columns\TextColumn::make('shipped_on')->date('M j, Y')->sortable(),
                 Tables\Columns\TextColumn::make('title')->searchable()->limit(60),
                 Tables\Columns\TextColumn::make('category')->badge(),
-                Tables\Columns\IconColumn::make('is_published')->boolean()->label('Pub'),
-                Tables\Columns\IconColumn::make('is_highlighted')->boolean()->label('Pin'),
+                Tables\Columns\ToggleColumn::make('is_published')->label('Pub'),
+                Tables\Columns\ToggleColumn::make('is_highlighted')->label('Pin'),
             ])
             ->defaultSort('shipped_on', 'desc')
             ->filters([
@@ -91,7 +91,21 @@ class ChangelogEntryResource extends Resource
                 ]),
             ])
             ->actions([Tables\Actions\EditAction::make()])
-            ->bulkActions([Tables\Actions\DeleteBulkAction::make()]);
+            ->bulkActions([
+                Tables\Actions\BulkAction::make('publish')
+                    ->label('Publish selected')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->action(fn ($records) => $records->each->update(['is_published' => true])),
+                Tables\Actions\BulkAction::make('unpublish')
+                    ->label('Unpublish selected')
+                    ->icon('heroicon-o-eye-slash')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->action(fn ($records) => $records->each->update(['is_published' => false])),
+                Tables\Actions\DeleteBulkAction::make(),
+            ]);
     }
 
     public static function getPages(): array
