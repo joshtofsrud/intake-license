@@ -266,12 +266,42 @@ class ChangelogRoadmapImporter
             ]];
         }
 
+        // Optional date fields — same int/DateTime/string defense as changelog.
+        $shippedOn = $this->coerceDate($entry['shipped_on'] ?? null);
+        $targetMonth = $this->coerceDate($entry['target_month'] ?? null);
+        // Force target_month to first-of-month for clean grouping.
+        if ($targetMonth) {
+            $targetMonth = Carbon::parse($targetMonth)->startOfMonth()->toDateString();
+        }
+
+        // Optional tier (1-4)
+        $tier = isset($entry['tier']) ? (int) $entry['tier'] : null;
+        if ($tier !== null && ($tier < 1 || $tier > 4)) {
+            return ['bucket' => 'errors', 'payload' => [
+                'line'    => null,
+                'message' => "Entry #{$entryNum}: invalid tier '{$entry['tier']}'. Must be 1-4.",
+                'raw'     => $entry,
+            ]];
+        }
+
+        // Shipped items must have a shipped_on date.
+        if ($status === 'shipped' && ! $shippedOn) {
+            return ['bucket' => 'errors', 'payload' => [
+                'line'    => null,
+                'message' => "Entry #{$entryNum}: status='shipped' requires shipped_on date.",
+                'raw'     => $entry,
+            ]];
+        }
+
         $incoming = [
             'status'          => $status,
+            'tier'            => $tier,
             'title'           => Str::limit((string) $entry['title'], 191, ''),
             'category'        => isset($entry['category']) ? (string) $entry['category'] : null,
             'body'            => (string) $entry['body'],
             'rough_timeframe' => isset($entry['timeframe']) ? Str::limit((string) $entry['timeframe'], 64, '') : null,
+            'shipped_on'      => $shippedOn,
+            'target_month'    => $targetMonth,
             'display_order'   => (int) ($entry['order'] ?? 0),
             'is_published'    => false,
         ];
@@ -290,15 +320,18 @@ class ChangelogRoadmapImporter
         $existing = [
             'id'              => $existingModel->id,
             'status'          => $existingModel->status,
+            'tier'            => $existingModel->tier,
             'title'           => $existingModel->title,
             'category'        => $existingModel->category,
             'body'            => $existingModel->body,
             'rough_timeframe' => $existingModel->rough_timeframe,
+            'shipped_on'      => $existingModel->shipped_on?->toDateString(),
+            'target_month'    => $existingModel->target_month?->toDateString(),
             'display_order'   => $existingModel->display_order,
             'is_published'    => $existingModel->is_published,
         ];
 
-        $diff = $this->diff($existing, $incoming, ['category', 'body', 'rough_timeframe', 'display_order']);
+        $diff = $this->diff($existing, $incoming, ['tier', 'category', 'body', 'rough_timeframe', 'shipped_on', 'target_month', 'display_order']);
 
         if (empty($diff)) {
             return ['bucket' => 'skipped', 'payload' => array_merge($incoming, [
@@ -312,6 +345,23 @@ class ChangelogRoadmapImporter
             'incoming' => array_merge($incoming, ['_entry_num' => $entryNum]),
             'diff'     => $diff,
         ]];
+    }
+
+    /** Coerce YAML int (epoch), DateTime, or string into a YYYY-MM-DD or null. */
+    private function coerceDate($raw): ?string
+    {
+        if ($raw === null || $raw === '') return null;
+        try {
+            if ($raw instanceof \DateTimeInterface) {
+                return Carbon::instance($raw)->toDateString();
+            }
+            if (is_int($raw)) {
+                return Carbon::createFromTimestampUTC($raw)->toDateString();
+            }
+            return Carbon::parse((string) $raw)->toDateString();
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function diff(array $existing, array $incoming, array $compareKeys): array

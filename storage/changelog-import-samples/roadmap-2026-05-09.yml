@@ -1,14 +1,18 @@
 # Sample roadmap import file.
 # Upload via Master Admin → Roadmap → Import from file.
 #
-# Required fields: status, title, body
-# Optional fields: category, timeframe, order
+# Required: status, title, body
+# Optional: tier (1-4), category, timeframe, order, shipped_on, target_month
 # Valid statuses: shipped, in_progress, next_up, considering
+# Tier 1 = launch blockers · Tier 2 = engagement · Tier 3 = onboarding · Tier 4 = growth
 
 entries:
-  # Promotions to "shipped" from May 9 work
+  # Shipped — May 9 work
   - status: shipped
+    tier: 1
     title: Payment ledger architecture
+    category: Stripe
+    shipped_on: '2026-05-09'
     body: |
       Every dollar through the register, every dollar gets a ledger row.
       New tenant_appointment_payments table tracks deposits, balance
@@ -16,26 +20,49 @@ entries:
       Connect partial payments via the tax_locked flag.
 
   - status: shipped
+    tier: 4
     title: Sale detail modal
+    category: Workflow
+    shipped_on: '2026-05-09'
     body: |
       Click any sale row in register history or customer activity to see
       details — line items, totals, payment method, refund button.
 
   - status: shipped
+    tier: 4
     title: Settings page restyle
+    category: Polish
+    shipped_on: '2026-05-09'
     body: |
       Six-tab unified page (Business, Branding, Communication, Account,
       Appearance, Payments) replaces the old multi-page split.
 
   - status: shipped
+    tier: 4
     title: Products & Add-ons on appointments
+    category: Workflow
+    shipped_on: '2026-05-09'
     body: |
       Service appointments can now bill parts from inventory. Each line
       shows stock impact. Inventory commits on Completed status.
 
+  # In progress
+  - status: in_progress
+    tier: 1
+    title: Stripe Connect onboarding & deposits
+    category: Stripe
+    target_month: '2026-05-01'
+    order: 1
+    body: |
+      Connect account onboarding for tenants. Webhook for partial-payment
+      deposits arriving with their own tax allocation. Reconciliation. The
+      actual last-step launch blocker.
+
   # Next up
   - status: next_up
+    tier: 1
     title: Refund modal wiring
+    category: Stripe
     timeframe: ~30 min
     order: 1
     body: |
@@ -44,11 +71,31 @@ entries:
       tied to the original payment.
 
   - status: next_up
-    title: Stripe Connect onboarding & deposits
-    timeframe: multi-session
+    tier: 1
+    title: Trial → paid conversion flow
+    category: Stripe
+    target_month: '2026-06-01'
     order: 2
     body: |
-      Connect account onboarding for tenants. Webhook for partial-payment
-      deposits (will arrive with their own tax allocation — exactly the
-      case tax_locked was designed for). Reconciliation. The actual
-      last-step launch blocker.
+      14-day free trial, no card required at signup. Conversion banners on
+      day 14 and day 2. Stripe checkout on convert.
+
+  - status: next_up
+    tier: 2
+    title: Abandoned booking recovery
+    category: Customer
+    target_month: '2026-06-01'
+    order: 3
+    body: |
+      Auto-reach out to customers who started a booking but didn't
+      complete it. Pre-built email sequences per industry.
+
+  # Considering — explicit non-commitment
+  - status: considering
+    tier: 4
+    title: Native iOS/Android apps
+    timeframe: only if PWA demand signals warrant
+    body: |
+      Building native apps is expensive. PWA delivers 85% of native UX at
+      5% of the cost. We'll only build native if PWA usage is high and shops
+      repeatedly request it past 250 paying customers.
