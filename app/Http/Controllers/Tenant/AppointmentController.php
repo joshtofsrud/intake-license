@@ -568,10 +568,9 @@ class AppointmentController extends Controller
                 'ok'              => true,
                 'sale_id'         => $sale->id,
                 'sale_number'     => $sale->sale_number,
-                'redirect_url'    => route('tenant.register.drafts.show', [
+                'redirect_url'    => route('tenant.register.index', [
                     'subdomain' => $tenant->subdomain,
-                    'id'        => $sale->id,
-                ]),
+                ]) . '?resume=' . $sale->id,
                 'message'         => 'Deposit sale created. Take payment in the register.',
             ]);
         }

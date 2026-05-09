@@ -1744,7 +1744,7 @@ loadDrafts().then(refreshDraftsBanner);
             return;
           }
           listEl.innerHTML = data.sales.map(function (s) {
-            return '<div style="display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0;cursor:pointer" onclick="window.location.href=\'/register/drafts/' + s.id + '\'">'
+            return '<div style="display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0;cursor:pointer" onclick="window.location.href=\'?resume=' + s.id + '\'">'
                  + '<div>'
                  + '<div style="font-weight:500;font-size:13px">' + escapeHtml(s.customer_name) + (s.ra_number ? ' — Appt ' + escapeHtml(s.ra_number) : '') + '</div>'
                  + '<div style="font-size:11px;color:var(--ia-text-dim);margin-top:2px">' + escapeHtml(s.sale_number) + ' · ' + s.item_count + ' line' + (s.item_count === 1 ? '' : 's') + '</div>'

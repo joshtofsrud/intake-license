@@ -109,7 +109,7 @@
         Sale {{ $bannerSale->sale_number }} parked in the register for {{ $appointment->customerName() }}.
       </div>
     </div>
-    <a href="{{ route('tenant.register.drafts.show', ['subdomain' => $currentTenant->subdomain, 'id' => $bannerSale->id]) }}"
+    <a href="{{ route('tenant.register.index', ['subdomain' => $currentTenant->subdomain]) }}?resume={{ $bannerSale->id }}"
        class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
   </div>
 @elseif($bannerPaidFull)
@@ -813,7 +813,7 @@
       @endif
 
       @if($hasOpenSale)
-        <a href="{{ route('tenant.register.drafts.show', ['subdomain' => $currentTenant->subdomain, 'id' => $openSale->id]) }}"
+        <a href="{{ route('tenant.register.index', ['subdomain' => $currentTenant->subdomain]) }}?resume={{ $openSale->id }}"
            class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
           Take payment in register
         </a>
