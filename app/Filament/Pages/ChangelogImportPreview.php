@@ -155,7 +155,7 @@ class ChangelogImportPreview extends Page
     private function backUrl(string $kind): string
     {
         return $kind === ChangelogRoadmapImporter::KIND_ROADMAP
-            ? route('filament.admin.resources.roadmap-entries.index')
+            ? route('filament.admin.resources.roadmap.index')
             : route('filament.admin.resources.changelog.index');
     }
 }
