@@ -53,6 +53,7 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Pages\Dashboard::class,
                 \App\Filament\Pages\BillingConfiguration::class,
+                \App\Filament\Pages\ChangelogImportPreview::class,
             ])
             ->widgets([
                 ServerHealthWidget::class,
