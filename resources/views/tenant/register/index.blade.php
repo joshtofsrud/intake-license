@@ -292,6 +292,23 @@
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
 </div>
 
+@if(($appointmentTrayCount ?? 0) > 0)
+  {{-- Appointment-sourced sales waiting for payment. Auto-created when staff
+       marked an appointment Completed. We surface them prominently so staff
+       can't miss a parked sale. --}}
+  <div id="appointment-tray-banner" style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.35);border-radius:var(--ia-r-md);padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px">
+    <div style="display:flex;align-items:center;gap:12px;flex:1">
+      <span style="font-size:20px">💳</span>
+      <div>
+        <div style="font-weight:500;font-size:14px;color:var(--ia-text)">{{ $appointmentTrayCount }} {{ $appointmentTrayCount === 1 ? 'appointment is' : 'appointments are' }} ready for checkout</div>
+        <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">From recently completed appointments. Click to take payment.</div>
+      </div>
+    </div>
+    <button type="button" id="appointment-tray-toggle" class="ia-btn ia-btn--primary ia-btn--sm">View list</button>
+  </div>
+  <div id="appointment-tray-list" style="display:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:8px;margin-bottom:18px"></div>
+@endif
+
 <div class="reg-page">
 
   <div class="reg-grid">
@@ -1702,6 +1719,54 @@ loadDrafts().then(refreshDraftsBanner);
   window.history.replaceState({}, '', cleanUrl);
   // Reuse the existing resumeDraft path — it handles drafts and quotes both.
   resumeDraft(resumeId);
+})();
+
+/* ===================================================================
+   Appointment tray — lazy-loads on click. Lists every pending sale
+   that came from a completed appointment, lets staff jump to one.
+   =================================================================== */
+(function () {
+  var toggle = document.getElementById('appointment-tray-toggle');
+  var listEl = document.getElementById('appointment-tray-list');
+  if (!toggle || !listEl) return;
+
+  var loaded = false;
+  var open = false;
+
+  toggle.addEventListener('click', function () {
+    if (!loaded) {
+      fetch('{{ route("tenant.register.appointment-tray", ["subdomain" => tenant()->subdomain]) }}', {
+        headers: { 'Accept': 'application/json' }
+      }).then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok || !data.sales || !data.sales.length) {
+            listEl.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--ia-text-dim);text-align:center">No pending appointment sales.</div>';
+            return;
+          }
+          listEl.innerHTML = data.sales.map(function (s) {
+            return '<div style="display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0;cursor:pointer" onclick="window.location.href=\'/register/drafts/' + s.id + '\'">'
+                 + '<div>'
+                 + '<div style="font-weight:500;font-size:13px">' + escapeHtml(s.customer_name) + (s.ra_number ? ' — Appt ' + escapeHtml(s.ra_number) : '') + '</div>'
+                 + '<div style="font-size:11px;color:var(--ia-text-dim);margin-top:2px">' + escapeHtml(s.sale_number) + ' · ' + s.item_count + ' line' + (s.item_count === 1 ? '' : 's') + '</div>'
+                 + '</div>'
+                 + '<div style="font-weight:500;font-size:14px">' + escapeHtml(s.total_display) + '</div>'
+                 + '<button class="ia-btn ia-btn--primary ia-btn--sm">Take payment →</button>'
+                 + '</div>';
+          }).join('');
+          loaded = true;
+        });
+    }
+    open = !open;
+    listEl.style.display = open ? 'block' : 'none';
+    toggle.textContent = open ? 'Hide list' : 'View list';
+  });
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
 })();
 </script>
 @endpush

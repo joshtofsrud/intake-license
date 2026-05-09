@@ -47,6 +47,8 @@ class TenantAppointment extends Model
     public function responses(): HasMany   { return $this->hasMany(TenantAppointmentResponse::class, 'appointment_id'); }
     public function notes(): HasMany       { return $this->hasMany(TenantAppointmentNote::class, 'appointment_id')->orderBy('created_at'); }
     public function charges(): HasMany     { return $this->hasMany(TenantAppointmentCharge::class, 'appointment_id'); }
+    public function payments(): HasMany    { return $this->hasMany(TenantAppointmentPayment::class, 'appointment_id')->orderBy('recorded_at'); }
+    public function sales(): HasMany       { return $this->hasMany(TenantSale::class, 'appointment_id'); }
 
     public function scopeActive($q)        { return $q->whereNotIn('status', ['cancelled','refunded']); }
     public function customerName(): string { return $this->customer_first_name . ' ' . $this->customer_last_name; }
@@ -91,6 +93,57 @@ class TenantAppointment extends Model
     {
         return $this->hasMany(TenantWorkOrderField::class, 'tenant_id', 'tenant_id')
             ->orderBy('sort_order');
+    }
+
+    /**
+     * Sum the ledger. Authoritative — paid_cents column is just a cache.
+     * Use this when you need to be sure (e.g. in the status hook).
+     */
+    public function paidCentsFromLedger(): int
+    {
+        // Allow callers to use already-loaded relation without an extra query.
+        if ($this->relationLoaded('payments')) {
+            return (int) $this->payments->sum('amount_cents');
+        }
+        return (int) $this->payments()->sum('amount_cents');
+    }
+
+    /**
+     * What the customer still owes. Negative means tenant owes customer (overage).
+     * Reads from cached paid_cents — load payments and call paidCentsFromLedger()
+     * if you need ledger-truth.
+     */
+    public function balanceDueCents(): int
+    {
+        return (int) $this->total_cents - (int) $this->paid_cents;
+    }
+
+    /**
+     * Whether there's an active (non-voided) register sale tied to this
+     * appointment. If true, the appointment is locked from edits.
+     *
+     * "Active" = sale exists, status is not 'cancelled'.
+     */
+    public function hasActiveRegisterSale(): bool
+    {
+        if ($this->relationLoaded('sales')) {
+            return $this->sales->where('status', '!=', 'cancelled')->isNotEmpty();
+        }
+        return $this->sales()->where('status', '!=', 'cancelled')->exists();
+    }
+
+    /**
+     * The single open draft sale created by the auto-send-on-Completed flow.
+     * Returns null if there is no sale, or if the sale is closed/paid (lock
+     * may release on paid; that's a UX choice).
+     */
+    public function openRegisterSale(): ?TenantSale
+    {
+        return $this->sales()
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->latest('created_at')
+            ->first();
     }
 
 }

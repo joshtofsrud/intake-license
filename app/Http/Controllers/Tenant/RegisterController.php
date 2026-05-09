@@ -23,10 +23,19 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
+        // Count of appointment-sourced drafts ready for checkout. Used to
+        // render the "X ready for checkout" banner on the register page.
+        $appointmentTrayCount = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->whereNotNull('appointment_id')
+            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->count();
+
         return view('tenant.register.index', [
             'tenant'     => $tenant,
             'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
             'taxLabel'   => $this->taxLabel($tenant),
+            'appointmentTrayCount' => $appointmentTrayCount,
             'tipsConfig' => [
                 'enabled'      => (bool) $tenant->tips_enabled,
                 'method'       => $tenant->tip_default_method,
@@ -41,6 +50,44 @@ class RegisterController extends Controller
                 'percent' => (float) ($tenant->card_surcharge_percent ?? 0),
                 'label'   => $tenant->card_surcharge_label ?? 'Card processing fee',
             ],
+        ]);
+    }
+
+    /**
+     * List of appointment-sourced sales ready for checkout. Used by the
+     * Register's "Ready for checkout" tray on the register home and by the
+     * dedicated tray page.
+     */
+    public function appointmentTray(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $sales = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->whereNotNull('appointment_id')
+            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->with(['customer', 'appointment'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'ok' => true,
+            'sales' => $sales->map(function ($s) {
+                $appt = $s->appointment;
+                return [
+                    'id'              => $s->id,
+                    'sale_number'     => $s->sale_number,
+                    'total_cents'     => (int) $s->total_cents,
+                    'total_display'   => format_money((int) $s->total_cents),
+                    'customer_name'   => $s->customer
+                        ? trim(($s->customer->first_name ?? '') . ' ' . ($s->customer->last_name ?? ''))
+                        : ($appt ? trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? '')) : 'Walk-in'),
+                    'appointment_id'  => $appt?->id,
+                    'ra_number'       => $appt?->ra_number,
+                    'created_at'      => $s->created_at?->toIso8601String(),
+                    'item_count'      => (int) \DB::table('tenant_sale_items')->where('sale_id', $s->id)->count(),
+                ];
+            })->values(),
         ]);
     }
 

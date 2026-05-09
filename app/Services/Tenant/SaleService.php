@@ -113,7 +113,39 @@ class SaleService
                 }
             }
 
-            return $this->recalculate($sale->fresh('items'));
+            $finalSale = $this->recalculate($sale->fresh('items'));
+
+            // Appointment-payment hook (mirrors commitDraft path).
+            if ($finalSale->appointment_id && $finalSale->payment_status === 'paid') {
+                try {
+                    $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
+                    if ($appointment) {
+                        $existingPayments = $appointment->payments()->count();
+                        $kind = $existingPayments === 0
+                            ? \App\Models\Tenant\TenantAppointmentPayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantAppointmentPayment::KIND_BALANCE;
+
+                        app(\App\Services\Tenant\AppointmentPaymentService::class)->record(
+                            appointment:     $appointment,
+                            amountCents:     (int) $finalSale->total_cents,
+                            kind:            $kind,
+                            source:          \App\Models\Tenant\TenantAppointmentPayment::SOURCE_REGISTER_SALE,
+                            method:          $finalSale->payment_method ?? 'other',
+                            registerSaleId:  $finalSale->id,
+                            externalReference: $finalSale->payment_reference,
+                            notes:           "Paid via sale {$finalSale->sale_number}",
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Appointment payment ledger write failed (createSale)', [
+                        'sale_id'        => $finalSale->id,
+                        'appointment_id' => $finalSale->appointment_id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return $finalSale;
         });
     }
 
@@ -308,6 +340,48 @@ class SaleService
             }
 
             $finalSale = $this->recalculate($sale->fresh('items'));
+
+            // Appointment-payment hook. If this sale is linked to an
+            // appointment (auto-created from Completed, or manual deposit
+            // collection), write a payment row to the appointment ledger.
+            //
+            // The kind is determined by whether the appointment has any
+            // existing payments — first payment ever = 'deposit', else
+            // 'balance'. The bridge service handles the recompute of
+            // appointment.paid_cents and payment_status.
+            //
+            // Wrapped to never roll back the sale on failure: if the
+            // ledger write fails for some reason, the sale is still real
+            // money and committed, and an admin can manually record the
+            // payment row later. Logging surfaces the issue.
+            if ($finalSale->appointment_id && $newPaymentStatus === 'paid') {
+                try {
+                    $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
+                    if ($appointment) {
+                        $existingPayments = $appointment->payments()->count();
+                        $kind = $existingPayments === 0
+                            ? \App\Models\Tenant\TenantAppointmentPayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantAppointmentPayment::KIND_BALANCE;
+
+                        app(\App\Services\Tenant\AppointmentPaymentService::class)->record(
+                            appointment:     $appointment,
+                            amountCents:     (int) $finalSale->total_cents,
+                            kind:            $kind,
+                            source:          \App\Models\Tenant\TenantAppointmentPayment::SOURCE_REGISTER_SALE,
+                            method:          $finalSale->payment_method ?? 'other',
+                            registerSaleId:  $finalSale->id,
+                            externalReference: $finalSale->payment_reference,
+                            notes:           "Paid via sale {$finalSale->sale_number}",
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Appointment payment ledger write failed', [
+                        'sale_id'        => $finalSale->id,
+                        'appointment_id' => $finalSale->appointment_id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
 
             // Class-registration hook. If this sale was opened from the
             // "register customer for class via cash" flow, the class_session_id

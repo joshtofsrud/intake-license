@@ -90,6 +90,54 @@
 
 @section('content')
 
+@php
+  // Banner state — drives the top-of-page status banner.
+  // Three cases: open draft sale (amber, take payment), paid (green),
+  // overage (amber warning, refund customer). Anything else = no banner.
+  $bannerSale     = $appointment->openRegisterSale();
+  $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
+  $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
+  $bannerPaidFull = ($appointment->payment_status === 'paid');
+@endphp
+
+@if($bannerSale)
+  <div style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;line-height:1">💳</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Ready for checkout — {{ format_money($bannerBalance) }}</div>
+      <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
+        Sale {{ $bannerSale->sale_number }} parked in the register for {{ $appointment->customerName() }}.
+      </div>
+    </div>
+    <a href="{{ route('tenant.register.drafts.show', ['subdomain' => $currentTenant->subdomain, 'id' => $bannerSale->id]) }}"
+       class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
+  </div>
+@elseif($bannerPaidFull)
+  <div style="background:rgba(132,204,22,.08);border:0.5px solid rgba(132,204,22,.30);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;line-height:1">✅</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Paid in full — {{ format_money($appointment->paid_cents) }}</div>
+      <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
+        @if($appointment->payments()->count() === 1 && $appointment->payments()->first()->kind === 'deposit')
+          Customer prepaid before service. No checkout needed.
+        @else
+          {{ $appointment->payments()->count() }} {{ $appointment->payments()->count() === 1 ? 'payment' : 'payments' }} on file.
+        @endif
+      </div>
+    </div>
+  </div>
+@elseif($bannerOverage > 0)
+  <div style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.45);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;line-height:1">⚠️</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Customer owed {{ format_money($bannerOverage) }}</div>
+      <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
+        Customer paid more than the final total. Refund the difference through the register.
+      </div>
+    </div>
+  </div>
+@endif
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">
@@ -166,7 +214,14 @@
 
     {{-- Line items --}}
     <div class="ia-card">
-      <div class="appt-section-label">Services</div>
+      <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Services</span>
+        @if($bannerSale)
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm void-sale-btn" style="font-size:11px;padding:4px 10px" data-context="services">
+            <span style="opacity:.6">🔒</span> Edit (voids draft)
+          </button>
+        @endif
+      </div>
 
       <table class="appt-line-items" id="line-items-table">
         <thead>
@@ -256,11 +311,18 @@
       $isCommittedStatus = in_array($appointment->status, ['completed', 'shipped', 'closed']);
     @endphp
     <div class="ia-card" id="parts-card">
-      <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between">
+      <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <span>Products & Add-ons</span>
-        @if($isCommittedStatus)
-          <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;padding:2px 8px;border-radius:99px;background:var(--ia-surface-2)">Committed</span>
-        @endif
+        <div style="display:flex;align-items:center;gap:8px">
+          @if($isCommittedStatus)
+            <span style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;padding:2px 8px;border-radius:99px;background:var(--ia-surface-2)">Committed</span>
+          @endif
+          @if($bannerSale)
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm void-sale-btn" style="font-size:11px;padding:4px 10px" data-context="parts">
+              <span style="opacity:.6">🔒</span> Edit (voids draft)
+            </button>
+          @endif
+        </div>
       </div>
 
       <table class="appt-line-items" id="parts-table">
@@ -670,14 +732,21 @@
       </div>
     </div>
 
-    {{-- Payment --}}
+    {{-- Payment ledger --}}
+    @php
+      $payments      = $appointment->payments;
+      $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
+      $overage       = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
+      $openSale      = $appointment->openRegisterSale();
+      $hasOpenSale   = $openSale !== null;
+    @endphp
     <div class="ia-card ia-card--tight">
       <div class="appt-section-label">Payment</div>
       <div class="sidebar-stat">
         <span class="sidebar-stat-label">Status</span>
         <span>
           <span class="ia-badge ia-badge--{{ $appointment->payment_status }}">
-            {{ ucfirst($appointment->payment_status) }}
+            {{ ucwords(str_replace('_', ' ', $appointment->payment_status)) }}
           </span>
         </span>
       </div>
@@ -691,37 +760,77 @@
         <span class="sidebar-stat-value">{{ format_money($appointment->tax_cents) }}</span>
       </div>
       @endif
-      @if($appointment->charges->sum('amount_cents') > 0)
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">Charges</span>
-        <span class="sidebar-stat-value">{{ format_money($appointment->charges->sum('amount_cents')) }}</span>
-      </div>
-      @endif
       <div class="sidebar-stat">
         <span class="sidebar-stat-label" style="font-weight:500">Total</span>
         <span class="sidebar-stat-value" style="font-size:16px">{{ format_money($appointment->total_cents) }}</span>
       </div>
-      @if($appointment->paid_cents > 0)
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">Paid</span>
-        <span class="sidebar-stat-value" style="color:#3B6D11">{{ format_money($appointment->paid_cents) }}</span>
-      </div>
+
+      @if($payments->isNotEmpty())
+        <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border)">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-bottom:8px">Payment ledger</div>
+          @foreach($payments as $p)
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;font-size:12px;padding:6px 0;border-bottom:0.5px solid var(--ia-border)">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:500;color:var(--ia-text)">
+                  {{ $p->kind === 'refund' || $p->kind === 'overage_refund' ? 'Refund' : ucfirst($p->kind) }}
+                  · {{ $p->methodLabel() }}
+                </div>
+                <div style="font-size:10px;color:var(--ia-text-dim);margin-top:2px">
+                  {{ $p->recorded_at?->format('M j · g:i A') }}
+                  @if($p->source === 'register_sale' && $p->register_sale_id)
+                    · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
+                  @endif
+                </div>
+              </div>
+              <div style="font-weight:500;color:{{ $p->amount_cents < 0 ? '#F09595' : '#A8D670' }}">
+                {{ $p->amount_cents < 0 ? '−' : '+' }}{{ format_money(abs($p->amount_cents)) }}
+              </div>
+            </div>
+          @endforeach
+        </div>
       @endif
 
-      <form method="POST" action="{{ $updateUrl }}" style="margin-top:12px">
-        @csrf @method('PATCH')
-        <input type="hidden" name="op" value="payment">
-        <select name="payment_status" class="ia-input ia-input--sm" style="margin-bottom:8px">
-          @foreach(['unpaid','partial','paid','refunded'] as $ps)
-            <option value="{{ $ps }}" @selected($appointment->payment_status === $ps)>
-              {{ ucfirst($ps) }}
-            </option>
-          @endforeach
-        </select>
-        <button type="submit" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%">
-          Update payment
+      <div class="sidebar-stat" style="margin-top:8px">
+        <span class="sidebar-stat-label">Paid so far</span>
+        <span class="sidebar-stat-value" style="color:#A8D670">{{ format_money($appointment->paid_cents) }}</span>
+      </div>
+
+      @if($balanceDue > 0)
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
+          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500">{{ format_money($balanceDue) }}</span>
+        </div>
+      @elseif($overage > 0)
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500;color:#FBBF24">Customer is owed</span>
+          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500;color:#FBBF24">{{ format_money($overage) }}</span>
+        </div>
+      @else
+        <div class="sidebar-stat">
+          <span class="sidebar-stat-label" style="font-weight:500">Balance owed</span>
+          <span class="sidebar-stat-value" style="font-size:15px;font-weight:500;color:#A8D670">$0.00</span>
+        </div>
+      @endif
+
+      @if($hasOpenSale)
+        <a href="{{ route('tenant.register.drafts.show', ['subdomain' => $currentTenant->subdomain, 'id' => $openSale->id]) }}"
+           class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
+          Take payment in register
+        </a>
+      @elseif($balanceDue > 0 && !in_array($appointment->status, ['cancelled', 'refunded']))
+        <button type="button" id="record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;margin-top:14px">
+          + Record deposit
         </button>
-      </form>
+        <div id="record-deposit-form" style="display:none;margin-top:10px;padding:12px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border)">
+          <label style="font-size:11px;color:var(--ia-text-dim);display:block;margin-bottom:4px">Amount</label>
+          <input type="number" id="record-deposit-amount" min="0.01" step="0.01" placeholder="0.00" style="width:100%;padding:6px 10px;background:var(--ia-bg);border:0.5px solid var(--ia-border);color:var(--ia-text);border-radius:6px;font-size:13px;margin-bottom:8px">
+          <div style="display:flex;gap:6px">
+            <button type="button" id="record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex:1">Cancel</button>
+            <button type="button" id="record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex:1">Send to register</button>
+          </div>
+          <p style="font-size:10px;color:var(--ia-text-dim);margin:8px 0 0">Creates a draft sale in the register where you take the actual payment.</p>
+        </div>
+      @endif
     </div>
 
     {{-- Cancel appointment (destructive, separate from forward flow) --}}
@@ -1333,6 +1442,104 @@
       });
     });
   }
+
+  /* ===================================================================
+     Record deposit — opens form, sends to register, redirects.
+     =================================================================== */
+  var depositToggle = document.getElementById('record-deposit-toggle');
+  var depositForm   = document.getElementById('record-deposit-form');
+  var depositCancel = document.getElementById('record-deposit-cancel');
+  var depositGo     = document.getElementById('record-deposit-go');
+  var depositAmt    = document.getElementById('record-deposit-amount');
+
+  if (depositToggle) {
+    depositToggle.addEventListener('click', function () {
+      depositToggle.style.display = 'none';
+      depositForm.style.display = 'block';
+      if (depositAmt) depositAmt.focus();
+    });
+  }
+  if (depositCancel) {
+    depositCancel.addEventListener('click', function () {
+      depositForm.style.display = 'none';
+      depositToggle.style.display = '';
+      depositAmt.value = '';
+    });
+  }
+  if (depositGo) {
+    depositGo.addEventListener('click', function () {
+      var dollars = parseFloat(depositAmt.value || '0');
+      if (isNaN(dollars) || dollars <= 0) {
+        depositAmt.focus();
+        return;
+      }
+      depositGo.disabled = true;
+      depositGo.textContent = 'Sending…';
+      fetch(updateUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
+        body: JSON.stringify({
+          op: 'record_deposit',
+          amount_cents: Math.round(dollars * 100),
+        }),
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, body: d }; });
+      }).then(function (res) {
+        if (!res.ok || !res.body.ok) {
+          alert(res.body && res.body.message || 'Could not create deposit sale.');
+          depositGo.disabled = false;
+          depositGo.textContent = 'Send to register';
+          return;
+        }
+        // Redirect to the register draft
+        window.location.href = res.body.redirect_url;
+      }).catch(function () {
+        alert('Network error.');
+        depositGo.disabled = false;
+        depositGo.textContent = 'Send to register';
+      });
+    });
+
+    if (depositAmt) {
+      depositAmt.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); depositGo.click(); }
+      });
+    }
+  }
+
+  /* ===================================================================
+     Void register sale — staff clicked "Edit (voids draft)" on a locked
+     section. Confirms, voids the open draft sale, reloads the page so
+     the now-unlocked editing UI renders cleanly.
+     =================================================================== */
+  document.querySelectorAll('.void-sale-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!confirm('Void the draft register sale to edit this appointment?\n\nThe sale will be cancelled. After your edits, completing the appointment again creates a fresh draft.')) {
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Voiding…';
+      fetch(updateUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': csrf, 'Accept':'application/json' },
+        body: JSON.stringify({ op: 'void_register_sale' }),
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, body: d }; });
+      }).then(function (res) {
+        if (!res.ok || !res.body.ok) {
+          alert(res.body && res.body.message || 'Could not void sale.');
+          btn.disabled = false;
+          btn.textContent = '🔒 Edit (voids draft)';
+          return;
+        }
+        window.location.reload();
+      }).catch(function () {
+        alert('Network error.');
+        btn.disabled = false;
+        btn.textContent = '🔒 Edit (voids draft)';
+      });
+    });
+  });
 
 }());
 </script>

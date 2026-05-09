@@ -10,6 +10,7 @@ use App\Models\Tenant\TenantAppointmentPart;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantInventoryItem;
 use App\Services\Tenant\AppointmentInventoryService;
+use App\Services\Tenant\AppointmentRegisterBridgeService;
 use App\Services\Tenant\InventoryStockException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +19,10 @@ use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
 {
-    public function __construct(protected AppointmentInventoryService $appointmentInventory) {}
+    public function __construct(
+        protected AppointmentInventoryService $appointmentInventory,
+        protected AppointmentRegisterBridgeService $registerBridge,
+    ) {}
 
     // Active statuses can move freely between each other (forward or backward).
     // Terminal statuses (cancelled/refunded) can only be reopened to pending.
@@ -227,7 +231,7 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'parts.inventoryItem', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields'])
+            ->with(['items', 'addons', 'parts.inventoryItem', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
             ->firstOrFail();
 
         $transitions = self::TRANSITIONS[$appointment->status] ?? [];
@@ -425,6 +429,32 @@ class AppointmentController extends Controller
 
             $appointment->update(['status' => $newStatus]);
 
+            // Register bridge:
+            //   entering committed status → create draft sale (or mark paid / overage)
+            //   leaving committed status  → void any open draft sale
+            $bridgeResult = null;
+            if (!$wasCommitted && $willCommit) {
+                try {
+                    $bridgeResult = $this->registerBridge->onAppointmentEnteringCommittedStatus($appointment);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Register bridge enter failed', [
+                        'appointment_id' => $appointment->id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                    // Don't fail the status change — it's already written and inventory committed.
+                    // The bridge can be retried via a "regenerate sale" action later.
+                }
+            } elseif ($wasCommitted && !$willCommit) {
+                try {
+                    $this->registerBridge->onAppointmentLeavingCommittedStatus($appointment);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Register bridge leave failed', [
+                        'appointment_id' => $appointment->id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
+
             if ($wasCommitted && !$willCommit) {
                 $this->appointmentInventory->revertParts($appointment);
             }
@@ -449,13 +479,126 @@ class AppointmentController extends Controller
                 }
             }
             TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'system', 'is_customer_visible' => false, 'note_content' => 'Status changed to ' . ucwords(str_replace('_', ' ', $newStatus)) . '.', 'created_at' => now()]);
-            return response()->json(['ok' => true, 'status' => $newStatus, 'label' => ucwords(str_replace('_', ' ', $newStatus))]);
+            return response()->json([
+                'ok'             => true,
+                'status'         => $newStatus,
+                'label'          => ucwords(str_replace('_', ' ', $newStatus)),
+                'register_bridge'=> $bridgeResult,
+                'reload'         => true, // signal client to reload — banner / lock state needs fresh data
+            ]);
         }
         if ($op === 'payment') {
+            // DEPRECATED: this op used to let staff manually flip
+            // payment_status. The ledger is now the source of truth — staff
+            // record actual payments via the register, and payment_status
+            // is computed from ledger sums. We keep this for backward-compat
+            // but only allow flipping to/from 'unpaid' (clearing) since any
+            // other state must reflect real ledger entries.
             $newPayment = $request->input('payment_status');
-            if (!in_array($newPayment, ['unpaid', 'partial', 'paid', 'refunded'], true)) return response()->json(['ok' => false, 'message' => 'Invalid payment status.'], 422);
-            $appointment->update(['payment_status' => $newPayment]);
-            return response()->json(['ok' => true, 'payment_status' => $newPayment]);
+            if (!in_array($newPayment, ['unpaid'], true)) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Payment status is computed from the payment ledger. Record a payment via the register instead.',
+                ], 422);
+            }
+            $appointment->update(['payment_status' => 'unpaid']);
+            return response()->json(['ok' => true, 'payment_status' => 'unpaid']);
+        }
+
+        if ($op === 'record_deposit') {
+            // Routes a deposit through the register: creates a tiny draft
+            // sale with one open_item line for the deposit amount, attached
+            // to this appointment. Staff completes the sale in the register
+            // to actually take the payment. On sale-close, the bridge
+            // writes a payment row.
+            //
+            // Validation: amount must be positive, balance must allow it
+            // (no taking deposits beyond the appointment total).
+            $amountCents = (int) $request->input('amount_cents');
+            if ($amountCents <= 0) {
+                return response()->json(['ok' => false, 'message' => 'Amount must be positive.'], 422);
+            }
+            $balanceDue = max(0, (int) $appointment->total_cents - (int) $appointment->paid_cents);
+            if ($amountCents > $balanceDue && $balanceDue > 0) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => "Deposit can't exceed remaining balance of " . format_money($balanceDue) . '.',
+                ], 422);
+            }
+
+            // Build a one-line deposit-collection sale.
+            $sale = \DB::transaction(function () use ($appointment, $amountCents, $tenant) {
+                $saleNumber = $this->generateDepositSaleNumber($tenant->id);
+                $sale = \App\Models\Tenant\TenantSale::create([
+                    'id'                  => (string) Str::uuid(),
+                    'tenant_id'           => $tenant->id,
+                    'sale_number'         => $saleNumber,
+                    'sale_date'           => now()->toDateString(),
+                    'status'              => 'pending',
+                    'payment_status'      => 'unpaid',
+                    'customer_id'         => $appointment->customer_id,
+                    'appointment_id'      => $appointment->id,
+                    'rang_up_by_user_id'  => Auth::guard('tenant')->id(),
+                    'subtotal_cents'      => $amountCents,
+                    'tax_cents'           => 0,
+                    'total_cents'         => $amountCents,
+                    'notes'               => 'Deposit collection for appointment ' . ($appointment->ra_number ?? $appointment->id),
+                ]);
+
+                DB::table('tenant_sale_items')->insert([
+                    'id'                 => (string) Str::uuid(),
+                    'tenant_id'          => $tenant->id,
+                    'sale_id'            => $sale->id,
+                    'type'               => 'open_item',
+                    'name_snapshot'      => 'Deposit toward appointment ' . ($appointment->ra_number ?? ''),
+                    'quantity'           => 1,
+                    'unit_price_cents'   => $amountCents,
+                    'line_total_cents'   => $amountCents,
+                    'is_taxable'         => false,
+                    'position'           => 0,
+                    'notes'              => 'Auto-created deposit line; payment writes to appointment ledger on close.',
+                    'created_at'         => now(),
+                    'updated_at'         => now(),
+                ]);
+
+                return $sale;
+            });
+
+            return response()->json([
+                'ok'              => true,
+                'sale_id'         => $sale->id,
+                'sale_number'     => $sale->sale_number,
+                'redirect_url'    => route('tenant.register.drafts.show', [
+                    'subdomain' => $tenant->subdomain,
+                    'id'        => $sale->id,
+                ]),
+                'message'         => 'Deposit sale created. Take payment in the register.',
+            ]);
+        }
+
+        if ($op === 'void_register_sale') {
+            // Staff clicked "Edit (voids draft)". Find the open sale, void
+            // it through the bridge (which drops ledger rows + recomputes
+            // status). Refunds (paid sale) take a different path.
+            $sale = $appointment->openRegisterSale();
+            if (!$sale) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'No open register sale to void.',
+                ], 422);
+            }
+            $voided = $this->registerBridge->voidDraftSale($sale, 'manual_edit');
+            if (!$voided) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Sale has been paid. Use the refund flow instead of voiding.',
+                ], 422);
+            }
+            return response()->json([
+                'ok'      => true,
+                'reload'  => true,
+                'message' => 'Draft sale voided. Appointment editable again.',
+            ]);
         }
         if ($op === 'date') {
             $request->validate(['appointment_date' => ['required', 'date']]);
@@ -1091,6 +1234,34 @@ class AppointmentController extends Controller
      * Recalculate appointment totals from current items + addons.
      * Uses effective (override-aware) values. Called after any line-item mutation.
      */
+    /**
+     * Lightweight sale number generator for deposit sales spawned from the
+     * appointment page. Format: DP-YYYYMMDD-### per tenant.
+     *
+     * Uses a different prefix than register-spawned sales so reports can
+     * easily distinguish deposit-collection sales from regular completion
+     * sales if needed.
+     */
+    private function generateDepositSaleNumber(string $tenantId): string
+    {
+        $today = now()->format('Ymd');
+        $prefix = "DP-{$today}-";
+        $maxNumber = \DB::table('tenant_sales')
+            ->where('tenant_id', $tenantId)
+            ->where('sale_number', 'like', $prefix . '%')
+            ->orderByDesc('sale_number')
+            ->value('sale_number');
+
+        $next = 1;
+        if ($maxNumber) {
+            $parts = explode('-', $maxNumber);
+            $lastNum = (int) end($parts);
+            $next = $lastNum + 1;
+        }
+
+        return $prefix . str_pad((string) $next, 3, '0', STR_PAD_LEFT);
+    }
+
     /**
      * Search active inventory items for the part-picker autocomplete.
      * Returns minimal payload so the picker can render fast.
