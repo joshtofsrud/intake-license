@@ -622,7 +622,7 @@ class SaleService
             throw new SaleValidationException('Tenant has no active location; cannot refund.');
         }
 
-        return DB::transaction(function () use ($data, $original, $itemsToRefund) {
+        return DB::transaction(function () use ($data, $original, $itemsToRefund, $refundLocationId) {
             $tenantId = $data['tenant_id'];
             $today = Carbon::today()->toDateString();
             $reason = trim((string) ($data['reason'] ?? ''));
