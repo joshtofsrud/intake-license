@@ -296,6 +296,8 @@ window.ApptModal = (function () {
     state.availability = null;
     state.selectedSlot = null;
     state.manualOverride = false;
+    stripState.lockedResourceId = null;
+    stripState.lockedResourceName = '';
     el('appt-cust-attached').style.display = 'none';
     el('appt-cust-search-wrap').style.display = 'block';
     el('appt-cust-search').value = '';
@@ -583,7 +585,7 @@ window.ApptModal = (function () {
       resource_id: resolvedResourceId,
     };
 
-    // Wire alt rows
+    // Wire alt rows. Click = pick that resource AND lock the strip to it.
     box.querySelectorAll('.appt-when-alt-row').forEach(function (row) {
       row.addEventListener('click', function () {
         state.selectedSlot = {
@@ -591,10 +593,12 @@ window.ApptModal = (function () {
           time: row.dataset.time,
           resource_id: row.dataset.resource,
         };
-        // Visual: re-render with the new selection highlighted
+        // Lock the strip to this resource so manual override scopes correctly.
+        stripState.lockedResourceId = row.dataset.resource;
+        var nameMatch = state.resources.find(function (r) { return r.id === row.dataset.resource; });
+        stripState.lockedResourceName = nameMatch ? nameMatch.name : '';
         box.querySelectorAll('.appt-when-alt-row').forEach(function (r) { r.classList.remove('selected'); });
         row.classList.add('selected');
-        // Also dim the suggested card so it's clear this is the active pick
         el('appt-when-suggested').style.opacity = '.65';
       });
     });
@@ -620,6 +624,8 @@ window.ApptModal = (function () {
     selectedTime: null,
     resolvedResourceId: null,
     resolvedResourceName: '',
+    lockedResourceId: null,
+    lockedResourceName: '',
   };
 
   function renderManualBlock(isOnlyOption) {
@@ -642,6 +648,7 @@ window.ApptModal = (function () {
     var qs = state.cart.map(function (l) { return 'service_ids[]=' + encodeURIComponent(l.service_item_id); }).join('&')
       + '&start_date=' + encodeURIComponent(stripState.startDate)
       + '&days=7';
+    if (stripState.lockedResourceId) qs += '&resource_id=' + encodeURIComponent(stripState.lockedResourceId);
     fetch(routes.dayStrip + '?' + qs, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -662,6 +669,7 @@ window.ApptModal = (function () {
   function fetchDayTimes() {
     var qs = state.cart.map(function (l) { return 'service_ids[]=' + encodeURIComponent(l.service_item_id); }).join('&')
       + '&date=' + encodeURIComponent(stripState.selectedDate);
+    if (stripState.lockedResourceId) qs += '&resource_id=' + encodeURIComponent(stripState.lockedResourceId);
     fetch(routes.dayTimes + '?' + qs, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -676,6 +684,7 @@ window.ApptModal = (function () {
     var qs = state.cart.map(function (l) { return 'service_ids[]=' + encodeURIComponent(l.service_item_id); }).join('&')
       + '&date=' + encodeURIComponent(stripState.selectedDate)
       + '&time=' + encodeURIComponent(stripState.selectedTime);
+    if (stripState.lockedResourceId) qs += '&resource_id=' + encodeURIComponent(stripState.lockedResourceId);
     fetch(routes.resolveResource + '?' + qs, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -695,7 +704,14 @@ window.ApptModal = (function () {
     var box = document.getElementById('appt-strip-container');
     if (!box) return;
 
-    var html = '<div class="appt-strip-wrap">';
+    var html = '';
+    if (stripState.lockedResourceId) {
+      html += '<div style="font-size:11px;opacity:.85;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">'
+        + '<span>Showing availability for <strong>' + escapeHtml(stripState.lockedResourceName) + '</strong></span>'
+        + '<span id="appt-strip-clear-lock" style="color:var(--ia-accent,#BEF264);cursor:pointer">Show all resources</span>'
+        + '</div>';
+    }
+    html += '<div class="appt-strip-wrap">';
     html += '<span class="appt-strip-arrow' + (canStripGoBack() ? '' : ' disabled') + '" data-dir="back">‹</span>';
     html += '<div class="appt-strip">';
     stripState.days.forEach(function (day) {
@@ -743,6 +759,17 @@ window.ApptModal = (function () {
     }
 
     box.innerHTML = html;
+
+    var clearLock = document.getElementById('appt-strip-clear-lock');
+    if (clearLock) {
+      clearLock.addEventListener('click', function () {
+        stripState.lockedResourceId = null;
+        stripState.lockedResourceName = '';
+        stripState.selectedTime = null;
+        stripState.times = [];
+        fetchDayStrip();
+      });
+    }
 
     box.querySelectorAll('.appt-strip-arrow').forEach(function (a) {
       a.addEventListener('click', function () {
