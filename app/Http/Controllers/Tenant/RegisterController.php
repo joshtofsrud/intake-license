@@ -492,6 +492,8 @@ class RegisterController extends Controller
                 'remaining'         => $remaining,
                 'unit_price_cents'  => $i->unit_price_cents,
                 'line_total_cents'  => $i->line_total_cents,
+                'tax_cents'         => (int) $i->tax_cents,
+                'is_taxable'        => (bool) $i->is_taxable,
             ];
         })->values();
 
