@@ -987,6 +987,11 @@ function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(
 function calcRefundSubtotal() {
   return cart.refund_lines.reduce((sum, r) => sum + Math.round(r.price_cents * r.qty), 0);
 }
+// Refund-line tax: snapshot from the original sale, summed across refund lines.
+// Always honor the snapshot — refunds preserve historical tax even if rate changed.
+function calcRefundTax() {
+  return cart.refund_lines.reduce((s, r) => s + (r.tax_cents || 0), 0);
+}
 function calcTax() {
   // tax_locked: per-line tax was set externally (e.g. by the appointment bridge).
   if (cart.tax_locked) {
@@ -1007,14 +1012,19 @@ function renderTotals() {
   const sub = calcSubtotal();
   const refundSub = calcRefundSubtotal();
   const tax = calcTax();
+  const refundTax = calcRefundTax();
   const surch = calcSurcharge();
   const tip = cart.tipCents;
   const disc = cart.discountCents;
-  // Net total = new sale total - refund subtotal. May be negative.
-  const total = (sub - disc + tax + surch + tip) - refundSub;
 
-  document.getElementById('subVal').textContent = fmt(sub);
-  document.getElementById('taxVal').textContent = fmt(tax);
+  // Display values reflect the NET cart (new lines minus refund lines).
+  // Total = (subtotal - discount + tax + surcharge + tip) - (refund subtotal + refund tax).
+  const netSub   = sub - refundSub;
+  const netTax   = tax - refundTax;
+  const total    = (sub - disc + tax + surch + tip) - (refundSub + refundTax);
+
+  document.getElementById('subVal').textContent = fmt(netSub);
+  document.getElementById('taxVal').textContent = fmt(netTax);
   document.getElementById('totalVal').textContent = fmt(total);
 
   if (disc > 0) { document.getElementById('discountRow').style.display = ''; document.getElementById('discVal').textContent = fmtNeg(disc); }
@@ -1691,6 +1701,11 @@ document.getElementById('refundAddBtn').addEventListener('click', () => {
     const item = sale.items[idx];
     const qty = parseFloat(list.querySelector('[data-qty="' + idx + '"]').value);
     if (!qty || qty <= 0) return;
+    // Tax on a partial refund is a proportional share of original line tax.
+    const fullQty = item.quantity || 1;
+    const taxShare = item.tax_cents
+      ? Math.round((item.tax_cents * qty) / fullQty)
+      : 0;
     cart.refund_lines.push({
       key: ++lineKey,
       original_sale_id:  sale.id,
@@ -1699,6 +1714,8 @@ document.getElementById('refundAddBtn').addEventListener('click', () => {
       name:              item.name,
       qty:               qty,
       price_cents:       item.unit_price_cents,
+      tax_cents:         taxShare,
+      is_taxable:        !!item.is_taxable,
     });
   });
 
