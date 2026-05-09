@@ -27,10 +27,6 @@ use Illuminate\Support\Str;
  *     pre-committed status (or to cancelled). Voids any open draft sale
  *     for the appointment, which through voidForSale() drops its ledger
  *     rows and recomputes paid_cents.
- *
- * Refunds are explicitly NOT handled here. A refund of a paid sale goes
- * through the register's existing refund flow (P2 sale modal), which calls
- * AppointmentPaymentService::refund() with the right sale linkage.
  */
 class AppointmentRegisterBridgeService
 {
@@ -38,43 +34,28 @@ class AppointmentRegisterBridgeService
         protected AppointmentPaymentService $payments,
     ) {}
 
-    /**
-     * @return array{action: 'paid_in_full' | 'sale_created' | 'overage' | 'noop',
-     *               sale_id?: string, balance_due_cents?: int, overage_cents?: int}
-     */
     public function onAppointmentEnteringCommittedStatus(TenantAppointment $appointment): array
     {
-        // Always recompute the cache from the ledger before deciding — the
-        // status hook may have run inventory commits between the last cache
-        // recompute and now, but more importantly we want to be authoritative.
         $appointment->refresh();
         $paid    = (int) $appointment->paid_cents;
         $total   = (int) $appointment->total_cents;
         $balance = $total - $paid;
 
-        // No line items priced yet — nothing to bill, nothing to do.
         if ($total <= 0) {
             return ['action' => 'noop'];
         }
 
         if ($balance === 0) {
-            // Already paid in full (e.g. fully prepaid at booking).
             $appointment->update(['payment_status' => 'paid']);
             return ['action' => 'paid_in_full'];
         }
 
         if ($balance < 0) {
-            // Customer paid more than final total — tenant owes the difference.
             $appointment->update(['payment_status' => 'overage']);
             return ['action' => 'overage', 'overage_cents' => -$balance];
         }
 
-        // balance > 0 — create the draft register sale.
         $sale = $this->createDraftSaleForBalance($appointment, $balance);
-
-        // Recalc cache so payment_status flips to 'pending_balance' (status
-        // logic in AppointmentPaymentService accounts for the now-existing
-        // open sale).
         $this->payments->recalcCache($appointment);
 
         return [
@@ -84,12 +65,6 @@ class AppointmentRegisterBridgeService
         ];
     }
 
-    /**
-     * Reverse path: voids any open draft sale for this appointment.
-     * Called when status leaves the committed set.
-     *
-     * Returns the count of voided sales (usually 0 or 1).
-     */
     public function onAppointmentLeavingCommittedStatus(TenantAppointment $appointment): int
     {
         $voided = 0;
@@ -106,25 +81,14 @@ class AppointmentRegisterBridgeService
         return $voided;
     }
 
-    /**
-     * Public void path — exposed so the controller can offer "Edit (voids draft)".
-     * Fails (returns false) if the sale is already paid; that path goes through
-     * refund instead.
-     */
     public function voidDraftSale(TenantSale $sale, string $reason = 'manual'): bool
     {
         if (in_array($sale->payment_status, ['paid'], true)) {
-            // Money already moved — must go through refund flow, not void.
             return false;
         }
 
         DB::transaction(function () use ($sale) {
-            // Drop any ledger rows attached to this sale (in case partial
-            // payments were applied before the void).
             $this->payments->voidForSale($sale);
-
-            // Mark the sale cancelled. We don't hard-delete because audit
-            // trail matters — staff can see "this sale was voided at X by Y".
             $sale->update([
                 'status'         => 'cancelled',
                 'payment_status' => 'unpaid',
@@ -136,19 +100,14 @@ class AppointmentRegisterBridgeService
 
     /**
      * Build the draft sale: copy services + addons + parts as exploded
-     * line items. Customer attached. Subtotal/tax matches the appointment.
+     * line items. Distributes the appointment's tax_cents proportionally
+     * across lines so the register's per-line recalc sums back to the
+     * same total tax the appointment had.
      *
-     * IMPORTANT — type mapping:
-     *   appointment service → 'service' (no inventory side effects)
-     *   appointment addon   → 'service' (also no inventory)
-     *   appointment part    → 'open_item'  ← NOT 'product', see below
-     *
-     * Why parts become open_item: P3's AppointmentInventoryService already
-     * decremented stock when the appointment moved to Completed. If we
-     * copied parts as type='product' with inventory_item_id set, the
-     * register's sale-close hook would decrement them AGAIN. open_item
-     * carries the price + name without triggering inventory mechanics. The
-     * sale stays purely a billing instrument; P3 owns the inventory truth.
+     * Type mapping:
+     *   appointment service → 'service'
+     *   appointment addon   → 'service'
+     *   appointment part    → 'open_item' (NOT product, to avoid double inventory decrement)
      */
     private function createDraftSaleForBalance(TenantAppointment $appointment, int $balanceCents): TenantSale
     {
@@ -160,8 +119,8 @@ class AppointmentRegisterBridgeService
                 'tenant_id'           => $appointment->tenant_id,
                 'sale_number'         => $saleNumber,
                 'sale_date'           => now()->toDateString(),
-                'status'              => 'pending',     // draft
-                'payment_status'      => 'draft',        // matches SaleService::commitDraft expectations
+                'status'              => 'pending',
+                'payment_status'      => 'draft',
                 'customer_id'         => $appointment->customer_id,
                 'appointment_id'      => $appointment->id,
                 'rang_up_by_user_id'  => Auth::guard('tenant')->id() ?? $this->fallbackUserId($appointment),
@@ -171,45 +130,86 @@ class AppointmentRegisterBridgeService
                 'notes'               => 'Auto-created from appointment ' . ($appointment->ra_number ?? $appointment->id),
             ]);
 
-            $position = 0;
+            // Build the line spec list first so we know subtotal-without-tax
+            // and can distribute the appointment's tax proportionally.
+            $lineSpecs = [];
 
-            // Services — type=service (no inventory side effects regardless)
             foreach ($appointment->items as $item) {
                 $unitPrice = (int) ($item->price_cents_override ?? $item->price_cents);
-                $this->createSaleLine($sale, [
+                $lineSpecs[] = [
                     'type'             => 'service',
                     'name'             => $item->item_name_snapshot,
                     'quantity'         => 1,
                     'unit_price_cents' => $unitPrice,
-                    'position'         => $position++,
                     'notes'            => 'From appointment ' . ($appointment->ra_number ?? ''),
-                ]);
+                ];
             }
 
-            // Addons — also type=service (they're service extras)
             foreach ($appointment->addons as $addon) {
                 $unitPrice = (int) ($addon->price_cents_override ?? $addon->price_cents);
-                $this->createSaleLine($sale, [
+                $lineSpecs[] = [
                     'type'             => 'service',
                     'name'             => '+ ' . $addon->addon_name_snapshot,
                     'quantity'         => 1,
                     'unit_price_cents' => $unitPrice,
-                    'position'         => $position++,
                     'notes'            => 'From appointment ' . ($appointment->ra_number ?? ''),
-                ]);
+                ];
             }
 
-            // Parts — open_item (NOT product) so register sale-close does
-            // not double-decrement stock. P3 already owns inventory.
             foreach ($appointment->parts as $part) {
-                $this->createSaleLine($sale, [
+                $lineSpecs[] = [
                     'type'             => 'open_item',
                     'name'             => $part->item_name_snapshot,
                     'quantity'         => (int) $part->quantity,
                     'unit_price_cents' => (int) $part->effectiveUnitPriceCents(),
-                    'position'         => $position++,
                     'notes'            => 'Inventory committed via appointment ' . ($appointment->ra_number ?? ''),
-                ]);
+                ];
+            }
+
+            // Compute pre-tax subtotal across all line specs.
+            $preTaxSubtotal = 0;
+            foreach ($lineSpecs as &$spec) {
+                $spec['line_subtotal_cents'] = $spec['unit_price_cents'] * $spec['quantity'];
+                $preTaxSubtotal += $spec['line_subtotal_cents'];
+            }
+            unset($spec);
+
+            // Distribute appointment's tax across lines proportionally.
+            $totalAppointmentTaxCents = (int) $appointment->tax_cents;
+            $taxRate = ($preTaxSubtotal > 0 && $totalAppointmentTaxCents > 0)
+                ? round($totalAppointmentTaxCents / $preTaxSubtotal, 4)
+                : 0.0;
+
+            $taxAssigned = 0;
+            $lastIdx = count($lineSpecs) - 1;
+
+            foreach ($lineSpecs as $i => &$spec) {
+                if ($preTaxSubtotal === 0 || $totalAppointmentTaxCents === 0) {
+                    $spec['tax_cents']         = 0;
+                    $spec['tax_rate_snapshot'] = 0;
+                    $spec['is_taxable']        = false;
+                    continue;
+                }
+
+                if ($i === $lastIdx) {
+                    // Last line absorbs rounding remainder so total matches.
+                    $spec['tax_cents'] = $totalAppointmentTaxCents - $taxAssigned;
+                } else {
+                    $spec['tax_cents'] = (int) round(
+                        $spec['line_subtotal_cents'] * $totalAppointmentTaxCents / $preTaxSubtotal
+                    );
+                    $taxAssigned += $spec['tax_cents'];
+                }
+
+                $spec['tax_rate_snapshot'] = $taxRate;
+                $spec['is_taxable']        = true;
+            }
+            unset($spec);
+
+            $position = 0;
+            foreach ($lineSpecs as $spec) {
+                $spec['position'] = $position++;
+                $this->createSaleLine($sale, $spec);
             }
 
             return $sale;
@@ -217,15 +217,19 @@ class AppointmentRegisterBridgeService
     }
 
     /**
-     * Light-weight sale-line insert. Direct DB write because we don't want
-     * to trip any sale-line side-effects (inventory etc) — the appointment
-     * already owns its inventory commits via P3.
+     * Light-weight sale-line insert. Tax fields are pre-computed by
+     * createDraftSaleForBalance so the register's recalc preserves the
+     * appointment's tax allocation.
+     *
+     * line_total_cents follows the existing schema convention:
+     *   (unit_price * quantity) - discount + tax
      */
     private function createSaleLine(TenantSale $sale, array $data): void
     {
         $unitPrice = (int) $data['unit_price_cents'];
         $qty       = (int) $data['quantity'];
-        $lineTotal = $unitPrice * $qty;
+        $taxCents  = (int) ($data['tax_cents'] ?? 0);
+        $subtotal  = $data['line_subtotal_cents'] ?? ($unitPrice * $qty);
 
         DB::table('tenant_sale_items')->insert([
             'id'                 => (string) Str::uuid(),
@@ -235,8 +239,10 @@ class AppointmentRegisterBridgeService
             'name_snapshot'      => $data['name'],
             'quantity'           => $qty,
             'unit_price_cents'   => $unitPrice,
-            'line_total_cents'   => $lineTotal,
-            'is_taxable'         => true,
+            'tax_cents'          => $taxCents,
+            'tax_rate_snapshot'  => $data['tax_rate_snapshot'] ?? null,
+            'is_taxable'         => (bool) ($data['is_taxable'] ?? false),
+            'line_total_cents'   => $subtotal + $taxCents,
             'position'           => $data['position'],
             'notes'              => $data['notes'] ?? null,
             'created_at'         => now(),
@@ -244,13 +250,6 @@ class AppointmentRegisterBridgeService
         ]);
     }
 
-    /**
-     * Generate a sale_number. Tries to use the existing SaleService if
-     * available; falls back to a timestamp-based unique value.
-     *
-     * The fallback isn't ideal for human-readable receipts but is a safe
-     * unique value when the SaleService isn't loaded.
-     */
     private function generateSaleNumber(string $tenantId): string
     {
         if (class_exists(\App\Services\Tenant\SaleService::class)
@@ -262,7 +261,6 @@ class AppointmentRegisterBridgeService
             }
         }
 
-        // Fallback: query the counter directly.
         $today = now()->format('Ymd');
         $prefix = "S-{$today}-";
         $maxNumber = DB::table('tenant_sales')
@@ -281,11 +279,6 @@ class AppointmentRegisterBridgeService
         return $prefix . str_pad((string) $next, 3, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Stripe webhook + headless contexts have no Auth user. The sale needs
-     * a non-null rang_up_by_user_id. Use the tenant's first owner-role user
-     * as the system fallback.
-     */
     private function fallbackUserId(TenantAppointment $appointment): ?string
     {
         return DB::table('tenant_users')
