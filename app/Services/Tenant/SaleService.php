@@ -600,8 +600,26 @@ class SaleService
         if ($itemsToRefund->isEmpty()) {
             throw new SaleValidationException('No matching items to refund.');
         }
-        if (empty($original->location_id)) {
-            throw new SaleValidationException('Original sale has no location_id; cannot refund.');
+        // Resolve a location for the refund through a fallback chain:
+        //   1. original sale's location_id
+        //   2. original's appointment's location_id (if appointment-derived)
+        //   3. tenant's default active location
+        // Only error if NO location exists anywhere on the tenant.
+        $refundLocationId = $original->location_id;
+        if (! $refundLocationId && $original->appointment_id) {
+            $refundLocationId = \App\Models\Tenant\TenantAppointment::where('id', $original->appointment_id)
+                ->value('location_id');
+        }
+        if (! $refundLocationId) {
+            $refundLocationId = \App\Models\Tenant\TenantLocation::query()
+                ->where('tenant_id', $original->tenant_id)
+                ->where('is_active', 1)
+                ->orderByDesc('is_default')
+                ->orderBy('created_at')
+                ->value('id');
+        }
+        if (! $refundLocationId) {
+            throw new SaleValidationException('Tenant has no active location; cannot refund.');
         }
 
         return DB::transaction(function () use ($data, $original, $itemsToRefund) {
@@ -622,7 +640,7 @@ class SaleService
                 'appointment_id'     => null,
                 'rang_up_by_user_id' => $data['rang_up_by_user_id'],
                 'refund_of_sale_id'  => $original->id,
-                'location_id'        => $original->location_id,
+                'location_id'        => $refundLocationId,
                 'notes'              => $combinedNotes !== '' ? $combinedNotes : null,
                 'subtotal_cents'     => 0,
                 'discount_cents'     => 0,
@@ -661,7 +679,7 @@ class SaleService
 
                 // Restock inventory for refunded product lines
                 if ($line->type === 'product') {
-                    $this->inventory->incrementForRefund($refund, $line, $original->location_id);
+                    $this->inventory->incrementForRefund($refund, $line, $refundLocationId);
                 }
             }
 

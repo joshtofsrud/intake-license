@@ -114,6 +114,14 @@ class AppointmentRegisterBridgeService
         return DB::transaction(function () use ($appointment, $balanceCents) {
             $saleNumber = $this->generateSaleNumber($appointment->tenant_id);
 
+            // Resolve location: appointment's wins; tenant default fallback.
+            $locationId = $appointment->location_id ?: \App\Models\Tenant\TenantLocation::query()
+                ->where('tenant_id', $appointment->tenant_id)
+                ->where('is_active', 1)
+                ->orderByDesc('is_default')
+                ->orderBy('created_at')
+                ->value('id');
+
             $sale = TenantSale::create([
                 'id'                  => (string) Str::uuid(),
                 'tenant_id'           => $appointment->tenant_id,
@@ -123,6 +131,7 @@ class AppointmentRegisterBridgeService
                 'payment_status'      => 'draft',
                 'customer_id'         => $appointment->customer_id,
                 'appointment_id'      => $appointment->id,
+                'location_id'         => $locationId,
                 'rang_up_by_user_id'  => Auth::guard('tenant')->id() ?? $this->fallbackUserId($appointment),
                 'subtotal_cents'      => (int) $appointment->subtotal_cents,
                 'tax_cents'           => (int) $appointment->tax_cents,

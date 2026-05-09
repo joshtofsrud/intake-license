@@ -201,8 +201,15 @@ class AppointmentController extends Controller
         $seq = TenantAppointment::where('tenant_id', $tenant->id)->count() + 1;
         $itoNumber = 'ITO-' . str_pad($seq, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(Str::random(4));
 
+        $locationId = $data['location_id'] ?? \App\Models\Tenant\TenantLocation::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', 1)
+            ->orderByDesc('is_default')
+            ->orderBy('created_at')
+            ->value('id');
+
         $appointment = TenantAppointment::create([
-            'tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'ra_number' => $itoNumber,
+            'tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'location_id' => $locationId, 'ra_number' => $itoNumber,
             'customer_first_name' => $data['customer_first_name'], 'customer_last_name' => $data['customer_last_name'],
             'customer_email' => strtolower($data['customer_email']), 'customer_phone' => $data['customer_phone'] ?? null,
             'appointment_date' => $data['appointment_date'], 'status' => 'pending', 'payment_status' => 'unpaid',

@@ -197,11 +197,23 @@ class BookingService
                 $customer = $this->upsertCustomer($data, $tenantId);
                 $raNumber = TenantAppointment::generateRaNumber($tenantId, $data['date'] ?? null);
 
+                // Resolve location: caller-provided wins; otherwise tenant's default.
+                $locationId = $data['location_id'] ?? null;
+                if (! $locationId) {
+                    $locationId = \App\Models\Tenant\TenantLocation::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('is_active', 1)
+                        ->orderByDesc('is_default')
+                        ->orderBy('created_at')
+                        ->value('id');
+                }
+
                 $appointment = TenantAppointment::create([
                     'id'                       => (string) Str::uuid(),
                     'tenant_id'                => $tenantId,
                     'customer_id'              => $customer->id,
                     'resource_id'              => $resourceId,
+                    'location_id'              => $locationId,
                     'ra_number'                => $raNumber,
                     'customer_first_name'      => $data['first_name'] ?? '',
                     'customer_last_name'       => $data['last_name']  ?? '',

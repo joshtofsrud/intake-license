@@ -12,7 +12,7 @@ class TenantAppointment extends Model
     use HasUuids;
     protected $table    = 'tenant_appointments';
     protected $fillable = [
-        'tenant_id','customer_id','resource_id','ra_number',
+        'tenant_id','customer_id','resource_id','location_id','ra_number',
         'customer_first_name','customer_last_name','customer_email','customer_phone',
         'appointment_date','appointment_time','appointment_end_time',
         'total_duration_minutes','prep_before_minutes_snapshot','cleanup_after_minutes_snapshot',
@@ -41,6 +41,7 @@ class TenantAppointment extends Model
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }
     public function customer(): BelongsTo  { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
     public function resource(): BelongsTo  { return $this->belongsTo(TenantResource::class, 'resource_id'); }
+    public function location(): BelongsTo  { return $this->belongsTo(TenantLocation::class, 'location_id'); }
     public function items(): HasMany       { return $this->hasMany(TenantAppointmentItem::class, 'appointment_id'); }
     public function addons(): HasMany      { return $this->hasMany(TenantAppointmentAddon::class, 'appointment_id'); }
     public function parts(): HasMany       { return $this->hasMany(TenantAppointmentPart::class, 'appointment_id'); }
