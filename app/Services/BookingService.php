@@ -50,7 +50,7 @@ class BookingService
 
         foreach ($plan as $row) {
             $service = $row['service'];
-            $totalCents        += (int) $service->price_cents;
+            $totalCents        += (int) ($row['effective_price_cents'] ?? $service->price_cents);
             $customerFacingDur += (int) $service->duration_minutes;
             $totalDuration     += (int) $service->prep_before_minutes
                                 + (int) $service->duration_minutes
@@ -244,6 +244,7 @@ class BookingService
                         'service_item_id'                => $service->id,
                         'item_name_snapshot'             => $service->name,
                         'price_cents'                    => $service->price_cents,
+                        'price_cents_override'           => $row['price_override_cents'] ?? null,
                         'duration_minutes_snapshot'      => $service->duration_minutes,
                         'prep_before_minutes_snapshot'   => $service->prep_before_minutes ?? 0,
                         'cleanup_after_minutes_snapshot' => $service->cleanup_after_minutes ?? 0,
@@ -925,7 +926,23 @@ class BookingService
                     ];
                 }
             }
-            $plan[] = ['service' => $service, 'addons' => $addonRows];
+            // Optional per-item price override (admin/staff-create flow).
+            // Null means use service catalog price. Negative or > 9999999 rejected.
+            $override = $sel['price_override_cents'] ?? null;
+            if ($override !== null) {
+                $override = (int) $override;
+                if ($override < 0 || $override > 9999999) {
+                    throw new RuntimeException("Item #{$idx} price override out of range.");
+                }
+            }
+            $effectivePrice = $override ?? (int) $service->price_cents;
+
+            $plan[] = [
+                'service'                => $service,
+                'addons'                 => $addonRows,
+                'price_override_cents'   => $override,
+                'effective_price_cents'  => $effectivePrice,
+            ];
         }
         return $plan;
     }

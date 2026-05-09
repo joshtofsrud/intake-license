@@ -258,6 +258,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::post('/receiving-methods/reorder', [TenantControllers\ReceivingMethodController::class, 'reorder'])->name('receiving-methods.reorder');
 
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
+            Route::get('/appointments/picker-data', [TenantControllers\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
             Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');

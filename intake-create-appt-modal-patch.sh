@@ -1,3 +1,392 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# Intake — Group A: Create-appointment modal upgrade
+#
+# What ships:
+#   1. New _create_modal.blade.php with full picker (customer search, multi-
+#      service, time picker, resource picker, in-line price override, notes)
+#   2. AppointmentController::store delegates to BookingService::createAppointment
+#      instead of stub-creating a row with no services
+#   3. BookingService accepts price_override_cents per item, threads through
+#      buildBookingPlan into total computation and TenantAppointmentItem write
+#   4. New endpoint AppointmentController::pickerData returns services +
+#      customers + resources + business hours for the modal to populate
+#
+# Backend reuses BookingService — same path as public booking, calendar
+# quick-book, and now this modal.
+#
+# Usage on Mac:  bash intake-create-appt-modal-patch.sh
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+[ -f artisan ] || { echo "ABORT: not a Laravel root"; exit 1; }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 1. Patch BookingService — read price_override_cents from items
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Patching BookingService for price overrides + multi-service totals"
+
+python3 <<'PY'
+from pathlib import Path
+p = Path("app/Services/BookingService.php")
+s = p.read_text()
+
+if "effective_price_cents" in s and "buildBookingPlan" in s and "'service'" in s:
+    # Check whether plan already includes effective_price_cents for service rows
+    if "'effective_price_cents' => $effectivePrice" in s:
+        print("    skip: BookingService already supports overrides")
+    else:
+        # Patch 1: buildBookingPlan — capture price_override_cents into the plan row
+        old = """            $plan[] = ['service' => $service, 'addons' => $addonRows];
+        }
+        return $plan;
+    }"""
+        new = """            // Optional per-item price override (admin/staff-create flow).
+            // Null means use service catalog price. Negative or > 9999999 rejected.
+            $override = $sel['price_override_cents'] ?? null;
+            if ($override !== null) {
+                $override = (int) $override;
+                if ($override < 0 || $override > 9999999) {
+                    throw new RuntimeException("Item #{$idx} price override out of range.");
+                }
+            }
+            $effectivePrice = $override ?? (int) $service->price_cents;
+
+            $plan[] = [
+                'service'                => $service,
+                'addons'                 => $addonRows,
+                'price_override_cents'   => $override,
+                'effective_price_cents'  => $effectivePrice,
+            ];
+        }
+        return $plan;
+    }"""
+        assert s.count(old) == 1, f"ABORT: buildBookingPlan tail matched {s.count(old)}"
+        s = s.replace(old, new)
+
+        # Patch 2: total computation uses effective price
+        old2 = """        foreach ($plan as $row) {
+            $service = $row['service'];
+            $totalCents        += (int) $service->price_cents;
+            $customerFacingDur += (int) $service->duration_minutes;"""
+        new2 = """        foreach ($plan as $row) {
+            $service = $row['service'];
+            $totalCents        += (int) ($row['effective_price_cents'] ?? $service->price_cents);
+            $customerFacingDur += (int) $service->duration_minutes;"""
+        assert s.count(old2) == 1, f"ABORT: total loop matched {s.count(old2)}"
+        s = s.replace(old2, new2)
+
+        # Patch 3: TenantAppointmentItem::create writes price_cents_override
+        old3 = """                foreach ($plan as $row) {
+                    $service = $row['service'];
+                    TenantAppointmentItem::create([
+                        'id'                             => (string) Str::uuid(),
+                        'appointment_id'                 => $appointment->id,
+                        'service_item_id'                => $service->id,
+                        'item_name_snapshot'             => $service->name,
+                        'price_cents'                    => $service->price_cents,
+                        'duration_minutes_snapshot'      => $service->duration_minutes,
+                        'prep_before_minutes_snapshot'   => $service->prep_before_minutes ?? 0,
+                        'cleanup_after_minutes_snapshot' => $service->cleanup_after_minutes ?? 0,
+                    ]);"""
+        new3 = """                foreach ($plan as $row) {
+                    $service = $row['service'];
+                    TenantAppointmentItem::create([
+                        'id'                             => (string) Str::uuid(),
+                        'appointment_id'                 => $appointment->id,
+                        'service_item_id'                => $service->id,
+                        'item_name_snapshot'             => $service->name,
+                        'price_cents'                    => $service->price_cents,
+                        'price_cents_override'           => $row['price_override_cents'] ?? null,
+                        'duration_minutes_snapshot'      => $service->duration_minutes,
+                        'prep_before_minutes_snapshot'   => $service->prep_before_minutes ?? 0,
+                        'cleanup_after_minutes_snapshot' => $service->cleanup_after_minutes ?? 0,
+                    ]);"""
+        assert s.count(old3) == 1, f"ABORT: TenantAppointmentItem::create matched {s.count(old3)}"
+        s = s.replace(old3, new3)
+
+        p.write_text(s)
+        print("    patched: BookingService.php")
+else:
+    print("    ABORT: BookingService doesn't have expected anchors")
+PY
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 2. Replace AppointmentController::store with a real BookingService delegate
+#    Add pickerData endpoint
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Patching AppointmentController"
+
+python3 <<'PY'
+from pathlib import Path
+p = Path("app/Http/Controllers/Tenant/AppointmentController.php")
+s = p.read_text()
+
+if "public function pickerData" in s:
+    print("    skip: AppointmentController already patched")
+else:
+    # Replace the entire store() method with a BookingService-delegating version
+    old_store = """    public function store(Request $request)
+    {
+        $tenant = tenant();
+
+        if ($request->has('update')) {
+            return $this->handleUpdate($tenant, $request->input('update'), $request);
+        }
+
+        $data = $request->validate([
+            'customer_first_name' => ['required', 'string', 'max:100'],
+            'customer_last_name'  => ['required', 'string', 'max:100'],
+            'customer_email'      => ['required', 'email', 'max:255'],
+            'customer_phone'      => ['nullable', 'string', 'max:32'],
+            'appointment_date'    => ['required', 'date'],
+            'staff_notes'         => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $customer = TenantCustomer::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'email' => strtolower($data['customer_email'])],
+            ['first_name' => $data['customer_first_name'], 'last_name' => $data['customer_last_name'], 'phone' => $data['customer_phone'] ?? null]
+        );
+
+        $seq = TenantAppointment::where('tenant_id', $tenant->id)->count() + 1;
+        $itoNumber = 'ITO-' . str_pad($seq, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(Str::random(4));
+
+        $locationId = $data['location_id'] ?? \\App\\Models\\Tenant\\TenantLocation::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', 1)
+            ->orderByDesc('is_default')
+            ->orderBy('created_at')
+            ->value('id');
+
+        $appointment = TenantAppointment::create([
+            'tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'location_id' => $locationId, 'ra_number' => $itoNumber,
+            'customer_first_name' => $data['customer_first_name'], 'customer_last_name' => $data['customer_last_name'],
+            'customer_email' => strtolower($data['customer_email']), 'customer_phone' => $data['customer_phone'] ?? null,
+            'appointment_date' => $data['appointment_date'], 'status' => 'pending', 'payment_status' => 'unpaid',
+            'payment_method' => 'manual', 'subtotal_cents' => 0, 'tax_cents' => 0, 'total_cents' => 0, 'paid_cents' => 0,
+            'staff_notes' => $data['staff_notes'] ?? null,
+        ]);
+
+        TenantAppointmentNote::create([
+            'appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(),
+            'note_type' => 'system', 'is_customer_visible' => false,
+            'note_content' => 'Appointment created manually by staff.', 'created_at' => now(),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'id' => $appointment->id, 'ito' => $itoNumber]);
+        }
+        return redirect()->route('tenant.appointments.index')->with('success', 'Appointment created.');
+    }"""
+
+    new_store = """    public function store(Request $request)
+    {
+        $tenant = tenant();
+
+        if ($request->has('update')) {
+            return $this->handleUpdate($tenant, $request->input('update'), $request);
+        }
+
+        $data = $request->validate([
+            'customer_id'         => ['nullable', 'string', 'uuid'],
+            'customer_first_name' => ['required_without:customer_id', 'string', 'max:100'],
+            'customer_last_name'  => ['required_without:customer_id', 'string', 'max:100'],
+            'customer_email'      => ['required_without:customer_id', 'email', 'max:255'],
+            'customer_phone'      => ['nullable', 'string', 'max:32'],
+            'appointment_date'    => ['required', 'date'],
+            'appointment_time'    => ['nullable', 'string'],
+            'resource_id'         => ['nullable', 'string', 'uuid'],
+            'staff_notes'         => ['nullable', 'string', 'max:1000'],
+            'items'               => ['required', 'array', 'min:1'],
+            'items.*.service_item_id'      => ['required', 'string', 'uuid'],
+            'items.*.price_override_cents' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        // If customer_id provided, hydrate name/email/phone from the existing record.
+        $first = $data['customer_first_name'] ?? '';
+        $last  = $data['customer_last_name']  ?? '';
+        $email = $data['customer_email']      ?? '';
+        $phone = $data['customer_phone']      ?? null;
+
+        if (!empty($data['customer_id'])) {
+            $existing = TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $data['customer_id'])
+                ->first();
+            if ($existing) {
+                $first = $existing->first_name ?: $first;
+                $last  = $existing->last_name  ?: $last;
+                $email = $existing->email      ?: $email;
+                $phone = $existing->phone      ?: $phone;
+            }
+        }
+
+        if (!$email) {
+            return response()->json(['ok' => false, 'errors' => ['customer_email' => ['Email is required.']]], 422);
+        }
+
+        // Time defaults to noon if not provided (date-only flow).
+        $apptTime = !empty($data['appointment_time'])
+            ? (strlen($data['appointment_time']) === 5 ? $data['appointment_time'] . ':00' : $data['appointment_time'])
+            : '12:00:00';
+
+        $payload = [
+            'first_name'       => $first,
+            'last_name'        => $last,
+            'email'            => $email,
+            'phone'            => $phone,
+            'date'             => $data['appointment_date'],
+            'appointment_time' => $apptTime,
+            'resource_id'      => $data['resource_id'] ?? null,
+            'items'            => array_map(function ($item) {
+                return [
+                    'service_item_id'      => $item['service_item_id'],
+                    'price_override_cents' => $item['price_override_cents'] ?? null,
+                    'addon_ids'            => [],
+                ];
+            }, $data['items']),
+            'payment_method'   => 'none',
+        ];
+
+        try {
+            $appointment = app(\\App\\Services\\BookingService::class)
+                ->createAppointment($payload, $tenant->id);
+        } catch (\\App\\Exceptions\\LockAcquisitionException $e) {
+            return response()->json([
+                'ok'      => false,
+                'code'    => 'lock_timeout',
+                'message' => 'Could not hold the slot. Try again.',
+            ], 409);
+        } catch (\\RuntimeException $e) {
+            return response()->json([
+                'ok'      => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        // Persist staff notes via TenantAppointmentNote — same as old flow.
+        if (!empty($data['staff_notes'])) {
+            \\App\\Models\\Tenant\\TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'manual',
+                'is_customer_visible' => false,
+                'note_content'        => $data['staff_notes'],
+                'created_at'          => now(),
+            ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok'       => true,
+                'id'       => $appointment->id,
+                'ra'       => $appointment->ra_number,
+                'redirect' => route('tenant.appointments.show', [
+                    'subdomain' => $tenant->subdomain,
+                    'id'        => $appointment->id,
+                ]),
+            ]);
+        }
+
+        return redirect()->route('tenant.appointments.show', [
+            'subdomain' => $tenant->subdomain,
+            'id'        => $appointment->id,
+        ])->with('success', 'Appointment created.');
+    }
+
+    /**
+     * JSON endpoint that powers the create-appointment modal — returns the
+     * tenant's services, customers (filtered by search), and resources
+     * needed to populate the picker UI.
+     */
+    public function pickerData(Request $request)
+    {
+        $tenant = tenant();
+        $search = trim((string) $request->query('q', ''));
+
+        $services = \\App\\Models\\Tenant\\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'duration_minutes', 'price_cents']);
+
+        $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($search !== '') {
+            $customersQuery->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', \"%{$search}%\")
+                  ->orWhere('last_name',  'like', \"%{$search}%\")
+                  ->orWhere('email',      'like', \"%{$search}%\")
+                  ->orWhere('phone',      'like', \"%{$search}%\");
+            });
+        }
+        $customers = $customersQuery
+            ->orderBy('last_name')->orderBy('first_name')
+            ->limit(15)
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone']);
+
+        $resources = \\App\\Models\\Tenant\\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'subtitle']);
+
+        return response()->json([
+            'services'  => $services,
+            'customers' => $customers,
+            'resources' => $resources,
+        ]);
+    }"""
+
+    assert s.count(old_store) == 1, f"ABORT: store method matched {s.count(old_store)}"
+    p.write_text(s.replace(old_store, new_store))
+    print("    patched: AppointmentController.php")
+PY
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 3. Add the pickerData route
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Adding pickerData route"
+
+python3 <<'PY'
+from pathlib import Path
+p = Path("routes/web.php")
+s = p.read_text()
+
+if "appointments.picker-data" in s:
+    print("    skip: route already added")
+else:
+    # Anchor: the appointments.store route line.
+    candidates = [
+        "Route::post('/appointments',",
+        "->name('appointments.store')",
+    ]
+    chosen = None
+    for c in candidates:
+        if s.count(c) == 1:
+            chosen = c
+            break
+    if chosen is None:
+        print(f"    ABORT: could not anchor on appointments routes")
+    else:
+        # Find the line containing the chosen anchor and insert before/after it
+        lines = s.split("\n")
+        for i, line in enumerate(lines):
+            if "->name('appointments.store')" in line:
+                # Insert the new route line right before this one
+                indent = line[:len(line) - len(line.lstrip())]
+                new_line = f"{indent}Route::get('/appointments/picker-data', [TenantControllers\\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');"
+                lines.insert(i, new_line)
+                p.write_text("\n".join(lines))
+                print("    patched: routes/web.php")
+                break
+        else:
+            print("    ABORT: anchor line not found")
+PY
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 4. Replace _create_modal.blade.php with the full picker UI
+# ──────────────────────────────────────────────────────────────────────────────
+echo "==> Rewriting _create_modal.blade.php"
+
+cat > resources/views/tenant/appointments/_create_modal.blade.php <<'BLADE_FILE'
 {{--
   New Appointment modal — full picker.
 
@@ -558,3 +947,39 @@ window.ApptModal = (function () {
 window.openApptModal  = function () { ApptModal.open(); };
 window.closeApptModal = function () { ApptModal.close(); };
 </script>
+BLADE_FILE
+
+echo "    wrote: _create_modal.blade.php"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Lint
+# ──────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "==> Linting"
+for f in \
+  app/Services/BookingService.php \
+  app/Http/Controllers/Tenant/AppointmentController.php; do
+  if command -v php >/dev/null 2>&1; then
+    php -l "$f"
+  else
+    echo "    (no php — skip lint of $f)"
+  fi
+done
+
+echo ""
+echo "==> Patch complete."
+echo ""
+echo "Files touched:"
+echo "  app/Services/BookingService.php"
+echo "  app/Http/Controllers/Tenant/AppointmentController.php"
+echo "  routes/web.php"
+echo "  resources/views/tenant/appointments/_create_modal.blade.php"
+echo ""
+echo "Next:"
+echo "  git add -A && git commit -m 'Group A: full create-appointment modal with services + price override'"
+echo "  git push"
+echo ""
+echo "Server:"
+echo "  cd /var/www/intake && git pull"
+echo "  php artisan optimize:clear && php artisan view:clear && php artisan route:clear"
+echo "  sudo systemctl restart php8.3-fpm"

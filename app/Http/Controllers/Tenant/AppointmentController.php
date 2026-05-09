@@ -185,48 +185,151 @@ class AppointmentController extends Controller
         }
 
         $data = $request->validate([
-            'customer_first_name' => ['required', 'string', 'max:100'],
-            'customer_last_name'  => ['required', 'string', 'max:100'],
-            'customer_email'      => ['required', 'email', 'max:255'],
+            'customer_id'         => ['nullable', 'string', 'uuid'],
+            'customer_first_name' => ['required_without:customer_id', 'string', 'max:100'],
+            'customer_last_name'  => ['required_without:customer_id', 'string', 'max:100'],
+            'customer_email'      => ['required_without:customer_id', 'email', 'max:255'],
             'customer_phone'      => ['nullable', 'string', 'max:32'],
             'appointment_date'    => ['required', 'date'],
+            'appointment_time'    => ['nullable', 'string'],
+            'resource_id'         => ['nullable', 'string', 'uuid'],
             'staff_notes'         => ['nullable', 'string', 'max:1000'],
+            'items'               => ['required', 'array', 'min:1'],
+            'items.*.service_item_id'      => ['required', 'string', 'uuid'],
+            'items.*.price_override_cents' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $customer = TenantCustomer::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'email' => strtolower($data['customer_email'])],
-            ['first_name' => $data['customer_first_name'], 'last_name' => $data['customer_last_name'], 'phone' => $data['customer_phone'] ?? null]
-        );
+        // If customer_id provided, hydrate name/email/phone from the existing record.
+        $first = $data['customer_first_name'] ?? '';
+        $last  = $data['customer_last_name']  ?? '';
+        $email = $data['customer_email']      ?? '';
+        $phone = $data['customer_phone']      ?? null;
 
-        $seq = TenantAppointment::where('tenant_id', $tenant->id)->count() + 1;
-        $itoNumber = 'ITO-' . str_pad($seq, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(Str::random(4));
+        if (!empty($data['customer_id'])) {
+            $existing = TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $data['customer_id'])
+                ->first();
+            if ($existing) {
+                $first = $existing->first_name ?: $first;
+                $last  = $existing->last_name  ?: $last;
+                $email = $existing->email      ?: $email;
+                $phone = $existing->phone      ?: $phone;
+            }
+        }
 
-        $locationId = $data['location_id'] ?? \App\Models\Tenant\TenantLocation::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('is_active', 1)
-            ->orderByDesc('is_default')
-            ->orderBy('created_at')
-            ->value('id');
+        if (!$email) {
+            return response()->json(['ok' => false, 'errors' => ['customer_email' => ['Email is required.']]], 422);
+        }
 
-        $appointment = TenantAppointment::create([
-            'tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'location_id' => $locationId, 'ra_number' => $itoNumber,
-            'customer_first_name' => $data['customer_first_name'], 'customer_last_name' => $data['customer_last_name'],
-            'customer_email' => strtolower($data['customer_email']), 'customer_phone' => $data['customer_phone'] ?? null,
-            'appointment_date' => $data['appointment_date'], 'status' => 'pending', 'payment_status' => 'unpaid',
-            'payment_method' => 'manual', 'subtotal_cents' => 0, 'tax_cents' => 0, 'total_cents' => 0, 'paid_cents' => 0,
-            'staff_notes' => $data['staff_notes'] ?? null,
-        ]);
+        // Time defaults to noon if not provided (date-only flow).
+        $apptTime = !empty($data['appointment_time'])
+            ? (strlen($data['appointment_time']) === 5 ? $data['appointment_time'] . ':00' : $data['appointment_time'])
+            : '12:00:00';
 
-        TenantAppointmentNote::create([
-            'appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(),
-            'note_type' => 'system', 'is_customer_visible' => false,
-            'note_content' => 'Appointment created manually by staff.', 'created_at' => now(),
-        ]);
+        $payload = [
+            'first_name'       => $first,
+            'last_name'        => $last,
+            'email'            => $email,
+            'phone'            => $phone,
+            'date'             => $data['appointment_date'],
+            'appointment_time' => $apptTime,
+            'resource_id'      => $data['resource_id'] ?? null,
+            'items'            => array_map(function ($item) {
+                return [
+                    'service_item_id'      => $item['service_item_id'],
+                    'price_override_cents' => $item['price_override_cents'] ?? null,
+                    'addon_ids'            => [],
+                ];
+            }, $data['items']),
+            'payment_method'   => 'none',
+        ];
+
+        try {
+            $appointment = app(\App\Services\BookingService::class)
+                ->createAppointment($payload, $tenant->id);
+        } catch (\App\Exceptions\LockAcquisitionException $e) {
+            return response()->json([
+                'ok'      => false,
+                'code'    => 'lock_timeout',
+                'message' => 'Could not hold the slot. Try again.',
+            ], 409);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'ok'      => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        // Persist staff notes via TenantAppointmentNote — same as old flow.
+        if (!empty($data['staff_notes'])) {
+            \App\Models\Tenant\TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'manual',
+                'is_customer_visible' => false,
+                'note_content'        => $data['staff_notes'],
+                'created_at'          => now(),
+            ]);
+        }
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'id' => $appointment->id, 'ito' => $itoNumber]);
+            return response()->json([
+                'ok'       => true,
+                'id'       => $appointment->id,
+                'ra'       => $appointment->ra_number,
+                'redirect' => route('tenant.appointments.show', [
+                    'subdomain' => $tenant->subdomain,
+                    'id'        => $appointment->id,
+                ]),
+            ]);
         }
-        return redirect()->route('tenant.appointments.index')->with('success', 'Appointment created.');
+
+        return redirect()->route('tenant.appointments.show', [
+            'subdomain' => $tenant->subdomain,
+            'id'        => $appointment->id,
+        ])->with('success', 'Appointment created.');
+    }
+
+    /**
+     * JSON endpoint that powers the create-appointment modal — returns the
+     * tenant's services, customers (filtered by search), and resources
+     * needed to populate the picker UI.
+     */
+    public function pickerData(Request $request)
+    {
+        $tenant = tenant();
+        $search = trim((string) $request->query('q', ''));
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'duration_minutes', 'price_cents']);
+
+        $customersQuery = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($search !== '') {
+            $customersQuery->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name',  'like', "%{$search}%")
+                  ->orWhere('email',      'like', "%{$search}%")
+                  ->orWhere('phone',      'like', "%{$search}%");
+            });
+        }
+        $customers = $customersQuery
+            ->orderBy('last_name')->orderBy('first_name')
+            ->limit(15)
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone']);
+
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'subtitle']);
+
+        return response()->json([
+            'services'  => $services,
+            'customers' => $customers,
+            'resources' => $resources,
+        ]);
     }
 
     public function show(Request $request, string $subdomain, string $id)
