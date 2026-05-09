@@ -134,14 +134,15 @@ class TenantAppointment extends Model
 
     /**
      * The single open draft sale created by the auto-send-on-Completed flow.
-     * Returns null if there is no sale, or if the sale is closed/paid (lock
-     * may release on paid; that's a UX choice).
+     * Returns null if there is no sale, or if the sale is closed/paid.
+     *
+     * Uses the SaleService convention: drafts have payment_status='draft'.
      */
     public function openRegisterSale(): ?TenantSale
     {
         return $this->sales()
             ->whereNotIn('status', ['cancelled', 'closed'])
-            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->where('payment_status', 'draft')
             ->latest('created_at')
             ->first();
     }

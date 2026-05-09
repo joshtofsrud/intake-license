@@ -95,7 +95,7 @@ class AppointmentRegisterBridgeService
         $voided = 0;
         $sales = $appointment->sales()
             ->whereNotIn('status', ['cancelled', 'closed'])
-            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->where('payment_status', 'draft')
             ->get();
 
         foreach ($sales as $sale) {
@@ -161,7 +161,7 @@ class AppointmentRegisterBridgeService
                 'sale_number'         => $saleNumber,
                 'sale_date'           => now()->toDateString(),
                 'status'              => 'pending',     // draft
-                'payment_status'      => 'unpaid',
+                'payment_status'      => 'draft',        // matches SaleService::commitDraft expectations
                 'customer_id'         => $appointment->customer_id,
                 'appointment_id'      => $appointment->id,
                 'rang_up_by_user_id'  => Auth::guard('tenant')->id() ?? $this->fallbackUserId($appointment),

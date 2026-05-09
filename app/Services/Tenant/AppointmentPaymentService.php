@@ -216,7 +216,7 @@ class AppointmentPaymentService
         // pending_balance = there's an active register draft for the balance.
         $hasOpenSale = $appointment->sales()
             ->whereNotIn('status', ['cancelled', 'closed'])
-            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->where('payment_status', 'draft')
             ->exists();
 
         return $hasOpenSale ? 'pending_balance' : 'partial';

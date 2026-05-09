@@ -535,7 +535,7 @@ class AppointmentController extends Controller
                     'sale_number'         => $saleNumber,
                     'sale_date'           => now()->toDateString(),
                     'status'              => 'pending',
-                    'payment_status'      => 'unpaid',
+                    'payment_status'      => 'draft',
                     'customer_id'         => $appointment->customer_id,
                     'appointment_id'      => $appointment->id,
                     'rang_up_by_user_id'  => Auth::guard('tenant')->id(),

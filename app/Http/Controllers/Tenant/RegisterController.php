@@ -27,7 +27,7 @@ class RegisterController extends Controller
         // render the "X ready for checkout" banner on the register page.
         $appointmentTrayCount = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
             ->whereNotNull('appointment_id')
-            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->where('payment_status', 'draft')
             ->whereNotIn('status', ['cancelled', 'closed'])
             ->count();
 
@@ -63,7 +63,7 @@ class RegisterController extends Controller
         $tenant = tenant();
         $sales = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
             ->whereNotNull('appointment_id')
-            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->where('payment_status', 'draft')
             ->whereNotIn('status', ['cancelled', 'closed'])
             ->with(['customer', 'appointment'])
             ->orderBy('created_at', 'desc')
