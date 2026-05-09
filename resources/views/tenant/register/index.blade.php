@@ -83,11 +83,18 @@
   .reg-open-item:hover{border-color:var(--ia-accent);color:var(--ia-text)}
 
   .reg-cust{
-    display:flex;align-items:center;justify-content:space-between;gap:10px;
-    padding:10px 12px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);
+    display:flex;flex-direction:column;gap:6px;
+    padding:12px 14px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);
     margin-bottom:14px;font-size:13px
   }
-  .reg-cust .name{font-weight:500}
+  .reg-cust .head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .reg-cust .name{font-weight:500;font-size:14px}
+  .reg-cust .meta{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--ia-text-dim)}
+  .reg-cust .meta a{color:var(--ia-text-dim);text-decoration:none}
+  .reg-cust .meta a:hover{color:var(--ia-text);text-decoration:underline}
+  .reg-cust .actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;padding-top:8px;border-top:0.5px solid var(--ia-border)}
+  .reg-cust .profile-link{font-size:12px;color:var(--ia-accent);text-decoration:none}
+  .reg-cust .profile-link:hover{text-decoration:underline}
   .reg-cust .clear{color:var(--ia-text-dim);cursor:pointer;font-size:11px}
   .reg-cust .clear:hover{color:var(--reg-danger)}
 
@@ -534,6 +541,7 @@ const ROUTES = {
   quotesIndex: @json(route('tenant.register.quotes.index')),
   lookupSale:  @json(route('tenant.register.lookup-sale')),
   commitTxn:   @json(route('tenant.register.transactions.store')),
+  customerBase: @json(url('/admin/customers')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -962,10 +970,27 @@ function renderCart() {
 
   const slot = document.getElementById('customerSlot');
   if (cart.customer) {
+    const c = cart.customer;
+    const profileUrl = ROUTES.customerBase + '/' + encodeURIComponent(c.id);
+    const emailRow = c.email
+      ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>`
+      : '';
+    const phoneRow = c.phone
+      ? `<a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a>`
+      : '';
+    const metaInner = (emailRow || phoneRow)
+      ? `<div class="meta">${emailRow}${phoneRow}</div>`
+      : '';
     slot.innerHTML = `
       <div class="reg-cust">
-        <div><span class="name">${escapeHtml(cart.customer.name)}</span></div>
-        <span class="clear" id="clearCust">Remove</span>
+        <div class="head">
+          <span class="name">${escapeHtml(c.name || '(no name)')}</span>
+        </div>
+        ${metaInner}
+        <div class="actions">
+          <a class="profile-link" href="${profileUrl}" target="_blank" rel="noopener">View profile →</a>
+          <span class="clear" id="clearCust">Remove</span>
+        </div>
       </div>`;
     document.getElementById('clearCust').addEventListener('click', () => {
       cart.customer = null;
