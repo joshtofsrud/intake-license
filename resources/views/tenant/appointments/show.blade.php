@@ -188,6 +188,54 @@
    but visually the new rail action handles it. */
 .appt-b-shell .appt-cancel-btn-original { display: none !important; }
 
+
+/* LAYOUT-B-CUST-MODAL-CSS v1 */
+.appt-b-cust-modal {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.appt-b-cust-modal[hidden] { display: none; }
+.appt-b-cust-modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px);
+}
+.appt-b-cust-modal-card {
+  position: relative;
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-lg, 12px);
+  width: 100%; max-width: 560px;
+  max-height: 80vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.appt-b-cust-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.appt-b-cust-modal-title {
+  margin: 0;
+  font-size: 15px; font-weight: 500; letter-spacing: -.01em;
+}
+.appt-b-cust-modal-close {
+  background: none; border: none; color: inherit;
+  font-size: 22px; line-height: 1; cursor: pointer;
+  padding: 4px 8px; border-radius: 4px;
+  opacity: .6;
+}
+.appt-b-cust-modal-close:hover { opacity: 1; background: rgba(255,255,255,.06); }
+.appt-b-cust-modal-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+/* Capacity collapsible — hide default disclosure triangle */
+.appt-b-cap-override summary { list-style: none; }
+.appt-b-cap-override summary::-webkit-details-marker { display: none; }
+.appt-b-cap-override[open] summary { color: var(--ia-text-muted); }
 </style>
 
 @section('content')
@@ -397,7 +445,101 @@
            class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;justify-content:center">
           View customer profile →
         </a>
+        @if($appointment->responses->isNotEmpty())
+          <button type="button"
+                  class="ia-btn ia-btn--ghost ia-btn--sm appt-b-cust-details-btn"
+                  style="width:100%;justify-content:center;margin-top:6px">
+            View customer details →
+          </button>
+        @endif
       @endif
+    </div>
+
+    {{-- Resource — change which staff member or station owns this appointment.
+         Soft-warns on conflicts with an override path. Auto-notes on change. --}}
+    {{-- LAYOUT-B-PROMOTE-ORDER 20 --}}
+    <div class="ia-card ia-card--tight" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
+        Resource
+      </div>
+
+      @php
+        $currentResourceId = $appointment->resource_id;
+        $currentResource   = $availableResources->firstWhere('id', $currentResourceId);
+      @endphp
+
+      <div class="sidebar-stat" style="border-bottom:none;padding-bottom:4px">
+        <span class="sidebar-stat-label">Currently assigned</span>
+        <span class="sidebar-stat-value" style="display:flex;align-items:center;gap:6px">
+          @if($currentResource)
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ $currentResource->color_hex ?: '#888' }}"></span>
+            {{ $currentResource->name }}
+          @else
+            <span style="opacity:.5">Unassigned</span>
+          @endif
+        </span>
+      </div>
+
+      <label class="ia-form-label" style="margin-top:12px">Change to</label>
+      <select class="ia-input" data-appt-resource-select style="margin-bottom:8px">
+        @foreach($availableResources as $r)
+          <option value="{{ $r->id }}" @selected($r->id === $currentResourceId)>
+            {{ $r->name }}@if($r->subtitle) · {{ $r->subtitle }}@endif
+          </option>
+        @endforeach
+      </select>
+      <button type="button"
+              class="ia-btn ia-btn--ghost"
+              data-appt-resource-save
+              style="width:100%">Save resource</button>
+      <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4">
+        If the new resource is busy at this time, you'll get a warning before the change is saved.
+      </p>
+    </div>
+
+    {{-- Capacity slots · LAYOUT-B-RAIL v1 (collapsible override) --}}
+    <div class="ia-card ia-card--tight">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:10px">
+        Capacity slots
+      </div>
+      <div class="sidebar-stat" style="margin-bottom:8px">
+        <span class="sidebar-stat-label">Auto-calculated</span>
+        <span class="sidebar-stat-value">{{ $appointment->slot_weight_auto ?? 1 }}</span>
+      </div>
+      @if($appointment->slot_weight_overridden)
+      <div class="sidebar-stat" style="margin-bottom:4px">
+        <span class="sidebar-stat-label" style="color:#EF9F27">Overridden</span>
+        <span class="sidebar-stat-value" style="color:#EF9F27">{{ $appointment->slot_weight }}</span>
+      </div>
+      @endif
+      <details class="appt-b-cap-override" style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--ia-accent);padding:4px 0;list-style:none">
+          Override slot weight ▾
+        </summary>
+        <div data-appt-slot-weight-card style="margin-top:10px">
+          <input type="hidden" data-appt-slot-weight-current value="{{ (int) ($appointment->slot_weight ?? 1) }}">
+          <select class="ia-input" data-appt-slot-weight-select style="margin-bottom:8px">
+            @foreach([1,2,3,4] as $w)
+              <option value="{{ $w }}" @selected($appointment->slot_weight == $w)>
+                {{ $w }} slot{{ $w > 1 ? 's' : '' }}
+                @if($w == 1) — normal job
+                @elseif($w == 2) — bigger job
+                @elseif($w == 3) — large job
+                @elseif($w == 4) — full day job
+                @endif
+              </option>
+            @endforeach
+          </select>
+          <button type="button"
+                  class="ia-btn ia-btn--ghost"
+                  data-appt-slot-weight-save
+                  data-appt-id="{{ $appointment->id }}"
+                  style="width:100%">Save slot weight</button>
+          <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4">
+            Override how many capacity slots this appointment occupies.
+          </p>
+        </div>
+      </details>
     </div>
 
   </aside>
@@ -709,19 +851,7 @@
     </div>
     @endif
 
-    {{-- Form responses --}}
-    @if($appointment->responses->isNotEmpty())
-    {{-- LAYOUT-B-PROMOTE-ORDER 60 --}}
-    <div class="ia-card" style="order:60">
-      <div class="appt-section-label">Customer details</div>
-      @foreach($appointment->responses as $r)
-        <div class="appt-response">
-          <div class="appt-response-label">{{ $r->field_label_snapshot }}</div>
-          <div class="appt-response-value">{{ $r->response_value ?: '—' }}</div>
-        </div>
-      @endforeach
-    </div>
-    @endif
+    {{-- LAYOUT-B-CUSTDETAIL-MOVED v1: Customer details now render in the modal at end of page --}}
 
     {{-- Charges --}}
     {{-- LAYOUT-B-PROMOTE-ORDER 70 --}}
@@ -846,88 +976,9 @@
       @endif
     </div>
 
-    {{-- Resource — change which staff member or station owns this appointment.
-         Soft-warns on conflicts with an override path. Auto-notes on change. --}}
-    {{-- LAYOUT-B-PROMOTE-ORDER 20 --}}
-    <div class="ia-card ia-card--tight" style="order:20" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
-        Resource
-      </div>
+    {{-- LAYOUT-B-RAIL-MOVE v1: Resource card moved to rail --}}
 
-      @php
-        $currentResourceId = $appointment->resource_id;
-        $currentResource   = $availableResources->firstWhere('id', $currentResourceId);
-      @endphp
-
-      <div class="sidebar-stat" style="border-bottom:none;padding-bottom:4px">
-        <span class="sidebar-stat-label">Currently assigned</span>
-        <span class="sidebar-stat-value" style="display:flex;align-items:center;gap:6px">
-          @if($currentResource)
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ $currentResource->color_hex ?: '#888' }}"></span>
-            {{ $currentResource->name }}
-          @else
-            <span style="opacity:.5">Unassigned</span>
-          @endif
-        </span>
-      </div>
-
-      <label class="ia-form-label" style="margin-top:12px">Change to</label>
-      <select class="ia-input" data-appt-resource-select style="margin-bottom:8px">
-        @foreach($availableResources as $r)
-          <option value="{{ $r->id }}" @selected($r->id === $currentResourceId)>
-            {{ $r->name }}@if($r->subtitle) · {{ $r->subtitle }}@endif
-          </option>
-        @endforeach
-      </select>
-      <button type="button"
-              class="ia-btn ia-btn--ghost"
-              data-appt-resource-save
-              style="width:100%">Save resource</button>
-      <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4">
-        If the new resource is busy at this time, you'''ll get a warning before the change is saved.
-      </p>
-    </div>
-
-    {{-- Slot weight · LAYOUT-B-PROMOTE-ORDER 30 --}}
-    <div class="ia-card ia-card--tight" style="order:30">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
-        Capacity slots
-      </div>
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label">Auto-calculated</span>
-        <span class="sidebar-stat-value">{{ $appointment->slot_weight_auto ?? 1 }}</span>
-      </div>
-      @if($appointment->slot_weight_overridden)
-      <div class="sidebar-stat">
-        <span class="sidebar-stat-label" style="color:#EF9F27">Overridden by staff</span>
-        <span class="sidebar-stat-value" style="color:#EF9F27">{{ $appointment->slot_weight }}</span>
-      </div>
-      @endif
-      <div data-appt-slot-weight-card style="margin-top:12px">
-        <input type="hidden" data-appt-slot-weight-current value="{{ (int) ($appointment->slot_weight ?? 1) }}">
-        <label class="ia-form-label">Override slot weight</label>
-        <select class="ia-input" data-appt-slot-weight-select style="margin-bottom:8px">
-          @foreach([1,2,3,4] as $w)
-            <option value="{{ $w }}" @selected($appointment->slot_weight == $w)>
-              {{ $w }} slot{{ $w > 1 ? 's' : '' }}
-              @if($w == 1) — normal job
-              @elseif($w == 2) — bigger job
-              @elseif($w == 3) — large job
-              @elseif($w == 4) — full day job
-              @endif
-            </option>
-          @endforeach
-        </select>
-        <button type="button"
-                class="ia-btn ia-btn--ghost"
-                data-appt-slot-weight-save
-                data-appt-id="{{ $appointment->id }}"
-                style="width:100%">Save slot weight</button>
-        <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4">
-          Override how many capacity slots this appointment occupies.
-        </p>
-      </div>
-    </div>
+    {{-- LAYOUT-B-RAIL-MOVE v1: Capacity card moved to rail --}}
 
     {{-- Payment ledger · LAYOUT-B-PROMOTE-ORDER 80 (order applies to the wrapping ia-card div below) --}}
     @php
@@ -1040,6 +1091,27 @@
   </div>{{-- /.appt-b-main --}}
 
 </div>{{-- /.appt-b-shell --}}
+
+{{-- LAYOUT-B-CUSTDETAIL-MODAL v1 --}}
+@if($appointment->responses->isNotEmpty())
+<div class="appt-b-cust-modal" id="appt-b-cust-modal" hidden role="dialog" aria-modal="true" aria-labelledby="appt-b-cust-modal-title">
+  <div class="appt-b-cust-modal-backdrop" data-cust-modal-close></div>
+  <div class="appt-b-cust-modal-card">
+    <div class="appt-b-cust-modal-head">
+      <h2 class="appt-b-cust-modal-title" id="appt-b-cust-modal-title">Customer details</h2>
+      <button type="button" class="appt-b-cust-modal-close" data-cust-modal-close aria-label="Close">×</button>
+    </div>
+    <div class="appt-b-cust-modal-body">
+      @foreach($appointment->responses as $r)
+        <div class="appt-response">
+          <div class="appt-response-label">{{ $r->field_label_snapshot }}</div>
+          <div class="appt-response-value">{{ $r->response_value ?: '—' }}</div>
+        </div>
+      @endforeach
+    </div>
+  </div>
+</div>
+@endif
 
 @endsection
 
@@ -1766,6 +1838,26 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   }
+});
+</script>
+
+<script>
+// LAYOUT-B-CUST-MODAL-JS v1
+document.addEventListener('DOMContentLoaded', function () {
+  var modal     = document.getElementById('appt-b-cust-modal');
+  var openBtn   = document.querySelector('.appt-b-cust-details-btn');
+  if (!modal || !openBtn) return;
+
+  function open()  { modal.hidden = false;  document.body.style.overflow = 'hidden'; }
+  function close() { modal.hidden = true;   document.body.style.overflow = ''; }
+
+  openBtn.addEventListener('click', open);
+  modal.querySelectorAll('[data-cust-modal-close]').forEach(function (el) {
+    el.addEventListener('click', close);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hidden) close();
+  });
 });
 </script>
 @endpush
