@@ -31,6 +31,7 @@
        data-cal-close-min="{{ $closeMin }}"
        data-cal-px-per-min="1.4"
        data-cal-is-today="{{ $isToday ? '1' : '0' }}"
+       data-cal-slot-min="{{ $slotMin ?? 30 }}"
      @endif>
 
   {{-- ===== Toolbar ===== --}}
@@ -56,6 +57,14 @@
       </div>
     </div>
     <div class="ia-cal-toolbar-right">
+      @if($viewMode === 'day')
+        <button type="button" class="ia-cal-new-appt-btn" id="ia-cal-new-appt-btn"
+                data-armed="0"
+                aria-label="Place a new appointment on the calendar">
+          <span class="ia-cal-new-appt-btn-idle">+ New Appointment</span>
+          <span class="ia-cal-new-appt-btn-armed">◉ Placing appointment</span>
+        </button>
+      @endif
       <button type="button" class="ia-cal-legend-trigger" id="ia-cal-legend-trigger"
               aria-label="Show calendar legend" aria-expanded="false">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -340,6 +349,31 @@
 <script>
   window.IntakeCalendarPrefill = @json($prefillCustomer);
 </script>
+@endif
+
+@if($viewMode === 'day')
+{{-- ===== Placement-mode banner (hidden until armed) ===== --}}
+<div class="ia-cal-placement-banner" id="ia-cal-placement-banner" hidden>
+  <div class="ia-cal-placement-banner-left">
+    <span class="ia-cal-placement-banner-icon">+</span>
+    <span class="ia-cal-placement-banner-text">
+      Click any open slot to place a <strong id="ia-cal-placement-duration">{{ $slotMin ?? 30 }}-minute</strong> appointment
+    </span>
+    <span class="ia-cal-placement-banner-meta">· duration adjusts when you pick services</span>
+  </div>
+  <button type="button" class="ia-cal-placement-banner-cancel" id="ia-cal-placement-cancel-btn">
+    Cancel (Esc)
+  </button>
+</div>
+
+{{-- ===== Ghost block (placeholder; JS positions/hides) ===== --}}
+<div class="ia-cal-ghost-block" id="ia-cal-ghost-block" hidden>
+  <div class="ia-cal-ghost-title">+ New appointment</div>
+  <div class="ia-cal-ghost-meta" id="ia-cal-ghost-meta">—</div>
+</div>
+
+{{-- ===== Create-appointment modal (calendar-first entry point) ===== --}}
+@include('tenant.appointments._create_modal')
 @endif
 
 @endsection

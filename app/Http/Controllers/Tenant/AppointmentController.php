@@ -390,9 +390,10 @@ class AppointmentController extends Controller
 
         $startDate = (string) $request->query('start_date', now()->toDateString());
         $days      = max(1, min(14, (int) $request->query('days', 7)));
+        $resourceId = $request->query('resource_id') ?: null;
 
         $bookingService = app(\App\Services\BookingService::class);
-        $dayData = $bookingService->dayCounts($tenant, $required, $startDate, $days);
+        $dayData = $bookingService->dayCounts($tenant, $required, $startDate, $days, $resourceId);
 
         return response()->json([
             'days'             => $dayData,
@@ -427,8 +428,10 @@ class AppointmentController extends Controller
             return response()->json(['times' => [], 'required_minutes' => 0]);
         }
 
+        $resourceId = $request->query('resource_id') ?: null;
+
         $bookingService = app(\App\Services\BookingService::class);
-        $times = $bookingService->availableSlotsForDate($tenant, $date, null, $required);
+        $times = $bookingService->availableSlotsForDate($tenant, $date, $resourceId, $required);
 
         if (\Carbon\Carbon::parse($date)->isToday()) {
             $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
@@ -471,7 +474,16 @@ class AppointmentController extends Controller
         }
 
         $bookingService = app(\App\Services\BookingService::class);
-        $resourceId = $bookingService->resolveResourceForSlot($tenant, $date, $time, $required);
+
+        // If a specific resource is requested, verify it's free at that time.
+        // Otherwise auto-resolve the first available active resource.
+        $requestedResourceId = $request->query('resource_id') ?: null;
+        if ($requestedResourceId) {
+            $slots = $bookingService->availableSlotsForDate($tenant, $date, $requestedResourceId, $required);
+            $resourceId = in_array($time, $slots, true) ? $requestedResourceId : null;
+        } else {
+            $resourceId = $bookingService->resolveResourceForSlot($tenant, $date, $time, $required);
+        }
 
         return response()->json(['resource_id' => $resourceId]);
     }

@@ -101,6 +101,20 @@
           }
         } catch (err) { /* fall back to default */ }
 
+        // CALENDAR-FIRST-INTERCEPT v1: armed placement mode bypasses QuickBook.
+        if (window.IntakePlacement && window.IntakePlacement.isArmed()) {
+          var placed = window.IntakePlacement.resolveClick(col, e.clientY);
+          window.IntakePlacement.disarm();
+          if (window.ApptModal && typeof window.ApptModal.openPlaced === 'function') {
+            window.ApptModal.openPlaced({
+              date: dateStr,
+              time: placed.time,
+              resourceId: placed.resourceId,
+              resourceName: placed.resourceName,
+            });
+          }
+          return;
+        }
         QuickBook.open({
           date: dateStr,
           time: time,
@@ -513,6 +527,181 @@
   } else {
     boot();
   }
+
+  // ==========================================================================
+  // Placement mode — calendar-first appointment placement
+  // ==========================================================================
+  // CALENDAR-FIRST-PLACEMENT-JS v1
+  var Placement = {
+    armed: false,
+    slotMin: 30,
+    serviceDurationMin: 30,    // mirrors slotMin until services chosen
+    pxPerMin: 1.4,
+    openMin: 0,
+    closeMin: 1440,
+    dateStr: null,
+    ghost: null,
+    ghostMeta: null,
+    button: null,
+    banner: null,
+    cancelBtn: null,
+    durationLabel: null,
+    activeCol: null,
+    preserved: null,           // stashed form state when "Change time" round-trips
+
+    init: function () {
+      var shell = document.querySelector('.ia-cal-shell');
+      if (!shell) return;
+      if (shell.getAttribute('data-view-mode') !== 'day') return;
+
+      this.openMin  = parseInt(shell.getAttribute('data-cal-open-min'), 10) || 0;
+      this.closeMin = parseInt(shell.getAttribute('data-cal-close-min'), 10) || 1440;
+      this.pxPerMin = parseFloat(shell.getAttribute('data-cal-px-per-min')) || 1.4;
+      this.slotMin  = parseInt(shell.getAttribute('data-cal-slot-min'), 10) || 30;
+      this.serviceDurationMin = this.slotMin;
+
+      var u = new URL(window.location.href);
+      this.dateStr = u.searchParams.get('date') || new Date().toISOString().slice(0, 10);
+
+      this.button         = document.getElementById('ia-cal-new-appt-btn');
+      this.banner         = document.getElementById('ia-cal-placement-banner');
+      this.cancelBtn      = document.getElementById('ia-cal-placement-cancel-btn');
+      this.ghost          = document.getElementById('ia-cal-ghost-block');
+      this.ghostMeta      = document.getElementById('ia-cal-ghost-meta');
+      this.durationLabel  = document.getElementById('ia-cal-placement-duration');
+      if (!this.button || !this.banner || !this.ghost) return;
+
+      var self = this;
+      this.button.addEventListener('click', function () {
+        if (self.armed) self.disarm();
+        else self.arm();
+      });
+      this.cancelBtn.addEventListener('click', function () { self.disarm(); });
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && self.armed) {
+          self.disarm();
+          e.preventDefault();
+        }
+      });
+
+      // Ghost tracking — bind mousemove on each resource column.
+      document.querySelectorAll('.ia-cal-resource-col').forEach(function (col) {
+        col.addEventListener('mousemove', function (e) {
+          if (!self.armed) return;
+          self.activeCol = col;
+          self.positionGhost(col, e.clientY);
+        });
+        col.addEventListener('mouseleave', function () {
+          if (!self.armed) return;
+          self.ghost.hidden = true;
+          self.activeCol = null;
+        });
+      });
+    },
+
+    arm: function () {
+      this.armed = true;
+      this.button.setAttribute('data-armed', '1');
+      this.banner.hidden = false;
+      document.body.classList.add('ia-cal-placement-armed');
+      // (Ghost stays hidden until cursor enters a resource column.)
+    },
+
+    disarm: function () {
+      this.armed = false;
+      this.button.setAttribute('data-armed', '0');
+      this.banner.hidden = true;
+      this.ghost.hidden = true;
+      document.body.classList.remove('ia-cal-placement-armed');
+      this.activeCol = null;
+    },
+
+    isArmed: function () { return this.armed; },
+
+    /** Compute snapped time + position for ghost given clientY in a column. */
+    positionGhost: function (col, clientY) {
+      var rect = col.getBoundingClientRect();
+      var y = clientY - rect.top;
+      var minutesFromOpen = Math.round(y / this.pxPerMin);
+      var snap = this.slotMin;
+      var snappedMin = Math.round(minutesFromOpen / snap) * snap;
+      var totalMin = this.openMin + snappedMin;
+
+      // Don't overflow past close time.
+      if (totalMin + this.serviceDurationMin > this.closeMin) {
+        totalMin = this.closeMin - this.serviceDurationMin;
+        snappedMin = totalMin - this.openMin;
+      }
+      if (totalMin < this.openMin) {
+        totalMin = this.openMin;
+        snappedMin = 0;
+      }
+
+      var top    = Math.round(snappedMin * this.pxPerMin);
+      var height = Math.round(this.serviceDurationMin * this.pxPerMin);
+
+      // Anchor to column.
+      this.ghost.style.left   = (rect.left + window.scrollX + 1) + 'px';
+      this.ghost.style.top    = (rect.top  + window.scrollY + top) + 'px';
+      this.ghost.style.width  = (rect.width - 2) + 'px';
+      this.ghost.style.height = height + 'px';
+      this.ghost.style.position = 'absolute';
+      this.ghost.hidden = false;
+
+      var endMin = totalMin + this.serviceDurationMin;
+      this.ghostMeta.textContent = formatRange(totalMin, endMin);
+    },
+
+    /** Resolve current snapped time for a click event in a column. Returns {time, resourceId, resourceName}. */
+    resolveClick: function (col, clientY) {
+      var rect = col.getBoundingClientRect();
+      var y = clientY - rect.top;
+      var minutesFromOpen = Math.round(y / this.pxPerMin);
+      var snap = this.slotMin;
+      var snappedMin = Math.round(minutesFromOpen / snap) * snap;
+      var totalMin = this.openMin + snappedMin;
+      if (totalMin + this.serviceDurationMin > this.closeMin) {
+        totalMin = this.closeMin - this.serviceDurationMin;
+      }
+      if (totalMin < this.openMin) totalMin = this.openMin;
+
+      var hh = Math.floor(totalMin / 60);
+      var mm = totalMin % 60;
+      var time = (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm);
+      var resourceId = col.getAttribute('data-resource-id');
+      var resourceName = 'Resource';
+      try {
+        var headers = document.querySelectorAll('.ia-cal-resource-head');
+        var cols = document.querySelectorAll('.ia-cal-resource-col');
+        var idx = Array.prototype.indexOf.call(cols, col);
+        if (headers[idx]) {
+          var nameEl = headers[idx].querySelector('.ia-cal-resource-name');
+          if (nameEl) resourceName = nameEl.textContent.trim();
+        }
+      } catch (err) { /* fall back */ }
+      return { time: time, resourceId: resourceId, resourceName: resourceName, totalMin: totalMin };
+    },
+  };
+  window.IntakePlacement = Placement;
+
+  function formatRange(startMin, endMin) {
+    function fmt(m) {
+      var h = Math.floor(m / 60), mm = m % 60;
+      var ampm = h < 12 ? 'am' : 'pm';
+      var h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+      return h12 + (mm === 0 ? '' : ':' + (mm < 10 ? '0' + mm : mm)) + ampm;
+    }
+    return fmt(startMin) + '–' + fmt(endMin);
+  }
+
+  // Hook Placement init into existing boot flow.
+  var _origBoot = boot;
+  boot = function () {
+    _origBoot();
+    Placement.init();
+  };
+  if (document.readyState !== 'loading') Placement.init();
 
   console.log('[calendar] module loaded');
 })();

@@ -180,6 +180,28 @@
     .appt-err { background: rgba(226,75,74,.12); color: #f39999; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; display: none; }
     .appt-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: appt-spin .6s linear infinite; vertical-align: -2px; margin-right: 6px; }
     @keyframes appt-spin { to { transform: rotate(360deg); } }
+  
+    /* CALENDAR-FIRST-LOCKED-TIME v1 */
+    .appt-when-locked {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px;
+      background: rgba(190,242,100,0.08);
+      border: 1px solid rgba(190,242,100,0.25);
+      border-radius: 8px;
+      gap: 12px;
+    }
+    .appt-when-locked-left { display: flex; flex-direction: column; gap: 2px; }
+    .appt-when-locked-time { font-size: 14px; font-weight: 600; color: var(--ia-text, #f0f0f0); }
+    .appt-when-locked-resource { font-size: 12px; opacity: .65; }
+    .appt-when-locked-change {
+      font-size: 12px;
+      color: var(--ia-accent, #BEF264);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .appt-when-locked-change:hover { background: rgba(190,242,100,0.12); }
   </style>
 
   <div id="new-appt-backdrop">
@@ -231,8 +253,20 @@
           </div>
         </div>
 
-        {{-- When (availability-first) --}}
-        <div class="appt-section">
+        {{-- When (calendar-first locked-time pill, hidden by default) --}}
+        <div class="appt-section" id="appt-when-locked-section" style="display:none">
+          <div class="appt-section-h">When</div>
+          <div class="appt-when-locked">
+            <div class="appt-when-locked-left">
+              <div class="appt-when-locked-time" id="appt-when-locked-time">—</div>
+              <div class="appt-when-locked-resource" id="appt-when-locked-resource">—</div>
+            </div>
+            <span class="appt-when-locked-change" id="appt-when-change-time">Change time</span>
+          </div>
+        </div>
+
+        {{-- When (availability-first; hidden in calendar-first flow) --}}
+        <div class="appt-section" id="appt-when-availability-section">
           <div class="appt-section-h">When</div>
           <div id="appt-when-content">
             <div class="appt-when-empty">Add a service to see available times.</div>
@@ -267,6 +301,9 @@ window.ApptModal = (function () {
     availLoading: false,
     selectedSlot: null,        // {date, time, resource_id}
     manualOverride: false,
+    // CALENDAR-FIRST-PREFILL v1: when set, skip availability UI, use these values
+    lockedPrefill: null,       // {date, time, resourceId, resourceName}
+    preservedForm: null,       // {customerId, cart, notes, custFields} stashed on Change-time
     // Manual override fields (read at submit if manualOverride is true)
   };
 
@@ -315,12 +352,103 @@ window.ApptModal = (function () {
     renderAvailability();
     el('appt-svc-picker').style.display = 'none';
     state.pickerOpen = false;
+    // CALENDAR-FIRST: reset locked-time UI when re-opening from list page.
+    state.lockedPrefill = null;
+    var lockedSec = el('appt-when-locked-section');
+    var availSec = el('appt-when-availability-section');
+    if (lockedSec) lockedSec.style.display = 'none';
+    if (availSec)  availSec.style.display  = 'block';
     el('new-appt-modal').style.display = 'block';
     if (state.services.length === 0) loadInitialData();
     el('appt-cust-search').focus();
   }
 
   function close() { el('new-appt-modal').style.display = 'none'; }
+
+  // CALENDAR-FIRST-OPENPLACED v1
+  // Opens the modal with a pre-locked time (set from the calendar ghost-block
+  // click). Hides the availability section and shows the locked-time pill.
+  // If `state.preservedForm` is set (from a prior "Change time" round-trip),
+  // re-hydrate customer + cart + notes silently.
+  function openPlaced(prefill) {
+    open();
+    state.lockedPrefill = prefill;
+    state.selectedSlot = {
+      date: prefill.date,
+      time: prefill.time,
+      resource_id: prefill.resourceId ? Number(prefill.resourceId) : null,
+    };
+    // Hide availability UI; show locked-time pill.
+    el('appt-when-availability-section').style.display = 'none';
+    el('appt-when-locked-section').style.display = 'block';
+    el('appt-when-locked-time').textContent = formatLockedTime(prefill.date, prefill.time);
+    el('appt-when-locked-resource').textContent = prefill.resourceName
+      ? 'with ' + prefill.resourceName : '';
+
+    // If we're round-tripping back from "Change time", re-hydrate.
+    if (state.preservedForm) {
+      var pf = state.preservedForm;
+      if (pf.customer) {
+        attachCustomer(pf.customer);
+      } else if (pf.custFields) {
+        el('appt-cust-search').value = pf.custFields.search || '';
+        el('appt-cust-new-fields').style.display = 'block';
+        el('appt-first').value = pf.custFields.first || '';
+        el('appt-last').value  = pf.custFields.last  || '';
+        el('appt-email').value = pf.custFields.email || '';
+        el('appt-phone').value = pf.custFields.phone || '';
+      }
+      if (Array.isArray(pf.cart)) {
+        state.cart = pf.cart;
+        renderCart();
+      }
+      el('appt-notes').value = pf.notes || '';
+      state.preservedForm = null;
+    }
+  }
+
+  function formatLockedTime(dateStr, timeStr) {
+    try {
+      // dateStr: YYYY-MM-DD ; timeStr: HH:MM
+      var d = new Date(dateStr + 'T' + timeStr + ':00');
+      var dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+      var monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+      var hh = d.getHours(), mm = d.getMinutes();
+      var ampm = hh < 12 ? 'AM' : 'PM';
+      var h12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+      var t = h12 + ':' + (mm < 10 ? '0' + mm : mm) + ' ' + ampm;
+      return dayName + ' ' + monthName + ' ' + d.getDate() + ' · ' + t;
+    } catch (e) {
+      return dateStr + ' ' + timeStr;
+    }
+  }
+
+  // CALENDAR-FIRST-CHANGE-TIME v1
+  // "Change time" link: stash form state, close modal, re-arm placement so user
+  // can click a different slot. The slot-click handler will call openPlaced again,
+  // which re-hydrates from state.preservedForm.
+  function changeTime() {
+    state.preservedForm = {
+      customer: state.customerId ? { id: state.customerId,
+        first_name: el('appt-cust-name') ? el('appt-cust-name').textContent.split(' ')[0] : '',
+        last_name:  el('appt-cust-name') ? el('appt-cust-name').textContent.split(' ').slice(1).join(' ') : '',
+      } : null,
+      custFields: state.customerId ? null : {
+        search: el('appt-cust-search').value,
+        first:  el('appt-first').value,
+        last:   el('appt-last').value,
+        email:  el('appt-email').value,
+        phone:  el('appt-phone').value,
+      },
+      cart: state.cart.slice(),
+      notes: el('appt-notes').value,
+    };
+    close();
+    // Re-arm calendar placement mode.
+    if (window.IntakePlacement && typeof window.IntakePlacement.arm === 'function') {
+      window.IntakePlacement.arm();
+    }
+  }
 
   // ── Customer search ──
   el('appt-cust-search').addEventListener('input', function () {
@@ -941,9 +1069,21 @@ window.ApptModal = (function () {
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  // Wire Change-time click (idempotent).
+  document.addEventListener('DOMContentLoaded', function () {
+    var ct = el('appt-when-change-time');
+    if (ct && !ct.dataset.wired) { ct.addEventListener('click', changeTime); ct.dataset.wired = '1'; }
+  });
+  // Already-loaded fallback.
+  (function () {
+    var ct = el('appt-when-change-time');
+    if (ct && !ct.dataset.wired) { ct.addEventListener('click', changeTime); ct.dataset.wired = '1'; }
+  })();
+
   return {
     open: open, close: close, clearCustomer: clearCustomer,
     toggleServicePicker: toggleServicePicker, submit: submit,
+    openPlaced: openPlaced, changeTime: changeTime,
   };
 })();
 
