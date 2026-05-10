@@ -603,6 +603,10 @@ window.ApptModal = (function () {
   // ── Availability ──
   function scheduleAvailabilityFetch() {
     clearTimeout(availTimer);
+    // CALENDAR-FIRST-LOCK-GUARD v1: when a slot was placed via calendar-first,
+    // skip availability lookup entirely. The placed slot is authoritative; we
+    // must NOT overwrite state.selectedSlot with the server's "earliest".
+    if (state.lockedPrefill) return;
     if (state.cart.length === 0) {
       state.availability = null;
       state.selectedSlot = null;
