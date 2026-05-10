@@ -405,8 +405,8 @@
   {{-- Main column starts here (existing content unchanged) --}}
   <div class="appt-b-main" style="display:flex;flex-direction:column;gap:20px">
 
-    {{-- Line items --}}
-    <div class="ia-card">
+    {{-- Line items · LAYOUT-B-PROMOTE-ORDER 10 --}}
+    <div class="ia-card" style="order:10">
       <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between">
         <span>Services</span>
         @if($bannerSale)
@@ -503,7 +503,8 @@
     @php
       $isCommittedStatus = in_array($appointment->status, ['completed', 'shipped', 'closed']);
     @endphp
-    <div class="ia-card" id="parts-card">
+    {{-- LAYOUT-B-PROMOTE-ORDER 40 --}}
+    <div class="ia-card" id="parts-card" style="order:40">
       <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <span>Products & Add-ons</span>
         <div style="display:flex;align-items:center;gap:8px">
@@ -623,7 +624,8 @@
       $identifierValue = $identifierField ? ($responsesByFieldId[$identifierField->id]->response_value ?? null) : null;
       $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
     @endphp
-    <div class="ia-card" id="work-order-card">
+    {{-- LAYOUT-B-PROMOTE-ORDER 50 --}}
+    <div class="ia-card" id="work-order-card" style="order:50">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:0.5px solid var(--ia-border)">
         <div class="appt-section-label" style="margin-bottom:0">Work order</div>
         <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="wo-edit-toggle">Edit</button>
@@ -709,7 +711,8 @@
 
     {{-- Form responses --}}
     @if($appointment->responses->isNotEmpty())
-    <div class="ia-card">
+    {{-- LAYOUT-B-PROMOTE-ORDER 60 --}}
+    <div class="ia-card" style="order:60">
       <div class="appt-section-label">Customer details</div>
       @foreach($appointment->responses as $r)
         <div class="appt-response">
@@ -721,7 +724,8 @@
     @endif
 
     {{-- Charges --}}
-    <div class="ia-card">
+    {{-- LAYOUT-B-PROMOTE-ORDER 70 --}}
+    <div class="ia-card" style="order:70">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div class="appt-section-label" style="margin-bottom:0">Additional charges</div>
         <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="add-charge-toggle">
@@ -774,7 +778,8 @@
     </div>
 
     {{-- Notes --}}
-    <div class="ia-card">
+    {{-- LAYOUT-B-PROMOTE-ORDER 90 --}}
+    <div class="ia-card" style="order:90">
       <div class="appt-section-label">Notes</div>
 
       <div class="ia-note-add">
@@ -815,11 +820,10 @@
       </div>
     </div>
 
-    {{-- LAYOUT-B-MOVED-FIX v1 — relocated cards are now children of .appt-b-main --}}
-    <div style="display:flex;flex-direction:column;gap:16px;width:100%">
+    {{-- LAYOUT-B-PROMOTE v1 — moved-block unwrapped; cards are direct children of .appt-b-main and ordered via CSS order:N --}}
 
-    {{-- Customer card (kept in DOM to avoid breaking any potential JS, hidden in B layout) --}}
-    <div class="ia-card ia-card--tight" style="display:none" aria-hidden="true">
+    {{-- Customer card · LAYOUT-B-PROMOTE-ORDER 9999 (hidden) --}}
+    <div class="ia-card ia-card--tight" style="display:none;order:9999" aria-hidden="true">
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
@@ -844,7 +848,8 @@
 
     {{-- Resource — change which staff member or station owns this appointment.
          Soft-warns on conflicts with an override path. Auto-notes on change. --}}
-    <div class="ia-card ia-card--tight" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
+    {{-- LAYOUT-B-PROMOTE-ORDER 20 --}}
+    <div class="ia-card ia-card--tight" style="order:20" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
         Resource
       </div>
@@ -883,8 +888,8 @@
       </p>
     </div>
 
-    {{-- Slot weight --}}
-    <div class="ia-card ia-card--tight">
+    {{-- Slot weight · LAYOUT-B-PROMOTE-ORDER 30 --}}
+    <div class="ia-card ia-card--tight" style="order:30">
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:500;opacity:.4;margin-bottom:12px">
         Capacity slots
       </div>
@@ -924,7 +929,7 @@
       </div>
     </div>
 
-    {{-- Payment ledger --}}
+    {{-- Payment ledger · LAYOUT-B-PROMOTE-ORDER 80 (order applies to the wrapping ia-card div below) --}}
     @php
       $payments      = $appointment->payments;
       $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
@@ -932,7 +937,7 @@
       $openSale      = $appointment->openRegisterSale();
       $hasOpenSale   = $openSale !== null;
     @endphp
-    <div class="ia-card ia-card--tight">
+    <div style="order:80" class="ia-card ia-card--tight">
       <div class="appt-section-label">Payment</div>
       <div class="sidebar-stat">
         <span class="sidebar-stat-label">Status</span>
@@ -1027,12 +1032,10 @@
 
     {{-- Cancel appointment — DOM kept, hidden in B layout; rail Cancel proxies to this --}}
     @unless(in_array($appointment->status, ['cancelled', 'refunded']))
-      <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn appt-cancel-btn-original" style="width:100%">
+      <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn appt-cancel-btn-original" style="width:100%;order:9999">
         Cancel appointment
       </button>
     @endunless
-
-    </div>{{-- /moved-block --}}
 
   </div>{{-- /.appt-b-main --}}
 
