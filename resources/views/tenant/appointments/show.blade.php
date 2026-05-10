@@ -815,10 +815,8 @@
       </div>
     </div>
 
-  </div>
-
-  {{-- LAYOUT-B-MOVED v1 — original right-rail content now lives at the bottom of main --}}
-  <div style="display:flex;flex-direction:column;gap:16px;width:100%">
+    {{-- LAYOUT-B-MOVED-FIX v1 — relocated cards are now children of .appt-b-main --}}
+    <div style="display:flex;flex-direction:column;gap:16px;width:100%">
 
     {{-- Customer card (kept in DOM to avoid breaking any potential JS, hidden in B layout) --}}
     <div class="ia-card ia-card--tight" style="display:none" aria-hidden="true">
@@ -1034,9 +1032,11 @@
       </button>
     @endunless
 
-  </div>
+    </div>{{-- /moved-block --}}
 
-</div>
+  </div>{{-- /.appt-b-main --}}
+
+</div>{{-- /.appt-b-shell --}}
 
 @endsection
 
