@@ -600,6 +600,12 @@ window.ApptModal = (function () {
         box.querySelectorAll('.appt-when-alt-row').forEach(function (r) { r.classList.remove('selected'); });
         row.classList.add('selected');
         el('appt-when-suggested').style.opacity = '.65';
+        // refetch strip with new lock if manual override is already open
+        if (state.manualOverride) {
+          stripState.selectedTime = null;
+          stripState.times = [];
+          fetchDayStrip();
+        }
       });
     });
 
