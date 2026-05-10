@@ -371,7 +371,9 @@ window.ApptModal = (function () {
     state.services.forEach(function (svc) {
       var opt = document.createElement('option');
       opt.value = svc.id;
-      var dur = svc.duration_minutes ? ' (' + svc.duration_minutes + ' min)' : '';
+      // SERVICE-LABEL-DEDUPE v1: skip "(N min)" suffix if the name already has one.
+      var nameHasDuration = /\(\s*\d+\s*min\s*\)/i.test(svc.name);
+      var dur = (svc.duration_minutes && !nameHasDuration) ? ' (' + svc.duration_minutes + ' min)' : '';
       var price = (svc.price_cents != null) ? ' · ' + fmt(svc.price_cents) : '';
       opt.textContent = svc.name + dur + price;
       sel.appendChild(opt);
@@ -797,4 +799,19 @@ window.ApptModal = (function () {
 
 window.openApptModal  = function () { ApptModal.open(); };
 window.closeApptModal = function () { ApptModal.close(); };
+
+// BFCACHE-MODAL-RESET v1
+// When the user navigates back to a page where this modal lives, the browser
+// may bfcache-restore the page mid-submit (frozen spinner, modal still open).
+// Detect persisted-restore and reset modal + submit button state.
+window.addEventListener('pageshow', function (e) {
+  if (!e.persisted) return;
+  var modal = document.getElementById('new-appt-modal');
+  if (modal) modal.style.display = 'none';
+  var btn = document.getElementById('appt-submit');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = 'Create Appointment';
+  }
+});
 </script>
