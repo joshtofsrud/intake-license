@@ -447,9 +447,9 @@
         </a>
         @if($appointment->responses->isNotEmpty())
           <button type="button"
-                  class="ia-btn ia-btn--ghost ia-btn--sm appt-b-cust-details-btn"
+                  class="ia-btn ia-btn--primary ia-btn--sm appt-b-cust-details-btn"
                   style="width:100%;justify-content:center;margin-top:6px">
-            View customer details →
+            View booking notes →
           </button>
         @endif
       @endif
@@ -851,7 +851,7 @@
     </div>
     @endif
 
-    {{-- LAYOUT-B-CUSTDETAIL-MOVED v1: Customer details now render in the modal at end of page --}}
+    {{-- LAYOUT-B-CUSTDETAIL-MOVED v1: Booking notes (intake responses) now render in the modal at end of page --}}
 
     {{-- Charges --}}
     {{-- LAYOUT-B-PROMOTE-ORDER 70 --}}
@@ -1098,7 +1098,7 @@
   <div class="appt-b-cust-modal-backdrop" data-cust-modal-close></div>
   <div class="appt-b-cust-modal-card">
     <div class="appt-b-cust-modal-head">
-      <h2 class="appt-b-cust-modal-title" id="appt-b-cust-modal-title">Customer details</h2>
+      <h2 class="appt-b-cust-modal-title" id="appt-b-cust-modal-title">Booking notes</h2>
       <button type="button" class="appt-b-cust-modal-close" data-cust-modal-close aria-label="Close">×</button>
     </div>
     <div class="appt-b-cust-modal-body">
