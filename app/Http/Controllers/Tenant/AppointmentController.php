@@ -1005,6 +1005,128 @@ class AppointmentController extends Controller
             return response()->json(['ok' => true]);
         }
 
+        // RESCHEDULE-OP v1 — full reschedule (date + time + resource).
+        // Validates availability defensively (slot may have been taken between
+        // the picker fetch and this submit). Recomputes appointment_end_time.
+        // Records a system note with from/to summary.
+        if ($op === 'reschedule') {
+            $request->validate([
+                'appointment_date' => ['required', 'date'],
+                'appointment_time' => ['required', 'string'],
+                'resource_id'      => ['required', 'string'],
+            ]);
+
+            $newDate     = $request->input('appointment_date');
+            $newTime     = $request->input('appointment_time');
+            $newResource = $request->input('resource_id');
+
+            // Normalize time to H:i:s for storage. Accepts "14:00" or "14:00:00".
+            $newTimeNorm = strlen($newTime) === 5 ? $newTime . ':00' : $newTime;
+
+            // Capture "from" for the system note.
+            $fromDate     = $appointment->appointment_date?->format('Y-m-d');
+            $fromTime     = $appointment->appointment_time;
+            $fromResource = $appointment->resource_id;
+
+            // No-op guard: if nothing actually changed, return early.
+            if ($fromDate === $newDate
+                && $fromTime === $newTimeNorm
+                && $fromResource === $newResource) {
+                return response()->json(['ok' => true, 'unchanged' => true]);
+            }
+
+            // Resolve the resource — must be a real resource on this tenant.
+            $resource = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+                ->where('id', $newResource)
+                ->first();
+            if (!$resource) {
+                return response()->json(['ok' => false, 'message' => 'Selected resource is not available.'], 422);
+            }
+
+            // Defensive availability check: confirm the requested slot is still open.
+            // We use the same BookingService method the picker uses, so the answer
+            // is consistent with what the user saw.
+            $bookingService = app(\App\Services\BookingService::class);
+            $required = (int) ($appointment->total_duration_minutes ?? 0);
+            if ($required <= 0) {
+                return response()->json(['ok' => false, 'message' => 'Appointment has no duration set; cannot reschedule.'], 422);
+            }
+
+            $availableTimes = $bookingService->availableSlotsForDate(
+                $tenant, $newDate, $newResource, $required
+            );
+
+            // availableSlotsForDate returns "H:i" strings. The slot is available
+            // unless it overlaps an existing appointment. Special case: if the
+            // appointment we're rescheduling is on the SAME date+resource, it
+            // already counts itself as busy. We only reject if the new H:i is
+            // not in the available list AND the new slot doesn't match the old
+            // (which would be a no-op caught above).
+            $newTimeShort = substr($newTimeNorm, 0, 5);
+            $sameDateResource = ($fromDate === $newDate && $fromResource === $newResource);
+
+            if (!in_array($newTimeShort, $availableTimes, true) && !$sameDateResource) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'That time was just taken. Please pick another available slot.',
+                ], 409);
+            }
+
+            // Compute new end time from new start + duration.
+            $newEnd = \Carbon\Carbon::parse($newDate . ' ' . $newTimeNorm)
+                ->addMinutes($required)
+                ->format('H:i:s');
+
+            $appointment->update([
+                'appointment_date'     => $newDate,
+                'appointment_time'     => $newTimeNorm,
+                'appointment_end_time' => $newEnd,
+                'resource_id'          => $newResource,
+            ]);
+
+            // Build a human-readable summary for the system note.
+            $fmtTime = function ($t) {
+                if (!$t) return '—';
+                try { return \Carbon\Carbon::parse($t)->format('g:i A'); }
+                catch (\Throwable $e) { return $t; }
+            };
+            $fmtDate = function ($d) {
+                if (!$d) return '—';
+                try { return \Carbon\Carbon::parse($d)->format('M j, Y'); }
+                catch (\Throwable $e) { return $d; }
+            };
+
+            $fromResourceName = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+                ->where('id', $fromResource)->value('name') ?? 'Unassigned';
+            $toResourceName   = $resource->name;
+
+            $noteContent = sprintf(
+                'Rescheduled from %s · %s · %s to %s · %s · %s.',
+                $fmtDate($fromDate), $fmtTime($fromTime), $fromResourceName,
+                $fmtDate($newDate),  $fmtTime($newTimeNorm), $toResourceName
+            );
+
+            TenantAppointmentNote::create([
+                'appointment_id'      => $appointment->id,
+                'user_id'             => Auth::guard('tenant')->id(),
+                'note_type'           => 'system',
+                'is_customer_visible' => false,
+                'note_content'        => $noteContent,
+                'created_at'          => now(),
+            ]);
+
+            return response()->json([
+                'ok' => true,
+                'appointment' => [
+                    'date'        => $newDate,
+                    'time'        => $newTimeNorm,
+                    'end_time'    => $newEnd,
+                    'resource_id' => $newResource,
+                ],
+                'note' => $noteContent,
+            ]);
+        }
+
         if ($op === 'add_charge') {
             $request->validate(['description' => ['required', 'string', 'max:255'], 'amount_cents' => ['required', 'integer', 'min:1']]);
             $charge = TenantAppointmentCharge::create(['appointment_id' => $appointment->id, 'description' => $request->input('description'), 'amount_cents' => (int) $request->input('amount_cents'), 'is_paid' => false, 'created_at' => now()]);
