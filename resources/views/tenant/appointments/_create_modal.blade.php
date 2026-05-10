@@ -665,6 +665,11 @@ window.ApptModal = (function () {
           stripState.selectedDate = firstOpen ? firstOpen.date : null;
           stripState.selectedTime = null;
           stripState.times = [];
+        } else {
+          // Date still in window, but times for that date may have changed
+          // (e.g. resource switch). Clear stale time selection and refetch.
+          stripState.selectedTime = null;
+          stripState.times = [];
         }
         renderStripContainer();
         if (stripState.selectedDate) fetchDayTimes();
