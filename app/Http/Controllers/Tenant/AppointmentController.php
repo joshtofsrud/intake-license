@@ -362,6 +362,139 @@ class AppointmentController extends Controller
         ]);
     }
 
+    /**
+     * SEQUENTIAL-PICKER-ENDPOINTS v1
+     *
+     * Returns the active resources eligible to perform a given service.
+     * If the service has no eligibility rows, all active resources qualify.
+     * Used by the rebuilt big-modal sequential picker (service → resource → times).
+     */
+    public function eligibleResources(Request $request)
+    {
+        $tenant = tenant();
+        $serviceId = (string) $request->query('service_id', '');
+        if ($serviceId === '') {
+            return response()->json(['resources' => []]);
+        }
+
+        $bookingService = app(\App\Services\BookingService::class);
+        $eligibleIds = $bookingService->eligibleResourcesForService($tenant->id, $serviceId);
+
+        if (empty($eligibleIds)) {
+            return response()->json(['resources' => []]);
+        }
+
+        $resources = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            ->whereIn('id', $eligibleIds)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('name')
+            ->get(['id', 'name', 'subtitle']);
+
+        return response()->json(['resources' => $resources]);
+    }
+
+    /**
+     * Returns up to 7 days of available time slots starting from start_date.
+     * Each result is a flat list across the week. The frontend paginates by
+     * advancing/retreating start_date by 7 days on prev/next clicks.
+     *
+     * Required query params:
+     *   service_id    — single service UUID (single-service modal at launch)
+     *   resource_id   — single resource UUID (selected by user)
+     *   start_date    — YYYY-MM-DD; results begin on this date
+     *
+     * Response:
+     *   {
+     *     slots: [{date: "YYYY-MM-DD", time: "HH:MM", date_label: "...", time_label: "..."}],
+     *     required_minutes: int,
+     *     start_date: "YYYY-MM-DD",
+     *     end_date: "YYYY-MM-DD"
+     *   }
+     */
+    public function weekTimes(Request $request)
+    {
+        $tenant = tenant();
+        $serviceId  = (string) $request->query('service_id', '');
+        $resourceId = (string) $request->query('resource_id', '');
+        $startDate  = (string) $request->query('start_date', now()->toDateString());
+
+        if ($serviceId === '' || $resourceId === '') {
+            return response()->json(['slots' => [], 'required_minutes' => 0]);
+        }
+
+        $svc = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('id', $serviceId)
+            ->first(['duration_minutes', 'prep_before_minutes', 'cleanup_after_minutes']);
+
+        if (!$svc) {
+            return response()->json(['slots' => [], 'required_minutes' => 0]);
+        }
+
+        $required = (int) ($svc->prep_before_minutes ?? 0)
+                  + (int) ($svc->duration_minutes ?? 0)
+                  + (int) ($svc->cleanup_after_minutes ?? 0);
+
+        if ($required === 0) {
+            return response()->json(['slots' => [], 'required_minutes' => 0]);
+        }
+
+        $bookingService = app(\App\Services\BookingService::class);
+
+        $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
+        $cutoff = now()->addHours($minNoticeHours);
+
+        $slots = [];
+        $cursor = \Carbon\Carbon::parse($startDate);
+        $endDate = $cursor->copy()->addDays(6);
+
+        for ($i = 0; $i < 7; $i++) {
+            $dateStr = $cursor->toDateString();
+            $times = $bookingService->availableSlotsForDate($tenant, $dateStr, $resourceId, $required);
+
+            // For today, drop any slots earlier than the min-notice cutoff.
+            if ($cursor->isToday() && $minNoticeHours > 0) {
+                $cutoffHi = $cutoff->format('H:i');
+                $times = array_values(array_filter($times, fn($t) => $t >= $cutoffHi));
+            }
+            // Past dates: skip entirely.
+            if ($cursor->isPast() && !$cursor->isToday()) {
+                $cursor->addDay();
+                continue;
+            }
+
+            $dateLabel = $cursor->format('D, M j');
+            foreach ($times as $t) {
+                $slots[] = [
+                    'date'       => $dateStr,
+                    'time'       => $t,
+                    'date_label' => $dateLabel,
+                    'time_label' => self::formatTimeLabel($t),
+                ];
+            }
+            $cursor->addDay();
+        }
+
+        return response()->json([
+            'slots'            => $slots,
+            'required_minutes' => $required,
+            'start_date'       => $startDate,
+            'end_date'         => $endDate->toDateString(),
+        ]);
+    }
+
+    private static function formatTimeLabel(string $hi): string
+    {
+        // "14:30" → "2:30 PM"
+        $parts = explode(':', $hi);
+        if (count($parts) < 2) return $hi;
+        $h = (int) $parts[0];
+        $m = $parts[1];
+        $ampm = $h >= 12 ? 'PM' : 'AM';
+        $h12 = $h % 12 === 0 ? 12 : $h % 12;
+        $minPart = $m === '00' ? '' : ':' . $m;
+        return $h12 . $minPart . ' ' . $ampm;
+    }
+
     public function dayStrip(Request $request)
     {
         $tenant = tenant();

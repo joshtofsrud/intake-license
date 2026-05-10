@@ -260,6 +260,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::get('/appointments/picker-data', [TenantControllers\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');
             Route::get('/appointments/day-strip',   [TenantControllers\AppointmentController::class, 'dayStrip'])->name('appointments.day-strip');
+            // SEQUENTIAL-PICKER-ROUTES v1
+            Route::get('/appointments/eligible-resources', [TenantControllers\AppointmentController::class, 'eligibleResources'])->name('appointments.eligible-resources');
+            Route::get('/appointments/week-times',         [TenantControllers\AppointmentController::class, 'weekTimes'])->name('appointments.week-times');
             Route::get('/appointments/day-times',   [TenantControllers\AppointmentController::class, 'dayTimes'])->name('appointments.day-times');
             Route::get('/appointments/resolve-resource', [TenantControllers\AppointmentController::class, 'resolveResource'])->name('appointments.resolve-resource');
             Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');

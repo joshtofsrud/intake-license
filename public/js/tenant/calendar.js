@@ -101,18 +101,17 @@
           }
         } catch (err) { /* fall back to default */ }
 
-        // CALENDAR-FIRST-INTERCEPT v1: armed placement mode bypasses QuickBook.
+        // PLACEMENT-INTERCEPT v2: armed placement mode hands placed coords to QuickBook.
+        // QuickBook is the single source of truth for calendar-side bookings.
         if (window.IntakePlacement && window.IntakePlacement.isArmed()) {
           var placed = window.IntakePlacement.resolveClick(col, e.clientY);
           window.IntakePlacement.disarm();
-          if (window.ApptModal && typeof window.ApptModal.openPlaced === 'function') {
-            window.ApptModal.openPlaced({
-              date: dateStr,
-              time: placed.time,
-              resourceId: placed.resourceId,
-              resourceName: placed.resourceName,
-            });
-          }
+          QuickBook.open({
+            date: dateStr,
+            time: placed.time,
+            resourceId: placed.resourceId,
+            resourceName: placed.resourceName,
+          });
           return;
         }
         QuickBook.open({
@@ -621,6 +620,11 @@
 
     /** Compute snapped time + position for ghost given clientY in a column. */
     positionGhost: function (col, clientY) {
+      // DRAG-GHOST-COORD v1: don't show placement ghost while a drag is active.
+      if (document.body.classList.contains('ia-cal-dragging-active')) {
+        this.ghost.hidden = true;
+        return;
+      }
       var rect = col.getBoundingClientRect();
       var y = clientY - rect.top;
       var minutesFromOpen = Math.round(y / this.pxPerMin);
@@ -1388,6 +1392,8 @@
         if (Math.abs(dx) < dragThreshold && Math.abs(dy) < dragThreshold) return;
         state.dragging = true;
         state.block.classList.add('ia-cal-appt-dragging');
+        // DRAG-GHOST-COORD v1: signal placement to suspend its hover ghost.
+        document.body.classList.add('ia-cal-dragging-active');
         ghost.hidden = false;
         timeLabel.hidden = false;
         var nameEl = state.block.querySelector('.ia-cal-appt-name');
@@ -1426,6 +1432,8 @@
     function onMouseUp(e) {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      // DRAG-GHOST-COORD v1
+      document.body.classList.remove('ia-cal-dragging-active');
 
       if (!state || !state.dragging) {
         state = null;

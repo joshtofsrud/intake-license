@@ -372,8 +372,6 @@
   <div class="ia-cal-ghost-meta" id="ia-cal-ghost-meta">—</div>
 </div>
 
-{{-- ===== Create-appointment modal (calendar-first entry point) ===== --}}
-@include('tenant.appointments._create_modal')
 @endif
 
 @endsection
