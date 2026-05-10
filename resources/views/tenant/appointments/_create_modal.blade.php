@@ -154,11 +154,19 @@
     .appt-when-card-time { font-size: 15px; font-weight: 500; color: var(--ia-text, #f0f0f0); }
     .appt-when-none { padding: 14px; background: rgba(226,75,74,.10); border: 0.5px solid rgba(226,75,74,.25); border-radius: 8px; font-size: 13px; color: #f39999; }
     .appt-when-alts { margin-top: 10px; }
-    .appt-when-alts-label { font-size: 11px; opacity: .55; margin-bottom: 6px; }
-    .appt-when-alt-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border: 0.5px solid var(--ia-border, rgba(255,255,255,.1)); border-radius: 8px; cursor: pointer; margin-bottom: 4px; font-size: 13px; }
+    .appt-when-alts-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .appt-when-alts-label { font-size: 11px; opacity: .55; }
+    .appt-when-alts-nav { display: flex; gap: 6px; }
+    .appt-when-alts-arrow { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: rgba(255,255,255,.04); cursor: pointer; font-size: 14px; opacity: .65; user-select: none; }
+    .appt-when-alts-arrow:hover { opacity: 1; background: rgba(255,255,255,.08); }
+    .appt-when-alts-arrow.disabled { opacity: .2; cursor: not-allowed; }
+    .appt-when-alts-track { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
+    .appt-when-alts-track::-webkit-scrollbar { display: none; }
+    .appt-when-alt-row { flex: 0 0 calc((100% - 12px) / 3); scroll-snap-align: start; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 10px 12px; border: 0.5px solid var(--ia-border, rgba(255,255,255,.1)); border-radius: 8px; cursor: pointer; font-size: 13px; min-height: 52px; box-sizing: border-box; }
     .appt-when-alt-row:hover { border-color: var(--ia-accent, #BEF264); }
     .appt-when-alt-row.selected { background: rgba(190, 242, 100, 0.08); border-color: var(--ia-accent, #BEF264); }
-    .appt-when-alt-time { font-size: 12px; opacity: .85; }
+    .appt-when-alt-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .appt-when-alt-time { font-size: 11px; opacity: .65; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .appt-when-manual-toggle { font-size: 11px; color: var(--ia-text-muted, #999); cursor: pointer; margin-top: 10px; display: inline-block; }
     .appt-when-manual-toggle:hover { color: var(--ia-text, #f0f0f0); }
     .appt-when-manual { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--ia-border, rgba(255,255,255,.1)); }
@@ -584,6 +592,31 @@ window.ApptModal = (function () {
       time: earliest.time,
       resource_id: resolvedResourceId,
     };
+
+    // Wire arrow nav for alts carousel
+    var altsTrack = document.getElementById('appt-alts-track');
+    if (altsTrack) {
+      var altsArrows = box.querySelectorAll('.appt-when-alts-arrow');
+      function updateArrowState() {
+        if (altsArrows.length === 0) return;
+        var atStart = altsTrack.scrollLeft <= 1;
+        var atEnd = altsTrack.scrollLeft + altsTrack.clientWidth >= altsTrack.scrollWidth - 1;
+        altsArrows.forEach(function (arr) {
+          var dir = arr.dataset.dir;
+          if (dir === 'back') arr.classList.toggle('disabled', atStart);
+          if (dir === 'fwd')  arr.classList.toggle('disabled', atEnd);
+        });
+      }
+      altsArrows.forEach(function (arr) {
+        arr.addEventListener('click', function () {
+          if (arr.classList.contains('disabled')) return;
+          var page = altsTrack.clientWidth;
+          altsTrack.scrollBy({ left: arr.dataset.dir === 'fwd' ? page : -page, behavior: 'smooth' });
+        });
+      });
+      altsTrack.addEventListener('scroll', updateArrowState);
+      setTimeout(updateArrowState, 0);
+    }
 
     // Wire alt rows. Click = pick that resource AND lock the strip to it.
     box.querySelectorAll('.appt-when-alt-row').forEach(function (row) {
