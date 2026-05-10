@@ -86,6 +86,108 @@
 .appt-terminal-card .appt-reopen-btn { margin-left: auto; }
 
 .appt-cancel-btn { margin-top: 4px; }
+
+/* LAYOUT-B-CSS v1 */
+.appt-b-shell { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
+.appt-b-rail { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; }
+.appt-b-main { display: flex; flex-direction: column; gap: 18px; }
+@media (max-width: 900px) { .appt-b-shell { grid-template-columns: 1fr; } .appt-b-rail { position: static; } }
+
+/* Time/date hero band — left rail, accent border-left */
+.appt-b-when {
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-left: 3px solid var(--ia-accent);
+  border-radius: var(--ia-r-md);
+  padding: 14px 16px;
+}
+.appt-b-when-time {
+  font-size: 22px; font-weight: 500; letter-spacing: -.01em; line-height: 1.15;
+  color: var(--ia-text);
+}
+.appt-b-when-date { font-size: 12px; color: var(--ia-text-muted); margin-top: 4px; }
+.appt-b-when-dur  { font-size: 11px; color: var(--ia-text-muted); margin-top: 6px; opacity: .7; }
+.appt-b-when-resource {
+  margin-top: 12px; padding-top: 10px;
+  border-top: 0.5px solid var(--ia-border);
+  font-size: 12px; color: var(--ia-text-muted);
+}
+.appt-b-when-resource .who { color: var(--ia-text); font-weight: 500; }
+.appt-b-when-resource .swatch {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 6px; vertical-align: 1px;
+}
+
+/* Vertical status pipeline — overrides the horizontal one when wrapped in .appt-b-rail */
+.appt-b-rail .appt-progress-card { padding: 14px 16px; }
+.appt-b-rail .appt-progress-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.appt-b-rail .appt-progress-bar::before,
+.appt-b-rail .appt-progress-bar::after { display: none; }
+.appt-b-rail .appt-progress-step {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  text-align: left;
+  position: relative;
+}
+.appt-b-rail .appt-progress-step:not(:last-child)::after {
+  content: ''; position: absolute;
+  left: 11.25px; top: calc(50% + 12px); bottom: -8px;
+  width: 1.5px; background: var(--ia-border);
+  z-index: 0;
+}
+.appt-b-rail .appt-progress-step.is-done:not(:last-child)::after { background: var(--ia-accent); }
+.appt-b-rail .appt-progress-step.is-done + .appt-progress-step.is-current::after,
+.appt-b-rail .appt-progress-step.is-done + .appt-progress-step.is-done::after { background: var(--ia-accent); }
+.appt-b-rail .appt-progress-dot { flex-shrink: 0; }
+.appt-b-rail .appt-progress-label {
+  font-size: 13px; line-height: 1.3;
+}
+
+/* Action button stack */
+.appt-b-actions {
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-md);
+  padding: 8px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.appt-b-actions .ia-btn { width: 100%; justify-content: flex-start; padding: 8px 12px; font-size: 13px; }
+.appt-b-actions-divider { height: 0.5px; background: var(--ia-border); margin: 4px 4px; }
+.appt-b-action-coming-soon {
+  font-size: 11px; color: var(--ia-text-muted);
+  padding: 0 12px 6px; opacity: .55;
+}
+
+/* Rail customer card — slightly tighter than the original */
+.appt-b-rail .ia-card { padding: 14px 16px; }
+.appt-b-rail .appt-section-label { margin-bottom: 8px; }
+
+/* Time/date inline meta on hero (re-shows at bottom of band) */
+.appt-b-meta-grid {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 10px;
+  font-size: 12px; color: var(--ia-text-muted);
+  margin-top: 10px;
+}
+.appt-b-meta-grid .lbl { opacity: .65; }
+
+/* Inline capacity-in-work-order grid (3-up) */
+.appt-b-wo-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  margin-top: 8px;
+}
+.appt-b-wo-cell .lbl { font-size: 11px; color: var(--ia-text-muted); margin-bottom: 4px; }
+.appt-b-wo-cell .val { font-size: 13px; }
+
+/* Hide the original right-rail cancel button when in B layout — JS still finds it,
+   but visually the new rail action handles it. */
+.appt-b-shell .appt-cancel-btn-original { display: none !important; }
+
 </style>
 
 @section('content')
@@ -163,54 +265,145 @@
   if ($currentIndex === false) $currentIndex = 0;
 @endphp
 
-@if($isTerminal)
-  <div class="ia-card appt-terminal-card">
-    <div class="appt-terminal-icon appt-terminal-icon--{{ $appointment->status }}">
-      @if($appointment->status === 'cancelled')
-        <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+{{-- LAYOUT-B-PIPELINE-RELOCATED v1: original full-width status pipeline removed.
+     The rail (above) renders the same markup with the same JS hooks. --}}
+
+<div class="appt-b-shell">
+
+  {{-- LAYOUT-B-RAIL v1 — left rail: time/date, status, actions, customer --}}
+  <aside class="appt-b-rail">
+
+    {{-- Time/date hero band --}}
+    @php
+      try {
+        $apptStartC = $appointment->appointment_time
+          ? \Carbon\Carbon::parse($appointment->appointment_date->toDateString() . ' ' . $appointment->appointment_time)
+          : null;
+        $durationMin = (int) ($appointment->total_duration_minutes ?? 0);
+        $apptEndC   = ($apptStartC && $durationMin > 0) ? $apptStartC->copy()->addMinutes($durationMin) : null;
+      } catch (\Throwable $e) {
+        $apptStartC = null; $apptEndC = null; $durationMin = 0;
+      }
+    @endphp
+    @if($apptStartC)
+      <div class="appt-b-when">
+        <div class="appt-b-when-time">
+          {{ $apptStartC->format('g:i A') }}@if($apptEndC) – {{ $apptEndC->format('g:i A') }}@endif
+        </div>
+        <div class="appt-b-when-date">
+          {{ $appointment->appointment_date->format('l, M j, Y') }}
+        </div>
+        @if($durationMin > 0)
+          <div class="appt-b-when-dur">{{ $durationMin }} min</div>
+        @endif
+        @if($currentResource ?? null)
+          <div class="appt-b-when-resource">
+            <span class="swatch" style="background: {{ ($availableResources->firstWhere('id', $appointment->resource_id))->color_hex ?? '#888' }}"></span>
+            <span class="who">{{ ($availableResources->firstWhere('id', $appointment->resource_id))->name ?? 'Unassigned' }}</span>
+          </div>
+        @else
+          @php $rr = $availableResources->firstWhere('id', $appointment->resource_id); @endphp
+          @if($rr)
+            <div class="appt-b-when-resource">
+              <span class="swatch" style="background: {{ $rr->color_hex ?? '#888' }}"></span>
+              <span class="who">{{ $rr->name }}</span>
+            </div>
+          @endif
+        @endif
+      </div>
+    @else
+      <div class="appt-b-when">
+        <div class="appt-b-when-time" style="font-size:15px;font-weight:500">
+          {{ $appointment->appointment_date->format('l, M j, Y') }}
+        </div>
+        <div class="appt-b-when-dur">No time set</div>
+      </div>
+    @endif
+
+    {{-- Status pipeline (markup is fed into vertical CSS by .appt-b-rail wrapper) --}}
+    @if($isTerminal)
+      {{-- Terminal state — show compact card --}}
+      <div class="ia-card appt-terminal-card" style="padding:12px 14px">
+        <div class="appt-terminal-icon appt-terminal-icon--{{ $appointment->status }}">
+          @if($appointment->status === 'cancelled')
+            <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          @else
+            <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          @endif
+        </div>
+        <div>
+          <div class="appt-terminal-title" style="font-size:13px">{{ $statusLabels[$appointment->status] }}</div>
+        </div>
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-reopen-btn" data-status="pending" style="margin-left:auto">
+          Reopen
+        </button>
+      </div>
+    @else
+      <div class="ia-card appt-progress-card">
+        <div class="appt-progress-bar" data-current-index="{{ $currentIndex }}" data-update-url="{{ $updateUrl }}">
+          @foreach($pipelineSteps as $idx => $step)
+            @php
+              $stepLabel = $statusLabels[$step];
+              $isDone    = $idx < $currentIndex;
+              $isCurrent = $idx === $currentIndex;
+            @endphp
+            <button type="button"
+                    class="appt-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
+                    data-status="{{ $step }}"
+                    data-step-index="{{ $idx }}"
+                    data-label="{{ $stepLabel }}">
+              <span class="appt-progress-dot">
+                @if($isDone)
+                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                @elseif($isCurrent)
+                  <span class="appt-progress-dot-inner"></span>
+                @endif
+              </span>
+              <span class="appt-progress-label">{{ $stepLabel }}</span>
+            </button>
+          @endforeach
+        </div>
+      </div>
+    @endif
+
+    {{-- Action stack --}}
+    @unless($isTerminal)
+    <div class="appt-b-actions">
+      <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
+      <div class="appt-b-action-coming-soon">Reschedule shipping tomorrow</div>
+      <div class="appt-b-actions-divider"></div>
+      <button type="button" class="ia-btn ia-btn--ghost ia-btn--danger appt-b-cancel-btn">Cancel appointment</button>
+    </div>
+    @endunless
+
+    {{-- Customer card --}}
+    <div class="ia-card ia-card--tight">
+      <div class="appt-section-label">Customer</div>
+      <div style="font-weight:500;margin-bottom:4px">
+        {{ $appointment->customerName() }}
+      </div>
+      <div style="font-size:13px;opacity:.6;margin-bottom:2px">
+        {{ $appointment->customer_email }}
+      </div>
+      @if($appointment->customer_phone)
+        <div style="font-size:13px;opacity:.6;margin-bottom:10px">
+          {{ $appointment->customer_phone }}
+        </div>
       @else
-        <svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2 5h6M5 2v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <div style="margin-bottom:10px"></div>
+      @endif
+      @if($appointment->customer_id)
+        <a href="{{ route('tenant.customers.show', $appointment->customer_id) }}"
+           class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;justify-content:center">
+          View customer profile →
+        </a>
       @endif
     </div>
-    <div>
-      <div class="appt-terminal-title">{{ $statusLabels[$appointment->status] }}</div>
-      <div class="appt-terminal-sub">This appointment is {{ $appointment->status }}. Use Reopen to revert.</div>
-    </div>
-    <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-reopen-btn" data-status="pending">
-      Reopen
-    </button>
-  </div>
-@else
-  <div class="ia-card appt-progress-card">
-    <div class="appt-progress-bar" data-current-index="{{ $currentIndex }}" data-update-url="{{ $updateUrl }}">
-      @foreach($pipelineSteps as $idx => $step)
-        @php
-          $stepLabel = $statusLabels[$step];
-          $isDone    = $idx < $currentIndex;
-          $isCurrent = $idx === $currentIndex;
-        @endphp
-        <button type="button"
-                class="appt-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
-                data-status="{{ $step }}"
-                data-step-index="{{ $idx }}"
-                data-label="{{ $stepLabel }}">
-          <span class="appt-progress-dot">
-            @if($isDone)
-              <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            @elseif($isCurrent)
-              <span class="appt-progress-dot-inner"></span>
-            @endif
-          </span>
-          <span class="appt-progress-label">{{ $stepLabel }}</span>
-        </button>
-      @endforeach
-    </div>
-  </div>
-@endif
 
-<div class="appt-layout">
+  </aside>
 
-  <div style="display:flex;flex-direction:column;gap:20px">
+  {{-- Main column starts here (existing content unchanged) --}}
+  <div class="appt-b-main" style="display:flex;flex-direction:column;gap:20px">
 
     {{-- Line items --}}
     <div class="ia-card">
@@ -624,10 +817,11 @@
 
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:16px">
+  {{-- LAYOUT-B-MOVED v1 — original right-rail content now lives at the bottom of main --}}
+  <div style="display:flex;flex-direction:column;gap:16px;width:100%">
 
-    {{-- Customer --}}
-    <div class="ia-card ia-card--tight">
+    {{-- Customer card (kept in DOM to avoid breaking any potential JS, hidden in B layout) --}}
+    <div class="ia-card ia-card--tight" style="display:none" aria-hidden="true">
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
@@ -833,9 +1027,9 @@
       @endif
     </div>
 
-    {{-- Cancel appointment (destructive, separate from forward flow) --}}
+    {{-- Cancel appointment — DOM kept, hidden in B layout; rail Cancel proxies to this --}}
     @unless(in_array($appointment->status, ['cancelled', 'refunded']))
-      <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn" style="width:100%">
+      <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn appt-cancel-btn-original" style="width:100%">
         Cancel appointment
       </button>
     @endunless
@@ -1547,4 +1741,28 @@
   <script src="{{ asset('js/tenant/appointment-resource.js') }}?v={{ filemtime(public_path('js/tenant/appointment-resource.js')) }}" defer></script>
 
   <script src="{{ asset('js/tenant/appointment-slot-weight.js') }}?v={{ filemtime(public_path('js/tenant/appointment-slot-weight.js')) }}" defer></script>
+
+<script>
+// LAYOUT-B-WIRING v1
+// Rail "Cancel" button proxies to the original cancel handler.
+// Rail "Reschedule" shows a coming-soon toast.
+document.addEventListener('DOMContentLoaded', function () {
+  var railCancel = document.querySelector('.appt-b-cancel-btn');
+  if (railCancel) {
+    railCancel.addEventListener('click', function () {
+      var orig = document.querySelector('.appt-cancel-btn-original');
+      if (orig) orig.click();
+    });
+  }
+
+  var railResch = document.querySelector('.appt-b-reschedule-btn');
+  if (railResch) {
+    railResch.addEventListener('click', function () {
+      if (window.IntakeToast) {
+        window.IntakeToast.info('Reschedule from this page ships tomorrow. For now, drag the appointment block on the calendar to move it.');
+      }
+    });
+  }
+});
+</script>
 @endpush
