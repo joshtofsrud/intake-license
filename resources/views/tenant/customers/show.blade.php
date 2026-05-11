@@ -51,6 +51,79 @@
   .cust-info-grid { grid-template-columns: 1fr; }
 }
 
+/* CUSTOMER-MOBILE-POLISH v1 — phone polish at ≤600px */
+@media (max-width: 600px) {
+
+  /* Hide the page-level Back; top-bar already has ‹ Customers chevron */
+  .ia-page-actions .ia-btn--ghost { display: none; }
+
+  /* "+ New appointment" goes full-width on phones */
+  .ia-page-actions .ia-btn--primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Card headers (Memberships & Packs, Activity): stack title above actions */
+  .ia-card-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px;
+  }
+  .ia-card-head > div[style*="display:flex"] {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+  .ia-card-head .ia-btn--sm {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+  /* The Activity filter select stretches to fill the row */
+  .ia-card-head #activity-filter {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Activity rows: reflow 5-col grid into a compact 2-row layout */
+  .act-row {
+    grid-template-columns: 28px 1fr auto !important;
+    grid-template-rows: auto auto;
+    gap: 6px 10px !important;
+    padding: 12px 4px !important;
+  }
+  .act-icon { grid-row: 1 / 3; align-self: start; }
+  .act-date {
+    grid-column: 2 / 4;
+    grid-row: 1;
+    font-size: 10px;
+    margin-bottom: -2px;
+  }
+  .act-main {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .act-title { font-size: 13px; }
+  .act-id { display: block; margin-left: 0; margin-top: 1px; font-size: 11px; }
+  .act-sub { font-size: 11px; }
+  .act-pill {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: center;
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+  }
+  .act-amount {
+    grid-column: 3;
+    grid-row: 1;
+    text-align: right;
+    align-self: center;
+    font-size: 12px;
+    font-weight: 500;
+  }
+}
+
 /* Activity timeline (unified customer history). */
 .act-month { margin-bottom: 4px; }
 .act-month-head {
@@ -115,6 +188,8 @@
 .act-amount.is-refunded { text-decoration: line-through; color: var(--ia-text-muted); }
 </style>
 @endpush
+
+@section('mobile-back', 'Customers|' . route('tenant.customers.index'))
 
 @section('content')
 
