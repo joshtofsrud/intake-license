@@ -286,3 +286,147 @@
 .ia-dash-date-chip.is-target .ia-dash-date-num {
   color: var(--ia-text);
 }
+
+
+/* DASH-MOBILE-CSS v1 — Today dashboard polish for phones */
+
+/* Hide the mobile-only block on desktop */
+.ia-dash-mobile-only { display: none; }
+
+@media (max-width: 600px) {
+  .ia-dash-mobile-only {
+    display: block;
+    margin: 4px 0 16px;
+  }
+
+  /* 3-stat row */
+  .ia-dash-m-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .ia-dash-m-stat {
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: var(--ia-r-md);
+    padding: 10px 6px;
+    text-align: center;
+  }
+  .ia-dash-m-stat-num {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .ia-dash-m-stat-lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    opacity: .5;
+    margin-top: 3px;
+  }
+
+  /* Next-up hero card */
+  .ia-dash-m-hero {
+    display: block;
+    background: linear-gradient(135deg, var(--ia-accent-soft), transparent 80%);
+    border: 1px solid var(--ia-accent);
+    border-radius: var(--ia-r-lg);
+    padding: 14px 16px;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-dash-m-hero:active { transform: scale(0.99); }
+  .ia-dash-m-hero-when {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ia-accent);
+    margin-bottom: 6px;
+  }
+  .ia-dash-m-hero-cust {
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+  }
+  .ia-dash-m-hero-svc {
+    font-size: 13px;
+    opacity: .65;
+    margin-top: 4px;
+  }
+  .ia-dash-m-hero-cta {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ia-accent);
+    opacity: .8;
+  }
+
+  /* Empty-day state */
+  .ia-dash-m-empty {
+    padding: 14px 16px;
+    border: 0.5px dashed var(--ia-border);
+    border-radius: var(--ia-r-md);
+    font-size: 13px;
+    opacity: .7;
+    text-align: center;
+  }
+
+  /* Stack page head + demote the action buttons */
+  .ia-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .ia-page-head .ia-page-title {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+  .ia-page-head .ia-page-subtitle {
+    font-size: 12px;
+  }
+  .ia-page-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+  }
+  .ia-page-actions .ia-btn {
+    flex: 1;
+    padding: 9px 10px;
+    font-size: 13px;
+    justify-content: center;
+  }
+
+  /* Hide the desktop greet card on phones — the mobile hero above replaces it.
+     Also hide the verbose week-stats grid (we have 3-stat row above). */
+  .ia-dash-greet-card { display: none; }
+  .ia-dash-weekstats { display: none; }
+
+  /* Tighten today list rows for narrow phone width */
+  .ia-dash-today-row {
+    grid-template-columns: 72px 1fr;
+    gap: 12px;
+    padding: 12px 4px;
+  }
+  .ia-dash-today-time-hm { font-size: 14px; }
+  .ia-dash-today-time-ap { font-size: 10px; }
+  .ia-dash-today-service { font-size: 13px; }
+  .ia-dash-today-customer { font-size: 11px; }
+  .ia-dash-today-status { grid-column: 1 / -1; margin-top: 4px; }
+
+  /* Slightly bigger date-strip chips for touch target */
+  .ia-dash-date-chip { padding: 8px 2px; }
+  .ia-dash-date-num { font-size: 15px; }
+  .ia-dash-date-day, .ia-dash-date-count { font-size: 9px; }
+
+  /* Reduce mobile content side-padding so cards have more room */
+  .ia-content { padding-left: 12px !important; padding-right: 12px !important; }
+}

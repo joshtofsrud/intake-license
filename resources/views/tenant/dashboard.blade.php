@@ -2,12 +2,77 @@
 @push('styles')
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
 @endpush
+@section('mobile-fab', 'walk-in')
+
 @section('content')
 
 @php
   $greetingWord = "Good {$greeting['time_of_day']}";
   $greetingLine = $greeting['name'] ? "{$greetingWord}, {$greeting['name']}." : "{$greetingWord}.";
 @endphp
+
+{{-- DASH-MOBILE v1 — mobile-only hero + at-a-glance stats. Hidden on desktop. --}}
+<div class="ia-dash-mobile-only">
+  {{-- 3-stat row --}}
+  <div class="ia-dash-m-stats">
+    <div class="ia-dash-m-stat">
+      <div class="ia-dash-m-stat-num">{{ $today['today_count'] }}</div>
+      <div class="ia-dash-m-stat-lbl">Today</div>
+    </div>
+    <div class="ia-dash-m-stat">
+      <div class="ia-dash-m-stat-num">{{ format_money($today['week_revenue_cents']) }}</div>
+      <div class="ia-dash-m-stat-lbl">Wk revenue</div>
+    </div>
+    <div class="ia-dash-m-stat">
+      <div class="ia-dash-m-stat-num">{{ $today['week_new_customers'] }}</div>
+      <div class="ia-dash-m-stat-lbl">New cust.</div>
+    </div>
+  </div>
+
+  {{-- Next-up hero card. Renders only when there's a next_up appointment with a time. --}}
+  @php
+    $nu = $today['next_up'] ?? null;
+    $nuTime = ($nu && $nu->appointment_time)
+      ? \Carbon\Carbon::parse($nu->appointment_time)
+      : null;
+    $nuMinutesAway = null;
+    if ($nuTime) {
+      try {
+        $nuStart = \Carbon\Carbon::parse($nu->appointment_date->toDateString() . ' ' . $nu->appointment_time);
+        $diff = (int) now()->diffInMinutes($nuStart, false);
+        $nuMinutesAway = $diff;
+      } catch (\Throwable $e) { $nuMinutesAway = null; }
+    }
+    $nuService = $nu && $nu->items->isNotEmpty() ? $nu->items->first()->item_name_snapshot : null;
+  @endphp
+  @if($nu && $nuTime)
+    <a href="{{ route('tenant.appointments.show', $nu->id) }}" class="ia-dash-m-hero">
+      <div class="ia-dash-m-hero-when">
+        @if($nuMinutesAway !== null && $nuMinutesAway >= 0 && $nuMinutesAway < 120)
+          @if($nuMinutesAway === 0)
+            Right now
+          @elseif($nuMinutesAway < 60)
+            In {{ $nuMinutesAway }} {{ \Illuminate\Support\Str::plural('minute', $nuMinutesAway) }}
+          @else
+            In {{ floor($nuMinutesAway / 60) }}h {{ $nuMinutesAway % 60 }}m
+          @endif
+          · {{ $nuTime->format('g:i A') }}
+        @else
+          Next up · {{ $nuTime->format('g:i A') }}
+        @endif
+      </div>
+      <div class="ia-dash-m-hero-cust">{{ $nu->customerName() }}</div>
+      @if($nuService)
+        <div class="ia-dash-m-hero-svc">{{ $nuService }}@if($nu->total_duration_minutes) · {{ $nu->total_duration_minutes }} min @endif</div>
+      @endif
+      <div class="ia-dash-m-hero-cta">View →</div>
+    </a>
+  @elseif($today['today_count'] === 0)
+    <div class="ia-dash-m-empty">
+      No appointments today. Open the calendar to book one.
+    </div>
+  @endif
+</div>
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
