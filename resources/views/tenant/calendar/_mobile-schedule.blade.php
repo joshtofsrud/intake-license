@@ -142,6 +142,48 @@
 
 <div class="ia-msched">
 
+  {{-- MSCHED-DEBUG-BANNER — temporary diagnostic, remove via revert patch --}}
+  @php
+    $dbgVis = ($resources ?? collect())->pluck('id')->all();
+    $dbgFM  = $filterMode ?? '(null)';
+    $dbgVMode = $viewMode ?? '(null)';
+    $dbgApptCount = $msAppointments->count();
+    $dbgSingle = $msSingleResource ? $msSingleResource->name : 'NO';
+    $dbgFirstGap = 'n/a';
+    if ($viewMode === 'day' && $dbgApptCount >= 2) {
+      $a = $msAppointments[0];
+      $b = $msAppointments[1];
+      $g = $msComputeGap($a, $b);
+      if ($g === null) {
+        // Run the same math but without the < 15 threshold so we can see what value we get
+        try {
+          $prevStart = \Carbon\Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_time);
+          $prevDur = (int) ($a->total_duration_minutes ?? 0);
+          $prevEnd = $a->appointment_end_time
+            ? \Carbon\Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_end_time)
+            : $prevStart->copy()->addMinutes($prevDur);
+          $currStart = \Carbon\Carbon::parse($b->appointment_date->toDateString() . ' ' . $b->appointment_time);
+          $rawGap = (int) round(($currStart->getTimestamp() - $prevEnd->getTimestamp()) / 60);
+          $dbgFirstGap = 'null (raw=' . $rawGap . 'min, threshold 15)';
+        } catch (\Throwable $e) {
+          $dbgFirstGap = 'THROW: ' . $e->getMessage();
+        }
+      } else {
+        $dbgFirstGap = $g['minutes'] . 'min';
+      }
+    }
+  @endphp
+  <div style="background:#3a2f0a;color:#fde68a;padding:8px 10px;font-size:11px;font-family:monospace;line-height:1.4;border-radius:6px;margin-bottom:10px;word-break:break-all">
+    <strong>GAP DEBUG</strong><br>
+    viewMode: {{ $dbgVMode }}<br>
+    filterMode: {{ $dbgFM }}<br>
+    visibleIds count: {{ count($dbgVis) }}<br>
+    visibleIds: {{ implode(',', array_map(fn($x) => substr($x, 0, 8), $dbgVis)) }}<br>
+    msSingleResource: {{ $dbgSingle }}<br>
+    msAppointments count: {{ $dbgApptCount }}<br>
+    first pair gap: {{ $dbgFirstGap }}
+  </div>
+
   {{-- Header: title + mode toggle --}}
   <div class="ia-msched-head">
     <div class="ia-msched-title-block">
