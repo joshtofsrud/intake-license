@@ -24,7 +24,7 @@
         return $i ?: '?';
     };
 @endphp
-<div class="rp-panel">
+<div class="rp-panel" data-rp-panel="{{ $exportSlug }}">
     <div class="rp-panel-head">
         <div class="rp-panel-title-wrap">
             <h2 class="rp-panel-title">{{ $title }} <span class="rp-panel-tag rp-tag-{{ $tag }}">{{ $tagLabel }}</span></h2>
@@ -48,5 +48,10 @@
         @empty
             <div class="rp-empty">{{ $emptyText }}</div>
         @endforelse
+    </div>
+    <div class="rp-pager" data-rp-pager hidden>
+        <button type="button" class="rp-pager-btn" data-rp-prev aria-label="Previous page">‹</button>
+        <span class="rp-pager-status" data-rp-status>1–10 of —</span>
+        <button type="button" class="rp-pager-btn" data-rp-next aria-label="Next page">›</button>
     </div>
 </div>

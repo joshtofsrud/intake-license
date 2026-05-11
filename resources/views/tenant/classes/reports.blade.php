@@ -76,6 +76,62 @@
   .rp-panel.full { grid-column: span 1; }
   .rp-headline { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Pager + mobile polish (patch #35) */
+.rp-pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 0 12px;border-top:0.5px solid var(--ia-border);margin-top:4px}
+.rp-pager-btn{width:28px;height:28px;border-radius:6px;border:0.5px solid var(--ia-border);background:transparent;color:var(--ia-text-muted);font-size:14px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;transition:all var(--ia-t)}
+.rp-pager-btn:hover:not(:disabled){background:var(--ia-hover);color:var(--ia-text);border-color:var(--ia-border-strong)}
+.rp-pager-btn:disabled{opacity:.35;cursor:not-allowed}
+.rp-pager-status{font-size:11.5px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums;min-width:80px;text-align:right}
+
+/* Rows that aren't on the active page are hidden via this class — set/cleared
+   by the pager JS. Using a class lets us also do display:flex for active pages
+   without re-computing inline styles. */
+.rp-row.is-page-hidden{display:none}
+
+@media (max-width: 768px) {
+  /* Page-level: tighter outer padding on phones. Existing 1024px rule
+     already collapses panels to 1col; we need the narrower breakpoint
+     for row-internal layout. */
+  .rp-panel { padding: 14px 14px 4px; border-radius: 12px; }
+  .rp-panel-head { flex-wrap: wrap; gap: 8px; }
+  .rp-panel-title { font-size: 13.5px; flex-wrap: wrap; row-gap: 4px; }
+  .rp-panel-sub { font-size: 11.5px; }
+  .rp-panel-actions { width: 100%; justify-content: flex-end; }
+
+  /* Headline strip: 4 → 2 → 1 (mobile) */
+  .rp-headline { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .rp-head-card { padding: 14px 14px; }
+  .rp-head-num { font-size: 24px; }
+  .rp-head-label { font-size: 12px; }
+  .rp-head-sub { font-size: 11px; }
+
+  /* rp-row 4-col grid → 2-row stacked layout.
+     Top row: [avatar][name+fact, flex:1]
+     Bottom row: [meta][cta] right-aligned, indented under name.
+     Achieves a card-feel without dropping the avatar. */
+  .rp-row {
+    grid-template-columns: 32px 1fr auto;
+    grid-template-areas:
+      "avatar main meta"
+      ".      cta  cta";
+    row-gap: 6px;
+  }
+  .rp-row .rp-avatar  { grid-area: avatar; }
+  .rp-row .rp-row-main { grid-area: main; }
+  .rp-row .rp-row-meta { grid-area: meta; }
+  .rp-row > .rp-export-btn { grid-area: cta; justify-self: end; }
+
+  /* Top earning products table: tighten columns on mobile */
+  .rp-tep-table th { font-size: 10px; padding: 6px 6px 6px 0; }
+  .rp-tep-table td { font-size: 12px; padding: 10px 6px 10px 0; }
+  .rp-tep-meta { display: none; } /* free up vertical space */
+  .rp-tep-rank { width: 20px; height: 20px; font-size: 10px; margin-right: 6px; }
+}
+
+@media (max-width: 480px) {
+  .rp-headline { grid-template-columns: 1fr; }
+}
 </style>
 @endpush
 
@@ -194,7 +250,7 @@
     ])
 
     {{-- Panel: Lapsed (full width) --}}
-    <div class="rp-panel full">
+    <div class="rp-panel full" data-rp-panel="lapsed-memberships">
         <div class="rp-panel-head">
             <div class="rp-panel-title-wrap">
                 <h2 class="rp-panel-title">Lapsed memberships <span class="rp-panel-tag rp-tag-amber">Re-engage</span></h2>
@@ -218,6 +274,11 @@
             @empty
                 <div class="rp-empty">No lapsed memberships in the last 90 days.</div>
             @endforelse
+        </div>
+        <div class="rp-pager" data-rp-pager hidden>
+            <button type="button" class="rp-pager-btn" data-rp-prev aria-label="Previous page">‹</button>
+            <span class="rp-pager-status" data-rp-status>1–10 of —</span>
+            <button type="button" class="rp-pager-btn" data-rp-next aria-label="Next page">›</button>
         </div>
     </div>
 
@@ -262,4 +323,65 @@
 
 </div>
 
+
+
+@push('scripts')
+<script>
+// Classes-reports pager (patch #35)
+//
+// Each [data-rp-panel] block has a [data-rp-pager] footer. If the panel has
+// more than PAGE_SIZE rows (.rp-row anchors), slice into pages and wire up
+// prev/next. Otherwise hide the pager.
+(function () {
+  'use strict';
+  var PAGE_SIZE = 10;
+
+  function initPanel(panel) {
+    var rows  = panel.querySelectorAll('.rp-row-list > a.rp-row');
+    var pager = panel.querySelector('[data-rp-pager]');
+    if (!pager) return;
+
+    if (rows.length <= PAGE_SIZE) {
+      pager.hidden = true;
+      return;
+    }
+
+    var prev   = pager.querySelector('[data-rp-prev]');
+    var next   = pager.querySelector('[data-rp-next]');
+    var status = pager.querySelector('[data-rp-status]');
+    var pages  = Math.ceil(rows.length / PAGE_SIZE);
+    var page   = 0;
+
+    function render() {
+      var start = page * PAGE_SIZE;
+      var end   = Math.min(start + PAGE_SIZE, rows.length);
+      rows.forEach(function (r, i) {
+        if (i >= start && i < end) {
+          r.classList.remove('is-page-hidden');
+        } else {
+          r.classList.add('is-page-hidden');
+        }
+      });
+      status.textContent = (start + 1) + '–' + end + ' of ' + rows.length;
+      prev.disabled = (page === 0);
+      next.disabled = (page >= pages - 1);
+    }
+
+    prev.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (page > 0) { page--; render(); }
+    });
+    next.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (page < pages - 1) { page++; render(); }
+    });
+
+    pager.hidden = false;
+    render();
+  }
+
+  document.querySelectorAll('[data-rp-panel]').forEach(initPanel);
+})();
+</script>
+@endpush
 @endsection
