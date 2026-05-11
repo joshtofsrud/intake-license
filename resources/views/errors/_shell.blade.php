@@ -11,6 +11,13 @@
   <meta name="robots" content="noindex,nofollow">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Logo system v1 (patch #44) — favicons -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#0c0c0c">
   <style>
     :root {
       --mk-accent:      #BEF264;
@@ -46,11 +53,11 @@
     .err-logo-mark {
       width: 28px; height: 28px;
       background: var(--mk-accent);
-      color: #000;
       border-radius: 6px;
       display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 14px;
+      flex-shrink: 0;
     }
+    .err-logo-mark svg { width: 18px; height: 18px; display: block; }
     .err-logo-text { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
     .err-mini-links {
       display: flex; gap: 24px;
@@ -190,7 +197,13 @@
 
 <nav class="err-mini-nav">
   <a href="{{ url('/') }}" class="err-logo">
-    <span class="err-logo-mark">I</span>
+    <span class="err-logo-mark">
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:18px;height:18px;display:block">
+        <rect x="6" y="6"    width="16" height="3.5" rx="1" fill="#0a0a0a"/>
+        <rect x="6" y="12.25" width="13" height="3.5" rx="1" fill="#0a0a0a"/>
+        <rect x="6" y="18.5"  width="10" height="3.5" rx="1" fill="#0a0a0a"/>
+      </svg>
+    </span>
     <span class="err-logo-text">intake</span>
   </a>
   <div class="err-mini-links">

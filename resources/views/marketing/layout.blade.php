@@ -3,10 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>@yield('title', 'Intake — Online booking for service shops')</title>
-  <meta name="description" content="@yield('meta_description', 'Branded booking forms, customer management, and work orders for bike shops, ski shops, and service businesses.')">
+  <title>@yield('title', 'intake — Retail, booking, and classes — built for communication and efficiency.')</title>
+  <meta name="description" content="@yield('meta_description', 'Retail, booking, and classes — built for communication and efficiency. For service, retail, fitness, and appointment-based businesses.')">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Logo system v1 (patch #44) — favicons + OG/Twitter meta -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#0c0c0c">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="intake">
+  <meta property="og:title" content="@yield('og_title', 'intake — Retail, booking, and classes — built for communication and efficiency.')">
+  <meta property="og:description" content="@yield('og_description', 'For service, retail, fitness, and appointment-based businesses.')">
+  <meta property="og:image" content="{{ url('/og-image.png') }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="{{ url()->current() }}">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="@yield('og_title', 'intake — Retail, booking, and classes — built for communication and efficiency.')">
+  <meta name="twitter:description" content="@yield('og_description', 'For service, retail, fitness, and appointment-based businesses.')">
+  <meta name="twitter:image" content="{{ url('/og-image.png') }}">
   <style>
     /* ================================================================
        Intake Marketing Site
@@ -144,6 +165,7 @@
       font-weight: 800;
       color: var(--mk-accent-text);
     }
+    .mk-logo-mark svg { width: 18px; height: 18px; display: block; }
     .mk-nav-links {
       display: flex;
       align-items: center;
@@ -224,7 +246,13 @@
 <nav class="mk-nav">
   <div class="mk-nav-inner">
     <a href="{{ route('marketing.home') }}" class="mk-logo">
-      <div class="mk-logo-mark">I</div>
+      <div class="mk-logo-mark">
+        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="6" y="6"    width="16" height="3.5" rx="1" fill="#0a0a0a"/>
+          <rect x="6" y="12.25" width="13" height="3.5" rx="1" fill="#0a0a0a"/>
+          <rect x="6" y="18.5"  width="10" height="3.5" rx="1" fill="#0a0a0a"/>
+        </svg>
+      </div>
       intake
     </a>
     <div class="mk-nav-links">
@@ -260,7 +288,13 @@
     <div class="mk-footer-inner">
       <div>
         <div class="mk-footer-brand-name">
-          <div class="mk-logo-mark" style="width:22px;height:22px;font-size:10px">I</div>
+          <div class="mk-logo-mark" style="width:22px;height:22px;font-size:10px">
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:14px;height:14px">
+              <rect x="6" y="6"    width="16" height="3.5" rx="1" fill="#0a0a0a"/>
+              <rect x="6" y="12.25" width="13" height="3.5" rx="1" fill="#0a0a0a"/>
+              <rect x="6" y="18.5"  width="10" height="3.5" rx="1" fill="#0a0a0a"/>
+            </svg>
+          </div>
           intake
         </div>
         <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>
