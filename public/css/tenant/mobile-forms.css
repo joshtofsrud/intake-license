@@ -1,45 +1,41 @@
 /* ================================================================
-   Mobile form-pages override (≤600px).
+   Mobile form-pages override (≤600px) — SCOPED v2.
 
-   Targets inline-style grids on admin pages that were authored for
-   desktop. The attribute selector matches any element whose style
-   contains "grid-template-columns" — which on tenant admin pages
-   means a multi-column form row.
+   Targets inline-style grids that appear INSIDE form contexts only.
+   Generic inline grids (date strips, calendar grids, content layouts)
+   keep their multi-column templates.
 
    The `!important` is required to override inline styles. Acceptable
-   here because the inline styles assume desktop geometry that's wrong
-   on phones; this is a corrective, page-agnostic safety net.
+   here because targeted form inline-styles assume desktop geometry
+   that's wrong on phones.
    ================================================================ */
 
 @media (max-width: 600px) {
 
-  /* Any inline-styled grid collapses to 1 column on phones */
-  [style*="grid-template-columns"] {
+  /* Form rows inside cards: collapse multi-column grids to 1 col */
+  .ia-card form [style*="grid-template-columns"],
+  .ia-card form [style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
   }
 
-  /* Resources & similar pages: existing rows with drag handle + N inputs
-     get the same single-column treatment. The drag handle row should still
-     show — just at the top, not as a left column. */
+  /* Resources page existing rows: same treatment + hide drag handle */
   .resource-row {
     grid-template-columns: 1fr !important;
     gap: 10px !important;
     padding: 14px 16px !important;
   }
   .resource-row .drag-handle {
-    display: none; /* hide drag — tenants will re-order on desktop */
+    display: none;
   }
 
-  /* Inputs that had a fixed max-width go full-width on phones */
-  .ia-input, .ia-select, select.ia-input {
+  /* Inputs and selects: full-width on phones, override any inline width */
+  .ia-card form .ia-input,
+  .ia-card form .ia-select,
+  .ia-card form select.ia-input,
+  .resource-row .ia-input {
     max-width: 100% !important;
     width: 100% !important;
-  }
-
-  /* Inline-styled flex rows (commonly used for toolbars) wrap on phones */
-  [style*="display:flex"][style*="gap"] {
-    flex-wrap: wrap;
   }
 
   /* "Add" / "Save" buttons at the end of a form row become full-width */
@@ -49,28 +45,21 @@
     justify-content: center;
   }
 
-  /* Color picker: now has full width since parent grid collapsed.
-     Adjust the swatch wrap to render as a tidy 8-col grid instead of
-     a flex-wrap that breaks at random spots. */
-  .cp-swatches {
+  /* Color picker: render as 8-col grid of squares on phones (parent grid
+     has collapsed to 1 col so we have full width to work with) */
+  .ia-card form .cp-swatches {
     display: grid !important;
     grid-template-columns: repeat(8, 1fr) !important;
     gap: 6px !important;
     max-width: 100%;
   }
-  .cp-swatch {
+  .ia-card form .cp-swatch {
     width: 100% !important;
     aspect-ratio: 1 / 1;
     height: auto !important;
   }
 
-  /* Section labels (the small UPPERCASE "COLOR", "SUBTITLE" headings the
-     Resources screenshot showed centered) get aligned to start */
-  .ia-label, .ia-form-label {
-    text-align: left;
-  }
-
-  /* Page head: stack title and any header actions */
+  /* Page head: stack title above any header actions */
   .ia-page-head {
     flex-direction: column;
     align-items: stretch;
@@ -83,11 +72,6 @@
     gap: 8px;
   }
   .ia-page-actions .ia-btn { flex: 1; justify-content: center; }
-
-  /* Cards: tighten padding so content has more room */
-  .ia-card {
-    padding: 14px 16px !important;
-  }
 
   /* Tables on mobile: allow horizontal scroll rather than crush */
   .ia-card > table,
