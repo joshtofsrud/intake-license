@@ -780,13 +780,40 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
      MOBILE LAYOUT (hidden on desktop via CSS)
      ============================================================ --}}
 @php
-  // Compute mobile hero data
+  // CUST-STATS-FIX v1 — Carbon 3 returns floats; coerce to int. Visit count
+  // unified across appointments + class registrations for fitness tenants.
   $mobActiveMembership = isset($customerMemberships) ? $customerMemberships->where('status','active')->first() : null;
   $mobActivePacks = isset($customerPacks) ? $customerPacks->where('status','active') : collect();
   $mobLastVisit = $lastService ? \Carbon\Carbon::parse($lastService) : null;
-  $mobMonthsSince = $customer->created_at->diffInMonths(now());
-  $mobSinceLabel = $mobMonthsSince < 1 ? '<1 mo' : ($mobMonthsSince < 12 ? $mobMonthsSince . ' mo' : floor($mobMonthsSince / 12) . ' yr');
-  $mobVisitCount = $appointments->whereIn('status', ['completed','confirmed','in_progress'])->count();
+
+  // Use timestamp math instead of Carbon diffInMonths to avoid the Carbon 3
+  // float-return footgun (cf. carbon3-diff-fix.sh for the analogous diffInMinutes
+  // sign-flip bug).
+  $mobMonthsSinceFloat = ((now()->getTimestamp() - $customer->created_at->getTimestamp()) / (60 * 60 * 24 * 30.44));
+  $mobMonthsSince = (int) floor($mobMonthsSinceFloat);
+  if ($mobMonthsSince < 1) {
+    $mobSinceLabel = '<1 mo';
+  } elseif ($mobMonthsSince < 12) {
+    $mobSinceLabel = $mobMonthsSince . ' mo';
+  } else {
+    $mobSinceLabel = ((int) floor($mobMonthsSince / 12)) . ' yr';
+  }
+
+  // Visits count = appointments in attended states + class registrations.
+  // Iterate $timelineMonths (already grouped collection passed from controller)
+  // because the flat $timelineEvents isn't in scope here.
+  $mobVisitCount = 0;
+  foreach ($timelineMonths as $month) {
+    foreach ($month['events'] as $e) {
+      if ($e['kind'] === 'class_registration') {
+        $mobVisitCount++;
+      } elseif ($e['kind'] === 'appointment'
+                && in_array(strtolower((string)($e['status_key'] ?? $e['status'] ?? '')),
+                            ['completed', 'confirmed', 'in_progress', 'in progress', 'shipped', 'closed'])) {
+        $mobVisitCount++;
+      }
+    }
+  }
 @endphp
 
 <div class="cust-mobile-only cust-mobile">
