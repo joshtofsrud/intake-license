@@ -99,12 +99,14 @@
   .rp-panel-sub { font-size: 11.5px; }
   .rp-panel-actions { width: 100%; justify-content: flex-end; }
 
-  /* Headline strip: 4 → 2 → 1 (mobile) */
-  .rp-headline { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
-  .rp-head-card { padding: 14px 14px; }
-  .rp-head-num { font-size: 24px; }
-  .rp-head-label { font-size: 12px; }
-  .rp-head-sub { font-size: 11px; }
+  /* Headline strip: 4 → 2x2 (stays 2-col down to phone width).
+     Padding + number size tighten so 2×2 stays legible at iPhone SE width. */
+  .rp-headline { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+  .rp-head-card { padding: 12px 12px; }
+  .rp-head-card::before { left: 0; top: 12px; bottom: 12px; }
+  .rp-head-num { font-size: 22px; margin-bottom: 2px; }
+  .rp-head-label { font-size: 11.5px; line-height: 1.25; }
+  .rp-head-sub { font-size: 10.5px; line-height: 1.3; margin-top: 2px; }
 
   /* rp-row 4-col grid → 2-row stacked layout.
      Top row: [avatar][name+fact, flex:1]
@@ -129,9 +131,6 @@
   .rp-tep-rank { width: 20px; height: 20px; font-size: 10px; margin-right: 6px; }
 }
 
-@media (max-width: 480px) {
-  .rp-headline { grid-template-columns: 1fr; }
-}
 </style>
 @endpush
 
