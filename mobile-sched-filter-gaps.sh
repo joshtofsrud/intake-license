@@ -1,4 +1,48 @@
-{{-- ================================================================
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Mobile schedule — resource filter chips + gap rows.
+#
+# Two features in one patch:
+#
+#   1. Resource filter row on mobile schedule. Horizontal scrollable strip
+#      of chips: "All" + each resource (with color dot). Active state
+#      reflects URL ?resources= param. Uses anchor links (full page reload)
+#      rather than reusing the desktop filter JS, since the desktop JS
+#      binds to #ia-cal-filter-bar by ID and we don't want duplicate IDs.
+#
+#   2. Gap rows in day view, rendered ONLY when filter narrows to exactly
+#      1 resource. Each gap row shows "9:45 / 10:30 · 45 min free" style.
+#      Threshold: only gaps ≥ 15 minutes get a row. Calculated from each
+#      appointment's appointment_end_time vs. the next's appointment_time.
+#      Falls back to start + duration if end_time isn't stored.
+#
+# Day-view subtitle also updates to reflect filter: "3 of Theo's appointments"
+# when filtered, "4 appointments · 3 resources" when not.
+# ─────────────────────────────────────────────────────────────────────────────
+
+set -e
+[ -f artisan ] || { echo "ABORT: not in intake-license repo root"; exit 1; }
+
+echo "=== mobile schedule filter + gaps starting ==="
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Rewrite the mobile schedule partial. Same overall structure, but:
+#    - new $msFilterMode / $msSingleResource logic
+#    - new resource filter chip row
+#    - smarter subtitle
+#    - day-mode loop now uses index access ($i, prev) to render gap rows
+# ─────────────────────────────────────────────────────────────────────────────
+python3 <<'PY'
+from pathlib import Path
+p = Path('resources/views/tenant/calendar/_mobile-schedule.blade.php')
+s = p.read_text()
+marker = "MOBILE-SCHED-FILTER-GAPS v1"
+if marker in s:
+    print("SKIP 1 (partial already updated)")
+else:
+    # Replace whole partial — simpler than chained edits since we touch many
+    # places. The partial is self-contained.
+    new = r'''{{-- ================================================================
      Mobile schedule view (≤900px only) — MOBILE-SCHED-FILTER-GAPS v1
      Renders day-list or week-grouped-list using the same controller data
      as the desktop calendar. Hidden via CSS on desktop.
@@ -357,3 +401,159 @@
   @endif
 
 </div>
+'''
+    p.write_text(new)
+    print("OK 1 (partial rewritten with filter + gaps)")
+PY
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Append filter + gap CSS to mobile-schedule.css.
+# ─────────────────────────────────────────────────────────────────────────────
+python3 <<'PY'
+from pathlib import Path
+p = Path('public/css/tenant/mobile-schedule.css')
+s = p.read_text()
+marker = "/* RESFILTER-GAPS v1 */"
+if marker in s:
+    print("SKIP 2 (CSS already present)")
+else:
+    addition = '''
+
+/* RESFILTER-GAPS v1 — resource filter chips + gap rows */
+@media (max-width: 900px) {
+
+  /* Resource filter row */
+  .ia-msched-resfilter {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 2px 12px;
+    margin: 0 -2px 4px;
+  }
+  .ia-msched-resfilter::-webkit-scrollbar { display: none; }
+  .ia-msched-resfilter-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 99px;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    color: var(--ia-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-msched-resfilter-chip.is-active {
+    background: var(--ia-accent-soft);
+    border-color: rgba(190, 242, 100, .35);
+    color: var(--ia-accent);
+  }
+  .ia-msched-resfilter-dot {
+    display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Gap row — same grid as appointment row so columns align */
+  .ia-msched-gap {
+    display: grid;
+    grid-template-columns: 56px 3px 1fr auto;
+    gap: 10px;
+    padding: 8px 12px 8px 8px;
+    margin-bottom: 8px;
+    align-items: center;
+    opacity: .55;
+  }
+  .ia-msched-gap-time {
+    text-align: right;
+    font-size: 10px;
+    color: var(--ia-text-muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+  }
+  .ia-msched-gap-time div:first-child {
+    opacity: .65;
+  }
+  .ia-msched-gap-stripe {
+    align-self: stretch;
+    border-left: 1.5px dashed var(--ia-text-dim, rgba(255,255,255,.18));
+    margin-left: 0.75px;
+  }
+  .ia-msched-gap-body {
+    font-size: 12px;
+    color: var(--ia-text-muted);
+  }
+  .ia-msched-gap-body strong {
+    color: var(--ia-text);
+    font-weight: 500;
+  }
+}
+'''
+    p.write_text(s + addition)
+    print("OK 2 (CSS appended)")
+PY
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Verification
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "=== verifying ==="
+fail=0
+verify() {
+  local file="$1" needle="$2" label="$3"
+  local n
+  n=$(grep -c -F -- "$needle" "$file" 2>/dev/null | tr -d '\n' || true)
+  : "${n:=0}"
+  if [ "${n:-0}" -ge 1 ] 2>/dev/null; then
+    echo "  ✓ $label  (${n}×)"
+  else
+    echo "  ✗ MISSING: $label"
+    fail=1
+  fi
+}
+
+verify "resources/views/tenant/calendar/_mobile-schedule.blade.php" "MOBILE-SCHED-FILTER-GAPS v1"  "partial marker"
+verify "resources/views/tenant/calendar/_mobile-schedule.blade.php" "ia-msched-resfilter"          "filter chip class"
+verify "resources/views/tenant/calendar/_mobile-schedule.blade.php" "msComputeGap"                 "gap calc helper"
+verify "resources/views/tenant/calendar/_mobile-schedule.blade.php" "msSingleResource"             "single-resource detection"
+verify "resources/views/tenant/calendar/_mobile-schedule.blade.php" "ia-msched-gap"                "gap row class"
+verify "public/css/tenant/mobile-schedule.css"                     "RESFILTER-GAPS v1"            "CSS marker"
+verify "public/css/tenant/mobile-schedule.css"                     ".ia-msched-resfilter-chip"    "filter chip CSS"
+verify "public/css/tenant/mobile-schedule.css"                     ".ia-msched-gap "              "gap row CSS"
+
+# Blade balance
+python3 <<'PY'
+src = open('resources/views/tenant/calendar/_mobile-schedule.blade.php').read()
+checks = [('@if','@endif'), ('@unless','@endunless'), ('@foreach','@endforeach'), ('@php','@endphp')]
+import sys
+ok = True
+for o, c in checks:
+    no, nc = src.count(o), src.count(c)
+    if no != nc:
+        print(f'  ✗ {o}({no}) != {c}({nc})')
+        ok = False
+    else:
+        print(f'  ✓ {o}/{c}: {no}')
+if not ok: sys.exit(1)
+PY
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "✗ FAIL"
+  exit 1
+fi
+
+echo ""
+echo "✓ all green"
+echo ""
+echo "Next:"
+echo "  git add -A && git commit -m 'mobile schedule: resource filter chips + gap rows when single resource'"
+echo "  git push"
+echo "  Server: git pull && php artisan view:clear && \\"
+echo "    sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm"
+echo ""
+echo "=== filter + gaps complete ==="

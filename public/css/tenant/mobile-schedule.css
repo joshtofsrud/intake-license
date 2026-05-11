@@ -310,3 +310,78 @@
 @media (min-width: 901px) {
   .ia-msched { display: none !important; }
 }
+
+
+/* RESFILTER-GAPS v1 — resource filter chips + gap rows */
+@media (max-width: 900px) {
+
+  /* Resource filter row */
+  .ia-msched-resfilter {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 2px 12px;
+    margin: 0 -2px 4px;
+  }
+  .ia-msched-resfilter::-webkit-scrollbar { display: none; }
+  .ia-msched-resfilter-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 99px;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    color: var(--ia-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-msched-resfilter-chip.is-active {
+    background: var(--ia-accent-soft);
+    border-color: rgba(190, 242, 100, .35);
+    color: var(--ia-accent);
+  }
+  .ia-msched-resfilter-dot {
+    display: inline-block;
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Gap row — same grid as appointment row so columns align */
+  .ia-msched-gap {
+    display: grid;
+    grid-template-columns: 56px 3px 1fr auto;
+    gap: 10px;
+    padding: 8px 12px 8px 8px;
+    margin-bottom: 8px;
+    align-items: center;
+    opacity: .55;
+  }
+  .ia-msched-gap-time {
+    text-align: right;
+    font-size: 10px;
+    color: var(--ia-text-muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+  }
+  .ia-msched-gap-time div:first-child {
+    opacity: .65;
+  }
+  .ia-msched-gap-stripe {
+    align-self: stretch;
+    border-left: 1.5px dashed var(--ia-text-dim, rgba(255,255,255,.18));
+    margin-left: 0.75px;
+  }
+  .ia-msched-gap-body {
+    font-size: 12px;
+    color: var(--ia-text-muted);
+  }
+  .ia-msched-gap-body strong {
+    color: var(--ia-text);
+    font-weight: 500;
+  }
+}
