@@ -14,6 +14,12 @@ use RuntimeException;
 
 class ClassRegistrationService
 {
+    // TODO(class-confirmation-emails): when registration confirmations
+    // ship post-launch, include the template's class_notes and the
+    // session's session_notes_override in the email body. Both fields
+    // are populated on the registration's session+template; just wire
+    // them through the mailable.
+
     /**
      * Register a customer for a class session.
      *

@@ -92,7 +92,7 @@
       <div class="cl-num">{{ $t->price_cents > 0 ? '$'.number_format($t->price_cents/100,2) : 'Free' }}</div>
       <div class="cl-num">{{ $t->sessions_count }}</div>
       <div class="cl-actions">
-        <button class="cl-action-btn" title="Edit" onclick="openEditModal({{ $t->toJson() }})">
+        <button class="cl-action-btn" title="Edit" onclick="openEditModal({{ $t->toJson() }}, {{ $t->sessions_count ?? 0 }})">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
         </button>
         <button class="cl-action-btn" title="Delete" onclick="confirmDelete('{{ $t->id }}','{{ addslashes($t->name) }}')">
@@ -122,6 +122,13 @@
       <div class="cl-field">
         <label class="cl-label">Description (optional)</label>
         <textarea name="description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="cl-field">
+        <label class="cl-label">Class notes (optional)</label>
+        <textarea name="class_notes" class="cl-textarea" rows="3" maxlength="2000" placeholder="e.g. Bring your own mat — studio mats are out."></textarea>
+        <div style="font-size:11px;color:var(--ia-text-muted);margin-top:6px;line-height:1.4">
+          Permanent note attached to this class. Shown to staff on every session's roster, and included in customer booking confirmations. Each session can add its own additional note later.
+        </div>
       </div>
       <div class="cl-field-triple">
         <div class="cl-field">
@@ -177,6 +184,13 @@
       <div class="cl-field">
         <label class="cl-label">Description</label>
         <textarea name="description" id="edit-description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="cl-field">
+        <label class="cl-label">Class notes</label>
+        <textarea name="class_notes" id="edit-class-notes" class="cl-textarea" rows="3" maxlength="2000" placeholder="e.g. Bring your own mat — studio mats are out."></textarea>
+        <div style="font-size:11px;color:var(--ia-text-muted);margin-top:6px;line-height:1.4">
+          Permanent note shown to staff on every session and included in customer booking confirmations. Each session can also add its own additional note.
+        </div>
       </div>
       <div class="cl-field-triple">
         <div class="cl-field">
@@ -237,18 +251,48 @@
   window.openAddModal  = function(){ addModal.classList.add('is-open'); }
   window.closeAddModal = function(){ addModal.classList.remove('is-open'); }
 
-  window.openEditModal = function(t){
+  // Cache the original class_notes value + upcoming-sessions count so we
+  // can decide whether to show the cascade confirmation on save.
+  var _originalClassNotes = '';
+  var _upcomingSessions   = 0;
+
+  window.openEditModal = function(t, sessionsCount){
     editForm.action = baseUrl + '/' + t.id;
     document.getElementById('edit-name').value        = t.name;
     document.getElementById('edit-description').value = t.description || '';
+    document.getElementById('edit-class-notes').value = t.class_notes || '';
     document.getElementById('edit-duration').value    = t.duration_minutes;
     document.getElementById('edit-capacity').value    = t.default_capacity;
     document.getElementById('edit-price').value       = (t.price_cents / 100).toFixed(2);
     document.getElementById('edit-active').checked    = t.is_active == 1;
     var sel = document.getElementById('edit-instructor');
     sel.value = t.instructor_resource_id || '';
+    _originalClassNotes = t.class_notes || '';
+    _upcomingSessions   = parseInt(sessionsCount, 10) || 0;
     editModal.classList.add('is-open');
   }
+
+  // Intercept edit-form submit: if class_notes changed and the template has
+  // upcoming sessions, confirm the cascade. Intake principle: every action
+  // gets a reaction.
+  editForm.addEventListener('submit', function(ev){
+    var newNotes = document.getElementById('edit-class-notes').value || '';
+    var changed  = (newNotes !== _originalClassNotes);
+    if (!changed || _upcomingSessions === 0) return;
+    if (!window.IntakeConfirm) {
+      if (!window.confirm('Update class notes on ' + _upcomingSessions + ' upcoming session(s)?')) {
+        ev.preventDefault();
+      }
+      return;
+    }
+    ev.preventDefault();
+    window.IntakeConfirm.show({
+      title:       'Update class notes?',
+      message:     'These notes will be shown to staff on the rosters of ' + _upcomingSessions + ' upcoming session(s), and included in customer booking confirmations for any new registrations.',
+      confirmText: 'Update notes',
+      cancelText:  'Keep current'
+    }).then(function(ok){ if (ok) editForm.submit(); });
+  });
   window.closeEditModal = function(){ editModal.classList.remove('is-open'); }
 
   window.confirmDelete = function(id, name){

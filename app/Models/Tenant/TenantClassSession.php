@@ -25,6 +25,7 @@ class TenantClassSession extends Model
         'capacity_snapshot',
         'status',
         'notes',
+        'session_notes_override',
         'metadata',
     ];
 

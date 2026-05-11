@@ -46,6 +46,7 @@ class ClassController extends Controller
         $data = $request->validate([
             'name'                    => ['required', 'string', 'max:120'],
             'description'             => ['nullable', 'string', 'max:1000'],
+            'class_notes'             => ['nullable', 'string', 'max:2000'],
             'duration_minutes'        => ['required', 'integer', 'min:5', 'max:480'],
             'default_capacity'        => ['required', 'integer', 'min:1', 'max:500'],
             'instructor_resource_id'  => ['nullable', 'uuid', 'exists:tenant_resources,id'],
@@ -71,6 +72,7 @@ class ClassController extends Controller
         $data = $request->validate([
             'name'                   => ['required', 'string', 'max:120'],
             'description'            => ['nullable', 'string', 'max:1000'],
+            'class_notes'            => ['nullable', 'string', 'max:2000'],
             'duration_minutes'       => ['required', 'integer', 'min:5', 'max:480'],
             'default_capacity'       => ['required', 'integer', 'min:1', 'max:500'],
             'instructor_resource_id' => ['nullable', 'uuid', 'exists:tenant_resources,id'],
@@ -210,6 +212,7 @@ class ClassController extends Controller
             'status'                 => ['sometimes', 'in:scheduled,confirmed,cancelled,completed'],
             'instructor_resource_id' => ['nullable', 'uuid', 'exists:tenant_resources,id'],
             'notes'                  => ['nullable', 'string', 'max:1000'],
+            'session_notes_override' => ['nullable', 'string', 'max:2000'],
         ]);
 
         if (isset($data['starts_at'])) {

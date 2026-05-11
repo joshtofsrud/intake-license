@@ -1,3 +1,304 @@
+#!/bin/bash
+# ============================================================================
+# class-notes-and-session-mobile.sh   (patch #33)
+# ----------------------------------------------------------------------------
+# Two concerns shipping in one patch because they touch overlapping files:
+#
+# 1. CLASS NOTES (new feature)
+#    - tenant_class_templates.class_notes (text, nullable)
+#        Permanent note attached to a class definition. Set at template-create
+#        time. Inherits to every session. Editable from the session detail
+#        page (inline edit writes back to the template — affects all sessions).
+#    - tenant_class_sessions.session_notes_override (text, nullable)
+#        Optional per-session-only note. Independent of the template's
+#        class_notes. Both surface to staff on the roster, and (when class
+#        registration confirmation emails ship post-launch) both go in the
+#        customer's confirmation.
+#    - IntakeConfirm cascade dialog when editing template class_notes from
+#        the session page — change affects N future sessions.
+#        Intake principle: every action gets a reaction.
+#
+# 2. SESSION DETAIL MOBILE REFACTOR
+#    - Parallel desktop+mobile renders for the roster table (now cards).
+#    - Stat grid stops overflowing (cells get min-width:0).
+#    - Sticky add-form becomes tap-to-open bottom sheet on mobile.
+#    - Same pattern as customer detail rebuild (#28) and appointments list (#31).
+#
+# Files touched:
+#   database/migrations/2026_05_11_000001_add_class_notes_fields.php   (NEW)
+#   app/Models/Tenant/TenantClassTemplate.php                          (fillable)
+#   app/Models/Tenant/TenantClassSession.php                           (fillable)
+#   app/Http/Controllers/Tenant/ClassController.php                    (validation)
+#   app/Services/ClassRegistrationService.php                          (TODO marker)
+#   resources/views/tenant/classes/templates.blade.php                 (form fields)
+#   resources/views/tenant/classes/session-detail.blade.php            (full rewrite)
+#
+# Deploy:
+#   git pull && php artisan migrate --force && \
+#   composer install --no-dev --optimize-autoloader && \
+#   php artisan optimize:clear && \
+#   sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm
+# ============================================================================
+
+set -euo pipefail
+
+REPO_ROOT="${REPO_ROOT:-$(pwd)}"
+cd "$REPO_ROOT"
+
+echo "==> Patch 33: class notes + session-detail mobile refactor"
+
+# ----------------------------------------------------------------------------
+# 1. Migration
+# ----------------------------------------------------------------------------
+MIGRATION_PATH="database/migrations/2026_05_11_000001_add_class_notes_fields.php"
+
+if [ -f "$MIGRATION_PATH" ]; then
+  echo "    SKIP migration (already exists)"
+else
+  cat > "$MIGRATION_PATH" <<'EOF'
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('tenant_class_templates', function (Blueprint $table) {
+            // Permanent note attached to the class definition. Shown to staff
+            // on every session's roster. Will be included in customer booking
+            // confirmation emails when those ship (currently a known gap —
+            // class registrations don't send emails yet).
+            $table->text('class_notes')->nullable()->after('description');
+        });
+
+        Schema::table('tenant_class_sessions', function (Blueprint $table) {
+            // Per-session-only roster note. Independent of the template's
+            // class_notes — both can be set, both surface. Distinct from
+            // `notes`, which remains the staff-only operational note shown
+            // in the session info sidebar.
+            $table->text('session_notes_override')->nullable()->after('notes');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tenant_class_templates', function (Blueprint $table) {
+            $table->dropColumn('class_notes');
+        });
+        Schema::table('tenant_class_sessions', function (Blueprint $table) {
+            $table->dropColumn('session_notes_override');
+        });
+    }
+};
+EOF
+  echo "    CREATED $MIGRATION_PATH"
+fi
+
+# ----------------------------------------------------------------------------
+# 2. TenantClassTemplate model — fillable
+# ----------------------------------------------------------------------------
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("app/Models/Tenant/TenantClassTemplate.php")
+s = p.read_text()
+
+old = "        'description',\n        'duration_minutes',"
+new = "        'description',\n        'class_notes',\n        'duration_minutes',"
+
+if "'class_notes'" in s:
+    print("    SKIP TenantClassTemplate (already has class_notes)")
+elif s.count(old) != 1:
+    raise SystemExit(f"ABORT: anchor count for TenantClassTemplate fillable = {s.count(old)}, expected 1")
+else:
+    p.write_text(s.replace(old, new))
+    print("    UPDATED TenantClassTemplate.php — added 'class_notes' to $fillable")
+PYEOF
+
+# ----------------------------------------------------------------------------
+# 3. TenantClassSession model — fillable
+# ----------------------------------------------------------------------------
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("app/Models/Tenant/TenantClassSession.php")
+s = p.read_text()
+
+old = "        'notes',\n        'metadata',"
+new = "        'notes',\n        'session_notes_override',\n        'metadata',"
+
+if "'session_notes_override'" in s:
+    print("    SKIP TenantClassSession (already has session_notes_override)")
+elif s.count(old) != 1:
+    raise SystemExit(f"ABORT: anchor count for TenantClassSession fillable = {s.count(old)}, expected 1")
+else:
+    p.write_text(s.replace(old, new))
+    print("    UPDATED TenantClassSession.php — added 'session_notes_override' to $fillable")
+PYEOF
+
+# ----------------------------------------------------------------------------
+# 4. ClassController — three validation blocks
+# ----------------------------------------------------------------------------
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("app/Http/Controllers/Tenant/ClassController.php")
+s = p.read_text()
+
+# storeTemplate
+old1 = "            'name'                    => ['required', 'string', 'max:120'],\n            'description'             => ['nullable', 'string', 'max:1000'],\n            'duration_minutes'        => ['required', 'integer', 'min:5', 'max:480'],"
+new1 = "            'name'                    => ['required', 'string', 'max:120'],\n            'description'             => ['nullable', 'string', 'max:1000'],\n            'class_notes'             => ['nullable', 'string', 'max:2000'],\n            'duration_minutes'        => ['required', 'integer', 'min:5', 'max:480'],"
+
+# updateTemplate
+old2 = "            'name'                   => ['required', 'string', 'max:120'],\n            'description'            => ['nullable', 'string', 'max:1000'],\n            'duration_minutes'       => ['required', 'integer', 'min:5', 'max:480'],"
+new2 = "            'name'                   => ['required', 'string', 'max:120'],\n            'description'            => ['nullable', 'string', 'max:1000'],\n            'class_notes'            => ['nullable', 'string', 'max:2000'],\n            'duration_minutes'       => ['required', 'integer', 'min:5', 'max:480'],"
+
+# updateSession
+old3 = "            'instructor_resource_id' => ['nullable', 'uuid', 'exists:tenant_resources,id'],\n            'notes'                  => ['nullable', 'string', 'max:1000'],\n        ]);"
+new3 = "            'instructor_resource_id' => ['nullable', 'uuid', 'exists:tenant_resources,id'],\n            'notes'                  => ['nullable', 'string', 'max:1000'],\n            'session_notes_override' => ['nullable', 'string', 'max:2000'],\n        ]);"
+
+if "'class_notes'" in s and "'session_notes_override'" in s:
+    print("    SKIP ClassController (already patched)")
+else:
+    for label, old, new in [("storeTemplate", old1, new1),
+                            ("updateTemplate", old2, new2),
+                            ("updateSession", old3, new3)]:
+        if s.count(old) != 1:
+            raise SystemExit(f"ABORT: anchor count for {label} = {s.count(old)}, expected 1")
+        s = s.replace(old, new)
+    p.write_text(s)
+    print("    UPDATED ClassController.php — added validation rules")
+PYEOF
+
+# ----------------------------------------------------------------------------
+# 5. templates.blade.php — add class_notes to add/edit modals + cascade JS
+# ----------------------------------------------------------------------------
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("resources/views/tenant/classes/templates.blade.php")
+s = p.read_text()
+
+if "class_notes" in s:
+    print("    SKIP templates.blade.php (already patched)")
+else:
+    # 5a. ADD modal — insert Class notes after Description
+    add_anchor = '''      <div class="cl-field">
+        <label class="cl-label">Description (optional)</label>
+        <textarea name="description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="cl-field-triple">'''
+    add_new = '''      <div class="cl-field">
+        <label class="cl-label">Description (optional)</label>
+        <textarea name="description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="cl-field">
+        <label class="cl-label">Class notes (optional)</label>
+        <textarea name="class_notes" class="cl-textarea" rows="3" maxlength="2000" placeholder="e.g. Bring your own mat — studio mats are out."></textarea>
+        <div style="font-size:11px;color:var(--ia-text-muted);margin-top:6px;line-height:1.4">
+          Permanent note attached to this class. Shown to staff on every session's roster, and included in customer booking confirmations. Each session can add its own additional note later.
+        </div>
+      </div>
+      <div class="cl-field-triple">'''
+    if s.count(add_anchor) != 1:
+        raise SystemExit(f"ABORT: ADD modal anchor count = {s.count(add_anchor)}, expected 1")
+    s = s.replace(add_anchor, add_new)
+
+    # 5b. EDIT modal — same insertion
+    edit_anchor = '''      <div class="cl-field">
+        <label class="cl-label">Description</label>
+        <textarea name="description" id="edit-description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="cl-field-triple">'''
+    edit_new = '''      <div class="cl-field">
+        <label class="cl-label">Description</label>
+        <textarea name="description" id="edit-description" class="cl-textarea" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="cl-field">
+        <label class="cl-label">Class notes</label>
+        <textarea name="class_notes" id="edit-class-notes" class="cl-textarea" rows="3" maxlength="2000" placeholder="e.g. Bring your own mat — studio mats are out."></textarea>
+        <div style="font-size:11px;color:var(--ia-text-muted);margin-top:6px;line-height:1.4">
+          Permanent note shown to staff on every session and included in customer booking confirmations. Each session can also add its own additional note.
+        </div>
+      </div>
+      <div class="cl-field-triple">'''
+    if s.count(edit_anchor) != 1:
+        raise SystemExit(f"ABORT: EDIT modal anchor count = {s.count(edit_anchor)}, expected 1")
+    s = s.replace(edit_anchor, edit_new)
+
+    # 5c. Edit button — pass sessions_count to openEditModal
+    edit_btn_anchor = '''<button class="cl-action-btn" title="Edit" onclick="openEditModal({{ $t->toJson() }})">'''
+    edit_btn_new    = '''<button class="cl-action-btn" title="Edit" onclick="openEditModal({{ $t->toJson() }}, {{ $t->sessions_count ?? 0 }})">'''
+    if s.count(edit_btn_anchor) != 1:
+        raise SystemExit(f"ABORT: edit-button anchor count = {s.count(edit_btn_anchor)}, expected 1")
+    s = s.replace(edit_btn_anchor, edit_btn_new)
+
+    # 5d. JS — populate field, intercept submit for cascade confirm
+    js_anchor = '''  window.openEditModal = function(t){
+    editForm.action = baseUrl + '/' + t.id;
+    document.getElementById('edit-name').value        = t.name;
+    document.getElementById('edit-description').value = t.description || '';
+    document.getElementById('edit-duration').value    = t.duration_minutes;
+    document.getElementById('edit-capacity').value    = t.default_capacity;
+    document.getElementById('edit-price').value       = (t.price_cents / 100).toFixed(2);
+    document.getElementById('edit-active').checked    = t.is_active == 1;
+    var sel = document.getElementById('edit-instructor');
+    sel.value = t.instructor_resource_id || '';
+    editModal.classList.add('is-open');
+  }'''
+    js_new = '''  // Cache the original class_notes value + upcoming-sessions count so we
+  // can decide whether to show the cascade confirmation on save.
+  var _originalClassNotes = '';
+  var _upcomingSessions   = 0;
+
+  window.openEditModal = function(t, sessionsCount){
+    editForm.action = baseUrl + '/' + t.id;
+    document.getElementById('edit-name').value        = t.name;
+    document.getElementById('edit-description').value = t.description || '';
+    document.getElementById('edit-class-notes').value = t.class_notes || '';
+    document.getElementById('edit-duration').value    = t.duration_minutes;
+    document.getElementById('edit-capacity').value    = t.default_capacity;
+    document.getElementById('edit-price').value       = (t.price_cents / 100).toFixed(2);
+    document.getElementById('edit-active').checked    = t.is_active == 1;
+    var sel = document.getElementById('edit-instructor');
+    sel.value = t.instructor_resource_id || '';
+    _originalClassNotes = t.class_notes || '';
+    _upcomingSessions   = parseInt(sessionsCount, 10) || 0;
+    editModal.classList.add('is-open');
+  }
+
+  // Intercept edit-form submit: if class_notes changed and the template has
+  // upcoming sessions, confirm the cascade. Intake principle: every action
+  // gets a reaction.
+  editForm.addEventListener('submit', function(ev){
+    var newNotes = document.getElementById('edit-class-notes').value || '';
+    var changed  = (newNotes !== _originalClassNotes);
+    if (!changed || _upcomingSessions === 0) return;
+    if (!window.IntakeConfirm) {
+      if (!window.confirm('Update class notes on ' + _upcomingSessions + ' upcoming session(s)?')) {
+        ev.preventDefault();
+      }
+      return;
+    }
+    ev.preventDefault();
+    window.IntakeConfirm.show({
+      title:       'Update class notes?',
+      message:     'These notes will be shown to staff on the rosters of ' + _upcomingSessions + ' upcoming session(s), and included in customer booking confirmations for any new registrations.',
+      confirmText: 'Update notes',
+      cancelText:  'Keep current'
+    }).then(function(ok){ if (ok) editForm.submit(); });
+  });'''
+    if s.count(js_anchor) != 1:
+        raise SystemExit(f"ABORT: openEditModal JS anchor count = {s.count(js_anchor)}, expected 1")
+    s = s.replace(js_anchor, js_new)
+
+    p.write_text(s)
+    print("    UPDATED templates.blade.php — Class notes field + cascade confirm")
+PYEOF
+
+# ----------------------------------------------------------------------------
+# 6. session-detail.blade.php — full rewrite via heredoc (Blade has $ and ')
+# ----------------------------------------------------------------------------
+cat > resources/views/tenant/classes/session-detail.blade.php <<'BLADEEOF'
 @extends('layouts.tenant.app')
 @php $pageTitle = $session->template->name . ' — ' . $session->starts_at->format('M j, Y'); @endphp
 
@@ -675,3 +976,59 @@
 @endpush
 
 @endsection
+BLADEEOF
+echo "    REWROTE resources/views/tenant/classes/session-detail.blade.php"
+
+# ----------------------------------------------------------------------------
+# 7. TODO marker in ClassRegistrationService — future email work
+# ----------------------------------------------------------------------------
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("app/Services/ClassRegistrationService.php")
+s = p.read_text()
+if "TODO(class-confirmation-emails)" in s:
+    print("    SKIP ClassRegistrationService TODO (already present)")
+else:
+    anchor = "class ClassRegistrationService\n{"
+    new    = ("class ClassRegistrationService\n{\n"
+              "    // TODO(class-confirmation-emails): when registration confirmations\n"
+              "    // ship post-launch, include the template's class_notes and the\n"
+              "    // session's session_notes_override in the email body. Both fields\n"
+              "    // are populated on the registration's session+template; just wire\n"
+              "    // them through the mailable.\n")
+    if s.count(anchor) != 1:
+        raise SystemExit(f"ABORT: ClassRegistrationService anchor count = {s.count(anchor)}, expected 1")
+    p.write_text(s.replace(anchor, new))
+    print("    UPDATED ClassRegistrationService.php — TODO marker for email integration")
+PYEOF
+
+cat <<EONOTE
+
+==> Patch 33 applied locally.
+
+To deploy:
+  git add -A
+  git commit -m "feat(classes): class notes feature + session-detail mobile refactor (#33)"
+  git push
+
+On server:
+  git pull
+  php artisan migrate --force
+  composer install --no-dev --optimize-autoloader
+  php artisan optimize:clear
+  sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm
+
+What this adds:
+  - tenant_class_templates.class_notes              (permanent, cascades)
+  - tenant_class_sessions.session_notes_override    (per-session only)
+  - "Class notes" field on template add/edit modal, with helper copy
+  - Cascade confirm dialog on template-notes save when 2+ future sessions
+  - Two-section "Class notes" card on session detail page
+  - Full mobile refactor of session detail (stat grid, roster cards, sheet)
+  - TODO marker in ClassRegistrationService for post-launch email path
+
+Known gap (not in this patch):
+  Class registration confirmation emails do not exist yet. class_notes
+  and session_notes_override are populated and ready; mailable wiring
+  is the missing piece. See TODO marker.
+EONOTE

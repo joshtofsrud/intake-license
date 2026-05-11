@@ -20,6 +20,7 @@ class TenantClassTemplate extends Model
         'name',
         'slug',
         'description',
+        'class_notes',
         'duration_minutes',
         'default_capacity',
         'service_item_id',
