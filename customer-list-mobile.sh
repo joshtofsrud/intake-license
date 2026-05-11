@@ -1,3 +1,28 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Customer list — mobile redesign.
+#
+# Replaces the 3-row filter form + 6-col table with:
+#   1. Single-row search-and-sort bar (search input, sort icon, + icon)
+#   2. Live search (350ms debounce on input)
+#   3. Sort opens a bottom sheet with 7 options
+#   4. Card-style customer list (name + spend, email + phone, last svc + added)
+#   5. + icon reveals the existing new-customer form
+#
+# Approach: parallel rendering — desktop table + mobile cards both emit;
+# CSS hides whichever isn't appropriate for the viewport. Zero backend
+# changes. Same $customers loop runs twice (cheap, already in memory).
+#
+# All scoped to ≤600px. Desktop unchanged.
+# ─────────────────────────────────────────────────────────────────────────────
+
+set -e
+[ -f artisan ] || { echo "ABORT: not in intake-license repo root"; exit 1; }
+
+echo "=== customer list mobile starting ==="
+
+# Rewrite the customer list page. Single file replacement.
+cat > resources/views/tenant/customers/index.blade.php <<'BLADE'
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Customers';
@@ -511,3 +536,60 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
 @endpush
 
 @endsection
+BLADE
+echo "OK 1 (customer list rewritten)"
+
+echo ""
+echo "=== verifying ==="
+fail=0
+verify() {
+  local file="$1" needle="$2" label="$3"
+  local n
+  n=$(grep -c -F -- "$needle" "$file" 2>/dev/null | tr -d '\n' || true)
+  : "${n:=0}"
+  if [ "${n:-0}" -ge 1 ] 2>/dev/null; then
+    echo "  ✓ $label  (${n}×)"
+  else
+    echo "  ✗ MISSING: $label"
+    fail=1
+  fi
+}
+verify "resources/views/tenant/customers/index.blade.php"  "CUSTOMER-LIST-MOBILE v1"  "marker"
+verify "resources/views/tenant/customers/index.blade.php"  "cust-mfilter"             "mobile filter bar class"
+verify "resources/views/tenant/customers/index.blade.php"  "cust-cards"               "mobile cards class"
+verify "resources/views/tenant/customers/index.blade.php"  "cust-sort-sheet"          "sort sheet"
+verify "resources/views/tenant/customers/index.blade.php"  "CustSort"                 "sort JS"
+verify "resources/views/tenant/customers/index.blade.php"  "ia-table-wrap"            "desktop table preserved"
+
+# Blade balance
+python3 <<'PY'
+src = open('resources/views/tenant/customers/index.blade.php').read()
+checks = [('@if','@endif'), ('@foreach','@endforeach'), ('@php','@endphp'), ('@push','@endpush'), ('@for','@endfor')]
+import sys
+ok = True
+for o, c in checks:
+    no, nc = src.count(o), src.count(c)
+    if no != nc:
+        print(f'  ✗ {o}({no}) != {c}({nc})')
+        ok = False
+    else:
+        print(f'  ✓ {o}/{c}: {no}')
+if not ok: sys.exit(1)
+PY
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "✗ FAIL"
+  exit 1
+fi
+
+echo ""
+echo "✓ all green"
+echo ""
+echo "Next:"
+echo "  git add -A && git commit -m 'mobile: customer list redesign — search bar, sort sheet, card list'"
+echo "  git push"
+echo "  Server: git pull && php artisan view:clear && \\"
+echo "    sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm"
+echo ""
+echo "=== customer list mobile complete ==="
