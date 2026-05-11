@@ -1,5 +1,38 @@
-{{-- NAV-ITEMS-EXTRACTED v1 — shared data source for sidebar + mobile drawer.
-     Edit $navItems here; both consumers see the change. --}}
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Rollback drawer-nav-sync + apply minimal fix.
+#
+# The prior patch extracted the nav items array to a shared partial. Caused
+# a 500 error in production — root cause not fully diagnosed, but the safer
+# move is to NOT restructure files mid-launch-week.
+#
+# This patch:
+#   1. Restores _nav-items.blade.php to its original inline-array form
+#   2. Removes _nav-items-data.blade.php
+#   3. Adds the missing items (Waitlist, Inventory, Reports, Work Order
+#      Fields, Add-ons) directly to _more-drawer.blade.php's hardcoded
+#      $moreItems array
+#
+# Trade-off: drawer + sidebar are still separate sources of truth. Adding a
+# new nav item still requires editing two files. We accept that for now;
+# the sync refactor can ship after launch.
+# ─────────────────────────────────────────────────────────────────────────────
+
+set -e
+[ -f artisan ] || { echo "ABORT: not in intake-license repo root"; exit 1; }
+
+echo "=== rollback drawer-nav-sync + simple fix ==="
+
+# 1. Delete _nav-items-data.blade.php if it exists.
+if [ -f resources/views/layouts/tenant/_nav-items-data.blade.php ]; then
+  rm resources/views/layouts/tenant/_nav-items-data.blade.php
+  echo "OK 1 (removed _nav-items-data.blade.php)"
+else
+  echo "SKIP 1 (data partial already absent)"
+fi
+
+# 2. Restore _nav-items.blade.php to its original inline-array form.
+cat > resources/views/layouts/tenant/_nav-items.blade.php <<'BLADE'
 @php
   $current = request()->route()?->getName() ?? '';
   $navItems = [
@@ -138,3 +171,170 @@
   $groups = ['manage' => 'Manage', 'settings' => 'Settings'];
   $lastGroup = null;
 @endphp
+
+@foreach($navItems as $item)
+  @php
+    $primaryMatch = str_replace('.index', '', $item['route']);
+    $isActive = str_starts_with($current, $primaryMatch);
+    if (!$isActive && !empty($item['match_alt'])) {
+      $isActive = str_starts_with($current, $item['match_alt']);
+    }
+    $url      = route($item['route']);
+  @endphp
+
+  @if(!empty($item['gate']) && !$currentTenant->{$item['gate']})
+    @continue
+  @endif
+
+  @if($item['group'] !== $lastGroup && $item['group'])
+    @if($lastGroup !== null)
+      <div class="ia-sidebar-divider"></div>
+    @endif
+    <div class="ia-nav-section">{{ $groups[$item['group']] }}</div>
+    @php $lastGroup = $item['group']; @endphp
+  @endif
+
+  <a href="{{ $url }}" class="ia-nav-item {{ $isActive ? 'active' : '' }}">
+    {!! $item['icon'] !!}
+    {{ $item['label'] }}
+  </a>
+
+@endforeach
+BLADE
+echo "OK 2 (nav-items restored to original)"
+
+# 3. Update _more-drawer.blade.php's hardcoded list to add the missing items
+#    AND apply gate checks consistently.
+cat > resources/views/layouts/tenant/_more-drawer.blade.php <<'BLADE'
+@php
+  $current = request()->route()?->getName() ?? '';
+
+  // Items shown in the More drawer. Excludes the primary bottom-nav tabs
+  // (Dashboard, Schedule, Customers). Mirrors the sidebar nav order.
+  // Gate checks apply: items with a `gate` only render if the tenant has
+  // that feature flag enabled. Keep this list in sync with _nav-items.blade.php.
+  $moreItems = [
+    ['route' => 'tenant.register.index',           'label' => 'Register'],
+    ['route' => 'tenant.classes.sessions',         'label' => 'Classes',      'gate' => 'classes_enabled'],
+    ['route' => 'tenant.inventory.index',          'label' => 'Inventory',    'gate' => 'retail_enabled'],
+    ['route' => 'tenant.reports.index',            'label' => 'Reports'],
+    ['route' => 'tenant.services.index',           'label' => 'Services'],
+    ['route' => 'tenant.resources.index',          'label' => 'Resources'],
+    ['route' => 'tenant.work-order-fields.index',  'label' => 'Work Order Fields'],
+    ['route' => 'tenant.booking-editor.index',     'label' => 'Intake Form Editor'],
+    ['route' => 'tenant.capacity.index',           'label' => 'Capacity'],
+    ['route' => 'tenant.pages.index',              'label' => 'Pages'],
+    ['route' => 'tenant.emails.index',             'label' => 'Email'],
+    ['route' => 'tenant.waitlist.index',           'label' => 'Waitlist'],
+    ['route' => 'tenant.campaigns.index',          'label' => 'Campaigns'],
+    ['route' => 'tenant.help.index',               'label' => 'Help & Guides'],
+    ['route' => 'tenant.whats_new.changelog',      'label' => "What's New"],
+    ['route' => 'tenant.whats_new.roadmap',        'label' => "What's Coming"],
+    ['route' => 'tenant.settings.index',           'label' => 'Settings'],
+    ['route' => 'tenant.feature_addons.index',     'label' => 'Add-ons'],
+  ];
+@endphp
+
+<div class="ia-drawer-overlay" id="ia-more-drawer" aria-hidden="true" onclick="IntakeMobileNav.closeDrawerFromOverlay(event)">
+  <div class="ia-drawer" role="dialog" aria-modal="true" aria-labelledby="ia-drawer-title">
+    <div class="ia-drawer-handle" aria-hidden="true"></div>
+    <div class="ia-drawer-header">
+      <h2 id="ia-drawer-title" class="ia-drawer-title">More</h2>
+      <button type="button" class="ia-drawer-close" onclick="IntakeMobileNav.closeDrawer()" aria-label="Close">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="ia-drawer-items">
+      @foreach($moreItems as $item)
+        @if(!empty($item['gate']) && !$currentTenant->{$item['gate']})
+          @continue
+        @endif
+        @if(\Illuminate\Support\Facades\Route::has($item['route']))
+          @php
+            $isActive = str_starts_with($current, str_replace('.index', '', $item['route']));
+          @endphp
+          <a href="{{ route($item['route']) }}" class="ia-drawer-item {{ $isActive ? 'active' : '' }}">
+            {{ $item['label'] }}
+          </a>
+        @endif
+      @endforeach
+    </div>
+
+    {{-- DRAWER-USER v2 — split user info from sign-out to prevent accidental logouts --}}
+    <div class="ia-drawer-user ia-drawer-user--readonly">
+      <div class="ia-user-avatar">{{ strtoupper(substr($authUser->name, 0, 2)) }}</div>
+      <div>
+        <div class="ia-user-name">{{ $authUser->name }}</div>
+        <div class="ia-user-role">{{ ucfirst($authUser->role ?? 'Member') }}</div>
+      </div>
+    </div>
+    <button type="button"
+            class="ia-drawer-signout"
+            onclick="if(confirm('Sign out of {{ addslashes($currentTenant->name) }}?')) document.getElementById('logout-form-mobile').submit()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Sign out
+    </button>
+
+    @include('layouts.tenant._brand-footer')
+
+    <form id="logout-form-mobile" method="POST" action="{{ route('tenant.logout') }}" style="display:none">
+      @csrf
+    </form>
+  </div>
+</div>
+BLADE
+echo "OK 3 (drawer rebuilt with all items + gates)"
+
+echo ""
+echo "=== verifying ==="
+fail=0
+verify() {
+  local file="$1" needle="$2" label="$3"
+  local n
+  n=$(grep -c -F -- "$needle" "$file" 2>/dev/null | tr -d '\n' || true)
+  : "${n:=0}"
+  if [ "${n:-0}" -ge 1 ] 2>/dev/null; then
+    echo "  ✓ $label  (${n}×)"
+  else
+    echo "  ✗ MISSING: $label"
+    fail=1
+  fi
+}
+
+if [ -f resources/views/layouts/tenant/_nav-items-data.blade.php ]; then
+  echo "  ✗ _nav-items-data.blade.php still exists"
+  fail=1
+else
+  echo "  ✓ _nav-items-data.blade.php removed"
+fi
+
+verify "resources/views/layouts/tenant/_nav-items.blade.php"  "navItems = ["         "nav-items has inline array"
+verify "resources/views/layouts/tenant/_more-drawer.blade.php" "tenant.waitlist.index" "drawer has waitlist"
+verify "resources/views/layouts/tenant/_more-drawer.blade.php" "tenant.inventory.index" "drawer has inventory"
+verify "resources/views/layouts/tenant/_more-drawer.blade.php" "tenant.reports.index"  "drawer has reports"
+verify "resources/views/layouts/tenant/_more-drawer.blade.php" "tenant.work-order-fields.index" "drawer has work order fields"
+verify "resources/views/layouts/tenant/_more-drawer.blade.php" "tenant.feature_addons.index" "drawer has add-ons"
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "✗ FAIL"
+  exit 1
+fi
+
+echo ""
+echo "✓ all green"
+echo ""
+echo "DEPLOY THIS IMMEDIATELY to clear the 500 error:"
+echo "  git add -A && git commit -m 'fix: rollback drawer extraction, add missing items inline'"
+echo "  git push"
+echo "  Server: git pull && php artisan view:clear && \\"
+echo "    sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm"
+echo ""
+echo "=== rollback + fix complete ==="

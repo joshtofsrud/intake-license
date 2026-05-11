@@ -1,26 +1,30 @@
-{{-- DRAWER-NAV-SYNC v1 — drawer items derived from shared $navItems.
-     Excludes routes that already appear in the bottom nav bar.
-     Anything added to _nav-items-data.blade.php shows up here automatically. --}}
-@include('layouts.tenant._nav-items-data')
 @php
   $current = request()->route()?->getName() ?? '';
 
-  // Routes already shown in the bottom nav bar. Don't duplicate them in the drawer.
-  $bottomNavRoutes = [
-    'tenant.dashboard',
-    'tenant.calendar.index',
-    'tenant.customers.index',
+  // Items shown in the More drawer. Excludes the primary bottom-nav tabs
+  // (Dashboard, Schedule, Customers). Mirrors the sidebar nav order.
+  // Gate checks apply: items with a `gate` only render if the tenant has
+  // that feature flag enabled. Keep this list in sync with _nav-items.blade.php.
+  $moreItems = [
+    ['route' => 'tenant.register.index',           'label' => 'Register'],
+    ['route' => 'tenant.classes.sessions',         'label' => 'Classes',      'gate' => 'classes_enabled'],
+    ['route' => 'tenant.inventory.index',          'label' => 'Inventory',    'gate' => 'retail_enabled'],
+    ['route' => 'tenant.reports.index',            'label' => 'Reports'],
+    ['route' => 'tenant.services.index',           'label' => 'Services'],
+    ['route' => 'tenant.resources.index',          'label' => 'Resources'],
+    ['route' => 'tenant.work-order-fields.index',  'label' => 'Work Order Fields'],
+    ['route' => 'tenant.booking-editor.index',     'label' => 'Intake Form Editor'],
+    ['route' => 'tenant.capacity.index',           'label' => 'Capacity'],
+    ['route' => 'tenant.pages.index',              'label' => 'Pages'],
+    ['route' => 'tenant.emails.index',             'label' => 'Email'],
+    ['route' => 'tenant.waitlist.index',           'label' => 'Waitlist'],
+    ['route' => 'tenant.campaigns.index',          'label' => 'Campaigns'],
+    ['route' => 'tenant.help.index',               'label' => 'Help & Guides'],
+    ['route' => 'tenant.whats_new.changelog',      'label' => "What's New"],
+    ['route' => 'tenant.whats_new.roadmap',        'label' => "What's Coming"],
+    ['route' => 'tenant.settings.index',           'label' => 'Settings'],
+    ['route' => 'tenant.feature_addons.index',     'label' => 'Add-ons'],
   ];
-
-  // Filter $navItems: drop bottom-nav primaries, drop gated items the tenant
-  // doesn't have enabled, drop any with routes that don't exist.
-  $drawerItems = [];
-  foreach ($navItems as $item) {
-    if (in_array($item['route'], $bottomNavRoutes, true)) continue;
-    if (!empty($item['gate']) && !$currentTenant->{$item['gate']}) continue;
-    if (!\Illuminate\Support\Facades\Route::has($item['route'])) continue;
-    $drawerItems[] = $item;
-  }
 @endphp
 
 <div class="ia-drawer-overlay" id="ia-more-drawer" aria-hidden="true" onclick="IntakeMobileNav.closeDrawerFromOverlay(event)">
@@ -36,17 +40,18 @@
     </div>
 
     <div class="ia-drawer-items">
-      @foreach($drawerItems as $item)
-        @php
-          $primaryMatch = str_replace('.index', '', $item['route']);
-          $isActive = str_starts_with($current, $primaryMatch);
-          if (!$isActive && !empty($item['match_alt'])) {
-            $isActive = str_starts_with($current, $item['match_alt']);
-          }
-        @endphp
-        <a href="{{ route($item['route']) }}" class="ia-drawer-item {{ $isActive ? 'active' : '' }}">
-          {{ $item['label'] }}
-        </a>
+      @foreach($moreItems as $item)
+        @if(!empty($item['gate']) && !$currentTenant->{$item['gate']})
+          @continue
+        @endif
+        @if(\Illuminate\Support\Facades\Route::has($item['route']))
+          @php
+            $isActive = str_starts_with($current, str_replace('.index', '', $item['route']));
+          @endphp
+          <a href="{{ route($item['route']) }}" class="ia-drawer-item {{ $isActive ? 'active' : '' }}">
+            {{ $item['label'] }}
+          </a>
+        @endif
       @endforeach
     </div>
 
