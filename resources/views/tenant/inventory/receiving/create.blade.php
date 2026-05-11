@@ -1,7 +1,35 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'New shipment'; @endphp
 
+
+@push('styles')
+<style>
+/* "Best on desktop" mobile notice (patch #38). Hidden on >640px. */
+.recv-mobile-notice{display:none;background:rgba(250,180,106,.08);border:0.5px solid rgba(250,180,106,.25);border-radius:var(--ia-r-lg);padding:14px 16px;margin-bottom:16px}
+.recv-mobile-notice-title{font-size:13px;font-weight:600;color:#FAB46A;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.recv-mobile-notice-body{font-size:12px;color:var(--ia-text-muted);line-height:1.5}
+@media(max-width:640px){
+  .recv-mobile-notice{display:block}
+}
+</style>
+@endpush
+
 @section('content')
+
+
+{{-- Mobile "best on desktop" notice (patch #38). Receiving is line-by-line
+     entry that doesn't fit a phone — v1.1 will likely add barcode scanning
+     and a different mobile flow. For now we surface the limitation rather
+     than rebuild the form. --}}
+<div class="recv-mobile-notice">
+  <div class="recv-mobile-notice-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Best on desktop
+  </div>
+  <div class="recv-mobile-notice-body">
+    Receiving works on mobile, but line-by-line entry is faster on a larger screen. Mobile-optimized receiving (with barcode scanning) is on the roadmap.
+  </div>
+</div>
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
