@@ -34,6 +34,35 @@ return Application::configure(basePath: dirname(__DIR__))
                 app(\App\Services\DebugLogService::class)->error($e);
             }
         });
+
+        // 500 error reference ID (patch #43)
+        // Stamp a short reference ID on every 5xx so support can grep logs.
+        // Also passes the ID into the 500 view as $errorRefId. The ID is
+        // written into the log message via the report() hook above when
+        // the exception bubbles up — same ID in both places.
+        $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
+            // Only intercept 5xx-class errors. Symfony HttpException carries
+            // its own status code; other Throwables default to 500.
+            $status = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+            if ($status < 500 || $status > 599) {
+                return null; // let Laravel render normally (404, 419, etc.)
+            }
+
+            $refId = 'ERR-' . strtoupper(\Illuminate\Support\Str::random(8));
+
+            // Surface the ref id in the log line so it can be grepped.
+            \Illuminate\Support\Facades\Log::error('500 with refId: ' . $refId, [
+                'exception' => $e->getMessage(),
+                'file'      => $e->getFile(),
+                'line'      => $e->getLine(),
+                'url'       => $request->fullUrl(),
+            ]);
+
+            return response()->view('errors.500', [
+                'errorRefId' => $refId,
+                'exception'  => $e,
+            ], 500);
+        });
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
         $schedule->command('waitlist:expire')->dailyAt('02:15');
