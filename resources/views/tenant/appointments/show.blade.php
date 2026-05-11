@@ -360,7 +360,151 @@
   background: #8C2C2C;
   color: #FFE5E5;
 }
+
+/* APPT-DETAIL-MOBILE v1 — phone polish at ≤700px */
+@media (max-width: 700px) {
+
+  /* Tighten the hero band on phones */
+  .appt-b-when {
+    padding: 12px 14px;
+  }
+  .appt-b-when-time {
+    font-size: 20px;
+  }
+
+  /* ── Status pipeline: vertical → horizontal pill chain ── */
+  .appt-b-rail .appt-progress-card {
+    padding: 10px 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .appt-b-rail .appt-progress-bar {
+    flex-direction: row !important;
+    gap: 6px;
+    align-items: center;
+    min-width: max-content;
+  }
+  .appt-b-rail .appt-progress-step {
+    flex-direction: row !important;
+    padding: 4px 10px !important;
+    border-radius: 99px;
+    background: var(--ia-surface-2, rgba(255,255,255,.04));
+    border: 0.5px solid var(--ia-border);
+    flex-shrink: 0;
+    gap: 6px;
+  }
+  .appt-b-rail .appt-progress-step::after {
+    display: none !important;  /* no connecting line in horizontal mode */
+  }
+  .appt-b-rail .appt-progress-step.is-done {
+    background: var(--ia-accent-soft);
+    border-color: rgba(190,242,100,.3);
+    color: var(--ia-accent);
+  }
+  .appt-b-rail .appt-progress-step.is-current {
+    background: var(--ia-accent);
+    border-color: var(--ia-accent);
+    color: var(--ia-accent-text);
+    font-weight: 600;
+  }
+  .appt-b-rail .appt-progress-dot {
+    width: 12px; height: 12px;
+  }
+  .appt-b-rail .appt-progress-label {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* ── Action stack: vertical → 2-col grid ── */
+  .appt-b-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 6px;
+  }
+  .appt-b-actions .ia-btn {
+    width: 100%;
+    justify-content: center !important;
+    padding: 10px 8px !important;
+    font-size: 13px;
+  }
+  /* The "Reschedule shipping tomorrow" hint is no longer present, but keep
+     the rule defensive for any future inline hint row. */
+  .appt-b-action-coming-soon { display: none; }
+  /* Divider spans full row */
+  .appt-b-actions-divider { grid-column: 1 / -1; }
+  /* Cancel button spans full row */
+  .appt-b-cancel-btn { grid-column: 1 / -1; }
+
+  /* ── Reschedule modal → bottom sheet ── */
+  .resch-modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .resch-modal-card {
+    max-width: 100% !important;
+    width: 100%;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 88vh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    animation: appt-sheet-up 280ms cubic-bezier(.2, .8, .2, 1);
+  }
+  /* Drag handle */
+  .resch-modal-card::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: var(--ia-text-dim, rgba(255,255,255,.18));
+    border-radius: 2px;
+    margin: 10px auto 0;
+  }
+  .resch-modal-head { padding-top: 10px; }
+  .resch-modal-foot {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .resch-modal-foot .ia-btn { flex: 1; min-width: 0; }
+
+  /* ── Booking-notes modal → bottom sheet ── */
+  .appt-b-cust-modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .appt-b-cust-modal-card {
+    max-width: 100% !important;
+    width: 100%;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 88vh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    animation: appt-sheet-up 280ms cubic-bezier(.2, .8, .2, 1);
+  }
+  .appt-b-cust-modal-card::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: var(--ia-text-dim, rgba(255,255,255,.18));
+    border-radius: 2px;
+    margin: 10px auto 0;
+  }
+  .appt-b-cust-modal-head { padding-top: 10px; }
+}
+
+@keyframes appt-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
 </style>
+
+@section('mobile-back', 'Schedule|' . route('tenant.calendar.index'))
+@section('mobile-fab', 'walk-in')
 
 @section('content')
 
