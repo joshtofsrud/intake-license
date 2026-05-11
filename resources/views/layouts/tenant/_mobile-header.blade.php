@@ -1,7 +1,9 @@
 {{-- ================================================================
-     Mobile admin header (≤1023px) — MOBILE-BACK v1
+     Mobile admin header (≤1023px) — MOBILE-BACK v1 + MOBILE-HEADER-LOGO-PICK v1
      Shows ‹ Back chevron when @section('mobile-back', 'Label|/url') is set,
      otherwise shows tenant logo or wordmark.
+     Uses ColorHelper::pickLogo so dark themes get the light logo variant
+     (matching the desktop sidebar's behavior).
      Desktop hides this entirely via CSS.
      ================================================================ --}}
 @php
@@ -15,6 +17,15 @@
       $mobileBackUrl   = trim($parts[1]);
     }
   }
+
+  // Pick the right logo variant for the mobile header surface.
+  // Background matches the CSS rule in mobile-nav.css: dark themes #0c0c0c,
+  // light theme (b) #ffffff. Match those exact values so pickLogo's
+  // dark-detection lines up with the painted surface.
+  $mhdrBg = ($adminTheme === 'b') ? '#ffffff' : '#0c0c0c';
+  $mhdrLogo = \App\Support\ColorHelper::pickLogo($currentTenant, $mhdrBg);
+  $mhdrLogoHeight = (int) ($currentTenant->logo_size_admin ?? 26);
+  $mhdrLogoHeight = max(16, min(40, $mhdrLogoHeight)); // clamp to mobile-friendly size
 @endphp
 <header class="ia-mobile-header" role="banner">
   <div class="ia-mobile-header-inner">
@@ -25,9 +36,9 @@
         </svg>
         <span>{{ $mobileBackLabel }}</span>
       </a>
-    @elseif($currentTenant->logo_url)
+    @elseif($mhdrLogo)
       <a href="{{ route('tenant.dashboard') }}" class="ia-mobile-header-brand" aria-label="{{ $currentTenant->name }} — Dashboard">
-        <img src="{{ $currentTenant->logo_url }}" alt="{{ $currentTenant->name }}" class="ia-mobile-header-logo">
+        <img src="{{ $mhdrLogo }}" alt="{{ $currentTenant->name }}" class="ia-mobile-header-logo" style="height:{{ $mhdrLogoHeight }}px">
       </a>
     @else
       <a href="{{ route('tenant.dashboard') }}" class="ia-mobile-header-brand ia-mobile-header-brand-text" aria-label="{{ $currentTenant->name }} — Dashboard">
