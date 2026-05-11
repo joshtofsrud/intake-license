@@ -92,3 +92,60 @@
     flex: 1 1 100%;
   }
 }
+
+
+/* cl-subnav scroll-hint affordance (patch #34) */
+/* The .cl-subnav appears on Templates / Schedule / Memberships / Packs /
+   Reports. Five tabs overflow a phone viewport. On mobile we:
+   - allow horizontal scroll
+   - hide the native scrollbar
+   - add a fade-out gradient on the right edge to imply "more to the right"
+   - bump padding-right so the fade doesn't sit on top of tab text
+   The accompanying JS (cl-subnav-hint.js) animates a brief scroll on
+   first load to teach the affordance, matching pattern from patch #30. */
+@media (max-width: 1023px) {
+  .cl-subnav {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    padding-right: 28px;
+  }
+  .cl-subnav::-webkit-scrollbar { display: none; }
+  .cl-subnav-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  /* Fade-out gradient. Sits inside a wrapper div in the partial; if the
+     partial isn't wrapped, this falls through gracefully. We position
+     the fade via a pseudo-element on a parent .cl-subnav-wrap class.
+     For the existing un-wrapped markup we rely on a sticky pseudo via
+     `position: sticky` on a sentinel element appended in JS, OR an
+     overlay div added at render time. To keep this patch view-only and
+     not touch every Blade subnav, we use a CSS-only fade via a
+     pseudo-element on .cl-subnav itself, positioned absolute inside
+     the scroll container. */
+}
+
+/* CSS-only fade overlay using a pseudo on a sticky child element.
+   The trick: a position:sticky pseudo positioned to the right of the
+   scroll viewport gives us an edge that always tracks the right side
+   regardless of scroll position. We inject this via the wrapper class. */
+@media (max-width: 1023px) {
+  .cl-subnav-wrap {
+    position: relative;
+  }
+  .cl-subnav-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 36px;
+    background: linear-gradient(to right, transparent, var(--ia-bg, #0A0A0A) 80%);
+    pointer-events: none;
+    z-index: 2;
+    border-bottom: 0.5px solid var(--ia-border);
+  }
+}

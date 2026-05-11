@@ -80,6 +80,37 @@
 .cl-repeat-section{display:none}
 .cl-repeat-section.active{display:block}
 .cl-session-preview{font-size:12px;color:var(--ia-text-muted);margin-top:8px;padding:8px 10px;background:var(--ia-surface-2);border-radius:6px;min-height:32px}
+
+/* Schedule list — mobile parallel render (patch #34).
+   Desktop expand-on-tap stays. Mobile tap opens full detail (no inline
+   expand, which would be redundant with the polish in patch #33). */
+.cl-sched-mobile{display:none}
+.cl-sched-week-nav-m{display:none}
+.cl-sched-day-group{margin-bottom:18px}
+.cl-sched-day-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:600;padding:0 4px 6px}
+.cl-sched-day-label.is-today{color:var(--ia-accent)}
+.cl-sess-card-m{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;flex-direction:column;gap:10px;text-decoration:none;color:inherit;transition:background var(--ia-t)}
+.cl-sess-card-m:hover{background:var(--ia-hover)}
+.cl-sess-top-m{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.cl-sess-left-m{min-width:0;flex:1}
+.cl-sess-time-m{font-size:13px;font-weight:600;color:var(--ia-text);font-variant-numeric:tabular-nums}
+.cl-sess-name-m{font-size:15px;font-weight:500;color:var(--ia-text);margin-top:2px;line-height:1.25}
+.cl-sess-meta-m{font-size:12px;color:var(--ia-text-muted);margin-top:3px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-sess-right-m{display:flex;align-items:flex-start;flex-shrink:0}
+.cl-sess-capacity-row-m{display:flex;align-items:center;gap:8px}
+.cl-sess-capacity-bar-m{flex:1;height:5px;background:var(--ia-surface-2);border-radius:3px;overflow:hidden}
+.cl-sess-capacity-fill-m{height:100%;background:var(--ia-accent);border-radius:3px}
+.cl-sess-capacity-fill-m.is-full{background:#EF4444}
+.cl-sess-capacity-text-m{font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums;flex-shrink:0;min-width:44px;text-align:right}
+.cl-sess-waitlist-m{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(239,68,68,.12);color:#EF4444;flex-shrink:0}
+@media(max-width:640px){
+  .cl-session-grid{display:none}
+  .cl-sched-mobile{display:block}
+  /* Compact desktop week-nav too; the desktop one has padding/min-width
+     hard-coded that overflows on phones. */
+  .cl-week-nav{flex-wrap:wrap;gap:6px}
+  .cl-week-label{min-width:0;flex:1}
+}
 </style>
 @endpush
 
@@ -97,13 +128,13 @@
 
 <x-tenant.schedule-tabs active="classes" />
 
-<nav class="cl-subnav">
+<div class="cl-subnav-wrap"><nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab is-active">Schedule</a>
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
-</nav>
+</nav></div>
 
 
 @php
@@ -229,6 +260,64 @@
             </form>
           @endif
         </div>
+      </div>
+    @endforeach
+  </div>
+
+  {{-- Mobile day-grouped card list (parallel render, ≤640px) --}}
+  @php
+    // Group sessions by Y-m-d so we can render sticky day labels.
+    // Sessions are already ordered by starts_at from the controller.
+    $byDay = [];
+    foreach ($sessions as $sess) {
+      $key = $sess->starts_at->format('Y-m-d');
+      $byDay[$key] = $byDay[$key] ?? [];
+      $byDay[$key][] = $sess;
+    }
+    $todayKey = now()->format('Y-m-d');
+  @endphp
+  <div class="cl-sched-mobile">
+    @foreach($byDay as $dayKey => $daySessions)
+      @php
+        $isToday = ($dayKey === $todayKey);
+        // Reuse the Carbon instance from the first session of the day —
+        // avoids re-parsing the string key.
+        $dayDate = $daySessions[0]->starts_at;
+      @endphp
+      <div class="cl-sched-day-group">
+        <div class="cl-sched-day-label {{ $isToday ? 'is-today' : '' }}">
+          {{ $dayDate->format('D, M j') }}@if($isToday) · Today @endif
+        </div>
+        @foreach($daySessions as $session)
+          @php
+            $pct = $session->capacity_snapshot > 0
+              ? min(100, round(($session->active_registrations_count / $session->capacity_snapshot) * 100))
+              : 0;
+            $isFull = $pct >= 100;
+            $showUrl = route('tenant.classes.sessions.show', ['subdomain' => $sub, 'id' => $session->id]);
+          @endphp
+          <a href="{{ $showUrl }}" class="cl-sess-card-m">
+            <div class="cl-sess-top-m">
+              <div class="cl-sess-left-m">
+                <div class="cl-sess-time-m">{{ $session->starts_at->format('g:i A') }} – {{ $session->ends_at->format('g:i A') }}</div>
+                <div class="cl-sess-name-m">{{ $session->template->name }}</div>
+                <div class="cl-sess-meta-m">{{ $session->instructor_snapshot ?? 'No instructor' }} · {{ $session->template->duration_minutes }}min</div>
+              </div>
+              <div class="cl-sess-right-m">
+                <span class="cl-status-pill {{ $session->status }}">{{ ucfirst($session->status) }}</span>
+              </div>
+            </div>
+            <div class="cl-sess-capacity-row-m">
+              <div class="cl-sess-capacity-bar-m">
+                <div class="cl-sess-capacity-fill-m {{ $isFull ? 'is-full' : '' }}" style="width:{{ $pct }}%"></div>
+              </div>
+              @if($session->waitlist_count > 0)
+                <span class="cl-sess-waitlist-m">+{{ $session->waitlist_count }} wait</span>
+              @endif
+              <span class="cl-sess-capacity-text-m">{{ $session->active_registrations_count }}/{{ $session->capacity_snapshot }}</span>
+            </div>
+          </a>
+        @endforeach
       </div>
     @endforeach
   </div>

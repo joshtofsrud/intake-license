@@ -149,6 +149,81 @@
   .rep-modal-btn--ghost:hover { color: #f0f0f0; }
   .rep-modal-btn--primary { background: #BEF264; color: #0a0a0a; }
   .rep-modal-btn--primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+
+  /* Reports mobile — range bar + KPI polish (patch #34) */
+  @media (max-width: 640px) {
+    /* Range bar becomes a vertical 2-row card */
+    .rep-rangebar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+    .rep-rangebar > div:first-child {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .rep-rangebar-label { font-size: 10px; }
+    .rep-rangebar-current { font-size: 14px; margin-left: 0; }
+    .rep-rangebar-controls {
+      display: flex;
+      gap: 4px;
+      width: 100%;
+      background: var(--ia-surface-2, #1C1C1C);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    /* The internal .rep-toggle gets unwrapped: its 3 links flex equally
+       alongside the Custom range button, all in one segmented control. */
+    .rep-rangebar-controls .rep-toggle {
+      display: contents;  /* let children participate in parent flex */
+    }
+    .rep-rangebar-controls .rep-toggle a,
+    .rep-rangebar-controls .rep-customrange-btn {
+      flex: 1;
+      padding: 7px 6px;
+      font-size: 12px;
+      text-align: center;
+      border: none;
+      background: transparent;
+      color: var(--ia-text-muted);
+      border-radius: 6px;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .rep-rangebar-controls .rep-toggle a.active,
+    .rep-rangebar-controls .rep-customrange-btn.active {
+      background: var(--ia-accent, #BEF264);
+      color: #0a0a0a;
+    }
+
+    /* KPI cards — tighten typography so 2-word labels wrap cleanly
+       and deltas don't squeeze onto 2 lines */
+    .rep-kpi-card {
+      padding: 14px;
+      border-radius: 12px;
+    }
+    .rep-kpi-label {
+      line-height: 1.3;
+      margin-bottom: 6px;
+    }
+    .rep-kpi-value {
+      font-size: 26px;
+    }
+    .rep-kpi-meta {
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      margin-top: 8px;
+    }
+    .rep-delta {
+      font-size: 10px;
+      padding: 2px 7px;
+    }
+  }
 </style>
 @endpush
 

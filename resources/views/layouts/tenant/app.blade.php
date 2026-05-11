@@ -153,5 +153,6 @@
 
 @include('tenant._onboarding_modal')
 
+  <script defer src="{{ asset('js/tenant/cl-subnav-hint.js') }}"></script>
 </body>
 </html>

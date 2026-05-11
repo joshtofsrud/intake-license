@@ -38,6 +38,29 @@
 .cl-price-wrap{position:relative}
 .cl-price-wrap .cl-input{padding-left:22px}
 .cl-price-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ia-text-muted);pointer-events:none}
+
+/* Mobile card list — parallel render (patch #34). Desktop table stays. */
+.cl-tpl-mobile{display:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:hidden}
+.cl-tpl-row-m{padding:14px 16px;border-bottom:0.5px solid var(--ia-border);display:flex;flex-direction:column;gap:8px}
+.cl-tpl-row-m:last-child{border-bottom:none}
+.cl-tpl-row-m.is-inactive{opacity:.55}
+.cl-tpl-top-m{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.cl-tpl-identity-m{min-width:0;flex:1}
+.cl-tpl-name-m{font-size:15px;font-weight:500;color:var(--ia-text);line-height:1.25}
+.cl-tpl-inactive-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:var(--ia-surface-2);color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em;margin-left:6px;vertical-align:1px}
+.cl-tpl-desc-m{font-size:12px;color:var(--ia-text-muted);margin-top:3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cl-tpl-actions-m{display:flex;gap:4px;flex-shrink:0}
+.cl-tpl-icon-btn-m{width:32px;height:32px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--ia-text-muted);background:var(--ia-surface-2);border:0.5px solid var(--ia-border);cursor:pointer;transition:all var(--ia-t);font-family:inherit}
+.cl-tpl-icon-btn-m:hover{background:var(--ia-hover);color:var(--ia-text)}
+.cl-tpl-meta-row-m{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums;align-items:center}
+.cl-tpl-meta-item-m{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.cl-tpl-meta-label-m{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim,rgba(255,255,255,.38));font-weight:500}
+.cl-tpl-meta-value-m{color:var(--ia-text);font-weight:500}
+@media(max-width:640px){
+  .cl-card > .cl-table-head,
+  .cl-card > .cl-table-row{display:none}
+  .cl-tpl-mobile{display:block}
+}
 </style>
 @endpush
 
@@ -53,13 +76,13 @@
   </div>
 </div>
 
-<nav class="cl-subnav">
+<div class="cl-subnav-wrap"><nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}" class="cl-subnav-tab is-active">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}" class="cl-subnav-tab">Schedule</a>
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}" class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
-</nav>
+</nav></div>
 
 @if(session('success'))
   <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('success') }}</div>
@@ -107,6 +130,43 @@
       <div class="cl-empty-body">Create a template to define a class type — Vinyasa Flow, Spin, HIIT — then schedule sessions from it.</div>
     </div>
   @endforelse
+
+  {{-- Mobile card list (parallel render, ≤640px). Same data, different shape.
+       Desktop 6-col grid above hides on mobile via the CSS swap. --}}
+  <div class="cl-tpl-mobile">
+    @forelse($templates as $t)
+      <div class="cl-tpl-row-m {{ $t->is_active ? '' : 'is-inactive' }}">
+        <div class="cl-tpl-top-m">
+          <div class="cl-tpl-identity-m">
+            <div class="cl-tpl-name-m">
+              {{ $t->name }}@if(!$t->is_active)<span class="cl-tpl-inactive-badge">Inactive</span>@endif
+            </div>
+            @if($t->description || $t->instructorResource)
+              <div class="cl-tpl-desc-m">{{ $t->instructorResource?->name ?? 'No instructor set' }}@if($t->description) · {{ $t->description }}@endif</div>
+            @endif
+          </div>
+          <div class="cl-tpl-actions-m">
+            <button type="button" class="cl-tpl-icon-btn-m" title="Edit" onclick="openEditModal({{ $t->toJson() }}, {{ $t->sessions_count ?? 0 }})">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" class="cl-tpl-icon-btn-m" title="Delete" onclick="confirmDelete('{{ $t->id }}','{{ addslashes($t->name) }}')">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.5 7.5h7L11 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="cl-tpl-meta-row-m">
+          <span class="cl-tpl-meta-item-m"><span class="cl-tpl-meta-label-m">Dur</span> <span class="cl-tpl-meta-value-m">{{ $t->duration_minutes }}m</span></span>
+          <span class="cl-tpl-meta-item-m"><span class="cl-tpl-meta-label-m">Cap</span> <span class="cl-tpl-meta-value-m">{{ $t->default_capacity }}</span></span>
+          <span class="cl-tpl-meta-item-m"><span class="cl-tpl-meta-label-m">Price</span> <span class="cl-tpl-meta-value-m">{{ $t->price_cents > 0 ? '$'.number_format($t->price_cents/100,2) : 'Free' }}</span></span>
+          @if($t->sessions_count > 0)
+            <span class="cl-tpl-meta-item-m" style="margin-left:auto"><span class="cl-tpl-meta-label-m">Upcoming</span> <span class="cl-tpl-meta-value-m">{{ $t->sessions_count }}</span></span>
+          @endif
+        </div>
+      </div>
+    @empty
+      {{-- The desktop empty state above renders too; on mobile that one shows. --}}
+    @endforelse
+  </div>
 </div>
 
 {{-- Add modal --}}

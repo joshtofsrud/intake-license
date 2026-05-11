@@ -88,13 +88,13 @@
   </div>
 </div>
 
-<nav class="cl-subnav">
+<div class="cl-subnav-wrap"><nav class="cl-subnav">
   <a href="{{ route('tenant.classes.templates') }}"   class="cl-subnav-tab">Templates</a>
   <a href="{{ route('tenant.classes.sessions') }}"    class="cl-subnav-tab">Schedule</a>
   <a href="{{ route('tenant.classes.memberships') }}" class="cl-subnav-tab">Memberships</a>
   <a href="{{ route('tenant.classes.packs') }}"       class="cl-subnav-tab">Packs</a>
   <a href="{{ route('tenant.classes.reports') }}"     class="cl-subnav-tab is-active">Reports</a>
-</nav>
+</nav></div>
 
 @php
     $sub = $currentTenant->subdomain;
