@@ -559,6 +559,115 @@
   font-feature-settings: "tnum";
 }
 .ov-cal-count.has-selection { color: var(--ia-accent); font-weight: 600; }
+
+
+/* Capacity mobile pass (patch #41) */
+
+@media (max-width: 768px) {
+  /* Page-head mode pill — keep visible but tighter */
+  .cap-mode-pill {
+    font-size: 11.5px;
+    padding: 5px 11px;
+  }
+
+  /* Resource summary card — tighten and let chips wrap. */
+  .cap-resource-summary {
+    padding: 12px 14px !important;
+  }
+  .cap-resource-chip {
+    font-size: 11px;
+    padding: 3px 9px 3px 7px;
+  }
+
+  /* Card-head — title row + button — stack vertically. */
+  .cap-card-head {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .cap-card-head .ia-btn { align-self: flex-start; }
+
+  /* Day-row grid → stack on mobile.
+     Layout uses grid-template-areas; primary field name (max OR interval)
+     stays consistent ("max" CSS class = daily-cap input, "interval" CSS
+     class = slot-interval input) regardless of which is the "primary"
+     for the current booking mode. The display:none on .cap-day-advanced-only
+     handles hiding the secondary field; the grid area is just left empty.
+  */
+  .cap-day-header {
+    display: none; /* No room for 6 column labels — labels move inline below */
+  }
+  .cap-day-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "label    toggle"
+      "time     time"
+      "max      max"
+      "interval interval";
+    gap: 10px 12px;
+    padding: 14px 16px;
+  }
+  .cap-day-label   { grid-area: label; font-size: 14.5px; }
+  .cap-day-toggle  { grid-area: toggle; }
+  .cap-day-time    { grid-area: time; flex-wrap: wrap; }
+  .cap-day-time input { width: 100%; max-width: 130px; padding: 8px 10px; font-size: 13px; }
+  .cap-day-fields-when-closed { grid-area: time; }
+  .cap-day-max     { grid-area: max; }
+  .cap-day-interval{ grid-area: interval; }
+  .cap-day-max input,
+  .cap-day-interval input { text-align: left; padding: 8px 10px; font-size: 13px; }
+
+  /* Inline labels via ::before — since the column header is hidden on
+     mobile, each input needs an inline label so users know what it is.
+     Labels are field-name-based (always correct regardless of which mode
+     promotes the field to "primary"). */
+  .cap-day-max::before,
+  .cap-day-interval::before {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--ia-text-3);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .cap-day-max::before {
+    content: 'Daily cap';
+  }
+  .cap-day-interval::before {
+    content: 'Slot interval (min)';
+  }
+
+  /* Legend — already wraps but tighten font + padding */
+  .cap-legend {
+    padding: 10px 14px 14px;
+    font-size: 12px;
+  }
+
+  /* Override modal — tighten card on mobile */
+  .cap-modal-card {
+    max-width: calc(100vw - 24px);
+    margin: 12px;
+  }
+  .cap-modal-body {
+    padding: 12px 14px;
+  }
+  .cap-modal-actions {
+    padding: 12px 14px;
+    gap: 8px;
+  }
+  .cap-modal-actions .ia-btn { flex: 1; }
+
+  /* Override modal calendar — touch-size day cells */
+  .ov-cal-grid {
+    gap: 4px;
+  }
+  .ov-cal-grid > div {
+    min-height: 36px;
+    font-size: 13px;
+  }
+}
 </style>
 @endpush
 

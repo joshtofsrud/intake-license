@@ -52,6 +52,31 @@
 
 .bke-status { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; border-radius: 8px; font-size: 13px; background: #0a0a0a; color: #BEF264; z-index: 9999; opacity: 0; transition: opacity .3s; pointer-events: none; }
 
+/* "Best on desktop" notice (patch #41). Form editor is inherently
+   3-column with live preview — touch-edit isn't practical. */
+.bke-mobile-notice {
+  display: none;
+  background: rgba(250,180,106,.08);
+  border: 0.5px solid rgba(250,180,106,.25);
+  border-radius: var(--ia-r-lg);
+  padding: 14px 16px;
+  margin: 12px 0 16px;
+}
+.bke-mobile-notice-title {
+  font-size: 13px; font-weight: 600;
+  color: #FAB46A;
+  margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.bke-mobile-notice-body {
+  font-size: 12px;
+  color: var(--ia-text-muted);
+  line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .bke-mobile-notice { display: block; }
+}
+
 @media (max-width: 1100px) {
   .bke-editor { grid-template-columns: 260px 1fr; }
   .bke-editor > .bke-col:last-child { display: none; }
@@ -64,6 +89,20 @@
 @endpush
 
 @section('content')
+
+{{-- Mobile "best on desktop" notice (patch #41). Form editor uses a
+     3-column layout with live preview; mobile users get a heads-up
+     rather than a half-working interface. --}}
+<div class="bke-mobile-notice">
+  <div class="bke-mobile-notice-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Best on desktop
+  </div>
+  <div class="bke-mobile-notice-body">
+    The form editor uses a 3-column layout with live preview. Editing on mobile works, but it's much faster on a larger screen.
+  </div>
+</div>
+
 
 <div class="ia-page-head" style="margin-bottom:0">
   <div class="ia-page-head-left">

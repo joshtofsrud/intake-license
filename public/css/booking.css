@@ -564,6 +564,32 @@
   .bk-item-grid { grid-template-columns: 1fr 1fr; }
   .bk-field-grid-2 { grid-template-columns: 1fr; }
   .bk-step-label { display: none; }
+
+  /* Capacity-style booking polish (patch #41) */
+  /* Calendar cells — keep readable at narrow widths. aspect-ratio:1 makes
+     them shrink with column width; we set a min-height so they remain
+     touchable (Apple HIG: 44pt = ~44px). */
+  .bk-cal-day { min-height: 40px; font-size: 13px; }
+  .bk-cal-day-name { font-size: 11px; }
+
+  /* Step nav — let buttons stack if container is too narrow. The Next
+     button has long labels like "Continue → Schedule" which can overflow. */
+  .bk-nav {
+    flex-direction: column-reverse;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .bk-back, .bk-next, .bk-submit { width: 100%; justify-content: center; }
+
+  /* Top bar — keep on one line but tighten. */
+  .bk-top-bar { padding: 10px var(--p-gutter); }
+
+  /* Section title scales down a bit further on phones. */
+  .bk-section-title { font-size: 20px; }
+  .bk-section-sub { font-size: 13px; }
+
+  /* Calendar legend — let items wrap with reasonable spacing. */
+  .bk-cal-legend { flex-wrap: wrap; gap: 8px 14px; }
 }
 @media (max-width: 380px) {
   .bk-item-grid { grid-template-columns: 1fr; }
