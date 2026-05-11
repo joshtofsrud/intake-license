@@ -156,6 +156,7 @@ class PlatformMarketingSeeder extends Seeder
         TenantPageSection::where('page_id', $page->id)->delete();
         foreach ($sections as $i => $sec) {
             TenantPageSection::create([
+                'tenant_id'     => $platform->id,
                 'page_id'       => $page->id,
                 'section_type'  => $sec['type'],
                 'content'       => $sec['content'],

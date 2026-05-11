@@ -28,6 +28,15 @@ class SiteSettingsResource extends Resource
     protected static ?string $breadcrumb       = 'Site settings';
     protected static ?string $slug             = 'site-settings';
 
+    /**
+     * Hide from navigation if the migration hasn't run yet.
+     * Prevents Filament from crashing on /admin during deploy window.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return \Illuminate\Support\Facades\Schema::hasTable('site_settings');
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

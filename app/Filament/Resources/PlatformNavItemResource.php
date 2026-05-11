@@ -32,6 +32,14 @@ class PlatformNavItemResource extends Resource
     protected static ?string $breadcrumb       = 'Navigation';
     protected static ?string $slug             = 'navigation';
 
+    /**
+     * Hide from navigation if the migration hasn't run yet.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return \Illuminate\Support\Facades\Schema::hasTable('tenant_nav_items');
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $platform = Tenant::where('is_platform', true)->first();

@@ -7,23 +7,26 @@ use App\Models\SiteSettings;
 use Filament\Resources\Pages\EditRecord;
 
 /**
- * EditSiteSettings — opens the singleton record directly.
- * No "list" page; the resource's "index" route points here.
+ * EditSiteSettings — single-record editor for the global site_settings row.
+ *
+ * Uses resolveRecord() instead of overriding mount() because mount()
+ * signatures vary across Filament versions and the override broke admin.
  */
 class EditSiteSettings extends EditRecord
 {
     protected static string $resource = SiteSettingsResource::class;
 
-    public function mount($record = null): void
+    /**
+     * Filament calls this to load the record for editing.
+     * We always return the singleton row regardless of any URL parameter.
+     */
+    protected function resolveRecord($key): \Illuminate\Database\Eloquent\Model
     {
-        // Always load the single row.
-        $row = SiteSettings::current();
-        parent::mount($row->id);
+        return SiteSettings::current();
     }
 
     protected function getRedirectUrl(): string
     {
-        // Stay on the same page after save — there's no list to go back to.
         return $this->getResource()::getUrl('index');
     }
 }

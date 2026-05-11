@@ -32,6 +32,14 @@ class SectionLibraryResource extends Resource
     protected static ?string $breadcrumb       = 'Section library';
     protected static ?string $slug             = 'section-library';
 
+    /**
+     * Hide from navigation if the migration hasn't run yet.
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return \Illuminate\Support\Facades\Schema::hasTable('tenant_page_sections');
+    }
+
     public static function getEloquentQuery(): Builder
     {
         // Aggregate: distinct section_type with count.
