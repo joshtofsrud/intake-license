@@ -35,6 +35,12 @@ class CustomerController extends Controller
             });
         }
 
+        // VIPs-only filter is a sort option for UX simplicity. When
+        // selected, filter to is_vip=true and order by name ascending.
+        if ($sort === 'vips_only') {
+            $q->where('is_vip', true);
+        }
+
         // Sort
         switch ($sort) {
             case 'name_desc':
@@ -292,6 +298,13 @@ class CustomerController extends Controller
             $data = $this->validated($request, $customer->email);
             $customer->update($data);
             return response()->json(['ok' => true]);
+        }
+        if ($op === 'toggle_vip') {
+            // Toggle is_vip flag. Returns the new state so the UI can render
+            // the updated star + badge without a full page reload.
+            $customer->is_vip = !$customer->is_vip;
+            $customer->save();
+            return response()->json(['ok' => true, 'is_vip' => $customer->is_vip]);
         }
         if ($op === 'add_note') {
             $note = mb_substr(trim($request->input('note', '')), 0, 200);

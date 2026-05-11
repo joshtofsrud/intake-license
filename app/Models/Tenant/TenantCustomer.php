@@ -18,6 +18,7 @@ class TenantCustomer extends Authenticatable
         'notes','stripe_customer_id','wp_source_url',
         'password','remember_token','email_verified_at',
         'password_reset_token','password_reset_sent_at',
+        'is_vip',
     ];
 
     protected $hidden = ['password','remember_token'];

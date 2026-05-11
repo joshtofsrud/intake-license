@@ -9,6 +9,7 @@
     'spend_desc'   => 'Top spenders',
     'spend_asc'    => 'Lowest spend',
     'last_service' => 'Last service',
+    'vips_only'    => 'VIPs only',
   ];
   $currentSortLabel = $sortLabels[$sort] ?? 'Name A–Z';
 @endphp
@@ -176,7 +177,7 @@
         @foreach($customers as $c)
           @php $stat = $stats[$c->id] ?? null; @endphp
           <tr style="cursor:pointer" onclick="openDetailModal('customer','{{ $c->id }}')">
-            <td><span style="font-weight:500">{{ $c->first_name }} {{ $c->last_name }}</span></td>
+            <td><span style="font-weight:500">{{ $c->first_name }} {{ $c->last_name }}</span>@if($c->is_vip)<span class="vip-list-star" title="VIP">★</span>@endif</td>
             <td class="ia-muted-cell">{{ $c->email }}</td>
             <td class="ia-muted-cell">{{ $c->phone ?: '—' }}</td>
             <td class="ia-muted-cell">
