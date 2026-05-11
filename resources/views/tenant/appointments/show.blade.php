@@ -497,6 +497,18 @@
   .appt-b-cust-modal-head { padding-top: 10px; }
 }
 
+/* APPT-MOBILE-FIX v1 — duplicate back button + FAB padding */
+@media (max-width: 700px) {
+  /* The mobile top-bar already shows "‹ Schedule"; hide the page-head Back. */
+  .ia-page-actions .ia-btn--ghost { display: none; }
+  /* So .ia-page-actions doesn't render as an empty box, hide it when empty. */
+  .ia-page-actions:empty { display: none; }
+}
+@media (max-width: 1023px) {
+  /* Push content above the FAB so the last card isn't covered. */
+  .ia-content { padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
 @keyframes appt-sheet-up {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
