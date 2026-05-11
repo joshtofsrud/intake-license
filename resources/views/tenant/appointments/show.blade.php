@@ -361,6 +361,26 @@
   color: #FFE5E5;
 }
 
+/* APPT-MOBILE-OVERFLOW-FIX v1 — keep the page from exceeding viewport width.
+   The status pipeline's `min-width: max-content` rule in the block below
+   makes the bar take its content width. Without these constraints, that
+   width propagates up through .appt-progress-card → .appt-b-rail →
+   .appt-b-shell → page, causing horizontal scroll. We constrain the chain
+   so the bar can scroll horizontally inside its card while the card stays
+   inside the rail stays inside the page. */
+@media (max-width: 900px) {
+  .appt-b-shell, .appt-b-rail, .appt-b-main { max-width: 100%; min-width: 0; }
+  .appt-b-rail > * { max-width: 100%; min-width: 0; }
+  .appt-b-rail .appt-progress-card {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Body block too — services/work order/payment cards shouldn't push width */
+  .appt-b-main > * { max-width: 100%; min-width: 0; overflow-x: hidden; }
+}
+
 /* APPT-DETAIL-MOBILE v1 — phone polish at ≤700px */
 @media (max-width: 700px) {
 
