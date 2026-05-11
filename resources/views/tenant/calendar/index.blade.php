@@ -13,6 +13,8 @@
   }
 @endphp
 
+@section('mobile-fab', 'walk-in')
+
 @section('content')
 
 <div class="ia-page-head">
@@ -236,6 +238,11 @@
   @endif
 
 </div>
+
+{{-- MOBILE-SCHEDULE v1 — renders below desktop calendar; CSS hides whichever
+     view isn't appropriate for the current viewport. Both views use the same
+     controller data. --}}
+@include('tenant.calendar._mobile-schedule')
 
 {{-- Drag-to-reschedule ghost preview (hidden by default; JS shows during drag) --}}
 <div class="ia-cal-drag-ghost" id="ia-cal-drag-ghost" hidden>

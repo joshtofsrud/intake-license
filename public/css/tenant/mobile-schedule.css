@@ -1,0 +1,312 @@
+/* ================================================================
+   Mobile schedule (≤900px). Hidden on desktop.
+   The desktop calendar (.ia-cal-shell) is hidden at the same
+   breakpoint via the rule at the bottom of this file.
+   ================================================================ */
+
+.ia-msched { display: none; }
+
+@media (max-width: 900px) {
+  .ia-msched {
+    display: block;
+    padding: 0;
+  }
+
+  /* Hide the desktop calendar entirely on mobile. */
+  .ia-cal-shell { display: none !important; }
+
+  /* ── Header: title + mode toggle ── */
+  .ia-msched-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0 12px;
+  }
+  .ia-msched-title-block { min-width: 0; flex: 1; }
+  .ia-msched-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    color: var(--ia-text);
+  }
+  .ia-msched-sub {
+    font-size: 12px;
+    opacity: .55;
+    margin-top: 2px;
+  }
+  .ia-msched-mode {
+    display: inline-flex;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: var(--ia-r-md);
+    padding: 3px;
+    flex-shrink: 0;
+  }
+  .ia-msched-mode-btn {
+    padding: 5px 12px;
+    border-radius: calc(var(--ia-r-md) - 2px);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ia-text-muted);
+    text-decoration: none;
+  }
+  .ia-msched-mode-btn.is-active {
+    background: var(--ia-accent);
+    color: var(--ia-accent-text);
+  }
+
+  /* ── 7-day strip ── */
+  .ia-msched-strip {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ia-msched-strip-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 2px;
+    border-radius: var(--ia-r-md);
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    text-decoration: none;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-msched-strip-dow {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    opacity: .55;
+    font-weight: 500;
+  }
+  .ia-msched-strip-num {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--ia-text);
+  }
+  .ia-msched-strip-chip.is-today {
+    border-color: rgba(190, 242, 100, .3);
+  }
+  .ia-msched-strip-chip.is-today .ia-msched-strip-num {
+    color: var(--ia-accent);
+  }
+  .ia-msched-strip-chip.is-active {
+    background: var(--ia-accent);
+    border-color: var(--ia-accent);
+  }
+  .ia-msched-strip-chip.is-active .ia-msched-strip-dow,
+  .ia-msched-strip-chip.is-active .ia-msched-strip-num {
+    color: var(--ia-accent-text);
+    opacity: 1;
+  }
+
+  /* ── Prev / today / next quick nav ── */
+  .ia-msched-nav {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .ia-msched-nav-btn {
+    flex: 1;
+    padding: 7px 8px;
+    text-align: center;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: var(--ia-r-md);
+    color: var(--ia-text-muted);
+    font-size: 12px;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-msched-nav-btn.is-today {
+    color: var(--ia-accent);
+    border-color: rgba(190, 242, 100, .35);
+    font-weight: 500;
+  }
+
+  /* ── Appointment row (used in both day + week modes) ── */
+  .ia-msched-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ia-msched-row {
+    display: grid;
+    grid-template-columns: 56px 3px 1fr auto;
+    gap: 10px;
+    padding: 10px 12px 10px 8px;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: var(--ia-r-md);
+    text-decoration: none;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+    align-items: center;
+  }
+  .ia-msched-row:active { transform: scale(0.99); }
+
+  .ia-msched-row-time {
+    text-align: right;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .ia-msched-row-time-hm {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .ia-msched-row-time-ap {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    opacity: .55;
+    margin-top: 1px;
+  }
+  .ia-msched-row-time-dur {
+    font-size: 9px;
+    opacity: .45;
+    margin-top: 2px;
+  }
+  .ia-msched-row-stripe {
+    align-self: stretch;
+    width: 3px;
+    border-radius: 2px;
+  }
+  .ia-msched-row-body { min-width: 0; }
+  .ia-msched-row-cust {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ia-text);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ia-msched-row-svc-main {
+    font-size: 12px;
+    color: var(--ia-text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ia-msched-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    font-size: 11px;
+    opacity: .55;
+  }
+  .ia-msched-row-res-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .ia-msched-row-status {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    align-self: center;
+    background: var(--ia-text-dim, #888);
+  }
+  .ia-msched-row-status.is-confirmed { background: #34D399; }
+  .ia-msched-row-status.is-pending   { background: #F59E0B; }
+  .ia-msched-row-status.is-in-progress { background: var(--ia-accent, #BEF264); }
+  .ia-msched-row-status.is-completed { background: #6b7280; }
+  .ia-msched-row-status.is-cancelled,
+  .ia-msched-row-status.is-refunded  { background: #EF4444; opacity: .6; }
+
+  /* Status colors ARE the only chrome — keep it minimal. The colored
+     left stripe handles resource identity. The status dot is the only
+     other signal. */
+
+  /* ── Empty states ── */
+  .ia-msched-empty {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--ia-text-muted);
+  }
+  .ia-msched-empty-h {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ia-text);
+  }
+  .ia-msched-empty-sub {
+    font-size: 12px;
+    margin-top: 4px;
+    opacity: .7;
+  }
+  .ia-msched-empty-row {
+    padding: 10px 12px;
+    font-size: 12px;
+    opacity: .45;
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* ── Week-mode day groups ── */
+  .ia-msched-day-group {
+    margin-bottom: 18px;
+  }
+  .ia-msched-day-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 6px 4px 8px;
+    border-bottom: 0.5px solid var(--ia-border);
+    margin-bottom: 8px;
+  }
+  .ia-msched-day-header-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .ia-msched-day-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ia-text);
+  }
+  .ia-msched-day-meta {
+    font-size: 11px;
+    opacity: .55;
+  }
+  .ia-msched-day-count {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    opacity: .5;
+  }
+  .ia-msched-more {
+    display: block;
+    padding: 8px 12px;
+    margin-top: 4px;
+    text-align: center;
+    background: transparent;
+    border: 0.5px dashed var(--ia-border);
+    border-radius: var(--ia-r-md);
+    color: var(--ia-text-muted);
+    font-size: 12px;
+    text-decoration: none;
+  }
+}
+
+/* On desktop the mobile schedule never renders. */
+@media (min-width: 901px) {
+  .ia-msched { display: none !important; }
+}
