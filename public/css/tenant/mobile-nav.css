@@ -28,11 +28,13 @@
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Bottom tab bar — default (light theme).
-     iOS WebKit (Safari + Chrome on iOS) repaints fixed-position elements
-     during address-bar transitions, causing them to "bobble" or briefly
-     lift. Pinning to a compositor layer with transform: translateZ(0)
-     and will-change: transform fixes the most common symptoms. */
+  /* CHROME-IOS-NAV-FIX v1 — Bottom tab bar.
+     Modern iOS WebKit (15+, used by both Safari iOS and Chrome iOS) handles
+     `position: fixed; bottom: 0` correctly during URL bar transitions.
+     The older `transform: translateZ(0)` + `will-change` GPU pinning was a
+     workaround for iOS 13/14 bobble but creates a containing block that can
+     re-anchor `position: fixed` descendants to the wrong ancestor, causing
+     the nav to drift up the page on Chrome iOS. Removed. */
   .ia-mobile-nav {
     display: flex;
     justify-content: space-around;
@@ -46,9 +48,6 @@
     padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
     z-index: 100;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, .06);
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    will-change: transform;
   }
 
   .ia-theme-a .ia-mobile-nav,
