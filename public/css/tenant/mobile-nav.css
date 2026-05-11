@@ -641,3 +641,15 @@
   .ia-shell { min-height: 100dvh; }
   body { min-height: 100dvh; }
 }
+
+
+/* OVERSCROLL-NAV-FIX v1 — prevent iOS rubber-band from dragging the bottom nav.
+   `position: fixed` is honored by the visual viewport, but iOS rubber-band
+   bounces the visual viewport itself during overscroll. Disabling the
+   rubber-band at the body's scroll boundaries keeps the nav genuinely fixed. */
+@media (max-width: 1023px) {
+  html, body {
+    overscroll-behavior-y: none;
+    overflow-anchor: none;
+  }
+}
