@@ -361,3 +361,47 @@
   @endif
 
 </div>
+
+
+{{-- RESFILTER-SCROLL-HINT v1 — nudge the resource filter pill bar on page load
+     to signal it's horizontally scrollable. Only fires if the bar actually
+     overflows. Respects prefers-reduced-motion. Cancels on user touch. --}}
+<script>
+(function () {
+  // Wait for layout to settle so scrollWidth is accurate
+  function init() {
+    var bar = document.querySelector('.ia-msched-resfilter');
+    if (!bar) return;
+
+    // Skip if user prefers reduced motion
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    // Only hint when there's actually horizontal overflow.
+    // +2 tolerance to avoid running for sub-pixel rounding cases.
+    if (bar.scrollWidth <= bar.clientWidth + 2) return;
+
+    // Cancel if user already interacted before the hint runs
+    var cancelled = false;
+    function cancel() { cancelled = true; }
+    bar.addEventListener('touchstart', cancel, { passive: true, once: true });
+    bar.addEventListener('mousedown',  cancel, { passive: true, once: true });
+
+    // Wait a beat after paint so it doesn't feel like a layout glitch.
+    // Then: scroll to ~45px, then back to 0.
+    setTimeout(function () {
+      if (cancelled) return;
+      bar.scrollTo({ left: 45, behavior: 'smooth' });
+      setTimeout(function () {
+        if (cancelled) return;
+        bar.scrollTo({ left: 0, behavior: 'smooth' });
+      }, 380);
+    }, 280);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
