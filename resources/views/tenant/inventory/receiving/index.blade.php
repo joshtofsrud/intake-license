@@ -47,6 +47,9 @@
   .recv-head-m{display:flex;gap:6px;align-items:center;margin-left:auto}
   .recv-tabs-m{display:flex}
   .recv-mobile{display:block}
+  /* Hide the desktop table wrapper on mobile so its empty .ia-card shell
+     doesn't render between the tabs and the mobile shipment cards. */
+  .recv-desk-card{display:none}
 }
 </style>
 @endpush
@@ -117,7 +120,7 @@
   @endif
 </form>
 
-<div class="ia-card">
+<div class="ia-card recv-desk-card">
   @if($shipments->isEmpty())
     <div class="ia-card-body" style="text-align:center;padding:40px 20px;color:var(--ia-text-muted)">
       @if($tab === 'draft')

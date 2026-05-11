@@ -88,6 +88,9 @@
   .inv-mobile{display:block}
   .inv-sheet-overlay,
   .inv-sheet{display:block}
+  /* Hide the desktop table wrapper on mobile so its empty .ia-card
+     shell doesn't render between the search bar and the mobile cards. */
+  .inv-desk-card{display:none}
 }
 </style>
 @endpush
@@ -198,7 +201,7 @@
   </div>
 @endif
 
-<div class="ia-card">
+<div class="ia-card inv-desk-card">
   @if($items->isEmpty())
     <div class="ia-card-body" style="text-align:center;padding:40px 20px;color:var(--ia-text-muted)">
       No items match your filters.
