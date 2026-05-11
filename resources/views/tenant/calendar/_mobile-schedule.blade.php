@@ -83,23 +83,24 @@
     ]);
   };
 
-  // Gap calculation helper (day mode only).
-  // Returns [minutesGap, gapStartTimeStr, gapEndTimeStr] or null if no
-  // meaningful gap. End-of-prev = appointment_time + duration if end_time
-  // not stored. Min threshold: 15 min.
-  $msComputeGap = function ($prev, $curr) {
+  // Gap calculation helper (day mode only) — GAP-HELPER-USE-DATESTR v1
+  // Takes the day's date string instead of pulling from $appt->appointment_date,
+  // because the controller's day-view query doesn't hydrate that column.
+  // All appointments in a single day view share the same date, so passing
+  // $dayStr explicitly is exactly equivalent and avoids the null-field throw.
+  // Min threshold: 15 min.
+  $msComputeGap = function ($prev, $curr, $dayStr) {
     if (!$prev || !$curr) return null;
     if (!$prev->appointment_time || !$curr->appointment_time) return null;
+    if (!$dayStr) return null;
     try {
-      $prevStart = Cb::parse($prev->appointment_date->toDateString() . ' ' . $prev->appointment_time);
+      $prevStart = Cb::parse($dayStr . ' ' . $prev->appointment_time);
       $prevDur   = (int) ($prev->total_duration_minutes ?? 0);
       $prevEnd   = $prev->appointment_end_time
-        ? Cb::parse($prev->appointment_date->toDateString() . ' ' . $prev->appointment_end_time)
+        ? Cb::parse($dayStr . ' ' . $prev->appointment_end_time)
         : $prevStart->copy()->addMinutes($prevDur);
-      $currStart = Cb::parse($curr->appointment_date->toDateString() . ' ' . $curr->appointment_time);
-      // CARBON3-DIFF-FIX v1: timestamp math — Carbon 3's diffInMinutes(false)
-      // returns negative when the argument is later than $this. Using raw
-      // timestamps avoids version-specific sign behaviour.
+      $currStart = Cb::parse($dayStr . ' ' . $curr->appointment_time);
+      // Timestamp math — version-proof across Carbon 2/3.
       $gap = (int) round(($currStart->getTimestamp() - $prevEnd->getTimestamp()) / 60);
       if ($gap < 15) return null;
       return [
@@ -141,48 +142,6 @@
 @endphp
 
 <div class="ia-msched">
-
-  {{-- MSCHED-DEBUG-BANNER — temporary diagnostic, remove via revert patch --}}
-  @php
-    $dbgVis = ($resources ?? collect())->pluck('id')->all();
-    $dbgFM  = $filterMode ?? '(null)';
-    $dbgVMode = $viewMode ?? '(null)';
-    $dbgApptCount = $msAppointments->count();
-    $dbgSingle = $msSingleResource ? $msSingleResource->name : 'NO';
-    $dbgFirstGap = 'n/a';
-    if ($viewMode === 'day' && $dbgApptCount >= 2) {
-      $a = $msAppointments[0];
-      $b = $msAppointments[1];
-      $g = $msComputeGap($a, $b);
-      if ($g === null) {
-        // Run the same math but without the < 15 threshold so we can see what value we get
-        try {
-          $prevStart = \Carbon\Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_time);
-          $prevDur = (int) ($a->total_duration_minutes ?? 0);
-          $prevEnd = $a->appointment_end_time
-            ? \Carbon\Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_end_time)
-            : $prevStart->copy()->addMinutes($prevDur);
-          $currStart = \Carbon\Carbon::parse($b->appointment_date->toDateString() . ' ' . $b->appointment_time);
-          $rawGap = (int) round(($currStart->getTimestamp() - $prevEnd->getTimestamp()) / 60);
-          $dbgFirstGap = 'null (raw=' . $rawGap . 'min, threshold 15)';
-        } catch (\Throwable $e) {
-          $dbgFirstGap = 'THROW: ' . $e->getMessage();
-        }
-      } else {
-        $dbgFirstGap = $g['minutes'] . 'min';
-      }
-    }
-  @endphp
-  <div style="background:#3a2f0a;color:#fde68a;padding:8px 10px;font-size:11px;font-family:monospace;line-height:1.4;border-radius:6px;margin-bottom:10px;word-break:break-all">
-    <strong>GAP DEBUG</strong><br>
-    viewMode: {{ $dbgVMode }}<br>
-    filterMode: {{ $dbgFM }}<br>
-    visibleIds count: {{ count($dbgVis) }}<br>
-    visibleIds: {{ implode(',', array_map(fn($x) => substr($x, 0, 8), $dbgVis)) }}<br>
-    msSingleResource: {{ $dbgSingle }}<br>
-    msAppointments count: {{ $dbgApptCount }}<br>
-    first pair gap: {{ $dbgFirstGap }}
-  </div>
 
   {{-- Header: title + mode toggle --}}
   <div class="ia-msched-head">
@@ -350,7 +309,7 @@
         @foreach($msAppointments as $appt)
           {{-- Render a gap row before this appointment if single-resource filter is active --}}
           @if($msSingleResource && $msPrevAppt)
-            @php $gap = $msComputeGap($msPrevAppt, $appt); @endphp
+            @php $gap = $msComputeGap($msPrevAppt, $appt, $msAnchorDateStr); @endphp
             @if($gap)
               <div class="ia-msched-gap" aria-hidden="true">
                 <div class="ia-msched-gap-time">
