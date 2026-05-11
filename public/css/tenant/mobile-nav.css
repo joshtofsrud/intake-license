@@ -628,3 +628,16 @@
   }
   .ia-drawer-signout svg { flex-shrink: 0; }
 }
+
+
+/* MOBILE-VIEWPORT-DVH v1 — fix Chrome iOS nav drift.
+   Override theme files' `min-height: 100vh` on mobile to use 100dvh
+   (dynamic viewport height). On Chrome iOS, 100vh = largest possible
+   viewport (URL bar hidden), so the body is taller than the visual
+   viewport, causing position: fixed; bottom: 0 to drift during URL bar
+   transitions. 100dvh tracks the current visual viewport, so the page
+   doesn't extend past it. */
+@media (max-width: 1023px) {
+  .ia-shell { min-height: 100dvh; }
+  body { min-height: 100dvh; }
+}
