@@ -60,7 +60,11 @@
         </div>
         <div class="cal-dropoff-col-body" data-resource-id="{{ $r->id }}" data-date="{{ $date->format('Y-m-d') }}">
           @if($items->isEmpty())
-            <div class="cal-dropoff-empty">No appointments yet.<br>Drag a card here to assign.</div>
+            <div class="cal-dropoff-empty">
+              <div>No appointments yet.</div>
+              <div class="cal-dropoff-empty-hint-desktop">Drag a card here to assign.</div>
+              <div class="cal-dropoff-empty-hint-mobile">Tap + below to add one.</div>
+            </div>
           @else
             @foreach($items as $appt)
               <div class="cal-dropoff-card" data-appointment-id="{{ $appt->id }}" data-status="{{ $appt->status }}">
@@ -234,6 +238,88 @@
   font-size: 11px;
   color: var(--ia-text-3);
   margin-top: 2px;
+}
+
+
+/* Drop-off calendar mobile (patch #42) */
+.cal-dropoff-empty-hint-mobile { display: none; }
+.cal-dropoff-empty-hint-desktop { display: block; }
+
+@media (max-width: 640px) {
+  /* Ensure the page title renders visibly on mobile.
+     Some interaction (likely the global page-head column-stack rule
+     from mobile-forms.css combined with the inline flex:gap:10px on
+     the .ia-page-head-right) was leaving the title row visually empty.
+     This rule explicitly forces title visibility + reasonable size. */
+  .ia-page-head .ia-page-title {
+    display: block;
+    font-size: 22px;
+    margin: 0;
+    color: var(--ia-text);
+  }
+  .ia-page-head .ia-page-subtitle {
+    font-size: 12.5px;
+    margin-top: 4px;
+  }
+
+  /* Page head right side: view toggle + date nav. They sit in a flex
+     container with gap:10px (inline style). On mobile, let them wrap
+     onto their own row below the title. */
+  .ia-page-head-right {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+
+  /* Date-nav buttons grow to fit available width but stay touch-friendly. */
+  .cal-date-btn {
+    padding: 8px 14px;
+    font-size: 13.5px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cal-view-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Resource columns: the inline style sets
+     `grid-template-columns: repeat(N, minmax(220px, 1fr))` which forces
+     each col to at least 220px. With 2+ resources this overflows the
+     390px viewport. Override to single-column on mobile so each resource
+     becomes a stacked card. */
+  .cal-dropoff-grid[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Tighten the column header + body */
+  .cal-dropoff-col {
+    min-height: 0;  /* Don't reserve 200px when empty on mobile */
+  }
+  .cal-dropoff-col-head {
+    padding: 10px 14px;
+  }
+  .cal-dropoff-col-body {
+    min-height: 60px;
+    padding: 8px 10px;
+  }
+
+  /* Empty-state hint: swap desktop wording for mobile wording */
+  .cal-dropoff-empty {
+    padding: 18px 10px;
+    font-size: 12.5px;
+  }
+  .cal-dropoff-empty-hint-desktop { display: none; }
+  .cal-dropoff-empty-hint-mobile  { display: block; margin-top: 4px; }
+
+  /* Drag handles aren't useful on mobile — soften the grab cursor */
+  .cal-dropoff-card { cursor: default; }
 }
 </style>
 @endpush
