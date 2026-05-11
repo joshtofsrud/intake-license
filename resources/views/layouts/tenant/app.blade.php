@@ -126,6 +126,7 @@
      ================================================================ --}}
 @include('layouts.tenant._mobile-nav')
 @include('layouts.tenant._more-drawer')
+@include('layouts.tenant._mobile-fab')
 
 {{-- Detail modal (appointments, customers) --}}
 @include('tenant._detail_modal')

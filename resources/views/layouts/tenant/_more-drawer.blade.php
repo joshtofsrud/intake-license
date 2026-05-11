@@ -43,13 +43,24 @@
       @endforeach
     </div>
 
-    <div class="ia-drawer-user" onclick="document.getElementById('logout-form-mobile').submit()">
+    {{-- DRAWER-USER v2 — split user info from sign-out to prevent accidental logouts --}}
+    <div class="ia-drawer-user ia-drawer-user--readonly">
       <div class="ia-user-avatar">{{ strtoupper(substr($authUser->name, 0, 2)) }}</div>
       <div>
         <div class="ia-user-name">{{ $authUser->name }}</div>
-        <div class="ia-user-role">Tap to sign out</div>
+        <div class="ia-user-role">{{ ucfirst($authUser->role ?? 'Member') }}</div>
       </div>
     </div>
+    <button type="button"
+            class="ia-drawer-signout"
+            onclick="if(confirm('Sign out of {{ addslashes($currentTenant->name) }}?')) document.getElementById('logout-form-mobile').submit()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Sign out
+    </button>
 
     @include('layouts.tenant._brand-footer')
 

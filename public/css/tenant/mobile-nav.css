@@ -502,8 +502,130 @@
     color: rgba(0, 0, 0, 0.88);
   }
 
-  /* Push main content down so it doesn't slide under the header */
-  .ia-content {
-    padding-top: 16px;
+  /* Header is sticky; content flows naturally underneath.
+     Page-specific padding (per-page .ia-content rules) still applies. */
+}
+
+
+/* MOBILE-FAB v1 — floating action button (≤1023px only) */
+@media (max-width: 1023px) {
+  .ia-mobile-fab {
+    position: fixed;
+    right: 16px;
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px)); /* clear the bottom nav */
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--ia-accent, #BEF264);
+    color: var(--ia-accent-text, #0a0a0a);
+    border: none;
+    box-shadow: 0 6px 20px rgba(190,242,100,.3), 0 2px 6px rgba(0,0,0,.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 95;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 100ms ease;
   }
+  .ia-mobile-fab:active { transform: scale(0.94); }
+}
+@media (min-width: 1024px) {
+  .ia-mobile-fab { display: none !important; }
+}
+
+
+/* MOBILE-BACK-BTN v1 — back chevron in mobile header */
+@media (max-width: 1023px) {
+  .ia-mobile-header-inner:has(.ia-mobile-header-back) {
+    justify-content: flex-start;
+  }
+  .ia-mobile-header-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--ia-accent, #BEF264);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    padding: 6px 4px 6px 0;
+    margin-left: -4px;
+    border-radius: 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-mobile-header-back:active { background: rgba(190,242,100,.08); }
+  .ia-mobile-header-back svg { flex-shrink: 0; }
+}
+
+
+/* DESKTOP-ONLY-NOTICE v1 — banner shown on mobile for desktop-best pages */
+.ia-desktop-only-notice { display: none; }
+@media (max-width: 1023px) {
+  .ia-desktop-only-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 12px 16px;
+    padding: 12px 14px;
+    background: rgba(245,158,11,.08);
+    border: 1px solid rgba(245,158,11,.2);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.85);
+  }
+  body.ia-theme-b .ia-desktop-only-notice {
+    color: #6B4E0B;
+    background: rgba(245,158,11,.1);
+  }
+  .ia-desktop-only-notice svg {
+    flex-shrink: 0;
+    color: #F59E0B;
+    margin-top: 1px;
+  }
+  .ia-desktop-only-notice .muted {
+    display: block;
+    margin-top: 2px;
+    opacity: .65;
+    font-size: 12px;
+  }
+}
+
+
+/* DRAWER-USER-V2 — user info row is no longer the sign-out hit area */
+@media (max-width: 1023px) {
+  .ia-drawer-user.ia-drawer-user--readonly {
+    cursor: default;
+  }
+  .ia-drawer-signout {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    border-top: 0.5px solid rgba(0,0,0,.08);
+    color: #B43030;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-theme-a .ia-drawer-signout,
+  .ia-theme-c .ia-drawer-signout {
+    border-top-color: rgba(255,255,255,.08);
+    color: #F59999;
+  }
+  .ia-drawer-signout:active {
+    background: rgba(180,48,48,.08);
+  }
+  .ia-theme-a .ia-drawer-signout:active,
+  .ia-theme-c .ia-drawer-signout:active {
+    background: rgba(245,153,153,.06);
+  }
+  .ia-drawer-signout svg { flex-shrink: 0; }
 }
