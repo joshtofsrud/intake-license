@@ -39,8 +39,10 @@
     if ($nuTime) {
       try {
         $nuStart = \Carbon\Carbon::parse($nu->appointment_date->toDateString() . ' ' . $nu->appointment_time);
-        $diff = (int) now()->diffInMinutes($nuStart, false);
-        $nuMinutesAway = $diff;
+        // CARBON3-DIFF-FIX v1: timestamp math instead of diffInMinutes(false)
+        // because Carbon 3 returns negative for "$nuStart is later than now",
+        // which broke the "In 24 minutes" branch (always fell through to "Next up").
+        $nuMinutesAway = (int) round(($nuStart->getTimestamp() - now()->getTimestamp()) / 60);
       } catch (\Throwable $e) { $nuMinutesAway = null; }
     }
     $nuService = $nu && $nu->items->isNotEmpty() ? $nu->items->first()->item_name_snapshot : null;

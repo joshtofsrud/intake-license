@@ -97,7 +97,10 @@
         ? Cb::parse($prev->appointment_date->toDateString() . ' ' . $prev->appointment_end_time)
         : $prevStart->copy()->addMinutes($prevDur);
       $currStart = Cb::parse($curr->appointment_date->toDateString() . ' ' . $curr->appointment_time);
-      $gap = (int) $prevEnd->diffInMinutes($currStart, false);
+      // CARBON3-DIFF-FIX v1: timestamp math — Carbon 3's diffInMinutes(false)
+      // returns negative when the argument is later than $this. Using raw
+      // timestamps avoids version-specific sign behaviour.
+      $gap = (int) round(($currStart->getTimestamp() - $prevEnd->getTimestamp()) / 60);
       if ($gap < 15) return null;
       return [
         'minutes' => $gap,
