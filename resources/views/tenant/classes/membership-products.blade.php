@@ -42,6 +42,33 @@
 .cl-price-wrap{position:relative}
 .cl-price-wrap .cl-input{padding-left:22px}
 .cl-price-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ia-text-muted);pointer-events:none}
+
+/* Memberships mobile card list — parallel render (patch #37) */
+.cl-mp-mobile{display:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:hidden}
+.cl-mp-row-m{padding:14px 16px;border-bottom:0.5px solid var(--ia-border);display:flex;flex-direction:column;gap:8px}
+.cl-mp-row-m:last-child{border-bottom:none}
+.cl-mp-row-m.is-inactive{opacity:.55}
+.cl-mp-top-m{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.cl-mp-identity-m{min-width:0;flex:1}
+.cl-mp-name-m{font-size:15px;font-weight:500;color:var(--ia-text);line-height:1.25;display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.cl-mp-name-text-m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-mp-chip-m{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;flex-shrink:0}
+.cl-mp-chip-m.unlimited{background:var(--ia-accent-soft);color:var(--ia-accent)}
+.cl-mp-chip-m.capped{background:var(--ia-surface-2);color:var(--ia-text-muted)}
+.cl-mp-chip-m.inactive{background:var(--ia-surface-2);color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em;font-size:10px}
+.cl-mp-desc-m{font-size:12px;color:var(--ia-text-muted);margin-top:3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cl-mp-actions-m{display:flex;gap:4px;flex-shrink:0}
+.cl-mp-icon-btn-m{width:32px;height:32px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--ia-text-muted);background:var(--ia-surface-2);border:0.5px solid var(--ia-border);cursor:pointer;transition:all var(--ia-t);font-family:inherit}
+.cl-mp-icon-btn-m:hover{background:var(--ia-hover);color:var(--ia-text)}
+.cl-mp-meta-row-m{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums;align-items:center}
+.cl-mp-meta-item-m{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.cl-mp-meta-label-m{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim,rgba(255,255,255,.38));font-weight:500}
+.cl-mp-meta-value-m{color:var(--ia-text);font-weight:500}
+@media(max-width:640px){
+  .cl-card > .cl-table-head,
+  .cl-card > .cl-table-row{display:none}
+  .cl-mp-mobile{display:block}
+}
 </style>
 @endpush
 
@@ -102,6 +129,44 @@
       <div class="cl-empty-body">Create unlimited or capped monthly memberships customers can subscribe to.</div>
     </div>
   @endforelse
+
+  {{-- Mobile card list (parallel render, ≤640px). Desktop table above hides
+       on mobile via the CSS swap; same data, card-shaped. --}}
+  <div class="cl-mp-mobile">
+    @forelse($products as $p)
+      <div class="cl-mp-row-m {{ $p->is_active ? '' : 'is-inactive' }}">
+        <div class="cl-mp-top-m">
+          <div class="cl-mp-identity-m">
+            <div class="cl-mp-name-m">
+              <span class="cl-mp-name-text-m">{{ $p->name }}</span>
+              @if($p->isUnlimited())
+                <span class="cl-mp-chip-m unlimited">Unlimited</span>
+              @else
+                <span class="cl-mp-chip-m capped">Capped · {{ $p->monthly_limit }}/mo</span>
+              @endif
+              @if(!$p->is_active)
+                <span class="cl-mp-chip-m inactive">Inactive</span>
+              @endif
+            </div>
+            @if($p->description)
+              <div class="cl-mp-desc-m">{{ $p->description }}</div>
+            @endif
+          </div>
+          <div class="cl-mp-actions-m">
+            <button type="button" class="cl-mp-icon-btn-m" title="Edit" onclick="openEditModal({{ $p->toJson() }})">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="cl-mp-meta-row-m">
+          <span class="cl-mp-meta-item-m"><span class="cl-mp-meta-label-m">Price/mo</span> <span class="cl-mp-meta-value-m">${{ number_format($p->price_cents / 100, 2) }}</span></span>
+          <span class="cl-mp-meta-item-m" style="margin-left:auto"><span class="cl-mp-meta-label-m">Subs</span> <span class="cl-mp-meta-value-m">{{ $p->memberships_count }}</span></span>
+        </div>
+      </div>
+    @empty
+      {{-- Desktop empty state renders above; nothing extra needed here. --}}
+    @endforelse
+  </div>
 </div>
 
 {{-- Add modal --}}

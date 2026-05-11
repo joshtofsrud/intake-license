@@ -37,6 +37,33 @@
 .cl-price-wrap .cl-input{padding-left:22px}
 .cl-price-sym{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--ia-text-muted);pointer-events:none}
 .cl-per-credit{font-size:11px;color:var(--ia-text-muted);margin-top:4px}
+
+/* Packs mobile card list — parallel render (patch #37) */
+.cl-pk-mobile{display:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:hidden}
+.cl-pk-row-m{padding:14px 16px;border-bottom:0.5px solid var(--ia-border);display:flex;flex-direction:column;gap:8px}
+.cl-pk-row-m:last-child{border-bottom:none}
+.cl-pk-row-m.is-inactive{opacity:.55}
+.cl-pk-top-m{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.cl-pk-identity-m{min-width:0;flex:1}
+.cl-pk-name-m{font-size:15px;font-weight:500;color:var(--ia-text);line-height:1.25;display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.cl-pk-name-text-m{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-pk-chip-m{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;flex-shrink:0}
+.cl-pk-chip-m.credits{background:rgba(117,168,224,.15);color:#75A8E0}
+.cl-pk-chip-m.inactive{background:var(--ia-surface-2);color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em;font-size:10px}
+.cl-pk-desc-m{font-size:12px;color:var(--ia-text-muted);margin-top:3px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cl-pk-actions-m{display:flex;gap:4px;flex-shrink:0}
+.cl-pk-icon-btn-m{width:32px;height:32px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--ia-text-muted);background:var(--ia-surface-2);border:0.5px solid var(--ia-border);cursor:pointer;transition:all var(--ia-t);font-family:inherit}
+.cl-pk-icon-btn-m:hover{background:var(--ia-hover);color:var(--ia-text)}
+.cl-pk-meta-row-m{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums;align-items:center}
+.cl-pk-meta-item-m{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.cl-pk-meta-label-m{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim,rgba(255,255,255,.38));font-weight:500}
+.cl-pk-meta-value-m{color:var(--ia-text);font-weight:500}
+.cl-pk-meta-value-m.accent{color:var(--ia-accent)}
+@media(max-width:640px){
+  .cl-card > .cl-table-head,
+  .cl-card > .cl-table-row{display:none}
+  .cl-pk-mobile{display:block}
+}
 </style>
 @endpush
 
@@ -97,6 +124,42 @@
       <div class="cl-empty-body">Create packs like a 10-class pass that customers buy upfront and redeem one credit per session.</div>
     </div>
   @endforelse
+
+  {{-- Mobile card list (parallel render, ≤640px). Per-class price gets the
+       lime accent — it's the implicit-savings signal customers buy on. --}}
+  <div class="cl-pk-mobile">
+    @forelse($products as $p)
+      <div class="cl-pk-row-m {{ $p->is_active ? '' : 'is-inactive' }}">
+        <div class="cl-pk-top-m">
+          <div class="cl-pk-identity-m">
+            <div class="cl-pk-name-m">
+              <span class="cl-pk-name-text-m">{{ $p->name }}</span>
+              <span class="cl-pk-chip-m credits">{{ $p->credit_count }} credits</span>
+              @if(!$p->is_active)
+                <span class="cl-pk-chip-m inactive">Inactive</span>
+              @endif
+            </div>
+            @if($p->description)
+              <div class="cl-pk-desc-m">{{ $p->description }}</div>
+            @endif
+          </div>
+          <div class="cl-pk-actions-m">
+            <button type="button" class="cl-pk-icon-btn-m" title="Edit" onclick="openEditModal({{ $p->toJson() }})">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="cl-pk-meta-row-m">
+          <span class="cl-pk-meta-item-m"><span class="cl-pk-meta-label-m">Price</span> <span class="cl-pk-meta-value-m">${{ number_format($p->price_cents / 100, 2) }}</span></span>
+          <span class="cl-pk-meta-item-m"><span class="cl-pk-meta-label-m">Per class</span> <span class="cl-pk-meta-value-m accent">${{ number_format($p->price_cents / $p->credit_count / 100, 2) }}</span></span>
+          <span class="cl-pk-meta-item-m"><span class="cl-pk-meta-label-m">Expires</span> <span class="cl-pk-meta-value-m">{{ $p->expiry_days }}d</span></span>
+          <span class="cl-pk-meta-item-m" style="margin-left:auto"><span class="cl-pk-meta-label-m">Sold</span> <span class="cl-pk-meta-value-m">{{ $p->customer_packs_count }}</span></span>
+        </div>
+      </div>
+    @empty
+      {{-- Desktop empty state renders above; nothing extra needed here. --}}
+    @endforelse
+  </div>
 </div>
 
 {{-- Add modal --}}
