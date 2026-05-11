@@ -1,3 +1,7 @@
+{{-- DEPRECATED — patch #45 (marketing-system-unification.sh) made this file unused.
+     The CMS layout (marketing/page.blade.php) is the only shell.
+     Kept temporarily for one release in case a route still references it.
+     SAFE TO DELETE in patch #46+ --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>

@@ -3,142 +3,57 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Models\ChangelogEntry;
+use App\Models\RoadmapEntry;
 use App\Models\Tenant;
 use App\Models\Tenant\TenantPage;
 use App\Models\Tenant\TenantNavItem;
-use App\Models\ChangelogEntry;
-use App\Models\RoadmapEntry;
+use App\Services\IndustryPackService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
 
 /**
- * Marketing site (intake.works) controller.
+ * MarketingController — drives every marketing page.
  *
- * Legacy toggle: set USE_LEGACY_MARKETING=true in .env to serve the
- * hardcoded Blade views (resources/views/marketing/*.blade.php) instead
- * of the platform-tenant page builder. Useful as a fallback while
- * iterating on the editor.
+ * Patch 45: CMS-only marketing. Every page renders via renderPage($slug).
+ * The five formerly-static pages (roadmap, changelog, why-intake, contact,
+ * invest) are now stored as TenantPage rows with sections.
+ *
+ * Dynamic content (roadmap entries, changelog entries) is fetched by the
+ * special section types `roadmap_grid` and `changelog_list` at render time.
  */
 class MarketingController extends Controller
 {
-    public function home()
-    {
-        if ($this->useLegacy()) {
-            return view('marketing.home', $this->legacyShared());
-        }
-        return $this->renderPage('home');
-    }
-
-    public function pricing()
-    {
-        if ($this->useLegacy()) {
-            return view('marketing.pricing', $this->legacyShared());
-        }
-        return $this->renderPage('pricing');
-    }
-
-    public function features()
-    {
-        if ($this->useLegacy()) {
-            return view('marketing.features', $this->legacyShared());
-        }
-        return $this->renderPage('features');
-    }
-
-    public function whyIntake()
-    {
-        // The block-builder version doesn't exist in __platform yet, so always
-        // fall back to the hardcoded Blade. When a why-intake page is created
-        // via the block builder (post-launch), this method can swap to the
-        // standard useLegacy() / renderPage() pattern.
-        return view('marketing.why-intake', $this->legacyShared());
-    }
-
-    /**
-     * Republic equity crowdfunding raise page.
-     * Hardcoded Blade — content rarely changes during a campaign and
-     * compliance copy benefits from version-controlled review.
-     */
-    public function invest()
-    {
-        return view('marketing.invest', $this->legacyShared());
-    }
-
-    /**
-     * Public changelog — what shipped, by date.
-     * Always served from the hardcoded Blade; data comes from changelog_entries.
-     */
-    public function changelog()
-    {
-        $entries = ChangelogEntry::published()
-            ->orderByDesc('is_highlighted')
-            ->orderByDesc('shipped_on')
-            ->orderByDesc('created_at')
-            ->get();
-
-        return view('marketing.changelog', [
-            'entries' => $entries,
-        ] + $this->legacyShared());
-    }
-
-    /**
-     * Public roadmap — what's coming, grouped by status.
-     * Always served from the hardcoded Blade.
-     */
-    public function roadmap()
-    {
-        $entries = RoadmapEntry::published()
-            ->orderBy('display_order')
-            ->orderBy('created_at')
-            ->get()
-            ->groupBy('status');
-
-        // Stable status order regardless of which buckets have entries.
-        $orderedGroups = [];
-        foreach (array_keys(RoadmapEntry::STATUSES) as $statusKey) {
-            if (isset($entries[$statusKey]) && $entries[$statusKey]->count() > 0) {
-                $orderedGroups[$statusKey] = $entries[$statusKey];
-            }
-        }
-
-        return view('marketing.roadmap', [
-            'groups' => $orderedGroups,
-        ] + $this->legacyShared());
-    }
-
-    public function docs()
-    {
-        if ($this->useLegacy()) {
-            return view('marketing.docs', $this->legacyShared());
-        }
-        return $this->renderPage('docs');
-    }
+    public function home()      { return $this->renderPage('home'); }
+    public function pricing()   { return $this->renderPage('pricing'); }
+    public function features()  { return $this->renderPage('features'); }
+    public function whyIntake() { return $this->renderPage('why-intake'); }
+    public function invest()    { return $this->renderPage('invest'); }
+    public function roadmap()   { return $this->renderPage('roadmap'); }
+    public function changelog() { return $this->renderPage('changelog'); }
+    public function docs()      { return $this->renderPage('docs'); }
 
     public function show(string $slug)
     {
         if (str_starts_with($slug, '__')) abort(404);
-
-        // Legacy mode has no concept of custom slugs — fall back to 404.
-        if ($this->useLegacy()) abort(404);
-
         return $this->renderPage($slug);
     }
 
     public function forIndustry(string $industry)
     {
-        // Legacy mode has no /for/{industry} pages — fall back to 404.
-        if ($this->useLegacy()) abort(404);
+        $packService = app(IndustryPackService::class);
+        $pack = $packService->get($industry);
+        if (! $pack) abort(404);
 
-        $packs = config('industry_packs', []);
-        if (! isset($packs[$industry])) abort(404);
-
-        $pack = $packs[$industry];
-
+        // Use the __for-industry template; substitute tokens.
         $tenant = $this->platformTenant();
         $template = TenantPage::where('tenant_id', $tenant->id)
-            ->where('slug', '__industry_template')
+            ->where('slug', '__for-industry')
+            ->where('is_published', true)
             ->first();
 
-        if (! $template) abort(404, 'Industry template not seeded.');
+        if (! $template) abort(404);
 
         $sections = $template->sections()->where('is_visible', true)->get()->map(function ($s) use ($pack) {
             $s->content = $this->substituteTokens($s->content, $pack);
@@ -147,9 +62,6 @@ class MarketingController extends Controller
 
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')->get();
-
-        $template->meta_title       = "Booking software for {$pack['name']} — Intake";
-        $template->meta_description = $pack['tagline'];
 
         return view('marketing.page', [
             'page'     => $template,
@@ -162,47 +74,30 @@ class MarketingController extends Controller
 
     public function contact(Request $request)
     {
-        if ($request->isMethod('get')) {
-            if ($this->useLegacy()) {
-                return view('marketing.contact', $this->legacyShared());
-            }
+        if ($request->isMethod('GET')) {
             return $this->renderPage('contact');
         }
 
-        $request->validate([
-            'name'    => ['required', 'string', 'max:255'],
-            'email'   => ['required', 'email'],
-            'message' => ['required', 'string', 'max:3000'],
+        // POST: validate and email. Keeps existing behavior.
+        $validator = Validator::make($request->all(), [
+            'name'    => 'required|string|max:120',
+            'email'   => 'required|email|max:191',
+            'phone'   => 'nullable|string|max:32',
+            'message' => 'required|string|max:5000',
         ]);
 
-        return back()->with('contact_success', true);
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        // TODO(patch 46): wire to real mail when SMTP settings finalized.
+        // For now log and redirect.
+        \Log::info('Marketing contact form', $request->only(['name','email','phone','message']));
+
+        return back()->with('status', 'Thanks! We\'ll be in touch within 1 business day.');
     }
 
-    // ================================================================
-    // Internals
-    // ================================================================
-
-    private function useLegacy(): bool
-    {
-        return (bool) config('intake.use_legacy_marketing', false);
-    }
-
-    /**
-     * Shared data the legacy Blade views expect. Keep in sync with what
-     * the old MarketingController passed so the views render identically.
-     */
-    private function legacyShared(): array
-    {
-        $plans = config('intake.plan_prices');
-        return [
-            'plans' => [
-                'starter' => ['price' => $plans['starter'] / 100, 'name' => 'Starter', 'slug' => 'starter'],
-                'branded' => ['price' => $plans['branded'] / 100, 'name' => 'Branded', 'slug' => 'branded'],
-                'scale'   => ['price' => $plans['scale']   / 100, 'name' => 'Scale',   'slug' => 'scale'],
-            ],
-        ];
-    }
-
+    // Patch 45: CMS-only marketing — single render path.
     private function renderPage(string $slug)
     {
         $tenant = $this->platformTenant();
@@ -233,31 +128,20 @@ class MarketingController extends Controller
         if ($cached) return $cached;
 
         $cached = Tenant::where('is_platform', true)->first();
-        if (! $cached) {
-            abort(500, 'Platform tenant not seeded. Run: php artisan db:seed --class=PlatformTenantSeeder');
-        }
+        if (! $cached) abort(503, 'No platform tenant configured');
+
         return $cached;
     }
 
     private function substituteTokens($value, array $pack)
     {
         if (is_array($value)) {
-            return array_map(fn($v) => $this->substituteTokens($v, $pack), $value);
+            return array_map(fn ($v) => $this->substituteTokens($v, $pack), $value);
         }
         if (! is_string($value)) return $value;
 
         return preg_replace_callback('/\{industry_([a-z_]+)\}/', function ($m) use ($pack) {
-            $key = $m[1];
-            return match ($key) {
-                'name'            => $pack['name']            ?? $m[0],
-                'slug'            => $pack['slug']            ?? $m[0],
-                'tagline'         => $pack['tagline']         ?? $m[0],
-                'icon'            => $pack['icon']            ?? $m[0],
-                'services_blurb'  => $pack['services_blurb']  ?? $m[0],
-                'workflow_blurb'  => $pack['workflow_blurb']  ?? $m[0],
-                'category'        => $pack['category']        ?? $m[0],
-                default           => $m[0],
-            };
+            return $pack[$m[1]] ?? $m[0];
         }, $value);
     }
 }

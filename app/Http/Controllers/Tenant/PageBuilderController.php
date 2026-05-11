@@ -31,6 +31,8 @@ class PageBuilderController extends Controller
         'contact_form'  => ['eyebrow'=>'','heading'=>'Get in touch','subheading'=>'','show_phone'=>true,'show_message'=>true],
         'booking_embed'  => ['heading'=>'Book online'],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
+        'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
+        'changelog_list'=> ['intro_text'=>'Everything we shipped lately, reverse-chronological.'],
         'footer'        => ['show_logo'=>true,'show_copyright'=>true,'copyright_text'=>''],
 
         'pricing_table' => [

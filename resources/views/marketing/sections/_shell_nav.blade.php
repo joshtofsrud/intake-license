@@ -70,7 +70,14 @@
 <nav class="mk-nav">
     <div class="mk-nav-inner">
         <a href="{{ route('marketing.home') }}" class="mk-logo">
-            <div class="mk-logo-mark">I</div>
+            <div class="mk-logo-mark">
+            {{-- Three-bar SVG (patch #44 / patch #45) --}}
+            <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="width:18px;height:18px;display:block">
+                <rect x="6" y="6"    width="16" height="3.5" rx="1" fill="#0a0a0a"/>
+                <rect x="6" y="12.25" width="13" height="3.5" rx="1" fill="#0a0a0a"/>
+                <rect x="6" y="18.5"  width="10" height="3.5" rx="1" fill="#0a0a0a"/>
+            </svg>
+        </div>
             intake
         </a>
 
