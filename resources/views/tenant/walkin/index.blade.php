@@ -4,7 +4,7 @@
 
 {{-- No mobile FAB on this page — we ARE the FAB destination --}}
 
-@push('head')
+@push('styles')
 <style>
   /* Walk-in mobile-first layout. Hidden on desktop (use New appointment modal). */
   @media (max-width: 1023px) {
