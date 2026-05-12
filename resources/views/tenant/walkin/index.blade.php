@@ -1085,69 +1085,37 @@
   }
 
   // ─── Availability ─────────────────────────────────────────────────
-  // PATCH 51 DEBUG: dumps every step to the page so we can see what's happening
-  // without devtools. Revert this block after we find the bug.
   async function loadAvailability() {
     const container = $('#wiTimesContainer');
-    const dbg = (msg) => {
-      const pre = document.createElement('pre');
-      pre.style.cssText = 'background:#1a1a1a;color:#BEF264;padding:8px 12px;margin:4px 16px;border-radius:6px;font-size:11px;white-space:pre-wrap;word-break:break-all;font-family:monospace;border:1px solid rgba(190,242,100,.2);';
-      pre.textContent = msg;
-      container.appendChild(pre);
-    };
-    container.innerHTML = '';
-    dbg('▶ loadAvailability() called');
-
+    container.innerHTML = `<div class="wi-empty"><span class="wi-spinner"></span> Loading times…</div>`;
     try {
-      const rid = $('#wiResourceSelectReal').value || '';
-      dbg('resource_id from hidden input: ' + (rid || '(EMPTY!)'));
-      dbg('state.service: ' + JSON.stringify({id: state.service?.id, name: state.service?.name}));
-      dbg('state.chosenResource: ' + JSON.stringify(state.chosenResource));
-
       const params = new URLSearchParams({
         service_id: state.service.id,
-        resource_id: rid,
+        resource_id: $('#wiResourceSelectReal').value || '',
         start_date: new Date().toISOString().slice(0, 10),
       });
-      const fullUrl = `${ROUTE_AVAILABILITY}?${params}`;
-      dbg('Fetching: ' + fullUrl);
-
-      const res = await fetch(fullUrl, {
+      const res = await fetch(`${ROUTE_AVAILABILITY}?${params}`, {
         headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
       });
-      dbg('Response status: ' + res.status + ' ' + res.statusText);
-      dbg('Response content-type: ' + (res.headers.get('content-type') || '(none)'));
-
-      const bodyText = await res.text();
-      dbg('Response body (first 400 chars): ' + bodyText.slice(0, 400));
-
       if (!res.ok) {
-        dbg('✗ Not ok — would fall back to synthesized slots');
+        // Defensive fallback: synthesize "next 8 slots starting now+15m, every 30m"
+        // so the flow doesn't hard-fail if the endpoint is unavailable.
+        container.innerHTML = renderFallbackTimes();
+        wireTimeRows();
         return;
       }
-
-      let json;
-      try { json = JSON.parse(bodyText); }
-      catch (e) { dbg('✗ JSON parse failed: ' + e.message); return; }
-
+      const json = await res.json();
       const slots = json.slots || json.times || [];
-      dbg('Parsed slots count: ' + slots.length);
-      if (slots.length > 0) dbg('First slot: ' + JSON.stringify(slots[0]));
-
       if (slots.length === 0) {
-        dbg('✗ Zero slots returned. required_minutes: ' + (json.required_minutes ?? 'unknown'));
+        container.innerHTML = `<div class="wi-empty">No available times. Try a different resource or service.</div>`;
         return;
       }
-
-      dbg('✓ Rendering ' + Math.min(slots.length, 12) + ' time rows');
-      const timesDiv = document.createElement('div');
-      timesDiv.className = 'wi-times';
-      timesDiv.innerHTML = slots.slice(0, 12).map(renderSlot).join('');
-      container.appendChild(timesDiv);
+      container.innerHTML = `<div class="wi-times">${slots.slice(0, 12).map(renderSlot).join('')}</div>`;
       wireTimeRows();
     } catch (err) {
-      dbg('✗ Exception caught: ' + (err.message || err));
-      dbg('Stack: ' + (err.stack || '(no stack)').slice(0, 300));
+      console.error('availability failed', err);
+      container.innerHTML = renderFallbackTimes();
+      wireTimeRows();
     }
   }
 
