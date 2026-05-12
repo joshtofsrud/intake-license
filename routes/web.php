@@ -182,6 +182,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
             // Register (POS) — walk-in retail + service jobs
             Route::get('/register',                  [TenantControllers\RegisterController::class, 'index'])->name('register.index');
+            Route::get('/register/walk-in',          [TenantControllers\WalkInController::class, 'index'])->name('register.walk-in');
             Route::get('/register/appointment-tray', [TenantControllers\RegisterController::class, 'appointmentTray'])->name('register.appointment-tray');
             Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
             Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');

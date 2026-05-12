@@ -526,6 +526,21 @@
   </div>
 </div>
 
+
+@if(!empty($preAttachCustomer))
+<script>
+  // Patch 46: pre-attach customer from walk-in flow query param.
+  // Runs after the register page's cart JS has initialized.
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof cart !== 'undefined' && cart) {
+      cart.customer = @json($preAttachCustomer);
+      if (typeof renderCart === 'function') renderCart();
+      if (typeof queueDraftSave === 'function') queueDraftSave();
+    }
+  });
+</script>
+@endif
+
 @endsection
 
 @push('scripts')

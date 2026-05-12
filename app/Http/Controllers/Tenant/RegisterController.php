@@ -31,8 +31,28 @@ class RegisterController extends Controller
             ->whereNotIn('status', ['cancelled', 'closed'])
             ->count();
 
+        // Patch 46: pre-attach customer from query param (walk-in flow).
+        $preAttachCustomer = null;
+        $preCustId = $request->query('customer_id');
+        if ($preCustId) {
+            $cust = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $preCustId)
+                ->first(['id', 'first_name', 'last_name', 'email', 'phone']);
+            if ($cust) {
+                $preAttachCustomer = [
+                    'id'         => $cust->id,
+                    'first_name' => $cust->first_name,
+                    'last_name'  => $cust->last_name,
+                    'name'       => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')),
+                    'email'      => $cust->email,
+                    'phone'      => $cust->phone,
+                ];
+            }
+        }
+
         return view('tenant.register.index', [
             'tenant'     => $tenant,
+            'preAttachCustomer' => $preAttachCustomer,
             'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
             'taxLabel'   => $this->taxLabel($tenant),
             'appointmentTrayCount' => $appointmentTrayCount,
