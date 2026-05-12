@@ -415,9 +415,13 @@
   }
 
   function updateStripCounts(stripData) {
+    // Updates the 3-bar load indicator on each day chip. Backend supplies
+    // load_level (0-3) computed from appt_count vs. day capacity.
     stripData.forEach(function(d){
-      var el = document.querySelector('[data-count-for="' + d.date + '"]');
-      if (el) el.textContent = d.count > 0 ? d.count : '·';
+      var el = document.querySelector('[data-load-for="' + d.date + '"]');
+      if (el && typeof d.load_level !== 'undefined') {
+        el.setAttribute('data-level', String(d.load_level));
+      }
     });
   }
 

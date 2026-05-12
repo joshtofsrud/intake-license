@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantCapacityRule;
 use App\Models\Tenant\TenantCustomer;
+use App\Models\Tenant\TenantResource;
 use App\Models\Tenant\TenantServiceItem;
 use App\Models\Tenant\TenantUser;
 use App\Models\Tenant\TenantWaitlistEntry;
@@ -96,6 +97,7 @@ class DashboardDataService
             'week_revenue_cents'  => $weekRevenue,
             'week_new_customers'  => $weekNewCustomers,
             'week_cancellations'  => $weekCancellations,
+            'strip'               => $this->build7DayStripCenteredOn($this->tnow()->startOfDay()),
         ];
     }
 
@@ -432,23 +434,9 @@ class DashboardDataService
             ->with('items')
             ->get();
 
-        // 7-day strip: 3 days before, target, 3 days after
-        $strip = [];
-        for ($i = -3; $i <= 3; $i++) {
-            $d = $target->copy()->addDays($i);
-            $count = TenantAppointment::where('tenant_id', $tenantId)
-                ->whereDate('appointment_date', $d->toDateString())
-                ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->count();
-            $strip[] = [
-                'date'       => $d->toDateString(),
-                'day_short'  => $d->format('D'),
-                'day_num'    => (int) $d->format('j'),
-                'is_today'   => $d->isToday(),
-                'is_target'  => $i === 0,
-                'count'      => $count,
-            ];
-        }
+        // 7-day strip: 3 days before, target, 3 days after.
+        // Level (0-3) powers the heatmap-style load indicator on each day card.
+        $strip = $this->build7DayStripCenteredOn($target);
 
         return [
             'target_date'       => $target->toDateString(),
@@ -457,6 +445,80 @@ class DashboardDataService
             'appointment_count' => $appointments->count(),
             'strip'             => $strip,
         ];
+    }
+
+    /**
+     * Build the 7-day strip array (3 days before, target, 3 days after)
+     * with appointment counts and a 0-3 load level for each day. Used by
+     * both the initial dashboard render (zoneToday) and the AJAX day-swap
+     * endpoint (dayData).
+     */
+    private function build7DayStripCenteredOn(\Illuminate\Support\Carbon $target): array
+    {
+        $tenantId = $this->tenant->id;
+
+        $activeResourceCount = max(1, TenantResource::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->count());
+
+        $rulesByDow = TenantCapacityRule::where('tenant_id', $tenantId)
+            ->where('rule_type', 'default')
+            ->get()
+            ->keyBy('day_of_week');
+
+        $strip = [];
+        for ($i = -3; $i <= 3; $i++) {
+            $d = $target->copy()->addDays($i);
+            $count = TenantAppointment::where('tenant_id', $tenantId)
+                ->whereDate('appointment_date', $d->toDateString())
+                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->count();
+
+            $strip[] = [
+                'date'       => $d->toDateString(),
+                'day_short'  => $d->format('D'),
+                'day_num'    => (int) $d->format('j'),
+                'is_today'   => $d->isToday(),
+                'is_target'  => $i === 0,
+                'count'      => $count,
+                'load_level' => $this->loadLevelForDay($d, $count, $rulesByDow, $activeResourceCount),
+            ];
+        }
+        return $strip;
+    }
+
+    /**
+     * Compute a 0-3 load level for a given day based on appointment count
+     * vs. theoretical max slots (capacity rule's open hours × resources).
+     * 0 = closed or zero appointments
+     * 1 = 1-33% full
+     * 2 = 34-66% full
+     * 3 = 67-100% full
+     */
+    private function loadLevelForDay(
+        \Illuminate\Support\Carbon $date,
+        int $count,
+        \Illuminate\Support\Collection $rulesByDow,
+        int $activeResourceCount
+    ): int {
+        if ($count === 0) {
+            return 0;
+        }
+        $rule = $rulesByDow->get($date->dayOfWeek);
+        if (!$rule || !$rule->open_time || !$rule->close_time) {
+            // Day with bookings but no capacity rule: show light load.
+            return 1;
+        }
+        $open  = \Illuminate\Support\Carbon::parse($date->toDateString() . ' ' . $rule->open_time);
+        $close = \Illuminate\Support\Carbon::parse($date->toDateString() . ' ' . $rule->close_time);
+        $intervalMin = max(1, (int) ($rule->slot_interval_minutes ?? 30));
+        $minutesOpen = max(0, $close->diffInMinutes($open));
+        $slotsPerResource = intdiv($minutesOpen, $intervalMin);
+        $maxSlots = max(1, $slotsPerResource * $activeResourceCount);
+        $ratio = $count / $maxSlots;
+        if ($ratio >= 0.67) return 3;
+        if ($ratio >= 0.34) return 2;
+        return 1;
     }
 
         public function workOrderBanner(bool $dismissed): ?array

@@ -62,10 +62,11 @@
     for ($i = 0; $i < 7; $i++) {
         $d = $stripStart->copy()->addDays($i);
         $stripDays[] = [
-            'date'      => $d->toDateString(),
-            'day_short' => $d->format('D'),
-            'day_num'   => (int) $d->format('j'),
-            'is_today'  => $d->isToday(),
+            'date'       => $d->toDateString(),
+            'day_short'  => $d->format('D'),
+            'day_num'    => (int) $d->format('j'),
+            'is_today'   => $d->isToday(),
+            'load_level' => $today['strip'][$i]['load_level'] ?? 0,
         ];
     }
   @endphp
@@ -75,7 +76,11 @@
       <button type="button" class="ia-dash-date-chip {{ $sd['is_today'] ? 'is-target' : '' }}" data-date="{{ $sd['date'] }}" role="tab">
         <span class="ia-dash-date-day">{{ $sd['day_short'] }}</span>
         <span class="ia-dash-date-num">{{ $sd['day_num'] }}</span>
-        <span class="ia-dash-date-count" data-count-for="{{ $sd['date'] }}">·</span>
+        <span class="ia-dash-date-load" data-load-for="{{ $sd['date'] }}" data-level="{{ $sd['load_level'] }}" aria-label="Day load">
+          <span class="ia-dash-date-load-bar"></span>
+          <span class="ia-dash-date-load-bar"></span>
+          <span class="ia-dash-date-load-bar"></span>
+        </span>
       </button>
     @endforeach
   </div>

@@ -277,10 +277,30 @@
   color: var(--ia-text);
 }
 .ia-dash-date-count {
+  /* legacy — kept for any callers still emitting the count span. New chips use .ia-dash-date-load below. */
   font-size: 10px;
   margin-top: 3px;
   color: var(--ia-text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* Three-bar load indicator on day chips (heatmap style). */
+.ia-dash-date-load {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 4px;
+  height: 5px;
+  align-items: stretch;
+}
+.ia-dash-date-load-bar {
+  width: 7px;
+  background: rgba(255,255,255,.08);
+  border-radius: 1.5px;
+}
+.ia-dash-date-load[data-level="1"] .ia-dash-date-load-bar:nth-child(1),
+.ia-dash-date-load[data-level="2"] .ia-dash-date-load-bar:nth-child(-n+2),
+.ia-dash-date-load[data-level="3"] .ia-dash-date-load-bar {
+  background: var(--ia-accent);
 }
 .ia-dash-date-chip.is-target .ia-dash-date-day,
 .ia-dash-date-chip.is-target .ia-dash-date-num {
@@ -426,6 +446,8 @@
   .ia-dash-date-chip { padding: 8px 2px; }
   .ia-dash-date-num { font-size: 15px; }
   .ia-dash-date-day, .ia-dash-date-count { font-size: 9px; }
+  .ia-dash-date-load { height: 4px; gap: 1.5px; }
+  .ia-dash-date-load-bar { width: 6px; border-radius: 1px; }
 
   /* Reduce mobile content side-padding so cards have more room */
   .ia-content { padding-left: 12px !important; padding-right: 12px !important; }
