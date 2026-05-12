@@ -50,6 +50,27 @@
     box-shadow: 0 -4px 12px rgba(0, 0, 0, .06);
   }
 
+  /* Patch 48: toolbar gap apron.
+     iOS Chrome's bottom toolbar collapses on scroll, the viewport expands,
+     and any gap between the nav's bottom edge and the new viewport edge
+     shows the page background underneath. The ::after element extends the
+     nav's background color downward by 120px (well more than any toolbar
+     height) so any expansion gap is filled with nav-colored background
+     instead of black/page-bg showing through.
+     Pure visual masking — does not change positioning, layout, or tap
+     targets. Pointer-events:none so taps in the apron area don't intercept
+     anything (Safari's URL bar tap-to-show, etc). */
+  .ia-mobile-nav::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 120px;
+    background: inherit;
+    pointer-events: none;
+  }
+
   .ia-theme-a .ia-mobile-nav,
   .ia-theme-c .ia-mobile-nav {
     background: #141414;
