@@ -76,6 +76,14 @@
   }
   .wi-choice:active { transform: scale(.99); }
   .wi-choice:hover { border-color: var(--ia-border-2, rgba(255,255,255,.14)); }
+  .wi-choice-primary {
+    background: rgba(190,242,100,.10);
+    border-color: rgba(190,242,100,.28);
+  }
+  .wi-choice-primary .wi-choice-icon {
+    background: rgba(190,242,100,.18);
+    color: var(--ia-accent, #BEF264);
+  }
 
   .wi-choice-icon {
     width: 42px; height: 42px;
@@ -394,21 +402,42 @@
 @section('content')
 <div class="wi-wrap">
 
-  {{-- ======================== STEP 1: START ======================== --}}
+  {{-- ======================== STEP 1: START (verb-first) ======================== --}}
   <section class="wi-step active" data-step="start">
     <div class="wi-hero">
-      <h2>Who's at the counter?</h2>
-      <p class="wi-hero-sub">Search by name, email, or phone — or start a new customer.</p>
+      <h2>What can we help with?</h2>
+      <p class="wi-hero-sub">Pick an action — we'll grab the customer next.</p>
     </div>
 
-    <div class="wi-search">
-      <input
-        type="search"
-        id="wiSearch"
-        placeholder="Search customers…"
-        autocomplete="off"
-        spellcheck="false">
-      <div class="wi-search-results" id="wiSearchResults"></div>
+    <div class="wi-choice wi-choice-primary" data-action="book-intent">
+      <div class="wi-choice-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </div>
+      <div class="wi-choice-body">
+        <div class="wi-choice-title">Book appointment</div>
+        <div class="wi-choice-sub">Schedule a service for a customer</div>
+      </div>
+      <div class="wi-choice-arrow">›</div>
+    </div>
+
+    <div class="wi-choice" data-action="sale-intent">
+      <div class="wi-choice-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="9" cy="21" r="1"/>
+          <circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+      </div>
+      <div class="wi-choice-body">
+        <div class="wi-choice-title">Ring up sale</div>
+        <div class="wi-choice-sub">Retail purchase, with or without a customer</div>
+      </div>
+      <div class="wi-choice-arrow">›</div>
     </div>
 
     <div class="wi-choice" data-action="new-customer">
@@ -421,25 +450,20 @@
         </svg>
       </div>
       <div class="wi-choice-body">
-        <div class="wi-choice-title">New customer</div>
-        <div class="wi-choice-sub">Capture name + phone, then book or sell</div>
+        <div class="wi-choice-title">Add new customer</div>
+        <div class="wi-choice-sub">Capture name + phone, no booking yet</div>
       </div>
       <div class="wi-choice-arrow">›</div>
     </div>
 
-    <div class="wi-choice" data-action="anon-sale">
-      <div class="wi-choice-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="9" cy="21" r="1"/>
-          <circle cx="20" cy="21" r="1"/>
-          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-        </svg>
-      </div>
-      <div class="wi-choice-body">
-        <div class="wi-choice-title">Quick retail sale</div>
-        <div class="wi-choice-sub">No appointment, no customer record needed</div>
-      </div>
-      <div class="wi-choice-arrow">›</div>
+    <div class="wi-search" style="padding-top:20px">
+      <input
+        type="search"
+        id="wiSearch"
+        placeholder="Search customers…"
+        autocomplete="off"
+        spellcheck="false">
+      <div class="wi-search-results" id="wiSearchResults"></div>
     </div>
 
     @if(count($recentCustomers))
@@ -464,6 +488,67 @@
         </div>
       @endforeach
     @endif
+  </section>
+
+  {{-- ============ STEP 1b: CUSTOMER-PICK (after action tile, before customer chosen) ============ --}}
+  <section class="wi-step" data-step="customer-pick">
+    <div class="wi-hero">
+      <h2 id="wiPickHeading">Pick a customer</h2>
+      <p class="wi-hero-sub" id="wiPickSub">—</p>
+    </div>
+
+    <div class="wi-search">
+      <input
+        type="search"
+        id="wiPickSearch"
+        placeholder="Search customers…"
+        autocomplete="off"
+        spellcheck="false">
+      <div class="wi-search-results" id="wiPickSearchResults"></div>
+    </div>
+
+    {{-- Sale-only: skip-customer / anonymous option. JS hides this when intent=book. --}}
+    <div class="wi-choice" id="wiPickSkipRow" data-action="skip-customer" style="display:none">
+      <div class="wi-choice-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </div>
+      <div class="wi-choice-body">
+        <div class="wi-choice-title">Skip — anonymous sale</div>
+        <div class="wi-choice-sub">Ring up without attaching a customer</div>
+      </div>
+      <div class="wi-choice-arrow">›</div>
+    </div>
+
+    @if(count($recentCustomers))
+      <div class="wi-section-label">Recent customers</div>
+      @foreach($recentCustomers as $cust)
+        @php
+          $custData = [
+              "id"    => $cust["id"],
+              "name"  => $cust["name"] ?: "(no name)",
+              "email" => $cust["email"],
+              "phone" => $cust["phone"],
+          ];
+        @endphp
+        <div class="wi-cust-row" data-cust-pick='{{ json_encode($custData) }}'>
+          <div class="wi-cust-avatar">{{ $cust['initials'] ?: '?' }}</div>
+          <div class="wi-cust-body">
+            <div class="wi-cust-name">{{ $cust['name'] ?: '(no name)' }}</div>
+            <div class="wi-cust-meta">{{ $cust['phone'] ?: $cust['email'] ?: 'No contact' }} · {{ $cust['updated'] }}</div>
+          </div>
+          <div class="wi-cust-arrow">›</div>
+        </div>
+      @endforeach
+    @endif
+
+    <div style="padding:20px 20px 80px;text-align:center">
+      <button type="button" data-back-to="start" style="background:none;border:0;color:var(--ia-muted,#888);font-size:13px;cursor:pointer;font-family:inherit">
+        ← Back
+      </button>
+    </div>
   </section>
 
   {{-- ======================== STEP 2: NEW CUSTOMER ======================== --}}
@@ -624,6 +709,7 @@
   // ─── State ─────────────────────────────────────────────────────────
   const state = {
     step: 'start',
+    intent: null,      // 'book' | 'sale' — set when a verb-first action tile is tapped
     customer: null,    // {id?, name, phone, email}
     service: null,
     time: null,        // {date, appointment_time, resource_id}
@@ -698,8 +784,84 @@
     }
   }
 
+  // ─── Customer-pick search (for verb-first book/sale flows) ────────
+  (function wirePickSearch() {
+    const input = $('#wiPickSearch');
+    if (!input) return;
+    let timer;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = input.value.trim();
+      if (q.length < 2) {
+        $('#wiPickSearchResults').innerHTML = '';
+        return;
+      }
+      timer = setTimeout(() => doPickSearch(q), 200);
+    });
+  })();
+
+  async function doPickSearch(q) {
+    try {
+      const res = await fetch(`${ROUTE_SEARCH}?q=${encodeURIComponent(q)}`, {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const json = await res.json();
+      const out = $('#wiPickSearchResults');
+      if (!json.customers || json.customers.length === 0) {
+        out.innerHTML = `<div class="wi-empty">No matches.</div>`;
+        return;
+      }
+      out.innerHTML = json.customers.map(c => {
+        const initials = (
+          (c.first_name || '').charAt(0) +
+          (c.last_name || '').charAt(0)
+        ).toUpperCase() || '?';
+        const meta = c.phone || c.email || '';
+        const cust = JSON.stringify({
+          id: c.id,
+          name: (c.label || `${c.first_name || ''} ${c.last_name || ''}`).trim() || '(no name)',
+          phone: c.phone,
+          email: c.email,
+        });
+        return `
+          <div class="wi-cust-row" data-cust-pick='${cust.replace(/'/g, "&#39;")}'>
+            <div class="wi-cust-avatar">${initials}</div>
+            <div class="wi-cust-body">
+              <div class="wi-cust-name">${escapeHtml(c.label || '(no name)')}</div>
+              <div class="wi-cust-meta">${escapeHtml(meta)}</div>
+            </div>
+            <div class="wi-cust-arrow">›</div>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error('pick-search failed', err);
+    }
+  }
+
   // ─── Customer selection ───────────────────────────────────────────
   document.addEventListener('click', (e) => {
+    // Customer-pick rows: customer pre-selected with a known intent, so skip
+    // the choice screen and route to the action directly.
+    const pickRow = e.target.closest('[data-cust-pick]');
+    if (pickRow) {
+      try {
+        state.customer = JSON.parse(pickRow.dataset.custPick);
+        if (state.intent === 'book') {
+          $('#wiSvcCustName').textContent = state.customer.name || '(no name)';
+          goto('service');
+        } else if (state.intent === 'sale') {
+          window.location.href = state.customer.id
+            ? `${ROUTE_REGISTER}?customer_id=${state.customer.id}`
+            : ROUTE_REGISTER;
+        } else {
+          // No intent set somehow — fall back to choice screen.
+          showChoice();
+        }
+      } catch (err) { console.error(err); }
+      return;
+    }
+    // Start-screen customer rows: no intent set yet, show the choice screen.
     const row = e.target.closest('[data-cust]');
     if (row) {
       try {
@@ -734,6 +896,24 @@
     if (action === 'new-customer') {
       goto('new-customer');
     } else if (action === 'anon-sale') {
+      // Legacy path (kept for back-compat with any external callers).
+      window.location.href = ROUTE_REGISTER;
+    } else if (action === 'book-intent') {
+      // Verb-first: user wants to book, but hasn't picked a customer yet.
+      state.intent = 'book';
+      $('#wiPickHeading').textContent = 'Pick a customer to book';
+      $('#wiPickSub').textContent = 'Search or pick from recent.';
+      $('#wiPickSkipRow').style.display = 'none';
+      goto('customer-pick');
+    } else if (action === 'sale-intent') {
+      // Verb-first: user wants to ring up, customer optional.
+      state.intent = 'sale';
+      $('#wiPickHeading').textContent = 'Attach a customer?';
+      $('#wiPickSub').textContent = 'Pick a customer or skip for an anonymous sale.';
+      $('#wiPickSkipRow').style.display = '';
+      goto('customer-pick');
+    } else if (action === 'skip-customer') {
+      // Sale intent + no customer = anonymous register.
       window.location.href = ROUTE_REGISTER;
     } else if (action === 'book') {
       $('#wiSvcCustName').textContent = state.customer.name || '(no name)';
