@@ -9,6 +9,9 @@ use App\Filament\Resources\LicenseResource;
 use App\Filament\Resources\MarketingPageResource;
 use App\Filament\Resources\ChangelogEntryResource;
 use App\Filament\Resources\RoadmapEntryResource;
+use App\Filament\Resources\PlatformNavItemResource;
+use App\Filament\Resources\SectionLibraryResource;
+use App\Filament\Resources\SiteSettingsResource;
 use App\Filament\Resources\TenantResource;
 use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\PlatformStatsWidget;
@@ -46,8 +49,11 @@ class AdminPanelProvider extends PanelProvider
                 LicenseResource::class,
                 ActivationResource::class,
                 MarketingPageResource::class, // new — marketing page editor entry
+                PlatformNavItemResource::class, // patch 45 — nav editor
                 ChangelogEntryResource::class,
                 RoadmapEntryResource::class,
+                SiteSettingsResource::class, // patch 45 — global site settings
+                SectionLibraryResource::class, // patch 45 — section type catalog
                 DebugLogResource::class,
             ])
             ->pages([
