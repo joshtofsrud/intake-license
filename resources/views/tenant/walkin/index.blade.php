@@ -380,13 +380,16 @@
     @if(count($recentCustomers))
       <div class="wi-section-label">Recent customers</div>
       @foreach($recentCustomers as $cust)
+        @php
+          $custData = [
+              "id"    => $cust["id"],
+              "name"  => $cust["name"] ?: "(no name)",
+              "email" => $cust["email"],
+              "phone" => $cust["phone"],
+          ];
+        @endphp
         <div class="wi-cust-row"
-             data-cust='@json([
-               "id" => $cust["id"],
-               "name" => $cust["name"] ?: "(no name)",
-               "email" => $cust["email"],
-               "phone" => $cust["phone"],
-             ])'>
+             data-cust='{{ json_encode($custData) }}'>
           <div class="wi-cust-avatar">{{ $cust['initials'] ?: '?' }}</div>
           <div class="wi-cust-body">
             <div class="wi-cust-name">{{ $cust['name'] ?: '(no name)' }}</div>
