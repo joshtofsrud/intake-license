@@ -1,3 +1,57 @@
+#!/bin/bash
+# ============================================================================
+# patch-46a-site-settings-fix.sh
+# ----------------------------------------------------------------------------
+# Bug: EditSiteSettings::resolveRecord() signature mismatch with Filament's
+# expected EditRecord::mount(string|int $record). Filament's parent mount()
+# was called without a $record param because we redirected the resource's
+# 'index' route to the Edit page without supplying an ID.
+#
+# Fix: Make SiteSettings genuinely a single-record resource. The resource's
+# index page is the LIST view (with just the one row) and EditSiteSettings
+# becomes a stock EditRecord — no overrides — accessed via /site-settings/1/edit.
+# The list page has a single-row table and a "create on access" check that
+# ensures id=1 always exists.
+# ============================================================================
+
+set -euo pipefail
+cd "${REPO_ROOT:-$(pwd)}"
+
+if [ ! -f "app/Filament/Resources/SiteSettingsResource.php" ]; then
+  echo "ERROR: SiteSettingsResource not found. Run patches 45 + 45b first." >&2
+  exit 1
+fi
+
+# Rewrite EditSiteSettings as stock EditRecord (no overrides)
+cat > app/Filament/Resources/SiteSettingsResource/Pages/EditSiteSettings.php <<'PAGE'
+<?php
+
+namespace App\Filament\Resources\SiteSettingsResource\Pages;
+
+use App\Filament\Resources\SiteSettingsResource;
+use Filament\Resources\Pages\EditRecord;
+
+/**
+ * EditSiteSettings — stock EditRecord. The singleton row (id=1) is created
+ * by the resource's getEloquentQuery() before edits land on this page.
+ * No overrides — keeps the page Filament-version-safe.
+ */
+class EditSiteSettings extends EditRecord
+{
+    protected static string $resource = SiteSettingsResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
+}
+PAGE
+echo "    REWROTE EditSiteSettings.php — stock EditRecord, no overrides"
+
+# Rewrite SiteSettingsResource to use list + edit pattern
+# - index = single-row list with quick-edit action
+# - mounting/booting auto-creates id=1 if missing
+cat > app/Filament/Resources/SiteSettingsResource.php <<'RES'
 <?php
 
 namespace App\Filament\Resources;
@@ -148,3 +202,55 @@ class SiteSettingsResource extends Resource
     public static function canCreate(): bool { return false; }
     public static function canDelete($record): bool { return false; }
 }
+RES
+echo "    REWROTE SiteSettingsResource.php — list + edit pattern"
+
+# Create the ListSiteSettings page
+cat > app/Filament/Resources/SiteSettingsResource/Pages/ListSiteSettings.php <<'PAGE'
+<?php
+
+namespace App\Filament\Resources\SiteSettingsResource\Pages;
+
+use App\Filament\Resources\SiteSettingsResource;
+use Filament\Resources\Pages\ListRecords;
+
+/**
+ * ListSiteSettings — shows the single site_settings row with an Edit
+ * action. Acts as the resource's index page.
+ */
+class ListSiteSettings extends ListRecords
+{
+    protected static string $resource = SiteSettingsResource::class;
+
+    protected static ?string $title = 'Site settings';
+
+    // No "Create" header action — site settings is singleton.
+    protected function getHeaderActions(): array
+    {
+        return [];
+    }
+}
+PAGE
+echo "    CREATED ListSiteSettings.php"
+
+cat <<EONOTE
+
+==> Patch 46a applied locally.
+
+Deploy:
+  git add -A
+  git commit -m "fix: SiteSettings list+edit pattern (patch 46a)"
+  git push
+
+On server:
+  cd /var/www/intake
+  git pull
+  php artisan optimize:clear
+  sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm
+
+Verify:
+  - intake.works/admin/site-settings → shows the single settings row in a table
+  - Click "Edit settings" → opens the 4-section form
+  - Edit and save → returns to the list
+  - No 500 errors
+EONOTE
