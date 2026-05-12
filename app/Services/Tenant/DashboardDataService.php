@@ -66,9 +66,11 @@ class DashboardDataService
             return $apptDateTime->greaterThanOrEqualTo($this->tnow());
         });
 
-        if (!$nextUp) {
-            $nextUp = $todayAppointments->first();
-        }
+        // Patch 47: no fallback to first-of-day. If today's appointments are all
+        // in the past, $nextUp stays null and the Blade hides the card. Showing
+        // a completed 8am appointment as "Next up" at 9pm is worse than hiding
+        // the card entirely. Future: fall through to tomorrow's first appointment.
+        // (No fallback assignment — $nextUp may legitimately be null.)
 
         $last24hNewBookings = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', now()->subDay())
