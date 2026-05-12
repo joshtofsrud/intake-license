@@ -612,12 +612,12 @@
   const SUBDOMAIN = @json($tenant->subdomain);
   const RESOURCES_BY_ID = @json($resources->keyBy('id'));
 
-  // Routes
-  const ROUTE_SEARCH      = `/customers/search`;
-  const ROUTE_CREATE_CUST = `/customers`;
-  const ROUTE_AVAILABILITY = `/appointments/week-times`;
-  const ROUTE_ELIGIBLE    = `/appointments/eligible-resources`;
-  const ROUTE_BOOK        = `/calendar/quick-book`;
+  // Routes — all under /admin prefix (matches Route::prefix('admin') in web.php)
+  const ROUTE_SEARCH      = `/admin/customers/search`;
+  const ROUTE_CREATE_CUST = `/admin/customers`;
+  const ROUTE_AVAILABILITY = `/admin/appointments/week-times`;
+  const ROUTE_ELIGIBLE    = `/admin/appointments/eligible-resources`;
+  const ROUTE_BOOK        = `/admin/calendar/quick-book`;
   const ROUTE_REGISTER    = `/admin/register`;
   const ROUTE_APPT_BASE   = `/admin/appointments`;
 
