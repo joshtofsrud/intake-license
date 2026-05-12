@@ -186,16 +186,19 @@
     font-size: 12.5px;
   }
 
-  /* Sticky bottom action */
+  /* Sticky bottom action
+     z-index must be > 100 to clear the tenant mobile-nav tab bar.
+     bottom offset includes the mobile-nav height (72px) so the button
+     sits above the tab bar rather than behind it. */
   .wi-bottom {
     position: fixed;
-    bottom: env(safe-area-inset-bottom, 0px);
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     left: 0; right: 0;
-    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: 14px 16px;
     background: rgba(10,10,10,.95);
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--ia-border, rgba(255,255,255,.08));
-    z-index: 80;
+    z-index: 110;
   }
   @media (min-width: 1024px) {
     .wi-bottom {
@@ -206,6 +209,7 @@
       background: transparent;
       backdrop-filter: none;
       border: 0;
+      padding: 14px 16px;
     }
   }
   .wi-bottom-btn {
