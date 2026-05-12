@@ -41,6 +41,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // written into the log message via the report() hook above when
         // the exception bubbles up — same ID in both places.
         $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
+            // patch #45c: bail early for exceptions that Laravel handles
+            // natively with redirects (auth, validation). Without this, the
+            // render hook below would catch AuthenticationException and show
+            // a 500 page instead of redirecting to login.
+            if ($e instanceof \Illuminate\Auth\AuthenticationException) return null;
+            if ($e instanceof \Illuminate\Auth\Access\AuthorizationException) return null;
+            if ($e instanceof \Illuminate\Validation\ValidationException) return null;
+            if ($e instanceof \Illuminate\Session\TokenMismatchException) return null;
+
             // Only intercept 5xx-class errors. Symfony HttpException carries
             // its own status code; other Throwables default to 500.
             $status = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
