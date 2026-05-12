@@ -71,9 +71,10 @@ class WalkInController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'subtitle', 'color_hex'])
             ->map(fn ($r) => [
-                'id'    => $r->id,
-                'name'  => $r->name,
-                'color' => $r->color_hex,
+                'id'       => $r->id,
+                'name'     => $r->name,
+                'subtitle' => $r->subtitle,
+                'color'    => $r->color_hex,
             ]);
 
         return view('tenant.walkin.index', [
