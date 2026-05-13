@@ -394,9 +394,18 @@
       ? 'Anyone can perform this service. Click a chip to limit eligibility to specific staff.'
       : 'Click an excluded chip to add. Click a selected chip to remove. Deselect all to allow anyone again.';
 
+    // When in specific (restricted) mode, show a small "N of M selected"
+    // count after the chips so the eligibility state is glanceable.
+    var countMarkup = '';
+    if (!allEligible) {
+      countMarkup = '<span class="sv-elig-count">'
+        + ids.length + ' of ' + state.resources.length + ' selected'
+        + '</span>';
+    }
+
     return '<div class="sv-drawer-field">'
       + '<label class="sv-drawer-label">Available with</label>'
-      + '<div class="sv-elig-chips">' + chips + '</div>'
+      + '<div class="sv-elig-chips">' + chips + countMarkup + '</div>'
       + '<div class="sv-elig-hint">' + hint + '</div>'
     + '</div>';
   }

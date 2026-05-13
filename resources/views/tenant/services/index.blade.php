@@ -104,11 +104,12 @@
 .sv-elig-chip.is-on:hover{filter:brightness(1.1)}
 
 /* State 3: specific mode, chip off — explicitly excluded */
-.sv-elig-chip.is-off{background:transparent;border-color:var(--ia-border);color:var(--ia-text-3);text-decoration:line-through;opacity:.7}
-.sv-elig-chip.is-off > span:first-child{filter:saturate(.2) brightness(.7);opacity:.5}
-.sv-elig-chip.is-off:hover{opacity:1;color:var(--ia-text-2);border-color:var(--ia-border-strong)}
+.sv-elig-chip.is-off{background:transparent;border-style:dashed;border-color:var(--ia-border);color:var(--ia-text-3);opacity:.42}
+.sv-elig-chip.is-off > span:first-child{background:var(--ia-text-3) !important;filter:saturate(0);opacity:.6}
+.sv-elig-chip.is-off:hover{opacity:.85;color:var(--ia-text-2);border-color:var(--ia-border-strong)}
 
 .sv-elig-hint{font-size:11.5px;color:var(--ia-text-3);margin-top:8px;line-height:1.5}
+.sv-elig-count{display:inline-block;font-size:11px;color:var(--ia-text-3);align-self:center;margin-left:4px;font-variant-numeric:tabular-nums}
 .sv-drawer-actions-right{display:flex;gap:8px}
 .sv-table-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:auto}
 .sv-tbl{width:100%;border-collapse:collapse;font-size:13px}

@@ -484,8 +484,8 @@
         <p>Three states:</p>
         <ul>
           <li><strong>All chips blue (default)</strong> — anyone can perform this service. No restriction.</li>
-          <li><strong>Some chips lime, others struck through</strong> — only the selected resources can perform it. The booking calendar will reflect this — days with no eligible resources free will be hidden from customers.</li>
-          <li><strong>Click a struck-through chip</strong> to add it back. <strong>Click a selected chip</strong> to remove it. Deselect everything to return to the all-eligible default.</li>
+          <li><strong>Some chips lime, others dimmed</strong> — only the selected resources can perform it. The booking calendar will reflect this — days with no eligible resources free will be hidden from customers.</li>
+          <li><strong>Click a dimmed chip</strong> to add it back. <strong>Click a selected chip</strong> to remove it. Deselect everything to return to the all-eligible default.</li>
         </ul>
         <p>The section only appears if your shop has 2 or more resources. Single-resource shops have no eligibility decision to make.</p>
       </div>
