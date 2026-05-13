@@ -17,6 +17,7 @@ use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\PlatformStatsWidget;
 use App\Filament\Widgets\ServerHealthWidget;
 use App\Filament\Widgets\StatsOverview;
+use App\Filament\Pages\ThemeEditor;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -58,6 +59,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->pages([
                 Pages\Dashboard::class,
+                ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
             ])

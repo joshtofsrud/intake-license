@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ThemeSetting;
+use App\Models\ThemeSettingsAudit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
@@ -104,11 +105,29 @@ class ThemeSettingsService
             $q->where('theme', $theme);
         }
         $count = $q->get()->each(function (ThemeSetting $row) use ($userId) {
-            $row->published_value = $row->draft_value;
+            $oldValue = $row->published_value;
+            $newValue = $row->draft_value;
+            $row->published_value = $newValue;
             $row->draft_value = null;
             $row->updated_by_user_id = $userId;
             $row->published_at = now();
             $row->save();
+
+            // Audit log entry — keep cheap, fail-safe via try/catch.
+            try {
+                ThemeSettingsAudit::create([
+                    'theme'      => $row->theme,
+                    'token_key'  => $row->token_key,
+                    'old_value'  => $oldValue,
+                    'new_value'  => $newValue,
+                    'action'     => 'publish',
+                    'user_id'    => $userId,
+                    'created_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                // Audit failure shouldn't break publish.
+                \Log::warning('Theme audit write failed: ' . $e->getMessage());
+            }
         })->count();
 
         $this->bustCaches();
