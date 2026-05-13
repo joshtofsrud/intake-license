@@ -74,6 +74,21 @@ class ThemeEditor extends Page implements HasForms
         ],
     ];
 
+    /**
+     * HEX_TOKENS: which token keys use #xxxxxx values (vs rgba()).
+     * These get a ColorPicker for visual editing. Others stay as TextInput
+     * because Filament's ColorPicker doesn't handle rgba alpha well.
+     */
+    public const HEX_TOKENS = [
+        'ia-bg',
+        'ia-surface',
+        'ia-surface-2',
+        'ia-text',
+        'ia-input-bg',
+        'ia-side-bg',
+        'ia-side-active-text',
+    ];
+
     public function mount(): void
     {
         if (!Schema::hasTable('theme_settings')) {
@@ -116,12 +131,24 @@ class ThemeEditor extends Page implements HasForms
         foreach (self::GROUPS as $groupName => $tokens) {
             $fields = [];
             foreach ($tokens as $key => $label) {
-                $fields[] = TextInput::make("{$theme}.{$key}")
-                    ->label($label)
-                    ->helperText("--{$key}")
-                    ->required()
-                    ->maxLength(255)
-                    ->live(debounce: 250);
+                if (in_array($key, self::HEX_TOKENS, true)) {
+                    // Hex token: visual color picker.
+                    $fields[] = ColorPicker::make("{$theme}.{$key}")
+                        ->label($label)
+                        ->helperText("--{$key}")
+                        ->required()
+                        ->live(debounce: 250);
+                } else {
+                    // Rgba / alpha-overlay token: text input.
+                    // (Filament's ColorPicker doesn't round-trip alpha cleanly.)
+                    $fields[] = TextInput::make("{$theme}.{$key}")
+                        ->label($label)
+                        ->helperText("--{$key} · rgba alpha-overlay")
+                        ->placeholder('rgba(0,0,0,.10)')
+                        ->required()
+                        ->maxLength(255)
+                        ->live(debounce: 250);
+                }
             }
             $sections[] = Section::make($groupName)
                 ->columns(2)
