@@ -1,138 +1,61 @@
-<?php
+#!/bin/bash
+# ============================================================================
+# patch-57-marketing-pages-seed.sh
+# ----------------------------------------------------------------------------
+# Extends PlatformMarketingSeeder with four new pages:
+#   - home          (/)
+#   - features      (/features)
+#   - pricing       (/pricing)
+#   - __for-industry  (template page for /for/{slug} routes)
+#
+# Also registers screen_showcase in PageBuilderController DEFAULTS so the
+# admin page builder can add/edit sections of this type (the Blade partial
+# already exists, but DEFAULTS registration was missing).
+# ============================================================================
 
-namespace Database\Seeders;
+set -euo pipefail
+cd "${REPO_ROOT:-$(pwd)}"
 
-use App\Models\Tenant;
-use App\Models\Tenant\TenantPage;
-use App\Models\Tenant\TenantPageSection;
-use App\Models\Tenant\TenantNavItem;
-use Illuminate\Database\Seeder;
+if [ ! -f "database/seeders/PlatformMarketingSeeder.php" ]; then
+  echo "ERROR: PlatformMarketingSeeder.php not found." >&2
+  exit 1
+fi
+if [ ! -f "app/Http/Controllers/Tenant/PageBuilderController.php" ]; then
+  echo "ERROR: PageBuilderController.php not found." >&2
+  exit 1
+fi
 
-/**
- * Seeds canonical nav + the 5 still-static pages as CMS rows.
- *
- * Idempotent — uses updateOrCreate / firstOrCreate. Safe to re-run.
- * Scoped exclusively to the platform tenant (is_platform=true).
- */
-class PlatformMarketingSeeder extends Seeder
-{
-    public function run(): void
-    {
-        $platform = Tenant::where('is_platform', true)->first();
+# ─── 1. Register screen_showcase in DEFAULTS ────────────────────────────
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("app/Http/Controllers/Tenant/PageBuilderController.php")
+s = p.read_text()
 
-        if (! $platform) {
-            $this->command->error('No platform tenant found. Skipping marketing seed.');
-            return;
-        }
+old = "        'stats_row'        => ['eyebrow'=>'','heading'=>'','stats'=>[['number'=>'200+','label'=>'Businesses'],['number'=>'50k+','label'=>'Appointments'],['number'=>'24','label'=>'Industries']]],\n    ];"
 
-        // Canonical nav items — order matters.
-        $navItems = [
-            ['label' => 'Features',  'url' => '/features',  'sort_order' => 10],
-            ['label' => 'Pricing',   'url' => '/pricing',   'sort_order' => 20],
-            ['label' => 'Roadmap',   'url' => '/roadmap',   'sort_order' => 30],
-            ['label' => 'Changelog', 'url' => '/changelog', 'sort_order' => 40],
-            ['label' => 'Docs',      'url' => '/docs',      'sort_order' => 50],
-        ];
+new = """        'stats_row'        => ['eyebrow'=>'','heading'=>'','stats'=>[['number'=>'200+','label'=>'Businesses'],['number'=>'50k+','label'=>'Appointments'],['number'=>'24','label'=>'Industries']]],
+        'screen_showcase'  => ['eyebrow'=>'','step_num'=>1,'heading'=>'Step heading','body'=>'Short body for this step.','points'=>[],'desktop_label'=>'Desktop','desktop_lines'=>[],'mobile_label'=>'Mobile','mobile_lines'=>[],'mobile_note'=>'','flip'=>false],
+    ];"""
 
-        // Wipe + reseed nav (idempotent + ensures canonical order)
-        TenantNavItem::where('tenant_id', $platform->id)->delete();
-        foreach ($navItems as $item) {
-            TenantNavItem::create([
-                'tenant_id'        => $platform->id,
-                'label'            => $item['label'],
-                'url'              => $item['url'],
-                'is_external'      => false,
-                'open_in_new_tab'  => false,
-                'sort_order'       => $item['sort_order'],
-            ]);
-        }
-        $this->command->info('Seeded '.count($navItems).' nav items for platform tenant.');
+if "'screen_showcase'" in s:
+    print("    SKIP screen_showcase — already registered in DEFAULTS")
+elif old not in s:
+    raise SystemExit("ABORT screen_showcase: DEFAULTS closing anchor not found")
+else:
+    s = s.replace(old, new, 1)
+    p.write_text(s)
+    print("    UPDATED — screen_showcase registered in DEFAULTS")
+PYEOF
 
-        // Seed pages that don't already exist as CMS rows.
-        $this->seedPage($platform, 'roadmap', 'Roadmap', 'What is coming.', [
-            ['type' => 'hero', 'content' => [
-                'eyebrow' => 'Roadmap',
-                'headline' => 'What is coming.',
-                'subheading' => 'Timing is intentionally rough. We commit to direction, not dates.',
-                'text_align' => 'center',
-                'height' => 'small',
-            ]],
-            ['type' => 'roadmap_grid', 'content' => [
-                'intro_text' => '',
-            ]],
-        ]);
+# ─── 2. Extend PlatformMarketingSeeder with new pages ───────────────────
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("database/seeders/PlatformMarketingSeeder.php")
+s = p.read_text()
 
-        $this->seedPage($platform, 'changelog', 'Changelog', 'What we shipped.', [
-            ['type' => 'hero', 'content' => [
-                'eyebrow' => 'Changelog',
-                'headline' => 'What we shipped.',
-                'subheading' => 'Real updates, reverse-chronological. The most recent on top.',
-                'text_align' => 'center',
-                'height' => 'small',
-            ]],
-            ['type' => 'changelog_list', 'content' => [
-                'intro_text' => '',
-            ]],
-        ]);
+old_anchor = "        $this->command->info('Seeded 5 marketing pages: roadmap, changelog, why-intake, contact, invest.');"
 
-        $this->seedPage($platform, 'why-intake', 'Why Intake', 'Why Intake', [
-            ['type' => 'hero', 'content' => [
-                'eyebrow' => 'Why Intake',
-                'headline' => 'Built for service shops, not against them.',
-                'accent_words' => 'shops',
-                'subheading' => 'Most booking and POS tools were built for a different kind of business. Intake was built specifically for service shops — bike, salon, fitness, pet — by someone who runs one.',
-                'text_align' => 'center',
-                'height' => 'medium',
-                'cta_primary_label' => 'Start free trial',
-                'cta_primary_url' => '/signup',
-            ]],
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow' => 'What makes us different',
-                'heading' => 'Three things you can\'t get elsewhere',
-                'columns' => 3,
-                'features' => [
-                    ['icon' => '✦', 'title' => 'Real concurrency', 'body' => 'Advisory locks at the database level. Two customers booking the same slot at the same time? Only one gets it. Most competitors are eventually-consistent.'],
-                    ['icon' => '✦', 'title' => 'POS + booking unified', 'body' => 'Walk-in sales, work orders, appointments, and inventory in one tool. No syncing between Square and Acuity. No reconciling reports.'],
-                    ['icon' => '✦', 'title' => 'Migration concierge', 'body' => 'Send us your data however you have it. We do the import, the cleanup, and walk you through your new setup. $299 one-time, free on Custom annual.'],
-                ],
-            ]],
-        ]);
-
-        $this->seedPage($platform, 'contact', 'Contact', 'Contact us', [
-            ['type' => 'hero', 'content' => [
-                'eyebrow' => 'Contact',
-                'headline' => 'Get in touch.',
-                'subheading' => 'Pre-sales questions, support, partnership ideas. Real humans on the other end.',
-                'text_align' => 'center',
-                'height' => 'small',
-            ]],
-            ['type' => 'contact_form', 'content' => [
-                'heading' => 'Send us a message',
-                'subheading' => 'We typically respond within 1 business day.',
-                'show_phone' => true,
-                'show_message' => true,
-            ]],
-        ]);
-
-        $this->seedPage($platform, 'invest', 'Invest', 'Invest in Intake', [
-            ['type' => 'hero', 'content' => [
-                'eyebrow' => 'Investing',
-                'headline' => 'Invest in Intake.',
-                'subheading' => 'Equity crowdfunding via Republic. Details and offering terms on the Republic page.',
-                'text_align' => 'center',
-                'height' => 'small',
-                'cta_primary_label' => 'View on Republic',
-                'cta_primary_url' => 'https://republic.com/intake',
-            ]],
-            ['type' => 'text_image', 'content' => [
-                'eyebrow' => 'About this offering',
-                'heading' => 'Built by an operator',
-                'body' => 'Intake is a B2B SaaS for service-based small businesses. Real customers, real revenue. The full offering details, financials, and risks are on Republic.',
-                'image_position' => 'right',
-            ]],
-        ]);
-
-        // ═══════════════════════════════════════════════════════════════════════
+new_pages_php = """        // ═══════════════════════════════════════════════════════════════════════
         // HOME PAGE — operator voice, no proof bar (re-add when 10+ shops)
         // ═══════════════════════════════════════════════════════════════════════
         $this->seedPage($platform, 'home', 'Home', 'Intake — Run your shop without juggling five tools', [
@@ -449,37 +372,52 @@ class PlatformMarketingSeeder extends Seeder
             ]],
         ]);
 
-        $this->command->info('Seeded 9 marketing pages: home, features, pricing, roadmap, changelog, why-intake, contact, invest, __for-industry.');
-    }
+        $this->command->info('Seeded 9 marketing pages: home, features, pricing, roadmap, changelog, why-intake, contact, invest, __for-industry.');"""
 
-    /**
-     * Idempotent page+sections seeding. Updates the page if exists, replaces sections.
-     */
-    private function seedPage(Tenant $platform, string $slug, string $title, string $metaTitle, array $sections): void
-    {
-        $page = TenantPage::updateOrCreate(
-            ['tenant_id' => $platform->id, 'slug' => $slug],
-            [
-                'title' => $title,
-                'meta_title' => $metaTitle,
-                'is_home' => false,
-                'is_published' => true,
-                'is_in_nav' => false, // nav is managed by TenantNavItem now
-                'nav_order' => 0,
-            ]
-        );
+if "'home', 'Home'" in s and "'features', 'Features'" in s and "'pricing', 'Pricing'" in s and "__for-industry" in s:
+    print("    SKIP seeder — new pages already seeded")
+elif old_anchor not in s:
+    raise SystemExit("ABORT seeder: closing message anchor not found")
+else:
+    s = s.replace(old_anchor, new_pages_php, 1)
+    p.write_text(s)
+    print("    UPDATED — added home, features, pricing, __for-industry pages + why-intake refresh")
+PYEOF
 
-        // Replace sections entirely — simplest idempotent approach.
-        TenantPageSection::where('page_id', $page->id)->delete();
-        foreach ($sections as $i => $sec) {
-            TenantPageSection::create([
-                'tenant_id'     => $platform->id,
-                'page_id'       => $page->id,
-                'section_type'  => $sec['type'],
-                'content'       => $sec['content'],
-                'sort_order'    => ($i + 1) * 10,
-                'is_visible'    => true,
-            ]);
-        }
-    }
-}
+cat <<EONOTE
+
+==> Patch 57 applied locally.
+
+Deploy:
+  git add app/Http/Controllers/Tenant/PageBuilderController.php \\
+          database/seeders/PlatformMarketingSeeder.php \\
+          patch-57-marketing-pages-seed.sh
+  git commit -m "feat: seed home/features/pricing + for-industry template (patch 57)"
+  git push
+
+On server:
+  cd /var/www/intake
+  git pull
+  php artisan optimize:clear
+  php artisan db:seed --class=PlatformMarketingSeeder --force
+  sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm
+
+Verify:
+  1. https://intake.works/         → new home page renders with operator-voice hero
+  2. https://intake.works/features → 4 screen_showcase sections
+  3. https://intake.works/pricing  → plans + comparison table + FAQ
+  4. https://intake.works/why-intake → updated copy with founder-story card
+  5. https://intake.works/for/bike-shops → renders __for-industry template
+     with bike-shop tokens substituted in
+  6. https://intake.works/for/salons → same template, salons content
+  7. https://intake.works/for/auto-detailing → same template, auto-detail content
+
+Admin verify:
+  - Master admin → marketing pages: 9 pages listed
+  - Edit home page → page builder shows all sections, editable
+  - Try adding a "Screen showcase" section → now appears in Add Section menu
+
+If a page renders weirdly: the seeder is idempotent, so you can edit
+PlatformMarketingSeeder and re-run db:seed safely. Page rows persist; only
+sections inside reseeded pages get rewritten.
+EONOTE
