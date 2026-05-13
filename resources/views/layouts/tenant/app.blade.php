@@ -26,6 +26,9 @@
   <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">
   <link rel="stylesheet" href="{{ asset('css/tenant/toggle.css') }}?v={{ filemtime(public_path('css/tenant/toggle.css')) }}">
 
+  {{-- Master-admin theme overrides (theme_settings table) --}}
+  {!! \App\Support\ThemeOverrideHelper::styleTag() !!}
+
   {{-- Tenant accent color injected at runtime --}}
   <style>
     body {
