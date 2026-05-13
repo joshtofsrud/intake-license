@@ -1,5 +1,5 @@
 @php
-  $sidebarBg = ($adminTheme === 'c') ? '#0c0c0c' : (($adminTheme === 'a') ? '#0f0f0f' : '#ffffff');
+  $sidebarBg = ($adminTheme === 'c') ? '#0c0c0c' : (($adminTheme === 'a') ? '#0f0f0f' : '#1E2A3A');
   $sidebarLogo = \App\Support\ColorHelper::pickLogo($currentTenant, $sidebarBg);
 
   // Logo height in pixels. Clamp defensively in case bad data sneaks in.
