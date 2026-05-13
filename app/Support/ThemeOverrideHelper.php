@@ -31,7 +31,7 @@ class ThemeOverrideHelper
             if (empty($tokens)) {
                 continue;
             }
-            $css .= "html.ia-theme-{$theme} {\n";
+            $css .= "body.ia-theme-{$theme} {\n";
             foreach ($tokens as $key => $value) {
                 $safeKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $key);
                 $safeValue = self::sanitizeValue($value);
