@@ -1625,7 +1625,7 @@ class AppointmentController extends Controller
             ]);
         }
 
-        if ($op === 'reschedule') {
+        if ($op === 'reschedule_time') {
             // Drag-to-reschedule: change appointment_time and optionally resource_id
             // in one operation. Mirrors the change_resource pattern with a soft-warn
             // on conflicts and an audit note on success.

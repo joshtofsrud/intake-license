@@ -1472,7 +1472,7 @@
       var fd = new FormData();
       fd.append('_method', 'PATCH');
       fd.append('_token', getCsrf());
-      fd.append('op', 'reschedule');
+      fd.append('op', 'reschedule_time');
       fd.append('appointment_time', newTime);
       fd.append('resource_id', newResource);
       if (force) fd.append('force', '1');
