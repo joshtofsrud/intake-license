@@ -7,19 +7,20 @@
    ========================================================================== */
 
 body.ia-theme-b {
-  --ia-bg:           #f4f4f1;
-  --ia-surface:      #ffffff;
-  --ia-surface-2:    #ecebe7;
-  --ia-border:       rgba(0,0,0,.12);
-  --ia-border-strong: rgba(0,0,0,.20);
-  --ia-text:         #111111;
-  --ia-text-muted:   rgba(0,0,0,.62);
-  --ia-text-dim:     rgba(0,0,0,.42);
-  --ia-hover:        rgba(0,0,0,.06);
-  --ia-input-bg:     #ffffff;
+  /* SLATE_STEEL_V1 — refreshed palette */
+  --ia-bg:           #F7F8FA;
+  --ia-surface:      #FFFFFF;
+  --ia-surface-2:    #F1F3F6;
+  --ia-border:       rgba(15,20,25,.10);
+  --ia-border-strong: rgba(15,20,25,.20);
+  --ia-text:         #0F1419;
+  --ia-text-muted:   rgba(15,20,25,.62);
+  --ia-text-dim:     rgba(15,20,25,.42);
+  --ia-hover:        rgba(15,20,25,.06);
+  --ia-input-bg:     #FFFFFF;
 
-  /* Sidebar — stays dark even in light mode */
-  --ia-side-bg:      #0f0f0f;
+  /* Sidebar — deep slate, same family as new accent */
+  --ia-side-bg:      #1E2A3A;
   --ia-side-text:    rgba(255,255,255,.5);
   --ia-side-hover:   rgba(255,255,255,.05);
   --ia-side-active-bg: rgba(255,255,255,.08);

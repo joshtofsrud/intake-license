@@ -29,9 +29,9 @@
   {{-- Tenant accent color injected at runtime --}}
   <style>
     body {
-      --ia-accent: {{ $currentTenant->accent_color ?? '#BEF264' }};
-      --ia-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};
-      --ia-accent-soft: {{ \App\Support\ColorHelper::accentSoft($currentTenant->accent_color ?? '#BEF264') }};
+      --ia-accent: {{ $currentTenant->accent_color ?? '#3B5A78' }};
+      --ia-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#3B5A78') }};
+      --ia-accent-soft: {{ \App\Support\ColorHelper::accentSoft($currentTenant->accent_color ?? '#3B5A78') }};
     }
   </style>
 
