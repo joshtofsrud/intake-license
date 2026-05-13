@@ -76,6 +76,12 @@
         <div class="mk-footer-bottom">
             <div class="mk-footer-copy">© {{ date('Y') }} Intake. All rights reserved.</div>
             <div class="mk-footer-legal">
+                {{-- Legal links commented out until LLC is registered and email forwards are live.
+                     Uncomment this block (and delete the two <a href="#"> lines below) to activate. --}}
+                {{-- <a href="/privacy">Privacy</a> --}}
+                {{-- <a href="/terms">Terms</a> --}}
+                {{-- <a href="/cookies">Cookies</a> --}}
+                {{-- <a href="/acceptable-use">Acceptable use</a> --}}
                 <a href="#">Privacy</a>
                 <a href="#">Terms</a>
             </div>
