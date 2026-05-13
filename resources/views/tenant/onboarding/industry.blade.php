@@ -8,7 +8,7 @@
       • request('workflow') query param present → render 1b for that workflow
       • otherwise → render 1a (or 1b if session already has a workflow)
     
-    Workflow mapping is defined in the @php block and is the source of truth.
+    Workflow mapping is defined in the PHP block below and is the source of truth.
 --}}
 @extends('tenant.onboarding._layout')
 
