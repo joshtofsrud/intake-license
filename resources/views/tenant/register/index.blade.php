@@ -303,7 +303,7 @@
   {{-- Appointment-sourced sales waiting for payment. Auto-created when staff
        marked an appointment Completed. We surface them prominently so staff
        can't miss a parked sale. --}}
-  <div id="appointment-tray-banner" style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.35);border-radius:var(--ia-r-md);padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px">
+  <div id="appointment-tray-banner" style="background:rgba(21,112,205,.07);border:0.5px solid rgba(21,112,205,.30);border-radius:var(--ia-r-md);padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px">
     <div style="display:flex;align-items:center;gap:12px;flex:1">
       <span style="font-size:20px">💳</span>
       <div>
