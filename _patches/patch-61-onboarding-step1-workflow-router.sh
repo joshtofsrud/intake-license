@@ -1,3 +1,59 @@
+#!/bin/bash
+# ============================================================================
+# patch-61-onboarding-step1-workflow-router.sh
+# ----------------------------------------------------------------------------
+# Restructures onboarding step 1 from a flat 25-tile industry picker into a
+# two-stage flow:
+#
+#   Step 1a — Workflow chooser (3 cards):
+#     • Take it in, do work, give it back  (drop-off workflow)
+#     • Book me a time                     (time-slot workflow)
+#     • Sign me up for a class             (class workflow)
+#
+#   Step 1b — Industry refinement:
+#     Filtered tile list showing only the industries that match the workflow
+#     picked in 1a. ~7-9 tiles per workflow instead of 25.
+#
+# The 8-step header treats this as one logical step. Sub-step is shown via a
+# small "A" or "B" badge on the current step card. Total stays 8 steps.
+#
+# Picking a workflow on 1a pre-fills step 3 booking defaults ONLY if the
+# tenant's booking_mode is still null (fresh signup). Never overwrites.
+#
+#   takein   → booking_mode='drop_off',   classes_enabled=false
+#   booktime → booking_mode='time_slots', classes_enabled=false
+#   class    → booking_mode='time_slots', classes_enabled=true
+#
+# WORKFLOW MAPPING (25 industry keys → 3 workflows):
+#   takein   → bike, ski, auto, tailor, shoe, electronics, jewelry, instruments, lawn (9)
+#   booktime → salon, barber, massage, medspa, pet, pt, photo, art, music (9)
+#   class    → yoga, pilates, crossfit, boxing, mma, hiit, lagree (7)
+#
+# Workflow state is stored in the SESSION, not the database. Cleared at the
+# end of onboarding. No migration needed.
+#
+# Files touched:
+#   - resources/views/tenant/onboarding/industry.blade.php  (full rewrite)
+#   - app/Http/Controllers/Tenant/OnboardingWizardController.php  (showIndustry + saveIndustry)
+# ============================================================================
+
+set -euo pipefail
+cd "${REPO_ROOT:-$(pwd)}"
+
+if [ ! -f "resources/views/tenant/onboarding/industry.blade.php" ]; then
+  echo "ERROR: industry.blade.php not found." >&2
+  exit 1
+fi
+if [ ! -f "app/Http/Controllers/Tenant/OnboardingWizardController.php" ]; then
+  echo "ERROR: OnboardingWizardController.php not found." >&2
+  exit 1
+fi
+
+# ─── 1. Replace industry.blade.php ─────────────────────────────────────
+if grep -q "WORKFLOW_ROUTER_V1" resources/views/tenant/onboarding/industry.blade.php; then
+    echo "    SKIP industry.blade.php — already on workflow router (v1 marker found)"
+else
+cat > resources/views/tenant/onboarding/industry.blade.php <<'BLADE'
 {{-- WORKFLOW_ROUTER_V1 --}}
 {{-- 
     Onboarding step 1 — two-stage flow:
@@ -395,3 +451,169 @@
 })();
 </script>
 @endsection
+BLADE
+echo "    REPLACED industry.blade.php — workflow router v1 installed"
+fi
+
+# ─── 2. Update OnboardingWizardController ─────────────────────────────
+python3 <<'PYEOF'
+from pathlib import Path
+p = Path("app/Http/Controllers/Tenant/OnboardingWizardController.php")
+s = p.read_text()
+
+# 2a. Replace showIndustry to read session/request workflow.
+old_show = """    public function showIndustry(string $subdomain): View
+    {
+        return $this->render('industry', 1);
+    }"""
+
+new_show = """    public function showIndustry(string $subdomain): View
+    {
+        $workflow = session('onboarding_workflow');
+        $valid = ['takein', 'booktime', 'class'];
+        if (!in_array($workflow, $valid, true)) {
+            $workflow = null;
+        }
+        return view('tenant.onboarding.industry', [
+            'currentStep' => 1,
+            'totalSteps'  => self::TOTAL_STEPS,
+            'tenant'      => tenant(),
+            'workflow'    => $workflow,
+        ]);
+    }"""
+
+if "session('onboarding_workflow')" in s and "showIndustry" in s:
+    print("    SKIP showIndustry — already workflow-aware")
+elif old_show not in s:
+    raise SystemExit("ABORT showIndustry: anchor not found")
+else:
+    s = s.replace(old_show, new_show, 1)
+    print("    UPDATED — showIndustry reads workflow from session")
+
+# 2b. Replace saveIndustry to handle three payload shapes:
+#     • workflow=X            → save workflow to session, return next_url=industry (1b)
+#     • clear_workflow=1      → forget session workflow, return next_url=industry (1a)
+#     • industry_pack=X       → existing behavior + seed booking defaults if null
+old_save = """    public function saveIndustry(string $subdomain, Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'industry_pack' => ['required', 'string', 'max:64'],
+        ]);
+        tenant()->update([
+            'industry_pack'   => $data['industry_pack'],
+            'onboarding_step' => max(2, tenant()->onboarding_step ?? 0),
+        ]);
+        return $this->stepResponse(1, $subdomain, 'identity');
+    }"""
+
+new_save = """    public function saveIndustry(string $subdomain, Request $request): JsonResponse
+    {
+        // Three payload shapes, handled in priority order.
+
+        // (1) Clearing the workflow (back-to-1a from 1b).
+        if ($request->boolean('clear_workflow')) {
+            session()->forget('onboarding_workflow');
+            return response()->json([
+                'ok' => true,
+                'next_url' => route('tenant.onboarding.wizard.industry', ['subdomain' => $subdomain]),
+            ]);
+        }
+
+        // (2) Picking a workflow (1a → 1b).
+        if ($request->filled('workflow')) {
+            $data = $request->validate([
+                'workflow' => ['required', 'in:takein,booktime,class'],
+            ]);
+            session(['onboarding_workflow' => $data['workflow']]);
+            return response()->json([
+                'ok' => true,
+                'next_url' => route('tenant.onboarding.wizard.industry', ['subdomain' => $subdomain]),
+            ]);
+        }
+
+        // (3) Picking an industry (1b → identity).
+        $data = $request->validate([
+            'industry_pack' => ['required', 'string', 'max:64'],
+        ]);
+
+        $tenant = tenant();
+        $update = [
+            'industry_pack'   => $data['industry_pack'],
+            'onboarding_step' => max(2, $tenant->onboarding_step ?? 0),
+        ];
+
+        // Pre-fill step 3 booking defaults based on workflow — only if the
+        // tenant hasn't already chosen a booking mode (fresh signup).
+        $workflow = session('onboarding_workflow');
+        if (is_null($tenant->booking_mode) && in_array($workflow, ['takein', 'booktime', 'class'], true)) {
+            $defaults = [
+                'takein'   => ['booking_mode' => 'drop_off',   'classes_enabled' => false],
+                'booktime' => ['booking_mode' => 'time_slots', 'classes_enabled' => false],
+                'class'    => ['booking_mode' => 'time_slots', 'classes_enabled' => true],
+            ];
+            $update['booking_mode']    = $defaults[$workflow]['booking_mode'];
+            $update['classes_enabled'] = $defaults[$workflow]['classes_enabled'];
+        }
+
+        $tenant->update($update);
+
+        // Clear the session workflow now that industry is locked in.
+        session()->forget('onboarding_workflow');
+
+        return $this->stepResponse(1, $subdomain, 'identity');
+    }"""
+
+if "Three payload shapes" in s:
+    print("    SKIP saveIndustry — already handles workflow router")
+elif old_save not in s:
+    raise SystemExit("ABORT saveIndustry: anchor not found")
+else:
+    s = s.replace(old_save, new_save, 1)
+    print("    UPDATED — saveIndustry handles workflow + clear_workflow + industry_pack")
+
+p.write_text(s)
+PYEOF
+
+cat <<EONOTE
+
+==> Patch 61 applied locally.
+
+Deploy:
+  mv patch-61-onboarding-step1-workflow-router.sh _patches/
+  git add resources/views/tenant/onboarding/industry.blade.php \\
+          app/Http/Controllers/Tenant/OnboardingWizardController.php \\
+          _patches/patch-61-onboarding-step1-workflow-router.sh
+  git commit -m "feat(onboarding): step 1 workflow router → industry refinement (patch 61)"
+  git push
+
+On server:
+  cd /var/www/intake
+  git pull
+  php artisan view:clear
+  sudo systemctl stop php8.3-fpm && sleep 2 && sudo systemctl start php8.3-fpm
+
+Verify on a NEW dogfood-style tenant (one with onboarding incomplete):
+  1. Hit /onboarding/wizard/industry — should show 3 workflow cards
+  2. Click "Take it in, do work, give it back" — page reloads to industry tiles
+     filtered to the 9 take-in industries, with a "You picked..." banner at top
+  3. Click "← Change workflow" — page reloads back to the 3 workflow cards
+  4. Pick "Book me a time" → see 9 booktime industries → pick Salon → Continue
+  5. Land on step 2 (identity) as expected
+  6. Step 3 (booking) should now show "Time slot" pre-selected as Default and
+     classes toggle OFF (because workflow was 'booktime')
+  7. If instead step 1a was "Sign me up for a class" → step 3 should show
+     classes toggle ON
+
+Edge cases:
+  - Existing tenants who already have industry_pack set: their first visit
+    to /industry shows 1a (since session is empty), but the booking_mode
+    is_null check prevents overwriting their existing step 3 choice.
+  - User refreshes /industry mid-flow: session preserves workflow → re-renders 1b.
+  - User clears cookies between 1a and 1b: session lost → falls back to 1a.
+    Industry pack is unchanged, no data corruption.
+
+NOTE: The 'pt' (Personal Trainer) tile is in the 'booktime' workflow per the
+discussion. Personal trainers who also run group classes can flip the classes
+toggle on step 3 — they'll land there with classes off by default but it's
+one click to enable.
+EONOTE

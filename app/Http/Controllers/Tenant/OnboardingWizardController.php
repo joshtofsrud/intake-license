@@ -35,7 +35,17 @@ class OnboardingWizardController extends Controller
 
     public function showIndustry(string $subdomain): View
     {
-        return $this->render('industry', 1);
+        $workflow = session('onboarding_workflow');
+        $valid = ['takein', 'booktime', 'class'];
+        if (!in_array($workflow, $valid, true)) {
+            $workflow = null;
+        }
+        return view('tenant.onboarding.industry', [
+            'currentStep' => 1,
+            'totalSteps'  => self::TOTAL_STEPS,
+            'tenant'      => tenant(),
+            'workflow'    => $workflow,
+        ]);
     }
 
     public function showIdentity(string $subdomain): View
@@ -77,13 +87,58 @@ class OnboardingWizardController extends Controller
 
     public function saveIndustry(string $subdomain, Request $request): JsonResponse
     {
+        // Three payload shapes, handled in priority order.
+
+        // (1) Clearing the workflow (back-to-1a from 1b).
+        if ($request->boolean('clear_workflow')) {
+            session()->forget('onboarding_workflow');
+            return response()->json([
+                'ok' => true,
+                'next_url' => route('tenant.onboarding.wizard.industry', ['subdomain' => $subdomain]),
+            ]);
+        }
+
+        // (2) Picking a workflow (1a → 1b).
+        if ($request->filled('workflow')) {
+            $data = $request->validate([
+                'workflow' => ['required', 'in:takein,booktime,class'],
+            ]);
+            session(['onboarding_workflow' => $data['workflow']]);
+            return response()->json([
+                'ok' => true,
+                'next_url' => route('tenant.onboarding.wizard.industry', ['subdomain' => $subdomain]),
+            ]);
+        }
+
+        // (3) Picking an industry (1b → identity).
         $data = $request->validate([
             'industry_pack' => ['required', 'string', 'max:64'],
         ]);
-        tenant()->update([
+
+        $tenant = tenant();
+        $update = [
             'industry_pack'   => $data['industry_pack'],
-            'onboarding_step' => max(2, tenant()->onboarding_step ?? 0),
-        ]);
+            'onboarding_step' => max(2, $tenant->onboarding_step ?? 0),
+        ];
+
+        // Pre-fill step 3 booking defaults based on workflow — only if the
+        // tenant hasn't already chosen a booking mode (fresh signup).
+        $workflow = session('onboarding_workflow');
+        if (is_null($tenant->booking_mode) && in_array($workflow, ['takein', 'booktime', 'class'], true)) {
+            $defaults = [
+                'takein'   => ['booking_mode' => 'drop_off',   'classes_enabled' => false],
+                'booktime' => ['booking_mode' => 'time_slots', 'classes_enabled' => false],
+                'class'    => ['booking_mode' => 'time_slots', 'classes_enabled' => true],
+            ];
+            $update['booking_mode']    = $defaults[$workflow]['booking_mode'];
+            $update['classes_enabled'] = $defaults[$workflow]['classes_enabled'];
+        }
+
+        $tenant->update($update);
+
+        // Clear the session workflow now that industry is locked in.
+        session()->forget('onboarding_workflow');
+
         return $this->stepResponse(1, $subdomain, 'identity');
     }
 
