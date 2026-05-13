@@ -120,7 +120,8 @@ class ThemeEditor extends Page implements HasForms
                     ->label($label)
                     ->helperText("--{$key}")
                     ->required()
-                    ->maxLength(255);
+                    ->maxLength(255)
+                    ->live(debounce: 250);
             }
             $sections[] = Section::make($groupName)
                 ->columns(2)

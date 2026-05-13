@@ -5,24 +5,53 @@
         $audits = $this->recentAudits;
     @endphp
 
-    {{-- Top status banner --}}
-    @if($dirty > 0)
-        <div style="padding: 14px 18px; border-radius: 10px; margin-bottom: 18px;
-                    background: rgba(244,184,96,.10); border: 1px solid rgba(244,184,96,.35);">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 2px;">
-                ⚠ Draft mode · {{ $dirty }} unpublished {{ $dirty === 1 ? 'change' : 'changes' }}
-            </div>
-            <div style="font-size: 12.5px; opacity: .7;">
-                Tenants still see the previously published values until you click <strong>Publish</strong>.
-            </div>
+    {{-- STICKY_BANNER_V1 · status + Publish/Revert always visible --}}
+    <div style="position: sticky; top: 0; z-index: 30;
+                background: {{ $dirty > 0 ? 'rgba(244,184,96,.10)' : 'rgba(90,168,224,.08)' }};
+                border: 1px solid {{ $dirty > 0 ? 'rgba(244,184,96,.40)' : 'rgba(90,168,224,.25)' }};
+                border-radius: 10px;
+                padding: 12px 18px;
+                margin-bottom: 18px;
+                backdrop-filter: blur(8px);
+                display: flex; align-items: center; justify-content: space-between;
+                gap: 16px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 240px;">
+            @if($dirty > 0)
+                <div style="font-weight: 600; font-size: 14px;">
+                    ⚠ Draft mode · {{ $dirty }} unpublished {{ $dirty === 1 ? 'change' : 'changes' }}
+                </div>
+                <div style="font-size: 12.5px; opacity: .7; margin-top: 2px;">
+                    Tenants still see published values until you click Publish.
+                </div>
+            @else
+                <div style="font-size: 13px; font-weight: 500;">
+                    ● All changes published.
+                    <span style="opacity: .65; font-weight: 400;">
+                        Edit any value below to start a new draft.
+                    </span>
+                </div>
+            @endif
         </div>
-    @else
-        <div style="padding: 12px 18px; border-radius: 10px; margin-bottom: 18px;
-                    background: rgba(90,168,224,.08); border: 1px solid rgba(90,168,224,.25);
-                    font-size: 13px;">
-            ● All changes published. Edit any value below to start a new draft.
+        <div style="display: flex; gap: 8px; flex-shrink: 0;">
+            <x-filament::button
+                wire:click="revert"
+                color="gray"
+                size="sm"
+                :disabled="$dirty === 0">
+                Revert
+            </x-filament::button>
+            <x-filament::button
+                wire:click="publish"
+                size="sm"
+                :disabled="$dirty === 0">
+                @if($dirty > 0)
+                    Publish {{ $dirty }} {{ $dirty === 1 ? 'change' : 'changes' }}
+                @else
+                    Publish
+                @endif
+            </x-filament::button>
         </div>
-    @endif
+    </div>
 
     {{-- Split: editor (left) + live preview (right) --}}
     <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start;">
@@ -31,19 +60,7 @@
         <div>
             <form>{{ $this->form }}</form>
 
-            <div style="margin-top: 18px; display: flex; gap: 8px;">
-                <x-filament::button wire:click="publish" :disabled="$dirty === 0">
-                    @if($dirty > 0)
-                        Publish {{ $dirty }} {{ $dirty === 1 ? 'change' : 'changes' }}
-                    @else
-                        Publish
-                    @endif
-                </x-filament::button>
 
-                <x-filament::button wire:click="revert" color="gray" :disabled="$dirty === 0">
-                    Revert
-                </x-filament::button>
-            </div>
         </div>
 
         {{-- ─── Live preview ─── --}}
