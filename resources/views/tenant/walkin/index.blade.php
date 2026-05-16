@@ -425,6 +425,7 @@
       <div class="wi-choice-arrow">›</div>
     </div>
 
+    @if($currentTenant->retail_enabled)
     <div class="wi-choice" data-action="sale-intent">
       <div class="wi-choice-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -439,6 +440,8 @@
       </div>
       <div class="wi-choice-arrow">›</div>
     </div>
+
+    @endif
 
     <div class="wi-choice" data-action="new-customer">
       <div class="wi-choice-icon">

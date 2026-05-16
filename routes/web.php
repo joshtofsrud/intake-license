@@ -180,10 +180,13 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
             Route::get('/',                 [TenantControllers\DashboardController::class, 'index'])->name('dashboard');
 
+            // Walk-in screen — quick-actions launcher; open to all tiers.
+            // The 'Ring up sale' option inside is gated separately in the view.
+            Route::get('/register/walk-in',          [TenantControllers\WalkInController::class, 'index'])->name('register.walk-in');
+
             Route::middleware([\App\Http\Middleware\RequireRetailCapability::class])->group(function () {
                     // Register (POS) — walk-in retail + service jobs
                 Route::get('/register',                  [TenantControllers\RegisterController::class, 'index'])->name('register.index');
-                Route::get('/register/walk-in',          [TenantControllers\WalkInController::class, 'index'])->name('register.walk-in');
                 Route::get('/register/appointment-tray', [TenantControllers\RegisterController::class, 'appointmentTray'])->name('register.appointment-tray');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
                 Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');

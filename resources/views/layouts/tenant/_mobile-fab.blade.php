@@ -12,7 +12,7 @@
      ================================================================ --}}
 @hasSection('mobile-fab')
   @php $fabType = trim(View::yieldContent('mobile-fab')); @endphp
-  @if($fabType === 'walk-in' && $currentTenant->retail_enabled)
+  @if($fabType === 'walk-in')
     <button type="button"
             class="ia-mobile-fab ia-mobile-fab--walkin"
             aria-label="Start walk-in"
