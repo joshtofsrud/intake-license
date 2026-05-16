@@ -76,11 +76,7 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
 
-  <nav class="rep-toggle" style="margin-bottom: 18px;">
-    <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain]) }}">Operations</a>
-    <a href="{{ route('tenant.reports.customers', ['subdomain' => tenant()->subdomain]) }}">Customers</a>
-    <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain]) }}" class="active">Services</a>
-  </nav>
+  @include('tenant.reports._tab_subnav', ['active' => 'services'])
 
   <div class="rep-rangebar">
     <div>

@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Services\Tenant\ReportsDataService;
 use App\Services\Tenant\CustomersReportService;
 use App\Services\Tenant\ServicesReportService;
+use App\Services\Tenant\RetailReportService;
+use App\Services\Tenant\MoneyReportService;
+use App\Services\Tenant\StaffReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -172,6 +175,139 @@ class ReportsController extends Controller
             'productionByResource'=> $svc->productionByResource($from, $to, $isLocked),
             'mechanicProductivity'=> $svc->mechanicProductivity(),
             'estimateAccuracy'    => $svc->estimateAccuracy(),
+        ]);
+    }
+
+    public function retail(Request $request): View
+    {
+        $tenant = tenant();
+        $today = $tenant->localToday();
+        $range = (string) $request->query('range', 'today');
+        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) $range = 'today';
+        if ($range === 'custom') {
+            try {
+                $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
+                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()))->startOfDay();
+                if ($from->gt($to)) [$from, $to] = [$to, $from];
+            } catch (\Throwable $e) {
+                $from = $today->copy(); $to = $today->copy(); $range = 'today';
+            }
+        } else {
+            [$from, $to] = match ($range) {
+                'week'  => [$today->copy()->subDays(6), $today->copy()],
+                'month' => [$today->copy()->startOfMonth(), $today->copy()],
+                default => [$today->copy(), $today->copy()],
+            };
+        }
+        $rangeLabel = match ($range) {
+            'week'   => 'Last 7 days',
+            'month'  => $today->format('F'),
+            'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
+            default  => 'Today',
+        };
+        $isLocked = !$tenant->extended_reports_enabled;
+        $svc = new RetailReportService($tenant);
+
+        return view('tenant.reports.retail', [
+            'tenant'      => $tenant,
+            'range'       => $range,
+            'range_label' => $rangeLabel,
+            'today_label' => $today->format('l, F j, Y'),
+            'is_locked'   => $isLocked,
+            'salesSummary'    => $svc->salesSummary($from, $to, $isLocked),
+            'salesByUser'     => $svc->salesByUser($from, $to, $isLocked),
+            'topSkus'         => $svc->topSkus($from, $to, $isLocked),
+            'margin'          => $svc->margin($from, $to, $isLocked),
+            'inventoryHealth' => $svc->inventoryHealth($isLocked),
+            'receiving'       => $svc->receiving($from, $to, $isLocked),
+        ]);
+    }
+
+    public function money(Request $request): View
+    {
+        $tenant = tenant();
+        $today = $tenant->localToday();
+        $range = (string) $request->query('range', 'today');
+        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) $range = 'today';
+        if ($range === 'custom') {
+            try {
+                $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
+                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()))->startOfDay();
+                if ($from->gt($to)) [$from, $to] = [$to, $from];
+            } catch (\Throwable $e) {
+                $from = $today->copy(); $to = $today->copy(); $range = 'today';
+            }
+        } else {
+            [$from, $to] = match ($range) {
+                'week'  => [$today->copy()->subDays(6), $today->copy()],
+                'month' => [$today->copy()->startOfMonth(), $today->copy()],
+                default => [$today->copy(), $today->copy()],
+            };
+        }
+        $rangeLabel = match ($range) {
+            'week'   => 'Last 7 days',
+            'month'  => $today->format('F'),
+            'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
+            default  => 'Today',
+        };
+        $isLocked = !$tenant->extended_reports_enabled;
+        $svc = new MoneyReportService($tenant);
+
+        return view('tenant.reports.money', [
+            'tenant'      => $tenant,
+            'range'       => $range,
+            'range_label' => $rangeLabel,
+            'today_label' => $today->format('l, F j, Y'),
+            'is_locked'   => $isLocked,
+            'revenueSummary' => $svc->revenueSummary($from, $to, $isLocked),
+            'refunds'        => $svc->refunds($from, $to, $isLocked),
+            'taxAndFees'     => $svc->taxAndFees($from, $to, $isLocked),
+            'drawerAndTill'  => $svc->drawerAndTill(),
+            'stripePayouts'  => $svc->stripePayouts(),
+        ]);
+    }
+
+    public function staff(Request $request): View
+    {
+        $tenant = tenant();
+        $today = $tenant->localToday();
+        $range = (string) $request->query('range', 'today');
+        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) $range = 'today';
+        if ($range === 'custom') {
+            try {
+                $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
+                $to   = Carbon::parse((string) $request->query('to',   $today->toDateString()))->startOfDay();
+                if ($from->gt($to)) [$from, $to] = [$to, $from];
+            } catch (\Throwable $e) {
+                $from = $today->copy(); $to = $today->copy(); $range = 'today';
+            }
+        } else {
+            [$from, $to] = match ($range) {
+                'week'  => [$today->copy()->subDays(6), $today->copy()],
+                'month' => [$today->copy()->startOfMonth(), $today->copy()],
+                default => [$today->copy(), $today->copy()],
+            };
+        }
+        $rangeLabel = match ($range) {
+            'week'   => 'Last 7 days',
+            'month'  => $today->format('F'),
+            'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
+            default  => 'Today',
+        };
+        $isLocked = !$tenant->extended_reports_enabled;
+        $svc = new StaffReportService($tenant);
+
+        return view('tenant.reports.staff', [
+            'tenant'      => $tenant,
+            'range'       => $range,
+            'range_label' => $rangeLabel,
+            'today_label' => $today->format('l, F j, Y'),
+            'is_locked'   => $isLocked,
+            'bookingDensity'  => $svc->bookingDensity($from, $to, $isLocked),
+            'revenueByStaff'  => $svc->revenueByStaff($from, $to, $isLocked),
+            'utilization'     => $svc->utilization(),
+            'servicesByStaff' => $svc->servicesByStaff(),
+            'tipsByStaff'     => $svc->tipsByStaff(),
         ]);
     }
 }

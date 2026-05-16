@@ -234,11 +234,7 @@
   <div class="rep-sub">{{ $today_label }}</div>
 
   {{-- Tab subnav: Operations (this page) | Customers --}}
-  <nav class="rep-toggle" style="margin-bottom: 18px;">
-    <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain]) }}" class="active">Operations</a>
-    <a href="{{ route('tenant.reports.customers', ['subdomain' => tenant()->subdomain]) }}">Customers</a>
-    <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain]) }}">Services</a>
-  </nav>
+  @include('tenant.reports._tab_subnav', ['active' => 'operations'])
 
   {{-- GLOBAL RANGE BAR --}}
   <div class="rep-rangebar">

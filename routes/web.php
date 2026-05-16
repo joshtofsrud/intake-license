@@ -245,6 +245,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::get('/reports',              [TenantControllers\ReportsController::class, 'index'])->name('reports.index');
             Route::get('/reports/customers',    [TenantControllers\ReportsController::class, 'customers'])->name('reports.customers');
             Route::get('/reports/services',     [TenantControllers\ReportsController::class, 'services'])->name('reports.services');
+            Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
+            Route::get('/reports/money',        [TenantControllers\ReportsController::class, 'money'])->name('reports.money');
+            Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
             Route::get('/calendar/quick-book',  [TenantControllers\QuickBookController::class, 'picker'])->name('calendar.quick-book.picker');
             Route::post('/calendar/quick-book', [TenantControllers\QuickBookController::class, 'store'])->name('calendar.quick-book.store');

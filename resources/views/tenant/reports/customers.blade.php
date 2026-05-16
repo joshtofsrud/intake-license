@@ -151,11 +151,7 @@
   <div class="rep-sub">Customer health, lapse, and value — across all time.</div>
 
   {{-- Tab subnav --}}
-  <nav class="rep-toggle" style="margin-bottom: 18px;">
-    <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain]) }}">Operations</a>
-    <a href="{{ route('tenant.reports.customers', ['subdomain' => tenant()->subdomain]) }}" class="active">Customers</a>
-    <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain]) }}">Services</a>
-  </nav>
+  @include('tenant.reports._tab_subnav', ['active' => 'customers'])
 
   <div class="rep-note">
     These panels are <strong>not date-filtered</strong> — they answer whole-database questions ("who's never given us a phone number," "who hasn't come back"). The date range used elsewhere in Reports does not apply here.
