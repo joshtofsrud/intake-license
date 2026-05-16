@@ -7,11 +7,6 @@
   .rep-h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
   .rep-sub { color: var(--ia-text-3, #888); font-size: 13.5px; margin-bottom: 24px; }
 
-  .rep-subnav { display: flex; gap: 4px; background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 10px; padding: 4px; margin-bottom: 24px; width: max-content; }
-  .rep-subnav a { padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--ia-text-3, #888); text-decoration: none; border-radius: 6px; transition: all 0.12s; }
-  .rep-subnav a:hover { color: var(--ia-text, #f0f0f0); }
-  .rep-subnav a.active { background: #BEF264; color: #0a0a0a; }
-
   .rep-note { font-size: 11.5px; color: #5fa8dc; background: rgba(95,168,220,0.07); border-left: 2px solid #5fa8dc; padding: 8px 12px; border-radius: 0 6px 6px 0; margin-bottom: 20px; }
 
   .rep-zone { background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
@@ -53,12 +48,12 @@
 @endpush
 
 @section('content')
-<div style="max-width: 1180px;">
+<div style="padding: 32px 40px;">
 
   <h1 class="rep-h1">Reports</h1>
   <p class="rep-sub">Customer health, lapse, and value — across all time.</p>
 
-  <nav class="rep-subnav">
+  <nav class="rep-toggle" style="margin-bottom: 18px;">
     <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain]) }}">Operations</a>
     <a href="{{ route('tenant.reports.customers', ['subdomain' => tenant()->subdomain]) }}" class="active">Customers</a>
   </nav>
