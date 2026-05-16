@@ -237,6 +237,7 @@
   <nav class="rep-toggle" style="margin-bottom: 18px;">
     <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain]) }}" class="active">Operations</a>
     <a href="{{ route('tenant.reports.customers', ['subdomain' => tenant()->subdomain]) }}">Customers</a>
+    <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain]) }}">Services</a>
   </nav>
 
   {{-- GLOBAL RANGE BAR --}}

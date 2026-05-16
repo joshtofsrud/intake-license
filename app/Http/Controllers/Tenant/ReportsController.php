@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Services\Tenant\ReportsDataService;
 use App\Services\Tenant\CustomersReportService;
+use App\Services\Tenant\ServicesReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -103,6 +104,74 @@ class ReportsController extends Controller
             'missing'   => $svc->missingContactInfo($isLocked),
             'lapsed'    => $svc->lapsedCustomers($isLocked),
             'topLtv'    => $svc->highestLtv($isLocked),
+        ]);
+    }
+
+    /**
+     * Services tab — date-ranged service depth analytics.
+     *
+     * Five real panels (throughput, mix, parts attach, comebacks,
+     * production by resource) + two stubs (mechanic productivity,
+     * estimate accuracy) that surface "coming soon" until the
+     * supporting schema lands.
+     */
+    public function services(Request $request): View
+    {
+        $tenant = tenant();
+        $today = $tenant->localToday();
+
+        $range = (string) $request->query('range', 'today');
+        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) {
+            $range = 'today';
+        }
+
+        if ($range === 'custom') {
+            $fromStr = (string) $request->query('from', $today->toDateString());
+            $toStr   = (string) $request->query('to',   $today->toDateString());
+            try {
+                $from = Carbon::parse($fromStr)->startOfDay();
+                $to   = Carbon::parse($toStr)->startOfDay();
+                if ($from->gt($to)) [$from, $to] = [$to, $from];
+            } catch (\Throwable $e) {
+                $from = $today->copy();
+                $to   = $today->copy();
+                $range = 'today';
+            }
+        } else {
+            [$from, $to] = match ($range) {
+                'week'  => [$today->copy()->subDays(6), $today->copy()],
+                'month' => [$today->copy()->startOfMonth(), $today->copy()],
+                default => [$today->copy(), $today->copy()],
+            };
+        }
+
+        $rangeLabel = match ($range) {
+            'week'   => 'Last 7 days',
+            'month'  => $today->format('F'),
+            'custom' => $from->isSameDay($to)
+                ? $from->format('M j, Y')
+                : $from->format('M j') . ' – ' . $to->format('M j, Y'),
+            default  => 'Today',
+        };
+
+        $isLocked = !$tenant->extended_reports_enabled;
+        $svc = new ServicesReportService($tenant);
+
+        return view('tenant.reports.services', [
+            'tenant'              => $tenant,
+            'range'               => $range,
+            'range_label'         => $rangeLabel,
+            'from'                => $from,
+            'to'                  => $to,
+            'today_label'         => $today->format('l, F j, Y'),
+            'is_locked'           => $isLocked,
+            'throughput'          => $svc->throughput($from, $to, $isLocked),
+            'serviceMix'          => $svc->serviceMix($from, $to, $isLocked),
+            'partsAttach'         => $svc->partsAttach($from, $to, $isLocked),
+            'comebacks'           => $svc->comebacks($from, $to, $isLocked),
+            'productionByResource'=> $svc->productionByResource($from, $to, $isLocked),
+            'mechanicProductivity'=> $svc->mechanicProductivity(),
+            'estimateAccuracy'    => $svc->estimateAccuracy(),
         ]);
     }
 }
