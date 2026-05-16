@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Services\Tenant\ReportsDataService;
+use App\Services\Tenant\CustomersReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -75,6 +76,27 @@ class ReportsController extends Controller
             'staff'       => $svc->zoneStaff($from, $to),
             'capacity'    => $svc->zoneCapacity($from, $to),
             'today_label' => $today->format('l, F j, Y'),
+        ]);
+    }
+
+    /**
+     * Customers tab — whole-database, NOT date-ranged.
+     *
+     * Three panels:
+     *   - missing contact info (customers with no phone on file)
+     *   - lapsed customers (no delivered appointment in 180d)
+     *   - highest LTV (top customers by lifetime value)
+     */
+    public function customers(Request $request): View
+    {
+        $tenant = tenant();
+        $svc = new CustomersReportService($tenant);
+
+        return view('tenant.reports.customers', [
+            'tenant'   => $tenant,
+            'missing'  => $svc->missingContactInfo(),
+            'lapsed'   => $svc->lapsedCustomers(),
+            'topLtv'   => $svc->highestLtv(),
         ]);
     }
 }

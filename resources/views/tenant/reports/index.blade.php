@@ -233,6 +233,12 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
 
+  {{-- Tab subnav: Operations (this page) | Customers --}}
+  <nav class="rep-toggle" style="margin-bottom: 18px;">
+    <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain]) }}" class="active">Operations</a>
+    <a href="{{ route('tenant.reports.customers', ['subdomain' => tenant()->subdomain]) }}">Customers</a>
+  </nav>
+
   {{-- GLOBAL RANGE BAR --}}
   <div class="rep-rangebar">
     <div>
