@@ -4,10 +4,15 @@
 
      v1: only the 'walk-in' variant exists, stubbed to a v1.1 toast.
      Future: more FAB types as features ship.
+
+     The walk-in variant is gated on retail_enabled — walk-in is part
+     of the retail/POS system. A tenant without retail should never
+     see the button (in addition to the route itself being blocked by
+     the RequireRetailCapability middleware on the route group).
      ================================================================ --}}
 @hasSection('mobile-fab')
   @php $fabType = trim(View::yieldContent('mobile-fab')); @endphp
-  @if($fabType === 'walk-in')
+  @if($fabType === 'walk-in' && $currentTenant->retail_enabled)
     <button type="button"
             class="ia-mobile-fab ia-mobile-fab--walkin"
             aria-label="Start walk-in"

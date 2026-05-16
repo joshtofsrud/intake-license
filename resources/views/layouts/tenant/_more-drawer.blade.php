@@ -6,7 +6,7 @@
   // Gate checks apply: items with a `gate` only render if the tenant has
   // that feature flag enabled. Keep this list in sync with _nav-items.blade.php.
   $moreItems = [
-    ['route' => 'tenant.register.index',           'label' => 'Register'],
+    ['route' => 'tenant.register.index',           'label' => 'Register',     'gate' => 'retail_enabled'],
     ['route' => 'tenant.classes.sessions',         'label' => 'Classes',      'gate' => 'classes_enabled'],
     ['route' => 'tenant.inventory.index',          'label' => 'Inventory',    'gate' => 'retail_enabled'],
     ['route' => 'tenant.reports.index',            'label' => 'Reports'],
