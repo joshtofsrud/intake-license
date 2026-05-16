@@ -92,11 +92,17 @@ class ReportsController extends Controller
         $tenant = tenant();
         $svc = new CustomersReportService($tenant);
 
+        // Gate: extended_reports capability gates the list data. Starter
+        // tenants see real aggregate counts (cheap, not sensitive) with
+        // blurred placeholder list rows and an upsell modal.
+        $isLocked = !$tenant->extended_reports_enabled;
+
         return view('tenant.reports.customers', [
-            'tenant'   => $tenant,
-            'missing'  => $svc->missingContactInfo(),
-            'lapsed'   => $svc->lapsedCustomers(),
-            'topLtv'   => $svc->highestLtv(),
+            'tenant'    => $tenant,
+            'is_locked' => $isLocked,
+            'missing'   => $svc->missingContactInfo($isLocked),
+            'lapsed'    => $svc->lapsedCustomers($isLocked),
+            'topLtv'    => $svc->highestLtv($isLocked),
         ]);
     }
 }

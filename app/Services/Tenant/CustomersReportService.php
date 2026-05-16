@@ -57,7 +57,7 @@ class CustomersReportService
      *   reachable_count : number of total customers (for context %)
      *   list            : top N customers missing phone, newest first
      */
-    public function missingContactInfo(): array
+    public function missingContactInfo(bool $aggregatesOnly = false): array
     {
         $totalCustomers = TenantCustomer::where('tenant_id', $this->tenant->id)->count();
 
@@ -68,7 +68,7 @@ class CustomersReportService
 
         $totalMissing = (clone $missingQuery)->count();
 
-        $list = $missingQuery
+        $list = $aggregatesOnly ? [] : $missingQuery
             ->orderByDesc('created_at')
             ->limit(self::LIST_LIMIT_MISSING)
             ->get(['id', 'first_name', 'last_name', 'email', 'created_at'])
@@ -102,7 +102,7 @@ class CustomersReportService
      * Customers with zero delivered appointments are excluded — they're
      * "never engaged," not "lapsed."
      */
-    public function lapsedCustomers(): array
+    public function lapsedCustomers(bool $aggregatesOnly = false): array
     {
         $now = $this->tenant->localToday();
         $lapsedCutoff  = $now->copy()->subDays(self::LAPSED_DAYS);
@@ -130,7 +130,7 @@ class CustomersReportService
             ->whereDate('l.last_appt', '<',  $atRiskCutoff->toDateString())
             ->count();
 
-        $list = (clone $base)
+        $list = $aggregatesOnly ? [] : (clone $base)
             ->whereDate('l.last_appt', '<', $lapsedCutoff->toDateString())
             ->orderBy('l.last_appt', 'asc') // longest-lapsed first — most urgent
             ->limit(self::LIST_LIMIT_LAPSED)
@@ -167,8 +167,16 @@ class CustomersReportService
      *
      * Snapshot values from the rows, not live-recomputed from current prices.
      */
-    public function highestLtv(): array
+    public function highestLtv(bool $aggregatesOnly = false): array
     {
+        if ($aggregatesOnly) {
+            return [
+                'list'       => [],
+                'list_limit' => self::LIST_LIMIT_LTV,
+                'total_ltv'  => 0,
+            ];
+        }
+
         // Appointment revenue per customer (delivered + paid only).
         $apptRevenue = DB::table('tenant_appointments')
             ->selectRaw('customer_id, SUM(total_cents) as cents')

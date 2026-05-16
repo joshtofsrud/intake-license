@@ -261,6 +261,11 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'retail');
     }
 
+    public function getExtendedReportsEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'extended_reports');
+    }
+
     public function getPosEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'pos');
