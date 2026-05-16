@@ -85,6 +85,9 @@ class StaffReportService
             return ['list' => []];
         }
 
+        // tenant_users has only `name` — no first_name/last_name. When a resource
+        // is staff-linked we surface the user name; otherwise fall back to the
+        // resource name; otherwise the user is "Unassigned".
         $list = DB::table('tenant_appointments as a')
             ->leftJoin('tenant_resources as r', 'r.id', '=', 'a.resource_id')
             ->leftJoin('tenant_users as u', 'u.id', '=', 'r.staff_user_id')
@@ -94,16 +97,16 @@ class StaffReportService
             ->whereBetween('a.appointment_date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('
                 COALESCE(r.staff_user_id, "unassigned") as user_key,
-                u.first_name, u.last_name, r.name as resource_name,
+                u.name as user_name,
+                r.name as resource_name,
                 COUNT(*) as appt_count,
                 SUM(a.total_cents) as revenue
             ')
-            ->groupBy('user_key', 'u.first_name', 'u.last_name', 'r.name')
+            ->groupBy('user_key', 'u.name', 'r.name')
             ->orderByDesc('revenue')
             ->get()
             ->map(function($r) {
-                $name = trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''));
-                if (!$name) $name = $r->resource_name ? $r->resource_name : 'Unassigned';
+                $name = $r->user_name ?: ($r->resource_name ?: 'Unassigned');
                 return [
                     'name'           => $name,
                     'appt_count'     => (int) $r->appt_count,

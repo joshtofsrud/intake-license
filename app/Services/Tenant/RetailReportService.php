@@ -64,6 +64,8 @@ class RetailReportService
             return ['list' => []];
         }
 
+        // tenant_users has a single `name` column (see migration 000002), NOT
+        // first_name / last_name. Those columns live on tenant_customers.
         $list = DB::table('tenant_sales as s')
             ->leftJoin('tenant_users as u', 'u.id', '=', 's.rang_up_by_user_id')
             ->where('s.tenant_id', $this->tenant->id)
@@ -72,17 +74,17 @@ class RetailReportService
             ->whereBetween('s.sale_date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('
                 s.rang_up_by_user_id,
-                u.first_name, u.last_name,
+                u.name as user_name,
                 COUNT(*) as sale_count,
                 SUM(s.total_cents) as revenue
             ')
-            ->groupBy('s.rang_up_by_user_id', 'u.first_name', 'u.last_name')
+            ->groupBy('s.rang_up_by_user_id', 'u.name')
             ->orderByDesc('revenue')
             ->limit(self::LIST_LIMIT)
             ->get()
             ->map(fn($r) => [
                 'user_id'    => $r->rang_up_by_user_id,
-                'name'       => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')) ?: '(deleted user)',
+                'name'       => $r->user_name ?: '(deleted user)',
                 'sale_count' => (int) $r->sale_count,
                 'revenue_cents' => (int) $r->revenue,
             ])
@@ -167,18 +169,36 @@ class RetailReportService
      */
     public function inventoryHealth(bool $aggregatesOnly = false): array
     {
+        // Schema reminders (verified against migration 2026_05_01_000004):
+        //   tenant_inventory_items has computed_stock_count (NOT stock_quantity),
+        //   shop_reorder_threshold (per-item, nullable), is_active boolean, and
+        //   soft-deletes (deleted_at).
+        // Low-stock matches the filter in InventoryController.index:
+        //   threshold not null AND computed_stock_count <= shop_reorder_threshold.
+        // Items with no threshold fall back to LOW_STOCK_THRESHOLD as a default
+        // floor so freshly-imported items still surface as low when near zero.
         $lowQuery = DB::table('tenant_inventory_items')
             ->where('tenant_id', $this->tenant->id)
-            ->where('stock_quantity', '<=', self::LOW_STOCK_THRESHOLD)
-            ->where('stock_quantity', '>', 0);
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->where('computed_stock_count', '>', 0)
+            ->where(function ($q) {
+                $q->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold')
+                  ->orWhere(function ($q2) {
+                      $q2->whereNull('shop_reorder_threshold')
+                         ->where('computed_stock_count', '<=', self::LOW_STOCK_THRESHOLD);
+                  });
+            });
 
         $lowCount = (clone $lowQuery)->count();
 
-        // Dead stock: stock > 0 AND no sale via tenant_sale_items in window
+        // Dead stock: in stock AND no sale via tenant_sale_items in the window.
         $deadCutoff = $this->tenant->localToday()->copy()->subDays(self::DEAD_STOCK_DAYS);
         $deadQuery = DB::table('tenant_inventory_items as i')
             ->where('i.tenant_id', $this->tenant->id)
-            ->where('i.stock_quantity', '>', 0)
+            ->where('i.is_active', true)
+            ->whereNull('i.deleted_at')
+            ->where('i.computed_stock_count', '>', 0)
             ->whereNotExists(function ($q) use ($deadCutoff) {
                 $q->select(DB::raw(1))
                   ->from('tenant_sale_items as si')
@@ -201,24 +221,25 @@ class RetailReportService
         }
 
         $lowList = (clone $lowQuery)
-            ->orderBy('stock_quantity')
+            ->orderBy('computed_stock_count')
             ->limit(self::LIST_LIMIT)
-            ->get(['id', 'name', 'sku', 'stock_quantity'])
+            ->get(['id', 'name', 'sku', 'computed_stock_count', 'shop_reorder_threshold'])
             ->map(fn($i) => [
-                'name'  => $i->name,
-                'sku'   => $i->sku,
-                'stock' => (int) $i->stock_quantity,
+                'name'      => $i->name,
+                'sku'       => $i->sku,
+                'stock'     => (int) $i->computed_stock_count,
+                'threshold' => $i->shop_reorder_threshold !== null ? (int) $i->shop_reorder_threshold : null,
             ])
             ->all();
 
         $deadList = (clone $deadQuery)
-            ->orderByDesc('i.stock_quantity')
+            ->orderByDesc('i.computed_stock_count')
             ->limit(self::LIST_LIMIT)
-            ->get(['i.id', 'i.name', 'i.sku', 'i.stock_quantity'])
+            ->get(['i.id', 'i.name', 'i.sku', 'i.computed_stock_count'])
             ->map(fn($i) => [
                 'name'  => $i->name,
                 'sku'   => $i->sku,
-                'stock' => (int) $i->stock_quantity,
+                'stock' => (int) $i->computed_stock_count,
             ])
             ->all();
 
@@ -237,15 +258,27 @@ class RetailReportService
      */
     public function receiving(Carbon $from, Carbon $to, bool $aggregatesOnly = false): array
     {
-        $row = DB::table('tenant_inventory_receive_shipments')
+        // Schema reminders (verified against migrations 000006 + 000007):
+        //   tenant_inventory_receive_shipments    has received_date (DATE), NOT received_at.
+        //   tenant_inventory_receive_shipment_items has total_cost_cents per line. The
+        //     parent shipment table does NOT store a roll-up cost.
+        // So count from the parent (one row per shipment) and sum cost from items.
+        $shipmentCount = (int) DB::table('tenant_inventory_receive_shipments')
             ->where('tenant_id', $this->tenant->id)
-            ->whereBetween('received_at', [$from->toDateString() . ' 00:00:00', $to->toDateString() . ' 23:59:59'])
-            ->selectRaw('COUNT(*) as count, SUM(total_cost_cents) as cost')
-            ->first();
+            ->whereBetween('received_date', [$from->toDateString(), $to->toDateString()])
+            ->where('status', 'committed')
+            ->count();
+
+        $totalCost = (int) DB::table('tenant_inventory_receive_shipment_items as ii')
+            ->join('tenant_inventory_receive_shipments as s', 's.id', '=', 'ii.shipment_id')
+            ->where('s.tenant_id', $this->tenant->id)
+            ->whereBetween('s.received_date', [$from->toDateString(), $to->toDateString()])
+            ->where('s.status', 'committed')
+            ->sum('ii.total_cost_cents');
 
         return [
-            'shipment_count' => (int) ($row->count ?? 0),
-            'total_cost_cents' => (int) ($row->cost ?? 0),
+            'shipment_count'   => $shipmentCount,
+            'total_cost_cents' => $totalCost,
         ];
     }
 }

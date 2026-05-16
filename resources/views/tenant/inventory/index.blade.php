@@ -127,6 +127,40 @@
   <div class="ia-flash ia-flash--{{ session('flash')['type'] }}">{{ session('flash')['message'] }}</div>
 @endif
 
+{{-- POS inventory cap banner.
+     Renders only for tenants without the `pos` capability (typically
+     Branded plans that haven't added the POS module). Starter tenants
+     never see inventory at all (blocked upstream by RequireRetailCapability).
+     The banner surfaces friction at the add point; existing items above
+     the cap are still fully usable. --}}
+@if(!empty($posCap) && !$posCap['pos_enabled'])
+  @php
+    $atCap = $posCap['at_or_over'];
+    $remaining = $posCap['remaining'];
+  @endphp
+  <div class="ia-card" style="border-left:3px solid {{ $atCap ? '#F59E0B' : 'var(--ia-border-strong)' }}; margin-bottom:20px; background:{{ $atCap ? 'rgba(245,158,11,0.04)' : 'transparent' }}">
+    <div class="ia-card-body" style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
+      <div>
+        @if($atCap)
+          <strong>You're at the inventory cap on your current plan.</strong>
+          <span style="color:var(--ia-text-muted)">
+            {{ number_format($posCap['item_count']) }} of {{ $posCap['cap'] }} items used.
+            Add the POS add-on for unlimited inventory. Existing items keep working — edit, restock, and ring them as usual.
+          </span>
+        @else
+          <strong>{{ number_format($posCap['item_count']) }} / {{ $posCap['cap'] }} items used</strong>
+          <span style="color:var(--ia-text-muted)">
+            · {{ $remaining }} {{ Str::plural('slot', $remaining) }} left on your current plan. Add the POS add-on for unlimited inventory.
+          </span>
+        @endif
+      </div>
+      <div>
+        <a href="{{ route('tenant.feature_addons.index') }}" class="ia-btn ia-btn--primary ia-btn--sm">Upgrade to POS</a>
+      </div>
+    </div>
+  </div>
+@endif
+
 @if(!$hasCategories)
   <div class="ia-card" style="border-left: 4px solid var(--ia-accent); margin-bottom: 20px">
     <div class="ia-card-body">

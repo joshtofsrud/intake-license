@@ -9,6 +9,7 @@ use App\Models\Tenant\TenantInventoryCategory;
 use App\Models\Tenant\TenantInventoryItem;
 use App\Models\Tenant\TenantInventoryItemLocation;
 use App\Http\Controllers\Tenant\Concerns\GuardsRetailAccess;
+use App\Http\Controllers\Tenant\Concerns\GuardsPosAccess;
 use App\Services\Pos\InventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,7 @@ use Illuminate\View\View;
 class InventoryController extends Controller
 {
     use GuardsRetailAccess;
+    use GuardsPosAccess;
 
     public function __construct(
         protected InventoryService $inventory,
@@ -95,9 +97,12 @@ class InventoryController extends Controller
 
         $hasCategories = $categories->isNotEmpty();
 
+        $posCap = $this->inventoryCapContext($tenant);
+
         return view('tenant.inventory.index', compact(
             'items', 'categories', 'hasCategories',
-            'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage'
+            'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
+            'posCap'
         ));
     }
 
@@ -105,6 +110,16 @@ class InventoryController extends Controller
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
+
+        // POS hard cap: block reaching the form when at or over.
+        // Edits to existing items remain unaffected (only adds blocked).
+        if (!$this->inventoryAddIsAllowed($tenant)) {
+            return redirect()->route('tenant.inventory.index')
+                ->with('flash', [
+                    'type'    => 'error',
+                    'message' => 'You\'ve reached the ' . self::POS_INVENTORY_HARD_CAP . '-item inventory cap on your current plan. Add the POS add-on for unlimited inventory; existing items keep working.',
+                ]);
+        }
 
         $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')
@@ -123,6 +138,16 @@ class InventoryController extends Controller
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
+
+        // POS hard cap: defense in depth — even if create() was bypassed,
+        // refuse to actually write the 121st item.
+        if (!$this->inventoryAddIsAllowed($tenant)) {
+            return redirect()->route('tenant.inventory.index')
+                ->with('flash', [
+                    'type'    => 'error',
+                    'message' => 'You\'ve reached the ' . self::POS_INVENTORY_HARD_CAP . '-item inventory cap on your current plan. Add the POS add-on for unlimited inventory; existing items keep working.',
+                ]);
+        }
 
         $data = $request->validate([
             'category_id'           => ['required', 'uuid', 'exists:tenant_inventory_categories,id'],
