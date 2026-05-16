@@ -7,6 +7,13 @@
   .rep-h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 4px; }
   .rep-sub { color: var(--ia-text-3, #888); font-size: 13.5px; margin-bottom: 24px; }
 
+  /* rep-toggle: matches the component on the Operations page so the
+     Operations | Customers subnav looks identical on both tabs. */
+  .rep-toggle { display: inline-flex; gap: 4px; background: rgba(255,255,255,0.02); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 8px; padding: 3px; }
+  .rep-toggle a { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: var(--ia-text-3, #888); text-decoration: none; border-radius: 5px; transition: all 0.12s; }
+  .rep-toggle a:hover { color: var(--ia-text, #f0f0f0); }
+  .rep-toggle a.active { background: #BEF264; color: #0a0a0a; }
+
   .rep-note { font-size: 11.5px; color: #5fa8dc; background: rgba(95,168,220,0.07); border-left: 2px solid #5fa8dc; padding: 8px 12px; border-radius: 0 6px 6px 0; margin-bottom: 20px; }
 
   .rep-zone { background: var(--ia-surface, #131313); border: 1px solid var(--ia-border, #1f1f1f); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
