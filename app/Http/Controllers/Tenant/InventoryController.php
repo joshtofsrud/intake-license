@@ -8,7 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantInventoryCategory;
 use App\Models\Tenant\TenantInventoryItem;
 use App\Models\Tenant\TenantInventoryItemLocation;
-use App\Services\FeatureAccessService;
+use App\Http\Controllers\Tenant\Concerns\GuardsRetailAccess;
 use App\Services\Pos\InventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,8 +32,9 @@ use Illuminate\View\View;
  */
 class InventoryController extends Controller
 {
+    use GuardsRetailAccess;
+
     public function __construct(
-        protected FeatureAccessService $featureAccess,
         protected InventoryService $inventory,
     ) {
     }
@@ -349,12 +350,4 @@ class InventoryController extends Controller
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' archived."]);
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────
-
-    protected function assertRetailEnabled($tenant): void
-    {
-        if (!$this->featureAccess->hasAddon($tenant, 'retail')) {
-            abort(403, 'Inventory requires the Retail capability. Upgrade to Branded or Scale to access.');
-        }
-    }
 }
