@@ -43,6 +43,25 @@
       'gate'   => 'retail_enabled',
     ],
     [
+      // patch-94 SO nav entry — added in Stage 9. Retail-gated, top-level.
+      // Drawer trigger lives on the index page itself.
+      'route'  => 'tenant.special-orders.index',
+      'label'  => 'Special Orders',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 4l4.5-2 4.5 2v6l-4.5 2-4.5-2V4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2.5 4L7 6l4.5-2M7 6v6" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => null,
+      'gate'   => 'retail_enabled',
+    ],
+    [
+      // patch-94 Vendors nav entry — gap closure from Patch 86.
+      // Retail-gated, top-level. Sits next to Special Orders for
+      // staff-mental-model coherence (vendors are SO suppliers).
+      'route'  => 'tenant.vendors.index',
+      'label'  => 'Vendors',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="3" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M4 5.5h2M4 7.5h6M4 9.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => null,
+      'gate'   => 'retail_enabled',
+    ],
+    [
       'route'  => 'tenant.reports.index',
       'label'  => 'Reports',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="8" width="2.5" height="4.5" rx="0.5" fill="currentColor"/><rect x="5.75" y="5" width="2.5" height="7.5" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="2.5" height="10.5" rx="0.5" fill="currentColor"/></svg>',
