@@ -337,6 +337,21 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 Route::delete('/{id}',    [TenantControllers\VendorController::class, 'destroy'])->name('destroy');
             });
 
+            // Special Orders — added in patch 87 (Stage 4b).
+            // Reads + writes scoped to tenant. State transitions go
+            // through SpecialOrderService for validation + audit notes.
+            Route::prefix('special-orders')->name('special-orders.')->group(function () {
+                Route::get('/',                                    [TenantControllers\SpecialOrderController::class, 'index'])->name('index');
+                Route::post('/',                                   [TenantControllers\SpecialOrderController::class, 'store'])->name('store');
+                Route::get('/appointments-for-customer',           [TenantControllers\SpecialOrderController::class, 'appointmentsForCustomer'])->name('appointments-for-customer');
+                Route::get('/{id}',                                [TenantControllers\SpecialOrderController::class, 'show'])->name('show');
+                Route::post('/{id}/mark-ordered',                  [TenantControllers\SpecialOrderController::class, 'markOrdered'])->name('mark-ordered');
+                Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');
+                Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
+                Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
+                Route::post('/{id}/notes',                         [TenantControllers\SpecialOrderController::class, 'addNote'])->name('notes.store');
+            });
+
             Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');
             Route::get('/waitlist/settings',           [TenantControllers\WaitlistAdminController::class, 'settings'])->name('waitlist.settings');
             Route::patch('/waitlist/settings',         [TenantControllers\WaitlistAdminController::class, 'updateSettings'])->name('waitlist.settings.update');
