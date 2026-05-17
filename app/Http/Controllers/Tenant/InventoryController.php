@@ -218,7 +218,7 @@ class InventoryController extends Controller
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
 
-        $item = TenantInventoryItem::with(['category', 'distributorCatalog', 'locations.location'])
+        $item = TenantInventoryItem::with(['category', 'distributorCatalog', 'locations.location', 'specialOrders.vendor', 'specialOrders.customer', 'specialOrders.appointment', 'vendors'])
             ->where('tenant_id', $tenant->id)
             ->findOrFail($id);
 
@@ -231,7 +231,12 @@ class InventoryController extends Controller
 
         $locations = $tenant->activeLocations()->get();
 
-        return view('tenant.inventory.show', compact('item', 'recentMovements', 'locations'));
+        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('tenant.inventory.show', compact('item', 'recentMovements', 'locations', 'vendors'));
     }
 
     public function edit(string $subdomain, string $id): View

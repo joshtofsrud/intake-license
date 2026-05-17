@@ -300,4 +300,179 @@
   </div>
 </div>
 
+{{-- ════════════════════════════════════════════════════════════
+     Special Orders integration (added by patch 88, Stage 5)
+     - Stat: total quantity on open SOs
+     - List: open + recent closed SOs for this item
+     - Action: + SO this item button (opens prefilled drawer)
+     - Read-only vendor sources from pivot
+     ════════════════════════════════════════════════════════════ --}}
+
+@php
+  $openSos = $item->specialOrders->whereIn('status', ['needed', 'ordered', 'arrived'])->sortBy('expected_arrival_date');
+  $closedSos = $item->specialOrders->whereIn('status', ['pulled', 'cancelled'])->sortByDesc('updated_at')->take(5);
+  $onOrderQty = $openSos->sum('quantity');
+@endphp
+
+<div class="ia-card" style="margin-bottom:20px">
+  <div class="ia-card-head">
+    <span class="ia-card-title">Special orders</span>
+    <button type="button" class="ia-btn ia-btn--primary ia-btn--sm"
+            onclick='SoDrawer.open({item_id: @json($item->id), item_name: @json($item->name)})'>
+      + Special order this item
+    </button>
+  </div>
+  <div class="ia-card-body">
+
+    <div style="display:flex;align-items:baseline;gap:24px;margin-bottom:16px">
+      <div>
+        <div style="font-size:30px;font-weight:600">{{ $onOrderQty }}</div>
+        <div style="font-size:13px;color:var(--ia-text-muted)">on order across {{ $openSos->count() }} SO{{ $openSos->count() === 1 ? '' : 's' }}</div>
+      </div>
+      @if($item->vendors->count() > 0)
+        <div>
+          <div style="font-size:18px">{{ $item->vendors->count() }}</div>
+          <div style="font-size:13px;color:var(--ia-text-muted)">vendor source{{ $item->vendors->count() === 1 ? '' : 's' }}</div>
+        </div>
+      @endif
+    </div>
+
+    @if($openSos->count() > 0)
+      <table class="ia-table" style="margin-top:8px">
+        <thead>
+          <tr>
+            <th>SO</th>
+            <th>Qty</th>
+            <th>For</th>
+            <th>Vendor</th>
+            <th>Status</th>
+            <th>ETA</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($openSos as $so)
+            <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+              <td><strong>{{ $so->so_number }}</strong></td>
+              <td>{{ $so->quantity }}</td>
+              <td>
+                @if($so->customer)
+                  {{ $so->customer->first_name }} {{ $so->customer->last_name }}
+                @else
+                  <span style="color:var(--ia-text-muted)">Shop stock</span>
+                @endif
+              </td>
+              <td>{{ $so->vendor?->name ?? '—' }}</td>
+              <td>
+                @php
+                  $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
+                @endphp
+                <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+              </td>
+              <td style="color:var(--ia-text-muted);font-size:12px">
+                @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    @else
+      <p style="font-size:13px;color:var(--ia-text-muted);margin:0">No open special orders for this item.</p>
+    @endif
+
+    @if($closedSos->count() > 0)
+      <details style="margin-top:16px">
+        <summary style="font-size:12px;color:var(--ia-text-muted);cursor:pointer">Recent closed ({{ $closedSos->count() }})</summary>
+        <table class="ia-table" style="margin-top:8px">
+          <tbody>
+            @foreach($closedSos as $so)
+              <tr style="cursor:pointer;opacity:.7" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                <td><strong>{{ $so->so_number }}</strong></td>
+                <td>{{ $so->quantity }}</td>
+                <td>{{ $so->customer ? $so->customer->first_name . ' ' . $so->customer->last_name : 'Stock' }}</td>
+                <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
+                <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->updated_at->format('M j, Y') }}</td>
+              </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </details>
+    @endif
+
+  </div>
+</div>
+
+@if($item->vendors->count() > 0)
+<div class="ia-card" style="margin-bottom:20px">
+  <div class="ia-card-head">
+    <span class="ia-card-title">Sourced from</span>
+    <span style="font-size:11.5px;color:var(--ia-text-muted)">vendor sources for this item</span>
+  </div>
+  <div class="ia-card-body">
+    <table class="ia-table">
+      <thead>
+        <tr>
+          <th>Vendor</th>
+          <th>Vendor SKU</th>
+          <th>Cost</th>
+          <th>Lead time</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($item->vendors as $vendor)
+          <tr>
+            <td>
+              <a href="{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}">
+                <strong>{{ $vendor->name }}</strong>
+              </a>
+            </td>
+            <td style="color:var(--ia-text-muted)">{{ $vendor->pivot->vendor_sku ?: '—' }}</td>
+            <td>
+              @if($vendor->pivot->unit_cost_cents !== null)
+                {{ format_money($vendor->pivot->unit_cost_cents) }}
+              @else
+                <span style="color:var(--ia-text-muted)">—</span>
+              @endif
+            </td>
+            <td>
+              @if($vendor->pivot->lead_time_days !== null)
+                {{ $vendor->pivot->lead_time_days }}d
+              @else
+                <span style="color:var(--ia-text-muted)">—</span>
+              @endif
+            </td>
+            <td>
+              @if($vendor->pivot->is_preferred)
+                <span class="ia-badge ia-badge--accent">Preferred</span>
+              @endif
+            </td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+    <p style="font-size:11.5px;color:var(--ia-text-muted);margin-top:10px">
+      Vendor management UI ships in a future patch. Edit via <code>php artisan tinker</code> or wait for Stage 5b.
+    </p>
+  </div>
+</div>
+@endif
+
+@include('tenant.special-orders._drawer', ['vendors' => $vendors ?? collect()])
+
+@push('styles')
+<style>
+.so-status {
+  display: inline-block; padding: 2px 8px; border-radius: 99px;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.so-status--needed   { background: rgba(167,139,250,0.10); color: #A78BFA; }
+.so-status--ordered  { background: rgba(96,165,250,0.10);  color: #60A5FA; }
+.so-status--arrived  { background: rgba(190,242,100,0.10); color: var(--ia-accent); }
+.so-status--pulled   { background: rgba(200,200,200,0.06); color: var(--ia-text-muted); }
+.so-status--cancelled{ background: rgba(248,113,113,0.10); color: #F87171; text-decoration: line-through; }
+.so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
+</style>
+@endpush
+
 @endsection

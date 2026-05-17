@@ -206,13 +206,32 @@ class CustomerController extends Controller
                 ->get(['id', 'name', 'credit_count', 'expiry_days', 'price_cents']);
         }
 
+        // Special orders for this customer (added by patch 88, Stage 5)
+        $specialOrdersOpen = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('customer_id', $id)
+            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
+            ->with(['vendor', 'item', 'appointment'])
+            ->orderBy('expected_arrival_date')
+            ->get();
+        $specialOrdersClosed = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('customer_id', $id)
+            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_CLOSED)
+            ->where('updated_at', '>=', now()->subDays(90))
+            ->with(['vendor', 'item'])
+            ->orderByDesc('updated_at')
+            ->limit(10)
+            ->get();
+        $soVendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return view('tenant.customers.show', compact(
             'customer', 'appointments', 'notes',
             'totalSpend', 'lastService', 'updateUrl',
             'customerMemberships', 'customerPacks',
             'membershipProducts', 'packProducts',
-            'timelineMonths', 'timelineCount'
-        ));
+            'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors'));
     }
 
     public function store(Request $request)

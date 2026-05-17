@@ -130,12 +130,62 @@
   };
 
   // ── Drawer open/close ─────────────────────────────────
+  // open() accepts an optional prefill object from entry-point buttons:
+  //   { item_id, item_name, customer_id, customer_label, appointment_id, alloc_mode }
+  // Stage 5 integration touchpoints (item detail, customer detail,
+  // appointment detail) pass context-appropriate prefills.
   window.SoDrawer = {
-    open: function () {
+    open: function (opts) {
+      opts = opts || {};
       document.getElementById('so-drawer').style.display = 'flex';
       document.body.style.overflow = 'hidden';
+
+      // Item prefill (skip the search step)
+      if (opts.item_id && opts.item_name) {
+        SoDrawer.pickItem(opts.item_id, opts.item_name, '');
+      } else if (opts.item_name && !opts.item_id) {
+        // Freeform item name (no catalog match)
+        document.getElementById('so-item-id').value = '';
+        document.getElementById('so-item-name').value = opts.item_name;
+        document.getElementById('so-selected-item-name').textContent = opts.item_name + ' (not catalogued)';
+        document.getElementById('so-selected-item-sku').textContent = '';
+        document.getElementById('so-item-selected').style.display = 'flex';
+        document.getElementById('so-item-search').style.display = 'none';
+      }
+
+      // Ensure at least one allocation row exists
       if (allocationRows.length === 0) {
-        SoDrawer.addAllocation(); // start with one row
+        SoDrawer.addAllocation();
+      }
+
+      // Customer prefill on first allocation row
+      if (opts.customer_id && opts.customer_label) {
+        var firstAllocId = allocationRows[0];
+        var firstRow = document.querySelector('.so-alloc-row[data-alloc-id="' + firstAllocId + '"]');
+        if (firstRow) {
+          // Set mode first if specified
+          if (opts.alloc_mode === 'customer_appt') {
+            SoDrawer.setMode(firstAllocId, 'customer_appt');
+          }
+          // Pre-pick the customer
+          firstRow.querySelector('input[name^="allocations"][name$="[customer_id]"]').value = opts.customer_id;
+          var sel = firstRow.querySelector('.so-customer-selected');
+          sel.innerHTML = '<strong>' + escapeHtml(opts.customer_label) + '</strong>' +
+            '<button type="button" class="ia-btn ia-btn--ghost" onclick="SoDrawer._clearCustomer(this)">Change</button>';
+          sel.style.display = 'flex';
+          firstRow.querySelector('.so-customer-search').style.display = 'none';
+
+          // If appointment was passed too, set it directly (no need for picker)
+          if (opts.appointment_id) {
+            firstRow.querySelector('input[name^="allocations"][name$="[appointment_id]"]').value = opts.appointment_id;
+            // Load + select the matching option in the appt picker so user sees it
+            loadApptsForCustomer(firstRow, opts.customer_id);
+            // After load completes (async), the prefilled appointment_id is honored
+            // by hidden input; UI lag is minor and the form submits correctly.
+          } else if (opts.alloc_mode === 'customer_appt') {
+            loadApptsForCustomer(firstRow, opts.customer_id);
+          }
+        }
       }
     },
     close: function () {

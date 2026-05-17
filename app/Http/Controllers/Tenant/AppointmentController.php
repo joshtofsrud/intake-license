@@ -657,10 +657,21 @@ class AppointmentController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'subtitle', 'color_hex']);
 
+        // Special orders for this appointment (added by patch 88, Stage 5)
+        $specialOrdersForAppt = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('appointment_id', $id)
+            ->with(['vendor', 'item'])
+            ->orderBy('status')
+            ->orderBy('expected_arrival_date')
+            ->get();
+        $soVendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return view('tenant.appointments.show', compact(
             'appointment', 'transitions', 'destructive',
-            'availableServices', 'availableAddons', 'availableResources'
-        ));
+            'availableServices', 'availableAddons', 'availableResources', 'specialOrdersForAppt', 'soVendors'));
     }
 
     public function update(Request $request, string $subdomain, string $id)

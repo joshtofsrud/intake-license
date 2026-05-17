@@ -1067,7 +1067,99 @@
       $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
     @endphp
     {{-- LAYOUT-B-PROMOTE-ORDER 50 --}}
-    <div class="ia-card" id="work-order-card" style="order:50">
+    {{-- ════════════════════════════════════════════════════════════
+         Special Orders integration (added by patch 88, Stage 5)
+         Parts on order via SO. Distinct from in-stock parts above.
+         Includes soft completion-block warning when appointment is
+         in_progress and SOs aren't yet pulled.
+         ════════════════════════════════════════════════════════════ --}}
+    @isset($specialOrdersForAppt)
+      @php
+        $openAppointmentSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered', 'arrived']);
+        $unArrivedSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered']);
+        $showBlockWarning = $appointment->status === 'in_progress' && $unArrivedSos->isNotEmpty();
+      @endphp
+
+      @if($specialOrdersForAppt->isNotEmpty() || in_array($appointment->status, ['scheduled', 'in_progress']))
+      <div class="ia-card" id="so-parts-card" style="order:45;{{ $showBlockWarning ? 'border-left:3px solid #F59E0B;' : '' }}">
+        <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span>Special-order parts</span>
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
+                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
+            + SO for this appointment
+          </button>
+        </div>
+
+        @if($showBlockWarning)
+          <div style="background:rgba(245,158,11,0.08);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
+            <strong style="color:#F59E0B">⚠ {{ $unArrivedSos->count() }} part{{ $unArrivedSos->count() === 1 ? '' : 's' }} not yet arrived.</strong>
+            <span style="color:var(--ia-text-muted)">
+              Completing this appointment will leave the customer waiting on parts. Consider waiting until parts arrive, or proceed if customer is OK with split pickup.
+            </span>
+          </div>
+        @endif
+
+        @if($specialOrdersForAppt->isEmpty())
+          <p style="font-size:13px;color:var(--ia-text-muted);padding:6px 0;margin:0">No special-order parts on this appointment.</p>
+        @else
+          <table class="appt-line-items">
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th class="ia-num" style="width:60px">Qty</th>
+                <th style="width:120px">Status</th>
+                <th style="width:90px">ETA</th>
+                <th>Vendor</th>
+                <th style="width:80px">SO #</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach($specialOrdersForAppt as $so)
+                @php
+                  $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
+                  $rowOpacity = in_array($so->status, ['pulled', 'cancelled']) ? '0.55' : '1';
+                @endphp
+                <tr style="cursor:pointer;opacity:{{ $rowOpacity }}" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                  <td>
+                    <strong>{{ $so->item_name_snapshot }}</strong>
+                  </td>
+                  <td class="ia-num">{{ $so->quantity }}</td>
+                  <td>
+                    <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+                  </td>
+                  <td style="color:var(--ia-text-muted);font-size:12px">
+                    @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+                  </td>
+                  <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->vendor?->name ?? 'TBD' }}</td>
+                  <td style="font-size:11px;color:var(--ia-text-muted)">{{ $so->so_number }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        @endif
+      </div>
+      @endif
+
+      @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
+
+      @push('styles')
+      <style>
+      .so-status {
+        display: inline-block; padding: 2px 8px; border-radius: 99px;
+        font-size: 10.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+      }
+      .so-status--needed   { background: rgba(167,139,250,0.10); color: #A78BFA; }
+      .so-status--ordered  { background: rgba(96,165,250,0.10);  color: #60A5FA; }
+      .so-status--arrived  { background: rgba(190,242,100,0.10); color: var(--ia-accent); }
+      .so-status--pulled   { background: rgba(200,200,200,0.06); color: var(--ia-text-muted); }
+      .so-status--cancelled{ background: rgba(248,113,113,0.10); color: #F87171; text-decoration: line-through; }
+      .so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
+      </style>
+      @endpush
+    @endisset
+
+        <div class="ia-card" id="work-order-card" style="order:50">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:0.5px solid var(--ia-border)">
         <div class="appt-section-label" style="margin-bottom:0">Work order</div>
         <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="wo-edit-toggle">Edit</button>

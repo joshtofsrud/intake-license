@@ -1249,7 +1249,102 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       </div>
     @endif
 
-    {{-- Activity — unified timeline of all customer events.
+    {{-- ════════════════════════════════════════════════════════════
+         Special Orders integration (added by patch 88, Stage 5)
+         Open + recently closed SOs for this customer. Drawer trigger
+         prefills customer in first allocation row.
+         ════════════════════════════════════════════════════════════ --}}
+    @isset($specialOrdersOpen)
+      <div class="ia-card" style="margin-bottom:24px">
+        <div class="ia-card-head">
+          <span class="ia-card-title">Special orders</span>
+          <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm"
+                  onclick='SoDrawer.open({customer_id: @json($customer->id), customer_label: @json(trim($customer->first_name . " " . $customer->last_name)), alloc_mode: "customer"})'>
+            + SO for {{ $customer->first_name }}
+          </button>
+        </div>
+
+        @if($specialOrdersOpen->isEmpty() && $specialOrdersClosed->isEmpty())
+          <p style="font-size:13px;color:var(--ia-text-muted);padding:8px 0;margin:0">No special orders.</p>
+        @else
+          @if($specialOrdersOpen->isNotEmpty())
+            <table class="ia-table">
+              <thead>
+                <tr>
+                  <th>SO</th>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>For appt</th>
+                  <th>Status</th>
+                  <th>ETA</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($specialOrdersOpen as $so)
+                  <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                    <td><strong>{{ $so->so_number }}</strong></td>
+                    <td>{{ $so->item_name_snapshot }}</td>
+                    <td>{{ $so->quantity }}</td>
+                    <td style="color:var(--ia-text-muted);font-size:12px">
+                      @if($so->appointment){{ $so->appointment->ra_number }}@else — @endif
+                    </td>
+                    <td>
+                      @php
+                        $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
+                      @endphp
+                      <span class="so-status so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+                    </td>
+                    <td style="color:var(--ia-text-muted);font-size:12px">
+                      @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          @endif
+
+          @if($specialOrdersClosed->isNotEmpty())
+            <details style="margin-top:14px">
+              <summary style="font-size:12px;color:var(--ia-text-muted);cursor:pointer;padding-bottom:6px">
+                Recent closed ({{ $specialOrdersClosed->count() }}, last 90 days)
+              </summary>
+              <table class="ia-table" style="margin-top:6px">
+                <tbody>
+                  @foreach($specialOrdersClosed as $so)
+                    <tr style="cursor:pointer;opacity:.65" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                      <td><strong>{{ $so->so_number }}</strong></td>
+                      <td>{{ $so->item_name_snapshot }} <span style="color:var(--ia-text-muted)">×{{ $so->quantity }}</span></td>
+                      <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
+                      <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->updated_at->format('M j, Y') }}</td>
+                    </tr>
+                  @endforeach
+                </tbody>
+              </table>
+            </details>
+          @endif
+        @endif
+      </div>
+
+      @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
+
+      @push('styles')
+      <style>
+      .so-status {
+        display: inline-block; padding: 2px 8px; border-radius: 99px;
+        font-size: 10.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em;
+      }
+      .so-status--needed   { background: rgba(167,139,250,0.10); color: #A78BFA; }
+      .so-status--ordered  { background: rgba(96,165,250,0.10);  color: #60A5FA; }
+      .so-status--arrived  { background: rgba(190,242,100,0.10); color: var(--ia-accent); }
+      .so-status--pulled   { background: rgba(200,200,200,0.06); color: var(--ia-text-muted); }
+      .so-status--cancelled{ background: rgba(248,113,113,0.10); color: #F87171; text-decoration: line-through; }
+      .so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
+      </style>
+      @endpush
+    @endisset
+
+        {{-- Activity — unified timeline of all customer events.
          Powered by CustomerTimelineService. Replaces the previous
          appointments-only section. Groups by month, current+previous
          expanded by default, older months collapsible. Filterable
