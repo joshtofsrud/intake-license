@@ -209,10 +209,40 @@ class ReceiveShipmentController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // patch-90 SO auto-link — find open 'ordered' SOs for received items
+        $receivedItemIds = $shipment->items
+            ->filter(fn ($l) => $l->status === 'received'
+                && $l->inventory_item_id !== null
+                && $l->received_quantity > 0)
+            ->pluck('inventory_item_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $matchedSos = collect();
+        $neededHintCount = 0;
+        if (!empty($receivedItemIds)) {
+            $matchedSos = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+                ->whereIn('inventory_item_id', $receivedItemIds)
+                ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED)
+                ->with(['customer', 'appointment', 'vendor', 'item'])
+                ->orderBy('created_at')
+                ->get();
+
+            // Surface count of 'needed' SOs that exist for these items —
+            // a hint that staff might want to promote them before commit.
+            $neededHintCount = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+                ->whereIn('inventory_item_id', $receivedItemIds)
+                ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
+                ->count();
+        }
+
         return view('tenant.inventory.receiving.edit', [
-            'shipment'  => $shipment,
-            'locations' => $locations,
-            'pageTitle' => 'Editing ' . $shipment->shipment_number,
+            'shipment'        => $shipment,
+            'locations'       => $locations,
+            'pageTitle'       => 'Editing ' . $shipment->shipment_number,
+            'matchedSos'      => $matchedSos,
+            'neededHintCount' => $neededHintCount,
         ]);
     }
 
@@ -514,6 +544,56 @@ class ReceiveShipmentController extends Controller
                         movementType: 'receive',
                         notes: "Shipment {$shipment->shipment_number}",
                     );
+                }
+
+                // patch-90 commit() SO arrival pass — auto-link arrived SOs.
+                // so_arrivals payload from edit-page form: { '<so_id>': '<qty>' }
+                // For each entry, re-fetch the SO with lock and confirm it's
+                // still 'ordered' before transitioning. Partial-receipt split
+                // is handled internally by SpecialOrderService::markArrived
+                // when receivedQty < SO.quantity.
+                $soArrivals = (array) request()->input('so_arrivals', []);
+                if (!empty($soArrivals)) {
+                    $soService = app(\App\Services\Tenant\SpecialOrderService::class);
+                    foreach ($soArrivals as $soId => $receivedQty) {
+                        $receivedQty = (int) $receivedQty;
+                        if ($receivedQty < 1) {
+                            continue;
+                        }
+
+                        $lockedSo = \App\Models\Tenant\TenantSpecialOrder::where('id', $soId)
+                            ->where('tenant_id', $tenant->id)
+                            ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if (!$lockedSo) {
+                            // Drifted state (cancelled / arrived / closed between
+                            // page load and commit). Skip silently.
+                            continue;
+                        }
+
+                        // Clamp receivedQty to SO quantity. Excess on the shipment
+                        // line goes to general stock (already incremented above).
+                        $clamped = min($receivedQty, (int) $lockedSo->quantity);
+
+                        try {
+                            $soService->markArrived(
+                                $lockedSo->id,
+                                $clamped,
+                                $lockedSo->unit_cost_cents_estimated,
+                                null,  // invoice number — not captured at receiving v1
+                                null,  // invoice date — same
+                            );
+                        } catch (\App\Services\Tenant\SpecialOrderValidationException $e) {
+                            // Log + continue. Don't blow up the entire commit
+                            // because one SO transition failed.
+                            \Illuminate\Support\Facades\Log::warning(
+                                'SO auto-link transition failed on commit',
+                                ['shipment_id' => $shipment->id, 'so_id' => $lockedSo->id, 'error' => $e->getMessage()]
+                            );
+                        }
+                    }
                 }
 
                 $shipment->status                       = 'committed';

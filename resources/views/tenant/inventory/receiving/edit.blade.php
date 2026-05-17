@@ -169,9 +169,96 @@
     <strong id="rcv-commit-units" style="color:var(--ia-accent)">0 units</strong>.
     Backorder + unexpected lines stay on the shipment but won't write movements.
   </div>
-  <form method="POST" action="{{ route('tenant.inventory.receiving.commit', ['id' => $shipment->id]) }}"
+  {{-- patch-90 SO auto-link card — appears before commit form.
+       Lists matched 'ordered' SOs for received items.
+       Hidden inputs (so_arrivals[so_id] = qty) ride along with the commit POST. --}}
+  @isset($matchedSos)
+    @if($matchedSos->isNotEmpty() || ($neededHintCount ?? 0) > 0)
+      <div class="ia-card" style="margin-bottom:14px;border-left:3px solid var(--ia-accent)">
+        <div class="ia-card-body" style="padding:14px 18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+            <strong style="font-size:13px">Match special orders</strong>
+            <span style="font-size:11.5px;color:var(--ia-text-muted)">
+              {{ $matchedSos->count() }} open SO{{ $matchedSos->count() === 1 ? '' : 's' }} match received items
+            </span>
+          </div>
+
+          @if($matchedSos->isNotEmpty())
+            <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 12px;line-height:1.55">
+              Auto-matching these special orders will mark them arrived during commit. Uncheck any you don't want to claim from this shipment. Set received qty below the SO total for a partial receipt (the remainder stays on order as a sibling row).
+            </p>
+
+            <table class="ia-table" style="margin-bottom:8px">
+              <thead>
+                <tr>
+                  <th style="width:32px"></th>
+                  <th>SO</th>
+                  <th>Item</th>
+                  <th>For</th>
+                  <th style="width:90px">SO qty</th>
+                  <th style="width:120px">Mark arrived</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($matchedSos as $so)
+                  <tr>
+                    <td>
+                      <input type="checkbox" class="rcv-so-match-cb" checked
+                             data-so-id="{{ $so->id }}"
+                             onchange="rcvToggleSoMatch(this)">
+                    </td>
+                    <td>
+                      <a href="{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}"
+                         target="_blank" style="font-weight:600">{{ $so->so_number }}</a>
+                    </td>
+                    <td>
+                      {{ $so->item_name_snapshot }}
+                      @if($so->vendor)<div style="font-size:11px;color:var(--ia-text-muted)">via {{ $so->vendor->name }}</div>@endif
+                    </td>
+                    <td>
+                      @if($so->customer)
+                        {{ $so->customer->first_name }} {{ $so->customer->last_name }}
+                        @if($so->appointment)<div style="font-size:11px;color:var(--ia-text-muted)">{{ $so->appointment->ra_number }}</div>@endif
+                      @else
+                        <span style="color:var(--ia-text-muted)">Shop stock</span>
+                      @endif
+                    </td>
+                    <td>{{ $so->quantity }}</td>
+                    <td>
+                      <input type="number" class="ia-input rcv-so-qty" min="1" max="{{ $so->quantity }}"
+                             value="{{ $so->quantity }}"
+                             data-so-id="{{ $so->id }}"
+                             style="padding:4px 8px;font-size:12px"
+                             onchange="rcvUpdateSoQty(this)">
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          @endif
+
+          @if(($neededHintCount ?? 0) > 0)
+            <p style="font-size:12px;color:var(--ia-amber);margin:8px 0 0;padding:8px 10px;background:rgba(245,158,11,0.06);border-radius:4px">
+              <strong>{{ $neededHintCount }} 'needed' SO{{ $neededHintCount === 1 ? '' : 's' }}</strong> also exist{{ $neededHintCount === 1 ? 's' : '' }} for these items. They won't auto-link — promote them to 'ordered' first if you want to fulfill from this shipment.
+            </p>
+          @endif
+        </div>
+      </div>
+    @endif
+  @endisset
+
+    <form method="POST" action="{{ route('tenant.inventory.receiving.commit', ['id' => $shipment->id]) }}"
         id="rcv-commit-form" onsubmit="return rcvConfirmCommit(event);">
     @csrf
+    {{-- patch-90 SO hidden fields — populated by JS from the SO match card.
+         Format: so_arrivals[<so_uuid>] = <received_qty> --}}
+    <div id="rcv-so-hidden-fields">
+      @isset($matchedSos)
+        @foreach($matchedSos as $so)
+          <input type="hidden" name="so_arrivals[{{ $so->id }}]" value="{{ $so->quantity }}" data-so-id="{{ $so->id }}">
+        @endforeach
+      @endisset
+    </div>
     <button type="submit" class="ia-btn ia-btn--primary" id="rcv-commit-btn"
             @if($shipment->received_count === 0) disabled @endif>
       Commit shipment
@@ -692,3 +779,34 @@
 </script>
 
 @endsection
+
+@push('scripts')
+<script>
+// patch-90 SO match card handlers — keep hidden so_arrivals[] in sync
+// with checkbox state and qty inputs.
+window.rcvToggleSoMatch = function (cb) {
+  var soId = cb.dataset.soId;
+  var hidden = document.querySelector('input[type="hidden"][data-so-id="' + soId + '"]');
+  if (!hidden) return;
+  if (cb.checked) {
+    // restore from the qty input
+    var qtyInput = document.querySelector('.rcv-so-qty[data-so-id="' + soId + '"]');
+    hidden.value = qtyInput ? qtyInput.value : '0';
+    hidden.name = 'so_arrivals[' + soId + ']';
+  } else {
+    // disable participation by clearing name (browser won't submit it)
+    hidden.name = '__skipped_so_' + soId;
+  }
+};
+window.rcvUpdateSoQty = function (input) {
+  var soId = input.dataset.soId;
+  var cb = document.querySelector('.rcv-so-match-cb[data-so-id="' + soId + '"]');
+  var hidden = document.querySelector('input[type="hidden"][data-so-id="' + soId + '"]');
+  if (!hidden || !cb) return;
+  if (cb.checked) {
+    hidden.value = input.value;
+  }
+};
+</script>
+@endpush
+
