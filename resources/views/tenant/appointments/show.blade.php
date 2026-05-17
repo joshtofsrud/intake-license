@@ -1080,7 +1080,6 @@
         $showBlockWarning = $appointment->status === 'in_progress' && $unArrivedSos->isNotEmpty();
       @endphp
 
-      @if($specialOrdersForAppt->isNotEmpty() || in_array($appointment->status, ['scheduled', 'in_progress']))
       <div class="ia-card" id="so-parts-card" style="order:45;{{ $showBlockWarning ? 'border-left:3px solid #F59E0B;' : '' }}">
         <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
           <span>Special-order parts</span>
@@ -1138,7 +1137,6 @@
           </table>
         @endif
       </div>
-      @endif
 
       @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
 
