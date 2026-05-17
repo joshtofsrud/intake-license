@@ -325,6 +325,18 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
             });
 
+            // Vendors — added in patch 86 (Special Orders Stage 4a).
+            // Tenant-scoped vendor catalog. Distinct from
+            // platform_distributor_catalogs which is the global sync source.
+            Route::prefix('vendors')->name('vendors.')->group(function () {
+                Route::get('/',           [TenantControllers\VendorController::class, 'index'])->name('index');
+                Route::post('/',          [TenantControllers\VendorController::class, 'store'])->name('store');
+                Route::get('/{id}',       [TenantControllers\VendorController::class, 'show'])->name('show');
+                Route::get('/{id}/edit',  [TenantControllers\VendorController::class, 'edit'])->name('edit');
+                Route::patch('/{id}',     [TenantControllers\VendorController::class, 'update'])->name('update');
+                Route::delete('/{id}',    [TenantControllers\VendorController::class, 'destroy'])->name('destroy');
+            });
+
             Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');
             Route::get('/waitlist/settings',           [TenantControllers\WaitlistAdminController::class, 'settings'])->name('waitlist.settings');
             Route::patch('/waitlist/settings',         [TenantControllers\WaitlistAdminController::class, 'updateSettings'])->name('waitlist.settings.update');
