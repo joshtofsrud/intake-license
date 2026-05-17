@@ -31,6 +31,7 @@ class TenantCustomer extends Authenticatable
 
     public function tenant(): BelongsTo       { return $this->belongsTo(Tenant::class); }
     public function appointments(): HasMany   { return $this->hasMany(TenantAppointment::class, 'customer_id'); }
+    public function specialOrders(): HasMany  { return $this->hasMany(TenantSpecialOrder::class, 'customer_id'); }
     public function notes(): HasMany          { return $this->hasMany(TenantCustomerNote::class, 'customer_id')->orderByDesc('created_at'); }
     public function fullName(): string        { return $this->first_name . ' ' . $this->last_name; }
 

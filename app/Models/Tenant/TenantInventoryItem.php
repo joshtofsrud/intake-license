@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -55,6 +56,7 @@ class TenantInventoryItem extends Model
         'allow_oversell',
         'is_active',
         'tax_class_code',
+        'default_vendor_id',
     ];
 
     protected $casts = [
@@ -132,5 +134,59 @@ class TenantInventoryItem extends Model
         return $this->distributor_catalog_id !== null
             && $this->distributorCatalog
             && $this->distributorCatalog->is_active;
+    }
+
+    // ─── Vendor / Special Order relationships ────────────────────────────
+    // Added by patch 84. The pivot is authoritative for "which vendors
+    // can supply this item" — default_vendor_id is a convenience pointer
+    // that usually matches the preferred pivot row, but can diverge.
+
+    public function defaultVendor(): BelongsTo
+    {
+        return $this->belongsTo(TenantVendor::class, 'default_vendor_id');
+    }
+
+    /**
+     * All vendors that source this item, through the pivot.
+     * Use ->withPivot() data for vendor_sku / unit_cost / lead_time.
+     */
+    public function vendors(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            TenantVendor::class,
+            'tenant_inventory_item_vendors',
+            'inventory_item_id',
+            'vendor_id'
+        )
+            ->using(TenantInventoryItemVendor::class)
+            ->withPivot(['vendor_sku', 'unit_cost_cents', 'lead_time_days', 'is_preferred', 'last_ordered_at'])
+            ->withTimestamps();
+    }
+
+    public function specialOrders(): HasMany
+    {
+        return $this->hasMany(TenantSpecialOrder::class, 'inventory_item_id');
+    }
+
+    /**
+     * The preferred vendor pivot row, if one is marked. Falls back to
+     * defaultVendor() if no preferred is set in the pivot. Returns null
+     * if no source is configured.
+     */
+    public function preferredVendor(): ?TenantVendor
+    {
+        $preferred = $this->vendors()->wherePivot('is_preferred', true)->first();
+        return $preferred ?: $this->defaultVendor;
+    }
+
+    /**
+     * Sum of quantities on all open special orders for this item.
+     * Useful for the "On special order: X" stat on the item detail page.
+     */
+    public function onOrderCount(): int
+    {
+        return (int) $this->specialOrders()
+            ->whereIn('status', TenantSpecialOrder::STATUSES_OPEN)
+            ->sum('quantity');
     }
 }

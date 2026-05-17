@@ -50,6 +50,7 @@ class TenantAppointment extends Model
     public function charges(): HasMany     { return $this->hasMany(TenantAppointmentCharge::class, 'appointment_id'); }
     public function payments(): HasMany    { return $this->hasMany(TenantAppointmentPayment::class, 'appointment_id')->orderBy('recorded_at'); }
     public function sales(): HasMany       { return $this->hasMany(TenantSale::class, 'appointment_id'); }
+    public function specialOrders(): HasMany { return $this->hasMany(TenantSpecialOrder::class, 'appointment_id'); }
 
     public function scopeActive($q)        { return $q->whereNotIn('status', ['cancelled','refunded']); }
     public function customerName(): string { return $this->customer_first_name . ' ' . $this->customer_last_name; }

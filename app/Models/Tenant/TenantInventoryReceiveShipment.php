@@ -30,6 +30,7 @@ class TenantInventoryReceiveShipment extends Model
         'shipment_number',
         'distributor_code',
         'distributor_name',
+        'vendor_id',
         'purchase_order_id',
         'status',
         'received_date',
@@ -62,6 +63,15 @@ class TenantInventoryReceiveShipment extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(TenantLocation::class, 'location_id');
+    }
+
+    /**
+     * The vendor this shipment came from. Nullable — legacy shipments
+     * predating the vendor system have only distributor_name string set.
+     */
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(TenantVendor::class, 'vendor_id');
     }
 
     public function items(): HasMany
