@@ -236,6 +236,44 @@ class DashboardDataService
             ];
         }
 
+        // patch-92 SO triage cards — appended to the existing rule set.
+        // Arrived: status=arrived (waiting on staff to pull from bench).
+        // Overdue: status=ordered AND expected_arrival_date past today
+        //   (vendor missed promised date, chase them).
+        $soArrivedCount = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
+            ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED)
+            ->count();
+
+        if ($soArrivedCount > 0) {
+            $cards[] = [
+                'count' => $soArrivedCount,
+                'title' => 'Special orders arrived',
+                'desc'  => $soArrivedCount === 1
+                    ? 'Customer part on the bench, ready to pull and notify'
+                    : 'Customer parts on the bench, ready to pull and notify',
+                'tone'  => 'amber',  // your action: pull from bench + tell customer
+                'link'  => route('tenant.special-orders.index', ['view' => 'arrived_bench']),
+            ];
+        }
+
+        $soOverdueCount = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
+            ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ORDERED)
+            ->whereNotNull('expected_arrival_date')
+            ->whereDate('expected_arrival_date', '<', $today)
+            ->count();
+
+        if ($soOverdueCount > 0) {
+            $cards[] = [
+                'count' => $soOverdueCount,
+                'title' => 'Special orders overdue',
+                'desc'  => $soOverdueCount === 1
+                    ? 'Vendor missed expected arrival — chase them'
+                    : 'Vendors missed expected arrivals — chase them',
+                'tone'  => 'red',  // your action: contact vendor about delay
+                'link'  => route('tenant.special-orders.index', ['view' => 'overdue']),
+            ];
+        }
+
         return [
             'cards'       => $cards,
             'total_items' => count($cards),
