@@ -18,9 +18,10 @@ class TenantTransferRequest extends Model
 {
     use HasUuids;
 
-    public const STATUS_PENDING   = 'pending';
-    public const STATUS_FULFILLED = 'fulfilled';
-    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_PENDING    = 'pending';
+    public const STATUS_IN_TRANSIT = 'in_transit';
+    public const STATUS_FULFILLED  = 'fulfilled';
+    public const STATUS_CANCELLED  = 'cancelled';
 
     protected $table = 'tenant_transfer_requests';
 
@@ -36,11 +37,16 @@ class TenantTransferRequest extends Model
         'notes',
         'fulfilled_at',
         'fulfilled_by_user_id',
+        'quantity_sent',
+        'sent_at',
+        'sent_by_user_id',
     ];
 
     protected $casts = [
-        'quantity'     => 'integer',
-        'fulfilled_at' => 'datetime',
+        'quantity'      => 'integer',
+        'quantity_sent' => 'integer',
+        'fulfilled_at'  => 'datetime',
+        'sent_at'       => 'datetime',
     ];
 
     public function inventoryItem(): BelongsTo

@@ -216,6 +216,9 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 Route::get( '/transfer-requests',                   [TenantControllers\TransferRequestController::class, 'index'])->name('transfer-requests.index');
                 Route::get( '/transfer-requests/{id}',              [TenantControllers\TransferRequestController::class, 'show'])->name('transfer-requests.show');
                 Route::post('/transfer-requests/{id}/fulfill',      [TenantControllers\TransferRequestController::class, 'fulfill'])->name('transfer-requests.fulfill');
+                // patch-102 transfer send/receive — three-stage flow
+                Route::post('/transfer-requests/{id}/send',          [TenantControllers\TransferRequestController::class, 'send'])->name('transfer-requests.send');
+                Route::post('/transfer-requests/{id}/receive',       [TenantControllers\TransferRequestController::class, 'receive'])->name('transfer-requests.receive');
                 Route::post('/transfer-requests/{id}/cancel',       [TenantControllers\TransferRequestController::class, 'cancel'])->name('transfer-requests.cancel');
             }); // close RequireRetailCapability group
 

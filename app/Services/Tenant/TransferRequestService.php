@@ -57,19 +57,106 @@ class TransferRequestService
         });
     }
 
-    public function markFulfilled(string $id, ?string $byUserId = null): TenantTransferRequest
+    /**
+     * patch-102 markSent — source location sends the items.
+     * Decrements source stock, sets status=in_transit, records
+     * quantity_sent (may be partial), sent_at, sent_by.
+     */
+    public function markSent(string $id, int $quantitySent, ?string $byUserId = null): TenantTransferRequest
     {
-        return DB::transaction(function () use ($id, $byUserId) {
+        return DB::transaction(function () use ($id, $quantitySent, $byUserId) {
             $tr = TenantTransferRequest::lockForUpdate()->findOrFail($id);
             if ($tr->status !== TenantTransferRequest::STATUS_PENDING) {
                 throw new InvalidArgumentException("Transfer request is not pending (status={$tr->status}).");
             }
+            if ($quantitySent < 1) {
+                throw new InvalidArgumentException('Quantity sent must be at least 1.');
+            }
+            if (!$tr->from_location_id) {
+                throw new InvalidArgumentException('Transfer request has no source location set.');
+            }
+
+            $tenant = $tr->load('inventoryItem', 'fromLocation')->fromLocation->tenant;
+            $item = $tr->inventoryItem;
+            $fromLoc = $tr->fromLocation;
+
+            if (!$item || !$fromLoc) {
+                throw new InvalidArgumentException('Item or source location missing.');
+            }
+
+            // Decrement source stock — uses the Pos InventoryService primitive,
+            // which writes a movement row with referenceType='transfer_request'.
+            app(\App\Services\Pos\InventoryService::class)->decrementStock(
+                tenant: $tenant,
+                item: $item,
+                location: $fromLoc,
+                quantity: $quantitySent,
+                referenceType: 'transfer_request',
+                referenceId: $tr->id,
+                tenantUser: $byUserId ? \App\Models\Tenant\TenantUser::find($byUserId) : null,
+                reason: 'Transfer out',
+                notes: "To {$tr->toLocation?->name}",
+            );
+
+            $tr->status = TenantTransferRequest::STATUS_IN_TRANSIT;
+            $tr->quantity_sent = $quantitySent;
+            $tr->sent_at = now();
+            $tr->sent_by_user_id = $byUserId;
+            $tr->save();
+            return $tr;
+        });
+    }
+
+    /**
+     * patch-102 markReceived — destination location receives the items.
+     * Increments destination stock, sets status=fulfilled.
+     * Reuses fulfilled_at + fulfilled_by_user_id columns for "received".
+     */
+    public function markReceived(string $id, ?string $byUserId = null): TenantTransferRequest
+    {
+        return DB::transaction(function () use ($id, $byUserId) {
+            $tr = TenantTransferRequest::lockForUpdate()->findOrFail($id);
+            if ($tr->status !== TenantTransferRequest::STATUS_IN_TRANSIT) {
+                throw new InvalidArgumentException("Transfer request is not in transit (status={$tr->status}).");
+            }
+
+            $tenant = $tr->load('inventoryItem', 'toLocation')->toLocation->tenant;
+            $item = $tr->inventoryItem;
+            $toLoc = $tr->toLocation;
+
+            if (!$item || !$toLoc) {
+                throw new InvalidArgumentException('Item or destination location missing.');
+            }
+
+            $qty = (int) ($tr->quantity_sent ?? $tr->quantity);
+
+            app(\App\Services\Pos\InventoryService::class)->incrementStock(
+                tenant: $tenant,
+                item: $item,
+                location: $toLoc,
+                quantity: $qty,
+                referenceType: 'transfer_request',
+                referenceId: $tr->id,
+                tenantUser: $byUserId ? \App\Models\Tenant\TenantUser::find($byUserId) : null,
+                reason: 'Transfer in',
+                notes: "From {$tr->fromLocation?->name}",
+            );
+
             $tr->status = TenantTransferRequest::STATUS_FULFILLED;
             $tr->fulfilled_at = now();
             $tr->fulfilled_by_user_id = $byUserId;
             $tr->save();
             return $tr;
         });
+    }
+
+    /**
+     * Legacy alias retained so 100B controllers calling markFulfilled
+     * still work — they'll only succeed if status is in_transit.
+     */
+    public function markFulfilled(string $id, ?string $byUserId = null): TenantTransferRequest
+    {
+        return $this->markReceived($id, $byUserId);
     }
 
     public function cancel(string $id): TenantTransferRequest
