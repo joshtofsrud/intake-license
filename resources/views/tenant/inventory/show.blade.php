@@ -137,7 +137,7 @@
               @php $oil = $itemLocByLocId[$ol->id] ?? null; $oStock = $oil ? (int)$oil->computed_stock_count : 0; @endphp
               <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:14px">
                 <span>{{ $ol->name }}</span>
-                <span style="font-weight:600;@if($oStock<0)color:#E24B4A;@endif">{{ $oStock }}</span>
+                <span style="font-weight:600;@if(0 > $oStock)color:#E24B4A;@endif">{{ $oStock }}</span>
               </div>
             @endforeach
             <div style="font-size:12px;color:var(--ia-text-muted);margin-top:4px">
@@ -209,7 +209,7 @@
             <tr>
               <td>{{ $loc->name }} @if($loc->is_default)<span class="ia-badge">default</span>@endif</td>
               <td style="text-align:right">
-                <span @if($il && $il->computed_stock_count < 0) style="color:#E24B4A;font-weight:600" @endif>
+                <span @if($il && 0 > $il->computed_stock_count) style="color:#E24B4A;font-weight:600" @endif>
                   {{ $il ? $il->computed_stock_count : 0 }}
                 </span>
                 @if($il && $il->isLowStock())<span class="ia-badge ia-badge--amber">Low</span>@endif
