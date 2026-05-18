@@ -52,6 +52,16 @@
       'gate'   => 'retail_enabled',
     ],
     [
+      // patch-100b transfer-requests nav — between SOs and Vendors
+      // since transfer requests are operationally similar to SOs
+      // (both are "we need stock somewhere else").
+      'route'  => 'tenant.transfer-requests.index',
+      'label'  => 'Transfer Requests',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 4.5h9l-2 -2M12.5 9.5h-9l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'group'  => null,
+      'gate'   => 'retail_enabled',
+    ],
+    [
       // patch-94 Vendors nav entry — gap closure from Patch 86.
       // Retail-gated, top-level. Sits next to Special Orders for
       // staff-mental-model coherence (vendors are SO suppliers).

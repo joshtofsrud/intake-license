@@ -274,6 +274,24 @@ class DashboardDataService
             ];
         }
 
+        // patch-100b transfer requests tile — pending requests need
+        // action by staff at the source location to physically move stock.
+        $trPendingCount = \App\Models\Tenant\TenantTransferRequest::where('tenant_id', $tenantId)
+            ->where('status', 'pending')
+            ->count();
+
+        if ($trPendingCount > 0) {
+            $cards[] = [
+                'count' => $trPendingCount,
+                'title' => 'Transfer requests',
+                'desc'  => $trPendingCount === 1
+                    ? 'A staff member requested stock be transferred between locations'
+                    : 'Staff members have requested stock be transferred between locations',
+                'tone'  => 'amber',
+                'link'  => route('tenant.transfer-requests.index'),
+            ];
+        }
+
         return [
             'cards'       => $cards,
             'total_items' => count($cards),

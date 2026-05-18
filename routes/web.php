@@ -210,6 +210,13 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 // current location.
                 Route::post('/register/oversell/transfer-request', [TenantControllers\RegisterController::class, 'storeOversellTransferRequest'])->name('register.oversell.transfer-request');
                 Route::post('/register/oversell/special-order',    [TenantControllers\RegisterController::class, 'storeOversellSpecialOrder'])->name('register.oversell.special-order');
+
+                // patch-100b transfer-requests — admin UI for browsing and acting on
+                // transfer requests created by the register cart (patch-100a).
+                Route::get( '/transfer-requests',                   [TenantControllers\TransferRequestController::class, 'index'])->name('transfer-requests.index');
+                Route::get( '/transfer-requests/{id}',              [TenantControllers\TransferRequestController::class, 'show'])->name('transfer-requests.show');
+                Route::post('/transfer-requests/{id}/fulfill',      [TenantControllers\TransferRequestController::class, 'fulfill'])->name('transfer-requests.fulfill');
+                Route::post('/transfer-requests/{id}/cancel',       [TenantControllers\TransferRequestController::class, 'cancel'])->name('transfer-requests.cancel');
             }); // close RequireRetailCapability group
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
