@@ -248,6 +248,46 @@ class BookingController extends Controller
             ], 422);
         }
 
+        // patch-93 booking soft SO — detect a customer-typed part request and
+        // create a status=needed SO. Triggers when a custom field with
+        // field_key='so_request' (case-insensitive) has a non-empty response.
+        // Tenants enable this by adding such a field to their booking form.
+        try {
+            $responses = (array) $request->input('responses', []);
+            $soRequestText = null;
+
+            foreach ($responses as $fieldKey => $value) {
+                if (strtolower((string) $fieldKey) === 'so_request') {
+                    $trimmed = trim((string) $value);
+                    if ($trimmed !== '') {
+                        $soRequestText = $trimmed;
+                    }
+                    break;
+                }
+            }
+
+            if ($soRequestText !== null && $appointment) {
+                $soSvc = app(\App\Services\Tenant\SpecialOrderService::class);
+                $soSvc->create([
+                    'tenant_id'           => $tenant->id,
+                    'inventory_item_id'   => null,
+                    'item_name_snapshot'  => mb_substr($soRequestText, 0, 255),
+                    'quantity'            => 1,
+                    'customer_id'         => $appointment->customer_id,
+                    'appointment_id'      => $appointment->id,
+                    'status'              => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
+                    'created_from'        => 'booking',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Soft SO creation is best-effort — never block booking completion.
+            \Illuminate\Support\Facades\Log::warning('Booking soft SO creation failed', [
+                'tenant_id' => $tenant->id,
+                'appointment_id' => $appointment->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         $paymentMethod = $request->input('payment_method');
 
         if ($paymentMethod === 'none' || $appointment->total_cents === 0) {

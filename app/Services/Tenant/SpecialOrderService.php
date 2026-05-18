@@ -272,7 +272,7 @@ class SpecialOrderService
         ?string $vendorInvoiceNumber = null,
         ?string $vendorInvoiceDate = null
     ): TenantSpecialOrder {
-        return DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate) {
+        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate) {
             $so = $this->findOrFail($id);
             $this->validateTransition($so, TenantSpecialOrder::STATUS_ARRIVED);
 
@@ -317,6 +317,12 @@ class SpecialOrderService
 
             return $so->fresh();
         });
+
+        // patch-93 dispatch SpecialOrderArrived — fires AFTER the DB
+        // transaction commits, so listeners can assume durable state.
+        event(new \App\Events\SpecialOrders\SpecialOrderArrived($result));
+
+        return $result;
     }
 
     /**
