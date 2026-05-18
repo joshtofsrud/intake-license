@@ -113,7 +113,7 @@
       {{-- Zone 1: Here --}}
       <div>
         <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:8px">
-          Here@if($currentLocation) · {{ $currentLocation->name }}@endif
+          Here @if($currentLocation)· {{ $currentLocation->name }}@endif
         </div>
         <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
           <div style="font-size:44px;font-weight:600;line-height:1;@if($status['tone']==='red')color:#E24B4A;@endif">{{ $hereStock }}</div>
