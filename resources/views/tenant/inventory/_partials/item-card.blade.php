@@ -65,9 +65,9 @@
     <div class="inv-row-stock-num" style="color:{{ $stockColor }}">{{ $stock }}</div>
     @if($statusCopy || ($isMulti && $totalStock !== $hereStock))
       <div class="inv-row-stock-meta">
-        @if($statusCopy){{ $statusCopy }}@endif
+        @if($statusCopy) {{ $statusCopy }} @endif
         @if($statusCopy && $isMulti && $totalStock !== $hereStock) · @endif
-        @if($isMulti && $totalStock !== $hereStock){{ $totalStock }} total@endif
+        @if($isMulti && $totalStock !== $hereStock) {{ $totalStock }} total @endif
       </div>
     @endif
   </td>
