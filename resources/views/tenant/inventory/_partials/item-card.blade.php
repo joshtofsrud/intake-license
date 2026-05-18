@@ -1,57 +1,82 @@
 @php
-  // patch-98 per-location — show current location's count, total as secondary
   $totalStock = (int) $item->computed_stock_count;
   $hereStock  = ($hereStocks ?? null) && array_key_exists($item->id, $hereStocks)
                   ? (int) $hereStocks[$item->id]
                   : $totalStock;
   $stock = $hereStock;
   $threshold = $item->shop_reorder_threshold;
-  $isLow = $threshold !== null && $stock > 0 && $stock <= $threshold;
-  $isOut = $stock <= 0 && $stock >= 0;
   $isOversold = $stock < 0;
+  $isOut = $stock === 0;
+  $isLow = !$isOut && !$isOversold && $threshold !== null && $stock <= $threshold;
 
-  $stockClass = '';
-  if ($isOversold) $stockClass = 'ia-stock--out';
-  elseif ($isOut)  $stockClass = 'ia-stock--out';
-  elseif ($isLow)  $stockClass = 'ia-stock--low';
+  $barColor = 'transparent';
+  $statusCopy = null;
+  if ($isOversold) {
+    $barColor = '#E24B4A';
+    $statusCopy = 'Oversold';
+  } elseif ($isOut) {
+    $barColor = '#EF9F27';
+    $statusCopy = 'Out';
+  } elseif ($isLow) {
+    $barColor = '#EF9F27';
+    $statusCopy = 'Low';
+  }
 
+  $stockColor = $isOversold ? '#E24B4A' : ($isOut || $isLow ? '#BA7517' : 'inherit');
+  $detailUrl = route('tenant.inventory.show', $item->id);
   $sellPrice = $item->effectiveSellPriceCents();
   $cost = $item->effectiveCostCents();
+  $isMulti = $isMultiLocation ?? false;
 @endphp
 
-<tr>
-  <td>
-    <a href="{{ route('tenant.inventory.show', $item->id) }}" style="font-weight:500;color:inherit;text-decoration:none">
-      {{ $item->name }}
-    </a>
-    @if($item->shop_bin_location)
-      <div style="font-size:12px;color:var(--ia-text-muted)">Bin {{ $item->shop_bin_location }}</div>
+<tr class="inv-row" onclick="window.location='{{ $detailUrl }}'" style="cursor:pointer">
+  <td class="inv-row-bar" style="width:4px;padding:0;background:{{ $barColor }};border-radius:0"></td>
+
+  <td class="inv-row-identity">
+    <div class="inv-row-name">{{ $item->name }}</div>
+    <div class="inv-row-meta">
+      <code class="inv-row-sku">{{ $item->sku }}</code>
+      @if($item->category)
+        <span class="inv-row-pill">{{ $item->category->name }}</span>
+      @endif
+      @if($item->shop_bin_location)
+        <span class="inv-row-bin">Bin {{ $item->shop_bin_location }}</span>
+      @endif
+    </div>
+  </td>
+
+  <td class="inv-row-upc">
+    @if($item->catalog_upc)
+      <code>{{ $item->catalog_upc }}</code>
+    @else
+      <span class="inv-row-dash">—</span>
     @endif
   </td>
-  <td><code style="font-size:13px">{{ $item->sku }}</code></td>
-  <td>{{ $item->category?->name ?? '—' }}</td>
-  <td style="text-align:right" class="{{ $stockClass }}">
-    {{ $stock }}
-    @if($isOversold)
-      <span class="ia-badge ia-badge--red">Oversold</span>
-    @elseif($isOut)
-      <span class="ia-badge ia-badge--red">Out</span>
-    @elseif($isLow)
-      <span class="ia-badge ia-badge--amber">Low</span>
-    @endif
-    @if(($isMultiLocation ?? false) && $totalStock !== $hereStock)
-      <div style="font-size:11px;color:var(--ia-text-muted);font-weight:400;margin-top:2px">
-        {{ $totalStock }} total
+
+  <td class="inv-row-color">
+    {{ $item->color ?? '—' }}
+  </td>
+
+  <td class="inv-row-size">
+    {{ $item->size ?? '—' }}
+  </td>
+
+  <td class="inv-row-stock">
+    <div class="inv-row-stock-num" style="color:{{ $stockColor }}">{{ $stock }}</div>
+    @if($statusCopy || ($isMulti && $totalStock !== $hereStock))
+      <div class="inv-row-stock-meta">
+        @if($statusCopy){{ $statusCopy }}@endif
+        @if($statusCopy && $isMulti && $totalStock !== $hereStock) · @endif
+        @if($isMulti && $totalStock !== $hereStock){{ $totalStock }} total@endif
       </div>
     @endif
   </td>
-  <td style="text-align:right">
+
+  <td class="inv-row-price">
     {{ $sellPrice !== null ? '$' . number_format($sellPrice / 100, 2) : '—' }}
   </td>
-  <td style="text-align:right;color:var(--ia-text-muted)">
+
+  <td class="inv-row-cost">
     {{ $cost !== null ? '$' . number_format($cost / 100, 2) : '—' }}
-  </td>
-  <td style="text-align:right">
-    <a href="{{ route('tenant.inventory.show', $item->id) }}" class="ia-btn ia-btn--ghost ia-btn--small">View</a>
   </td>
 </tr>

@@ -40,6 +40,8 @@ class TenantInventoryItem extends Model
         'sku',
         'name',
         'description',
+        'color',
+        'size'
         'distributor_catalog_id',
         'catalog_cost_cents',
         'catalog_msrp_cents',

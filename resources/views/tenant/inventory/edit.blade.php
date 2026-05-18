@@ -49,6 +49,18 @@
         </select>
       </div>
 
+      {{-- patch-99 color/size fields --}}
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Color</label>
+          <input type="text" name="color" class="ia-input" maxlength="60" value="{{ old('color', $item->color ?? '') }}" placeholder="Black, Red, Anodized…">
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Size</label>
+          <input type="text" name="size" class="ia-input" maxlength="60" value="{{ old('size', $item->size ?? '') }}" placeholder="M, 27.2mm, 700x25c…">
+        </div>
+      </div>
+
       <div class="ia-form-group">
         <label class="ia-form-label">Description</label>
         <textarea name="description" class="ia-input" rows="3">{{ old('description', $item->description) }}</textarea>

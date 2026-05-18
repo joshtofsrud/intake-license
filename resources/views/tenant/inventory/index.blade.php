@@ -92,6 +92,26 @@
      shell doesn't render between the search bar and the mobile cards. */
   .inv-desk-card{display:none}
 }
+
+/* patch-99 list redesign — row styling */
+.inv-row { transition: background 120ms ease; }
+.inv-row:hover { background: var(--ia-hover); }
+.inv-row td { vertical-align: middle; }
+.inv-row-bar { padding: 0 !important; }
+.inv-row-identity { padding-left: 12px !important; }
+.inv-row-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; color: var(--ia-text); }
+.inv-row-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; flex-wrap: wrap; }
+.inv-row-sku { font-family: var(--font-mono, monospace); color: var(--ia-text-muted); font-size: 11.5px; background: transparent; padding: 0; }
+.inv-row-pill { display: inline-block; padding: 1px 8px; background: var(--ia-hover); color: var(--ia-text-muted); border-radius: 99px; font-size: 11px; }
+.inv-row-bin { color: var(--ia-text-muted); font-size: 11px; }
+.inv-row-upc code { font-family: var(--font-mono, monospace); font-size: 11.5px; color: var(--ia-text-muted); }
+.inv-row-color, .inv-row-size { font-size: 13px; color: var(--ia-text); }
+.inv-row-dash { color: var(--ia-text-muted); }
+.inv-row-stock { text-align: right; }
+.inv-row-stock-num { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.inv-row-stock-meta { font-size: 11px; color: var(--ia-text-muted); margin-top: 1px; }
+.inv-row-price, .inv-row-cost { text-align: right; font-variant-numeric: tabular-nums; }
+.inv-row-cost { color: var(--ia-text-muted); }
 </style>
 @endpush
 
@@ -243,15 +263,17 @@
   @else
 <div class="ia-table-wrap">
     <table class="ia-table">
+      {{-- patch-99 list redesign — column set + CSS --}}
       <thead>
         <tr>
-          <th>Name</th>
-          <th>SKU</th>
-          <th>Category</th>
-          <th style="text-align:right">Stock</th>
+          <th style="width:4px;padding:0"></th>
+          <th>Item</th>
+          <th>UPC</th>
+          <th>Color</th>
+          <th>Size</th>
+          <th style="text-align:right">{{ ($isMultiLocation ?? false) && ($currentLocation->name ?? null) ? 'Stock at ' . $currentLocation->name : 'Stock' }}</th>
           <th style="text-align:right">Price</th>
           <th style="text-align:right">Cost</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>

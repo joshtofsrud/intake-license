@@ -1,4 +1,5 @@
 <?php
+// patch-99 color/size + UPC column
 
 namespace App\Http\Controllers\Tenant;
 
@@ -208,6 +209,8 @@ class InventoryController extends Controller
             'sku'                   => ['required', 'string', 'max:64'],
             'name'                  => ['required', 'string', 'max:255'],
             'description'           => ['nullable', 'string'],
+            'color'                 => ['nullable', 'string', 'max:60'],
+            'size'                  => ['nullable', 'string', 'max:60'],
             'shop_cost_dollars'     => ['nullable', 'numeric', 'min:0'],
             'shop_sell_price_dollars' => ['nullable', 'numeric', 'min:0'],
             'shop_case_quantity'    => ['nullable', 'integer', 'min:1'],
@@ -239,6 +242,8 @@ class InventoryController extends Controller
             'sku'                    => $data['sku'],
             'name'                   => $data['name'],
             'description'            => $data['description'] ?? null,
+            'color'                  => $data['color'] ?? null,
+            'size'                   => $data['size'] ?? null,
             'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
             'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
             'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
@@ -349,6 +354,8 @@ class InventoryController extends Controller
             'sku'                     => ['required', 'string', 'max:64'],
             'name'                    => ['required', 'string', 'max:255'],
             'description'             => ['nullable', 'string'],
+            'color'                 => ['nullable', 'string', 'max:60'],
+            'size'                  => ['nullable', 'string', 'max:60'],
             'shop_cost_dollars'       => ['nullable', 'numeric', 'min:0'],
             'shop_sell_price_dollars' => ['nullable', 'numeric', 'min:0'],
             'shop_case_quantity'      => ['nullable', 'integer', 'min:1'],
@@ -380,6 +387,8 @@ class InventoryController extends Controller
             'sku'                    => $data['sku'],
             'name'                   => $data['name'],
             'description'            => $data['description'] ?? null,
+            'color'                  => $data['color'] ?? null,
+            'size'                   => $data['size'] ?? null,
             'shop_cost_cents'        => isset($data['shop_cost_dollars']) ? (int) round($data['shop_cost_dollars'] * 100) : null,
             'shop_sell_price_cents'  => isset($data['shop_sell_price_dollars']) ? (int) round($data['shop_sell_price_dollars'] * 100) : null,
             'shop_case_quantity'     => $data['shop_case_quantity'] ?? null,
