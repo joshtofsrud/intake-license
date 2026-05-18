@@ -417,7 +417,7 @@ class RegisterController extends Controller
                 'quantity'           => $validated['quantity'] ?? 1,
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
-                'created_from'       => 'register_oversell',
+                'created_from'       => 'register',
                 'notes'              => $validated['notes'] ?? null,
             ]);
 
