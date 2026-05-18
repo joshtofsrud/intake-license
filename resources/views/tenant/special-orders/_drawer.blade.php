@@ -328,14 +328,26 @@
           document.getElementById('so-item-freeform-btn').style.display = 'block';
           return;
         }
+        // patch-95 fix — render rows with data-* attrs, bind clicks after.
+        // The previous version stuffed JSON.stringify(name) into an inline
+        // onclick="" attribute, which broke as soon as a name contained any
+        // character that conflicted with HTML attribute quoting.
         document.getElementById('so-item-freeform-btn').style.display = 'none';
         box.innerHTML = data.results.map(function (it) {
-          return '<div class="so-search-row" onclick="SoDrawer.pickItem(\'' + it.id + '\',' +
-            JSON.stringify(it.name) + ',' + JSON.stringify(it.sku || '') + ')">' +
+          return '<div class="so-search-row" ' +
+            'data-item-id="' + escapeHtml(it.id) + '" ' +
+            'data-item-name="' + escapeHtml(it.name) + '" ' +
+            'data-item-sku="' + escapeHtml(it.sku || '') + '">' +
             '<strong>' + escapeHtml(it.name) + '</strong>' +
             (it.sku ? '<div class="ia-text-muted" style="font-size:11px">' + escapeHtml(it.sku) + '</div>' : '') +
             '</div>';
         }).join('');
+        // Bind clicks after rendering — no inline JS, no quote-collision risk
+        box.querySelectorAll('.so-search-row').forEach(function (el) {
+          el.addEventListener('click', function () {
+            SoDrawer.pickItem(el.dataset.itemId, el.dataset.itemName, el.dataset.itemSku);
+          });
+        });
         box.style.display = 'block';
       })
       .catch(function () { /* silent */ });
