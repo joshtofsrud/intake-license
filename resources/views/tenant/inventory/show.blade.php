@@ -68,37 +68,133 @@
   </div>
 @endif
 
-{{-- Stock summary --}}
-<div class="ia-card" style="margin-bottom:20px">
-  <div class="ia-card-head">
-    <span class="ia-card-title">Stock</span>
-    @if($isMultiLocation)
-      <span style="font-size:12px;color:var(--ia-text-muted);margin-left:8px">across {{ $locations->count() }} locations</span>
-    @endif
-  </div>
-  <div class="ia-card-body">
+{{-- patch-97 hero card — three-zone status: Here · Elsewhere · Special orders. --}}
+@php
+  $hereIl = $currentLocation ? ($itemLocByLocId[$currentLocation->id] ?? null) : null;
+  $hereStock = $hereIl ? (int) $hereIl->computed_stock_count : 0;
+  $hereThreshold = $hereIl?->shop_reorder_threshold ?? $item->shop_reorder_threshold;
 
-    <div style="display:flex;align-items:baseline;gap:24px;margin-bottom:16px">
+  // Status — drives the pill color/copy
+  if ($hereStock < 0) {
+    $status = ['copy' => 'Oversold by ' . abs($hereStock), 'tone' => 'red'];
+  } elseif ($hereStock === 0) {
+    $status = ['copy' => 'Out of stock', 'tone' => 'red'];
+  } elseif ($hereThreshold !== null && $hereStock <= $hereThreshold) {
+    $status = ['copy' => 'Low — reorder soon', 'tone' => 'amber'];
+  } else {
+    $status = ['copy' => 'In stock', 'tone' => 'green'];
+  }
+
+  // Other locations
+  $otherLocations = $locations->filter(fn($l) => !$currentLocation || $l->id !== $currentLocation->id);
+  $totalAcrossLocations = (int) $item->computed_stock_count;
+
+  // Best location to transfer from (any other loc with positive stock)
+  $transferCandidate = null;
+  foreach ($otherLocations as $ol) {
+    $oil = $itemLocByLocId[$ol->id] ?? null;
+    $oStock = $oil ? (int) $oil->computed_stock_count : 0;
+    if ($oStock > 0 && (!$transferCandidate || $oStock > $transferCandidate['stock'])) {
+      $transferCandidate = ['location' => $ol, 'stock' => $oStock];
+    }
+  }
+
+  // SO summary string e.g. "1 needed, 1 ordered"
+  $soMix = [];
+  foreach ($soSummary['by_status'] as $st => $cnt) {
+    $soMix[] = $cnt . ' ' . $st;
+  }
+@endphp
+
+<div class="ia-card" style="margin-bottom:14px">
+  <div class="ia-card-body" style="padding:20px 24px">
+    <div style="display:grid;grid-template-columns:1.1fr 0.9fr 1fr;gap:28px;align-items:flex-start">
+
+      {{-- Zone 1: Here --}}
       <div>
-        <div style="font-size:36px;font-weight:600">{{ $item->computed_stock_count }}</div>
-        <div style="font-size:13px;color:var(--ia-text-muted)">total on hand</div>
+        <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:8px">
+          Here@if($currentLocation) · {{ $currentLocation->name }}@endif
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
+          <div style="font-size:44px;font-weight:600;line-height:1;@if($status['tone']==='red')color:#E24B4A;@endif">{{ $hereStock }}</div>
+          <div style="font-size:13px;color:var(--ia-text-muted)">on hand</div>
+        </div>
+        <span class="ia-badge @if($status['tone']==='red')ia-badge--red @elseif($status['tone']==='amber')ia-badge--amber @else ia-badge--green @endif" style="padding:4px 10px;font-size:12px">
+          {{ $status['copy'] }}
+        </span>
       </div>
-      @if($item->shop_reorder_threshold !== null)
-        <div>
-          <div style="font-size:18px">{{ $item->shop_reorder_threshold }}</div>
-          <div style="font-size:13px;color:var(--ia-text-muted)">reorder threshold</div>
-        </div>
-      @endif
-      @if($item->shop_reorder_quantity !== null)
-        <div>
-          <div style="font-size:18px">{{ $item->shop_reorder_quantity }}</div>
-          <div style="font-size:13px;color:var(--ia-text-muted)">reorder quantity</div>
-        </div>
-      @endif
-    </div>
 
-    @if($isMultiLocation)
-      <table class="ia-table" style="margin-top:8px">
+      {{-- Zone 2: Elsewhere --}}
+      <div>
+        <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:8px">
+          Elsewhere
+        </div>
+        @if($otherLocations->isEmpty())
+          <div style="font-size:13px;color:var(--ia-text-muted)">Single-location tenant</div>
+        @else
+          <div style="display:flex;flex-direction:column;gap:6px">
+            @foreach($otherLocations as $ol)
+              @php $oil = $itemLocByLocId[$ol->id] ?? null; $oStock = $oil ? (int)$oil->computed_stock_count : 0; @endphp
+              <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:14px">
+                <span>{{ $ol->name }}</span>
+                <span style="font-weight:600;@if($oStock<0)color:#E24B4A;@endif">{{ $oStock }}</span>
+              </div>
+            @endforeach
+            <div style="font-size:12px;color:var(--ia-text-muted);margin-top:4px">
+              Total across all locations: <span style="color:var(--ia-text);font-weight:600">{{ $totalAcrossLocations }}</span>
+            </div>
+            @if($transferCandidate)
+              <a href="#" onclick="alert('Transfer UI coming soon.'); return false;"
+                 style="font-size:12px;color:var(--ia-accent);text-decoration:none;margin-top:2px">
+                Transfer from {{ $transferCandidate['location']->name }} →
+              </a>
+            @endif
+          </div>
+        @endif
+      </div>
+
+      {{-- Zone 3: Special orders --}}
+      <div>
+        <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:8px">
+          Special orders
+        </div>
+        @if($soSummary['open_count'] === 0)
+          <div style="font-size:14px;color:var(--ia-text-muted);margin-bottom:6px">None open</div>
+        @else
+          <div style="font-size:14px;margin-bottom:6px">
+            <span style="font-weight:600">{{ $soSummary['open_count'] }} open</span>
+            @if(!empty($soMix))
+              <span style="color:var(--ia-text-muted)"> · {{ implode(', ', $soMix) }}</span>
+            @endif
+          </div>
+          @if($soSummary['earliest_eta'])
+            <div style="font-size:12px;color:var(--ia-text-muted);margin-bottom:6px">
+              Earliest ETA · {{ \Carbon\Carbon::parse($soSummary['earliest_eta'])->format('M j') }}
+            </div>
+          @endif
+        @endif
+        <a href="{{ route('tenant.special-orders.index') }}?inventory_item_id={{ $item->id }}&prefill=1"
+           style="font-size:12px;color:var(--ia-accent);text-decoration:none">
+          + Special order →
+        </a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+@if($isMultiLocation)
+  {{-- Stock by location — detail table moved here from the old stock card --}}
+  <div class="ia-card" style="margin-bottom:20px">
+    <div class="ia-card-head">
+      <span class="ia-card-title">Stock by location</span>
+      <span style="font-size:12px;color:var(--ia-text-muted);margin-left:8px">
+        @if($item->shop_reorder_threshold !== null) reorder threshold: {{ $item->shop_reorder_threshold }} @endif
+        @if($item->shop_reorder_quantity !== null) · reorder qty: {{ $item->shop_reorder_quantity }} @endif
+      </span>
+    </div>
+    <div class="ia-card-body">
+      <table class="ia-table">
         <thead>
           <tr>
             <th>Location</th>
@@ -113,7 +209,9 @@
             <tr>
               <td>{{ $loc->name }} @if($loc->is_default)<span class="ia-badge">default</span>@endif</td>
               <td style="text-align:right">
-                {{ $il ? $il->computed_stock_count : 0 }}
+                <span @if($il && $il->computed_stock_count < 0) style="color:#E24B4A;font-weight:600" @endif>
+                  {{ $il ? $il->computed_stock_count : 0 }}
+                </span>
                 @if($il && $il->isLowStock())<span class="ia-badge ia-badge--amber">Low</span>@endif
               </td>
               <td style="text-align:right;color:var(--ia-text-muted)">
@@ -124,10 +222,9 @@
           @endforeach
         </tbody>
       </table>
-    @endif
-
+    </div>
   </div>
-</div>
+@endif
 
 {{-- Adjust stock form (hidden until button clicked) --}}
 <div id="adjust-stock-card" class="ia-card" style="display:{{ $errors->has('reason_code') || $errors->has('reason_text') || $errors->has('new_count') ? 'block' : 'none' }};margin-bottom:20px;border-left:4px solid var(--ia-accent)">

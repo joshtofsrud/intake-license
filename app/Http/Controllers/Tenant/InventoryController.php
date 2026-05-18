@@ -213,7 +213,7 @@ class InventoryController extends Controller
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' created."]);
     }
 
-    public function show(string $subdomain, string $id): View
+    public function show(Request $request, string $subdomain, string $id): View
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -236,7 +236,34 @@ class InventoryController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('tenant.inventory.show', compact('item', 'recentMovements', 'locations', 'vendors'));
+        // patch-97 hero data — resolve which location is "Here" for this
+        // viewer. Prefer session current_location_id; fall back to default.
+        $currentLocationId = $request->session()->get('current_location_id');
+        $currentLocation = null;
+        if ($currentLocationId) {
+            $currentLocation = $locations->firstWhere('id', $currentLocationId);
+        }
+        if (!$currentLocation) {
+            $currentLocation = $locations->firstWhere('is_default', true) ?? $locations->first();
+        }
+
+        // SO summary for this item — counts by status + earliest ETA on
+        // anything still ordered. Uses already-eager-loaded specialOrders.
+        $openSoStatuses = ['needed', 'ordered', 'arrived'];
+        $openSos = $item->specialOrders->whereIn('status', $openSoStatuses);
+        $soSummary = [
+            'open_count'    => $openSos->count(),
+            'by_status'     => $openSos->groupBy('status')->map->count()->toArray(),
+            'earliest_eta'  => $openSos->where('status', 'ordered')
+                ->whereNotNull('expected_arrival_date')
+                ->sortBy('expected_arrival_date')
+                ->first()?->expected_arrival_date,
+        ];
+
+        return view('tenant.inventory.show', compact(
+            'item', 'recentMovements', 'locations', 'vendors',
+            'currentLocation', 'soSummary'
+        ));
     }
 
     public function edit(string $subdomain, string $id): View
