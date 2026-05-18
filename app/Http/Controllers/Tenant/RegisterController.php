@@ -338,6 +338,99 @@ class RegisterController extends Controller
      * List open drafts at the current location.
      * Used by the resume banner on register load.
      */
+    /**
+     * patch-100a oversell actions — register cart "Request transfer" button.
+     * Creates a pending TenantTransferRequest scoped to the current
+     * register location. Returns the new request's id so the cart UI
+     * can swap the button for a confirmation pill.
+     */
+    public function storeOversellTransferRequest(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'inventory_item_id' => 'required|uuid|exists:tenant_inventory_items,id',
+            'quantity'          => 'nullable|integer|min:1',
+            'sale_id'           => 'nullable|uuid',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $svc = app(\App\Services\Tenant\TransferRequestService::class);
+            $tr = $svc->create([
+                'tenant_id'            => $tenant->id,
+                'inventory_item_id'    => $validated['inventory_item_id'],
+                'to_location_id'       => $locationId,
+                'quantity'             => $validated['quantity'] ?? 1,
+                'requested_by_user_id' => auth('tenant')->id(),
+                'sale_id'              => $validated['sale_id'] ?? null,
+                'notes'                => $validated['notes'] ?? null,
+            ]);
+
+            $fromLocName = $tr->fromLocation?->name;
+            return response()->json([
+                'ok'                  => true,
+                'transfer_request_id' => $tr->id,
+                'from_location_name'  => $fromLocName,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * patch-100a oversell actions — register cart "Add to order" button.
+     * Creates a status=needed special order for the item, optionally
+     * attached to a customer (if the cart has one). Returns the new
+     * SO's id + number for confirmation display.
+     */
+    public function storeOversellSpecialOrder(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'inventory_item_id' => 'required|uuid|exists:tenant_inventory_items,id',
+            'quantity'          => 'nullable|integer|min:1',
+            'customer_id'       => 'nullable|uuid',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('id', $validated['inventory_item_id'])
+            ->first();
+
+        if (!$item) {
+            return response()->json(['ok' => false, 'error' => 'Item not found.'], 404);
+        }
+
+        try {
+            $svc = app(\App\Services\Tenant\SpecialOrderService::class);
+            $so = $svc->create([
+                'tenant_id'          => $tenant->id,
+                'inventory_item_id'  => $item->id,
+                'item_name_snapshot' => $item->name,
+                'quantity'           => $validated['quantity'] ?? 1,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'status'             => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
+                'created_from'       => 'register_oversell',
+                'notes'              => $validated['notes'] ?? null,
+            ]);
+
+            return response()->json([
+                'ok'                => true,
+                'special_order_id'  => $so->id,
+                'so_number'         => $so->so_number,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
     public function listDrafts(Request $request): JsonResponse
     {
         $tenant = tenant();

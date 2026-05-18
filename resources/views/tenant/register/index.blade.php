@@ -24,6 +24,29 @@
   }
   @media(max-width:1200px){ .reg-grid{grid-template-columns:1fr} }
 
+  /* patch-100a oversell-actions — action row below oversold cart lines */
+  .reg-oversell-actions {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 6px; flex-wrap: wrap;
+  }
+  .reg-oversell-btn {
+    font-size: 11px; padding: 3px 10px;
+    background: transparent;
+    color: var(--ia-text);
+    border: 0.5px solid var(--ia-border);
+    border-radius: var(--ia-r-xs);
+    cursor: pointer; transition: background 120ms ease;
+  }
+  .reg-oversell-btn:hover { background: var(--ia-hover); }
+  .reg-oversell-pill {
+    display: inline-block;
+    font-size: 11px; padding: 3px 10px;
+    background: rgba(99,153,34,0.12);
+    color: #639922;
+    border: 0.5px solid rgba(99,153,34,0.35);
+    border-radius: var(--ia-r-xs);
+    font-weight: 500;
+  }
   /* patch-96 oversell-badge — small amber inline marker on cart lines */
   .reg-oversell-badge {
     display:inline-block; margin-left:8px;
@@ -907,9 +930,9 @@ function escapeHtml(s) {
 }
 
 function addToCart(item) {
-  // patch-96 cart-meta — preserve per-location stock + name so the cart
-  // can show an oversell badge inline. Services/open items pass undefined,
-  // which we treat as "stock not tracked at location" and never badge.
+  // patch-96 cart-meta + patch-100a oversell-actions — store stock data
+  // and any action-state (transfer / SO) on the cart line so it persists
+  // through re-renders and draft saves.
   cart.items.push({
     key: ++lineKey, type: item.type, source_id: item.source_id,
     name: item.name, price_cents: item.price_cents, qty: 1,
@@ -917,10 +940,78 @@ function addToCart(item) {
     current_location_stock: (typeof item.current_location_stock === 'number')
       ? item.current_location_stock : null,
     current_location_name: item.current_location_name || null,
+    transfer_request_id: null,
+    transfer_request_from: null,
+    special_order_id: null,
+    so_number: null,
   });
   renderCart();
   queueDraftSave();
 }
+
+// patch-100a oversell-actions — handlers for the two action buttons.
+// Both find the cart line, POST to the endpoint, then mutate the line's
+// state fields so the next renderCart() swaps button for pill.
+
+function requestTransferForLine(key) {
+  const line = cart.items.find(i => i.key === key);
+  if (!line || line.transfer_request_id) return;
+  fetch('{{ route('tenant.register.oversell.transfer-request') }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      inventory_item_id: line.source_id,
+      quantity: Math.max(1, Math.ceil(line.qty - line.current_location_stock)),
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      line.transfer_request_id = data.transfer_request_id;
+      line.transfer_request_from = data.from_location_name || null;
+      renderCart();
+      queueDraftSave();
+    } else {
+      alert('Transfer request failed: ' + (data.error || 'unknown error'));
+    }
+  })
+  .catch(err => alert('Transfer request error: ' + err.message));
+}
+
+function addToOrderForLine(key) {
+  const line = cart.items.find(i => i.key === key);
+  if (!line || line.special_order_id) return;
+  fetch('{{ route('tenant.register.oversell.special-order') }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      inventory_item_id: line.source_id,
+      quantity: Math.max(1, Math.ceil(line.qty - line.current_location_stock)),
+      customer_id: cart.customer_id || null,
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      line.special_order_id = data.special_order_id;
+      line.so_number = data.so_number;
+      renderCart();
+      queueDraftSave();
+    } else {
+      alert('Add to order failed: ' + (data.error || 'unknown error'));
+    }
+  })
+  .catch(err => alert('Add to order error: ' + err.message));
+}
+
 function removeLine(key) {
   cart.items = cart.items.filter(i => i.key !== key);
   renderCart();
@@ -970,21 +1061,44 @@ function renderCart() {
         html += '<div class="reg-cart-section-label">Adding to cart</div>';
       }
       html += cart.items.map(i => {
-        // patch-96 oversell-badge — badge appears when qty > stock at register location.
-        // Only for items with a numeric stock value (products at a known location).
+        // patch-96 oversell-badge + patch-100a oversell-actions — show badge
+        // and an action row below the line when the qty exceeds local stock.
         let badge = '';
-        if (typeof i.current_location_stock === 'number') {
+        let actionRow = '';
+        const isOversold = typeof i.current_location_stock === 'number'
+                           && i.qty > i.current_location_stock;
+        if (isOversold) {
           const overBy = i.qty - i.current_location_stock;
-          if (overBy > 0) {
-            const locLabel = i.current_location_name ? ' at ' + escapeHtml(i.current_location_name) : '';
-            badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
+          const locLabel = i.current_location_name ? ' at ' + escapeHtml(i.current_location_name) : '';
+          badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
+
+          // Action row: each button is either active (button) or already-fired (pill).
+          let transferBtn = '';
+          if (i.transfer_request_id) {
+            const fromLabel = i.transfer_request_from ? ' from ' + escapeHtml(i.transfer_request_from) : '';
+            transferBtn = `<span class="reg-oversell-pill">✓ Transfer requested${fromLabel}</span>`;
+          } else if (i.type === 'product' && i.source_id) {
+            transferBtn = `<button type="button" class="reg-oversell-btn" data-action="transfer" data-key="${i.key}">Request transfer</button>`;
+          }
+
+          let soBtn = '';
+          if (i.special_order_id) {
+            soBtn = `<span class="reg-oversell-pill">✓ ${escapeHtml(i.so_number || 'SO created')}</span>`;
+          } else if (i.type === 'product' && i.source_id) {
+            soBtn = `<button type="button" class="reg-oversell-btn" data-action="so" data-key="${i.key}">Add to order</button>`;
+          }
+
+          if (transferBtn || soBtn) {
+            actionRow = `<div class="reg-oversell-actions">${transferBtn}${soBtn}</div>`;
           }
         }
+
         return `
         <div class="reg-line">
           <div>
             <div class="name">${escapeHtml(i.name)} ${badge}</div>
             <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
+            ${actionRow}
           </div>
           <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
           <div style="display:flex;align-items:center;gap:6px">
@@ -1005,6 +1119,13 @@ function renderCart() {
   });
   lines.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.remove, 10)));
+  });
+  // patch-100a oversell-actions — wire the action buttons
+  lines.querySelectorAll('[data-action="transfer"]').forEach(btn => {
+    btn.addEventListener('click', () => requestTransferForLine(parseInt(btn.dataset.key, 10)));
+  });
+  lines.querySelectorAll('[data-action="so"]').forEach(btn => {
+    btn.addEventListener('click', () => addToOrderForLine(parseInt(btn.dataset.key, 10)));
   });
   lines.querySelectorAll('[data-remove-refund]').forEach(btn => {
     btn.addEventListener('click', () => {

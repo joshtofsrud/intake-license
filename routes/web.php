@@ -203,6 +203,13 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
                 Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
                 Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
+
+                // patch-100a oversell actions — register cart buttons that
+                // create a transfer request or a special order when staff
+                // rings up a line that exceeds available stock at the
+                // current location.
+                Route::post('/register/oversell/transfer-request', [TenantControllers\RegisterController::class, 'storeOversellTransferRequest'])->name('register.oversell.transfer-request');
+                Route::post('/register/oversell/special-order',    [TenantControllers\RegisterController::class, 'storeOversellSpecialOrder'])->name('register.oversell.special-order');
             }); // close RequireRetailCapability group
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
