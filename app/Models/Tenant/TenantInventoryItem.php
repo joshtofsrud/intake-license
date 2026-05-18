@@ -41,7 +41,7 @@ class TenantInventoryItem extends Model
         'name',
         'description',
         'color',
-        'size'
+        'size',
         'distributor_catalog_id',
         'catalog_cost_cents',
         'catalog_msrp_cents',
