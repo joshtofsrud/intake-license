@@ -965,7 +965,7 @@ function requestTransferForLine(key) {
     },
     body: JSON.stringify({
       inventory_item_id: line.source_id,
-      quantity: Math.max(1, Math.ceil(line.qty - line.current_location_stock)),
+      quantity: Math.max(1, Math.ceil(line.qty)),
     }),
   })
   .then(r => r.json())
@@ -994,7 +994,7 @@ function addToOrderForLine(key) {
     },
     body: JSON.stringify({
       inventory_item_id: line.source_id,
-      quantity: Math.max(1, Math.ceil(line.qty - line.current_location_stock)),
+      quantity: Math.max(1, Math.ceil(line.qty)),
       customer_id: cart.customer_id || null,
     }),
   })
