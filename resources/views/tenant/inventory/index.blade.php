@@ -274,12 +274,17 @@
     <div class="inv-mobile-list">
       @foreach($items as $item)
         @php
-          $stockCount = (int) $item->computed_stock_count;
+          // patch-98 mobile per-location
+          $totalStock = (int) $item->computed_stock_count;
+          $stockCount = ($hereStocks ?? null) && array_key_exists($item->id, $hereStocks)
+                          ? (int) $hereStocks[$item->id]
+                          : $totalStock;
           $threshold  = $item->shop_reorder_threshold;
           $isLow  = $threshold !== null && $stockCount > 0 && $stockCount <= $threshold;
           $isOut  = $stockCount <= 0;
           $dotCls = $isOut ? 'out' : ($isLow ? 'low' : '');
           $sellPrice = $item->effectiveSellPriceCents();
+          $showTotal = ($isMultiLocation ?? false) && $totalStock !== $stockCount;
         @endphp
         <a href="{{ route('tenant.inventory.show', $item->id) }}" class="inv-row-m">
           <div class="inv-dot {{ $dotCls }}"></div>
@@ -297,6 +302,9 @@
           </div>
           <div class="inv-right-m">
             <div class="inv-stock-m {{ $dotCls }}">{{ $stockCount }}</div>
+            @if($showTotal)
+              <div style="font-size:10.5px;color:var(--ia-text-muted);margin-top:1px">{{ $totalStock }} total</div>
+            @endif
             <div class="inv-price-m">{{ $sellPrice !== null ? '$' . number_format($sellPrice / 100, 2) : '—' }}</div>
           </div>
         </a>

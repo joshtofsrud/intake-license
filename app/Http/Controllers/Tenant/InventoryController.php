@@ -53,6 +53,20 @@ class InventoryController extends Controller
         $page     = max(1, (int) $request->input('page', 1));
         $perPage  = 25;
 
+        // patch-98 per-location list — resolve current location for the viewer
+        // so list rows can show that location's stock instead of company total.
+        $allLocations = $tenant->activeLocations()->get();
+        $isMultiLocation = $allLocations->count() > 1;
+        $currentLocationId = $request->session()->get('current_location_id');
+        $currentLocation = null;
+        if ($currentLocationId) {
+            $currentLocation = $allLocations->firstWhere('id', $currentLocationId);
+        }
+        if (!$currentLocation) {
+            $currentLocation = $allLocations->firstWhere('is_default', true) ?? $allLocations->first();
+        }
+        $hereLocId = $currentLocation?->id;
+
         $q = TenantInventoryItem::with(['category'])
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true);
@@ -69,26 +83,65 @@ class InventoryController extends Controller
             $q->where('category_id', $category);
         }
 
-        // Stock filter — items below threshold or fully out
+        // Stock filter — patch-98: keyed off CURRENT LOCATION's stock row
+        // when multi-location, falls back to item-level total otherwise.
         if ($stock === 'low') {
-            $q->whereNotNull('shop_reorder_threshold')
-              ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+            if ($hereLocId) {
+                $q->whereHas('locations', function ($w) use ($hereLocId) {
+                    $w->where('location_id', $hereLocId)
+                      ->whereNotNull('shop_reorder_threshold')
+                      ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+                });
+            } else {
+                $q->whereNotNull('shop_reorder_threshold')
+                  ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+            }
         } elseif ($stock === 'out') {
-            $q->where('computed_stock_count', '<=', 0);
+            if ($hereLocId) {
+                $q->whereHas('locations', function ($w) use ($hereLocId) {
+                    $w->where('location_id', $hereLocId)
+                      ->where('computed_stock_count', '<=', 0);
+                });
+            } else {
+                $q->where('computed_stock_count', '<=', 0);
+            }
         }
 
-        switch ($sort) {
-            case 'name_desc': $q->orderBy('name', 'desc'); break;
-            case 'sku_asc':   $q->orderBy('sku', 'asc'); break;
-            case 'sku_desc':  $q->orderBy('sku', 'desc'); break;
-            case 'stock_asc': $q->orderBy('computed_stock_count', 'asc'); break;
-            case 'stock_desc':$q->orderBy('computed_stock_count', 'desc'); break;
-            case 'name_asc':
-            default:          $q->orderBy('name', 'asc');
+        // patch-98 sort: stock_asc / stock_desc now order by current
+        // location's count when multi-location; fall back to total otherwise.
+        if (in_array($sort, ['stock_asc', 'stock_desc'], true) && $hereLocId) {
+            $dir = $sort === 'stock_asc' ? 'asc' : 'desc';
+            $q->leftJoin('tenant_inventory_item_locations as iil_sort', function ($j) use ($hereLocId) {
+                  $j->on('iil_sort.inventory_item_id', '=', 'tenant_inventory_items.id')
+                    ->where('iil_sort.location_id', '=', $hereLocId);
+              })
+              ->orderByRaw('COALESCE(iil_sort.computed_stock_count, 0) ' . $dir)
+              ->select('tenant_inventory_items.*');
+        } else {
+            switch ($sort) {
+                case 'name_desc': $q->orderBy('name', 'desc'); break;
+                case 'sku_asc':   $q->orderBy('sku', 'asc'); break;
+                case 'sku_desc':  $q->orderBy('sku', 'desc'); break;
+                case 'stock_asc': $q->orderBy('computed_stock_count', 'asc'); break;
+                case 'stock_desc':$q->orderBy('computed_stock_count', 'desc'); break;
+                case 'name_asc':
+                default:          $q->orderBy('name', 'asc');
+            }
         }
 
         $total = (clone $q)->count();
         $items = $q->forPage($page, $perPage)->get();
+
+        // patch-98 hereStocks lookup: item_id => current-location count
+        $hereStocks = [];
+        if ($hereLocId && $items->isNotEmpty()) {
+            $hereStocks = \App\Models\Tenant\TenantInventoryItemLocation::whereIn(
+                    'inventory_item_id', $items->pluck('id')
+                )
+                ->where('location_id', $hereLocId)
+                ->pluck('computed_stock_count', 'inventory_item_id')
+                ->toArray();
+        }
 
         $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')
@@ -102,7 +155,8 @@ class InventoryController extends Controller
         return view('tenant.inventory.index', compact(
             'items', 'categories', 'hasCategories',
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
-            'posCap'
+            'posCap',
+            'currentLocation', 'isMultiLocation', 'hereStocks'
         ));
     }
 
