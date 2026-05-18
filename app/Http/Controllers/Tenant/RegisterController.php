@@ -126,23 +126,48 @@ class RegisterController extends Controller
         $customers = [];
 
         if ($type === 'all' || $type === 'product') {
-            $products = TenantInventoryItem::where('tenant_id', $tenant->id)
+            // patch-96 location stock — enrich each product with its on-hand
+            // count at the CURRENT register location, so the cart can show an
+            // oversell badge when qty exceeds that.
+            $registerLocationId = $request->session()->get('current_location_id');
+            $registerLocationName = null;
+            if ($registerLocationId) {
+                $loc = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)
+                    ->where('id', $registerLocationId)
+                    ->first();
+                $registerLocationName = $loc?->name;
+            }
+
+            $productItems = TenantInventoryItem::where('tenant_id', $tenant->id)
                 ->where('is_active', true)
                 ->where(function ($w) use ($q) {
                     $w->where('name', 'like', "%{$q}%")
                       ->orWhere('sku', 'like', "%{$q}%");
                 })
                 ->limit(15)
-                ->get()
-                ->map(fn ($p) => [
-                    'id'              => $p->id,
-                    'name'            => $p->name ?? '',
-                    'sku'             => $p->sku ?? '',
-                    'price_cents'     => (int) ($p->effectiveSellPriceCents() ?? 0),
-                    'is_taxable'      => (($p->tax_class_code ?? null) !== 'exempt'),
-                    'allow_oversell'  => (bool) $p->allow_oversell,
-                ])
-                ->toArray();
+                ->get();
+
+            // One join to fetch all per-location counts for the matched items
+            $stockByItem = [];
+            if ($registerLocationId && $productItems->isNotEmpty()) {
+                $stockByItem = \App\Models\Tenant\TenantInventoryItemLocation::whereIn(
+                        'inventory_item_id', $productItems->pluck('id')
+                    )
+                    ->where('location_id', $registerLocationId)
+                    ->pluck('computed_stock_count', 'inventory_item_id')
+                    ->toArray();
+            }
+
+            $products = $productItems->map(fn ($p) => [
+                'id'                     => $p->id,
+                'name'                   => $p->name ?? '',
+                'sku'                    => $p->sku ?? '',
+                'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
+                'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
+                'allow_oversell'         => (bool) $p->allow_oversell,
+                'current_location_stock' => (int) ($stockByItem[$p->id] ?? 0),
+                'current_location_name'  => $registerLocationName,
+            ])->toArray();
         }
 
         if ($type === 'all' || $type === 'service') {

@@ -18,11 +18,25 @@
   .reg-tab-link:hover{color:var(--ia-text)}
   .reg-tab-link.active{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
 
+  /* patch-96 layout — 50/50 split between item search and cart */
   .reg-grid {
-    display:grid;grid-template-columns:1fr 360px;gap:18px;
+    display:grid;grid-template-columns:1fr 1fr;gap:18px;
   }
   @media(max-width:1200px){ .reg-grid{grid-template-columns:1fr} }
 
+  /* patch-96 oversell-badge — small amber inline marker on cart lines */
+  .reg-oversell-badge {
+    display:inline-block; margin-left:8px;
+    padding:2px 7px;
+    background:rgba(245,158,11,0.12);
+    color:#F59E0B;
+    border:0.5px solid rgba(245,158,11,0.35);
+    border-radius:var(--ia-r-xs);
+    font-size:10.5px; font-weight:600;
+    letter-spacing:0.02em;
+    vertical-align:middle;
+    white-space:nowrap;
+  }
   .reg-panel{
     background:var(--ia-surface);border:0.5px solid var(--ia-border);
     border-radius:var(--ia-r-lg);padding:18px
@@ -893,10 +907,16 @@ function escapeHtml(s) {
 }
 
 function addToCart(item) {
+  // patch-96 cart-meta — preserve per-location stock + name so the cart
+  // can show an oversell badge inline. Services/open items pass undefined,
+  // which we treat as "stock not tracked at location" and never badge.
   cart.items.push({
     key: ++lineKey, type: item.type, source_id: item.source_id,
     name: item.name, price_cents: item.price_cents, qty: 1,
     is_taxable: item.is_taxable !== false,
+    current_location_stock: (typeof item.current_location_stock === 'number')
+      ? item.current_location_stock : null,
+    current_location_name: item.current_location_name || null,
   });
   renderCart();
   queueDraftSave();
@@ -949,10 +969,21 @@ function renderCart() {
       if (cart.refund_lines.length > 0) {
         html += '<div class="reg-cart-section-label">Adding to cart</div>';
       }
-      html += cart.items.map(i => `
+      html += cart.items.map(i => {
+        // patch-96 oversell-badge — badge appears when qty > stock at register location.
+        // Only for items with a numeric stock value (products at a known location).
+        let badge = '';
+        if (typeof i.current_location_stock === 'number') {
+          const overBy = i.qty - i.current_location_stock;
+          if (overBy > 0) {
+            const locLabel = i.current_location_name ? ' at ' + escapeHtml(i.current_location_name) : '';
+            badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
+          }
+        }
+        return `
         <div class="reg-line">
           <div>
-            <div class="name">${escapeHtml(i.name)}</div>
+            <div class="name">${escapeHtml(i.name)} ${badge}</div>
             <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
           </div>
           <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
@@ -961,7 +992,8 @@ function renderCart() {
             <button type="button" class="remove" data-remove="${i.key}">×</button>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     lines.innerHTML = html;
