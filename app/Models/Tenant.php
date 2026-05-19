@@ -269,6 +269,42 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'extended_reports');
     }
 
+    /**
+     * additional_users — does this tenant have the capability to add more
+     * than one user? Drives the "Add staff member" button on the staff
+     * admin screen, and Layer 1 of the pin_tier_active check below.
+     */
+    public function getAdditionalUsersEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'additional_users');
+    }
+
+    /**
+     * pin_tier_active — is the PIN tier authentication flow active for
+     * this tenant right now?
+     *
+     * Two conditions:
+     *   1. additional_users capability is on (plan permits multiple users)
+     *   2. The tenant actually has 2+ users (otherwise there's no one to
+     *      distinguish between)
+     *
+     * A Branded tenant with one user has the capability but not the active
+     * tier — they get the old email/password flow until they add a second
+     * staff member, at which point the PIN tier turns on automatically.
+     *
+     * This is the check that the EnsureTrustedDevice and EnsurePinFresh
+     * middleware will use to decide whether to enforce PIN flows. Starter
+     * tenants always evaluate to false here.
+     */
+    public function getPinTierActiveAttribute(): bool
+    {
+        if (! $this->additional_users_enabled) {
+            return false;
+        }
+
+        return $this->users()->count() >= 2;
+    }
+
     public function getPosEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'pos');
