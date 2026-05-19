@@ -37,6 +37,28 @@ class RequireCurrentLocation
             return redirect()->route('tenant.select-location');
         }
 
+        // ----------------------------------------------------------------
+        // Patch 103 — share the current location + the user's full active-
+        // locations list with all Blade views. The header switcher (and any
+        // other location-aware UI) reads these. Loaded once here to avoid
+        // N+1 queries from views that need the same data.
+        // ----------------------------------------------------------------
+        $currentLocation = $user->activeLocations()
+            ->where('tenant_locations.id', $locationId)
+            ->first();
+
+        $userLocations = $user->activeLocations()
+            ->orderBy('is_default', 'desc')
+            ->orderBy('name')
+            ->get();
+
+        view()->share('currentLocation', $currentLocation);
+        view()->share('userLocations', $userLocations);
+
+        // Also bind into the container so non-view code can resolve it
+        // without re-querying.
+        app()->instance('current_location', $currentLocation);
+
         return $next($request);
     }
 }

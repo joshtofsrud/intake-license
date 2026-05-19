@@ -46,5 +46,6 @@
         <span class="ia-mobile-header-name">{{ $currentTenant->name }}</span>
       </a>
     @endif
+    @include('layouts.tenant._location-switcher')
   </div>
 </header>

@@ -522,3 +522,130 @@ body.ia-theme-c .ia-schedule-pill.is-active {
     height: 42px;
   }
 }
+
+
+/* === Location switcher (Patch 103) === */
+.ia-loc-switcher {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 50;
+}
+.ia-loc-switcher-details { position: relative; }
+.ia-loc-switcher-details > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 10px;
+  background: var(--ia-surface-2, rgba(255,255,255,.04));
+  border: 1px solid var(--ia-border, rgba(255,255,255,.10));
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ia-text, inherit);
+  transition: background .12s ease, border-color .12s ease;
+  user-select: none;
+}
+.ia-loc-switcher-details > summary::-webkit-details-marker { display: none; }
+.ia-loc-switcher-details > summary:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,.07));
+}
+.ia-loc-switcher-details[open] > summary {
+  background: var(--ia-surface-3, rgba(255,255,255,.07));
+  border-color: var(--ia-accent, #3B5A78);
+}
+.ia-loc-switcher-label {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ia-loc-switcher-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: var(--ia-surface-1, #1a1a1a);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-md, 8px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  padding: 6px;
+  overflow: hidden;
+}
+.ia-loc-switcher-menu-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  opacity: .55;
+  padding: 8px 10px 6px;
+}
+.ia-loc-switcher-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+}
+.ia-loc-switcher-item:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,.07));
+}
+.ia-loc-switcher-item.is-current {
+  color: var(--ia-accent, #3B5A78);
+  font-weight: 600;
+  cursor: default;
+}
+.ia-loc-switcher-item.is-current:hover {
+  background: transparent;
+}
+.ia-loc-switcher-item-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile: switcher rendered inside the mobile header.
+   Override the absolute positioning from desktop. */
+@media (max-width: 1023px) {
+  .ia-mobile-header .ia-loc-switcher {
+    position: static;
+    margin-left: auto;
+  }
+  .ia-mobile-header .ia-loc-switcher-details > summary {
+    padding: 5px 10px 5px 8px;
+    font-size: 12px;
+  }
+  .ia-mobile-header .ia-loc-switcher-label {
+    max-width: 110px;
+  }
+  .ia-mobile-header .ia-loc-switcher-menu {
+    right: 0;
+    min-width: 200px;
+  }
+}
+
+/* Light theme polish */
+.ia-theme-b .ia-loc-switcher-details > summary {
+  background: rgba(0,0,0,.03);
+  border-color: rgba(0,0,0,.10);
+}
+.ia-theme-b .ia-loc-switcher-details > summary:hover {
+  background: rgba(0,0,0,.06);
+}
+.ia-theme-b .ia-loc-switcher-menu {
+  background: #ffffff;
+  border-color: rgba(0,0,0,.10);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+.ia-theme-b .ia-loc-switcher-item:hover {
+  background: rgba(0,0,0,.05);
+}

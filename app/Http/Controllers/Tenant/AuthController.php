@@ -231,6 +231,18 @@ class AuthController extends Controller
         }
 
         $request->session()->put('current_location_id', $request->input('location_id'));
+
+        // PATCH-103 return_url — the header switcher posts the URL the user
+        // was on so we can return them there. Only honor same-host URLs to
+        // avoid open-redirect risk.
+        $returnUrl = $request->input('return_url');
+        if ($returnUrl && is_string($returnUrl)) {
+            $current = $request->getSchemeAndHttpHost();
+            if (str_starts_with($returnUrl, $current . '/')) {
+                return redirect($returnUrl);
+            }
+        }
+
         return redirect()->intended(route('tenant.dashboard'));
     }
 
