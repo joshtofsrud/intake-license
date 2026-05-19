@@ -48,6 +48,26 @@ class EnsureTrustedDevice
             return $next($request);
         }
 
+        // PATCH-CHUNK-5H session-bypass — an authenticated tenant session
+        // is itself proof of identity for this request. Only enforce the
+        // device-trust gate when no session is in play. Without this, a
+        // user who signs in via email+password (no trust opt-in) gets a
+        // redirect loop: login succeeds → dashboard → middleware sees no
+        // cookie → back to login.
+        if (\Illuminate\Support\Facades\Auth::guard('tenant')->check()) {
+            // Still touch the device row if a cookie IS present, so its
+            // sliding-expiry stays current.
+            $cookieValue = $request->cookie(DeviceTrustService::COOKIE_NAME);
+            if ($cookieValue) {
+                $device = $this->devices->validate($tenant, $cookieValue);
+                if ($device) {
+                    $this->devices->touch($device, $request);
+                    $request->attributes->set('trusted_device', $device);
+                }
+            }
+            return $next($request);
+        }
+
         $cookieValue = $request->cookie(DeviceTrustService::COOKIE_NAME);
         $device = $this->devices->validate($tenant, $cookieValue);
 
