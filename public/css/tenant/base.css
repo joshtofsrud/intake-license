@@ -567,6 +567,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   top: calc(100% + 6px);
   right: 0;
   min-width: 220px;
+  z-index: 100; /* PATCH-105H z-index */
   background: var(--ia-surface-1, #1a1a1a);
   border: 1px solid var(--ia-border, rgba(255,255,255,.12));
   border-radius: var(--ia-r-md, 8px);
