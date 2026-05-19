@@ -42,11 +42,16 @@ class StaffSwitchController extends Controller
             return redirect()->route('tenant.dashboard');
         }
 
-        // If user is already auth'd and PIN is fresh, just go to dashboard.
-        // (For now we don't track PIN freshness — chunk 6 adds the idle
-        // lock. Today, an auth'd user is auth'd.)
+        // PATCH-CHUNK-5H2 wipe-session — /admin/switch is both the
+        // initial-PIN-entry surface AND the "switch staff" surface.
+        // When someone is already signed in and visits here, they want
+        // to hand the device to another staff member, NOT bounce home.
+        // Wipe the user session (keep the device-trust cookie intact),
+        // then render the switcher cards.
         if (Auth::guard('tenant')->check()) {
-            return redirect()->route('tenant.dashboard');
+            Auth::guard('tenant')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
         }
 
         $staff = TenantUser::where('tenant_id', $tenant->id)
