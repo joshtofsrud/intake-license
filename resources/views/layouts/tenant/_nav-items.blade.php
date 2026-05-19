@@ -78,6 +78,13 @@
       'group'  => null,
     ],
     [
+      'route'  => 'tenant.team.index',
+      'label'  => 'Team',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="5" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="5.5" r="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 12c0-1.8 1.5-3 3.5-3s3.5 1.2 3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8.5 12c0-1.4 1-2.4 2.5-2.4s2.5 1 2.5 2.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => 'manage',
+      'gate'   => 'additional_users_enabled',
+    ],
+    [
       'route'  => 'tenant.services.index',
       'label'  => 'Services',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',

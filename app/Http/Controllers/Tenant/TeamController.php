@@ -41,7 +41,7 @@ class TeamController extends Controller
 
         $tempPassword = Str::random(12);
 
-        TenantUser::create([
+        $newUser = TenantUser::create([
             'tenant_id' => $tenant->id,
             'name'      => $request->input('name'),
             'email'     => $request->input('email'),
@@ -49,6 +49,36 @@ class TeamController extends Controller
             'role'      => $request->input('role'),
             'is_active' => true,
         ]);
+
+        // PATCH-106 attach-location — every tenant_user needs at least one
+        // active location grant or they can't sign in (AuthController's
+        // resolveLocationAndContinue rejects them). Attach to the tenant's
+        // default location (or first active location if no default is set).
+        $defaultLocation = $tenant->locations()
+            ->where('is_active', true)
+            ->orderBy('is_default', 'desc')
+            ->orderBy('sort_order')
+            ->first();
+
+        if ($defaultLocation) {
+            $newUser->locations()->attach($defaultLocation->id, [
+                'id'        => \Illuminate\Support\Str::uuid()->toString(),
+                'is_active' => true,
+                'tenant_id' => $tenant->id,
+            ]);
+            \Illuminate\Support\Facades\Log::info('Team.store.location-attached', [
+                'tenant_id'    => $tenant->id,
+                'new_user_id'  => $newUser->id,
+                'location_id'  => $defaultLocation->id,
+            ]);
+        } else {
+            // No locations exist — shouldn't happen post-onboarding, but
+            // log it so we notice if it does.
+            \Illuminate\Support\Facades\Log::warning('Team.store.no-location', [
+                'tenant_id'   => $tenant->id,
+                'new_user_id' => $newUser->id,
+            ]);
+        }
 
         // In production, email the temp password to the new member.
         // For now, flash it once so the admin can share it manually.
