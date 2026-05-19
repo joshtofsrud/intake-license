@@ -72,6 +72,17 @@
       <input type="checkbox" name="remember" value="1"> Remember me for 30 days
     </label>
 
+    @if($currentTenant->pin_tier_active)
+      <label class="remember" style="flex-direction:column;align-items:flex-start;gap:4px">
+        <span style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" name="trust_device" value="1" checked> Trust this device
+        </span>
+        <span style="font-size:11px;opacity:.55;padding-left:24px">
+          Skip email + password on this browser for 90 days. Leave unchecked on shared or public computers.
+        </span>
+      </label>
+    @endif
+
     <button type="submit" class="btn">Sign in</button>
   </form>
 

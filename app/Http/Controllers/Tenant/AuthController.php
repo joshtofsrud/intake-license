@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use App\Services\DeviceTrustService;
+use Illuminate\Support\Facades\Cookie;
 
 class AuthController extends Controller
 {
@@ -56,15 +58,62 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return $this->resolveLocationAndContinue($request, $user);
+        // PATCH-CHUNK-4 mint — device trust opt-in. Only kicks in when the
+        // tenant's PIN tier is active (additional_users + 2+ staff). For
+        // every tenant right now this is false, so this whole block is a
+        // no-op until a tenant adds a second user.
+        $trustCookie = null;
+        if ($tenant->pin_tier_active && $request->boolean('trust_device')) {
+            $devices = app(DeviceTrustService::class);
+            $plaintext = $devices->mint($tenant, $request);
+            $trustCookie = cookie(
+                DeviceTrustService::COOKIE_NAME,
+                $plaintext,
+                DeviceTrustService::COOKIE_MINUTES,
+                '/',           // path
+                null,          // domain (default → current host)
+                true,          // secure
+                true,          // httpOnly
+                false,         // raw
+                'lax'          // sameSite
+            );
+        }
+
+        $response = $this->resolveLocationAndContinue($request, $user);
+
+        if ($trustCookie) {
+            $response = $response->withCookie($trustCookie);
+        }
+
+        return $response;
     }
 
     public function logout(Request $request)
     {
+        // PATCH-CHUNK-4 revoke — "sign out this device" semantics. If a
+        // device-trust cookie is present, revoke the row + clear the cookie.
+        // This is the strong sign-out: device trust is gone, next visit
+        // requires email + password again.
+        $tenant = tenant();
+        $user = Auth::guard('tenant')->user();
+
+        if ($tenant) {
+            $cookieValue = $request->cookie(DeviceTrustService::COOKIE_NAME);
+            if ($cookieValue) {
+                $devices = app(DeviceTrustService::class);
+                $device = $devices->validate($tenant, $cookieValue);
+                if ($device) {
+                    $devices->revoke($device, $user);
+                }
+            }
+        }
+
         Auth::guard('tenant')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect()->route('tenant.login');
+
+        return redirect()->route('tenant.login')
+            ->withCookie(Cookie::forget(DeviceTrustService::COOKIE_NAME));
     }
 
     public function showForgot()

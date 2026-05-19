@@ -165,6 +165,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
         Route::middleware([
             'App\Http\Middleware\ConsumeOnboardingToken',
+            'App\Http\Middleware\EnsureTrustedDevice',
             'App\Http\Middleware\RequireTenantAuth',
             'App\Http\Middleware\ApplyTenantTheme',
         ])->group(function () {
