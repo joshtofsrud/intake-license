@@ -649,3 +649,188 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .ia-theme-b .ia-loc-switcher-item:hover {
   background: rgba(0,0,0,.05);
 }
+
+
+/* === Sidebar identity block (Patch 105) === */
+.ia-sidebar-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 12px;
+  margin: 0 6px 8px;
+  border-bottom: 1px solid var(--ia-border, rgba(255,255,255,.08));
+}
+
+/* User row (details/summary) */
+.ia-sb-user-details {
+  position: relative;
+}
+.ia-sb-user-details > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s ease;
+}
+.ia-sb-user-details > summary::-webkit-details-marker { display: none; }
+.ia-sb-user-details > summary:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,.06));
+}
+.ia-sb-user-details[open] > summary {
+  background: var(--ia-surface-3, rgba(255,255,255,.08));
+}
+.ia-sb-user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ia-accent, #3B5A78);
+  color: var(--ia-accent-text, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: .02em;
+  flex-shrink: 0;
+}
+.ia-sb-user-text {
+  flex: 1;
+  min-width: 0;
+}
+.ia-sb-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ia-text, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+.ia-sb-user-role {
+  font-size: 11px;
+  opacity: .6;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ia-sb-user-caret {
+  opacity: .5;
+  flex-shrink: 0;
+  transition: transform .15s ease;
+}
+.ia-sb-user-details[open] .ia-sb-user-caret {
+  transform: rotate(180deg);
+}
+.ia-sb-user-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--ia-surface-1, #1a1a1a);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-md, 8px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  padding: 4px;
+  z-index: 100;
+}
+.ia-sb-user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+}
+.ia-sb-user-menu-item:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,.07));
+}
+
+/* Location row INSIDE the identity block — override the floating pill
+   styles from Patch 103 so it renders as a sidebar row, not absolute. */
+.ia-sb-location-wrap .ia-loc-switcher {
+  position: static;
+  top: auto;
+  right: auto;
+}
+.ia-sb-location-wrap .ia-loc-switcher-details > summary {
+  width: 100%;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  font-size: 12.5px;
+  justify-content: flex-start;
+}
+.ia-sb-location-wrap .ia-loc-switcher-details > summary:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,.06));
+}
+.ia-sb-location-wrap .ia-loc-switcher-details[open] > summary {
+  background: var(--ia-surface-3, rgba(255,255,255,.08));
+  border-color: transparent;
+}
+.ia-sb-location-wrap .ia-loc-switcher-label {
+  flex: 1;
+  font-weight: 500;
+  opacity: .85;
+}
+.ia-sb-location-wrap .ia-loc-switcher-menu {
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+}
+
+/* Make sure the sidebar pushes the brand footer to the bottom. */
+.ia-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+.ia-sidebar-bottom {
+  margin-top: auto;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ia-border, rgba(255,255,255,.06));
+}
+.ia-sidebar-bottom .ia-brand-footer {
+  font-size: 11px;
+  opacity: .5;
+  text-align: center;
+}
+.ia-sidebar-bottom .ia-brand-footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Light theme polish */
+.ia-theme-b .ia-sidebar-identity {
+  border-bottom-color: rgba(0,0,0,.08);
+}
+.ia-theme-b .ia-sb-user-details > summary:hover,
+.ia-theme-b .ia-sb-user-details[open] > summary,
+.ia-theme-b .ia-sb-location-wrap .ia-loc-switcher-details > summary:hover,
+.ia-theme-b .ia-sb-location-wrap .ia-loc-switcher-details[open] > summary {
+  background: rgba(0,0,0,.05);
+}
+.ia-theme-b .ia-sb-user-menu {
+  background: #ffffff;
+  border-color: rgba(0,0,0,.10);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+.ia-theme-b .ia-sb-user-menu-item:hover {
+  background: rgba(0,0,0,.05);
+}
+.ia-theme-b .ia-sidebar-bottom {
+  border-top-color: rgba(0,0,0,.08);
+}

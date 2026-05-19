@@ -58,8 +58,6 @@
        ================================================================ --}}
   <div class="ia-main">
 
-    @include('layouts.tenant._location-switcher')
-
     {{-- Impersonation banner --}}
     @if(session('impersonating_from'))
       <div style="background:#854F0B;color:#fff;padding:8px 20px;font-size:13px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
