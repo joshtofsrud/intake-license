@@ -92,4 +92,31 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Auth refactor — PIN tier policy (chunk 5)
+    |--------------------------------------------------------------------------
+    | Constants the PIN tier reads. Tunable per-tenant later via the
+    | sign-in security admin screen (chunk 8); for now these are the
+    | platform-wide defaults.
+    */
+    'auth' => [
+        // PIN entry failures ladder. Index = failure count (0-based).
+        // Value = cooldown seconds before the next attempt is allowed.
+        // After the last entry in the array, the card soft-locks until
+        // owner unlock or email reset.
+        'pin_cooldown_ladder' => [0, 0, 5, 30, 0],
+
+        // Total failures across the device before the WHOLE device
+        // requires email + password re-auth. Hard rule from spec §4.
+        'pin_device_lockout_threshold' => 5,
+
+        // Window (minutes) over which the device-lockout count is
+        // measured. Failures older than this are forgotten.
+        'pin_device_lockout_window_min' => 10,
+
+        // Sliding-window device trust expiry (days).
+        'device_trust_expiry_days' => 90,
+    ],
+
 ];

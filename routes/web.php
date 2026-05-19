@@ -163,6 +163,18 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
         Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
         Route::post('/logout',          [TenantControllers\AuthController::class, 'logout'])->name('logout');
 
+        // Staff switcher tier — requires trusted device, not signed-in user.
+        // Lives between device auth (Layer 1) and user auth (Layer 2 PIN).
+        Route::middleware([
+            'App\Http\Middleware\EnsureTrustedDevice',
+            'App\Http\Middleware\ApplyTenantTheme',
+        ])->group(function () {
+            Route::get('/switch',             [TenantControllers\StaffSwitchController::class, 'index'])->name('switch');
+            Route::post('/pin/verify',        [TenantControllers\StaffSwitchController::class, 'verifyPin'])->name('pin.verify');
+            Route::post('/pin/set',           [TenantControllers\StaffSwitchController::class, 'setInitialPin'])->name('pin.set');
+            Route::post('/pin/reset-request', [TenantControllers\StaffSwitchController::class, 'requestReset'])->name('pin.reset-request');
+        });
+
         Route::middleware([
             'App\Http\Middleware\ConsumeOnboardingToken',
             'App\Http\Middleware\EnsureTrustedDevice',
