@@ -51,6 +51,9 @@ class Tenant extends Model
         'classes_enabled'     => 'boolean',
         'trial_ends_at'       => 'datetime',
         'payment_processor_connected_at' => 'datetime',
+        // Logo display heights (px)
+        'logo_size_admin'                => 'integer',
+        'logo_size_booking'              => 'integer',
         // POS / tax / surcharge / tips
         'default_tax_rate'            => 'decimal:3',
         'tax_services_default'        => 'boolean',
