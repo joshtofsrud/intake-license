@@ -127,6 +127,22 @@ return [
         // threshold; we picked half. 60s pings against a 120s threshold
         // means at most one missed heartbeat before the lock fires.
         'pin_heartbeat_interval_sec' => 60,
+
+        // Sensitive-action gates (chunk 7). Keys are action names; values
+        // are sticky-window seconds. A value of 0 means "always prompt"
+        // — every action requires a fresh PIN.
+        //
+        // To add a new gated action: add the key here, then have the
+        // controller call PinGateService::requirePin($request, $key) and
+        // return 403 { error: 'pin_required', action: $key } when true.
+        'pin_action_sticky_sec' => [
+            'switch_location' => 0,  // always prompt — user choice
+            // Future actions go here. Examples:
+            //   'refund'           => 0,        // always prompt
+            //   'void_sale'        => 0,        // always prompt
+            //   'override_oversold' => 300,     // 5 min sticky
+            //   'manager_override' => 0,        // always prompt
+        ],
     ],
 
 ];

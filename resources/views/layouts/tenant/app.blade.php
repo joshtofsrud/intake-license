@@ -157,6 +157,7 @@
 <script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
 
 @include('layouts.tenant._lock-overlay')
+@include('layouts.tenant._action-gate-modal')
 
 @stack('scripts')
 

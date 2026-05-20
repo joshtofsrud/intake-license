@@ -974,3 +974,134 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .ia-theme-b .ia-lock-btn-ghost:hover {
   background: rgba(0, 0, 0, 0.05);
 }
+
+
+/* === Action gate modal (chunk 7) === */
+.ia-action-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.ia-action-gate-card {
+  background: var(--ia-surface-1, #1a1a1a);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-lg, 12px);
+  padding: 26px 30px;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+.ia-action-gate-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--ia-accent-soft, rgba(190, 242, 100, 0.1));
+  color: var(--ia-accent, #BEF264);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.ia-action-gate-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ia-text, inherit);
+  margin-bottom: 4px;
+}
+.ia-action-gate-sub {
+  font-size: 12.5px;
+  opacity: 0.6;
+  margin-bottom: 20px;
+}
+.ia-action-gate-pin-wrap {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ia-action-gate-pin {
+  width: 50px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-md, 8px);
+  color: var(--ia-text, inherit);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  font-family: inherit;
+  transition: border-color 0.12s;
+}
+.ia-action-gate-pin:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+}
+.ia-action-gate-pin.error {
+  border-color: #E24B4A;
+}
+.ia-action-gate-msg {
+  font-size: 13px;
+  min-height: 18px;
+  margin-bottom: 14px;
+  color: #F09595;
+}
+.ia-action-gate-msg.info {
+  color: var(--ia-muted, rgba(255,255,255,.55));
+}
+.ia-action-gate-actions {
+  display: flex;
+  gap: 10px;
+}
+.ia-action-gate-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--ia-r-md, 8px);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  background: transparent;
+  color: var(--ia-text, inherit);
+  font-family: inherit;
+  transition: background 0.12s, filter 0.12s;
+}
+.ia-action-gate-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ia-action-gate-btn-primary {
+  background: var(--ia-accent, #BEF264);
+  color: var(--ia-accent-text, #000);
+  border-color: var(--ia-accent, #BEF264);
+}
+.ia-action-gate-btn-primary:hover {
+  filter: brightness(0.93);
+}
+.ia-action-gate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Light theme polish */
+.ia-theme-b .ia-action-gate-card {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+}
+.ia-theme-b .ia-action-gate-pin {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+.ia-theme-b .ia-action-gate-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.ia-theme-b .ia-action-gate-btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.05);
+}

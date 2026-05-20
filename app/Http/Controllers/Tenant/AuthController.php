@@ -279,20 +279,66 @@ class AuthController extends Controller
             return back()->withErrors(['location_id' => 'You do not have access to that location.']);
         }
 
+        // CHUNK-7 switch_location action gate.
+        // If pin_tier_active and no recent PIN confirmation for switch_location,
+        // require one. The client-side fetch() handler catches the 403 and
+        // re-submits with the pin field after the user enters it.
+        $gate = app(\App\Services\PinGateService::class);
+        if ($gate->requirePin($request, 'switch_location')) {
+            $pin = $request->input('pin');
+
+            if (! $pin) {
+                // Client must show the modal and re-submit with the pin field.
+                // Use 403 (forbidden) with a JSON body. Always reply in JSON
+                // here — the new client flow uses fetch() so it expects JSON
+                // either way.
+                $location = $user->activeLocations()
+                    ->where('tenant_locations.id', $request->input('location_id'))
+                    ->first();
+
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'pin_required',
+                    'action' => 'switch_location',
+                    'destination' => $location?->name,
+                ], 403);
+            }
+
+            // PIN provided — verify.
+            $ok = $gate->confirm($request, 'switch_location', $pin, $user);
+            if (! $ok) {
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'pin_mismatch',
+                ], 422);
+            }
+        }
+
         $request->session()->put('current_location_id', $request->input('location_id'));
 
         // PATCH-103 return_url — the header switcher posts the URL the user
         // was on so we can return them there. Only honor same-host URLs to
         // avoid open-redirect risk.
         $returnUrl = $request->input('return_url');
+        $redirectTarget = route('tenant.dashboard');
         if ($returnUrl && is_string($returnUrl)) {
             $current = $request->getSchemeAndHttpHost();
             if (str_starts_with($returnUrl, $current . '/')) {
-                return redirect($returnUrl);
+                $redirectTarget = $returnUrl;
             }
         }
 
-        return redirect()->intended(route('tenant.dashboard'));
+        // CHUNK-7 json-return — fetch-based clients (the location switcher
+        // since chunk 7) expect JSON; window.location.href will handle the
+        // redirect on the client side.
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok'       => true,
+                'redirect' => $redirectTarget,
+            ]);
+        }
+
+        return redirect($redirectTarget);
     }
 
     /**
