@@ -158,6 +158,7 @@
 
 @include('layouts.tenant._lock-overlay')
 @include('layouts.tenant._action-gate-modal')
+@include('layouts.tenant._location-welcome')
 
 @stack('scripts')
 

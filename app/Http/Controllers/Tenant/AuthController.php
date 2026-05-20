@@ -323,6 +323,20 @@ class AuthController extends Controller
 
         $request->session()->put('current_location_id', $request->input('location_id'));
 
+        // PATCH-108 welcome-flash — on a real mid-session switch (not the
+        // initial post-sign-in pick), flash the new location name so the
+        // next page render shows the welcome overlay.
+        if (! $isInitialPick) {
+            $newLoc = $user->activeLocations()
+                ->where('tenant_locations.id', $request->input('location_id'))
+                ->first();
+            if ($newLoc) {
+                $request->session()->flash('location_switched', [
+                    'name' => $newLoc->name,
+                ]);
+            }
+        }
+
         // PATCH-103 return_url — the header switcher posts the URL the user
         // was on so we can return them there. Only honor same-host URLs to
         // avoid open-redirect risk.

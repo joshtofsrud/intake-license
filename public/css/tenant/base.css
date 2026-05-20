@@ -1105,3 +1105,67 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .ia-theme-b .ia-action-gate-btn-ghost:hover {
   background: rgba(0, 0, 0, 0.05);
 }
+
+
+/* === Location welcome (patch 108) === */
+.ia-loc-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+}
+.ia-loc-welcome.is-active { opacity: 1; }
+.ia-loc-welcome.is-leaving { opacity: 0; }
+.ia-loc-welcome-card {
+  background: var(--ia-surface-1, #1a1a1a);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-lg, 12px);
+  padding: 32px 44px;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  transform: translateY(8px) scale(0.96);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ia-loc-welcome.is-active .ia-loc-welcome-card {
+  transform: translateY(0) scale(1);
+}
+.ia-loc-welcome-check {
+  color: var(--ia-accent, #BEF264);
+  margin-bottom: 14px;
+  display: inline-block;
+}
+.ia-loc-welcome-circle {
+  transition: stroke-dashoffset 0.55s ease-out;
+}
+.ia-loc-welcome-tick {
+  transition: stroke-dashoffset 0.40s ease-out 0.35s;
+}
+.ia-loc-welcome.is-active .ia-loc-welcome-circle { stroke-dashoffset: 0; }
+.ia-loc-welcome.is-active .ia-loc-welcome-tick   { stroke-dashoffset: 0; }
+.ia-loc-welcome-title {
+  font-size: 13px;
+  opacity: 0.55;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+.ia-loc-welcome-name {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ia-text, inherit);
+  letter-spacing: -0.01em;
+}
+
+/* Light theme polish */
+.ia-theme-b .ia-loc-welcome-card {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+}
