@@ -24,6 +24,7 @@
     ['route' => 'tenant.help.index',               'label' => 'Help & Guides'],
     ['route' => 'tenant.whats_new.changelog',      'label' => "What's New"],
     ['route' => 'tenant.whats_new.roadmap',        'label' => "What's Coming"],
+    ['route' => 'tenant.locations.index',          'label' => 'Locations'],
     ['route' => 'tenant.settings.index',           'label' => 'Settings'],
     ['route' => 'tenant.feature_addons.index',     'label' => 'Add-ons'],
   ];

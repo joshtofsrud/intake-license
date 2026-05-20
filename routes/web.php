@@ -494,6 +494,14 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
 
             // Sign-in security admin (chunk 8) — owner-only enforced in the controller.
+            // Locations admin (patch 109) — owner-only enforced in controller.
+            Route::get('/locations',                      [TenantControllers\LocationController::class, 'index'])->name('locations.index');
+            Route::post('/locations',                     [TenantControllers\LocationController::class, 'store'])->name('locations.store');
+            Route::patch('/locations/{id}',               [TenantControllers\LocationController::class, 'update'])->name('locations.update');
+            Route::post('/locations/{id}/set-default',    [TenantControllers\LocationController::class, 'setDefault'])->name('locations.set-default');
+            Route::post('/locations/{id}/toggle-active',  [TenantControllers\LocationController::class, 'toggleActive'])->name('locations.toggle-active');
+            Route::delete('/locations/{id}',              [TenantControllers\LocationController::class, 'destroy'])->name('locations.destroy');
+
             Route::get('/security',                       [TenantControllers\SecurityController::class, 'index'])->name('security.index');
             Route::patch('/security/settings',            [TenantControllers\SecurityController::class, 'updateSettings'])->name('security.settings.update');
             Route::post('/security/device/{id}/revoke',   [TenantControllers\SecurityController::class, 'revokeDevice'])->name('security.device.revoke');
