@@ -40,7 +40,7 @@ class PinGateController extends Controller
             return response()->json(['ok' => false, 'error' => 'not_signed_in'], 401);
         }
 
-        $thresholdSec = (int) config('intake.auth.pin_idle_threshold_sec', 120);
+        $thresholdSec = \App\Services\TenantAuthPolicy::idleThresholdSec(app('tenant') ?? null);
         $lastIso = $request->session()->get('last_pin_activity_at');
 
         if (! $lastIso) {

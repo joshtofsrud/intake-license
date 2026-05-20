@@ -134,9 +134,7 @@
       <button type="submit" class="ia-btn ia-btn--primary">Save policy</button>
     </div>
 
-    <div style="margin-top:18px;padding:12px 14px;background:rgba(255,255,255,.03);border:0.5px solid var(--ia-border);border-radius:6px;font-size:11.5px;opacity:.65;line-height:1.5">
-      <strong>Note:</strong> Sign-in policy reads will be wired in a follow-up patch. Until then, these values save successfully but the platform defaults remain in effect.
-    </div>
+
   </form>
 </div>
 

@@ -44,8 +44,7 @@ class PinGateService
             return false;
         }
 
-        $stickyConfig = config('intake.auth.pin_action_sticky_sec', []);
-        $stickySec = (int) ($stickyConfig[$action] ?? 0);
+        $stickySec = \App\Services\TenantAuthPolicy::actionStickySec($tenant, $action);
 
         if ($stickySec === 0) {
             // No sticky window — every action requires PIN.

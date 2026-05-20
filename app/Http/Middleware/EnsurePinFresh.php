@@ -59,7 +59,7 @@ class EnsurePinFresh
             return $next($request);
         }
 
-        $thresholdSec = (int) config('intake.auth.pin_idle_threshold_sec', 120);
+        $thresholdSec = \App\Services\TenantAuthPolicy::idleThresholdSec($tenant);
         $lastIso = $request->session()->get('last_pin_activity_at');
 
         $isStale = true;

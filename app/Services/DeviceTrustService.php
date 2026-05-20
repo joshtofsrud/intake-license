@@ -62,7 +62,7 @@ class DeviceTrustService
             'ip_last_seen'      => $request->ip(),
             'trusted_at'        => now(),
             'last_used_at'      => now(),
-            'expires_at'        => now()->addDays(self::EXPIRY_DAYS),
+            'expires_at'        => now()->addDays(\App\Services\TenantAuthPolicy::deviceTrustExpiryDays($tenant)),
         ]);
 
         return $plaintext;
@@ -111,9 +111,16 @@ class DeviceTrustService
             return;
         }
 
+        // Per-tenant expiry. Resolved fresh per touch — could be cached if
+        // it becomes a hot-path concern, but reads of tenant.settings are
+        // cheap (already in container via ResolveTenant in the common case).
+        $expiryDays = \App\Services\TenantAuthPolicy::deviceTrustExpiryDays(
+            app('tenant') ?? \App\Models\Tenant::find($device->tenant_id)
+        );
+
         $device->forceFill([
             'last_used_at' => now(),
-            'expires_at'   => now()->addDays(self::EXPIRY_DAYS),
+            'expires_at'   => now()->addDays($expiryDays),
             'ip_last_seen' => $request->ip(),
         ])->save();
     }
