@@ -283,8 +283,15 @@ class AuthController extends Controller
         // If pin_tier_active and no recent PIN confirmation for switch_location,
         // require one. The client-side fetch() handler catches the 403 and
         // re-submits with the pin field after the user enters it.
+        //
+        // CHUNK-7H initial-pick-skip — but NOT on the post-sign-in picker.
+        // If there's no current_location_id in session yet, this is the
+        // first location selection after sign-in (the user just PIN'd in
+        // seconds ago). Asking them to re-PIN immediately is theater.
+        // A real mid-session switch always has an existing location.
+        $isInitialPick = ! $request->session()->has('current_location_id');
         $gate = app(\App\Services\PinGateService::class);
-        if ($gate->requirePin($request, 'switch_location')) {
+        if (! $isInitialPick && $gate->requirePin($request, 'switch_location')) {
             $pin = $request->input('pin');
 
             if (! $pin) {
