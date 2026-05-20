@@ -75,6 +75,9 @@
         <th>Email</th>
         <th>Role</th>
         <th>Status</th>
+        @if($currentTenant->pin_tier_active)
+          <th>PIN status</th>
+        @endif
         @if($me->isManager()) <th></th> @endif
       </tr>
     </thead>
@@ -103,6 +106,25 @@
             <span class="ia-badge ia-badge--cancelled">Inactive</span>
           @endif
         </td>
+
+        @if($currentTenant->pin_tier_active)
+        <td>
+          @php
+            $pinLocked = $member->pin_locked_until && $member->pin_locked_until->isFuture();
+            $hasPin    = (bool) $member->pin_hash;
+          @endphp
+          @if($pinLocked)
+            <span class="ia-badge ia-badge--cancelled">Locked</span>
+          @elseif($hasPin)
+            <span class="ia-badge ia-badge--completed">Set</span>
+          @else
+            <span class="ia-badge ia-badge--pending">Not set</span>
+          @endif
+          @if($member->pin_last_used_at)
+            <div style="font-size:10.5px;opacity:.4;margin-top:2px">last used {{ $member->pin_last_used_at->diffForHumans() }}</div>
+          @endif
+        </td>
+        @endif
 
         @if($me->isManager())
         <td>
@@ -139,6 +161,30 @@
                   {{ $member->is_active ? 'Deactivate' : 'Reactivate' }}
                 </button>
               </form>
+
+              {{-- PIN unlock (only when locked) --}}
+              @if($currentTenant->pin_tier_active && $member->pin_locked_until && $member->pin_locked_until->isFuture())
+              <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
+                @csrf @method('PATCH')
+                <input type="hidden" name="op" value="pin_unlock">
+                <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm"
+                  data-confirm="Unlock {{ $member->name }}'s PIN?">
+                  Unlock PIN
+                </button>
+              </form>
+              @endif
+
+              {{-- PIN force reset --}}
+              @if($currentTenant->pin_tier_active && $member->pin_hash)
+              <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
+                @csrf @method('PATCH')
+                <input type="hidden" name="op" value="pin_force_reset">
+                <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm"
+                  data-confirm="Force {{ $member->name }} to set a new PIN on next sign-in?">
+                  Force PIN reset
+                </button>
+              </form>
+              @endif
 
               {{-- Remove --}}
               <form method="POST" action="{{ route('tenant.team.destroy', $member->id) }}">

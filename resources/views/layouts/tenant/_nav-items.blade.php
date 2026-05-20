@@ -85,6 +85,13 @@
       'gate'   => 'additional_users_enabled',
     ],
     [
+      'route'  => 'tenant.security.index',
+      'label'  => 'Security',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 3.5v3.5c0 3.3 2.2 6 5 6s5-2.7 5-6V3.5L7 1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => 'manage',
+      'gate'   => 'additional_users_enabled',
+    ],
+    [
       'route'  => 'tenant.services.index',
       'label'  => 'Services',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',

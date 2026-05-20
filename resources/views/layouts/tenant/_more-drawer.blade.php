@@ -11,6 +11,7 @@
     ['route' => 'tenant.inventory.index',          'label' => 'Inventory',    'gate' => 'retail_enabled'],
     ['route' => 'tenant.reports.index',            'label' => 'Reports'],
     ['route' => 'tenant.team.index',               'label' => 'Team',         'gate' => 'additional_users_enabled'],
+    ['route' => 'tenant.security.index',           'label' => 'Security',     'gate' => 'additional_users_enabled'],
     ['route' => 'tenant.services.index',           'label' => 'Services'],
     ['route' => 'tenant.resources.index',          'label' => 'Resources'],
     ['route' => 'tenant.work-order-fields.index',  'label' => 'Work Order Fields'],

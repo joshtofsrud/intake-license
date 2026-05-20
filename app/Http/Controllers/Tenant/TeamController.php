@@ -119,6 +119,16 @@ class TeamController extends Controller
             return back()->with('success', $member->is_active ? 'Member reactivated.' : 'Member deactivated.');
         }
 
+        if ($op === 'pin_unlock') {
+            app(\App\Services\PinService::class)->unlockUser($member, $me);
+            return back()->with('success', $member->name . "'s PIN unlocked.");
+        }
+
+        if ($op === 'pin_force_reset') {
+            app(\App\Services\PinService::class)->forceReset($member, $me);
+            return back()->with('success', $member->name . ' will set a new PIN on next sign-in.');
+        }
+
         return back();
     }
 

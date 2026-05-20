@@ -492,6 +492,12 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
 
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
+
+            // Sign-in security admin (chunk 8) — owner-only enforced in the controller.
+            Route::get('/security',                       [TenantControllers\SecurityController::class, 'index'])->name('security.index');
+            Route::patch('/security/settings',            [TenantControllers\SecurityController::class, 'updateSettings'])->name('security.settings.update');
+            Route::post('/security/device/{id}/revoke',   [TenantControllers\SecurityController::class, 'revokeDevice'])->name('security.device.revoke');
+            Route::post('/security/devices/revoke-all',   [TenantControllers\SecurityController::class, 'revokeAllDevices'])->name('security.devices.revoke-all');
             Route::post('/settings/test-sms',   [TenantControllers\SettingsController::class, 'sendTestSms'])->name('settings.test-sms');
 
             Route::get('/team',                 [TenantControllers\TeamController::class, 'index'])->name('team.index');
