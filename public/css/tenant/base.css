@@ -835,3 +835,142 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .ia-theme-b .ia-sidebar-bottom {
   border-top-color: rgba(0,0,0,.08);
 }
+
+
+/* === Idle lock overlay (chunk 6) === */
+.ia-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+}
+.ia-lock-card {
+  background: var(--ia-surface-1, #1a1a1a);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-lg, 12px);
+  padding: 28px 32px;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+.ia-lock-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--ia-accent-soft, rgba(190, 242, 100, 0.1));
+  color: var(--ia-accent, #BEF264);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.ia-lock-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ia-text, inherit);
+  margin-bottom: 4px;
+}
+.ia-lock-sub {
+  font-size: 13px;
+  opacity: 0.6;
+  margin-bottom: 22px;
+}
+.ia-lock-pin-wrap {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.ia-lock-pin-input {
+  width: 50px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  border-radius: var(--ia-r-md, 8px);
+  color: var(--ia-text, inherit);
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  font-family: inherit;
+  transition: border-color 0.12s;
+}
+.ia-lock-pin-input:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+}
+.ia-lock-pin-input.error {
+  border-color: #E24B4A;
+}
+.ia-lock-msg {
+  font-size: 13px;
+  min-height: 18px;
+  margin-bottom: 14px;
+  color: #F09595;
+}
+.ia-lock-msg.info {
+  color: var(--ia-muted, rgba(255,255,255,.55));
+}
+.ia-lock-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.ia-lock-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--ia-r-md, 8px);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  background: transparent;
+  color: var(--ia-text, inherit);
+  font-family: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, filter 0.12s;
+}
+.ia-lock-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.ia-lock-btn-primary {
+  background: var(--ia-accent, #BEF264);
+  color: var(--ia-accent-text, #000);
+  border-color: var(--ia-accent, #BEF264);
+}
+.ia-lock-btn-primary:hover {
+  filter: brightness(0.93);
+}
+.ia-lock-footer {
+  font-size: 11px;
+  opacity: 0.4;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--ia-border, rgba(255,255,255,.10));
+}
+
+/* Light theme polish */
+.ia-theme-b .ia-lock-card {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.10);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+}
+.ia-theme-b .ia-lock-pin-input {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+.ia-theme-b .ia-lock-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.ia-theme-b .ia-lock-btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.05);
+}

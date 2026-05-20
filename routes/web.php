@@ -179,6 +179,7 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             'App\Http\Middleware\ConsumeOnboardingToken',
             'App\Http\Middleware\EnsureTrustedDevice',
             'App\Http\Middleware\RequireTenantAuth',
+            'App\Http\Middleware\EnsurePinFresh',
             'App\Http\Middleware\ApplyTenantTheme',
         ])->group(function () {
 
@@ -186,6 +187,11 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
             Route::get('/select-location',   [TenantControllers\AuthController::class, 'showLocationPicker'])->name('select-location');
             Route::post('/select-location',  [TenantControllers\AuthController::class, 'selectLocation'])->name('select-location.store');
             Route::post('/switch-location',  [TenantControllers\AuthController::class, 'switchLocation'])->name('switch-location');
+
+            // PIN gate endpoints (chunk 6) - whitelisted by EnsurePinFresh
+            // so they work even when the lock overlay is pending.
+            Route::post('/pin/heartbeat',    [TenantControllers\PinGateController::class, 'heartbeat'])->name('pin.heartbeat');
+            Route::post('/pin/unlock',       [TenantControllers\PinGateController::class, 'unlock'])->name('pin.unlock');
 
             // Everything below requires a current_location_id set in session.
             // Picker routes above are exempt (chicken/egg).

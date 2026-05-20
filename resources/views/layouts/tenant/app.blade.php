@@ -144,6 +144,8 @@
     theme:      '{{ $adminTheme }}',
     currency:   '{{ $currentTenant->currency_symbol ?? "$" }}',
     ajaxUrl:    '{{ url("/admin/ajax") }}',
+    pinIdleThresholdSec:    {{ (int) config('intake.auth.pin_idle_threshold_sec', 120) }},
+    pinHeartbeatIntervalSec:{{ (int) config('intake.auth.pin_heartbeat_interval_sec', 60) }},
   };
 </script>
 
@@ -152,6 +154,9 @@
 <script src="{{ asset('js/tenant/admin.js') }}?v={{ filemtime(public_path('js/tenant/admin.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
+
+@include('layouts.tenant._lock-overlay')
 
 @stack('scripts')
 

@@ -131,6 +131,9 @@ class StaffSwitchController extends Controller
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 
+        // Mark PIN activity for the idle-lock middleware (chunk 6).
+        $request->session()->put('last_pin_activity_at', now()->toIso8601String());
+
         // Resolve current_location_id (same logic as email login).
         $locations = $user->activeLocations()
             ->orderBy('is_default', 'desc')
@@ -221,6 +224,9 @@ class StaffSwitchController extends Controller
         Auth::guard('tenant')->login($user);
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
+
+        // Mark PIN activity for the idle-lock middleware (chunk 6).
+        $request->session()->put('last_pin_activity_at', now()->toIso8601String());
 
         // Same location resolution as verifyPin.
         $locations = $user->activeLocations()

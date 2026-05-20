@@ -117,6 +117,16 @@ return [
 
         // Sliding-window device trust expiry (days).
         'device_trust_expiry_days' => 90,
+
+        // Idle lock — Layer 3 of the auth refactor (chunk 6).
+        // last_pin_activity_at older than this triggers the lock overlay.
+        // Tunable per-tenant later via the sign-in security admin (chunk 8).
+        'pin_idle_threshold_sec' => 120,
+
+        // Client heartbeat interval. Should be well below the idle
+        // threshold; we picked half. 60s pings against a 120s threshold
+        // means at most one missed heartbeat before the lock fires.
+        'pin_heartbeat_interval_sec' => 60,
     ],
 
 ];
