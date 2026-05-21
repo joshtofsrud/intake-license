@@ -43,11 +43,18 @@ class DashboardController extends Controller
         $workOrderBannerDismissed = (bool) $request->cookie('wof_banner_dismissed');
         $workOrderBanner = $service->workOrderBanner($workOrderBannerDismissed);
 
+        // MARKER-PATCH-110-STEP-4 — compute zones in order, then
+        // pass today + attention into zoneLauncher so it can reuse already-
+        // computed counts (low stock, SO counts) without re-querying.
+        $today     = $service->zoneToday();
+        $attention = $service->zoneAttention();
+
         $data = [
             'greeting'  => $service->greeting($user),
-            'today'     => $service->zoneToday(),
-            'attention' => $service->zoneAttention(),
+            'today'     => $today,
+            'attention' => $attention,
             'growth'    => $service->zoneGrowth(),
+            'launcher'  => $service->zoneLauncher($today, $attention),
             'progress'  => $progress,
             'workOrderBanner' => $workOrderBanner,
         ];

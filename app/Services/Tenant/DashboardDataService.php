@@ -10,6 +10,8 @@ use App\Models\Tenant\TenantResource;
 use App\Models\Tenant\TenantServiceItem;
 use App\Models\Tenant\TenantUser;
 use App\Models\Tenant\TenantWaitlistEntry;
+use App\Models\Tenant\TenantInventoryItem;  // MARKER-PATCH-110-STEP-1
+use App\Services\Tenant\CustomersReportService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -142,6 +144,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $unconfirmedCount,
                 'title' => 'Pending bookings',
+                'key'   => 'pending_bookings',
+                'icon'  => '🛎️',
                 'desc'  => $unconfirmedCount === 1
                     ? '1 booking awaiting confirmation or drop-off'
                     : $unconfirmedCount . ' bookings awaiting confirmation or drop-off',
@@ -154,6 +158,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $unpaidDoneCount,
                 'title' => 'Unpaid completed jobs',
+                'key'   => 'unpaid_completed',
+                'icon'  => '💳',
                 'desc'  => '$' . number_format($unpaidDoneSumCents / 100, 0) . ' outstanding on finished work',
                 'tone'  => 'amber',  // customer's action: send payment
                 'link'  => route('tenant.appointments.index', ['filter' => 'unpaid_completed']),
@@ -164,6 +170,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $readyPickupCount,
                 'title' => 'Ready for pickup',
+                'key'   => 'ready_pickup',
+                'icon'  => '✅',
                 'desc'  => $readyPickupCount === 1
                     ? 'Customer ready to receive their bike'
                     : 'Customers ready to receive their bikes',
@@ -176,6 +184,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $waitlistCount,
                 'title' => 'Waitlist entries',
+                'key'   => 'waitlist',
+                'icon'  => '⏳',
                 'desc'  => $waitlistCount === 1
                     ? 'Customer waiting for an opening'
                     : 'Customers waiting for an opening',
@@ -194,6 +204,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $overdueUnstartedCount,
                 'title' => 'Overdue: not started',
+                'key'   => 'overdue_unstarted',
+                'icon'  => '⏰',
                 'desc'  => $overdueUnstartedCount === 1
                     ? 'Appointment past its scheduled date and never started'
                     : 'Appointments past their scheduled date and never started',
@@ -211,6 +223,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $overdueInProgressCount,
                 'title' => 'Overdue: in progress',
+                'key'   => 'overdue_in_progress',
+                'icon'  => '🔧',
                 'desc'  => $overdueInProgressCount === 1
                     ? 'Job started but not closed out'
                     : 'Jobs started but not closed out',
@@ -228,6 +242,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $stalePickupCount,
                 'title' => 'Stale pickups',
+                'key'   => 'stale_pickups',
+                'icon'  => '📅',
                 'desc'  => $stalePickupCount === 1
                     ? 'Completed 3+ days ago, customer not collected'
                     : 'Completed 3+ days ago, customers not collected',
@@ -248,6 +264,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $soArrivedCount,
                 'title' => 'Special orders arrived',
+                'key'   => 'so_arrived',
+                'icon'  => '📦',
                 'desc'  => $soArrivedCount === 1
                     ? 'Customer part on the bench, ready to pull and notify'
                     : 'Customer parts on the bench, ready to pull and notify',
@@ -266,6 +284,8 @@ class DashboardDataService
             $cards[] = [
                 'count' => $soOverdueCount,
                 'title' => 'Special orders overdue',
+                'key'   => 'so_overdue',
+                'icon'  => '⚠️',
                 'desc'  => $soOverdueCount === 1
                     ? 'Vendor missed expected arrival — chase them'
                     : 'Vendors missed expected arrivals — chase them',
@@ -289,6 +309,8 @@ class DashboardDataService
                 $cards[] = [
                     'count' => $toSendCount,
                     'title' => 'Transfers to send',
+                    'key'   => 'transfers_to_send',
+                    'icon'  => '📤',
                     'desc'  => $toSendCount === 1
                         ? 'Another location is asking for stock from here'
                         : 'Other locations are asking for stock from here',
@@ -306,6 +328,8 @@ class DashboardDataService
                 $cards[] = [
                     'count' => $toReceiveCount,
                     'title' => 'Transfers arriving',
+                    'key'   => 'transfers_arriving',
+                    'icon'  => '📥',
                     'desc'  => $toReceiveCount === 1
                         ? 'Stock is in transit to this location'
                         : 'Stock items are in transit to this location',
@@ -313,6 +337,58 @@ class DashboardDataService
                     'link'  => route('tenant.transfer-requests.index', ['view' => 'to_receive']),
                 ];
             }
+        }
+
+        // MARKER-PATCH-110-STEP-2 — Low stock + Win-back triage rules
+        // Both rules are tenant-scoped and use existing indexed columns.
+
+        // Low stock: items at or below shop_reorder_threshold. Mirrors the
+        // 'stock=low' filter on the inventory index. NULL threshold = item
+        // isn't being tracked for reorder, so it's excluded.
+        $lowStockCount = TenantInventoryItem::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->whereNotNull('shop_reorder_threshold')
+            ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold')
+            ->count();
+
+        if ($lowStockCount > 0) {
+            $cards[] = [
+                'count' => $lowStockCount,
+                'title' => 'Low stock',
+                'key'   => 'low_stock',
+                'icon'  => '📉',
+                'desc'  => $lowStockCount === 1
+                    ? 'Item at or below its reorder threshold'
+                    : 'Items at or below their reorder thresholds',
+                'tone'  => 'amber',  // your action: plan replenishment
+                'link'  => route('tenant.inventory.index', ['stock' => 'low']),
+            ];
+        }
+
+        // Win-back: customers lapsed 180+ days (had a delivered appointment
+        // but not in 180+ days). Delegates to CustomersReportService for the
+        // same definition as the Reports → Customers tab, so the numbers
+        // agree across surfaces. aggregatesOnly skips the heavy list query.
+        try {
+            $lapsed = (new CustomersReportService($this->tenant))
+                ->lapsedCustomers(aggregatesOnly: true);
+            $winbackCount = (int) ($lapsed['lapsed_count'] ?? 0);
+        } catch (\Throwable $e) {
+            $winbackCount = 0;
+        }
+
+        if ($winbackCount > 0) {
+            $cards[] = [
+                'count' => $winbackCount,
+                'title' => 'Win-back candidates',
+                'key'   => 'win_back',
+                'icon'  => '👋',
+                'desc'  => $winbackCount === 1
+                    ? 'Customer has not been in for 180+ days'
+                    : 'Customers have not been in for 180+ days',
+                'tone'  => 'violet',  // your action: start a re-engagement campaign
+                'link'  => route('tenant.customers.index'),
+            ];
         }
 
         return [
@@ -449,6 +525,112 @@ class DashboardDataService
             // so the modal never needs to fire. Leaving the field for backward
             // compatibility with the Blade partial; flag is permanently false.
             'show_modal' => false,
+        ];
+    }
+
+    /**
+     * MARKER-PATCH-110-STEP-3
+     * Launcher tile sub-stats. One DB hit per stat where the data isn't
+     * already in zoneToday/zoneAttention. Order matters — tiles render
+     * in array order.
+     *
+     * Cheap stats only: counts and simple aggregates. Anything that would
+     * require a join across 3+ tables stays static label-only for now.
+     */
+    public function zoneLauncher(array $today, array $attention): array
+    {
+        $tenantId = $this->tenant->id;
+        $todayStr = $this->tnow()->toDateString();
+
+        // Today's register total. Sums tenant_sales paid today.
+        $todaySalesTotal = (int) DB::table('tenant_sales')
+            ->where('tenant_id', $tenantId)
+            ->whereDate('paid_at', $todayStr)
+            ->where('payment_status', 'paid')
+            ->sum('total_cents');
+
+        // Customer count — single COUNT, cheap.
+        $customerCount = (int) DB::table('tenant_customers')
+            ->where('tenant_id', $tenantId)
+            ->count();
+
+        // Waitlist count — same query as zoneAttention waitlist card uses.
+        $waitlistCount = 0;
+        if (class_exists(TenantWaitlistEntry::class)) {
+            try {
+                $waitlistCount = TenantWaitlistEntry::where('tenant_id', $tenantId)
+                    ->where('status', 'waiting')
+                    ->count();
+            } catch (\Throwable $e) {
+                $waitlistCount = 0;
+            }
+        }
+
+        // Inventory counts — active items, plus low-stock pulled from
+        // already-computed attention cards if present.
+        $activeItemsCount = (int) TenantInventoryItem::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->count();
+
+        $lowStockCount = collect($attention['cards'] ?? [])
+            ->firstWhere('title', 'Low stock')['count'] ?? 0;
+
+        // Special order counts — pulled from existing attention cards.
+        $soArrivedCount = collect($attention['cards'] ?? [])
+            ->firstWhere('title', 'Special orders arrived')['count'] ?? 0;
+        $soOverdueCount = collect($attention['cards'] ?? [])
+            ->firstWhere('title', 'Special orders overdue')['count'] ?? 0;
+
+        // Services count — active service items, single COUNT.
+        $servicesCount = (int) TenantServiceItem::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->count();
+
+        // Resources count — active resources.
+        $resourcesCount = (int) TenantResource::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->count();
+
+        // Staff count — tenant_users (excluding owner, if needed).
+        $staffCount = (int) TenantUser::where('tenant_id', $tenantId)->count();
+
+        // Published page count — same query zoneGrowth uses for health.
+        $publishedPageCount = (int) \App\Models\Tenant\TenantPage::where('tenant_id', $tenantId)
+            ->where('is_published', true)
+            ->count();
+
+        return [
+            'calendar' => [
+                'today_count' => $today['today_count'] ?? 0,
+                'cap'         => null,  // Cap calculation deferred — needs resource summation.
+            ],
+            'register' => [
+                'today_total_cents' => $todaySalesTotal,
+            ],
+            'customers' => [
+                'count' => $customerCount,
+            ],
+            'waitlist' => [
+                'count' => $waitlistCount,
+            ],
+            'inventory' => [
+                'active_count'    => $activeItemsCount,
+                'low_stock_count' => $lowStockCount,
+            ],
+            'special_orders' => [
+                'arrived_count' => $soArrivedCount,
+                'overdue_count' => $soOverdueCount,
+            ],
+            'services' => [
+                'count' => $servicesCount,
+            ],
+            'resources' => [
+                'count'       => $resourcesCount,
+                'staff_count' => $staffCount,
+            ],
+            'pages' => [
+                'published_count' => $publishedPageCount,
+            ],
         ];
     }
 

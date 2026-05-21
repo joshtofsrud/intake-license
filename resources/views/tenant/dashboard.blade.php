@@ -1,6 +1,8 @@
 @extends('layouts.tenant.app')
 @push('styles')
   <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
+  {{-- MARKER-PATCH-110-STEP-10a --}}
+  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard-tiles.css') }}?v={{ filemtime(public_path('css/tenant/dashboard-tiles.css')) }}">
 @endpush
 @section('mobile-fab', 'walk-in')
 
@@ -79,7 +81,16 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">{{ $greetingLine }}</h1>
-    <p class="ia-page-subtitle">{{ $greeting['date_long'] }}</p>
+    {{-- MARKER-PATCH-110-STEP-10c --}}
+    <p class="ia-page-subtitle">
+      <strong>{{ $greeting['date_long'] }}</strong>
+      @php $attentionCount = $attention['total_items'] ?? 0; @endphp
+      @if($attentionCount > 0)
+        · <span style="color:#F59E0B;font-weight:600">{{ $attentionCount }} {{ Str::plural('thing', $attentionCount) }} {{ $attentionCount === 1 ? 'needs' : 'need' }} you today</span>
+      @else
+        · <span style="color:var(--ia-accent);font-weight:600">all caught up · enjoy the calm</span>
+      @endif
+    </p>
   </div>
   <div class="ia-page-actions">
     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
@@ -123,9 +134,11 @@
 @endpush
 @endif
 
-@include('tenant.dashboard._zone_today')
-@include('tenant.dashboard._zone_attention')
-@include('tenant.dashboard._zone_growth')
+{{-- MARKER-PATCH-110-STEP-10b --}}
+@include('tenant.dashboard._zone_triage_tiles')
+@include('tenant.dashboard._zone_today_tile')
+@include('tenant.dashboard._zone_growth_tiles')
+@include('tenant.dashboard._zone_launcher')
 
 @push('styles')
 <style>
