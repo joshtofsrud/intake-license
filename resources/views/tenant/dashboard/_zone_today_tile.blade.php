@@ -12,7 +12,7 @@
       ->filter(fn($a) => !in_array($a->status, ['cancelled', 'refunded', 'completed', 'closed'], true))
       ->take(5);
 
-  $dateLong = \Carbon\Carbon::now($tenant->timezone())->format('l, F j');
+  $dateLong = $greeting['date_long'] ?? \Carbon\Carbon::now()->format('l, F j');
 @endphp
 
 <div class="ia-dash-today-tile-block">
