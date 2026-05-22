@@ -876,15 +876,18 @@ class DemoSeeder
                 $lineTotal = $price * $qty;
                 $subtotal += $lineTotal;
                 $saleItemRows[] = [
-                    'id'                  => (string) Str::uuid(),
-                    'sale_id'             => $saleId,
-                    'service_item_id'     => $svc->id,
-                    'item_name_snapshot' => $svc->name,
-                    'quantity'            => $qty,
-                    'unit_price_cents'    => $price,
-                    'line_total_cents'    => $lineTotal,
-                    'created_at'          => now(),
-                    'updated_at'          => now(),
+                    'id'               => (string) Str::uuid(),
+                    'tenant_id'        => $tenant->id,
+                    'sale_id'          => $saleId,
+                    'type'             => 'service',
+                    'service_id'       => $svc->id,
+                    'name_snapshot'    => $svc->name,
+                    'quantity'         => $qty,
+                    'unit_price_cents' => $price,
+                    'line_total_cents' => $lineTotal,
+                    'is_taxable'       => true,
+                    'created_at'       => now(),
+                    'updated_at'       => now(),
                 ];
             }
 
