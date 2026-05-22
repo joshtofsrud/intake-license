@@ -32,7 +32,7 @@ class ReportsController extends Controller
         $today = $tenant->localToday();
 
         $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) {
+        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) {
             $range = 'today';
         }
 
@@ -51,14 +51,16 @@ class ReportsController extends Controller
             }
         } else {
             [$from, $to] = match ($range) {
-                'week'  => [$today->copy()->subDays(6), $today->copy()],
-                'month' => [$today->copy()->startOfMonth(), $today->copy()],
-                default => [$today->copy(), $today->copy()],
+                'week'    => [$today->copy()->subDays(6), $today->copy()],
+                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
+                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                default   => [$today->copy(), $today->copy()],
             };
         }
 
         $rangeLabel = match ($range) {
             'week'   => 'Last 7 days',
+            'last_30' => 'Last 30 days',
             'month'  => $today->format('F'),
             'custom' => $from->isSameDay($to)
                 ? $from->format('M j, Y')
@@ -124,7 +126,7 @@ class ReportsController extends Controller
         $today = $tenant->localToday();
 
         $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) {
+        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) {
             $range = 'today';
         }
 
@@ -142,14 +144,16 @@ class ReportsController extends Controller
             }
         } else {
             [$from, $to] = match ($range) {
-                'week'  => [$today->copy()->subDays(6), $today->copy()],
-                'month' => [$today->copy()->startOfMonth(), $today->copy()],
-                default => [$today->copy(), $today->copy()],
+                'week'    => [$today->copy()->subDays(6), $today->copy()],
+                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
+                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                default   => [$today->copy(), $today->copy()],
             };
         }
 
         $rangeLabel = match ($range) {
             'week'   => 'Last 7 days',
+            'last_30' => 'Last 30 days',
             'month'  => $today->format('F'),
             'custom' => $from->isSameDay($to)
                 ? $from->format('M j, Y')
@@ -183,7 +187,7 @@ class ReportsController extends Controller
         $tenant = tenant();
         $today = $tenant->localToday();
         $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) $range = 'today';
+        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
         if ($range === 'custom') {
             try {
                 $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
@@ -194,13 +198,15 @@ class ReportsController extends Controller
             }
         } else {
             [$from, $to] = match ($range) {
-                'week'  => [$today->copy()->subDays(6), $today->copy()],
-                'month' => [$today->copy()->startOfMonth(), $today->copy()],
-                default => [$today->copy(), $today->copy()],
+                'week'    => [$today->copy()->subDays(6), $today->copy()],
+                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
+                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                default   => [$today->copy(), $today->copy()],
             };
         }
         $rangeLabel = match ($range) {
             'week'   => 'Last 7 days',
+            'last_30' => 'Last 30 days',
             'month'  => $today->format('F'),
             'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
             default  => 'Today',
@@ -228,7 +234,7 @@ class ReportsController extends Controller
         $tenant = tenant();
         $today = $tenant->localToday();
         $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) $range = 'today';
+        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
         if ($range === 'custom') {
             try {
                 $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
@@ -239,13 +245,15 @@ class ReportsController extends Controller
             }
         } else {
             [$from, $to] = match ($range) {
-                'week'  => [$today->copy()->subDays(6), $today->copy()],
-                'month' => [$today->copy()->startOfMonth(), $today->copy()],
-                default => [$today->copy(), $today->copy()],
+                'week'    => [$today->copy()->subDays(6), $today->copy()],
+                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
+                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                default   => [$today->copy(), $today->copy()],
             };
         }
         $rangeLabel = match ($range) {
             'week'   => 'Last 7 days',
+            'last_30' => 'Last 30 days',
             'month'  => $today->format('F'),
             'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
             default  => 'Today',
@@ -272,7 +280,7 @@ class ReportsController extends Controller
         $tenant = tenant();
         $today = $tenant->localToday();
         $range = (string) $request->query('range', 'today');
-        if (!in_array($range, ['today', 'week', 'month', 'custom'], true)) $range = 'today';
+        if (!in_array($range, ['today', 'week', 'month', 'last_30', 'custom'], true)) $range = 'today';
         if ($range === 'custom') {
             try {
                 $from = Carbon::parse((string) $request->query('from', $today->toDateString()))->startOfDay();
@@ -283,13 +291,15 @@ class ReportsController extends Controller
             }
         } else {
             [$from, $to] = match ($range) {
-                'week'  => [$today->copy()->subDays(6), $today->copy()],
-                'month' => [$today->copy()->startOfMonth(), $today->copy()],
-                default => [$today->copy(), $today->copy()],
+                'week'    => [$today->copy()->subDays(6), $today->copy()],
+                'month'   => [$today->copy()->startOfMonth(), $today->copy()],
+                'last_30' => [$today->copy()->subDays(29), $today->copy()], // MARKER-PATCH-114
+                default   => [$today->copy(), $today->copy()],
             };
         }
         $rangeLabel = match ($range) {
             'week'   => 'Last 7 days',
+            'last_30' => 'Last 30 days',
             'month'  => $today->format('F'),
             'custom' => $from->isSameDay($to) ? $from->format('M j, Y') : $from->format('M j') . ' – ' . $to->format('M j, Y'),
             default  => 'Today',

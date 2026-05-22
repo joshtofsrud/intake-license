@@ -19,12 +19,23 @@ class CustomerController extends Controller
             return $this->jsonDetail($tenant, $request->input('detail'));
         }
 
-        $search  = $request->input('s', '');
-        $sort    = $request->input('sort', 'name_asc');
-        $page    = max(1, (int) $request->input('page', 1));
-        $perPage = 25;
+        $search        = $request->input('s', '');
+        $createdAfter  = $request->input('created_after', ''); // MARKER-PATCH-114
+        // When the dashboard's "new customers" tile links here, default sort
+        // to newest-first so the new arrivals are immediately visible.
+        $defaultSort   = $createdAfter ? 'added_desc' : 'name_asc';
+        $sort          = $request->input('sort', $defaultSort);
+        $page          = max(1, (int) $request->input('page', 1));
+        $perPage       = 25;
 
         $q = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($createdAfter) {
+            try {
+                $q->where('created_at', '>=', \Carbon\Carbon::parse($createdAfter)->startOfDay());
+            } catch (\Throwable $e) {
+                $createdAfter = ''; // bad date, ignore silently
+            }
+        }
 
         if ($search) {
             $q->where(function ($q2) use ($search) {
@@ -93,7 +104,7 @@ class CustomerController extends Controller
         $totalPages = max(1, ceil($total / $perPage));
 
         return view('tenant.customers.index', compact(
-            'customers', 'stats', 'total', 'page', 'totalPages', 'search', 'sort'
+            'customers', 'stats', 'total', 'page', 'totalPages', 'search', 'sort', 'createdAfter'
         ));
     }
 

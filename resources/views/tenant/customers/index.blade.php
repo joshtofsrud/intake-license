@@ -76,6 +76,38 @@
 </div>
 
 {{-- ========== DESKTOP FILTER TOOLBAR (hidden on mobile) ========== --}}
+<style>
+.cust-resource-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  background: var(--ia-surface-2, rgba(255,255,255,0.03));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ia-text-2);
+}
+.cust-resource-chip strong { color: var(--ia-text); }
+.cust-resource-clear {
+  margin-left: 6px;
+  color: var(--ia-text-3);
+  text-decoration: none;
+  font-size: 11px;
+}
+.cust-resource-clear:hover { color: var(--ia-accent, #BEF264); }
+</style>
+
+{{-- MARKER-PATCH-114 - created_after filter chip --}}
+@if(!empty($createdAfter))
+  <div class="cust-resource-chip">
+    Showing customers added since
+    <strong>{{ \Carbon\Carbon::parse($createdAfter)->format('M j, Y') }}</strong>
+    <a href="{{ route('tenant.customers.index') }}" class="cust-resource-clear">clear ×</a>
+  </div>
+@endif
+
 <form method="get" action="{{ route('tenant.customers.index') }}" class="ia-toolbar cust-desktop-only" id="cust-desktop-form">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search name, email, or phone…" style="max-width:300px">

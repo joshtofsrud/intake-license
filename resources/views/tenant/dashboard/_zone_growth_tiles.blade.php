@@ -44,7 +44,8 @@
 
   <div class="ia-dash-growth-tiles-grid">
 
-    <a href="{{ route('tenant.reports.index') }}" class="ia-dash-growth-tile">
+    {{-- MARKER-PATCH-114 - tile links now apply matching filters --}}
+    <a href="{{ route('tenant.reports.index', ['range' => 'last_30']) }}" class="ia-dash-growth-tile">
       <div class="label">Revenue · last 30d</div>
       <div class="value">{{ format_money($rev['current_cents']) }}</div>
       @if($revDeltaText)
@@ -57,7 +58,7 @@
       </div>
     </a>
 
-    <a href="{{ route('tenant.customers.index') }}" class="ia-dash-growth-tile">
+    <a href="{{ route('tenant.customers.index', ['created_after' => \Carbon\Carbon::now()->subDays(29)->toDateString(), 'sort' => 'added_desc']) }}" class="ia-dash-growth-tile">
       <div class="label">New customers · last 30d</div>
       <div class="value">{{ $cust['current'] }}</div>
       @if($custDeltaText)
