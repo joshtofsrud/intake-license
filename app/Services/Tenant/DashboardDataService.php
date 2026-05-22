@@ -399,18 +399,24 @@ class DashboardDataService
 
     public function zoneGrowth(): array
     {
+        // MARKER-PATCH-115 — match Reports' revenue definition:
+        //   - status IN ('completed','closed') so only delivered work counts
+        //   - 30-day window inclusive of today (Reports' last_30 uses the
+        //     same subDays(29) bound).
         $tenantId = $this->tenant->id;
         $today = $this->tnow()->endOfDay();
-        $thirtyAgo = $this->tnow()->subDays(30)->startOfDay();
-        $sixtyAgo = $this->tnow()->subDays(60)->startOfDay();
+        $thirtyAgo = $this->tnow()->subDays(29)->startOfDay();   // start of current 30d window
+        $sixtyAgo  = $this->tnow()->subDays(59)->startOfDay();   // start of prior 30d window
 
         $revenueCurrent = (int) TenantAppointment::where('tenant_id', $tenantId)
             ->whereBetween('appointment_date', [$thirtyAgo->toDateString(), $today->toDateString()])
+            ->whereIn('status', ['completed', 'closed'])
             ->where('payment_status', 'paid')
             ->sum('total_cents');
 
         $revenuePrior = (int) TenantAppointment::where('tenant_id', $tenantId)
             ->whereBetween('appointment_date', [$sixtyAgo->toDateString(), $thirtyAgo->copy()->subDay()->toDateString()])
+            ->whereIn('status', ['completed', 'closed'])
             ->where('payment_status', 'paid')
             ->sum('total_cents');
 
@@ -638,6 +644,7 @@ class DashboardDataService
     {
         $rows = TenantAppointment::where('tenant_id', $tenantId)
             ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
+            ->whereIn('status', ['completed', 'closed'])
             ->where('payment_status', 'paid')
             ->selectRaw('DATE(appointment_date) as d, SUM(total_cents) as cents')
             ->groupBy('d')
