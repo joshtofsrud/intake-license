@@ -14,26 +14,17 @@ use Illuminate\Support\Facades\Schema;
  *   - --force flag
  *   - Typing the literal string "WIPE ALL TENANTS" at the prompt
  *
- * What gets deleted:
- *   - Every row in every tenant_* table where tenant_id != platform tenant id
- *   - Every row in tenants where is_platform != true
- *   - Tenant-scoped rows in: support_conversations, quiz_completions, debug_logs
- *   - Orphaned licenses (license rows no tenant points at, except platform's)
- *   - Orphaned upstream customers (customer rows no license points at)
+ * Implementation strategy:
+ *   1. Detect tenant_id column dynamically per table (some tenant_* tables
+ *      don't have tenant_id — they scope via their parent's FK)
+ *   2. For tenant_id-bearing tables: delete WHERE tenant_id != platform
+ *   3. For child tables without tenant_id: delete via parent FK lookup
+ *      BEFORE the parent rows are deleted
+ *   4. FOREIGN_KEY_CHECKS=0 during the operation so cascade order doesn't
+ *      matter and we can delete in any sequence
  *
- * What gets preserved:
- *   - Platform tenant row + all its tenant_* data
- *   - Platform's license + upstream customer
- *   - Master admin users (users table — never touched)
- *   - changelog_entries, roadmap_entries — platform-level content
- *   - addons catalog
- *   - Schema, migrations history
- *
- * Run only after taking a manual mysqldump backup.
- *
- * Usage:
- *   php artisan tenants:wipe-except-platform --force
- *   php artisan tenants:wipe-except-platform --force --dry-run    (show only)
+ * What survives: platform tenant, master admin users, licenses+customers
+ * still referenced by platform, changelog/roadmap content, addon catalog.
  */
 class WipeTenantsExceptPlatform extends Command
 {
@@ -42,6 +33,25 @@ class WipeTenantsExceptPlatform extends Command
                             {--dry-run : Show what would be deleted without deleting.}';
 
     protected $description = 'Wipe all tenants and their data except the platform tenant. DESTRUCTIVE.';
+
+    /**
+     * Child tables without their own tenant_id column — they're scoped
+     * through their parent. Format: [child_table => [parent_fk, parent_table]]
+     */
+    protected array $childTables = [
+        'tenant_appointment_addons'        => ['appointment_id',     'tenant_appointments'],
+        'tenant_appointment_charges'       => ['appointment_id',     'tenant_appointments'],
+        'tenant_appointment_items'         => ['appointment_id',     'tenant_appointments'],
+        'tenant_appointment_notes'         => ['appointment_id',     'tenant_appointments'],
+        'tenant_appointment_parts'         => ['appointment_id',     'tenant_appointments'],
+        'tenant_appointment_responses'     => ['appointment_id',     'tenant_appointments'],
+        'tenant_appointment_work_order_responses' => ['appointment_id', 'tenant_appointments'],
+        'tenant_campaign_sends'            => ['campaign_id',        'tenant_campaigns'],
+        'tenant_inventory_item_vendors'    => ['inventory_item_id',  'tenant_inventory_items'],
+        'tenant_item_addons'               => ['service_item_id',    'tenant_service_items'],
+        'tenant_service_addons'            => ['service_item_id',    'tenant_service_items'],
+        'tenant_special_order_notes'       => ['special_order_id',   'tenant_special_orders'],
+    ];
 
     public function handle(): int
     {
@@ -52,7 +62,7 @@ class WipeTenantsExceptPlatform extends Command
 
         $dryRun = (bool) $this->option('dry-run');
 
-        // ── Step 1: locate the platform tenant ─────────────────────────────
+        // ── Locate the platform tenant ─────────────────────────────────────
         $platform = Tenant::where('is_platform', true)->first();
         if (!$platform) {
             $this->error('No platform tenant found (is_platform = true). Aborting — refusing to wipe everything.');
@@ -60,13 +70,10 @@ class WipeTenantsExceptPlatform extends Command
         }
 
         $platformId = $platform->id;
-        $platformLicenseId = $platform->license_id;
-
         $this->info("Platform tenant: {$platform->name} ({$platform->subdomain}) — id={$platformId}");
-        $this->info("Platform license: {$platformLicenseId}");
         $this->newLine();
 
-        // ── Step 2: enumerate what will be deleted ─────────────────────────
+        // ── Enumerate tenants to delete ────────────────────────────────────
         $tenantsToDelete = Tenant::where('is_platform', '!=', true)
             ->orWhereNull('is_platform')
             ->get(['id', 'name', 'subdomain', 'license_id', 'is_active']);
@@ -78,22 +85,26 @@ class WipeTenantsExceptPlatform extends Command
 
         $this->info("Found {$tenantsToDelete->count()} tenant(s) to wipe:");
         $this->table(
-            ['Subdomain', 'Name', 'Active', 'License ID'],
+            ['Subdomain', 'Name', 'Active'],
             $tenantsToDelete->map(fn($t) => [
                 $t->subdomain ?? '(none)',
                 $t->name,
                 $t->is_active ? 'yes' : 'no',
-                $t->license_id ? substr($t->license_id, 0, 8) . '…' : '(none)',
             ])->toArray()
         );
         $this->newLine();
 
-        // Per-table row counts for transparency
-        $tenantTables = $this->tenantScopedTables();
-        $this->info('Row counts to be deleted by table (tenant_id != platform):');
+        // ── Plan: enumerate row counts per table ───────────────────────────
+        $allTables    = $this->tenantScopedTables();
+        $childTables  = $this->childTables;
+        $directTables = array_diff($allTables, array_keys($childTables));
+
+        $this->info('Direct tables (tenant_id column present):');
         $perTable = [];
-        foreach ($tenantTables as $table) {
-            if (!Schema::hasTable($table)) {
+        foreach ($directTables as $table) {
+            if (!Schema::hasTable($table)) continue;
+            if (!Schema::hasColumn($table, 'tenant_id')) {
+                $this->warn("  $table — listed as direct but no tenant_id column found. Skipping.");
                 continue;
             }
             $count = DB::table($table)->where('tenant_id', '!=', $platformId)->count();
@@ -101,20 +112,36 @@ class WipeTenantsExceptPlatform extends Command
                 $perTable[$table] = $count;
             }
         }
-        $totalRows = array_sum($perTable);
-        $rows = collect($perTable)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray();
-        if ($rows) {
-            $this->table(['Table', 'Rows'], $rows);
+        if ($perTable) {
+            $this->table(['Table', 'Rows'], collect($perTable)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray());
         }
-        $this->info("Total tenant_* rows to delete: " . number_format($totalRows));
+
+        $this->info('Child tables (scoped via parent FK):');
+        $childCounts = [];
+        foreach ($childTables as $child => [$fk, $parent]) {
+            if (!Schema::hasTable($child) || !Schema::hasTable($parent)) continue;
+            $count = DB::table($child)
+                ->whereIn($fk, function ($q) use ($parent, $platformId) {
+                    $q->select('id')->from($parent)->where('tenant_id', '!=', $platformId);
+                })
+                ->count();
+            if ($count > 0) {
+                $childCounts[$child] = $count;
+            }
+        }
+        if ($childCounts) {
+            $this->table(['Child Table (via parent)', 'Rows'], collect($childCounts)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray());
+        }
+
+        $totalRows = array_sum($perTable) + array_sum($childCounts);
+        $this->info("Total tenant data rows to delete: " . number_format($totalRows));
         $this->newLine();
 
-        // Auxiliary tables
+        // ── Auxiliary tables ───────────────────────────────────────────────
         $auxCounts = $this->countAuxiliary($platformId);
         if (array_sum($auxCounts) > 0) {
-            $this->info('Auxiliary rows to be deleted:');
-            $auxRows = collect($auxCounts)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray();
-            $this->table(['Table', 'Rows'], $auxRows);
+            $this->info('Auxiliary rows to delete:');
+            $this->table(['Table', 'Rows'], collect($auxCounts)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray());
             $this->newLine();
         }
 
@@ -123,7 +150,7 @@ class WipeTenantsExceptPlatform extends Command
             return self::SUCCESS;
         }
 
-        // ── Step 3: explicit confirmation ──────────────────────────────────
+        // ── Confirmation ───────────────────────────────────────────────────
         $this->warn('This action cannot be undone. Take a mysqldump backup first if you have not.');
         $confirm = $this->ask('Type WIPE ALL TENANTS (exactly) to proceed');
         if ($confirm !== 'WIPE ALL TENANTS') {
@@ -131,119 +158,118 @@ class WipeTenantsExceptPlatform extends Command
             return self::SUCCESS;
         }
 
-        // ── Step 4: execute ────────────────────────────────────────────────
+        // ── Execute ────────────────────────────────────────────────────────
         $this->info('Starting wipe…');
         $start = microtime(true);
+        $deleted = [];
 
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
         try {
-            DB::transaction(function () use ($platformId, $tenantTables, &$deleted) {
-                $deleted = [];
-
-                // 4a. Delete from every tenant_* table.
-                foreach ($tenantTables as $table) {
-                    if (!Schema::hasTable($table)) {
-                        continue;
-                    }
-                    $n = DB::table($table)->where('tenant_id', '!=', $platformId)->delete();
-                    if ($n > 0) {
-                        $deleted[$table] = $n;
-                    }
-                }
-
-                // 4b. Auxiliary tenant-scoped tables.
-                foreach (['support_conversations', 'quiz_completions', 'debug_logs'] as $table) {
-                    if (!Schema::hasTable($table)) {
-                        continue;
-                    }
-                    $n = DB::table($table)
-                        ->where(function ($q) use ($platformId) {
-                            $q->where('tenant_id', '!=', $platformId)
-                              ->orWhereNull('tenant_id'); // debug_logs allows null tenant_id
-                        })
-                        ->delete();
-                    if ($n > 0) {
-                        $deleted[$table] = $n;
-                    }
-                }
-
-                // 4c. Delete the non-platform tenant rows themselves.
-                $n = DB::table('tenants')
-                    ->where(function ($q) {
-                        $q->where('is_platform', '!=', true)
-                          ->orWhereNull('is_platform');
+            // Phase 1: child tables FIRST (parent rows still exist for FK lookup).
+            foreach ($childTables as $child => [$fk, $parent]) {
+                if (!Schema::hasTable($child) || !Schema::hasTable($parent)) continue;
+                $n = DB::table($child)
+                    ->whereIn($fk, function ($q) use ($parent, $platformId) {
+                        $q->select('id')->from($parent)->where('tenant_id', '!=', $platformId);
                     })
                     ->delete();
                 if ($n > 0) {
-                    $deleted['tenants'] = $n;
+                    $deleted[$child] = $n;
                 }
+            }
 
-                // 4d. Orphaned licenses — any license not pointed at by a tenant.
-                $stillReferencedLicenseIds = DB::table('tenants')
-                    ->whereNotNull('license_id')
-                    ->pluck('license_id')
-                    ->toArray();
+            // Phase 2: all direct tables.
+            foreach ($directTables as $table) {
+                if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'tenant_id')) continue;
+                $n = DB::table($table)->where('tenant_id', '!=', $platformId)->delete();
+                if ($n > 0) {
+                    $deleted[$table] = $n;
+                }
+            }
 
+            // Phase 3: auxiliary tenant-scoped tables.
+            foreach (['support_conversations', 'quiz_completions', 'debug_logs'] as $table) {
+                if (!Schema::hasTable($table)) continue;
+                if (!Schema::hasColumn($table, 'tenant_id')) continue;
+                $n = DB::table($table)
+                    ->where(function ($q) use ($platformId) {
+                        $q->where('tenant_id', '!=', $platformId)
+                          ->orWhereNull('tenant_id');
+                    })
+                    ->delete();
+                if ($n > 0) {
+                    $deleted[$table] = $n;
+                }
+            }
+
+            // Phase 4: the tenants table itself.
+            $n = DB::table('tenants')
+                ->where(function ($q) {
+                    $q->where('is_platform', '!=', true)->orWhereNull('is_platform');
+                })
+                ->delete();
+            if ($n > 0) {
+                $deleted['tenants'] = $n;
+            }
+
+            // Phase 5: orphan cleanup — licenses, customers, license_events, activations.
+            $stillRefLicenseIds = DB::table('tenants')->whereNotNull('license_id')->pluck('license_id')->toArray();
+            if (Schema::hasTable('licenses')) {
                 $n = DB::table('licenses')
-                    ->whereNotIn('id', $stillReferencedLicenseIds ?: ['__never_match__'])
+                    ->whereNotIn('id', $stillRefLicenseIds ?: ['__never_match__'])
                     ->delete();
                 if ($n > 0) {
                     $deleted['licenses (orphaned)'] = $n;
                 }
+            }
 
-                // 4e. Orphaned upstream customers (separate from tenant_customers).
-                if (Schema::hasTable('customers')) {
-                    $stillReferencedCustomerIds = DB::table('licenses')
-                        ->whereNotNull('customer_id')
-                        ->pluck('customer_id')
-                        ->toArray();
+            if (Schema::hasTable('license_events')) {
+                $remainingLicenseIds = DB::table('licenses')->pluck('id')->toArray();
+                $n = DB::table('license_events')
+                    ->whereNotIn('license_id', $remainingLicenseIds ?: ['__never_match__'])
+                    ->delete();
+                if ($n > 0) {
+                    $deleted['license_events (orphaned)'] = $n;
+                }
+            }
 
-                    $n = DB::table('customers')
-                        ->whereNotIn('id', $stillReferencedCustomerIds ?: ['__never_match__'])
-                        ->delete();
-                    if ($n > 0) {
-                        $deleted['customers (orphaned upstream)'] = $n;
-                    }
+            if (Schema::hasTable('activations')) {
+                $remainingLicenseIds = $remainingLicenseIds ?? DB::table('licenses')->pluck('id')->toArray();
+                $n = DB::table('activations')
+                    ->whereNotNull('license_id')
+                    ->whereNotIn('license_id', $remainingLicenseIds ?: ['__never_match__'])
+                    ->delete();
+                if ($n > 0) {
+                    $deleted['activations (orphaned)'] = $n;
                 }
+            }
 
-                // 4f. Orphaned activations + license_events.
-                if (Schema::hasTable('license_events')) {
-                    // license_events cascades on license delete via FK — but the
-                    // FK_CHECKS=0 in step 4 means cascades skipped. Clean now.
-                    $remainingLicenseIds = DB::table('licenses')->pluck('id')->toArray();
-                    $n = DB::table('license_events')
-                        ->whereNotIn('license_id', $remainingLicenseIds ?: ['__never_match__'])
-                        ->delete();
-                    if ($n > 0) {
-                        $deleted['license_events (orphaned)'] = $n;
-                    }
+            if (Schema::hasTable('customers')) {
+                $stillRefCustomerIds = DB::table('licenses')->whereNotNull('customer_id')->pluck('customer_id')->toArray();
+                $n = DB::table('customers')
+                    ->whereNotIn('id', $stillRefCustomerIds ?: ['__never_match__'])
+                    ->delete();
+                if ($n > 0) {
+                    $deleted['customers (orphaned upstream)'] = $n;
                 }
-                if (Schema::hasTable('activations')) {
-                    $remainingLicenseIds = $remainingLicenseIds ?? DB::table('licenses')->pluck('id')->toArray();
-                    $n = DB::table('activations')
-                        ->whereNotNull('license_id')
-                        ->whereNotIn('license_id', $remainingLicenseIds ?: ['__never_match__'])
-                        ->delete();
-                    if ($n > 0) {
-                        $deleted['activations (orphaned)'] = $n;
-                    }
-                }
-            });
+            }
         } finally {
             DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
         $elapsed = round(microtime(true) - $start, 2);
 
-        // ── Step 5: report ─────────────────────────────────────────────────
+        // ── Report ─────────────────────────────────────────────────────────
         $this->newLine();
         $this->info("Wipe complete in {$elapsed}s.");
         if (!empty($deleted)) {
-            $reportRows = collect($deleted)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray();
-            $this->table(['Table', 'Rows deleted'], $reportRows);
+            $this->table(
+                ['Table', 'Rows deleted'],
+                collect($deleted)->map(fn($n, $t) => [$t, number_format($n)])->values()->toArray()
+            );
         }
 
-        // ── Step 6: sanity verify ──────────────────────────────────────────
+        // ── Verify ─────────────────────────────────────────────────────────
         $remainingTenants = Tenant::count();
         $platformStillThere = Tenant::where('is_platform', true)->exists();
         $this->info("Tenants remaining: {$remainingTenants}");
@@ -257,85 +283,48 @@ class WipeTenantsExceptPlatform extends Command
         return self::SUCCESS;
     }
 
-    /**
-     * Return the list of tenant-scoped table names. Centralised so the
-     * confirmation enumeration matches the delete loop exactly.
-     *
-     * Order doesn't matter — FK checks are disabled during the wipe.
-     */
     protected function tenantScopedTables(): array
     {
         return [
-            'tenant_addon_suppressions',
-            'tenant_addons',
-            'tenant_appointment_addons',
-            'tenant_appointment_charges',
-            'tenant_appointment_items',
-            'tenant_appointment_notes',
-            'tenant_appointment_parts',
-            'tenant_appointment_payments',
-            'tenant_appointment_responses',
-            'tenant_appointment_work_order_responses',
-            'tenant_appointments',
+            // Direct (tenant_id column)
+            'tenant_addon_suppressions', 'tenant_addons',
+            'tenant_appointment_payments', 'tenant_appointments',
             'tenant_calendar_breaks',
-            'tenant_campaign_images',
-            'tenant_campaign_sends',
-            'tenant_campaigns',
+            'tenant_campaign_images', 'tenant_campaigns',
             'tenant_capacity_rules',
-            'tenant_class_membership_products',
-            'tenant_class_pack_products',
-            'tenant_class_registrations',
-            'tenant_class_sessions',
-            'tenant_class_templates',
-            'tenant_customer_memberships',
-            'tenant_customer_notes',
-            'tenant_customer_packs',
-            'tenant_customers',
+            'tenant_class_membership_products', 'tenant_class_pack_products',
+            'tenant_class_registrations', 'tenant_class_sessions', 'tenant_class_templates',
+            'tenant_customer_memberships', 'tenant_customer_notes',
+            'tenant_customer_packs', 'tenant_customers',
             'tenant_distributor_catalog_subscriptions',
-            'tenant_email_templates',
-            'tenant_feature_addons',
-            'tenant_form_fields',
-            'tenant_form_sections',
-            'tenant_inventory_categories',
-            'tenant_inventory_item_locations',
-            'tenant_inventory_item_vendors',
-            'tenant_inventory_items',
-            'tenant_inventory_movements',
-            'tenant_inventory_receive_shipment_items',
-            'tenant_inventory_receive_shipments',
-            'tenant_item_addons',
+            'tenant_email_templates', 'tenant_feature_addons',
+            'tenant_form_fields', 'tenant_form_sections',
+            'tenant_inventory_categories', 'tenant_inventory_item_locations',
+            'tenant_inventory_items', 'tenant_inventory_movements',
+            'tenant_inventory_receive_shipment_items', 'tenant_inventory_receive_shipments',
             'tenant_item_tier_prices',
-            'tenant_locations',
-            'tenant_nav_items',
-            'tenant_notification_log',
-            'tenant_page_sections',
-            'tenant_pages',
-            'tenant_receiving_methods',
-            'tenant_resources',
-            'tenant_sale_counters',
-            'tenant_sale_items',
-            'tenant_sales',
-            'tenant_service_addons',
-            'tenant_service_categories',
-            'tenant_service_items',
-            'tenant_service_resource_eligibility',
-            'tenant_service_tiers',
-            'tenant_special_order_counters',
-            'tenant_special_order_notes',
-            'tenant_special_orders',
-            'tenant_tags',
-            'tenant_transfer_requests',
-            'tenant_trusted_devices',
-            'tenant_user_locations',
-            'tenant_users',
-            'tenant_vendors',
-            'tenant_waitlist_entries',
-            'tenant_waitlist_offers',
-            'tenant_waitlist_settings',
-            'tenant_waitlist_similar_map',
-            'tenant_walkin_holds',
-            'tenant_work_order_fields',
+            'tenant_locations', 'tenant_nav_items', 'tenant_notification_log',
+            'tenant_page_sections', 'tenant_pages',
+            'tenant_receiving_methods', 'tenant_resources',
+            'tenant_sale_counters', 'tenant_sale_items', 'tenant_sales',
+            'tenant_service_categories', 'tenant_service_items',
+            'tenant_service_resource_eligibility', 'tenant_service_tiers',
+            'tenant_special_order_counters', 'tenant_special_orders',
+            'tenant_tags', 'tenant_transfer_requests', 'tenant_trusted_devices',
+            'tenant_user_locations', 'tenant_users', 'tenant_vendors',
+            'tenant_waitlist_entries', 'tenant_waitlist_offers',
+            'tenant_waitlist_settings', 'tenant_waitlist_similar_map',
+            'tenant_walkin_holds', 'tenant_work_order_fields',
             'theme_settings_audits',
+            // Child (no tenant_id — scoped via parent)
+            'tenant_appointment_addons', 'tenant_appointment_charges',
+            'tenant_appointment_items', 'tenant_appointment_notes',
+            'tenant_appointment_parts', 'tenant_appointment_responses',
+            'tenant_appointment_work_order_responses',
+            'tenant_campaign_sends',
+            'tenant_inventory_item_vendors',
+            'tenant_item_addons', 'tenant_service_addons',
+            'tenant_special_order_notes',
         ];
     }
 
@@ -343,13 +332,12 @@ class WipeTenantsExceptPlatform extends Command
     {
         $counts = [];
         foreach (['support_conversations', 'quiz_completions', 'debug_logs'] as $table) {
-            if (!Schema::hasTable($table)) {
+            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'tenant_id')) {
                 continue;
             }
             $counts[$table] = DB::table($table)
                 ->where(function ($q) use ($platformId) {
-                    $q->where('tenant_id', '!=', $platformId)
-                      ->orWhereNull('tenant_id');
+                    $q->where('tenant_id', '!=', $platformId)->orWhereNull('tenant_id');
                 })
                 ->count();
         }
