@@ -67,8 +67,9 @@ class AppointmentController extends Controller
         $payment  = $request->input('payment', '');
         $dateFrom = $request->input('date_from', '');
         $dateTo   = $request->input('date_to', '');
-        $filter   = $request->input('filter', '');
-        $sort     = $request->input('sort', 'date_desc');
+        $filter      = $request->input('filter', '');
+        $resourceId  = $request->input('resource_id', ''); // MARKER-PATCH-113
+        $sort        = $request->input('sort', 'date_desc');
         $page     = max(1, (int) $request->input('page', 1));
         $perPage  = 25;
 
@@ -123,10 +124,11 @@ class AppointmentController extends Controller
                    ->orWhere('customer_email', 'like', "%{$search}%");
             });
         }
-        if ($status)   $q->where('status', $status);
-        if ($payment)  $q->where('payment_status', $payment);
-        if ($dateFrom) $q->where('appointment_date', '>=', $dateFrom);
-        if ($dateTo)   $q->where('appointment_date', '<=', $dateTo);
+        if ($status)     $q->where('status', $status);
+        if ($payment)    $q->where('payment_status', $payment);
+        if ($dateFrom)   $q->where('appointment_date', '>=', $dateFrom);
+        if ($dateTo)     $q->where('appointment_date', '<=', $dateTo);
+        if ($resourceId) $q->where('resource_id', $resourceId);
 
         // Sort
         switch ($sort) {
@@ -154,6 +156,14 @@ class AppointmentController extends Controller
         }
 
         $total = $q->count();
+        // Resolve the active resource filter for display (name + color in chip).
+        $resourceForFilter = null;
+        if ($resourceId) {
+            $resourceForFilter = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+                ->where('id', $resourceId)
+                ->first(['id', 'name', 'color_hex']);
+        }
+
         $appointments = $q->with('resource:id,name,color_hex')
                           ->offset(($page - 1) * $perPage)
                           ->limit($perPage)
@@ -172,7 +182,7 @@ class AppointmentController extends Controller
         return view('tenant.appointments.index', compact(
             'appointments', 'total', 'page', 'totalPages',
             'search', 'status', 'payment', 'dateFrom', 'dateTo', 'sort',
-            'filter', 'filterLabels', 'resources'
+            'filter', 'filterLabels', 'resources', 'resourceFilter'
         ));
     }
 

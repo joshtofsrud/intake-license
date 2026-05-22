@@ -101,6 +101,33 @@ tr.is-dirty .ia-inline-actions {
 .ia-inline-btn--save:hover { background: var(--ia-accent); color: var(--ia-bg); }
 .ia-inline-btn--save:disabled { opacity: .5; cursor: wait; }
 .ia-inline-btn--cancel:hover { color: #EF4444; border-color: #EF4444; }
+.appt-resource-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  background: var(--ia-surface-2, rgba(255,255,255,0.03));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ia-text-2);
+}
+.appt-resource-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.appt-resource-clear {
+  margin-left: 6px;
+  color: var(--ia-text-3);
+  text-decoration: none;
+  font-size: 11px;
+}
+.appt-resource-clear:hover {
+  color: var(--ia-accent, #BEF264);
+}
 .ia-inline-resource {
   display: inline-flex;
   align-items: center;
@@ -170,6 +197,15 @@ td.ia-inline-cell { cursor: default; }
     $attentionForBar = ['cards' => [], 'total_items' => 0];
   }
 @endphp
+
+{{-- MARKER-PATCH-113 - resource filter chip --}}
+@if(!empty($resourceFilter))
+  <div class="appt-resource-chip">
+    <span class="appt-resource-dot" style="background: {{ $resourceFilter->color_hex }}"></span>
+    Showing appointments for <strong>{{ $resourceFilter->name }}</strong>
+    <a href="{{ route('tenant.appointments.index') }}" class="appt-resource-clear">clear ×</a>
+  </div>
+@endif
 
 @if(!empty($attentionForBar['cards']))
   <div style="margin-bottom: 24px;">

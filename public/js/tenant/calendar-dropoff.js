@@ -53,7 +53,7 @@
           var apptId      = card.dataset.appointmentId;
           var newResource = evt.to.dataset.resourceId;
           var date        = evt.to.dataset.date;
-          reschedule( apptId, date, newResource, card );
+          reschedule( apptId, date, newResource, card, evt.from, evt.to );
         }
       } );
     } );
@@ -79,7 +79,7 @@
           var apptId      = card.dataset.appointmentId;
           var newResource = evt.to.dataset.resourceId;
           var newDate     = evt.to.dataset.date;
-          reschedule( apptId, newDate, newResource, card );
+          reschedule( apptId, newDate, newResource, card, evt.from, evt.to );
         }
       } );
     } );
@@ -122,12 +122,39 @@
     } );
   }
 
-  function reschedule( apptId, newDate, newResourceId, cardEl ) {
+  // MARKER-PATCH-113
+  // Helpers for the empty-state ghost ("No appointments yet"). The column
+  // body already contains the placeholder DIV (rendered by Blade when the
+  // column is empty), but SortableJS just shuffles cards in/out without
+  // touching the placeholder. We toggle it imperatively here.
+  function refreshEmptyState( colEl ) {
+    if ( !colEl ) return;
+    var placeholder = colEl.querySelector( ':scope > .cal-dropoff-empty' );
+    var hasCards = colEl.querySelector( ':scope > .cal-dropoff-card' ) !== null;
+    if ( hasCards && placeholder ) {
+      placeholder.remove();
+    } else if ( !hasCards && !placeholder ) {
+      var div = document.createElement( 'div' );
+      div.className = 'cal-dropoff-empty';
+      div.innerHTML =
+        '<div>No appointments yet.</div>' +
+        '<div class="cal-dropoff-empty-hint-desktop">Drag a card here to assign.</div>' +
+        '<div class="cal-dropoff-empty-hint-mobile">Tap + below to add one.</div>';
+      colEl.appendChild( div );
+    }
+  }
+
+  function reschedule( apptId, newDate, newResourceId, cardEl, fromCol, toCol ) {
     var fd = new FormData();
     fd.append( '_token', boot.csrf );
     fd.append( 'appointment_id', apptId );
     fd.append( 'new_date', newDate );
     if ( newResourceId ) fd.append( 'new_resource_id', newResourceId );
+
+    // Update empty-state ghosts immediately - optimistic UI. If the request
+    // fails, we'll reload to restore truth.
+    refreshEmptyState( fromCol );
+    refreshEmptyState( toCol );
 
     fetch( boot.rescheduleUrl, {
       method:  'POST',
@@ -136,14 +163,27 @@
     } )
       .then( function ( r ) { return r.json(); } )
       .then( function ( resp ) {
-        if ( !resp || !resp.success ) {
-          alert( 'Could not move that appointment: ' + ( resp && resp.message ? resp.message : 'unknown error' ) );
-          window.location.reload();
+        if ( resp && resp.success ) {
+          if ( window.IntakeToast ) {
+            window.IntakeToast.success( 'Appointment moved.' );
+          }
+          return;
         }
+        var msg = ( resp && resp.message ) ? resp.message : 'unknown error';
+        if ( window.IntakeToast ) {
+          window.IntakeToast.error( 'Could not move that appointment: ' + msg );
+        } else {
+          alert( 'Could not move that appointment: ' + msg );
+        }
+        window.location.reload();
       } )
       .catch( function ( err ) {
         console.error( 'Drop-off reschedule failed:', err );
-        alert( 'Network error. Reloading to restore the calendar.' );
+        if ( window.IntakeToast ) {
+          window.IntakeToast.error( 'Network error. Reloading to restore the calendar.' );
+        } else {
+          alert( 'Network error. Reloading to restore the calendar.' );
+        }
         window.location.reload();
       } );
   }

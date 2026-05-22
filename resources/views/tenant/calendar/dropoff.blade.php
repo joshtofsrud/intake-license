@@ -47,12 +47,15 @@
         $atCap    = ($cap !== null && $count >= $cap);
       @endphp
       <div class="cal-dropoff-col" data-resource-id="{{ $r->id }}">
+        {{-- MARKER-PATCH-113 - "See all" link added in column header --}}
         <div class="cal-dropoff-col-head" style="border-top: 3px solid {{ $r->color_hex }}">
           <div>
             <div class="cal-dropoff-col-name">{{ $r->name }}</div>
             @if($r->subtitle)
               <div class="cal-dropoff-col-sub">{{ $r->subtitle }}</div>
             @endif
+            <a href="{{ route('tenant.appointments.index', ['resource_id' => $r->id, 'date_from' => $date->format('Y-m-d')]) }}"
+               class="cal-dropoff-col-seeall">See all →</a>
           </div>
           <div class="cal-dropoff-col-cap {{ $atCap ? 'is-full' : '' }}">
             {{ $count }}@if($cap !== null)<span class="cap-of">/{{ $cap }}</span>@endif
@@ -142,10 +145,18 @@
   overflow: hidden;
   min-height: 200px;
 }
+.cal-dropoff-col-seeall {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ia-text-3, #888);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+.cal-dropoff-col-seeall:hover {
+  color: var(--ia-accent, #BEF264);
+}
 .cal-dropoff-col-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   padding: 12px 14px;
   border-bottom: 0.5px solid var(--ia-border);
   background: var(--ia-surface-2, rgba(255,255,255,0.02));
