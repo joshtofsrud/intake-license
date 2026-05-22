@@ -157,9 +157,9 @@ class AppointmentController extends Controller
 
         $total = $q->count();
         // Resolve the active resource filter for display (name + color in chip).
-        $resourceForFilter = null;
+        $resourceFilter = null;
         if ($resourceId) {
-            $resourceForFilter = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
+            $resourceFilter = \App\Models\Tenant\TenantResource::where('tenant_id', $tenant->id)
                 ->where('id', $resourceId)
                 ->first(['id', 'name', 'color_hex']);
         }
