@@ -205,7 +205,40 @@ class BikeShopData implements IndustryDataContract
         ];
     }
 
-    public function classTemplates(): array { return []; }
+    // MARKER-PATCH-112-BIKESHOP
+    public function classTemplates(): array
+    {
+        return [
+            [
+                'name'             => 'Basic Bike Maintenance',
+                'slug'             => 'basic-bike-maintenance',
+                'description'      => 'Hands-on class covering flat repair, drivetrain cleaning, brake adjustment, and pre-ride safety checks. Bring your own bike. Tools provided.',
+                'duration_minutes' => 90,
+                'default_capacity' => 8,
+                'price_cents'      => 4500,
+                'instructor_index' => null, // owner teaches
+                'schedule'         => [
+                    ['dow' => 6, 'time' => '10:00'], // Saturday morning
+                ],
+            ],
+        ];
+    }
+
+    public function inventoryCategories(): array
+    {
+        // Part 1: empty. Part 2 will populate.
+        return [];
+    }
+
+    public function inventoryItems(): array
+    {
+        // Part 1: empty. Part 2 will populate.
+        return [];
+    }
+
+    public function quoteCount(): int { return 10; }
+    public function draftCount(): int { return 5; }
+    public function classesEnabledOverride(): ?bool { return null; }
     public function membershipProducts(): array { return []; }
     public function packProducts(): array { return []; }
     public function bookingMode(): string { return 'drop_off'; }

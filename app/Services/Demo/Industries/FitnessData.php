@@ -350,4 +350,11 @@ class FitnessData implements IndustryDataContract
     }
 
     public function bookingMode(): string { return 'time_slots'; }
+
+    // MARKER-PATCH-112-FITNESS
+    public function inventoryCategories(): array { return []; }
+    public function inventoryItems(): array { return []; }
+    public function quoteCount(): int { return 5; }
+    public function draftCount(): int { return 2; }
+    public function classesEnabledOverride(): ?bool { return null; }
 }

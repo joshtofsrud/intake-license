@@ -24,6 +24,13 @@ use App\Models\Tenant\TenantServiceAddon;
 use App\Models\Tenant\TenantServiceCategory;
 use App\Models\Tenant\TenantServiceItem;
 use App\Models\Tenant\TenantUser;
+// MARKER-PATCH-112-IMPORTS
+use App\Models\Tenant\TenantInventoryCategory;
+use App\Models\Tenant\TenantInventoryItem;
+use App\Models\Tenant\TenantInventoryItemLocation;
+use App\Models\Tenant\TenantLocation;
+use App\Models\Tenant\TenantSale;
+use App\Models\Tenant\TenantSaleItem;
 use App\Services\Demo\Industries\IndustryDataContract;
 use Closure;
 use Illuminate\Support\Carbon;
@@ -71,6 +78,23 @@ class DemoSeeder
         // Class architecture (yoga/fitness/etc). No-op for industries that
         // return [] from classTemplates/membershipProducts/packProducts.
         $this->seedClasses($tenant, $customers);
+
+        // MARKER-PATCH-112-WIRING
+        // Set classes_enabled from override or auto-derive from classTemplates.
+        $override = $this->industry->classesEnabledOverride();
+        $classesEnabled = $override !== null
+            ? $override
+            : !empty($this->industry->classTemplates());
+        if ($tenant->classes_enabled !== $classesEnabled) {
+            $tenant->update(['classes_enabled' => $classesEnabled]);
+            $this->log("  Classes addon: " . ($classesEnabled ? 'enabled' : 'disabled'));
+        }
+
+        // Inventory (categories + items + per-location stock).
+        $this->seedInventory($tenant);
+
+        // Quotes + drafts (open sales-in-progress for the dashboard).
+        $this->seedQuotesAndDrafts($tenant, $owner, $customers);
 
         // Sub-seeders (waitlist, campaigns, pages)
         // Work-order field definitions + responses (must run after appointments exist)
@@ -672,13 +696,236 @@ class DemoSeeder
         }
     }
 
+
+    // MARKER-PATCH-112-INVENTORY-METHOD
+
+    /**
+     * Seed inventory categories + items + per-location stock rows.
+     *
+     * Items are distributed across the tenant's active locations: each item
+     * gets a tenant_inventory_item_locations row per location, with stock
+     * split evenly across them (rounded; any remainder lands on the first
+     * location). Aggregate stock on the item row matches the sum.
+     *
+     * Reorder thresholds are applied at BOTH the item level and the
+     * location level so the low-stock dashboard card works regardless of
+     * whether a current_location_id is set in session.
+     *
+     * Idempotent on re-seed at the tenant level: caller (DemoPopulate
+     * --fresh) wipes the tenant before calling seed().
+     */
+    private function seedInventory(Tenant $tenant): void
+    {
+        $categories = $this->industry->inventoryCategories();
+        $items = $this->industry->inventoryItems();
+
+        if (empty($items)) {
+            $this->log("  Inventory: industry has no items defined, skipping.");
+            return;
+        }
+
+        // 1. Seed categories.
+        $categoryIdsBySlug = [];
+        foreach ($categories as $i => $cat) {
+            $row = TenantInventoryCategory::create([
+                'id'         => (string) Str::uuid(),
+                'tenant_id'  => $tenant->id,
+                'name'       => $cat['name'],
+                'slug'       => $cat['slug'],
+                'sort_order' => $i,
+                'source'     => 'manual',
+            ]);
+            $categoryIdsBySlug[$cat['slug']] = $row->id;
+        }
+
+        // 2. Get all active locations on this tenant for stock distribution.
+        $locationIds = TenantLocation::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('is_default', 'desc')
+            ->orderBy('created_at')
+            ->pluck('id')
+            ->all();
+
+        if (empty($locationIds)) {
+            $this->log("  Inventory: no locations found, cannot distribute stock. Skipping.");
+            return;
+        }
+
+        $locationCount = count($locationIds);
+
+        // 3. Seed items + per-location stock.
+        $itemRows = [];
+        $locationRows = [];
+
+        foreach ($items as $item) {
+            $itemId = (string) Str::uuid();
+            $totalStock = (int) ($item['stock_count'] ?? 0);
+            $threshold = $item['reorder_threshold'] ?? null;
+
+            $catSlug = $item['category_slug'] ?? null;
+            $catId = $catSlug && isset($categoryIdsBySlug[$catSlug])
+                ? $categoryIdsBySlug[$catSlug]
+                : null;
+
+            $itemRows[] = [
+                'id'                     => $itemId,
+                'tenant_id'              => $tenant->id,
+                'category_id'            => $catId,
+                'sku'                    => $item['sku'],
+                'name'                   => $item['name'],
+                'description'            => $item['description'] ?? null,
+                'shop_cost_cents'        => $item['shop_cost_cents'] ?? null,
+                'shop_sell_price_cents'  => $item['shop_sell_price_cents'] ?? null,
+                'shop_reorder_threshold' => $threshold,
+                'computed_stock_count'   => $totalStock,
+                'allow_oversell'         => true,
+                'is_active'              => true,
+                'created_at'             => now(),
+                'updated_at'             => now(),
+            ];
+
+            // Distribute stock across locations (even split, remainder to first).
+            $perLoc = intdiv($totalStock, $locationCount);
+            $remainder = $totalStock - ($perLoc * $locationCount);
+            foreach ($locationIds as $idx => $locId) {
+                $stockHere = $perLoc + ($idx === 0 ? $remainder : 0);
+                $locationRows[] = [
+                    'id'                     => (string) Str::uuid(),
+                    'tenant_id'              => $tenant->id,
+                    'inventory_item_id'      => $itemId,
+                    'location_id'            => $locId,
+                    'computed_stock_count'   => $stockHere,
+                    'shop_reorder_threshold' => $threshold,
+                    'is_active'              => true,
+                    'created_at'             => now(),
+                    'updated_at'             => now(),
+                ];
+            }
+        }
+
+        // Batch insert for speed (these tables can be 100+ rows).
+        foreach (array_chunk($itemRows, 200) as $chunk) {
+            DB::table('tenant_inventory_items')->insert($chunk);
+        }
+        foreach (array_chunk($locationRows, 200) as $chunk) {
+            DB::table('tenant_inventory_item_locations')->insert($chunk);
+        }
+
+        $this->log("  Inventory: " . count($items) . " items across " . count($categories) . " categories, distributed across {$locationCount} location(s).");
+    }
+
+    // MARKER-PATCH-112-QUOTES-METHOD
+
+    /**
+     * Seed quote-status and draft-status sales rows. These appear in the
+     * Register's "Drafts & Quotes" UI and feed Reports → Sales filters.
+     *
+     * Both quotes and drafts use payment_status (the schema enum was
+     * expanded in patch 2026-05-04 to include 'quote' and 'draft').
+     * status stays 'pending' since neither is finalized.
+     *
+     * Each row gets 1-3 line items pulled randomly from the tenant's
+     * existing service catalog so the totals look realistic.
+     */
+    private function seedQuotesAndDrafts(Tenant $tenant, TenantUser $owner, array $customers): void
+    {
+        $quoteCount = $this->industry->quoteCount();
+        $draftCount = $this->industry->draftCount();
+
+        if ($quoteCount === 0 && $draftCount === 0) {
+            return;
+        }
+
+        // Need at least 1 customer and 1 service to seed meaningful rows.
+        if (empty($customers)) {
+            $this->log("  Quotes/drafts: no customers, skipping.");
+            return;
+        }
+
+        $services = TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->get(['id', 'name', 'price_cents'])
+            ->all();
+        if (empty($services)) {
+            $this->log("  Quotes/drafts: no services, skipping.");
+            return;
+        }
+
+        // Sale numbers are unique per tenant. Use a high starting number to
+        // avoid collisions with the live counter once the tenant goes live.
+        $startNumber = 9000;
+
+        $today = Carbon::now();
+        $created = 0;
+
+        $seedOne = function (string $paymentStatus) use ($tenant, $owner, $customers, $services, $today, &$startNumber, &$created) {
+            $customer = $customers[array_rand($customers)];
+            $numItems = random_int(1, 3);
+            $pickedServices = (array) array_rand($services, min($numItems, count($services)));
+            if (!is_array($pickedServices)) {
+                $pickedServices = [$pickedServices];
+            }
+
+            $saleId = (string) Str::uuid();
+            $saleItemRows = [];
+            $subtotal = 0;
+            foreach ($pickedServices as $idx) {
+                $svc = $services[$idx];
+                $price = (int) ($svc->price_cents ?? 0);
+                $qty = 1;
+                $lineTotal = $price * $qty;
+                $subtotal += $lineTotal;
+                $saleItemRows[] = [
+                    'id'                  => (string) Str::uuid(),
+                    'sale_id'             => $saleId,
+                    'service_item_id'     => $svc->id,
+                    'item_name_snapshot' => $svc->name,
+                    'quantity'            => $qty,
+                    'unit_price_cents'    => $price,
+                    'line_total_cents'    => $lineTotal,
+                    'created_at'          => now(),
+                    'updated_at'          => now(),
+                ];
+            }
+
+            DB::table('tenant_sales')->insert([
+                'id'                  => $saleId,
+                'tenant_id'           => $tenant->id,
+                'sale_number'         => 'S-' . str_pad((string)($startNumber++), 5, '0', STR_PAD_LEFT),
+                'sale_date'           => $today->copy()->subDays(random_int(0, 7))->toDateString(),
+                'status'              => 'pending',
+                'payment_status'      => $paymentStatus,
+                'customer_id'         => $customer->id,
+                'rang_up_by_user_id'  => $owner->id,
+                'subtotal_cents'      => $subtotal,
+                'total_cents'         => $subtotal,
+                'created_at'          => now(),
+                'updated_at'          => now(),
+            ]);
+
+            DB::table('tenant_sale_items')->insert($saleItemRows);
+            $created++;
+        };
+
+        for ($i = 0; $i < $quoteCount; $i++) {
+            $seedOne('quote');
+        }
+        for ($i = 0; $i < $draftCount; $i++) {
+            $seedOne('draft');
+        }
+
+        $this->log("  Quotes/drafts: {$quoteCount} quotes + {$draftCount} drafts seeded.");
+    }
+
     private function pickStatus(Carbon $date, Carbon $today): string
     {
         if ($date->greaterThan($today)) {
             return $this->weightedPick(['confirmed' => 70, 'pending' => 30]);
         }
+        // MARKER-PATCH-112-PICKSTATUS - same-day appointments are still in the
+        // future at the moment of seeding; never assign 'completed' to them.
         if ($date->isSameDay($today)) {
-            return $this->weightedPick(['in_progress' => 40, 'confirmed' => 30, 'completed' => 20, 'pending' => 10]);
+            return $this->weightedPick(['in_progress' => 40, 'confirmed' => 40, 'pending' => 20]);
         }
         $daysAgo = abs($today->diffInDays($date));
         if ($daysAgo <= 2) {

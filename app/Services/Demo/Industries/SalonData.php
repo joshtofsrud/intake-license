@@ -214,4 +214,13 @@ class SalonData implements IndustryDataContract
     public function packProducts(): array { return []; }
     public function bookingMode(): string { return 'time_slots'; }
 
+    // MARKER-PATCH-112-SALON
+
+    public function inventoryCategories(): array { return []; }
+    public function inventoryItems(): array { return []; }
+    public function quoteCount(): int { return 5; }
+    public function draftCount(): int { return 2; }
+
+    // Classes addon on, but no templates yet (salon planning to add).
+    public function classesEnabledOverride(): ?bool { return true; }
 }

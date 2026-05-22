@@ -101,4 +101,47 @@ interface IndustryDataContract
      * Empty array = no packs seeded.
      */
     public function packProducts(): array;
+
+    // MARKER-PATCH-112-CONTRACT
+
+    /**
+     * Inventory categories to seed. Each entry: name, slug.
+     * Items reference categories by slug.
+     * Empty array = no categories, items get category_id=null.
+     */
+    public function inventoryCategories(): array;
+
+    /**
+     * Inventory items to seed. Each entry:
+     *   sku, name, description (nullable), category_slug (nullable),
+     *   shop_cost_cents, shop_sell_price_cents,
+     *   stock_count (int — total stock; distributed evenly across locations),
+     *   reorder_threshold (int|null — for low-stock dashboard card).
+     *
+     * Empty array = no inventory seeded.
+     */
+    public function inventoryItems(): array;
+
+    /**
+     * Number of quote-status (payment_status='quote') sales to seed.
+     * 0 = skip quote seeding entirely.
+     */
+    public function quoteCount(): int;
+
+    /**
+     * Number of draft-status (payment_status='draft') sales to seed.
+     * 0 = skip draft seeding entirely.
+     */
+    public function draftCount(): int;
+
+    /**
+     * Override the classes_enabled flag on the seeded tenant.
+     *   - null  = auto-derive from classTemplates() (non-empty = true)
+     *   - true  = force on regardless of classTemplates
+     *   - false = force off regardless of classTemplates
+     *
+     * Use 'true' when classes are sold/marketed but no templates exist yet
+     * (e.g. salon planning to add classes but hasn't built them).
+     */
+    public function classesEnabledOverride(): ?bool;
 }
