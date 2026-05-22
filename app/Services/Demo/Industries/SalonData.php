@@ -216,8 +216,53 @@ class SalonData implements IndustryDataContract
 
     // MARKER-PATCH-112-SALON
 
-    public function inventoryCategories(): array { return []; }
-    public function inventoryItems(): array { return []; }
+    public function inventoryCategories(): array
+    {
+        return [
+            ['name' => 'Color',                'slug' => 'color'],
+            ['name' => 'Shampoo & Conditioner','slug' => 'shampoo-conditioner'],
+            ['name' => 'Styling',              'slug' => 'styling'],
+            ['name' => 'Retail Tools',         'slug' => 'retail-tools'],
+        ];
+    }
+
+    public function inventoryItems(): array
+    {
+        return [
+            // ── Color (back bar, in-shop use) ─────────────────────────────
+            ['sku' => 'SAL-COLOR-WELLA-6N',  'name' => 'Wella Koleston 6/0 Dark Blonde',     'category_slug' => 'color', 'shop_cost_cents' => 800,  'shop_sell_price_cents' => 1799, 'stock_count' => 14, 'reorder_threshold' => 5],
+            ['sku' => 'SAL-COLOR-WELLA-8N',  'name' => 'Wella Koleston 8/0 Light Blonde',    'category_slug' => 'color', 'shop_cost_cents' => 800,  'shop_sell_price_cents' => 1799, 'stock_count' => 10, 'reorder_threshold' => 5],
+            ['sku' => 'SAL-COLOR-WELLA-4M',  'name' => 'Wella Koleston 4/77 Med Brown',      'category_slug' => 'color', 'shop_cost_cents' => 800,  'shop_sell_price_cents' => 1799, 'stock_count' => 3,  'reorder_threshold' => 5], // LOW
+            ['sku' => 'SAL-COLOR-DEV-20',    'name' => 'Wella Welloxon 20-vol 32oz',         'category_slug' => 'color', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2499, 'stock_count' => 6,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-COLOR-DEV-30',    'name' => 'Wella Welloxon 30-vol 32oz',         'category_slug' => 'color', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2499, 'stock_count' => 4,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-COLOR-BOND',      'name' => 'Olaplex No. 1 Bond Multiplier',      'category_slug' => 'color', 'shop_cost_cents' => 4500, 'shop_sell_price_cents' => 9500, 'stock_count' => 3,  'reorder_threshold' => 2],
+            ['sku' => 'SAL-COLOR-TONER',     'name' => 'Redken Shades EQ 09V Platinum',      'category_slug' => 'color', 'shop_cost_cents' => 900,  'shop_sell_price_cents' => 1999, 'stock_count' => 8,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-COLOR-LIGHTNER',  'name' => 'Wella Blondor Multi Lightener 28oz', 'category_slug' => 'color', 'shop_cost_cents' => 3200, 'shop_sell_price_cents' => 5999, 'stock_count' => 4,  'reorder_threshold' => 2],
+
+            // ── Shampoo & Conditioner (retail) ────────────────────────────
+            ['sku' => 'SAL-SHAMP-OLA',       'name' => 'Olaplex No. 4 Shampoo 8.5oz',        'category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1500, 'shop_sell_price_cents' => 3000, 'stock_count' => 12, 'reorder_threshold' => 4],
+            ['sku' => 'SAL-COND-OLA',        'name' => 'Olaplex No. 5 Conditioner 8.5oz',    'category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1500, 'shop_sell_price_cents' => 3000, 'stock_count' => 10, 'reorder_threshold' => 4],
+            ['sku' => 'SAL-SHAMP-DAVINES',   'name' => 'Davines Love Smoothing Shampoo',     'category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1400, 'shop_sell_price_cents' => 3200, 'stock_count' => 8,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-COND-DAVINES',    'name' => 'Davines Love Smoothing Conditioner', 'category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1400, 'shop_sell_price_cents' => 3200, 'stock_count' => 7,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-SHAMP-REDKEN',    'name' => 'Redken All Soft Shampoo 10.1oz',     'category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2599, 'stock_count' => 14, 'reorder_threshold' => 5],
+            ['sku' => 'SAL-COND-REDKEN',     'name' => 'Redken All Soft Conditioner 10.1oz', 'category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2599, 'stock_count' => 12, 'reorder_threshold' => 5],
+            ['sku' => 'SAL-MASK-OLA',        'name' => 'Olaplex No. 8 Bond Intense Moisture','category_slug' => 'shampoo-conditioner', 'shop_cost_cents' => 1900, 'shop_sell_price_cents' => 3800, 'stock_count' => 6,  'reorder_threshold' => 2],
+
+            // ── Styling (retail) ──────────────────────────────────────────
+            ['sku' => 'SAL-STYL-MOUSSE',     'name' => 'Redken Full Frame 07 Mousse',        'category_slug' => 'styling', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2499, 'stock_count' => 9,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-STYL-HAIRSPRAY',  'name' => 'Kenra 25 Hair Spray',                'category_slug' => 'styling', 'shop_cost_cents' => 950,  'shop_sell_price_cents' => 2299, 'stock_count' => 14, 'reorder_threshold' => 5],
+            ['sku' => 'SAL-STYL-OIL',        'name' => 'Moroccanoil Treatment 3.4oz',        'category_slug' => 'styling', 'shop_cost_cents' => 1900, 'shop_sell_price_cents' => 4400, 'stock_count' => 10, 'reorder_threshold' => 4],
+            ['sku' => 'SAL-STYL-HEAT',       'name' => 'Redken Iron Shape 11 Heat Spray',    'category_slug' => 'styling', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2599, 'stock_count' => 2,  'reorder_threshold' => 3], // LOW
+            ['sku' => 'SAL-STYL-DRY-SHAMPOO','name' => 'Klorane Dry Shampoo w/Oat Milk',     'category_slug' => 'styling', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2500, 'stock_count' => 8,  'reorder_threshold' => 3],
+            ['sku' => 'SAL-STYL-CREAM',      'name' => 'Davines OI All In One Milk',         'category_slug' => 'styling', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3800, 'stock_count' => 7,  'reorder_threshold' => 3],
+
+            // ── Retail Tools ──────────────────────────────────────────────
+            ['sku' => 'SAL-BRUSH-PADDLE',    'name' => 'Mason Pearson Pocket Bristle Brush', 'category_slug' => 'retail-tools', 'shop_cost_cents' => 5500, 'shop_sell_price_cents' => 12500, 'stock_count' => 4, 'reorder_threshold' => 2],
+            ['sku' => 'SAL-BRUSH-ROUND',     'name' => 'Olivia Garden Ceramic Round 43mm',   'category_slug' => 'retail-tools', 'shop_cost_cents' => 2200, 'shop_sell_price_cents' => 4500,  'stock_count' => 6, 'reorder_threshold' => 2],
+            ['sku' => 'SAL-COMB-FINE',       'name' => 'Mason Pearson Detangling Comb',      'category_slug' => 'retail-tools', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 4000,  'stock_count' => 5, 'reorder_threshold' => 2],
+            ['sku' => 'SAL-CLIPS-SEC',       'name' => 'Sectioning Clips, 4-pack',           'category_slug' => 'retail-tools', 'shop_cost_cents' => 400,  'shop_sell_price_cents' => 1200,  'stock_count' => 18,'reorder_threshold' => 6],
+        ];
+    }
     public function quoteCount(): int { return 5; }
     public function draftCount(): int { return 2; }
 

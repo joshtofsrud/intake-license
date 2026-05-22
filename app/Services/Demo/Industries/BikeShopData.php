@@ -226,14 +226,111 @@ class BikeShopData implements IndustryDataContract
 
     public function inventoryCategories(): array
     {
-        // Part 1: empty. Part 2 will populate.
-        return [];
+        return [
+            ['name' => 'Tubes & Tires',     'slug' => 'tubes-tires'],
+            ['name' => 'Drivetrain',        'slug' => 'drivetrain'],
+            ['name' => 'Brakes',            'slug' => 'brakes'],
+            ['name' => 'Lubes & Cleaners',  'slug' => 'lubes-cleaners'],
+            ['name' => 'Lights & Reflectors','slug' => 'lights-reflectors'],
+            ['name' => 'Helmets',           'slug' => 'helmets'],
+            ['name' => 'Tools',             'slug' => 'tools'],
+            ['name' => 'Accessories',       'slug' => 'accessories'],
+        ];
     }
 
     public function inventoryItems(): array
     {
-        // Part 1: empty. Part 2 will populate.
-        return [];
+        return [
+            // ── Tubes & Tires ────────────────────────────────────────────
+            ['sku' => 'BIKE-TUBE-700-25',  'name' => 'Continental Tube 700x23-25',     'category_slug' => 'tubes-tires', 'shop_cost_cents' => 450,  'shop_sell_price_cents' => 1099, 'stock_count' => 48, 'reorder_threshold' => 12],
+            ['sku' => 'BIKE-TUBE-700-32',  'name' => 'Continental Tube 700x28-32',     'category_slug' => 'tubes-tires', 'shop_cost_cents' => 475,  'shop_sell_price_cents' => 1199, 'stock_count' => 32, 'reorder_threshold' => 10],
+            ['sku' => 'BIKE-TUBE-26-FLAT', 'name' => '26" Tube, Schrader, 1.75-2.1',   'category_slug' => 'tubes-tires', 'shop_cost_cents' => 350,  'shop_sell_price_cents' => 899,  'stock_count' => 24, 'reorder_threshold' => 8],
+            ['sku' => 'BIKE-TUBE-275',     'name' => '27.5" Tube, Presta, 2.1-2.4',    'category_slug' => 'tubes-tires', 'shop_cost_cents' => 525,  'shop_sell_price_cents' => 1299, 'stock_count' => 18, 'reorder_threshold' => 6],
+            ['sku' => 'BIKE-TUBE-29',      'name' => '29" Tube, Presta, 2.0-2.4',      'category_slug' => 'tubes-tires', 'shop_cost_cents' => 525,  'shop_sell_price_cents' => 1299, 'stock_count' => 22, 'reorder_threshold' => 6],
+            ['sku' => 'BIKE-TIRE-GP5000',  'name' => 'Continental GP 5000 700x25',     'category_slug' => 'tubes-tires', 'shop_cost_cents' => 3500, 'shop_sell_price_cents' => 7499, 'stock_count' => 8,  'reorder_threshold' => 4],
+            ['sku' => 'BIKE-TIRE-G-ONE',   'name' => 'Schwalbe G-One 700x40 Gravel',   'category_slug' => 'tubes-tires', 'shop_cost_cents' => 3200, 'shop_sell_price_cents' => 6999, 'stock_count' => 6,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-TIRE-MAXXIS',  'name' => 'Maxxis Minion DHF 29x2.5 EXO',   'category_slug' => 'tubes-tires', 'shop_cost_cents' => 4200, 'shop_sell_price_cents' => 8999, 'stock_count' => 5,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-TIRE-MARATHON','name' => 'Schwalbe Marathon Plus 700x35',  'category_slug' => 'tubes-tires', 'shop_cost_cents' => 3000, 'shop_sell_price_cents' => 6499, 'stock_count' => 4,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-TIRE-COMMUTE', 'name' => 'Vee Tire City Slick 700x32',     'category_slug' => 'tubes-tires', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3999, 'stock_count' => 12, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-PATCH-KIT',    'name' => 'Park Tool Vulcanizing Patch Kit','category_slug' => 'tubes-tires', 'shop_cost_cents' => 250,  'shop_sell_price_cents' => 599,  'stock_count' => 36, 'reorder_threshold' => 10],
+            ['sku' => 'BIKE-SEALANT',      'name' => 'Stans NoTubes Sealant 32oz',     'category_slug' => 'tubes-tires', 'shop_cost_cents' => 1500, 'shop_sell_price_cents' => 3299, 'stock_count' => 14, 'reorder_threshold' => 5],
+
+            // ── Drivetrain ───────────────────────────────────────────────
+            ['sku' => 'BIKE-CHAIN-HG54',   'name' => 'Shimano HG54 10-speed Chain',    'category_slug' => 'drivetrain', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 2999,  'stock_count' => 10, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-CHAIN-HG601',  'name' => 'Shimano HG601 11-speed Chain',   'category_slug' => 'drivetrain', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3999,  'stock_count' => 8,  'reorder_threshold' => 4],
+            ['sku' => 'BIKE-CHAIN-XT12',   'name' => 'Shimano XT M8100 12-speed Chain','category_slug' => 'drivetrain', 'shop_cost_cents' => 2800, 'shop_sell_price_cents' => 5499,  'stock_count' => 2,  'reorder_threshold' => 4], // LOW
+            ['sku' => 'BIKE-CHAIN-SRAM',   'name' => 'SRAM PC-1110 11-speed Chain',    'category_slug' => 'drivetrain', 'shop_cost_cents' => 1900, 'shop_sell_price_cents' => 3999,  'stock_count' => 6,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-CASS-HG500',   'name' => 'Shimano HG500 10sp 11-32T',      'category_slug' => 'drivetrain', 'shop_cost_cents' => 2900, 'shop_sell_price_cents' => 5999,  'stock_count' => 4,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-CASS-XT11',    'name' => 'Shimano XT M8000 11sp 11-46T',   'category_slug' => 'drivetrain', 'shop_cost_cents' => 6800, 'shop_sell_price_cents' => 12999, 'stock_count' => 3,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-RD-105',       'name' => 'Shimano 105 R7000 Rear Derail.', 'category_slug' => 'drivetrain', 'shop_cost_cents' => 4500, 'shop_sell_price_cents' => 8999,  'stock_count' => 2,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-FD-105',       'name' => 'Shimano 105 R7000 Front Derail.','category_slug' => 'drivetrain', 'shop_cost_cents' => 3200, 'shop_sell_price_cents' => 6499,  'stock_count' => 2,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-SHIFT-CABLE',  'name' => 'Shimano Stainless Shift Cable',  'category_slug' => 'drivetrain', 'shop_cost_cents' => 150,  'shop_sell_price_cents' => 449,   'stock_count' => 48, 'reorder_threshold' => 12],
+            ['sku' => 'BIKE-SHIFT-HOUSING','name' => 'Jagwire Shift Housing 4mm/10ft', 'category_slug' => 'drivetrain', 'shop_cost_cents' => 800,  'shop_sell_price_cents' => 1999,  'stock_count' => 6,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-PEDAL-SPD',    'name' => 'Shimano PD-M520 SPD Pedals',     'category_slug' => 'drivetrain', 'shop_cost_cents' => 2200, 'shop_sell_price_cents' => 4999,  'stock_count' => 5,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-PEDAL-FLAT',   'name' => 'Race Face Chester Flat Pedals',  'category_slug' => 'drivetrain', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 4499,  'stock_count' => 4,  'reorder_threshold' => 2],
+
+            // ── Brakes ───────────────────────────────────────────────────
+            ['sku' => 'BIKE-PAD-ULTEGRA',  'name' => 'Shimano Ultegra Brake Pads R55C4','category_slug' => 'brakes', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 2499, 'stock_count' => 2, 'reorder_threshold' => 5], // LOW
+            ['sku' => 'BIKE-PAD-105-RIM',  'name' => 'Shimano 105 Brake Pads',          'category_slug' => 'brakes', 'shop_cost_cents' => 900,  'shop_sell_price_cents' => 1999, 'stock_count' => 14, 'reorder_threshold' => 5],
+            ['sku' => 'BIKE-PAD-XT-DISC',  'name' => 'Shimano XT Resin Disc Pads',      'category_slug' => 'brakes', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2299, 'stock_count' => 18, 'reorder_threshold' => 6],
+            ['sku' => 'BIKE-PAD-XT-METAL', 'name' => 'Shimano XT Metal Disc Pads',      'category_slug' => 'brakes', 'shop_cost_cents' => 1500, 'shop_sell_price_cents' => 2999, 'stock_count' => 11, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-PAD-SRAM-G2',  'name' => 'SRAM G2 Organic Disc Pads',       'category_slug' => 'brakes', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3499, 'stock_count' => 8,  'reorder_threshold' => 4],
+            ['sku' => 'BIKE-BRAKE-FLUID',  'name' => 'Shimano Mineral Oil 100ml',       'category_slug' => 'brakes', 'shop_cost_cents' => 550,  'shop_sell_price_cents' => 1299, 'stock_count' => 16, 'reorder_threshold' => 6],
+            ['sku' => 'BIKE-BRAKE-DOT',    'name' => 'SRAM DOT 5.1 Brake Fluid 4oz',    'category_slug' => 'brakes', 'shop_cost_cents' => 700,  'shop_sell_price_cents' => 1499, 'stock_count' => 9,  'reorder_threshold' => 4],
+            ['sku' => 'BIKE-BRAKE-CABLE',  'name' => 'Jagwire Brake Cable Stainless',   'category_slug' => 'brakes', 'shop_cost_cents' => 200,  'shop_sell_price_cents' => 599,  'stock_count' => 42, 'reorder_threshold' => 12],
+            ['sku' => 'BIKE-BRAKE-HOUSING','name' => 'Jagwire Brake Housing 5mm/10ft',  'category_slug' => 'brakes', 'shop_cost_cents' => 900,  'shop_sell_price_cents' => 2199, 'stock_count' => 5,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-ROTOR-160',    'name' => 'Shimano RT54 Centerlock 160mm',   'category_slug' => 'brakes', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3999, 'stock_count' => 6,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-ROTOR-180',    'name' => 'Shimano RT54 Centerlock 180mm',   'category_slug' => 'brakes', 'shop_cost_cents' => 2000, 'shop_sell_price_cents' => 4499, 'stock_count' => 4,  'reorder_threshold' => 2],
+
+            // ── Lubes & Cleaners ─────────────────────────────────────────
+            ['sku' => 'BIKE-LUBE-WET',     'name' => 'Finish Line Wet Lube 4oz',         'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 600,  'shop_sell_price_cents' => 1399, 'stock_count' => 22, 'reorder_threshold' => 8],
+            ['sku' => 'BIKE-LUBE-DRY',     'name' => 'Finish Line Dry Lube 4oz',         'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 600,  'shop_sell_price_cents' => 1399, 'stock_count' => 24, 'reorder_threshold' => 8],
+            ['sku' => 'BIKE-LUBE-CERAMIC', 'name' => 'Finish Line Ceramic Wax Lube',     'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2499, 'stock_count' => 10, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-DEGREASER',    'name' => 'Pedros Pig Juice Degreaser 32oz',  'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 2499, 'stock_count' => 8,  'reorder_threshold' => 4],
+            ['sku' => 'BIKE-WASH',         'name' => 'Pedros Green Fizz Bike Wash 1L',   'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 1300, 'shop_sell_price_cents' => 2699, 'stock_count' => 11, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-GREASE-PARK',  'name' => 'Park Tool PolyLube 1000 4oz',      'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 700,  'shop_sell_price_cents' => 1599, 'stock_count' => 14, 'reorder_threshold' => 5],
+            ['sku' => 'BIKE-GREASE-PHIL',  'name' => 'Phil Wood Grease 3oz',             'category_slug' => 'lubes-cleaners', 'shop_cost_cents' => 800,  'shop_sell_price_cents' => 1899, 'stock_count' => 6,  'reorder_threshold' => 3],
+
+            // ── Lights & Reflectors ──────────────────────────────────────
+            ['sku' => 'BIKE-LIGHT-F-1000', 'name' => 'Cygolite Metro Pro 1000 Front',    'category_slug' => 'lights-reflectors', 'shop_cost_cents' => 4500, 'shop_sell_price_cents' => 8999,  'stock_count' => 7, 'reorder_threshold' => 3],
+            ['sku' => 'BIKE-LIGHT-F-500',  'name' => 'Cygolite Metro 500 Front',         'category_slug' => 'lights-reflectors', 'shop_cost_cents' => 3000, 'shop_sell_price_cents' => 5999,  'stock_count' => 12, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-LIGHT-R-150',  'name' => 'Cygolite Hotshot 150 Rear',        'category_slug' => 'lights-reflectors', 'shop_cost_cents' => 2400, 'shop_sell_price_cents' => 4999,  'stock_count' => 10, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-LIGHT-SET',    'name' => 'Bontrager Ion 200/Flare R Set',    'category_slug' => 'lights-reflectors', 'shop_cost_cents' => 4000, 'shop_sell_price_cents' => 7999,  'stock_count' => 6,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-REFLECTOR',    'name' => 'Wheel Reflector Pack (4)',         'category_slug' => 'lights-reflectors', 'shop_cost_cents' => 200,  'shop_sell_price_cents' => 599,   'stock_count' => 28, 'reorder_threshold' => 8],
+
+            // ── Helmets ──────────────────────────────────────────────────
+            ['sku' => 'BIKE-HELM-GIRO-S',  'name' => 'Giro Register MIPS Small',         'category_slug' => 'helmets', 'shop_cost_cents' => 3500, 'shop_sell_price_cents' => 6999,  'stock_count' => 4, 'reorder_threshold' => 2],
+            ['sku' => 'BIKE-HELM-GIRO-M',  'name' => 'Giro Register MIPS Medium',        'category_slug' => 'helmets', 'shop_cost_cents' => 3500, 'shop_sell_price_cents' => 6999,  'stock_count' => 6, 'reorder_threshold' => 2],
+            ['sku' => 'BIKE-HELM-GIRO-L',  'name' => 'Giro Register MIPS Large',         'category_slug' => 'helmets', 'shop_cost_cents' => 3500, 'shop_sell_price_cents' => 6999,  'stock_count' => 4, 'reorder_threshold' => 2],
+            ['sku' => 'BIKE-HELM-BELL-M',  'name' => 'Bell Avenue LED MIPS Medium',      'category_slug' => 'helmets', 'shop_cost_cents' => 4000, 'shop_sell_price_cents' => 7999,  'stock_count' => 3, 'reorder_threshold' => 2],
+            ['sku' => 'BIKE-HELM-PROFRD',  'name' => 'Smith Trace MIPS Road',            'category_slug' => 'helmets', 'shop_cost_cents' => 11000,'shop_sell_price_cents' => 22000, 'stock_count' => 2, 'reorder_threshold' => 1],
+            ['sku' => 'BIKE-HELM-FULLFC',  'name' => 'Bell Sanction Full-Face MTB',      'category_slug' => 'helmets', 'shop_cost_cents' => 7500, 'shop_sell_price_cents' => 14999, 'stock_count' => 2, 'reorder_threshold' => 1],
+            ['sku' => 'BIKE-HELM-KIDS',    'name' => 'Bell Sidetrack Childrens MIPS',    'category_slug' => 'helmets', 'shop_cost_cents' => 2500, 'shop_sell_price_cents' => 5499,  'stock_count' => 5, 'reorder_threshold' => 2],
+
+            // ── Tools ────────────────────────────────────────────────────
+            ['sku' => 'BIKE-MULTI-IB',     'name' => 'Crank Bros M19 Multi-Tool',        'category_slug' => 'tools', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3999, 'stock_count' => 12, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-PUMP-MINI',    'name' => 'Lezyne Pressure Drive Mini Pump',  'category_slug' => 'tools', 'shop_cost_cents' => 2200, 'shop_sell_price_cents' => 4499, 'stock_count' => 8,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-PUMP-FLOOR',   'name' => 'Topeak JoeBlow Sport III Pump',    'category_slug' => 'tools', 'shop_cost_cents' => 3000, 'shop_sell_price_cents' => 5999, 'stock_count' => 4,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-CO2-CART',    'name' => 'Genuine Innovations 16g CO2 (2pk)','category_slug' => 'tools', 'shop_cost_cents' => 400,  'shop_sell_price_cents' => 999,  'stock_count' => 36, 'reorder_threshold' => 12],
+            ['sku' => 'BIKE-CO2-INFL',     'name' => 'Lezyne Trigger Speed Drive CO2',   'category_slug' => 'tools', 'shop_cost_cents' => 1900, 'shop_sell_price_cents' => 3999, 'stock_count' => 6,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-TIRE-LEVER',   'name' => 'Pedros Tire Levers (pair)',        'category_slug' => 'tools', 'shop_cost_cents' => 200,  'shop_sell_price_cents' => 599,  'stock_count' => 44, 'reorder_threshold' => 14],
+
+            // ── Accessories ──────────────────────────────────────────────
+            ['sku' => 'BIKE-BOTTLE-CAGE',  'name' => 'Blackburn Cinch CF Bottle Cage',   'category_slug' => 'accessories', 'shop_cost_cents' => 800,  'shop_sell_price_cents' => 1799, 'stock_count' => 18, 'reorder_threshold' => 5],
+            ['sku' => 'BIKE-BOTTLE-PURIST','name' => 'Specialized Purist Bottle 24oz',   'category_slug' => 'accessories', 'shop_cost_cents' => 500,  'shop_sell_price_cents' => 1399, 'stock_count' => 32, 'reorder_threshold' => 8],
+            ['sku' => 'BIKE-SADDLEBAG',    'name' => 'Topeak Aero Wedge Saddle Bag M',   'category_slug' => 'accessories', 'shop_cost_cents' => 1500, 'shop_sell_price_cents' => 3499, 'stock_count' => 9,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-FRAME-PUMP',   'name' => 'Lezyne CNC Loaded Frame Pump',     'category_slug' => 'accessories', 'shop_cost_cents' => 2600, 'shop_sell_price_cents' => 5499, 'stock_count' => 5,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-BELL',         'name' => 'Mirrycle Incredibell Brass',       'category_slug' => 'accessories', 'shop_cost_cents' => 600,  'shop_sell_price_cents' => 1499, 'stock_count' => 14, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-GRIPS-LOCKON', 'name' => 'ESI Chunky Silicone Grips',        'category_slug' => 'accessories', 'shop_cost_cents' => 1400, 'shop_sell_price_cents' => 2999, 'stock_count' => 8,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-BARTAPE',      'name' => 'Fizik Vento Microtex Bar Tape',    'category_slug' => 'accessories', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3799, 'stock_count' => 11, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-GLOVES-FF',    'name' => 'Pearl Izumi Elite Gel Full Finger','category_slug' => 'accessories', 'shop_cost_cents' => 2000, 'shop_sell_price_cents' => 4499, 'stock_count' => 7,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-GLOVES-HF',    'name' => 'Bontrager Solstice Half Finger',   'category_slug' => 'accessories', 'shop_cost_cents' => 1500, 'shop_sell_price_cents' => 3499, 'stock_count' => 8,  'reorder_threshold' => 3],
+            ['sku' => 'BIKE-LOCK-U',       'name' => 'Kryptonite Evolution Mini-7 U-Lock','category_slug' => 'accessories','shop_cost_cents' => 4500, 'shop_sell_price_cents' => 8999, 'stock_count' => 6,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-LOCK-CABLE',   'name' => 'Kryptonite KryptoFlex 1218 Cable', 'category_slug' => 'accessories', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 2499, 'stock_count' => 10, 'reorder_threshold' => 4],
+            ['sku' => 'BIKE-FENDER-FULL',  'name' => 'Planet Bike Cascadia ALX Fenders', 'category_slug' => 'accessories', 'shop_cost_cents' => 3800, 'shop_sell_price_cents' => 7499, 'stock_count' => 3,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-FENDER-MTB',   'name' => 'Mucky Nutz Front Fender MTB',      'category_slug' => 'accessories', 'shop_cost_cents' => 1100, 'shop_sell_price_cents' => 2499, 'stock_count' => 5,  'reorder_threshold' => 2],
+            ['sku' => 'BIKE-CHAIN-MASTER', 'name' => 'KMC Missing Link 11s (pair)',      'category_slug' => 'accessories', 'shop_cost_cents' => 350,  'shop_sell_price_cents' => 899,  'stock_count' => 24, 'reorder_threshold' => 8],
+        ];
     }
 
     public function quoteCount(): int { return 10; }

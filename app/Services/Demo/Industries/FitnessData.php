@@ -352,8 +352,40 @@ class FitnessData implements IndustryDataContract
     public function bookingMode(): string { return 'time_slots'; }
 
     // MARKER-PATCH-112-FITNESS
-    public function inventoryCategories(): array { return []; }
-    public function inventoryItems(): array { return []; }
+    public function inventoryCategories(): array
+    {
+        return [
+            ['name' => 'Apparel',     'slug' => 'apparel'],
+            ['name' => 'Hydration',   'slug' => 'hydration'],
+            ['name' => 'Supplements', 'slug' => 'supplements'],
+        ];
+    }
+
+    public function inventoryItems(): array
+    {
+        return [
+            // ── Apparel (branded retail) ──────────────────────────────────
+            ['sku' => 'FIT-TEE-LOGO-S',     'name' => 'Studio Logo Tee, Black, Small',      'category_slug' => 'apparel', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 3000, 'stock_count' => 6, 'reorder_threshold' => 3],
+            ['sku' => 'FIT-TEE-LOGO-M',     'name' => 'Studio Logo Tee, Black, Medium',     'category_slug' => 'apparel', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 3000, 'stock_count' => 8, 'reorder_threshold' => 3],
+            ['sku' => 'FIT-TEE-LOGO-L',     'name' => 'Studio Logo Tee, Black, Large',      'category_slug' => 'apparel', 'shop_cost_cents' => 1200, 'shop_sell_price_cents' => 3000, 'stock_count' => 7, 'reorder_threshold' => 3],
+            ['sku' => 'FIT-TANK-LOGO-S',    'name' => 'Studio Logo Tank, Charcoal, Small',  'category_slug' => 'apparel', 'shop_cost_cents' => 1400, 'shop_sell_price_cents' => 3500, 'stock_count' => 5, 'reorder_threshold' => 2],
+            ['sku' => 'FIT-TANK-LOGO-M',    'name' => 'Studio Logo Tank, Charcoal, Medium', 'category_slug' => 'apparel', 'shop_cost_cents' => 1400, 'shop_sell_price_cents' => 3500, 'stock_count' => 1, 'reorder_threshold' => 2], // LOW
+            ['sku' => 'FIT-HOODIE-LOGO',    'name' => 'Studio Pullover Hoodie, Black, M',   'category_slug' => 'apparel', 'shop_cost_cents' => 2800, 'shop_sell_price_cents' => 6500, 'stock_count' => 4, 'reorder_threshold' => 2],
+            ['sku' => 'FIT-TOWEL-GYM',      'name' => 'Branded Microfiber Gym Towel',       'category_slug' => 'apparel', 'shop_cost_cents' => 700,  'shop_sell_price_cents' => 1800, 'stock_count' => 14,'reorder_threshold' => 4],
+
+            // ── Hydration ─────────────────────────────────────────────────
+            ['sku' => 'FIT-BOT-LOGO',       'name' => 'Studio Logo Water Bottle 32oz',      'category_slug' => 'hydration', 'shop_cost_cents' => 900,  'shop_sell_price_cents' => 2200, 'stock_count' => 18, 'reorder_threshold' => 6],
+            ['sku' => 'FIT-BOT-INSUL',      'name' => 'Insulated Stainless Bottle 24oz',    'category_slug' => 'hydration', 'shop_cost_cents' => 1700, 'shop_sell_price_cents' => 3500, 'stock_count' => 10, 'reorder_threshold' => 3],
+            ['sku' => 'FIT-SHAKER',         'name' => 'Protein Shaker Bottle 28oz',         'category_slug' => 'hydration', 'shop_cost_cents' => 500,  'shop_sell_price_cents' => 1500, 'stock_count' => 12, 'reorder_threshold' => 4],
+
+            // ── Supplements ───────────────────────────────────────────────
+            ['sku' => 'FIT-PROT-WHEY',      'name' => 'Whey Protein Vanilla 2lb',           'category_slug' => 'supplements', 'shop_cost_cents' => 2900, 'shop_sell_price_cents' => 4999, 'stock_count' => 5, 'reorder_threshold' => 2],
+            ['sku' => 'FIT-PROT-PLANT',     'name' => 'Plant Protein Chocolate 2lb',        'category_slug' => 'supplements', 'shop_cost_cents' => 3200, 'shop_sell_price_cents' => 5499, 'stock_count' => 4, 'reorder_threshold' => 2],
+            ['sku' => 'FIT-PREWORK',        'name' => 'Pre-Workout Citrus Berry',           'category_slug' => 'supplements', 'shop_cost_cents' => 2200, 'shop_sell_price_cents' => 3999, 'stock_count' => 6, 'reorder_threshold' => 2],
+            ['sku' => 'FIT-ELEC',           'name' => 'Electrolyte Tabs Lemon-Lime 20ct',   'category_slug' => 'supplements', 'shop_cost_cents' => 600,  'shop_sell_price_cents' => 1499, 'stock_count' => 11,'reorder_threshold' => 4],
+            ['sku' => 'FIT-RECOVERY',       'name' => 'Recovery BCAA Tropical 30 servings', 'category_slug' => 'supplements', 'shop_cost_cents' => 1800, 'shop_sell_price_cents' => 3500, 'stock_count' => 3, 'reorder_threshold' => 2],
+        ];
+    }
     public function quoteCount(): int { return 5; }
     public function draftCount(): int { return 2; }
     public function classesEnabledOverride(): ?bool { return null; }
