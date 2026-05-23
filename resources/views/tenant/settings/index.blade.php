@@ -939,31 +939,19 @@
       <div style="font-size:12px;opacity:.5">This is where customers go to book with you.</div>
     </div>
 
-    {{-- Custom domain --}}
+    {{-- MARKER-PATCH-120 - Custom domains live on a dedicated page --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head">
-        <span class="ia-card-title">
-          Custom domain
-          <span class="domain-badge {{ $currentTenant->plan_tier }}">{{ ucfirst($currentTenant->plan_tier) }}</span>
-        </span>
+        <span class="ia-card-title">Custom domains</span>
       </div>
-
-      @if(in_array($currentTenant->plan_tier, ['branded', 'scale', 'custom']))
-        <p style="font-size:13px;opacity:.5;margin-bottom:16px">
-          Point a CNAME record from your domain to <code style="font-family:var(--ia-font-mono);font-size:12px">intake.works</code>,
-          then enter it here.
-        </p>
-        <div class="ia-form-group">
-          <label class="ia-form-label">Custom domain</label>
-          <input type="text" name="custom_domain" class="ia-input"
-            value="{{ old('custom_domain', $currentTenant->custom_domain) }}"
-            placeholder="book.yourshop.com">
-        </div>
-      @else
-        <p style="font-size:13px;opacity:.5">
-          Custom domains are available on the Branded, Scale, and Custom plans.
-        </p>
-      @endif
+      <p style="font-size:13px;opacity:.6;margin-bottom:14px;line-height:1.55">
+        Connect your own domain — like <code style="font-family:var(--ia-font-mono);font-size:12px">{{ $currentTenant->subdomain }}.com</code> — to your Intake site. HTTPS is automatic.
+      </p>
+      <a href="{{ route('tenant.domains.index', ['subdomain' => $currentTenant->subdomain]) }}"
+         class="ia-btn ia-btn-secondary"
+         style="display:inline-flex;align-items:center;gap:6px">
+        Manage domains →
+      </a>
     </div>
   </form>
 

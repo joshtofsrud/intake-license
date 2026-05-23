@@ -497,6 +497,13 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
 
+            // MARKER-PATCH-120 - Custom domain management
+            Route::get('/settings/domains',                [TenantControllers\DomainController::class, 'index'])->name('domains.index');
+            Route::post('/settings/domains',               [TenantControllers\DomainController::class, 'store'])->name('domains.store');
+            Route::get('/settings/domains/{id}',           [TenantControllers\DomainController::class, 'show'])->name('domains.show');
+            Route::delete('/settings/domains/{id}',        [TenantControllers\DomainController::class, 'destroy'])->name('domains.destroy');
+            Route::post('/settings/domains/{id}/sync',     [TenantControllers\DomainController::class, 'sync'])->name('domains.sync');
+
             // Sign-in security admin (chunk 8) — owner-only enforced in the controller.
             // Locations admin (patch 109) — owner-only enforced in controller.
             Route::get('/locations',                      [TenantControllers\LocationController::class, 'index'])->name('locations.index');

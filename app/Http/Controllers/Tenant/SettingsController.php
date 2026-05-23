@@ -188,10 +188,11 @@ class SettingsController extends Controller
     {
         if (in_array($tenant->plan_tier, ['branded', 'scale', 'custom'])) {
             $request->validate([
-                'custom_domain' => ['nullable', 'string', 'max:253',
-                    'regex:/^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
+                // MARKER-PATCH-120-SETTINGS-CONTROLLER - tenant_domains is the new source of truth
+                // 'custom_domain' => ['nullable', 'string', 'max:253',
+                //     'regex:/^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
             ]);
-            $tenant->update(['custom_domain' => $request->input('custom_domain') ?: null]);
+            // $tenant->update(['custom_domain' => $request->input('custom_domain') ?: null]); // MARKER-PATCH-120-SETTINGS-CONTROLLER
         }
         return back()->with('success', 'Account settings saved.');
     }

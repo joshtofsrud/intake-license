@@ -145,4 +145,19 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Custom domain limits per plan tier (MARKER-PATCH-120)
+    |--------------------------------------------------------------------------
+    | Maximum domains a tenant can register per their plan tier.
+    | null = unlimited.
+    | Used by DomainController to gate creation.
+    */
+    'domain_limits' => [
+        'starter' => 1,
+        'branded' => 3,
+        'scale'   => 3,
+        'custom'  => null,
+    ],
+
 ];
