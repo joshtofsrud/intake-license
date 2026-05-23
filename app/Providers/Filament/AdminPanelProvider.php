@@ -13,8 +13,10 @@ use App\Filament\Resources\PlatformNavItemResource;
 use App\Filament\Resources\SectionLibraryResource;
 use App\Filament\Resources\SiteSettingsResource;
 use App\Filament\Resources\TenantResource;
+use App\Filament\Resources\TenantDomainResource;  // MARKER-PATCH-119
 use App\Filament\Widgets\DebugLogHeaderStats;
 use App\Filament\Widgets\PlatformStatsWidget;
+use App\Filament\Widgets\CustomDomainsStatsWidget;  // MARKER-PATCH-119
 use App\Filament\Widgets\ServerHealthWidget;
 use App\Filament\Widgets\StatsOverview;
 use App\Filament\Pages\ThemeEditor;
@@ -46,6 +48,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Intake')
             ->resources([
                 TenantResource::class,
+                TenantDomainResource::class,  // MARKER-PATCH-119
                 CustomerResource::class,
                 LicenseResource::class,
                 ActivationResource::class,
@@ -66,6 +69,7 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 ServerHealthWidget::class,
                 PlatformStatsWidget::class,
+                CustomDomainsStatsWidget::class,  // MARKER-PATCH-119
                 StatsOverview::class,
                 DebugLogHeaderStats::class,
             ])
