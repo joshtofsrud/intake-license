@@ -17,6 +17,8 @@ use App\Services\DebugLogService;
 use App\Support\MySQLLock;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use App\Models\Tenant\TenantDomain;
+use App\Observers\TenantDomainObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -34,6 +36,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // MARKER-PATCH-116 — enforce one primary domain per tenant
+        TenantDomain::observe(TenantDomainObserver::class);
+
         TenantInventoryReceiveShipmentItem::observe(TenantInventoryReceiveShipmentItemObserver::class);
 
         \Illuminate\Database\Eloquent\Model::shouldBeStrict(

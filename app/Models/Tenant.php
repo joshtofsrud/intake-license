@@ -176,10 +176,42 @@ class Tenant extends Model
         return (bool) ($settings[$settingsKey] ?? true);
     }
 
+    // MARKER-PATCH-116 — multi-domain support
+    /**
+     * All domains attached to this tenant.
+     */
+    public function domains(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Tenant\TenantDomain::class);
+    }
+
+    /**
+     * The primary domain, if any. Null when the tenant is subdomain-only.
+     */
+    public function primaryDomain(): ?\App\Models\Tenant\TenantDomain
+    {
+        return $this->domains()->primary()->first();
+    }
+
+    /**
+     * The primary domain's hostname, if any.
+     * Falls back to legacy custom_domain column during the transition.
+     */
+    public function primaryHostname(): ?string
+    {
+        $primary = $this->primaryDomain();
+        if ($primary && $primary->isLive()) {
+            return $primary->hostname;
+        }
+        // Legacy fallback. Removed in a future patch once tenant_domains is canonical.
+        return $this->custom_domain ?: null;
+    }
+
     public function publicUrl(): string
     {
-        if ($this->custom_domain) {
-            return 'https://' . $this->custom_domain;
+        $primary = $this->primaryHostname();
+        if ($primary) {
+            return 'https://' . $primary;
         }
         return 'https://' . $this->subdomain . '.intake.works';
     }

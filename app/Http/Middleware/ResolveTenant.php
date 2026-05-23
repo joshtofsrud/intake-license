@@ -60,8 +60,24 @@ class ResolveTenant
 
         // ----------------------------------------------------------------
         // Fall back to custom domain match
+        // MARKER-PATCH-116 - query tenant_domains first; legacy column second
         // ----------------------------------------------------------------
         if (! $tenant) {
+            // New path: tenant_domains table. Only matches if the domain
+            // is in a status that should be serving traffic.
+            $domainRow = \App\Models\Tenant\TenantDomain::where('hostname', $host)
+                ->whereIn('status', ['active'])
+                ->first();
+            if ($domainRow) {
+                $tenant = Tenant::where('id', $domainRow->tenant_id)
+                    ->where('is_active', true)
+                    ->first();
+            }
+        }
+
+        if (! $tenant) {
+            // Legacy fallback: tenants.custom_domain column. Removed in a
+            // future patch once tenant_domains is canonical.
             $tenant = Tenant::where('custom_domain', $host)
                 ->where('is_active', true)
                 ->first();
