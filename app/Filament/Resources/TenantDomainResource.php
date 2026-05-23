@@ -50,7 +50,15 @@ class TenantDomainResource extends Resource
             Forms\Components\Section::make('Domain')->schema([
                 Forms\Components\Select::make('tenant_id')
                     ->label('Tenant')
-                    ->relationship('tenant', 'name')
+                    ->options(function () {
+                        return \App\Models\Tenant::query()
+                            ->orderBy('name')
+                            ->get(['id', 'name', 'subdomain'])
+                            ->mapWithKeys(fn ($t) => [
+                                $t->id => ($t->name ?: '(no name)') . ' — ' . $t->subdomain,
+                            ])
+                            ->toArray();
+                    })
                     ->searchable()
                     ->required()
                     ->disabledOn('edit')
