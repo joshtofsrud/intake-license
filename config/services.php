@@ -28,5 +28,9 @@ return [
         // HTTP timeout in seconds. Cloudflare API is fast but DNS validation
         // on their end can take a moment.
         'http_timeout' => (int) env('CLOUDFLARE_HTTP_TIMEOUT', 15),
+
+        // HMAC-SHA256 shared secret used to verify CF custom-hostname webhooks.
+        // Configure in CF: Notifications → Add destination → Webhooks → secret.
+        'webhook_secret' => env('CLOUDFLARE_WEBHOOK_SECRET'),
     ],
 ];

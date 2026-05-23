@@ -24,3 +24,14 @@ Schedule::command('memberships:tick')
     ->dailyAt('04:00')
     ->withoutOverlapping()
     ->runInBackground();
+
+// ----------------------------------------------------------------
+// MARKER-PATCH-118 - Custom domain state polling
+// Cheap (per-row API call to Cloudflare, only for domains past their
+// backoff). Failures per-domain don't kill the batch.
+// ----------------------------------------------------------------
+Schedule::command('domains:poll')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();
+

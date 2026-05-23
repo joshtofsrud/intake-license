@@ -146,6 +146,10 @@ Route::middleware(['App\Http\Middleware\ResolveTenant'])
     Route::get('/classes/confirm/{id}',             [TenantControllers\CustomerClassController::class, 'confirm'])->name('tenant.customer.classes.confirm');
     Route::post('/classes/registrations/{id}/cancel', [TenantControllers\CustomerClassController::class, 'cancelRegistration'])->name('tenant.customer.classes.cancel');
 
+// MARKER-PATCH-118 - Cloudflare custom-hostname webhook
+Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
+    ->name('webhooks.cloudflare');
+
     Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 

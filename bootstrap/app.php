@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/stripe',
             'webhooks/stripe/*',
+            'webhooks/cloudflare', // MARKER-PATCH-118
             'api/plan-quiz/*',
         ]);
     })
