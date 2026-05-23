@@ -86,9 +86,6 @@ class CloudflareForSaasService
                 'bundle_method'   => 'ubiquitous',
                 'wildcard'        => false,
             ],
-            'custom_metadata' => [
-                'created_by' => 'intake',
-            ],
         ];
 
         $response = $this->request('POST', "zones/{$this->zoneId}/custom_hostnames", $payload);
