@@ -1,4 +1,4 @@
-@extends('layouts.tenant')
+@extends('layouts.tenant.app')
 
 @section('content')
 <div style="padding: 24px 32px;">
