@@ -363,6 +363,7 @@ class PlatformDashboard extends Page
     // FUNNEL
     // ─────────────────────────────────────────────────────────
 
+    // MARKER-PATCH-140 — Signed-up row becomes a chart; downstream stays as bars.
     protected function buildFunnel(): array
     {
         $window = now()->subDays(30);
@@ -375,12 +376,45 @@ class PlatformDashboard extends Page
             ->where('subscription_status', 'active')->count();
 
         $base = max($signedUp, 1);
+
+        // Daily series for the chart: 30 days current + 30 days prior.
+        $current = $this->dailySignups(now()->subDays(29)->startOfDay(), now()->endOfDay());
+        $prior   = $this->dailySignups(now()->subDays(59)->startOfDay(), now()->subDays(30)->endOfDay());
+        $priorTotal = array_sum($prior);
+        $delta = $priorTotal > 0
+            ? (int) round((($signedUp - $priorTotal) / $priorTotal) * 100)
+            : ($signedUp > 0 ? 100 : 0);
+
         return [
-            ['label' => 'Signed up',           'count' => $signedUp,     'pct' => 100],
-            ['label' => 'Completed onboarding','count' => $onboarded,    'pct' => round($onboarded / $base * 100)],
-            ['label' => 'Took 1st booking',    'count' => $firstBooking, 'pct' => round($firstBooking / $base * 100)],
-            ['label' => 'Converted to paid',   'count' => $paid,         'pct' => round($paid / $base * 100)],
+            'signups' => [
+                'current'    => $current,
+                'prior'      => $prior,
+                'total'      => $signedUp,
+                'priorTotal' => $priorTotal,
+                'delta'      => $delta,
+            ],
+            'stages' => [
+                ['label' => 'Completed onboarding','count' => $onboarded,    'pct' => (int) round($onboarded / $base * 100)],
+                ['label' => 'Took 1st booking',    'count' => $firstBooking, 'pct' => (int) round($firstBooking / $base * 100)],
+                ['label' => 'Converted to paid',   'count' => $paid,         'pct' => (int) round($paid / $base * 100)],
+            ],
         ];
+    }
+
+    /**
+     * Return an array of integer signup counts, one per day, from $start to $end inclusive.
+     */
+    protected function dailySignups(\Carbon\Carbon $start, \Carbon\Carbon $end): array
+    {
+        $rows = Tenant::whereBetween('created_at', [$start, $end])
+            ->selectRaw('DATE(created_at) as d, COUNT(*) as c')
+            ->groupBy('d')
+            ->pluck('c', 'd');
+        $out = [];
+        for ($cur = $start->copy(); $cur <= $end; $cur->addDay()) {
+            $out[] = (int) ($rows[$cur->toDateString()] ?? 0);
+        }
+        return $out;
     }
 
     // ─────────────────────────────────────────────────────────

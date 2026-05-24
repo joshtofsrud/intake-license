@@ -334,9 +334,55 @@
       </a>
     </div>
 
+    {{-- MARKER-PATCH-140 — chart for signups, bars for downstream stages --}}
     <div class="pd-funnel">
       <div class="pd-funnel-title">Trial funnel · last 30 days</div>
-      @foreach($funnel as $step)
+
+      {{-- Signups chart row: full-card-width, takes the place of the old 'Signed up' bar --}}
+      @php
+        $sg = $funnel['signups'];
+        $all = array_merge($sg['current'], $sg['prior']);
+        $max = max(max($all), 1);
+        $w = 600; $h = 70; $pad = 4;
+        $plotW = $w - $pad * 2;
+        $plotH = $h - $pad * 2;
+        $points = function($series) use ($plotW, $plotH, $pad, $max) {
+          $n = count($series);
+          if ($n === 0) return '';
+          $step = $plotW / max($n - 1, 1);
+          $parts = [];
+          foreach ($series as $i => $v) {
+            $x = round($pad + $i * $step, 1);
+            $y = round($pad + $plotH - ($v / $max) * $plotH, 1);
+            $parts[] = ($i === 0 ? 'M' : 'L') . $x . ' ' . $y;
+          }
+          return implode(' ', $parts);
+        };
+        $deltaClass = $sg['delta'] > 0 ? 'up' : ($sg['delta'] < 0 ? 'down' : 'flat');
+        $deltaLabel = $sg['delta'] > 0 ? "+{$sg['delta']}%" : ($sg['delta'] < 0 ? "{$sg['delta']}%" : 'flat');
+      @endphp
+      <div class="pd-signups">
+        <div class="pd-signups-head">
+          <div>
+            <div class="pd-signups-label">Signed up</div>
+            <div class="pd-signups-num">{{ $sg['total'] }} <small>last 30d · {{ $sg['priorTotal'] }} prior</small></div>
+          </div>
+          <div class="pd-signups-delta {{ $deltaClass }}">{{ $deltaLabel }} <small>vs prior 30d</small></div>
+        </div>
+        <svg class="pd-signups-chart" viewBox="0 0 {{ $w }} {{ $h }}" preserveAspectRatio="none">
+          {{-- Prior 30 days, muted --}}
+          <path d="{{ $points($sg['prior']) }}" stroke="var(--pd-text-dim)" stroke-width="1" fill="none" stroke-dasharray="3 3" opacity="0.55"/>
+          {{-- Current 30 days, accent --}}
+          <path d="{{ $points($sg['current']) }}" stroke="var(--pd-accent)" stroke-width="1.8" fill="none"/>
+        </svg>
+        <div class="pd-signups-legend">
+          <span><i class="pd-swatch current"></i> Last 30d</span>
+          <span><i class="pd-swatch prior"></i> Prior 30d</span>
+        </div>
+      </div>
+
+      {{-- Downstream stages stay as bars --}}
+      @foreach($funnel['stages'] as $step)
         <div class="pd-funnel-row">
           <div class="pd-funnel-step">{{ $step['label'] }}</div>
           <div class="pd-funnel-bar"><span style="width:{{ $step['pct'] }}%"></span></div>
