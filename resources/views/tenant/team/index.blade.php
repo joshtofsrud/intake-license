@@ -83,8 +83,7 @@
         <th>Role</th>
         <th>Status</th>
         @if($pinModeOn)<th>PIN</th>@endif
-        <th>Devices</th>
-        <th>Last seen</th>
+        {{-- MARKER-PATCH-130 — devices + last-seen columns removed --}}
         <th></th>
       </tr>
     </thead>
@@ -125,16 +124,7 @@
           @endif
         </td>
         @endif
-        <td style="font-size:12px;color:var(--ia-text-dim)">
-          @if($member->device_count > 0)
-            {{ $member->device_count }} {{ Str::plural('device', $member->device_count) }}
-          @else
-            —
-          @endif
-        </td>
-        <td style="font-size:12px;color:var(--ia-text-dim)">
-          {{ $member->last_login_at?->diffForHumans() ?? 'never' }}
-        </td>
+        {{-- MARKER-PATCH-130 --}}
         <td style="text-align:right;color:var(--ia-text-dim);font-family:var(--ia-font-mono);font-size:14px">›</td>
       </tr>
       @endforeach

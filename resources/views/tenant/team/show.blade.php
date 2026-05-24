@@ -153,18 +153,7 @@
   </div>
   @endif
 
-  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-    @csrf @method('PATCH')
-    <input type="hidden" name="op" value="sign_out_everywhere">
-    <div class="pd-field">
-      <div class="pd-field-label">Active sessions</div>
-      <div class="pd-field-value">
-        <button class="ia-btn ia-btn--ghost ia-btn--sm" style="color:#F87171"
-                data-confirm="Sign {{ $member->name }} out from every browser?">Sign out everywhere</button>
-        <span class="pd-field-hint">Revokes every trusted device. They will sign in fresh.</span>
-      </div>
-    </div>
-  </form>
+  {{-- MARKER-PATCH-130 — per-user sign-out-everywhere removed (devices are tenant-scoped) --}}
 </div>
 
 {{-- Locations --}}
@@ -190,26 +179,5 @@
   </form>
 </div>
 
-{{-- Devices --}}
-<div class="ia-card" style="margin-bottom:14px">
-  <div class="ia-card-head"><span class="ia-card-title">Trusted devices</span></div>
-  <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Browsers they signed in from with "Trust this device" checked.</p>
-
-  @if($devices->isEmpty())
-    <div class="pd-empty">No trusted devices. They sign in with email + password every visit.</div>
-  @else
-    @foreach($devices as $d)
-      <div class="pd-device">
-        <div>
-          <div class="pd-device-label">{{ $d->label ?: 'Unnamed device' }}</div>
-          <div class="pd-device-meta">
-            Last used {{ $d->last_used_at?->diffForHumans() ?? '—' }}
-            · IP {{ $d->ip_last_seen ?? '—' }}
-            @if($d->expires_at) · Expires {{ $d->expires_at->diffForHumans() }} @endif
-          </div>
-        </div>
-      </div>
-    @endforeach
-  @endif
-</div>
+{{-- MARKER-PATCH-130 — per-user devices card removed (devices are tenant-scoped; see /admin/team/devices for full list) --}}
 @endsection

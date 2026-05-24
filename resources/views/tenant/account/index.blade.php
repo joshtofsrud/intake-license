@@ -35,13 +35,7 @@
     <h2 class="ac-h2">Your account</h2>
     <div class="ac-sub">{{ $me->name }} · {{ ucfirst($me->role) }} · signed in {{ $me->last_login_at?->diffForHumans() ?? 'just now' }}</div>
   </div>
-  <div class="ac-actions">
-    <form method="POST" action="{{ route('tenant.account.sign-out-everywhere') }}">
-      @csrf
-      <button class="ia-btn ia-btn--ghost ia-btn--sm" style="color:#F87171"
-              data-confirm="Sign you out of every browser including this one?">Sign out everywhere</button>
-    </form>
-  </div>
+  {{-- MARKER-PATCH-130 — sign-out-everywhere removed (devices are tenant-scoped) --}}
 </div>
 
 {{-- Account --}}
@@ -138,32 +132,6 @@
 </div>
 @endif
 
-{{-- Your devices --}}
-<div class="ia-card" style="margin-bottom:14px">
-  <div class="ia-card-head"><span class="ia-card-title">Your devices</span></div>
-  <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Browsers you've trusted. Revoke any you don't recognise.</p>
-
-  @if($devices->isEmpty())
-    <div class="ac-empty">No trusted devices.</div>
-  @else
-    @foreach($devices as $d)
-      <div class="ac-device">
-        <div>
-          <div class="ac-device-label">{{ $d->label ?: 'Unnamed device' }}</div>
-          <div class="ac-device-meta">
-            Last used {{ $d->last_used_at?->diffForHumans() ?? '—' }}
-            · IP {{ $d->ip_last_seen ?? '—' }}
-            @if($d->expires_at) · Expires {{ $d->expires_at->diffForHumans() }} @endif
-          </div>
-        </div>
-        <form method="POST" action="{{ route('tenant.account.device.revoke', $d->id) }}">
-          @csrf
-          <button class="ia-btn ia-btn--ghost ia-btn--sm" style="color:#F87171"
-                  data-confirm="Revoke this device?">Revoke</button>
-        </form>
-      </div>
-    @endforeach
-  @endif
-</div>
+{{-- MARKER-PATCH-130 — "Your devices" removed; devices are tenant-scoped --}}
 
 @endsection

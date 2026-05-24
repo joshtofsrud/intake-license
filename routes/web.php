@@ -544,8 +544,7 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
             Route::patch('/account/password',              [TenantControllers\AccountController::class, 'updatePassword'])->name('account.password');
             Route::patch('/account/pin',                   [TenantControllers\AccountController::class, 'setPin'])->name('account.pin');
             Route::patch('/account/pin/clear',             [TenantControllers\AccountController::class, 'clearPin'])->name('account.pin.clear');
-            Route::post('/account/device/{id}/revoke',     [TenantControllers\AccountController::class, 'revokeDevice'])->name('account.device.revoke');
-            Route::post('/account/sign-out-everywhere',    [TenantControllers\AccountController::class, 'signOutEverywhere'])->name('account.sign-out-everywhere');
+            // MARKER-PATCH-130 — per-user device + sign-out-everywhere routes removed
 
             // Stripe billing portal (card update, invoices, cancel).
             // Plan changes happen in-app, not via the portal.

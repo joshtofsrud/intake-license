@@ -32,6 +32,7 @@ class TeamController extends Controller
 
     // ───────────────────────────── List ─────────────────────────────
 
+    // MARKER-PATCH-130 — devices are tenant-scoped, no per-user counts.
     public function index()
     {
         $tenant = tenant();
@@ -39,16 +40,6 @@ class TeamController extends Controller
             ->orderByRaw("FIELD(role,'owner','manager','staff')")
             ->orderBy('name')
             ->get();
-
-        // Per-member device count, attached for the table cell.
-        $deviceCounts = TenantTrustedDevice::activeForTenant($tenant->id)
-            ->selectRaw('tenant_user_id, COUNT(*) as c')
-            ->groupBy('tenant_user_id')
-            ->pluck('c', 'tenant_user_id');
-
-        foreach ($members as $m) {
-            $m->setAttribute('device_count', (int) ($deviceCounts[$m->id] ?? 0));
-        }
 
         return view('tenant.team.index', compact('members'));
     }
@@ -114,17 +105,12 @@ class TeamController extends Controller
 
         $this->requireManager();
 
-        $devices = TenantTrustedDevice::activeForTenant($tenant->id)
-            ->where('tenant_user_id', $member->id)
-            ->orderBy('last_used_at', 'desc')
-            ->get();
-
+        // MARKER-PATCH-130 — devices are tenant-scoped, not per-user.
         $allLocations = $tenant->locations()->orderBy('sort_order')->get();
         $memberLocationIds = $member->locations()->pluck('tenant_locations.id')->all();
 
         return view('tenant.team.show', [
             'member'            => $member,
-            'devices'           => $devices,
             'allLocations'      => $allLocations,
             'memberLocationIds' => $memberLocationIds,
         ]);
@@ -189,11 +175,6 @@ class TeamController extends Controller
             case 'pin_force_reset': {
                 $this->pins->forceReset($member, $me);
                 return back()->with('success', $member->name . ' will set a new PIN on next sign-in.');
-            }
-
-            case 'sign_out_everywhere': {
-                $this->devicesSvc->revokeAllForUser($member, $me);
-                return back()->with('success', $member->name . ' has been signed out from every browser.');
             }
 
             case 'update_locations': {
