@@ -28,7 +28,7 @@ use Illuminate\Http\Request;
  */
 class WalkInController extends Controller
 {
-    public function index(Request $request, string $subdomain)
+    public function index(Request $request)
     {
         $tenant = tenant();
 

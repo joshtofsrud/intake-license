@@ -107,7 +107,7 @@ class SpecialOrderController extends Controller
     /**
      * SO detail page. Eager-loads everything the view needs.
      */
-    public function show(Request $request, string $subdomain, string $id): View
+    public function show(Request $request, string $id): View
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -220,7 +220,7 @@ class SpecialOrderController extends Controller
      * Required when the SO was created with status=needed and now
      * staff has placed the order with a vendor.
      */
-    public function markOrdered(Request $request, string $subdomain, string $id): RedirectResponse
+    public function markOrdered(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -241,7 +241,7 @@ class SpecialOrderController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['subdomain' => $subdomain, 'id' => $id])
+        return redirect()->route('tenant.special-orders.show', ['id' => $id])
             ->with('flash', ['type' => 'success', 'message' => 'Marked ordered.']);
     }
 
@@ -250,7 +250,7 @@ class SpecialOrderController extends Controller
      * Stage 4b does FULL arrival only (received_qty = quantity).
      * Partial receipts ship in Stage 6 with the receiving integration.
      */
-    public function markArrived(Request $request, string $subdomain, string $id): RedirectResponse
+    public function markArrived(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -275,11 +275,11 @@ class SpecialOrderController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['subdomain' => $subdomain, 'id' => $id])
+        return redirect()->route('tenant.special-orders.show', ['id' => $id])
             ->with('flash', ['type' => 'success', 'message' => 'Marked arrived.']);
     }
 
-    public function markPulled(Request $request, string $subdomain, string $id): RedirectResponse
+    public function markPulled(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -292,11 +292,11 @@ class SpecialOrderController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['subdomain' => $subdomain, 'id' => $id])
+        return redirect()->route('tenant.special-orders.show', ['id' => $id])
             ->with('flash', ['type' => 'success', 'message' => 'Marked pulled.']);
     }
 
-    public function cancel(Request $request, string $subdomain, string $id): RedirectResponse
+    public function cancel(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -313,11 +313,11 @@ class SpecialOrderController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['subdomain' => $subdomain, 'id' => $id])
+        return redirect()->route('tenant.special-orders.show', ['id' => $id])
             ->with('flash', ['type' => 'success', 'message' => 'Special order cancelled.']);
     }
 
-    public function addNote(Request $request, string $subdomain, string $id): RedirectResponse
+    public function addNote(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -339,7 +339,7 @@ class SpecialOrderController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
         }
 
-        return redirect()->route('tenant.special-orders.show', ['subdomain' => $subdomain, 'id' => $id])
+        return redirect()->route('tenant.special-orders.show', ['id' => $id])
             ->with('flash', ['type' => 'success', 'message' => 'Note added.']);
     }
 

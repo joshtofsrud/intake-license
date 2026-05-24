@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Auth;
  *                                last_pin_activity_at and dismiss the
  *                                overlay.
  *
- * Subdomain trap: every method takes `string $subdomain` first.
+ * Subdomain trap: every method takes `` first.
  */
 class PinGateController extends Controller
 {
@@ -34,7 +34,7 @@ class PinGateController extends Controller
      * { locked: true } if the heartbeat itself arrived past the
      * idle threshold (in which case the client should open the overlay).
      */
-    public function heartbeat(string $subdomain, Request $request)
+    public function heartbeat(Request $request)
     {
         if (! Auth::guard('tenant')->check()) {
             return response()->json(['ok' => false, 'error' => 'not_signed_in'], 401);
@@ -83,7 +83,7 @@ class PinGateController extends Controller
      *
      * Verifies the PIN against the currently signed-in user.
      */
-    public function unlock(string $subdomain, Request $request)
+    public function unlock(Request $request)
     {
         $user = Auth::guard('tenant')->user();
         if (! $user) {

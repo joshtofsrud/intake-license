@@ -231,7 +231,7 @@
       <div class="cl-notes-section">
         <form method="POST"
               id="cl-template-notes-form"
-              action="{{ route('tenant.classes.templates.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->template->id]) }}"
+              action="{{ route('tenant.classes.templates.update', ['id' => $session->template->id]) }}"
               data-original="{{ (string)($session->template->class_notes ?? '') }}"
               data-upcoming="{{ $upcomingSessionsCount }}">
           @csrf
@@ -268,7 +268,7 @@
       <div class="cl-notes-section">
         <form method="POST"
               id="cl-session-notes-form"
-              action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}"
+              action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}"
               data-original="{{ (string)($session->session_notes_override ?? '') }}">
           @csrf
           @method('PATCH')
@@ -303,7 +303,7 @@
       @if(!in_array($session->status, ['cancelled','completed']))
         {{-- DESKTOP sticky form --}}
         <div class="cl-add-reg-form">
-          <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
+          <form method="POST" action="{{ route('tenant.classes.sessions.register', ['id' => $session->id]) }}">
             @csrf
             <div class="cl-add-reg-grid">
               <div>
@@ -357,17 +357,17 @@
                   <td>
                     <div class="cl-reg-actions">
                       @if($reg->status === 'registered')
-                        <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}">
+                        <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['id' => $reg->id]) }}">
                           @csrf
                           <button type="submit" class="cl-action-btn success">Check in</button>
                         </form>
-                        <form method="POST" action="{{ route('tenant.classes.registrations.noshow', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Mark as no-show?', message:'This is final and cannot be reversed.', confirmText:'Mark no-show', cancelText:'Keep', danger:true})">
+                        <form method="POST" action="{{ route('tenant.classes.registrations.noshow', ['id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Mark as no-show?', message:'This is final and cannot be reversed.', confirmText:'Mark no-show', cancelText:'Keep', danger:true})">
                           @csrf
                           <button type="submit" class="cl-action-btn danger">No-show</button>
                         </form>
                       @endif
                       @if(in_array($reg->status, ['registered','checked_in']))
-                        <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove customer from class?', message:'Their pack credit or membership usage will be restored if applicable.', confirmText:'Remove', cancelText:'Keep', danger:true})">
+                        <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove customer from class?', message:'Their pack credit or membership usage will be restored if applicable.', confirmText:'Remove', cancelText:'Keep', danger:true})">
                           @csrf
                           <button type="submit" class="cl-action-btn danger">Cancel</button>
                         </form>
@@ -399,7 +399,7 @@
                   <td><span class="cl-status-pill waitlisted">Waitlisted</span></td>
                   <td>
                     <div class="cl-reg-actions">
-                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove from waitlist?', message:'They will lose their spot in line.', confirmText:'Remove', cancelText:'Keep', danger:true})">
+                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove from waitlist?', message:'They will lose their spot in line.', confirmText:'Remove', cancelText:'Keep', danger:true})">
                         @csrf
                         <button type="submit" class="cl-action-btn danger">Remove</button>
                       </form>
@@ -429,17 +429,17 @@
               </div>
               <div class="cl-reg-actions">
                 @if($reg->status === 'registered')
-                  <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}">
+                  <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['id' => $reg->id]) }}">
                     @csrf
                     <button type="submit" class="cl-action-btn success">Check in</button>
                   </form>
-                  <form method="POST" action="{{ route('tenant.classes.registrations.noshow', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Mark as no-show?', message:'This is final and cannot be reversed.', confirmText:'Mark no-show', cancelText:'Keep', danger:true})">
+                  <form method="POST" action="{{ route('tenant.classes.registrations.noshow', ['id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Mark as no-show?', message:'This is final and cannot be reversed.', confirmText:'Mark no-show', cancelText:'Keep', danger:true})">
                     @csrf
                     <button type="submit" class="cl-action-btn danger">No-show</button>
                   </form>
                 @endif
                 @if(in_array($reg->status, ['registered','checked_in']))
-                  <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove customer from class?', message:'Their pack credit or membership usage will be restored if applicable.', confirmText:'Remove', cancelText:'Keep', danger:true})">
+                  <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove customer from class?', message:'Their pack credit or membership usage will be restored if applicable.', confirmText:'Remove', cancelText:'Keep', danger:true})">
                     @csrf
                     <button type="submit" class="cl-action-btn danger">Cancel</button>
                   </form>
@@ -465,7 +465,7 @@
                   </div>
                 </div>
                 <div class="cl-reg-actions">
-                  <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => request()->route('subdomain'), 'id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove from waitlist?', message:'They will lose their spot in line.', confirmText:'Remove', cancelText:'Keep', danger:true})">
+                  <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['id' => $reg->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Remove from waitlist?', message:'They will lose their spot in line.', confirmText:'Remove', cancelText:'Keep', danger:true})">
                     @csrf
                     <button type="submit" class="cl-action-btn danger">Remove</button>
                   </form>
@@ -543,13 +543,13 @@
         <div class="cl-card-body">
           <div class="cl-session-actions">
             @if($session->status === 'confirmed')
-              <form method="POST" action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
+              <form method="POST" action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}">
                 @csrf @method('PATCH')
                 <input type="hidden" name="status" value="completed">
                 <button type="submit" class="cl-session-action-btn">Mark completed</button>
               </form>
             @endif
-            <form method="POST" action="{{ route('tenant.classes.sessions.update', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Cancel this session?', message:'Registered customers will NOT be automatically notified. Refunds and credit restoration apply per registration.', confirmText:'Cancel session', cancelText:'Keep session', danger:true})">
+            <form method="POST" action="{{ route('tenant.classes.sessions.update', ['id' => $session->id]) }}" onsubmit="return iaConfirmAction(this, event, {title:'Cancel this session?', message:'Registered customers will NOT be automatically notified. Refunds and credit restoration apply per registration.', confirmText:'Cancel session', cancelText:'Keep session', danger:true})">
               @csrf @method('PATCH')
               <input type="hidden" name="status" value="cancelled">
               <button type="submit" class="cl-session-action-btn danger">Cancel session</button>
@@ -569,7 +569,7 @@
   <div class="cl-add-sheet" id="cl-add-sheet" role="dialog" aria-label="Add registration">
     <div class="cl-add-sheet-handle"></div>
     <div class="cl-add-sheet-title">Add registration</div>
-    <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
+    <form method="POST" action="{{ route('tenant.classes.sessions.register', ['id' => $session->id]) }}">
       @csrf
       <div class="cl-field" style="margin-bottom:14px">
         <label class="cl-label">Customer</label>

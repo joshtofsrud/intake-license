@@ -259,7 +259,7 @@ class QuickBookController extends Controller
      * own management surface (capacity admin), and surprise-deleting all
      * future occurrences from a single calendar click is wrong.
      */
-    public function destroyBreak(Request $request, string $subdomain, string $id)
+    public function destroyBreak(Request $request, string $id)
     {
         $tenant = tenant();
 
@@ -292,7 +292,7 @@ class QuickBookController extends Controller
      * holds are not in the product yet, but we still check is_recurring
      * to be safe in case the schema gets used that way later.
      */
-    public function destroyHold(Request $request, string $subdomain, string $id)
+    public function destroyHold(Request $request, string $id)
     {
         $tenant = tenant();
 

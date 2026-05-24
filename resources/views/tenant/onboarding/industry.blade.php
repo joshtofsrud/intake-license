@@ -270,8 +270,8 @@
 @section('scripts')
 <script>
 (function () {
-  const SAVE_URL = @json(route('tenant.onboarding.wizard.industry.save', ['subdomain' => $tenant->subdomain]));
-  const INDUSTRY_URL = @json(route('tenant.onboarding.wizard.industry', ['subdomain' => $tenant->subdomain]));
+  const SAVE_URL = @json(route('tenant.onboarding.wizard.industry.save', []));
+  const INDUSTRY_URL = @json(route('tenant.onboarding.wizard.industry', []));
   const errorBox = document.getElementById('ob-error');
   const isSubstepB = @json($isSubstepB ?? false);
 

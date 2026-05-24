@@ -83,7 +83,7 @@
       </thead>
       <tbody>
         @foreach($sos as $so)
-          <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+          <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
             <td>
               <strong>{{ $so->so_number }}</strong>
               @if($so->batch_id)
@@ -145,7 +145,7 @@
       @php
         $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
       @endphp
-      <a href="{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}"
+      <a href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}"
          class="so-card">
         <div class="so-card-top">
           <span class="so-card-num">{{ $so->so_number }}</span>

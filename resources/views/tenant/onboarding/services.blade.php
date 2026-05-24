@@ -127,7 +127,7 @@
   </div>
 
   <div class="actions">
-    <a href="{{ route('tenant.onboarding.wizard.hours', ['subdomain' => $tenant->subdomain]) }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ route('tenant.onboarding.wizard.hours', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-continue">
       {{ $existingServices->count() > 0 ? 'Add another → Team' : 'Continue → Team' }}
     </button>
@@ -137,7 +137,7 @@
 @section('scripts')
 <script>
 (function () {
-  const SAVE_URL = @json(route('tenant.onboarding.wizard.services.save', ['subdomain' => $tenant->subdomain]));
+  const SAVE_URL = @json(route('tenant.onboarding.wizard.services.save', []));
   const SKIP_OK  = @json($existingServices->count() > 0);
 
   const nameEl    = document.getElementById('ob-name');
@@ -169,7 +169,7 @@
     if (!name && SKIP_OK) {
       cont.disabled = true;
       cont.textContent = 'Continuing…';
-      window.location.href = @json(route('tenant.onboarding.wizard.team', ['subdomain' => $tenant->subdomain]));
+      window.location.href = @json(route('tenant.onboarding.wizard.team', []));
       return;
     }
 

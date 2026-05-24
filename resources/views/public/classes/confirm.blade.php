@@ -79,7 +79,7 @@
     </div>
   </div>
 
-  <a href="{{ route('tenant.customer.classes', ['subdomain' => request()->route('subdomain')]) }}"
+  <a href="{{ route('tenant.customer.classes', []) }}"
      class="ac-btn ac-btn--primary" style="display:block;text-align:center;padding:13px;border-radius:var(--p-r);font-weight:600;font-size:15px;margin-bottom:10px">
     Browse more classes
   </a>

@@ -54,7 +54,7 @@ class CustomerClassController extends Controller
     // Detail — /classes/{id}
     // ------------------------------------------------------------------
 
-    public function show(string $subdomain, string $id)
+    public function show(string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)
@@ -88,7 +88,7 @@ class CustomerClassController extends Controller
     // Register — POST /classes/{id}/register
     // ------------------------------------------------------------------
 
-    public function register(Request $request, string $subdomain, string $id)
+    public function register(Request $request, string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)
@@ -134,7 +134,6 @@ class CustomerClassController extends Controller
         }
 
         return redirect()->route('tenant.customer.classes.confirm', [
-            'subdomain' => $subdomain,
             'id'        => $registration->id,
         ]);
     }
@@ -143,7 +142,7 @@ class CustomerClassController extends Controller
     // Confirmation
     // ------------------------------------------------------------------
 
-    public function confirm(string $subdomain, string $id)
+    public function confirm(string $id)
     {
         $tenant       = tenant();
         $registration = \App\Models\Tenant\TenantClassRegistration::where('tenant_id', $tenant->id)
@@ -157,7 +156,7 @@ class CustomerClassController extends Controller
     // Cancel own registration
     // ------------------------------------------------------------------
 
-    public function cancelRegistration(Request $request, string $subdomain, string $id)
+    public function cancelRegistration(Request $request, string $id)
     {
         $customer = $this->customer();
 

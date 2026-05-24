@@ -188,8 +188,8 @@
   var closeBtn2 = document.getElementById('sdCloseBtn');
   var refundBtn = document.getElementById('sdRefundBtn');
 
-  var SHOW_URL_TEMPLATE = @json(route('tenant.register.sales.show', ['subdomain' => $currentTenant->subdomain, 'id' => '__ID__']));
-  var REGISTER_URL      = @json(route('tenant.register.index', ['subdomain' => $currentTenant->subdomain]));
+  var SHOW_URL_TEMPLATE = @json(route('tenant.register.sales.show', ['id' => '__ID__']));
+  var REGISTER_URL      = @json(route('tenant.register.index', []));
 
   function fmtMoney(cents) {
     var sign = cents < 0 ? '-' : '';

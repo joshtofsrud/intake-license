@@ -19,11 +19,11 @@ use Illuminate\Support\Str;
  * managers can see them (via the sidebar switcher when 2+ exist) but
  * cannot add/edit/delete.
  *
- * Subdomain trap: every method takes string $subdomain first.
+ * Subdomain trap: every method takes  first.
  */
 class LocationController extends Controller
 {
-    public function index(string $subdomain, Request $request)
+    public function index(Request $request)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -44,7 +44,7 @@ class LocationController extends Controller
         ]);
     }
 
-    public function store(string $subdomain, Request $request)
+    public function store(Request $request)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -88,7 +88,7 @@ class LocationController extends Controller
         return back()->with('success', 'Location "' . $location->name . '" added.');
     }
 
-    public function update(string $subdomain, Request $request, string $id)
+    public function update(Request $request, string $id)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -117,7 +117,7 @@ class LocationController extends Controller
         return back()->with('success', 'Location updated.');
     }
 
-    public function setDefault(string $subdomain, Request $request, string $id)
+    public function setDefault(Request $request, string $id)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -142,7 +142,7 @@ class LocationController extends Controller
         return back()->with('success', '"' . $location->name . '" is now the default location.');
     }
 
-    public function toggleActive(string $subdomain, Request $request, string $id)
+    public function toggleActive(Request $request, string $id)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -163,7 +163,7 @@ class LocationController extends Controller
         return back()->with('success', $location->name . ($location->is_active ? ' reactivated.' : ' deactivated.'));
     }
 
-    public function destroy(string $subdomain, Request $request, string $id)
+    public function destroy(Request $request, string $id)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();

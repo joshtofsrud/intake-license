@@ -288,14 +288,12 @@ class AppointmentController extends Controller
                 'id'       => $appointment->id,
                 'ra'       => $appointment->ra_number,
                 'redirect' => route('tenant.appointments.show', [
-                    'subdomain' => $tenant->subdomain,
                     'id'        => $appointment->id,
                 ]),
             ]);
         }
 
         return redirect()->route('tenant.appointments.show', [
-            'subdomain' => $tenant->subdomain,
             'id'        => $appointment->id,
         ])->with('success', 'Appointment created.');
     }
@@ -632,7 +630,7 @@ class AppointmentController extends Controller
     }
 
 
-    public function show(Request $request, string $subdomain, string $id)
+    public function show(Request $request, string $id)
     {
         if ($request->expectsJson() || $request->ajax()) {
             return $this->jsonDetail(tenant(), $id);
@@ -684,12 +682,12 @@ class AppointmentController extends Controller
             'availableServices', 'availableAddons', 'availableResources', 'specialOrdersForAppt', 'soVendors'));
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         return $this->handleUpdate(tenant(), $id, $request);
     }
 
-    public function drawer(Request $request, string $subdomain, string $id)
+    public function drawer(Request $request, string $id)
     {
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
@@ -737,7 +735,7 @@ class AppointmentController extends Controller
                     'name'  => $a->addon_name_snapshot,
                     'price' => format_money($a->price_cents),
                 ])->values()->toArray(),
-                'full_url'              => route('tenant.appointments.show', ['subdomain' => $tenant->subdomain, 'id' => $appointment->id]),
+                'full_url'              => route('tenant.appointments.show', ['id' => $appointment->id]),
             ],
         ]);
     }
@@ -990,8 +988,7 @@ class AppointmentController extends Controller
                 'sale_id'         => $sale->id,
                 'sale_number'     => $sale->sale_number,
                 'redirect_url'    => route('tenant.register.index', [
-                    'subdomain' => $tenant->subdomain,
-                ]) . '?resume=' . $sale->id,
+                    ]) . '?resume=' . $sale->id,
                 'message'         => 'Deposit sale created. Take payment in the register.',
             ]);
         }
@@ -1808,7 +1805,7 @@ class AppointmentController extends Controller
      * Search active inventory items for the part-picker autocomplete.
      * Returns minimal payload so the picker can render fast.
      */
-    public function searchInventoryItems(Request $request, string $subdomain)
+    public function searchInventoryItems(Request $request)
     {
         $tenant = tenant();
         $q = trim((string) $request->input('q', ''));

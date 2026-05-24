@@ -85,10 +85,10 @@
     </div>
     <div class="rep-rangebar-controls">
       <nav class="rep-toggle">
-        <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain, 'range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain, 'range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain, 'range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
-        <a href="{{ route('tenant.reports.services', ['subdomain' => tenant()->subdomain, 'range' => 'last_30']) }}" class="{{ $range === 'last_30' ? 'active' : '' }}">Last 30</a>
+        <a href="{{ route('tenant.reports.services', ['range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ route('tenant.reports.services', ['range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ route('tenant.reports.services', ['range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
+        <a href="{{ route('tenant.reports.services', ['range' => 'last_30']) }}" class="{{ $range === 'last_30' ? 'active' : '' }}">Last 30</a>
       </nav>
     </div>
   </div>
@@ -311,7 +311,7 @@
     <h2>Services Reports</h2>
     <p>See throughput, service mix, parts attach rate, comebacks, and production by resource. Spot trends and tune your shop's day.</p>
     <div class="cta-row">
-      <a class="cta-primary" href="{{ route('tenant.team.index', ['subdomain' => tenant()->subdomain]) }}">Upgrade to Branded →</a>
+      <a class="cta-primary" href="{{ route('tenant.team.index', []) }}">Upgrade to Branded →</a>
       <button type="button" class="cta-secondary" onclick="closeRepUpsell()">Maybe later</button>
     </div>
   </div>

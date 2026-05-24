@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Log;
  *   POST /admin/pin/set         - set initial PIN for a user, sign in
  *   POST /admin/pin/reset-request - email a reset link (stub for now)
  *
- * Subdomain trap: every method takes `string $subdomain` as first param.
+ * Subdomain trap: every method takes `` as first param.
  */
 class StaffSwitchController extends Controller
 {
@@ -34,7 +34,7 @@ class StaffSwitchController extends Controller
      * GET /admin/switch
      * Show the staff card grid.
      */
-    public function index(string $subdomain, Request $request)
+    public function index(Request $request)
     {
         $tenant = tenant();
         if (! $tenant || ! $tenant->pin_tier_active) {
@@ -68,7 +68,7 @@ class StaffSwitchController extends Controller
      * POST /admin/pin/verify
      * Body: { user_id, pin }
      */
-    public function verifyPin(string $subdomain, Request $request)
+    public function verifyPin(Request $request)
     {
         $tenant = tenant();
         if (! $tenant || ! $tenant->pin_tier_active) {
@@ -170,7 +170,7 @@ class StaffSwitchController extends Controller
      * password (the email/password used to trust this device) as a
      * second factor.
      */
-    public function setInitialPin(string $subdomain, Request $request)
+    public function setInitialPin(Request $request)
     {
         $tenant = tenant();
         if (! $tenant || ! $tenant->pin_tier_active) {
@@ -264,7 +264,7 @@ class StaffSwitchController extends Controller
      * the email/SMS system. Today just logs the intent and returns OK
      * so the UI flow works.
      */
-    public function requestReset(string $subdomain, Request $request)
+    public function requestReset(Request $request)
     {
         $tenant = tenant();
         if (! $tenant || ! $tenant->pin_tier_active) {

@@ -181,7 +181,7 @@
         if ($stepNum === $currentStep) $cls .= ' active';
         elseif ($stepNum < $currentStep) $cls .= ' done';
       @endphp
-      <a href="{{ route('tenant.onboarding.wizard.' . $step['slug'], ['subdomain' => $tenant->subdomain]) }}"
+      <a href="{{ route('tenant.onboarding.wizard.' . $step['slug'], []) }}"
          class="{{ $cls }}">
         <div class="step-num">{{ str_pad($stepNum, 2, '0', STR_PAD_LEFT) }}</div>
         <div class="step-name">{{ $step['name'] }}</div>

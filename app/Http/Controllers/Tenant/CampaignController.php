@@ -31,7 +31,7 @@ class CampaignController extends Controller
         return view('tenant.campaigns.index', compact('campaigns', 'groups', 'customerCount'));
     }
 
-    public function show(Request $request, string $subdomain, string $id)
+    public function show(Request $request, string $id)
     {
         $tenant = tenant();
 
@@ -61,7 +61,7 @@ class CampaignController extends Controller
         return view('tenant.campaigns.show', compact('campaign', 'customerCount', 'segments', 'blocks'));
     }
 
-    public function store(Request $request, string $subdomain)
+    public function store(Request $request)
     {
         $tenant = tenant();
 
@@ -87,7 +87,7 @@ class CampaignController extends Controller
             ->with('success', 'Campaign created. Compose your message below.');
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         $tenant = tenant();
 
@@ -134,7 +134,7 @@ class CampaignController extends Controller
         return back()->with('success', 'Campaign saved.');
     }
 
-    public function send(Request $request, string $subdomain, string $id)
+    public function send(Request $request, string $id)
     {
         $tenant = tenant();
 
@@ -189,7 +189,7 @@ class CampaignController extends Controller
      * Live preview endpoint — takes blocks JSON, returns rendered HTML.
      * Used by the composer iframe for real-time preview without a full save.
      */
-    public function preview(Request $request, string $subdomain, string $id)
+    public function preview(Request $request, string $id)
     {
         $tenant = tenant();
 

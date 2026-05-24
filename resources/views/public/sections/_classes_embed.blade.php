@@ -83,7 +83,7 @@
               $isFull = $pct >= 100;
               $capClass = $pct >= 100 ? 'high' : ($pct >= 75 ? 'med' : 'low');
             @endphp
-            <a href="{{ route('tenant.customer.classes.show', ['subdomain' => $tenant->subdomain, 'id' => $session->id]) }}"
+            <a href="{{ route('tenant.customer.classes.show', ['id' => $session->id]) }}"
                class="ce-card"
                data-template="{{ $session->class_template_id }}">
               <div class="ce-date">{{ $session->starts_at->format('g:i A') }}</div>
@@ -117,7 +117,7 @@
     @endif
 
     <div style="text-align:center;margin-top:28px">
-      <a href="{{ route('tenant.customer.classes', ['subdomain' => $tenant->subdomain]) }}" class="p-btn p-btn--outline">View full schedule</a>
+      <a href="{{ route('tenant.customer.classes', []) }}" class="p-btn p-btn--outline">View full schedule</a>
     </div>
   </div>
 </section>

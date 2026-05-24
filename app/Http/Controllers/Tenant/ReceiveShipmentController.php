@@ -158,7 +158,7 @@ class ReceiveShipmentController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Shipment started.']);
     }
 
-    public function show(string $subdomain, string $id): View|RedirectResponse
+    public function show(string $id): View|RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
@@ -184,7 +184,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function edit(string $subdomain, string $id): View|RedirectResponse
+    public function edit(string $id): View|RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
@@ -246,7 +246,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function update(Request $request, string $subdomain, string $id): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
@@ -288,7 +288,7 @@ class ReceiveShipmentController extends Controller
         return back()->with('flash', ['type' => 'success', 'message' => 'Shipment saved.']);
     }
 
-    public function destroy(string $subdomain, string $id): RedirectResponse
+    public function destroy(string $id): RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
@@ -303,7 +303,7 @@ class ReceiveShipmentController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Draft shipment deleted.']);
     }
 
-    public function addItem(Request $request, string $subdomain, string $id): JsonResponse
+    public function addItem(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
@@ -373,7 +373,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function updateItem(Request $request, string $subdomain, string $id, string $itemId): JsonResponse
+    public function updateItem(Request $request, string $id, string $itemId): JsonResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
@@ -434,7 +434,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function removeItem(string $subdomain, string $id, string $itemId): JsonResponse
+    public function removeItem(string $id, string $itemId): JsonResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
@@ -491,7 +491,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function commit(Request $request, string $subdomain, string $id): RedirectResponse
+    public function commit(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403);
@@ -619,7 +619,7 @@ class ReceiveShipmentController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Shipment committed.']);
     }
 
-    public function quickShowItem(string $subdomain, string $id): JsonResponse
+    public function quickShowItem(string $id): JsonResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
@@ -662,7 +662,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function quickUpdateItem(Request $request, string $subdomain, string $id): JsonResponse
+    public function quickUpdateItem(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');
@@ -732,7 +732,7 @@ class ReceiveShipmentController extends Controller
         ]);
     }
 
-    public function quickCreateItem(Request $request, string $subdomain, string $id): JsonResponse
+    public function quickCreateItem(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
         abort_unless($tenant->retail_enabled, 403, 'Retail not enabled.');

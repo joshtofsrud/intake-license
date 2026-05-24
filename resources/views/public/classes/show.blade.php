@@ -37,7 +37,7 @@
 
 @section('content')
 
-<a href="{{ route('tenant.customer.classes', ['subdomain' => request()->route('subdomain')]) }}" class="cl-back">
+<a href="{{ route('tenant.customer.classes', []) }}" class="cl-back">
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L5 7l4 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
   Back to classes
 </a>
@@ -89,7 +89,7 @@
         : "See you " . $session->starts_at->format('M j') . " at " . $session->starts_at->format('g:i A') . "." }}
     </div>
     @if(in_array($existingRegistration->status, ['registered', 'waitlisted']))
-      <form method="POST" action="{{ route('tenant.customer.classes.cancel', ['subdomain' => request()->route('subdomain'), 'id' => $existingRegistration->id]) }}"
+      <form method="POST" action="{{ route('tenant.customer.classes.cancel', ['id' => $existingRegistration->id]) }}"
             style="margin-top:12px" onsubmit="return confirm('Cancel your registration?')">
         @csrf
         <button type="submit" style="font-size:13px;color:#A32D2D;background:none;border:none;cursor:pointer;text-decoration:underline">Cancel registration</button>
@@ -102,7 +102,7 @@
   <div class="cl-waitlist-note">
     This class is full — you can join the waitlist and we'll notify you if a spot opens.
   </div>
-  <form method="POST" action="{{ route('tenant.customer.classes.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}">
+  <form method="POST" action="{{ route('tenant.customer.classes.register', ['id' => $session->id]) }}">
     @csrf
     <input type="hidden" name="payment_method" value="per_class">
     @if(!Auth::guard('customer')->check())
@@ -129,7 +129,7 @@
 
 {{-- Register --}}
 @else
-  <form method="POST" action="{{ route('tenant.customer.classes.register', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}" id="register-form">
+  <form method="POST" action="{{ route('tenant.customer.classes.register', ['id' => $session->id]) }}" id="register-form">
     @csrf
 
     {{-- Payment options (only for logged-in customers with credits) --}}

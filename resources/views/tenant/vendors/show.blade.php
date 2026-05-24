@@ -21,7 +21,7 @@
     </p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.vendors.edit', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}"
+    <a href="{{ route('tenant.vendors.edit', ['id' => $vendor->id]) }}"
        class="ia-btn ia-btn--secondary">Edit</a>
   </div>
 </div>
@@ -263,7 +263,7 @@
           Soft-deletes the vendor. Existing item-vendor pivot rows and SO records still resolve their vendor (via withTrashed). Blocked if any open SOs reference this vendor.
         </p>
         <form method="POST"
-              action="{{ route('tenant.vendors.destroy', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}"
+              action="{{ route('tenant.vendors.destroy', ['id' => $vendor->id]) }}"
               onsubmit="return confirm('Remove this vendor? Existing data stays linked but the vendor will no longer appear in lists.');">
           @csrf
           @method('DELETE')

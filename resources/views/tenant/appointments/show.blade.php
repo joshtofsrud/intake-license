@@ -559,7 +559,7 @@
         Sale {{ $bannerSale->sale_number }} parked in the register for {{ $appointment->customerName() }}.
       </div>
     </div>
-    <a href="{{ route('tenant.register.index', ['subdomain' => $currentTenant->subdomain]) }}?resume={{ $bannerSale->id }}"
+    <a href="{{ route('tenant.register.index', []) }}?resume={{ $bannerSale->id }}"
        class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
   </div>
 @elseif($bannerPaidFull)
@@ -1118,7 +1118,7 @@
                   $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
                   $rowOpacity = in_array($so->status, ['pulled', 'cancelled']) ? '0.55' : '1';
                 @endphp
-                <tr style="cursor:pointer;opacity:{{ $rowOpacity }}" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                <tr style="cursor:pointer;opacity:{{ $rowOpacity }}" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
                   <td>
                     <strong>{{ $so->item_name_snapshot }}</strong>
                   </td>
@@ -1451,7 +1451,7 @@
       @endif
 
       @if($hasOpenSale)
-        <a href="{{ route('tenant.register.index', ['subdomain' => $currentTenant->subdomain]) }}?resume={{ $openSale->id }}"
+        <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
            class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
           Take payment in register
         </a>

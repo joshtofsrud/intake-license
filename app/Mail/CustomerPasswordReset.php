@@ -34,7 +34,6 @@ class CustomerPasswordReset extends Mailable
     public function content(): Content
     {
         $resetUrl = route('tenant.customer.reset', [
-            'subdomain' => $this->tenant->subdomain,
             'token'     => $this->token,
             'email'     => $this->customer->email,
         ]);

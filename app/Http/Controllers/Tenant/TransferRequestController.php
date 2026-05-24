@@ -79,7 +79,7 @@ class TransferRequestController extends Controller
         return view('tenant.transfer-requests.index', compact('requests', 'counts', 'view'));
     }
 
-    public function show(string $subdomain, string $id): View
+    public function show(string $id): View
     {
         $tenant = tenant();
         $tr = TenantTransferRequest::with(['inventoryItem.locations.location', 'toLocation', 'fromLocation'])
@@ -89,7 +89,7 @@ class TransferRequestController extends Controller
         return view('tenant.transfer-requests.show', compact('tr'));
     }
 
-    public function send(Request $request, string $subdomain, string $id): RedirectResponse
+    public function send(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         TenantTransferRequest::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -112,7 +112,7 @@ class TransferRequestController extends Controller
         }
     }
 
-    public function receive(Request $request, string $subdomain, string $id): RedirectResponse
+    public function receive(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         TenantTransferRequest::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -131,12 +131,12 @@ class TransferRequestController extends Controller
      * Legacy fulfill route — kept for backwards compatibility with
      * any external links or old browser tabs. Maps to receive().
      */
-    public function fulfill(Request $request, string $subdomain, string $id): RedirectResponse
+    public function fulfill(Request $request, string $id): RedirectResponse
     {
-        return $this->receive($request, $subdomain, $id);
+        return $this->receive($request, $id);
     }
 
-    public function cancel(Request $request, string $subdomain, string $id): RedirectResponse
+    public function cancel(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $tr = TenantTransferRequest::where('tenant_id', $tenant->id)->findOrFail($id);

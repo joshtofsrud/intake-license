@@ -208,7 +208,7 @@
                              onchange="rcvToggleSoMatch(this)">
                     </td>
                     <td>
-                      <a href="{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}"
+                      <a href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}"
                          target="_blank" style="font-weight:600">{{ $so->so_number }}</a>
                     </td>
                     <td>

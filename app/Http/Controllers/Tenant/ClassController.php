@@ -64,7 +64,7 @@ class ClassController extends Controller
         return back()->with('success', 'Class template created.');
     }
 
-    public function updateTemplate(Request $request, string $subdomain, string $id)
+    public function updateTemplate(Request $request, string $id)
     {
         $tenant   = tenant();
         $template = TenantClassTemplate::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -88,7 +88,7 @@ class ClassController extends Controller
         return back()->with('success', 'Template updated.');
     }
 
-    public function destroyTemplate(string $subdomain, string $id)
+    public function destroyTemplate(string $id)
     {
         $tenant   = tenant();
         $template = TenantClassTemplate::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -126,7 +126,7 @@ class ClassController extends Controller
         return view('tenant.classes.sessions', compact('sessions', 'templates', 'from', 'to'));
     }
 
-    public function storeSession(Request $request, string $subdomain)
+    public function storeSession(Request $request)
     {
         $tenant = tenant();
 
@@ -201,7 +201,7 @@ class ClassController extends Controller
         return back()->with('success', $msg);
     }
 
-    public function updateSession(Request $request, string $subdomain, string $id)
+    public function updateSession(Request $request, string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -230,7 +230,7 @@ class ClassController extends Controller
         return back()->with('success', 'Session updated.');
     }
 
-    public function destroySession(string $subdomain, string $id)
+    public function destroySession(string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -244,7 +244,7 @@ class ClassController extends Controller
         return back()->with('success', 'Session deleted.');
     }
 
-    public function showSession(string $subdomain, string $id)
+    public function showSession(string $id)
     {
         $tenant  = tenant();
         $session = TenantClassSession::where('tenant_id', $tenant->id)
@@ -260,7 +260,7 @@ class ClassController extends Controller
     // Registrations (admin actions)
     // ------------------------------------------------------------------
 
-    public function registerCustomer(Request $request, string $subdomain, string $sessionId)
+    public function registerCustomer(Request $request, string $sessionId)
     {
         $tenant = tenant();
 
@@ -274,7 +274,7 @@ class ClassController extends Controller
         // take payment (cash, card, gift card, etc.). On sale commit, the
         // hook in SaleService::commitDraft() creates the registration row.
         if ($data['payment_method'] === 'cash') {
-            return $this->registerViaCash($subdomain, $sessionId, $data['customer_id']);
+            return $this->registerViaCash($sessionId, $data['customer_id']);
         }
 
         // resolvePayment() throws RuntimeException when admin explicitly picks
@@ -311,7 +311,7 @@ class ClassController extends Controller
      * would otherwise need a product per session. open_item with a snapshot
      * price from the template is the cleanest path.
      */
-    private function registerViaCash(string $subdomain, string $sessionId, string $customerId)
+    private function registerViaCash(string $sessionId, string $customerId)
     {
         $tenant = tenant();
 
@@ -364,12 +364,11 @@ class ClassController extends Controller
         ]);
 
         return redirect()->route('tenant.register.index', [
-            'subdomain' => $subdomain,
             'draft'     => $draft->id,
         ])->with('success', 'Cart prepared — take payment to complete registration.');
     }
 
-    public function cancelRegistration(string $subdomain, string $id)
+    public function cancelRegistration(string $id)
     {
         $tenant = tenant();
         $this->registrationService->cancel($id, $tenant->id);
@@ -377,7 +376,7 @@ class ClassController extends Controller
         return back()->with('success', 'Registration cancelled.');
     }
 
-    public function checkIn(string $subdomain, string $id)
+    public function checkIn(string $id)
     {
         $tenant = tenant();
         $this->registrationService->checkIn($id, $tenant->id);
@@ -385,7 +384,7 @@ class ClassController extends Controller
         return back()->with('success', 'Checked in.');
     }
 
-    public function markNoShow(string $subdomain, string $id)
+    public function markNoShow(string $id)
     {
         $tenant = tenant();
         $this->registrationService->markNoShow($id, $tenant->id);
@@ -435,7 +434,7 @@ class ClassController extends Controller
         return back()->with('success', 'Membership product created.');
     }
 
-    public function updateMembershipProduct(Request $request, string $subdomain, string $id)
+    public function updateMembershipProduct(Request $request, string $id)
     {
         $tenant  = tenant();
         $product = TenantClassMembershipProduct::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -499,7 +498,7 @@ class ClassController extends Controller
         return back()->with('success', 'Pack product created.');
     }
 
-    public function updatePackProduct(Request $request, string $subdomain, string $id)
+    public function updatePackProduct(Request $request, string $id)
     {
         $tenant  = tenant();
         $product = TenantClassPackProduct::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -551,7 +550,7 @@ class ClassController extends Controller
      * customer" by refusing if one already exists. Creates an audit note on
      * the customer record.
      */
-    public function grantCustomerMembership(Request $request, string $subdomain, string $customerId)
+    public function grantCustomerMembership(Request $request, string $customerId)
     {
         $tenant = tenant();
         $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($customerId);
@@ -616,7 +615,7 @@ class ClassController extends Controller
      * Cancel an active membership. Sets status='cancelled' (kept for audit),
      * does not soft-delete. Records audit note.
      */
-    public function revokeCustomerMembership(Request $request, string $subdomain, string $customerId, string $membershipId)
+    public function revokeCustomerMembership(Request $request, string $customerId, string $membershipId)
     {
         $tenant = tenant();
         $membership = TenantCustomerMembership::where('tenant_id', $tenant->id)
@@ -642,7 +641,7 @@ class ClassController extends Controller
      * Grant a pack to a customer. Multiple active packs are allowed (booking
      * service uses oldest-expiry-first). Sets credits_remaining = credit_count.
      */
-    public function grantCustomerPack(Request $request, string $subdomain, string $customerId)
+    public function grantCustomerPack(Request $request, string $customerId)
     {
         $tenant = tenant();
         $customer = TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($customerId);
@@ -693,7 +692,7 @@ class ClassController extends Controller
     /**
      * Revoke a pack. Sets status='cancelled' (preserves credit history).
      */
-    public function revokeCustomerPack(Request $request, string $subdomain, string $customerId, string $packId)
+    public function revokeCustomerPack(Request $request, string $customerId, string $packId)
     {
         $tenant = tenant();
         $pack = TenantCustomerPack::where('tenant_id', $tenant->id)
@@ -781,7 +780,7 @@ class ClassController extends Controller
      * Slugs match the panel keys used in the blade for consistency. If a
      * future panel is added, register it here and in the service.
      */
-    public function reportExport(string $subdomain, string $panel, \App\Services\Tenant\ClassReportsService $service)
+    public function reportExport(string $panel, \App\Services\Tenant\ClassReportsService $service)
     {
         $tenant = tenant();
         $tid    = $tenant->id;

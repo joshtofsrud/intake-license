@@ -158,7 +158,7 @@ class CustomerController extends Controller
         return response()->json(['customers' => $rows]);
     }
 
-    public function show(Request $request, string $subdomain, string $id)
+    public function show(Request $request, string $id)
     {
         if ($request->expectsJson() || $request->ajax()) {
             return $this->jsonDetail(tenant(), $id);
@@ -275,7 +275,7 @@ class CustomerController extends Controller
             ->with('success', 'Customer saved.');
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         return $this->handleUpdate(tenant(), $id, $request);
     }

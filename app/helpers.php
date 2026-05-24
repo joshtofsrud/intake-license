@@ -24,11 +24,10 @@ if (! function_exists('tenant_url')) {
         $t = tenant();
         if (! $t) return url($path);
 
-        $base = $t->custom_domain
-            ? 'https://' . $t->custom_domain
-            : 'https://' . $t->subdomain . '.' . config('intake.domain');
-
-        return $base . '/' . ltrim($path, '/');
+        // MARKER-PATCH-123 — delegate to Tenant::publicUrl() so custom
+        // domains served via tenant_domains (and legacy custom_domain) are
+        // both handled in one place.
+        return $t->publicUrl() . '/' . ltrim($path, '/');
     }
 }
 

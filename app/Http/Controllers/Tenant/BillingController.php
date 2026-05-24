@@ -28,7 +28,7 @@ class BillingController extends Controller
      * to it. The URL expires in a few minutes and can only be used by the
      * associated Stripe customer, so there\'s no token leakage concern.
      */
-    public function portal(Request $request, string $subdomain)
+    public function portal(Request $request)
     {
         $tenant = tenant();
 
@@ -37,11 +37,11 @@ class BillingController extends Controller
                 'tenant' => $tenant->subdomain,
             ]);
             return redirect()
-                ->route('tenant.dashboard', ['subdomain' => $subdomain])
+                ->route('tenant.dashboard', [])
                 ->withErrors(['general' => 'Billing is not set up for this account. Contact support.']);
         }
 
-        $returnUrl = route('tenant.dashboard', ['subdomain' => $subdomain]);
+        $returnUrl = route('tenant.dashboard', []);
 
         try {
             $portalUrl = $this->stripe->createBillingPortalSession(
@@ -55,7 +55,7 @@ class BillingController extends Controller
                 'error' => $e->getMessage(),
             ]);
             return redirect()
-                ->route('tenant.dashboard', ['subdomain' => $subdomain])
+                ->route('tenant.dashboard', [])
                 ->withErrors(['general' => 'We couldn\'t open billing right now. Please try again or contact support.']);
         }
 

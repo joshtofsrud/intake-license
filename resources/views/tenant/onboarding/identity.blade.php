@@ -236,7 +236,7 @@
   </div>
 
   <div class="actions">
-    <a href="{{ route('tenant.onboarding.wizard.industry', ['subdomain' => $tenant->subdomain]) }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ route('tenant.onboarding.wizard.industry', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-continue">Continue → Booking</button>
   </div>
 @endsection
@@ -244,8 +244,8 @@
 @section('scripts')
 <script>
 (function () {
-  const SAVE_URL    = @json(route('tenant.onboarding.wizard.identity.save', ['subdomain' => $tenant->subdomain]));
-  const AI_URL      = @json(route('tenant.onboarding.wizard.ai-prefill', ['subdomain' => $tenant->subdomain]));
+  const SAVE_URL    = @json(route('tenant.onboarding.wizard.identity.save', []));
+  const AI_URL      = @json(route('tenant.onboarding.wizard.ai-prefill', []));
 
   const banner   = document.getElementById('ai-banner');
   const arrow    = document.getElementById('ai-arrow');

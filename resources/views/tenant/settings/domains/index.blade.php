@@ -167,7 +167,7 @@
         </div>
       </div>
       <span class="dm-pill {{ $pillClass }}">{{ ucfirst(str_replace('_', ' ', $d->status)) }}</span>
-      <a href="{{ route('tenant.domains.show', ['subdomain' => $tenant->subdomain, 'id' => $d->id]) }}"
+      <a href="{{ route('tenant.domains.show', ['id' => $d->id]) }}"
          class="ia-btn ia-btn-secondary dm-action"
          style="padding:6px 12px;font-size:12px">Manage</a>
     </div>

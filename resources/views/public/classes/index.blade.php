@@ -85,7 +85,7 @@
         $isFull = $pct >= 100;
         $capClass = $pct >= 100 ? 'high' : ($pct >= 75 ? 'med' : 'low');
       @endphp
-      <a href="{{ route('tenant.customer.classes.show', ['subdomain' => request()->route('subdomain'), 'id' => $session->id]) }}"
+      <a href="{{ route('tenant.customer.classes.show', ['id' => $session->id]) }}"
          class="cl-card">
         <div class="cl-card-head">
           <div>

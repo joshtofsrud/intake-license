@@ -138,12 +138,12 @@
       <div class="next-card-title">Send a test booking</div>
       <div class="next-card-desc">See exactly what customers see — confirmation email and all.</div>
     </a>
-    <a href="{{ route('tenant.pages.index', ['subdomain' => $tenant->subdomain]) }}" class="next-card">
+    <a href="{{ route('tenant.pages.index', []) }}" class="next-card">
       <span class="next-card-icon">🎨</span>
       <div class="next-card-title">Customize your booking page</div>
       <div class="next-card-desc">Tweak colors, add a hero image, change page copy.</div>
     </a>
-    <a href="{{ route('tenant.calendar.index', ['subdomain' => $tenant->subdomain]) }}" class="next-card">
+    <a href="{{ route('tenant.calendar.index', []) }}" class="next-card">
       <span class="next-card-icon">📅</span>
       <div class="next-card-title">Open your calendar</div>
       <div class="next-card-desc">See where bookings land, set up breaks, manage capacity.</div>
@@ -151,7 +151,7 @@
   </div>
 
   <div class="actions">
-    <a href="{{ route('tenant.onboarding.wizard.payment', ['subdomain' => $tenant->subdomain]) }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ route('tenant.onboarding.wizard.payment', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-finish">Go to dashboard →</button>
   </div>
 @endsection
@@ -159,7 +159,7 @@
 @section('scripts')
 <script>
 (function () {
-  const COMPLETE_URL = @json(route('tenant.onboarding.wizard.complete', ['subdomain' => $tenant->subdomain]));
+  const COMPLETE_URL = @json(route('tenant.onboarding.wizard.complete', []));
 
   const copyBtn = document.getElementById('copy-btn');
   const finish  = document.getElementById('ob-finish');

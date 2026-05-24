@@ -262,7 +262,7 @@
   var addModal  = document.getElementById('add-modal');
   var editModal = document.getElementById('edit-modal');
   var editForm  = document.getElementById('edit-form');
-  var baseUrl   = "{{ route('tenant.classes.packs', ['subdomain' => request()->route('subdomain')]) }}";
+  var baseUrl   = "{{ route('tenant.classes.packs', []) }}";
 
   window.updatePerCredit = function(prefix){
     var credits = parseFloat(document.getElementById(prefix+'-credits').value) || 1;

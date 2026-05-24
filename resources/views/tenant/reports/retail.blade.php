@@ -16,9 +16,9 @@
     <div><span class="rep-rangebar-label">Range</span><span class="rep-rangebar-current">{{ $range_label }}</span></div>
     <div class="rep-rangebar-controls">
       <nav class="rep-toggle">
-        <a href="{{ route('tenant.reports.retail', ['subdomain' => tenant()->subdomain, 'range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ route('tenant.reports.retail', ['subdomain' => tenant()->subdomain, 'range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ route('tenant.reports.retail', ['subdomain' => tenant()->subdomain, 'range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
+        <a href="{{ route('tenant.reports.retail', ['range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ route('tenant.reports.retail', ['range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ route('tenant.reports.retail', ['range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
       </nav>
     </div>
   </div>

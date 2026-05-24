@@ -73,7 +73,7 @@
             <div class="so-detail-label">Vendor</div>
             <div class="so-detail-value">
               @if($so->vendor)
-                <a href="{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $so->vendor->id]) }}">{{ $so->vendor->name }}</a>
+                <a href="{{ route('tenant.vendors.show', ['id' => $so->vendor->id]) }}">{{ $so->vendor->name }}</a>
               @else
                 <span class="ia-text-muted">TBD</span>
               @endif
@@ -168,7 +168,7 @@
         @endforeach
 
         @if(!in_array($so->status, ['pulled', 'cancelled']))
-          <form method="POST" action="{{ route('tenant.special-orders.notes.store', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}" style="margin-top:14px">
+          <form method="POST" action="{{ route('tenant.special-orders.notes.store', ['id' => $so->id]) }}" style="margin-top:14px">
             @csrf
             <textarea name="body" class="ia-input" rows="2" placeholder="Add a note (visible to staff only)…" required></textarea>
             <div style="margin-top:8px;text-align:right">
@@ -196,7 +196,7 @@
           </thead>
           <tbody>
             @foreach($batchSiblings as $sib)
-              <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $sib->id]) }}'">
+              <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $sib->id]) }}'">
                 <td>{{ $sib->so_number }}</td>
                 <td>
                   @if($sib->customer)
@@ -234,7 +234,7 @@
           @endif
 
           @if($so->status === 'arrived')
-            <form method="POST" action="{{ route('tenant.special-orders.mark-pulled', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}">
+            <form method="POST" action="{{ route('tenant.special-orders.mark-pulled', ['id' => $so->id]) }}">
               @csrf
               <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Mark pulled</button>
             </form>
@@ -253,7 +253,7 @@
           <div style="margin-bottom:14px">
             <div class="so-detail-label">Customer</div>
             <div style="margin-top:4px">
-              <a href="{{ route('tenant.customers.show', ['subdomain' => tenant()->subdomain, 'id' => $so->customer->id]) }}">
+              <a href="{{ route('tenant.customers.show', ['id' => $so->customer->id]) }}">
                 <strong>{{ $so->customer->first_name }} {{ $so->customer->last_name }}</strong>
               </a>
               @if($so->customer->email)
@@ -327,7 +327,7 @@
 <div id="so-mark-ordered-modal" class="ia-modal" style="display:none">
   <div class="ia-modal-backdrop" onclick="SoActions.closeOrdered()"></div>
   <div class="ia-modal-panel" style="max-width:500px">
-    <form method="POST" action="{{ route('tenant.special-orders.mark-ordered', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}">
+    <form method="POST" action="{{ route('tenant.special-orders.mark-ordered', ['id' => $so->id]) }}">
       @csrf
       <div class="ia-modal-head">
         <h3 class="ia-modal-title">Mark ordered</h3>
@@ -376,7 +376,7 @@
 <div id="so-mark-arrived-modal" class="ia-modal" style="display:none">
   <div class="ia-modal-backdrop" onclick="SoActions.closeArrived()"></div>
   <div class="ia-modal-panel" style="max-width:500px">
-    <form method="POST" action="{{ route('tenant.special-orders.mark-arrived', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}">
+    <form method="POST" action="{{ route('tenant.special-orders.mark-arrived', ['id' => $so->id]) }}">
       @csrf
       <div class="ia-modal-head">
         <h3 class="ia-modal-title">Mark arrived</h3>
@@ -412,7 +412,7 @@
 <div id="so-cancel-modal" class="ia-modal" style="display:none">
   <div class="ia-modal-backdrop" onclick="SoActions.closeCancel()"></div>
   <div class="ia-modal-panel" style="max-width:500px">
-    <form method="POST" action="{{ route('tenant.special-orders.cancel', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}">
+    <form method="POST" action="{{ route('tenant.special-orders.cancel', ['id' => $so->id]) }}">
       @csrf
       <div class="ia-modal-head">
         <h3 class="ia-modal-title">Cancel special order</h3>

@@ -107,12 +107,12 @@ class ServiceController extends Controller
         return $this->handleOp($request);
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         return $this->handleOp($request, $id);
     }
 
-    public function destroy(Request $request, string $subdomain, string $id)
+    public function destroy(Request $request, string $id)
     {
         $tenant = tenant();
         $op = $request->input('op', 'delete_service');

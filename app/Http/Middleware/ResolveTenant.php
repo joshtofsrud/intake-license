@@ -98,17 +98,8 @@ class ResolveTenant
         // Tag the request so controllers/middleware can access it easily
         $request->attributes->set('tenant', $tenant);
 
-        // Inject `{subdomain}` into URL::defaults so every route() call for
-        // a tenant route works without having to pass `subdomain` explicitly.
-        // e.g. route('tenant.dashboard') Just Works on a subdomain request.
-        URL::defaults(['subdomain' => $tenant->subdomain]);
-
-        // Also set it on the current route's parameters if a route has already
-        // matched (it hasn't, usually — this runs before SubstituteBindings —
-        // but it's cheap insurance for controllers that read route params).
-        if ($route = $request->route()) {
-            $route->setParameter('subdomain', $tenant->subdomain);
-        }
+        // MARKER-PATCH-123 — URL::defaults / route setParameter no longer
+        // needed: routes no longer carry a {subdomain} placeholder.
 
         return $next($request);
     }

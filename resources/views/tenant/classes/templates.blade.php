@@ -306,7 +306,7 @@
   var editModal = document.getElementById('edit-modal');
   var editForm  = document.getElementById('edit-form');
   var deleteForm = document.getElementById('delete-form');
-  var baseUrl   = "{{ route('tenant.classes.templates', ['subdomain' => request()->route('subdomain')]) }}";
+  var baseUrl   = "{{ route('tenant.classes.templates', []) }}";
 
   window.openAddModal  = function(){ addModal.classList.add('is-open'); }
   window.closeAddModal = function(){ addModal.classList.remove('is-open'); }

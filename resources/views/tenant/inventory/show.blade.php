@@ -448,7 +448,7 @@
         </thead>
         <tbody>
           @foreach($openSos as $so)
-            <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+            <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
               <td><strong>{{ $so->so_number }}</strong></td>
               <td>{{ $so->quantity }}</td>
               <td>
@@ -482,7 +482,7 @@
         <table class="ia-table" style="margin-top:8px">
           <tbody>
             @foreach($closedSos as $so)
-              <tr style="cursor:pointer;opacity:.7" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+              <tr style="cursor:pointer;opacity:.7" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
                 <td><strong>{{ $so->so_number }}</strong></td>
                 <td>{{ $so->quantity }}</td>
                 <td>{{ $so->customer ? $so->customer->first_name . ' ' . $so->customer->last_name : 'Stock' }}</td>
@@ -519,7 +519,7 @@
         @foreach($item->vendors as $vendor)
           <tr>
             <td>
-              <a href="{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}">
+              <a href="{{ route('tenant.vendors.show', ['id' => $vendor->id]) }}">
                 <strong>{{ $vendor->name }}</strong>
               </a>
             </td>

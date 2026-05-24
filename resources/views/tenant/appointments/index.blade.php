@@ -388,7 +388,7 @@ td.ia-inline-cell { cursor: default; }
   </div>
 @else
   <div class="ia-table-wrap appt-desktop-only">
-    <table class="ia-table" id="ia-appts-table" data-update-url="{{ route('tenant.appointments.update', ['subdomain' => $currentTenant->subdomain, 'id' => '__ID__']) }}">
+    <table class="ia-table" id="ia-appts-table" data-update-url="{{ route('tenant.appointments.update', ['id' => '__ID__']) }}">
       <thead>
         <tr>
           <th>ITO #</th>

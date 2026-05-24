@@ -368,10 +368,10 @@
 
 @if($currentTenant->classes_enabled)
   <div class="cust-mp-modal" id="cust-mp-modal"
-       data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id]) }}"
-       data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id]) }}"
-       data-revoke-membership-url-tpl="{{ route('tenant.customers.memberships.revoke', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id, 'id' => '__ID__']) }}"
-       data-revoke-pack-url-tpl="{{ route('tenant.customers.packs.revoke', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id, 'id' => '__ID__']) }}">
+       data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['customerId' => $customer->id]) }}"
+       data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['customerId' => $customer->id]) }}"
+       data-revoke-membership-url-tpl="{{ route('tenant.customers.memberships.revoke', ['customerId' => $customer->id, 'id' => '__ID__']) }}"
+       data-revoke-pack-url-tpl="{{ route('tenant.customers.packs.revoke', ['customerId' => $customer->id, 'id' => '__ID__']) }}">
     <div class="cust-mp-modal-inner">
       <div class="cust-mp-modal-title" id="cust-mp-modal-title">Grant membership</div>
       <div class="cust-mp-modal-sub" id="cust-mp-modal-sub">Pick a product to assign to this customer.</div>

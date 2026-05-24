@@ -13,7 +13,7 @@ class CampaignImageController extends Controller
      * List all images in the tenant's library.
      * Supports pagination + search for future Settings > Storage page.
      */
-    public function index(Request $request, string $subdomain)
+    public function index(Request $request)
     {
         $tenant = tenant();
 
@@ -50,7 +50,7 @@ class CampaignImageController extends Controller
     /**
      * Upload a new image to the library.
      */
-    public function upload(Request $request, string $subdomain)
+    public function upload(Request $request)
     {
         $tenant = tenant();
 
@@ -133,7 +133,7 @@ class CampaignImageController extends Controller
     /**
      * Delete an image. Removes the file from storage + DB row.
      */
-    public function destroy(Request $request, string $subdomain, string $id)
+    public function destroy(Request $request, string $id)
     {
         $tenant = tenant();
 
@@ -156,7 +156,7 @@ class CampaignImageController extends Controller
      * Return usage stats for the tenant.
      * Used by the picker header and future Settings > Storage page.
      */
-    public function usage(Request $request, string $subdomain)
+    public function usage(Request $request)
     {
         $tenant = tenant();
 

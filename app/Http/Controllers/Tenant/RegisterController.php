@@ -468,7 +468,7 @@ class RegisterController extends Controller
     /**
      * Fetch a single draft with full line items, for resume into cart.
      */
-    public function showDraft(Request $request, string $subdomain, string $id): JsonResponse
+    public function showDraft(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
 
@@ -515,7 +515,7 @@ class RegisterController extends Controller
     /**
      * Permanently discard a draft.
      */
-    public function discardDraft(Request $request, string $subdomain, string $id): JsonResponse
+    public function discardDraft(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
 
@@ -530,7 +530,7 @@ class RegisterController extends Controller
     /**
      * Promote a draft to a paid sale. Replaces storeSale for draft-backed flow.
      */
-    public function commitDraft(Request $request, string $subdomain, string $id): JsonResponse
+    public function commitDraft(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
 
@@ -580,7 +580,7 @@ class RegisterController extends Controller
      * Look up a past sale by sale_number for the refund picker.
      * Returns the sale's line items with refundable quantities.
      */
-    public function lookupSaleForRefund(Request $request, string $subdomain): JsonResponse
+    public function lookupSaleForRefund(Request $request): JsonResponse
     {
         $tenant = tenant();
         $saleNumber = trim((string) $request->input('sale_number', ''));
@@ -656,7 +656,7 @@ class RegisterController extends Controller
      * Commit a multi-row transaction (mixed sale + refund, or pure refund).
      * Pure sales still use storeSale or commitDraft.
      */
-    public function storeTransaction(Request $request, string $subdomain): JsonResponse
+    public function storeTransaction(Request $request): JsonResponse
     {
         $tenant = tenant();
         $locationId = $request->session()->get('current_location_id');
@@ -769,7 +769,7 @@ class RegisterController extends Controller
      * Return a single sale as JSON for the sale-detail modal.
      * Read-only. Used by the history page and customer activity timeline.
      */
-    public function showSaleJson(Request $request, string $subdomain, string $id): JsonResponse
+    public function showSaleJson(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
 

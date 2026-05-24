@@ -57,7 +57,7 @@ class ReceivingMethodController extends Controller
         return redirect()->route('tenant.receiving-methods.index')->with('flash', 'Drop-off method added.');
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         $tenant = tenant();
         $method = TenantReceivingMethod::where('tenant_id', $tenant->id)
@@ -92,7 +92,7 @@ class ReceivingMethodController extends Controller
      * Soft-delete (deactivate). Past appointments reference receiving_method_snapshot
      * by name, not by FK, so they're never affected by a delete here.
      */
-    public function destroy(string $subdomain, string $id)
+    public function destroy(string $id)
     {
         $tenant = tenant();
         $method = TenantReceivingMethod::where('tenant_id', $tenant->id)

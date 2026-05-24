@@ -67,7 +67,7 @@
       @endswitch
     </div>
   </div>
-  <form method="POST" action="{{ route('tenant.domains.destroy', ['subdomain' => $tenant->subdomain, 'id' => $domain->id]) }}"
+  <form method="POST" action="{{ route('tenant.domains.destroy', ['id' => $domain->id]) }}"
         onsubmit="return confirm('Remove {{ $domain->hostname }}? This will tear down the cert and the tenant will be back on the subdomain.');">
     @csrf
     @method('DELETE')
@@ -358,7 +358,7 @@
   // "Check now" button — AJAX sync
   var checkBtn = document.getElementById('ds-check-now');
   if (checkBtn) {
-    var syncUrl = "{{ route('tenant.domains.sync', ['subdomain' => $tenant->subdomain, 'id' => $domain->id]) }}";
+    var syncUrl = "{{ route('tenant.domains.sync', ['id' => $domain->id]) }}";
     var csrf    = "{{ csrf_token() }}";
     checkBtn.addEventListener('click', function () {
       var originalText = checkBtn.textContent;

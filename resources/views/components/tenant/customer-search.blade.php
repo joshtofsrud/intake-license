@@ -27,7 +27,7 @@
 --}}
 <div class="ia-cs"
      data-customer-search
-     data-search-url="{{ route('tenant.customers.search', ['subdomain' => $currentTenant->subdomain]) }}">
+     data-search-url="{{ route('tenant.customers.search', []) }}">
     <input type="hidden" name="{{ $name }}" data-cs-id @if($required) required @endif>
     <input type="text"
            class="cl-input ia-cs-input"

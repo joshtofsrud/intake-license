@@ -71,7 +71,7 @@ class ResourceController extends Controller
         return redirect()->route('tenant.resources.index')->with('flash', 'Resource added.');
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         $tenant   = tenant();
         $resource = TenantResource::where('tenant_id', $tenant->id)
@@ -107,7 +107,7 @@ class ResourceController extends Controller
      * appointments reference resource_id with nullOnDelete; hard-deleting
      * would orphan historical bookings from their resource context.
      */
-    public function destroy(string $subdomain, string $id)
+    public function destroy(string $id)
     {
         $tenant   = tenant();
         $resource = TenantResource::where('tenant_id', $tenant->id)

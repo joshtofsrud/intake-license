@@ -176,7 +176,7 @@
   </div>
 
   <div class="actions">
-    <a href="{{ route('tenant.onboarding.wizard.services', ['subdomain' => $tenant->subdomain]) }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ route('tenant.onboarding.wizard.services', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-continue">Continue → Payment</button>
   </div>
 @endsection
@@ -184,7 +184,7 @@
 @section('scripts')
 <script>
 (function () {
-  const SAVE_URL   = @json(route('tenant.onboarding.wizard.team.save', ['subdomain' => $tenant->subdomain]));
+  const SAVE_URL   = @json(route('tenant.onboarding.wizard.team.save', []));
   const ALL_COLORS = @json(\App\Http\Controllers\Tenant\ResourceController::SWATCHES);
 
   const opts   = document.querySelectorAll('.team-opt');

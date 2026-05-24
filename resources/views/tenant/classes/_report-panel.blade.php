@@ -31,12 +31,12 @@
             <p class="rp-panel-sub">{{ $subtitle }}</p>
         </div>
         <div class="rp-panel-actions">
-            <a class="rp-export-btn" href="{{ route('tenant.classes.reports.export', ['subdomain' => $sub, 'panel' => $exportSlug]) }}">Export CSV</a>
+            <a class="rp-export-btn" href="{{ route('tenant.classes.reports.export', ['panel' => $exportSlug]) }}">Export CSV</a>
         </div>
     </div>
     <div class="rp-row-list">
         @forelse($rows as $row)
-            <a class="rp-row" href="{{ route('tenant.customers.show', ['subdomain' => $sub, 'id' => $row['customer_id']]) }}">
+            <a class="rp-row" href="{{ route('tenant.customers.show', ['id' => $row['customer_id']]) }}">
                 <div class="rp-avatar {{ $row['severity'] }}">{{ $initials($row['name'] ?? '') }}</div>
                 <div class="rp-row-main">
                     <div class="rp-row-name">{{ $row['name'] }}</div>

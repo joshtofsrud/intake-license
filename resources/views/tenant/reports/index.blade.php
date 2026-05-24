@@ -244,10 +244,10 @@
     </div>
     <div class="rep-rangebar-controls">
       <nav class="rep-toggle">
-        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
-        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
-        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
-        <a href="{{ route('tenant.reports.index', ['subdomain' => tenant()->subdomain, 'range' => 'last_30']) }}" class="{{ $range === 'last_30' ? 'active' : '' }}">Last 30</a>
+        <a href="{{ route('tenant.reports.index', ['range' => 'today']) }}"  class="{{ $range === 'today' ? 'active' : '' }}">Today</a>
+        <a href="{{ route('tenant.reports.index', ['range' => 'week']) }}"   class="{{ $range === 'week'  ? 'active' : '' }}">Week</a>
+        <a href="{{ route('tenant.reports.index', ['range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
+        <a href="{{ route('tenant.reports.index', ['range' => 'last_30']) }}" class="{{ $range === 'last_30' ? 'active' : '' }}">Last 30</a>
       </nav>
       <button type="button" id="rep-customrange-btn" class="rep-customrange-btn {{ $range === 'custom' ? 'active' : '' }}">📅 Custom range</button>
     </div>

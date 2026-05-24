@@ -1281,7 +1281,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
               </thead>
               <tbody>
                 @foreach($specialOrdersOpen as $so)
-                  <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                  <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
                     <td><strong>{{ $so->so_number }}</strong></td>
                     <td>{{ $so->item_name_snapshot }}</td>
                     <td>{{ $so->quantity }}</td>
@@ -1311,7 +1311,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
               <table class="ia-table" style="margin-top:6px">
                 <tbody>
                   @foreach($specialOrdersClosed as $so)
-                    <tr style="cursor:pointer;opacity:.65" onclick="window.location.href='{{ route('tenant.special-orders.show', ['subdomain' => tenant()->subdomain, 'id' => $so->id]) }}'">
+                    <tr style="cursor:pointer;opacity:.65" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
                       <td><strong>{{ $so->so_number }}</strong></td>
                       <td>{{ $so->item_name_snapshot }} <span style="color:var(--ia-text-muted)">×{{ $so->quantity }}</span></td>
                       <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
@@ -1504,10 +1504,10 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
 @if($currentTenant->classes_enabled)
   <div class="cust-mp-modal" id="cust-mp-modal"
-       data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id]) }}"
-       data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id]) }}"
-       data-revoke-membership-url-tpl="{{ route('tenant.customers.memberships.revoke', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id, 'id' => '__ID__']) }}"
-       data-revoke-pack-url-tpl="{{ route('tenant.customers.packs.revoke', ['subdomain' => $currentTenant->subdomain, 'customerId' => $customer->id, 'id' => '__ID__']) }}">
+       data-grant-membership-url="{{ route('tenant.customers.memberships.grant', ['customerId' => $customer->id]) }}"
+       data-grant-pack-url="{{ route('tenant.customers.packs.grant', ['customerId' => $customer->id]) }}"
+       data-revoke-membership-url-tpl="{{ route('tenant.customers.memberships.revoke', ['customerId' => $customer->id, 'id' => '__ID__']) }}"
+       data-revoke-pack-url-tpl="{{ route('tenant.customers.packs.revoke', ['customerId' => $customer->id, 'id' => '__ID__']) }}">
     <div class="cust-mp-modal-inner">
       <div class="cust-mp-modal-title" id="cust-mp-modal-title">Grant membership</div>
       <div class="cust-mp-modal-sub" id="cust-mp-modal-sub">Pick a product to assign to this customer.</div>

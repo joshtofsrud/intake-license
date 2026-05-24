@@ -138,7 +138,6 @@
 
 
 @php
-  $sub = request()->route('subdomain');
   $prevFrom = $from->copy()->subDays(7)->format('Y-m-d');
   $nextFrom = $from->copy()->addDays(7)->format('Y-m-d');
 @endphp
@@ -167,8 +166,8 @@
           ? min(100, round(($session->active_registrations_count / $session->capacity_snapshot) * 100))
           : 0;
         $isFull    = $pct >= 100;
-        $updateUrl = route('tenant.classes.sessions.update', ['subdomain' => $sub, 'id' => $session->id]);
-        $showUrl   = route('tenant.classes.sessions.show',   ['subdomain' => $sub, 'id' => $session->id]);
+        $updateUrl = route('tenant.classes.sessions.update', ['id' => $session->id]);
+        $showUrl   = route('tenant.classes.sessions.show',   ['id' => $session->id]);
       @endphp
       <div class="cl-session-card" id="session-{{ $session->id }}">
         <div class="cl-session-head" onclick="toggleSession('{{ $session->id }}')">
@@ -220,12 +219,12 @@
                     <td><span class="cl-status-pill {{ $reg->status }}" style="font-size:10px">{{ ucfirst(str_replace('_',' ',$reg->status)) }}</span></td>
                     <td style="text-align:right">
                       @if($reg->status === 'registered')
-                        <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['subdomain' => $sub, 'id' => $reg->id]) }}" style="display:inline">
+                        <form method="POST" action="{{ route('tenant.classes.registrations.checkin', ['id' => $reg->id]) }}" style="display:inline">
                           @csrf
                           <button type="submit" class="cl-action-btn" title="Check in">✓</button>
                         </form>
                       @endif
-                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['subdomain' => $sub, 'id' => $reg->id]) }}" style="display:inline" onsubmit="return iaConfirmCancelRegistration(this, event)">
+                      <form method="POST" action="{{ route('tenant.classes.registrations.cancel', ['id' => $reg->id]) }}" style="display:inline" onsubmit="return iaConfirmCancelRegistration(this, event)">
                         @csrf
                         <button type="submit" class="cl-action-btn" title="Cancel" style="color:#EF4444">✕</button>
                       </form>
@@ -239,7 +238,7 @@
           @endif
 
           @if(!in_array($session->status, ['cancelled','completed']))
-            <form method="POST" action="{{ route('tenant.classes.sessions.register', ['subdomain' => $sub, 'id' => $session->id]) }}">
+            <form method="POST" action="{{ route('tenant.classes.sessions.register', ['id' => $session->id]) }}">
               @csrf
               <div class="cl-add-reg-row">
                 <div>
@@ -294,7 +293,7 @@
               ? min(100, round(($session->active_registrations_count / $session->capacity_snapshot) * 100))
               : 0;
             $isFull = $pct >= 100;
-            $showUrl = route('tenant.classes.sessions.show', ['subdomain' => $sub, 'id' => $session->id]);
+            $showUrl = route('tenant.classes.sessions.show', ['id' => $session->id]);
           @endphp
           <a href="{{ $showUrl }}" class="cl-sess-card-m">
             <div class="cl-sess-top-m">

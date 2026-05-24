@@ -5,7 +5,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <div class="ia-text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">
-      <a href="{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}" style="color:inherit;text-decoration:none">← {{ $vendor->name }}</a>
+      <a href="{{ route('tenant.vendors.show', ['id' => $vendor->id]) }}" style="color:inherit;text-decoration:none">← {{ $vendor->name }}</a>
     </div>
     <h1 class="ia-page-title">Edit vendor</h1>
   </div>
@@ -22,7 +22,7 @@
 @endif
 
 <div class="ia-card">
-  <form method="POST" action="{{ route('tenant.vendors.update', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}">
+  <form method="POST" action="{{ route('tenant.vendors.update', ['id' => $vendor->id]) }}">
     @csrf
     @method('PATCH')
 
@@ -79,7 +79,7 @@
     </div>
 
     <div class="ia-card-foot" style="display:flex;gap:8px;justify-content:flex-end">
-      <a href="{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $vendor->id]) }}"
+      <a href="{{ route('tenant.vendors.show', ['id' => $vendor->id]) }}"
          class="ia-btn ia-btn--ghost">Cancel</a>
       <button type="submit" class="ia-btn ia-btn--primary">Save changes</button>
     </div>

@@ -947,7 +947,7 @@
       <p style="font-size:13px;opacity:.6;margin-bottom:14px;line-height:1.55">
         Connect your own domain — like <code style="font-family:var(--ia-font-mono);font-size:12px">{{ $currentTenant->subdomain }}.com</code> — to your Intake site. HTTPS is automatic.
       </p>
-      <a href="{{ route('tenant.domains.index', ['subdomain' => $currentTenant->subdomain]) }}"
+      <a href="{{ route('tenant.domains.index', []) }}"
          class="ia-btn ia-btn-secondary"
          style="display:inline-flex;align-items:center;gap:6px">
         Manage domains →
@@ -982,7 +982,7 @@
           </div>
         </div>
 
-        <a href="{{ route('tenant.billing.portal', ['subdomain' => request()->route('subdomain')]) }}"
+        <a href="{{ route('tenant.billing.portal', []) }}"
            class="ia-btn ia-btn--primary"
            target="_blank" rel="noopener noreferrer">
           Manage billing in Stripe →

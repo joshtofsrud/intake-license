@@ -124,7 +124,7 @@
   </div>
 
   <div class="actions">
-    <a href="{{ route('tenant.onboarding.wizard.identity', ['subdomain' => $tenant->subdomain]) }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ route('tenant.onboarding.wizard.identity', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-continue">Continue → Hours</button>
   </div>
 @endsection
@@ -132,7 +132,7 @@
 @section('scripts')
 <script>
 (function () {
-  const SAVE_URL = @json(route('tenant.onboarding.wizard.booking.save', ['subdomain' => $tenant->subdomain]));
+  const SAVE_URL = @json(route('tenant.onboarding.wizard.booking.save', []));
 
   const cards   = document.querySelectorAll('.mode-card');
   const toggle  = document.getElementById('ob-classes-toggle');

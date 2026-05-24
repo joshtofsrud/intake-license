@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  * Tier-gated by additional_users_enabled — Starter never sees the menu
  * item; if a Starter user navigates directly, the controller redirects.
  *
- * Subdomain trap: every method takes string $subdomain first.
+ * Subdomain trap: every method takes  first.
  */
 class SecurityController extends Controller
 {
@@ -29,7 +29,7 @@ class SecurityController extends Controller
     /**
      * GET /admin/security
      */
-    public function index(string $subdomain, Request $request)
+    public function index(Request $request)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -68,7 +68,7 @@ class SecurityController extends Controller
     /**
      * POST /admin/security/device/{id}/revoke
      */
-    public function revokeDevice(string $subdomain, Request $request, string $deviceId)
+    public function revokeDevice(Request $request, string $deviceId)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -92,7 +92,7 @@ class SecurityController extends Controller
     /**
      * POST /admin/security/devices/revoke-all
      */
-    public function revokeAllDevices(string $subdomain, Request $request)
+    public function revokeAllDevices(Request $request)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();
@@ -112,7 +112,7 @@ class SecurityController extends Controller
      * Note: this chunk only saves; chunk 8.1 wires the reads. Until then
      * the saved values are visible in the form but not yet enforced.
      */
-    public function updateSettings(string $subdomain, Request $request)
+    public function updateSettings(Request $request)
     {
         $tenant = tenant();
         $user = Auth::guard('tenant')->user();

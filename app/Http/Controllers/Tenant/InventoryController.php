@@ -272,7 +272,7 @@ class InventoryController extends Controller
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' created."]);
     }
 
-    public function show(Request $request, string $subdomain, string $id): View
+    public function show(Request $request, string $id): View
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -325,7 +325,7 @@ class InventoryController extends Controller
         ));
     }
 
-    public function edit(string $subdomain, string $id): View
+    public function edit(string $id): View
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -342,7 +342,7 @@ class InventoryController extends Controller
         return view('tenant.inventory.edit', compact('item', 'categories'));
     }
 
-    public function update(Request $request, string $subdomain, string $id): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -410,7 +410,7 @@ class InventoryController extends Controller
      * the v1 reason taxonomy. The InventoryService refuses empty reasons
      * via InvalidQuantityException; we surface that as a validation error.
      */
-    public function adjustStock(Request $request, string $subdomain, string $id): RedirectResponse
+    public function adjustStock(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -457,7 +457,7 @@ class InventoryController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Stock adjusted.']);
     }
 
-    public function destroy(string $subdomain, string $id): RedirectResponse
+    public function destroy(string $id): RedirectResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);

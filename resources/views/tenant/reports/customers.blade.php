@@ -319,7 +319,7 @@
       Find your lapsed customers, identify your most valuable regulars, fix gaps in your customer database. Win-back campaigns start here.
     </p>
     <div class="cta-row">
-      <a class="cta-primary" href="{{ route('tenant.team.index', ['subdomain' => tenant()->subdomain]) }}">
+      <a class="cta-primary" href="{{ route('tenant.team.index', []) }}">
         Upgrade to Branded →
       </a>
       <button type="button" class="cta-secondary" onclick="closeRepUpsell()">Maybe later</button>

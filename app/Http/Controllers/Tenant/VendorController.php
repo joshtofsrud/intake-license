@@ -101,7 +101,7 @@ class VendorController extends Controller
      * pivot, open SOs, and recent receive shipments — all tenant-
      * scoped through the vendor relationship.
      */
-    public function show(Request $request, string $subdomain, string $id): View
+    public function show(Request $request, string $id): View
     {
         $tenant = tenant();
 
@@ -156,7 +156,7 @@ class VendorController extends Controller
         ]);
     }
 
-    public function edit(Request $request, string $subdomain, string $id): View
+    public function edit(Request $request, string $id): View
     {
         $tenant = tenant();
         $vendor = TenantVendor::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -164,7 +164,7 @@ class VendorController extends Controller
         return view('tenant.vendors.edit', compact('vendor'));
     }
 
-    public function update(Request $request, string $subdomain, string $id): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $vendor = TenantVendor::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -172,7 +172,7 @@ class VendorController extends Controller
         $data = $this->validatedPayload($request, $tenant->id, $vendor->id);
         $vendor->update($data);
 
-        return redirect()->route('tenant.vendors.show', ['subdomain' => $subdomain, 'id' => $vendor->id])
+        return redirect()->route('tenant.vendors.show', ['id' => $vendor->id])
             ->with('flash', ['type' => 'success', 'message' => 'Vendor updated.']);
     }
 
@@ -185,7 +185,7 @@ class VendorController extends Controller
      * defends against deleting a vendor with open SOs (see the
      * controller check below).
      */
-    public function destroy(Request $request, string $subdomain, string $id): RedirectResponse
+    public function destroy(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
         $vendor = TenantVendor::where('tenant_id', $tenant->id)->findOrFail($id);
@@ -196,7 +196,7 @@ class VendorController extends Controller
             ->count();
 
         if ($openSoCount > 0) {
-            return redirect()->route('tenant.vendors.show', ['subdomain' => $subdomain, 'id' => $vendor->id])
+            return redirect()->route('tenant.vendors.show', ['id' => $vendor->id])
                 ->with('flash', [
                     'type'    => 'error',
                     'message' => "Cannot delete — {$openSoCount} open special order(s) reference this vendor. Cancel or complete them first.",

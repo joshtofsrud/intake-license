@@ -25,8 +25,7 @@ class DashboardController extends Controller
             $stepSlug = $stepSlugs[$stepNum] ?? 'industry';
 
             return redirect()->route('tenant.onboarding.wizard.' . $stepSlug, [
-                'subdomain' => $tenant->subdomain,
-            ]);
+                ]);
         }
 
         $service = new DashboardDataService($tenant);

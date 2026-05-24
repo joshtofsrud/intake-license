@@ -273,7 +273,7 @@
   var addModal  = document.getElementById('add-modal');
   var editModal = document.getElementById('edit-modal');
   var editForm  = document.getElementById('edit-form');
-  var baseUrl   = "{{ route('tenant.classes.memberships', ['subdomain' => request()->route('subdomain')]) }}";
+  var baseUrl   = "{{ route('tenant.classes.memberships', []) }}";
 
   window.toggleLimitField = function(prefix){
     var type  = document.getElementById(prefix + '-type').value;

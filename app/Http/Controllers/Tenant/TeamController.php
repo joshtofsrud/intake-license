@@ -85,7 +85,7 @@ class TeamController extends Controller
         return back()->with('success', "Team member added. Temporary password: {$tempPassword}");
     }
 
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         $this->requireManager();
         $tenant = tenant();
@@ -132,7 +132,7 @@ class TeamController extends Controller
         return back();
     }
 
-    public function destroy(Request $request, string $subdomain, string $id)
+    public function destroy(Request $request, string $id)
     {
         $this->requireManager();
         $tenant = tenant();

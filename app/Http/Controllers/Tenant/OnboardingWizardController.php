@@ -33,7 +33,7 @@ class OnboardingWizardController extends Controller
 
     /** GET routes */
 
-    public function showIndustry(string $subdomain): View
+    public function showIndustry(): View
     {
         $workflow = session('onboarding_workflow');
         $valid = ['takein', 'booktime', 'class'];
@@ -48,44 +48,44 @@ class OnboardingWizardController extends Controller
         ]);
     }
 
-    public function showIdentity(string $subdomain): View
+    public function showIdentity(): View
     {
         return $this->render('identity', 2);
     }
 
-    public function showBooking(string $subdomain): View
+    public function showBooking(): View
     {
         return $this->render('booking', 3);
     }
 
-    public function showHours(string $subdomain): View
+    public function showHours(): View
     {
         return $this->render('hours', 4);
     }
 
-    public function showServices(string $subdomain): View
+    public function showServices(): View
     {
         return $this->render('services', 5);
     }
 
-    public function showTeam(string $subdomain): View
+    public function showTeam(): View
     {
         return $this->render('team', 6);
     }
 
-    public function showPayment(string $subdomain): View
+    public function showPayment(): View
     {
         return $this->render('payment', 7);
     }
 
-    public function showDone(string $subdomain): View
+    public function showDone(): View
     {
         return $this->render('done', 8);
     }
 
     /** POST routes */
 
-    public function saveIndustry(string $subdomain, Request $request): JsonResponse
+    public function saveIndustry(Request $request): JsonResponse
     {
         // Three payload shapes, handled in priority order.
 
@@ -94,7 +94,7 @@ class OnboardingWizardController extends Controller
             session()->forget('onboarding_workflow');
             return response()->json([
                 'ok' => true,
-                'next_url' => route('tenant.onboarding.wizard.industry', ['subdomain' => $subdomain]),
+                'next_url' => route('tenant.onboarding.wizard.industry', []),
             ]);
         }
 
@@ -106,7 +106,7 @@ class OnboardingWizardController extends Controller
             session(['onboarding_workflow' => $data['workflow']]);
             return response()->json([
                 'ok' => true,
-                'next_url' => route('tenant.onboarding.wizard.industry', ['subdomain' => $subdomain]),
+                'next_url' => route('tenant.onboarding.wizard.industry', []),
             ]);
         }
 
@@ -139,10 +139,10 @@ class OnboardingWizardController extends Controller
         // Clear the session workflow now that industry is locked in.
         session()->forget('onboarding_workflow');
 
-        return $this->stepResponse(1, $subdomain, 'identity');
+        return $this->stepResponse(1, 'identity');
     }
 
-    public function saveIdentity(string $subdomain, Request $request): JsonResponse
+    public function saveIdentity(Request $request): JsonResponse
     {
         $data = $request->validate([
             'name'         => ['required', 'string', 'max:255'],
@@ -165,10 +165,10 @@ class OnboardingWizardController extends Controller
         $update['onboarding_step'] = max(3, tenant()->onboarding_step ?? 0);
         tenant()->update($update);
 
-        return $this->stepResponse(2, $subdomain, 'booking');
+        return $this->stepResponse(2, 'booking');
     }
 
-    public function saveBooking(string $subdomain, Request $request): JsonResponse
+    public function saveBooking(Request $request): JsonResponse
     {
         $data = $request->validate([
             'booking_mode'    => ['required', 'in:time_slots,drop_off'],
@@ -179,10 +179,10 @@ class OnboardingWizardController extends Controller
             'classes_enabled' => $data['classes_enabled'],
             'onboarding_step' => max(4, tenant()->onboarding_step ?? 0),
         ]);
-        return $this->stepResponse(3, $subdomain, 'hours');
+        return $this->stepResponse(3, 'hours');
     }
 
-    public function saveHours(string $subdomain, Request $request): JsonResponse
+    public function saveHours(Request $request): JsonResponse
     {
         $data = $request->validate([
             'hours'                => ['required', 'array', 'min:7', 'max:7'],
@@ -223,10 +223,10 @@ class OnboardingWizardController extends Controller
             'onboarding_step' => max(5, tenant()->onboarding_step ?? 0),
         ]);
 
-        return $this->stepResponse(4, $subdomain, 'services');
+        return $this->stepResponse(4, 'services');
     }
 
-    public function saveServices(string $subdomain, Request $request): JsonResponse
+    public function saveServices(Request $request): JsonResponse
     {
         $data = $request->validate([
             'name'     => ['required', 'string', 'max:100'],
@@ -261,10 +261,10 @@ class OnboardingWizardController extends Controller
             'onboarding_step' => max(6, tenant()->onboarding_step ?? 0),
         ]);
 
-        return $this->stepResponse(5, $subdomain, 'team');
+        return $this->stepResponse(5, 'team');
     }
 
-    public function saveTeam(string $subdomain, Request $request): JsonResponse
+    public function saveTeam(Request $request): JsonResponse
     {
         $data = $request->validate([
             'mode'                 => ['required', 'in:solo,multi'],
@@ -308,10 +308,10 @@ class OnboardingWizardController extends Controller
             'onboarding_step' => max(7, tenant()->onboarding_step ?? 0),
         ]);
 
-        return $this->stepResponse(6, $subdomain, 'payment');
+        return $this->stepResponse(6, 'payment');
     }
 
-    public function savePayment(string $subdomain, Request $request): JsonResponse
+    public function savePayment(Request $request): JsonResponse
     {
         $data = $request->validate([
             'payment_processor' => ['required', 'in:stripe,paypal,square,offline'],
@@ -322,10 +322,10 @@ class OnboardingWizardController extends Controller
             'payment_processor_status' => $isOffline ? 'not_started' : 'intent_recorded',
             'onboarding_step'          => max(8, tenant()->onboarding_step ?? 0),
         ]);
-        return $this->stepResponse(7, $subdomain, 'done');
+        return $this->stepResponse(7, 'done');
     }
 
-    public function complete(string $subdomain, Request $request): JsonResponse
+    public function complete(Request $request): JsonResponse
     {
         tenant()->update([
             'onboarding_status' => 'complete',
@@ -335,7 +335,7 @@ class OnboardingWizardController extends Controller
         return response()->json([
             'ok'       => true,
             'complete' => true,
-            'redirect' => route('tenant.dashboard', ['subdomain' => $subdomain]),
+            'redirect' => route('tenant.dashboard', []),
         ]);
     }
 
@@ -345,7 +345,7 @@ class OnboardingWizardController extends Controller
      * steps 3-6. Lands the user on Booking (step 3) for review since that's
      * the most consequential AI-decided choice.
      */
-    public function saveAiPrefill(string $subdomain, Request $request): JsonResponse
+    public function saveAiPrefill(Request $request): JsonResponse
     {
         $data = $request->validate([
             'description' => ['required', 'string', 'min:10', 'max:1000'],
@@ -377,7 +377,7 @@ class OnboardingWizardController extends Controller
                 'classes_enabled' => $prefill['classes_enabled'],
                 'service_count'   => count($prefill['services']),
             ],
-            'next_url' => route('tenant.onboarding.wizard.booking', ['subdomain' => $subdomain]),
+            'next_url' => route('tenant.onboarding.wizard.booking', []),
         ]);
     }
 
@@ -392,13 +392,13 @@ class OnboardingWizardController extends Controller
         ]);
     }
 
-    private function stepResponse(int $savedStep, string $subdomain, string $nextStep): JsonResponse
+    private function stepResponse(int $savedStep, string $nextStep): JsonResponse
     {
         return response()->json([
             'ok'           => true,
             'saved_step'   => $savedStep,
             'current_step' => tenant()->fresh()->onboarding_step,
-            'next_url'     => route("tenant.onboarding.wizard.{$nextStep}", ['subdomain' => $subdomain]),
+            'next_url'     => route("tenant.onboarding.wizard.{$nextStep}", []),
         ]);
     }
 }

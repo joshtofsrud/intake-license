@@ -132,7 +132,7 @@
   </div>
 
   <div class="actions">
-    <a href="{{ route('tenant.onboarding.wizard.booking', ['subdomain' => $tenant->subdomain]) }}" class="btn btn-ghost">← Back</a>
+    <a href="{{ route('tenant.onboarding.wizard.booking', []) }}" class="btn btn-ghost">← Back</a>
     <button type="button" class="btn btn-primary" id="ob-continue">Continue → Services</button>
   </div>
 @endsection
@@ -140,7 +140,7 @@
 @section('scripts')
 <script>
 (function () {
-  const SAVE_URL = @json(route('tenant.onboarding.wizard.hours.save', ['subdomain' => $tenant->subdomain]));
+  const SAVE_URL = @json(route('tenant.onboarding.wizard.hours.save', []));
 
   const errBox = document.getElementById('ob-error');
   const cont   = document.getElementById('ob-continue');

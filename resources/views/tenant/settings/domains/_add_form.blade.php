@@ -1,5 +1,5 @@
 {{-- Shared add-domain form. Used by empty-state pitch and active-state card. --}}
-<form method="POST" action="{{ route('tenant.domains.store', ['subdomain' => $tenant->subdomain]) }}">
+<form method="POST" action="{{ route('tenant.domains.store', []) }}">
   @csrf
   <div class="dm-form-inline">
     <div>

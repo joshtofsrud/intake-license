@@ -21,7 +21,7 @@ class AddonController extends Controller
     // ================================================================
     // UPDATE — PATCH /addons/{id}
     // ================================================================
-    public function update(Request $request, string $subdomain, string $id)
+    public function update(Request $request, string $id)
     {
         return $this->handleOp($request, $id);
     }
@@ -29,7 +29,7 @@ class AddonController extends Controller
     // ================================================================
     // DESTROY — DELETE /addons/{id}
     // ================================================================
-    public function destroy(Request $request, string $subdomain, string $id)
+    public function destroy(Request $request, string $id)
     {
         $tenant = tenant();
 

@@ -32,7 +32,7 @@ class DomainController extends Controller
      * Lists all domains the tenant has registered. Includes the subdomain
      * (default, always present, never editable) plus any custom domains.
      */
-    public function index(string $subdomain): View
+    public function index(): View
     {
         $tenant = $this->getTenant();
 
@@ -55,7 +55,7 @@ class DomainController extends Controller
      * Adds a new domain. Validates against per-tier limit before calling
      * the provisioning service.
      */
-    public function store(Request $request, string $subdomain): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         $tenant = $this->getTenant();
 
@@ -71,7 +71,7 @@ class DomainController extends Controller
         $limit = $this->limitForTenant($tenant);
         if ($limit !== null && $current >= $limit) {
             return redirect()
-                ->route('tenant.domains.index', ['subdomain' => $subdomain])
+                ->route('tenant.domains.index', [])
                 ->withErrors([
                     'hostname' => "You're using all {$limit} of your domain slots. "
                         . "Upgrade your plan to add more.",
@@ -117,7 +117,7 @@ class DomainController extends Controller
         }
 
         return redirect()
-            ->route('tenant.domains.index', ['subdomain' => $subdomain])
+            ->route('tenant.domains.index', [])
             ->with('success', "Added {$hostname}. Add the DNS records to finish setup.");
     }
 
@@ -126,7 +126,7 @@ class DomainController extends Controller
      *
      * Detail page showing DNS records, status, and recent state.
      */
-    public function show(string $subdomain, string $id): View
+    public function show(string $id): View
     {
         $tenant = $this->getTenant();
 
@@ -161,7 +161,7 @@ class DomainController extends Controller
      *
      * Removes a domain. Tears down CF hostname + deletes local row.
      */
-    public function destroy(string $subdomain, string $id): RedirectResponse
+    public function destroy(string $id): RedirectResponse
     {
         $tenant = $this->getTenant();
 
@@ -173,7 +173,7 @@ class DomainController extends Controller
         $this->provisioning->remove($domain);
 
         return redirect()
-            ->route('tenant.domains.index', ['subdomain' => $subdomain])
+            ->route('tenant.domains.index', [])
             ->with('success', "Removed {$hostname}.");
     }
 
@@ -183,7 +183,7 @@ class DomainController extends Controller
      * Manual "check now" — pulls latest from Cloudflare and re-renders.
      * Returns JSON so the page can update without a full reload.
      */
-    public function sync(string $subdomain, string $id): JsonResponse
+    public function sync(string $id): JsonResponse
     {
         $tenant = $this->getTenant();
 

@@ -12,7 +12,7 @@
     <h2 id="rep-upsell-title">{{ $title ?? 'Reports' }}</h2>
     <p>{{ $pitch ?? 'Upgrade to Branded to unlock the full reports tier.' }}</p>
     <div class="cta-row">
-      <a class="cta-primary" href="{{ route('tenant.team.index', ['subdomain' => tenant()->subdomain]) }}">Upgrade to Branded →</a>
+      <a class="cta-primary" href="{{ route('tenant.team.index', []) }}">Upgrade to Branded →</a>
       <button type="button" class="cta-secondary" onclick="closeRepUpsell()">Maybe later</button>
     </div>
   </div>

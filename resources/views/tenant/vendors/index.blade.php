@@ -153,7 +153,7 @@
       </thead>
       <tbody>
         @foreach($vendors as $v)
-          <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $v->id]) }}'">
+          <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.vendors.show', ['id' => $v->id]) }}'">
             <td>
               <strong>{{ $v->name }}</strong>
               @if(!$v->is_active)
@@ -194,7 +194,7 @@
   {{-- Mobile cards --}}
   <div class="vendor-mobile-only vendor-cards">
     @foreach($vendors as $v)
-      <a href="{{ route('tenant.vendors.show', ['subdomain' => tenant()->subdomain, 'id' => $v->id]) }}"
+      <a href="{{ route('tenant.vendors.show', ['id' => $v->id]) }}"
          class="vendor-card">
         <div class="vendor-card-top">
           <span class="vendor-card-name">{{ $v->name }}</span>

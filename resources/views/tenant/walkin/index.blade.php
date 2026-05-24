@@ -639,7 +639,7 @@
     </div>
 
     @if(count($services) === 0)
-      <div class="wi-empty">No active services. Add one in <a href="{{ route('tenant.services.index', ['subdomain' => $tenant->subdomain]) }}" style="color:var(--ia-accent,#BEF264)">Services</a>.</div>
+      <div class="wi-empty">No active services. Add one in <a href="{{ route('tenant.services.index', []) }}" style="color:var(--ia-accent,#BEF264)">Services</a>.</div>
     @else
       @foreach($services as $svc)
         <div class="wi-svc-row" data-svc='@json($svc)'>
