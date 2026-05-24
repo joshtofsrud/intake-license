@@ -19,6 +19,8 @@ use App\Filament\Widgets\PlatformStatsWidget;
 use App\Filament\Widgets\CustomDomainsStatsWidget;  // MARKER-PATCH-119
 use App\Filament\Widgets\ServerHealthWidget;
 use App\Filament\Widgets\StatsOverview;
+use App\Filament\Widgets\OperationalHealthWidget;  // MARKER-PATCH-132
+use App\Filament\Widgets\WpPluginStatsWidget;       // MARKER-PATCH-132
 use App\Filament\Pages\ThemeEditor;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -68,7 +70,9 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->widgets([
                 ServerHealthWidget::class,
+                OperationalHealthWidget::class,  // MARKER-PATCH-132
                 PlatformStatsWidget::class,
+                WpPluginStatsWidget::class,       // MARKER-PATCH-132
                 CustomDomainsStatsWidget::class,  // MARKER-PATCH-119
                 StatsOverview::class,
                 DebugLogHeaderStats::class,

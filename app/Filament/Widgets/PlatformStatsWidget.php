@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Tenant;
-use App\Models\Activation;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -30,8 +29,7 @@ class PlatformStatsWidget extends BaseWidget
                 return $carry + ($cnt * (($plans[$tier] ?? 0) / 100));
             }, 0);
 
-        $freeInstalls = Activation::whereNull('license_id')->count();
-        $premiumSites = Activation::whereNotNull('license_id')->count();
+        // MARKER-PATCH-132 — WP installs moved to WpPluginStatsWidget.
 
         return [
             Stat::make('Total tenants', number_format($totalTenants))
@@ -39,16 +37,16 @@ class PlatformStatsWidget extends BaseWidget
                 ->color('success'),
 
             Stat::make('Active (onboarded)', number_format($active))
-                ->description($trials . ' in trial')
-                ->color('primary'),
+                ->description('paying or in onboarding')
+                ->color('success'),
+
+            Stat::make('In trial', number_format($trials))
+                ->description('within 14-day window')
+                ->color($trials > 0 ? 'warning' : 'gray'),
 
             Stat::make('Est. MRR', '$' . number_format($mrr))
-                ->description('From active plans')
-                ->color('warning'),
-
-            Stat::make('WP installs', number_format($freeInstalls + $premiumSites))
-                ->description($premiumSites . ' premium · ' . $freeInstalls . ' free')
-                ->color('gray'),
+                ->description('from active plans')
+                ->color('success'),
         ];
     }
 }
