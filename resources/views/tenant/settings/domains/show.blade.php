@@ -157,40 +157,81 @@
   </div>
 @endif
 
-{{-- ───────────── DNS RECORDS (always visible until active) ───────────── --}}
-@if(in_array($statusKey, ['pending_dns', 'error']))
-  <div class="ia-card" style="margin-bottom:16px">
-    <div class="ia-card-head">
-      <span class="ia-card-title">Add these records at your registrar</span>
-    </div>
-    <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:12px;line-height:1.55">
-      Wherever you bought <code style="font-family:var(--ia-font-mono,monospace)">{{ $domain->hostname }}</code> — GoDaddy, Cloudflare, Namecheap, etc.
-    </p>
+{{-- ───────────── DNS RECORDS (MARKER-DNS-HOTFIX — always visible, state-aware framing) ───────────── --}}
+@if($statusKey !== 'suspended')
+  @php
+    // State-aware presentation:
+    //   - prominent      → tenant needs to act (pending_dns, error)
+    //   - reference      → setup in progress; tenant can sanity-check (verifying, issuing_cert)
+    //   - collapsed      → already working; keep visible for reference but de-emphasized (active)
+    $dnsPresentation = match($statusKey) {
+      'pending_dns', 'error' => 'prominent',
+      'verifying', 'issuing_cert' => 'reference',
+      'active' => 'collapsed',
+      default => 'reference',
+    };
+  @endphp
 
-    <div class="ds-dns">
-      <div class="ds-dns-row head">
-        <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
+  @if($dnsPresentation === 'collapsed')
+    <details class="ia-card" style="margin-bottom:16px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--ia-text-3,#888);font-weight:600">
+        DNS records on file <span style="font-weight:400;opacity:.7">— keep these in place to stay live</span>
+      </summary>
+      <div style="padding:14px 0 0">
+  @else
+    <div class="ia-card" style="margin-bottom:16px">
+      <div class="ia-card-head">
+        <span class="ia-card-title">
+          @if($dnsPresentation === 'prominent')
+            Add these records at your registrar
+          @else
+            DNS records (for reference)
+          @endif
+        </span>
       </div>
-      <div class="ds-dns-row">
-        <div><span class="dm-pill verifying" style="padding:2px 8px">TXT</span></div>
-        <div class="ds-dns-mono ds-dns-value">{{ $domain->verificationRecordName() }}</div>
-        <div class="ds-dns-mono ds-dns-value">{{ $domain->verificationRecordValue() }}</div>
-        <button type="button" class="ds-copy-btn" data-copy="{{ $domain->verificationRecordValue() }}">Copy</button>
-      </div>
-      <div class="ds-dns-row">
-        <div><span class="dm-pill verifying" style="padding:2px 8px">CNAME</span></div>
-        <div class="ds-dns-mono ds-dns-value">{{ $domain->hostname }}</div>
-        <div class="ds-dns-mono ds-dns-value">{{ $cnameTarget }}</div>
-        <button type="button" class="ds-copy-btn" data-copy="{{ $cnameTarget }}">Copy</button>
-      </div>
-    </div>
+      @if($dnsPresentation === 'prominent')
+        <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:12px;line-height:1.55">
+          Wherever you bought <code style="font-family:var(--ia-font-mono,monospace)">{{ $domain->hostname }}</code> — GoDaddy, Cloudflare, Namecheap, etc.
+        </p>
+      @else
+        <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:12px;line-height:1.55">
+          We detected the records below on <code style="font-family:var(--ia-font-mono,monospace)">{{ $domain->hostname }}</code>. Keep them in place — if any are removed, your domain will stop serving customers.
+        </p>
+      @endif
+  @endif
 
-    <p style="font-size:12px;color:var(--ia-text-3,#888);margin-top:14px;line-height:1.55">
-      <strong style="color:#F59E0B">Apex domain note:</strong> Some registrars don't allow CNAME on the root domain.
-      If yours doesn't, use a CNAME flattening feature (Cloudflare's default, or "ANAME" / "ALIAS" records elsewhere),
-      or use a subdomain like <code style="font-family:var(--ia-font-mono,monospace)">www.{{ $domain->hostname }}</code>.
-    </p>
-  </div>
+      <div class="ds-dns">
+        <div class="ds-dns-row head">
+          <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
+        </div>
+        <div class="ds-dns-row">
+          <div><span class="dm-pill verifying" style="padding:2px 8px">TXT</span></div>
+          <div class="ds-dns-mono ds-dns-value">{{ $domain->verificationRecordName() }}</div>
+          <div class="ds-dns-mono ds-dns-value">{{ $domain->verificationRecordValue() }}</div>
+          <button type="button" class="ds-copy-btn" data-copy="{{ $domain->verificationRecordValue() }}">Copy</button>
+        </div>
+        <div class="ds-dns-row">
+          <div><span class="dm-pill verifying" style="padding:2px 8px">CNAME</span></div>
+          <div class="ds-dns-mono ds-dns-value">{{ $domain->hostname }}</div>
+          <div class="ds-dns-mono ds-dns-value">{{ $cnameTarget }}</div>
+          <button type="button" class="ds-copy-btn" data-copy="{{ $cnameTarget }}">Copy</button>
+        </div>
+      </div>
+
+      @if($dnsPresentation === 'prominent')
+        <p style="font-size:12px;color:var(--ia-text-3,#888);margin-top:14px;line-height:1.55">
+          <strong style="color:#F59E0B">Apex domain note:</strong> Some registrars don't allow CNAME on the root domain.
+          If yours doesn't, use a CNAME flattening feature (Cloudflare's default, or "ANAME" / "ALIAS" records elsewhere),
+          or use a subdomain like <code style="font-family:var(--ia-font-mono,monospace)">www.{{ $domain->hostname }}</code>.
+        </p>
+      @endif
+
+  @if($dnsPresentation === 'collapsed')
+      </div>
+    </details>
+  @else
+    </div>
+  @endif
 @endif
 
 {{-- ───────────── PROGRESS STEPS (during verifying/issuing) ───────────── --}}
