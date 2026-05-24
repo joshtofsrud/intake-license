@@ -76,6 +76,11 @@ class DomainProvisioningService
                 'cloudflare_hostname_id' => $cfResult['id'],
                 'last_check_at'          => now(),
                 'last_check_status'      => 'created',
+                // MARKER-PATCH-125 — persist gate-2 validation records emitted
+                // at hostname creation time so the tenant sees them immediately.
+                'cf_validation_records'     => $cfResult['ssl_validation_records']     ?: null,
+                'cf_dcv_delegation_records' => $cfResult['ssl_dcv_delegation_records'] ?: null,
+                'cf_validation_synced_at'   => now(),
             ]);
             $domain->save();
 
@@ -120,6 +125,12 @@ class DomainProvisioningService
         $updates = [
             'last_check_at'     => now(),
             'last_check_status' => $cfData['status'] ?? 'unknown',
+            // MARKER-PATCH-125 — refresh gate-2 records on every sync.
+            // CF rotates these around renewals, so we want the freshest set
+            // surfaced on the show view.
+            'cf_validation_records'     => ($cfData['ssl_validation_records']     ?? []) ?: null,
+            'cf_dcv_delegation_records' => ($cfData['ssl_dcv_delegation_records'] ?? []) ?: null,
+            'cf_validation_synced_at'   => now(),
         ];
 
         if ($newStatus !== $previousStatus) {

@@ -91,12 +91,18 @@ class CloudflareForSaasService
         $response = $this->request('POST', "zones/{$this->zoneId}/custom_hostnames", $payload);
 
         $result = $response['result'] ?? [];
+        $ssl    = (array) ($result['ssl'] ?? []);
         return [
-            'id'                     => (string) ($result['id'] ?? ''),
-            'hostname'               => (string) ($result['hostname'] ?? $hostname),
-            'status'                 => (string) ($result['status'] ?? 'pending'),
-            'ownership_verification' => (array) ($result['ownership_verification'] ?? []),
-            'raw'                    => $result,
+            'id'                         => (string) ($result['id'] ?? ''),
+            'hostname'                   => (string) ($result['hostname'] ?? $hostname),
+            'status'                     => (string) ($result['status'] ?? 'pending'),
+            'ownership_verification'     => (array) ($result['ownership_verification'] ?? []),
+            // MARKER-PATCH-125 — gate-2 (cert authority) validation records.
+            // Returned even on first create when CF needs the tenant to prove
+            // ownership to the CA before issuing the cert.
+            'ssl_validation_records'     => (array) ($ssl['validation_records'] ?? []),
+            'ssl_dcv_delegation_records' => (array) ($ssl['dcv_delegation_records'] ?? []),
+            'raw'                        => $result,
         ];
     }
 
@@ -118,12 +124,19 @@ class CloudflareForSaasService
         $response = $this->request('GET', "zones/{$this->zoneId}/custom_hostnames/{$cfHostnameId}");
 
         $result = $response['result'] ?? [];
+        $ssl    = (array) ($result['ssl'] ?? []);
         return [
-            'id'       => (string) ($result['id'] ?? ''),
-            'hostname' => (string) ($result['hostname'] ?? ''),
-            'status'   => (string) ($result['status'] ?? ''),
-            'ssl'      => (array) ($result['ssl'] ?? []),
-            'raw'      => $result,
+            'id'                         => (string) ($result['id'] ?? ''),
+            'hostname'                   => (string) ($result['hostname'] ?? ''),
+            'status'                     => (string) ($result['status'] ?? ''),
+            'ssl'                        => $ssl,
+            // MARKER-PATCH-125 — gate-2 (cert authority) validation records.
+            // CF re-emits these whenever the cert is in pending_validation
+            // or near renewal; persisted on every sync so the show view can
+            // surface the latest set.
+            'ssl_validation_records'     => (array) ($ssl['validation_records'] ?? []),
+            'ssl_dcv_delegation_records' => (array) ($ssl['dcv_delegation_records'] ?? []),
+            'raw'                        => $result,
         ];
     }
 

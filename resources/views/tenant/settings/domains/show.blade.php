@@ -234,6 +234,84 @@
   @endif
 @endif
 
+{{-- ───────────── CERT VALIDATION (MARKER-PATCH-125) ───────────── --}}
+{{-- Cloudflare for SaaS gate-2 records. Cert can't issue until tenant adds these. --}}
+@php
+  $preferredDcv = $domain->preferredDcvRecord();
+  $txtFallback  = $domain->dcvTxtFallbackRecord();
+  $showCertVal  = $preferredDcv !== null
+                  && in_array($statusKey, ['pending_dns','verifying','issuing_cert','active'], true);
+  $certValMode  = $statusKey === 'active' ? 'collapsed' : 'prominent';
+@endphp
+
+@if($showCertVal)
+  @if($certValMode === 'collapsed')
+    <details class="ia-card" style="margin-bottom:16px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--ia-text-3,#888);font-weight:600">
+        Cert validation records <span style="font-weight:400;opacity:.7">— required for automatic cert renewal</span>
+      </summary>
+      <div style="padding:14px 0 0">
+  @else
+    <div class="ia-card" style="margin-bottom:16px">
+      <div class="ia-card-head">
+        <span class="ia-card-title">
+          @if($preferredDcv['type'] === 'CNAME')
+            One more record — handles cert renewals automatically
+          @else
+            One more record — required to issue your HTTPS cert
+          @endif
+        </span>
+      </div>
+      <p style="font-size:12.5px;color:var(--ia-text-3,#888);margin-bottom:12px;line-height:1.55">
+        @if($preferredDcv['type'] === 'CNAME')
+          This record lets the cert authority validate your domain. Adding the CNAME version (below) is preferred — it's set-and-forget and renews on its own.
+        @else
+          Add this TXT record so the cert authority can validate your domain. The value rotates at every cert renewal — we'll prompt you when it changes.
+        @endif
+      </p>
+  @endif
+
+      <div class="ds-dns">
+        <div class="ds-dns-row head">
+          <div>Type</div><div>Name / Host</div><div>Value</div><div></div>
+        </div>
+        <div class="ds-dns-row">
+          <div><span class="dm-pill verifying" style="padding:2px 8px">{{ $preferredDcv['type'] }}</span></div>
+          <div class="ds-dns-mono ds-dns-value">{{ $preferredDcv['name'] }}</div>
+          <div class="ds-dns-mono ds-dns-value">{{ $preferredDcv['value'] }}</div>
+          <button type="button" class="ds-copy-btn" data-copy="{{ $preferredDcv['value'] }}">Copy</button>
+        </div>
+      </div>
+
+      @if($preferredDcv['type'] === 'CNAME' && $txtFallback && $certValMode !== 'collapsed')
+        <details style="margin-top:12px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--ia-text-3,#888)">
+            Can't add a CNAME under <code style="font-family:var(--ia-font-mono,monospace)">_acme-challenge</code>? Use the TXT alternative.
+          </summary>
+          <div style="margin-top:10px">
+            <p style="font-size:11.5px;color:var(--ia-text-3,#888);margin-bottom:8px;line-height:1.55">
+              Some registrars don't permit CNAMEs at this subdomain. The TXT version works but its value changes at every cert renewal (about every 90 days) — you'll need to update it manually each time.
+            </p>
+            <div class="ds-dns">
+              <div class="ds-dns-row">
+                <div><span class="dm-pill verifying" style="padding:2px 8px">{{ $txtFallback['type'] }}</span></div>
+                <div class="ds-dns-mono ds-dns-value">{{ $txtFallback['name'] }}</div>
+                <div class="ds-dns-mono ds-dns-value">{{ $txtFallback['value'] }}</div>
+                <button type="button" class="ds-copy-btn" data-copy="{{ $txtFallback['value'] }}">Copy</button>
+              </div>
+            </div>
+          </div>
+        </details>
+      @endif
+
+  @if($certValMode === 'collapsed')
+      </div>
+    </details>
+  @else
+    </div>
+  @endif
+@endif
+
 {{-- ───────────── PROGRESS STEPS (during verifying/issuing) ───────────── --}}
 @if(in_array($statusKey, ['verifying', 'issuing_cert']))
   <div class="ia-card" style="margin-bottom:16px">

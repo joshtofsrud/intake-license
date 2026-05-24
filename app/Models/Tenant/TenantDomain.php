@@ -36,6 +36,10 @@ class TenantDomain extends Model
         'status',
         'verification_token',
         'cloudflare_hostname_id',
+        // MARKER-PATCH-125
+        'cf_validation_records',
+        'cf_dcv_delegation_records',
+        'cf_validation_synced_at',
         'last_check_at',
         'last_check_status',
         'last_error_code',
@@ -47,11 +51,15 @@ class TenantDomain extends Model
     ];
 
     protected $casts = [
-        'is_primary'    => 'boolean',
-        'last_check_at' => 'datetime',
-        'verified_at'   => 'datetime',
-        'activated_at'  => 'datetime',
-        'suspended_at'  => 'datetime',
+        'is_primary'                 => 'boolean',
+        'last_check_at'              => 'datetime',
+        'verified_at'                => 'datetime',
+        'activated_at'               => 'datetime',
+        'suspended_at'               => 'datetime',
+        // MARKER-PATCH-125
+        'cf_validation_records'      => 'array',
+        'cf_dcv_delegation_records'  => 'array',
+        'cf_validation_synced_at'    => 'datetime',
     ];
 
     // ── Relationships ──────────────────────────────────────────────────────
@@ -82,6 +90,17 @@ class TenantDomain extends Model
         ]);
     }
 
+    /**
+     * MARKER-PATCH-125 — domains stuck mid-validation for over 24 hours.
+     * Almost always means the tenant added Intake's records but missed
+     * Cloudflare's gate-2 DCV records, leaving the cert unable to issue.
+     */
+    public function scopeStuckVerifying($query)
+    {
+        return $query->whereIn('status', ['verifying', 'issuing_cert'])
+            ->where('updated_at', '<', now()->subHours(24));
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     /**
@@ -106,5 +125,54 @@ class TenantDomain extends Model
     public function isLive(): bool
     {
         return $this->status === 'active';
+    }
+
+    /**
+     * MARKER-PATCH-125 — preferred CF DCV record for the UI.
+     * Returns ['type' => 'CNAME'|'TXT', 'name' => ..., 'value' => ...] or null.
+     *
+     * CNAME delegation is preferred — single record, no rotation on renewal.
+     * TXT fallback works but the value rotates at every cert renewal and
+     * the tenant must manually update it.
+     */
+    public function preferredDcvRecord(): ?array
+    {
+        $delegation = $this->cf_dcv_delegation_records ?? [];
+        if (!empty($delegation) && !empty($delegation[0]['cname'])) {
+            return [
+                'type'  => 'CNAME',
+                'name'  => $delegation[0]['cname'],
+                'value' => $delegation[0]['cname_target'] ?? '',
+            ];
+        }
+
+        $validation = $this->cf_validation_records ?? [];
+        if (!empty($validation) && !empty($validation[0]['txt_name'])) {
+            return [
+                'type'  => 'TXT',
+                'name'  => $validation[0]['txt_name'],
+                'value' => $validation[0]['txt_value'] ?? '',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * MARKER-PATCH-125 — TXT fallback record when CNAME delegation is shown
+     * as the primary recommendation. Returns the same shape as
+     * preferredDcvRecord(), or null when no TXT fallback is available.
+     */
+    public function dcvTxtFallbackRecord(): ?array
+    {
+        $validation = $this->cf_validation_records ?? [];
+        if (!empty($validation) && !empty($validation[0]['txt_name'])) {
+            return [
+                'type'  => 'TXT',
+                'name'  => $validation[0]['txt_name'],
+                'value' => $validation[0]['txt_value'] ?? '',
+            ];
+        }
+        return null;
     }
 }

@@ -177,6 +177,12 @@ class TenantDomainResource extends Resource
                         ->where('last_check_at', '<=', now()->subHours(24)))
                     ->toggle(),
 
+                // MARKER-PATCH-125
+                Tables\Filters\Filter::make('stuck_verifying')
+                    ->label('Stuck in verifying/issuing >24h')
+                    ->query(fn (Builder $q) => $q->stuckVerifying())
+                    ->toggle(),
+
                 Tables\Filters\Filter::make('is_primary')
                     ->label('Primary only')
                     ->query(fn (Builder $q) => $q->where('is_primary', true))
