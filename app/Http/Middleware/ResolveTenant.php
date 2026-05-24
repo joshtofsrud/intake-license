@@ -88,6 +88,39 @@ class ResolveTenant
         }
 
         // ----------------------------------------------------------------
+        // MARKER-PATCH-124 — Subdomain vs custom-domain enforcement
+        //
+        // Determine which match path produced the tenant. This drives two
+        // behaviours below: admin redirect on custom domain, and the
+        // session cookie Domain attribute.
+        // ----------------------------------------------------------------
+        $matchedViaSubdomain = str_ends_with($host, '.' . $rootDomain)
+            && $tenant->subdomain === substr($host, 0, strlen($host) - strlen('.' . $rootDomain));
+
+        // Admin is anchored to the tenant subdomain so that the master
+        // admin's impersonation cookie (scoped to .intake.works) remains
+        // valid. A custom-domain hit on /admin/* is redirected to the
+        // canonical subdomain URL.
+        if (! $matchedViaSubdomain && str_starts_with($request->path(), 'admin')) {
+            $target = 'https://' . $tenant->subdomain . '.' . $rootDomain
+                    . '/' . $request->path();
+            if ($qs = $request->getQueryString()) {
+                $target .= '?' . $qs;
+            }
+            return redirect($target, 301);
+        }
+
+        // Session cookie scoping. SESSION_DOMAIN=.intake.works in .env is
+        // the default for subdomain requests (enables cross-subdomain
+        // impersonation). On custom-domain requests we clear it so the
+        // browser issues a host-only cookie — required because a cookie
+        // with Domain=.intake.works cannot be set from a different
+        // registrable domain (RFC 6265 §5.3 step 6).
+        if (! $matchedViaSubdomain) {
+            config(['session.domain' => null]);
+        }
+
+        // ----------------------------------------------------------------
         // Bind tenant into the application
         // ----------------------------------------------------------------
         app()->instance('tenant', $tenant);
@@ -97,9 +130,6 @@ class ResolveTenant
 
         // Tag the request so controllers/middleware can access it easily
         $request->attributes->set('tenant', $tenant);
-
-        // MARKER-PATCH-123 — URL::defaults / route setParameter no longer
-        // needed: routes no longer carry a {subdomain} placeholder.
 
         return $next($request);
     }
