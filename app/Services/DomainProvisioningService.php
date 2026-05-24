@@ -125,13 +125,25 @@ class DomainProvisioningService
         $updates = [
             'last_check_at'     => now(),
             'last_check_status' => $cfData['status'] ?? 'unknown',
-            // MARKER-PATCH-125 — refresh gate-2 records on every sync.
-            // CF rotates these around renewals, so we want the freshest set
-            // surfaced on the show view.
-            'cf_validation_records'     => ($cfData['ssl_validation_records']     ?? []) ?: null,
-            'cf_dcv_delegation_records' => ($cfData['ssl_dcv_delegation_records'] ?? []) ?: null,
-            'cf_validation_synced_at'   => now(),
         ];
+
+        // MARKER-PATCH-126 — preserve captured DCV records across the
+        // cert-active transition. CF returns ssl.validation_records /
+        // ssl.dcv_delegation_records only while validating; once
+        // ssl.status flips to 'active' they disappear from the response.
+        // Persist only when CF actually returned non-empty values so the
+        // last-captured set stays available in the UI's collapsed
+        // "DNS records on file" section indefinitely.
+        $newValidation  = $cfData['ssl_validation_records']     ?? [];
+        $newDelegation  = $cfData['ssl_dcv_delegation_records'] ?? [];
+        if (!empty($newValidation)) {
+            $updates['cf_validation_records']   = $newValidation;
+            $updates['cf_validation_synced_at'] = now();
+        }
+        if (!empty($newDelegation)) {
+            $updates['cf_dcv_delegation_records'] = $newDelegation;
+            $updates['cf_validation_synced_at']   = now();
+        }
 
         if ($newStatus !== $previousStatus) {
             $updates['status'] = $newStatus;
