@@ -251,8 +251,13 @@
         <div class="pd-biz-lbl">Total tenants</div>
         <div class="pd-biz-num">{{ $saas['totalTenants'] }} <small>{{ $saas['newThisWeek'] }} new this week</small></div>
         <div class="pd-biz-delta">
-          @if($saas['weekDelta'] > 0)<b>+{{ $saas['weekDelta'] }}%</b>@elseif($saas['weekDelta'] < 0)<b class="down">{{ $saas['weekDelta'] }}%</b>@else flat@endif
-          vs last week
+          {{-- MARKER-PATCH-136 — trend rendered from controller-computed tone --}}
+          @if($saas['weekTrend'] === 'flat')
+            flat vs last week
+          @else
+            <b class="{{ $saas['weekTrend'] === 'down' ? 'down' : '' }}">{{ $saas['weekDeltaLabel'] }}</b>
+            vs last week
+          @endif
         </div>
         @php
           $max = max(max($saas['weekly']), 1);

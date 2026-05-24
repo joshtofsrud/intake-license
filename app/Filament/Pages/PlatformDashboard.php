@@ -322,8 +322,11 @@ class PlatformDashboard extends Page
         $newThisWeek  = Tenant::where('created_at', '>=', now()->subDays(7))->count();
         $newLastWeek  = Tenant::whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
         $weekDelta    = $newLastWeek > 0
-            ? round((($newThisWeek - $newLastWeek) / $newLastWeek) * 100)
+            ? (int) round((($newThisWeek - $newLastWeek) / $newLastWeek) * 100)
             : ($newThisWeek > 0 ? 100 : 0);
+        // MARKER-PATCH-136 — precompute trend so the view doesn't need inline @elseif comparisons.
+        $weekTrend       = $weekDelta > 0 ? 'up' : ($weekDelta < 0 ? 'down' : 'flat');
+        $weekDeltaLabel  = $weekDelta > 0 ? "+{$weekDelta}%" : ($weekDelta < 0 ? "{$weekDelta}%" : 'flat');
 
         // MRR estimate
         $plans = config('intake.plan_prices') ?? [];
@@ -346,6 +349,8 @@ class PlatformDashboard extends Page
             'totalTenants'      => $totalTenants,
             'newThisWeek'       => $newThisWeek,
             'weekDelta'         => $weekDelta,
+            'weekTrend'         => $weekTrend,        // MARKER-PATCH-136
+            'weekDeltaLabel'    => $weekDeltaLabel,   // MARKER-PATCH-136
             'mrr'               => $mrr,
             'paidCount'         => $paidTenants->count(),
             'inTrial'           => $inTrial,
