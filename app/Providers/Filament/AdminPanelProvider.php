@@ -63,7 +63,8 @@ class AdminPanelProvider extends PanelProvider
                 DebugLogResource::class,
             ])
             ->pages([
-                Pages\Dashboard::class,
+                // MARKER-PATCH-135 — custom dashboard replaces Pages\Dashboard
+                \App\Filament\Pages\PlatformDashboard::class,
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
