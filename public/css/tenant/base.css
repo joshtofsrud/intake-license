@@ -27,6 +27,30 @@
 }
 
 /* --------------------------------------------------------------------------
+   MARKER-PATCH-128 — Legacy token aliases
+
+   These tokens are used in ~180 places across views and CSS but were
+   never defined. CSS was either falling back to author-supplied inline
+   hex codes (which varied file to file) or inheriting parent colour
+   (effectively invisible). Aliasing each one to its canonical
+   equivalent normalises the rendering across every surface.
+
+   Do not remove until a follow-up patch sweeps the view files to use
+   the canonical token names directly.
+   -------------------------------------------------------------------------- */
+:root {
+  --ia-text-2:    var(--ia-text-muted);
+  --ia-text-3:    var(--ia-text-dim);
+  --ia-text-4:    var(--ia-text-dim);
+  --ia-muted:     var(--ia-text-muted);
+  --ia-dim:       var(--ia-text-dim);
+  --ia-border-2:  var(--ia-border-strong);
+  --ia-border2:   var(--ia-border-strong);
+  --ia-surface-1: var(--ia-surface);
+  --ia-surface-3: var(--ia-surface-2);
+}
+
+/* --------------------------------------------------------------------------
    Reset
    -------------------------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -10,7 +10,8 @@
 <style>
   .ds-page-head { padding-bottom:16px; border-bottom:1px solid var(--ia-border); margin-bottom:24px; display:flex; justify-content:space-between; align-items:flex-end; }
   .ds-crumb { font-size:11px; color:var(--ia-text-4,#555); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
-  .ds-title { font-size:22px; font-weight:800; letter-spacing:-0.02em; font-family:var(--ia-font-mono,monospace); }
+  /* MARKER-PATCH-128 — mono reserved for code/data; titles inherit Inter from body. Weight reduced to 600 because Inter is only loaded in 400/500/600 (heavier renders synthetic). */
+  .ds-title { font-size:22px; font-weight:600; letter-spacing:-0.01em; }
   .ds-sub { font-size:13px; color:var(--ia-text-3,#888); margin-top:4px; }
   .ds-sub.error { color:#F87171; }
 
