@@ -103,12 +103,27 @@ Route::domain('app.' . $domain)->group(function () {
 });
 
 // =========================================================================
-// Tenant routes — {slug}.intake.works
+// Tenant routes — TWO-TRACK REGISTRATION (MARKER-PATCH-121)
+//
+// All tenant-facing routes are defined once inside the $tenantRoutes
+// closure, then registered TWICE:
+//
+//   1. Subdomain track: matches {slug}.intake.works
+//      - URL helper produces correct absolute URLs via {subdomain} placeholder
+//      - Existing behavior preserved bit-for-bit
+//
+//   2. Custom-domain track: matches any host the subdomain track didn't
+//      - ResolveTenant middleware identifies the tenant from
+//        tenant_domains.hostname
+//      - Unknown hosts 404 cleanly via middleware abort
+//
+// Both tracks share the same controllers and middleware stack.
+// Route names are identical across both tracks; Laravel uses the
+// last-registered route for route() lookups. We register subdomain LAST
+// so URL generation (emails, webhooks) produces subdomain URLs by default.
 // =========================================================================
 
-Route::middleware(['App\Http\Middleware\ResolveTenant'])
-    ->domain($tenantHost)
-    ->group(function () {
+$tenantRoutes = function () {
 
     Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
     Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
@@ -536,4 +551,21 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
 
     Route::get('/{slug}', [TenantControllers\PublicController::class, 'page'])->name('tenant.page');
 
-});
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// Register custom-domain track FIRST. This track matches any host the
+// subdomain track does not. ResolveTenant rejects unknown hosts with 404.
+// ─────────────────────────────────────────────────────────────────────
+Route::middleware(['App\Http\Middleware\ResolveTenant'])
+    ->group($tenantRoutes);
+
+// ─────────────────────────────────────────────────────────────────────
+// Register subdomain track LAST so it wins route() lookups (Laravel uses
+// the last-registered route for a given name). The {subdomain} placeholder
+// is critical for URL generation in emails, webhooks, queued jobs, and
+// any other context that generates absolute URLs without a current request.
+// ─────────────────────────────────────────────────────────────────────
+Route::middleware(['App\Http\Middleware\ResolveTenant'])
+    ->domain($tenantHost)
+    ->group($tenantRoutes);
