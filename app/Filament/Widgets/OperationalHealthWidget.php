@@ -90,7 +90,7 @@ class OperationalHealthWidget extends BaseWidget
     {
         $count = (int) DB::table('stripe_webhook_events')
             ->whereNull('processed_at')
-            ->where('created_at', '<', now()->subMinutes(5))
+            ->where('received_at', '<', now()->subMinutes(5))  // MARKER-PATCH-134
             ->count();
         return Stat::make('Stripe webhook failures', number_format($count))
             ->description($count > 0 ? 'unprocessed > 5 min' : 'all processed')
@@ -100,7 +100,7 @@ class OperationalHealthWidget extends BaseWidget
     protected function failedLogins(): Stat
     {
         $count = DebugLog::where('channel', 'auth')
-            ->where('action', 'auth.login_failed')
+            ->where('event', 'auth.login_failed')  // MARKER-PATCH-134
             ->where('created_at', '>=', now()->subDay())
             ->count();
         return Stat::make('Failed logins (24h)', number_format($count))
@@ -111,7 +111,7 @@ class OperationalHealthWidget extends BaseWidget
     protected function mailSent(): Stat
     {
         $count = DebugLog::where('channel', 'mail')
-            ->where('action', 'mail.sent')
+            ->where('event', 'mail.sent')  // MARKER-PATCH-134
             ->where('created_at', '>=', now()->subDay())
             ->count();
         return Stat::make('Mail sent (24h)', number_format($count))
