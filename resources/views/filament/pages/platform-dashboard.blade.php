@@ -198,8 +198,11 @@
       @endforeach
     </div>
 
+    {{-- MARKER-PATCH-138 — block-form to avoid blade parse failure --}}
     <div class="pd-hero-meta">
-      @if($hero['uptime'])<b>{{ $hero['uptime'] }}</b>uptime@endif
+      @if($hero['uptime'])
+        <b>{{ $hero['uptime'] }}</b>uptime
+      @endif
     </div>
   </div>
 
@@ -226,7 +229,7 @@
 
     <div class="pd-health">
       @foreach($health as $row)
-        {{-- MARKER-PATCH-137 — no inline @if inside opening tags; renders href via ternary --}}
+        {{-- MARKER-PATCH-137 — href via ternary (was an inline conditional) --}}
         <a class="pd-h-row {{ $row['state'] }}" href="{{ $row['href'] ?? '#' }}">
           <div class="pd-h-stripe"></div>
           <div class="pd-h-symbol">{{ ['ok'=>'OK','warn'=>'!','bad'=>'!!','idle'=>'—'][$row['state']] ?? '?' }}</div>
