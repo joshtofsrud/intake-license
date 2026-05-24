@@ -80,28 +80,48 @@
   .pd a { color: inherit; text-decoration: none; }
   .pd a:hover { color: var(--pd-text); }
 
-  /* Hero */
-  .pd-hero { display:grid; grid-template-columns:auto 1fr auto; gap:24px; align-items:center;
-    padding:18px 22px; background:var(--pd-surface); border:1px solid var(--pd-border);
-    border-radius:var(--pd-r-lg); margin-bottom:8px; }
-  .pd-hero-state { display:flex; align-items:center; gap:12px; }
-  .pd-hero-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-  .pd-hero-state.ok .pd-hero-dot   { background:var(--pd-ok); box-shadow:0 0 12px var(--pd-ok); }
-  .pd-hero-state.warn .pd-hero-dot { background:var(--pd-warn); box-shadow:0 0 12px var(--pd-warn); }
-  .pd-hero-state.bad .pd-hero-dot  { background:var(--pd-bad); box-shadow:0 0 12px var(--pd-bad); }
-  .pd-hero-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--pd-text-dim); margin-bottom:2px; }
-  .pd-hero-headline { font-size:15px; font-weight:500; }
-  .pd-hero-pulses { display:flex; gap:14px; }
-  .pd-pulse { text-align:center; padding:4px 10px; border-radius:var(--pd-r-md); }
-  .pd-pulse-lbl { font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--pd-text-dim); }
-  .pd-pulse-bar { width:62px; height:4px; background:rgba(255,255,255,.06); border-radius:2px; margin-top:6px; overflow:hidden; }
-  .pd-pulse-bar > span { display:block; height:100%; }
-  .pd-pulse-bar.ok > span    { width:96%; background:var(--pd-ok); }
-  .pd-pulse-bar.warn > span  { width:55%; background:var(--pd-warn); }
-  .pd-pulse-bar.bad > span   { width:22%; background:var(--pd-bad); }
-  .pd-pulse-bar.idle > span  { width:8%;  background:var(--pd-text-dim); }
-  .pd-hero-meta { text-align:right; font-family:var(--pd-font-mono); font-size:11px; color:var(--pd-text-dim); }
-  .pd-hero-meta b { display:block; color:var(--pd-text); font-size:13px; font-weight:500; }
+  /* Hero v2 (MARKER-PATCH-141) — 8 tiles with real numbers + a status cell */
+  .pd-hero2 {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(7, 1fr);
+    gap: 1px;
+    background: var(--pd-border);
+    border: 1px solid var(--pd-border);
+    border-radius: var(--pd-r-lg);
+    overflow: hidden;
+    margin-bottom: 22px;
+  }
+  .pd-hero2-status, .pd-hero2-tile {
+    background: var(--pd-surface);
+    padding: 12px 14px 11px;
+    display: flex; flex-direction: column; gap: 5px;
+    min-height: 92px; justify-content: space-between;
+  }
+  .pd-h2-label { font-size: 9.5px; letter-spacing: 0.08em; color: var(--pd-text-dim); font-weight: 600; }
+  .pd-h2-value { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--pd-text); line-height: 1.15; }
+  .pd-h2-meta { font-size: 10.5px; color: var(--pd-text-dim); font-family: var(--pd-font-mono); }
+  .pd-h2-bar { height: 3px; background: rgba(0,0,0,.06); border-radius: 2px; overflow: hidden; }
+  .dark .pd .pd-h2-bar { background: rgba(255,255,255,.07); }
+  .pd-h2-bar > span { display: block; height: 100%; background: var(--pd-text-dim); transition: width .3s ease; }
+  .pd-h2-ok .pd-h2-bar > span   { background: var(--pd-ok); }
+  .pd-h2-warn .pd-h2-bar > span { background: var(--pd-warn); }
+  .pd-h2-bad .pd-h2-bar > span  { background: var(--pd-bad); }
+  .pd-h2-idle .pd-h2-bar > span { background: var(--pd-text-dim); opacity: .4; }
+
+  /* Status cell */
+  .pd-hero2-status { gap: 8px; }
+  .pd-h2-headrow { display: flex; align-items: center; gap: 10px; }
+  .pd-h2-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pd-h2-ok .pd-h2-dot   { background: var(--pd-ok);   box-shadow: 0 0 10px var(--pd-ok); }
+  .pd-h2-warn .pd-h2-dot { background: var(--pd-warn); box-shadow: 0 0 10px var(--pd-warn); }
+  .pd-h2-bad .pd-h2-dot  { background: var(--pd-bad);  box-shadow: 0 0 10px var(--pd-bad); }
+  .pd-h2-idle .pd-h2-dot { background: var(--pd-text-dim); }
+  .pd-h2-headline { font-size: 14px; font-weight: 500; color: var(--pd-text); }
+
+  @media (max-width: 1100px) {
+    .pd-hero2 { grid-template-columns: repeat(4, 1fr); }
+    .pd-hero2-status { grid-column: 1 / -1; }
+  }
 
   /* Top bar with refresh control */
   .pd-top { display:flex; justify-content:space-between; align-items:center; padding:18px 0 18px;
@@ -227,31 +247,27 @@
 
 <div class="pd">
 
-  {{-- ────────── HERO ────────── --}}
-  <div class="pd-hero">
-    <div class="pd-hero-state {{ $hero['state'] }}">
-      <div class="pd-hero-dot"></div>
-      <div>
-        <div class="pd-hero-label">System status</div>
-        <div class="pd-hero-headline">{{ $hero['headline'] }}</div>
+  {{-- ────────── HERO (MARKER-PATCH-141) — real numbers tiles ────────── --}}
+  <div class="pd-hero2">
+    <div class="pd-hero2-status pd-h2-{{ $hero['state'] }}">
+      <div class="pd-h2-label">SYSTEM</div>
+      <div class="pd-h2-headrow">
+        <div class="pd-h2-dot"></div>
+        <div class="pd-h2-headline">{{ $hero['headline'] }}</div>
       </div>
-    </div>
-
-    <div class="pd-hero-pulses">
-      @foreach($hero['pulses'] as $key => $p)
-        <div class="pd-pulse" title="{{ $p['label'] }}">
-          <div class="pd-pulse-lbl">{{ $p['label'] }}</div>
-          <div class="pd-pulse-bar {{ $p['state'] }}"><span></span></div>
-        </div>
-      @endforeach
-    </div>
-
-    {{-- MARKER-PATCH-138 — block-form to avoid blade parse failure --}}
-    <div class="pd-hero-meta">
       @if($hero['uptime'])
-        <b>{{ $hero['uptime'] }}</b>uptime
+        <div class="pd-h2-meta">uptime {{ $hero['uptime'] }}</div>
       @endif
     </div>
+
+    @foreach($hero['tiles'] as $key => $t)
+      <div class="pd-hero2-tile pd-h2-{{ $t['state'] }}">
+        <div class="pd-h2-label">{{ strtoupper($t['label']) }}</div>
+        <div class="pd-h2-value">{{ $t['value'] }}</div>
+        <div class="pd-h2-bar"><span style="width:{{ $t['pct'] }}%"></span></div>
+        <div class="pd-h2-meta">{{ $t['meta'] }}</div>
+      </div>
+    @endforeach
   </div>
 
   {{-- ────────── REFRESH CONTROLS ────────── --}}

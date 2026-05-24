@@ -51,136 +51,133 @@ class PlatformDashboard extends Page
     // HERO
     // ─────────────────────────────────────────────────────────
 
+    // MARKER-PATCH-141 — hero shows real numbers with units, sourced from ServerHealthService.
     protected function buildHero(): array
     {
-        // Compute six pulses; aggregate into one overall state.
-        $pulses = [
-            'server'  => $this->pulseServer(),
-            'db'      => $this->pulseDb(),
-            'queue'   => $this->pulseQueue(),
-            'stripe'  => $this->pulseStripe(),
-            'domains' => $this->pulseDomains(),
-            'backups' => $this->pulseBackups(),
-        ];
+        $snap = app(\App\Services\Admin\ServerHealthService::class)->snapshot();
 
-        $bads  = collect($pulses)->where('state', 'bad')->keys();
-        $warns = collect($pulses)->where('state', 'warn')->keys();
+        // Tile definitions. Each maps to a status (ok/warn/bad/idle), a
+        // formatted big value, a one-line meta, and a fill 0..100 for
+        // the tiny progress bar at the bottom. unavailable -> idle/n/a.
+        $tiles = [];
 
-        if ($bads->isNotEmpty()) {
+        // CPU
+        $c = $snap['cpu'] ?? ['available' => false];
+        $tiles['cpu'] = $c['available']
+            ? ['label'=>'CPU load', 'value'=>$c['load_1m'].' / '.$c['cores'].' cores',
+               'meta'=>'5m '.$c['load_5m'].' · 15m '.$c['load_15m'],
+               'pct'=>$c['load_pct'], 'state'=>$this->mapStatus($c['status'])]
+            : ['label'=>'CPU load','value'=>'n/a','meta'=>'unreadable','pct'=>0,'state'=>'idle'];
+
+        // Memory
+        $m = $snap['memory'] ?? ['available' => false];
+        $tiles['memory'] = $m['available']
+            ? ['label'=>'Memory', 'value'=>$m['used_gb'].' of '.$m['total_gb'].' GB',
+               'meta'=>$m['pct'].'% used',
+               'pct'=>$m['pct'], 'state'=>$this->mapStatus($m['status'])]
+            : ['label'=>'Memory','value'=>'n/a','meta'=>'unreadable','pct'=>0,'state'=>'idle'];
+
+        // Disk
+        $d = $snap['disk'] ?? ['available' => false];
+        $tiles['disk'] = $d['available']
+            ? ['label'=>'Disk', 'value'=>$d['used_gb'].' of '.$d['total_gb'].' GB',
+               'meta'=>$d['pct'].'% used',
+               'pct'=>$d['pct'], 'state'=>$this->mapStatus($d['status'])]
+            : ['label'=>'Disk','value'=>'n/a','meta'=>'unreadable','pct'=>0,'state'=>'idle'];
+
+        // PHP-FPM
+        $f = $snap['php_fpm'] ?? ['available' => false];
+        $tiles['fpm'] = $f['available']
+            ? ['label'=>'PHP-FPM', 'value'=>$f['workers'].' of '.$f['max'].' workers',
+               'meta'=>'master + active',
+               'pct'=>$f['pct'], 'state'=>$this->mapStatus($f['status'])]
+            : ['label'=>'PHP-FPM','value'=>'n/a','meta'=>'unreadable','pct'=>0,'state'=>'idle'];
+
+        // Database
+        $b = $snap['db'] ?? ['available' => false];
+        $tiles['db'] = $b['available']
+            ? ['label'=>'Database', 'value'=>$b['connections'].' conn · '.$b['query_ms'].'ms',
+               'meta'=>'cap '.$b['max'],
+               'pct'=>$b['pct'], 'state'=>$this->mapStatus($b['status'])]
+            : ['label'=>'Database','value'=>'n/a','meta'=>'unreadable','pct'=>0,'state'=>'idle'];
+
+        // Queue
+        $pending = 0; $qOk = true;
+        try { $pending = (int) \Illuminate\Support\Facades\Redis::llen('queues:default'); }
+        catch (\Throwable $e) { $qOk = false; }
+        $tiles['queue'] = $qOk
+            ? ['label'=>'Queue', 'value'=>$pending.' pending',
+               'meta'=>$pending === 0 ? 'idle' : ($pending > 50 ? 'backed up' : 'working'),
+               'pct'=>min(100, $pending * 2),
+               'state'=>$pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : 'ok')]
+            : ['label'=>'Queue','value'=>'n/a','meta'=>'redis unreachable','pct'=>0,'state'=>'bad'];
+
+        // Backup
+        $bk = \App\Models\SystemHealth::read('last_backup');
+        if (! $bk || empty($bk['at'])) {
+            $tiles['backup'] = ['label'=>'Backup', 'value'=>'no record',
+                'meta'=>'script not yet wired', 'pct'=>0, 'state'=>'warn'];
+        } else {
+            $ts = \Carbon\Carbon::parse($bk['at']);
+            $age = $ts->diffInHours(now());
+            $sizeMb = isset($bk['bytes']) ? round($bk['bytes'] / 1024 / 1024, 1) : null;
+            $tiles['backup'] = [
+                'label'=>'Backup',
+                'value'=>$ts->diffForHumans(null, true).' ago',
+                'meta'=>$sizeMb ? $sizeMb.' MB' : 'size unknown',
+                'pct'=> min(100, ($age / 36) * 100),
+                'state'=>$age > 36 ? 'bad' : ($age > 30 ? 'warn' : 'ok'),
+            ];
+        }
+
+        // Roll up into single status
+        $states = array_column($tiles, 'state');
+        $bads  = array_keys(array_filter($tiles, fn ($t) => $t['state'] === 'bad'));
+        $warns = array_keys(array_filter($tiles, fn ($t) => $t['state'] === 'warn'));
+        if (! empty($bads)) {
             $state = 'bad';
-            $headline = $this->headlineFor($pulses, $bads);
-        } elseif ($warns->isNotEmpty()) {
+            $headline = $this->headlineWith($tiles, $bads, 'critical');
+        } elseif (! empty($warns)) {
             $state = 'warn';
-            $headline = $this->headlineFor($pulses, $warns);
+            $headline = $this->headlineWith($tiles, $warns, 'attention');
         } else {
             $state = 'ok';
             $headline = 'All systems normal';
         }
 
-        // Uptime — server uptime if we can read it, else null.
-        $uptime = $this->serverUptimeReadable();
-
         return [
             'state'    => $state,
             'headline' => $headline,
-            'pulses'   => $pulses,
-            'uptime'   => $uptime,
+            'uptime'   => $snap['uptime'] ?? null,
+            'tiles'    => $tiles,
         ];
     }
 
-    protected function headlineFor(array $pulses, $keys): string
+    /** Map ServerHealthService status names to our token. */
+    protected function mapStatus(?string $s): string
     {
-        $labels = $keys->map(fn ($k) => $pulses[$k]['label'] ?? $k)->all();
-        if (count($labels) === 1) return "Attention: {$labels[0]}";
-        $last = array_pop($labels);
-        return 'Attention: ' . implode(', ', $labels) . " and {$last}";
+        return match ($s) {
+            'ok'   => 'ok',
+            'warn' => 'warn',
+            'err'  => 'bad',
+            default => 'idle',
+        };
     }
 
-    protected function pulseServer(): array
+    /** Build a plain-English headline naming the affected subsystems. */
+    protected function headlineWith(array $tiles, array $keys, string $verb): string
     {
-        // ServerHealthWidget already computes this; recompute the
-        // load average ourselves to keep this class self-contained.
-        try {
-            $load = sys_getloadavg()[0] ?? 0;
-            $cores = (int) shell_exec('nproc') ?: 1;
-            $ratio = $load / max($cores, 1);
-            $state = $ratio > 1.2 ? 'bad' : ($ratio > 0.7 ? 'warn' : 'ok');
-        } catch (Throwable $e) {
-            $state = 'idle';
+        $names = array_map(fn ($k) => $tiles[$k]['label'], $keys);
+        if (count($names) === 1) {
+            $first = reset($keys);
+            $t = $tiles[$first];
+            return "{$t['label']} needs {$verb} — {$t['value']}";
         }
-        return ['label' => 'Server', 'state' => $state];
+        $last = array_pop($names);
+        return ucfirst($verb) . ': ' . implode(', ', $names) . ' and ' . $last;
     }
 
-    protected function pulseDb(): array
-    {
-        try {
-            $start = microtime(true);
-            DB::select('SELECT 1');
-            $ms = (microtime(true) - $start) * 1000;
-            $state = $ms > 200 ? 'warn' : 'ok';
-        } catch (Throwable $e) {
-            $state = 'bad';
-        }
-        return ['label' => 'Database', 'state' => $state];
-    }
-
-    protected function pulseQueue(): array
-    {
-        try {
-            $pending = (int) Redis::llen('queues:default');
-            $state = $pending > 50 ? 'bad' : ($pending > 5 ? 'warn' : ($pending === 0 ? 'idle' : 'ok'));
-        } catch (Throwable $e) {
-            $state = 'bad';
-        }
-        return ['label' => 'Queue', 'state' => $state];
-    }
-
-    protected function pulseStripe(): array
-    {
-        try {
-            $stuck = (int) DB::table('stripe_webhook_events')
-                ->whereNull('processed_at')
-                ->where('received_at', '<', now()->subMinutes(5))
-                ->count();
-            $state = $stuck > 0 ? 'bad' : 'ok';
-        } catch (Throwable $e) {
-            $state = 'idle';
-        }
-        return ['label' => 'Stripe', 'state' => $state];
-    }
-
-    protected function pulseDomains(): array
-    {
-        $stuck = TenantDomain::stuckVerifying()->count();
-        $errored = TenantDomain::where('status', 'error')
-            ->where('updated_at', '<', now()->subDay())->count();
-        $state = ($stuck + $errored) > 0 ? 'bad' : 'ok';
-        return ['label' => 'Domains', 'state' => $state];
-    }
-
-    protected function pulseBackups(): array
-    {
-        $h = SystemHealth::read('last_backup');
-        if (! $h || empty($h['at'])) {
-            return ['label' => 'Backups', 'state' => 'warn'];
-        }
-        $age = \Carbon\Carbon::parse($h['at'])->diffInHours(now());
-        $state = $age > 36 ? 'bad' : ($age > 30 ? 'warn' : 'ok');
-        return ['label' => 'Backups', 'state' => $state];
-    }
-
-    protected function serverUptimeReadable(): ?string
-    {
-        try {
-            $secs = (int) (file_get_contents('/proc/uptime') ? (float) explode(' ', file_get_contents('/proc/uptime'))[0] : 0);
-            if ($secs <= 0) return null;
-            $days  = intdiv($secs, 86400);
-            $hours = intdiv($secs % 86400, 3600);
-            return "{$days}d {$hours}h";
-        } catch (Throwable $e) {
-            return null;
-        }
-    }
+    // MARKER-PATCH-141 — pulse helpers replaced; mapStatus + headlineWith live in buildHero block above.
 
     // ─────────────────────────────────────────────────────────
     // HEALTH ROWS
