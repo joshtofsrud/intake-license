@@ -1,0 +1,110 @@
+<?php
+// MARKER-PATCH-129
+
+namespace App\Http\Controllers\Tenant;
+
+use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantTrustedDevice;
+use App\Services\PinService;
+use App\Services\DeviceTrustService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+
+/**
+ * AccountController
+ *
+ * Surfaces a person's own account. Same template as TeamController's
+ * person-detail view, but the form actions point at routes that act
+ * on the signed-in user (no id in the URL) and the writeable fields
+ * are constrained to what self-service is allowed to change.
+ */
+class AccountController extends Controller
+{
+    public function __construct(
+        protected PinService $pins,
+        protected DeviceTrustService $devices,
+    ) {}
+
+    public function index(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $devices = TenantTrustedDevice::activeForTenant($me->tenant_id)
+            ->where('tenant_user_id', $me->id)
+            ->orderBy('last_used_at', 'desc')
+            ->get();
+        return view('tenant.account.index', [
+            'me'      => $me,
+            'devices' => $devices,
+        ]);
+    }
+
+    public function updateName(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $data = $request->validate(['name' => ['required','string','max:255']]);
+        $me->update(['name' => $data['name']]);
+        return back()->with('success', 'Name updated.');
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $data = $request->validate([
+            'current_password' => ['required','string'],
+            'new_password'     => ['required','string','min:10','confirmed'],
+        ]);
+        if (! Hash::check($data['current_password'], $me->password)) {
+            return back()->withErrors(['current_password' => 'Wrong password.']);
+        }
+        $me->update(['password' => Hash::make($data['new_password'])]);
+        return back()->with('success', 'Password updated.');
+    }
+
+    public function setPin(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $data = $request->validate([
+            'pin'              => ['required','string','regex:/^\d{4}$/'],
+            'pin_confirm'      => ['required','string','same:pin'],
+            'current_password' => ['required','string'],
+        ]);
+        if (! Hash::check($data['current_password'], $me->password)) {
+            return back()->withErrors(['current_password' => 'Wrong password.']);
+        }
+        $this->pins->setPin($me, $data['pin']);
+        return back()->with('success', 'PIN saved.');
+    }
+
+    public function clearPin(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $this->pins->forceReset($me, $me);
+        return back()->with('success', 'PIN cleared. You will be prompted to set a new one next time.');
+    }
+
+    public function revokeDevice(Request $request, string $deviceId)
+    {
+        $me = Auth::guard('tenant')->user();
+        $device = TenantTrustedDevice::where('tenant_id', $me->tenant_id)
+            ->where('tenant_user_id', $me->id)
+            ->where('id', $deviceId)
+            ->first();
+        if (! $device) {
+            return back()->with('error', 'Device not found.');
+        }
+        $this->devices->revoke($device, $me);
+        return back()->with('success', 'Device revoked.');
+    }
+
+    public function signOutEverywhere(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $this->devices->revokeAllForUser($me, $me);
+        Auth::guard('tenant')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('tenant.login')
+            ->with('success', 'Signed out from every browser.');
+    }
+}

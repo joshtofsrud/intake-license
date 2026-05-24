@@ -169,4 +169,28 @@ class DeviceTrustService
 
         return $count;
     }
+
+    /**
+     * MARKER-PATCH-129 — revoke every active device belonging to one user.
+     * Powers "Sign out everywhere" actions in self-service + admin.
+     */
+    public function revokeAllForUser(TenantUser $user, ?TenantUser $byUser = null): int
+    {
+        $count = TenantTrustedDevice::activeForTenant($user->tenant_id)
+            ->where('tenant_user_id', $user->id)
+            ->update([
+                'revoked_at'         => now(),
+                'revoked_by_user_id' => $byUser?->id,
+                'updated_at'         => now(),
+            ]);
+
+        Log::info('DeviceTrust.revokeAllForUser', [
+            'tenant_id'  => $user->tenant_id,
+            'user_id'    => $user->id,
+            'count'      => $count,
+            'by_user'    => $byUser?->id,
+        ]);
+
+        return $count;
+    }
 }

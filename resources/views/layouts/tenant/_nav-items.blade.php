@@ -77,17 +77,11 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="8" width="2.5" height="4.5" rx="0.5" fill="currentColor"/><rect x="5.75" y="5" width="2.5" height="7.5" rx="0.5" fill="currentColor"/><rect x="10" y="2" width="2.5" height="10.5" rx="0.5" fill="currentColor"/></svg>',
       'group'  => null,
     ],
+    // MARKER-PATCH-129 — Team & Access (consolidated from Team + Security)
     [
       'route'  => 'tenant.team.index',
-      'label'  => 'Team',
+      'label'  => 'Team & access',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="5" cy="5" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="5.5" r="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 12c0-1.8 1.5-3 3.5-3s3.5 1.2 3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M8.5 12c0-1.4 1-2.4 2.5-2.4s2.5 1 2.5 2.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-      'group'  => 'manage',
-      'gate'   => 'additional_users_enabled',
-    ],
-    [
-      'route'  => 'tenant.security.index',
-      'label'  => 'Security',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L2 3.5v3.5c0 3.3 2.2 6 5 6s5-2.7 5-6V3.5L7 1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
       'group'  => 'manage',
       'gate'   => 'additional_users_enabled',
     ],

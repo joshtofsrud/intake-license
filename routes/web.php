@@ -520,16 +520,32 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
             Route::post('/locations/{id}/toggle-active',  [TenantControllers\LocationController::class, 'toggleActive'])->name('locations.toggle-active');
             Route::delete('/locations/{id}',              [TenantControllers\LocationController::class, 'destroy'])->name('locations.destroy');
 
-            Route::get('/security',                       [TenantControllers\SecurityController::class, 'index'])->name('security.index');
-            Route::patch('/security/settings',            [TenantControllers\SecurityController::class, 'updateSettings'])->name('security.settings.update');
-            Route::post('/security/device/{id}/revoke',   [TenantControllers\SecurityController::class, 'revokeDevice'])->name('security.device.revoke');
-            Route::post('/security/devices/revoke-all',   [TenantControllers\SecurityController::class, 'revokeAllDevices'])->name('security.devices.revoke-all');
+            // MARKER-PATCH-129 — old /admin/security/* URLs redirect to /admin/team/*
+            Route::get('/security',                  fn() => redirect()->route('tenant.team.index'))->name('security.index');
+            Route::get('/security/devices',          fn() => redirect()->route('tenant.team.devices'));
+            Route::get('/security/policy',           fn() => redirect()->route('tenant.team.policy'));
             Route::post('/settings/test-sms',   [TenantControllers\SettingsController::class, 'sendTestSms'])->name('settings.test-sms');
 
-            Route::get('/team',                 [TenantControllers\TeamController::class, 'index'])->name('team.index');
-            Route::post('/team',                [TenantControllers\TeamController::class, 'store'])->name('team.store');
-            Route::patch('/team/{id}',          [TenantControllers\TeamController::class, 'update'])->name('team.update');
-            Route::delete('/team/{id}',         [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
+            // MARKER-PATCH-129 — consolidated Team & Access
+            Route::get('/team',                            [TenantControllers\TeamController::class, 'index'])->name('team.index');
+            Route::post('/team',                           [TenantControllers\TeamController::class, 'store'])->name('team.store');
+            Route::get('/team/devices',                    [TenantControllers\TeamController::class, 'devices'])->name('team.devices');
+            Route::post('/team/devices/{id}/revoke',       [TenantControllers\TeamController::class, 'revokeDevice'])->name('team.devices.revoke');
+            Route::post('/team/devices/revoke-all',        [TenantControllers\TeamController::class, 'revokeAllDevices'])->name('team.devices.revoke-all');
+            Route::get('/team/policy',                     [TenantControllers\TeamController::class, 'policy'])->name('team.policy');
+            Route::patch('/team/policy',                   [TenantControllers\TeamController::class, 'updatePolicy'])->name('team.policy.update');
+            Route::get('/team/{id}',                       [TenantControllers\TeamController::class, 'show'])->name('team.show');
+            Route::patch('/team/{id}',                     [TenantControllers\TeamController::class, 'update'])->name('team.update');
+            Route::delete('/team/{id}',                    [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
+
+            // Self-service account surfaces (current user only)
+            Route::get('/account',                         [TenantControllers\AccountController::class, 'index'])->name('account.index');
+            Route::patch('/account/name',                  [TenantControllers\AccountController::class, 'updateName'])->name('account.name');
+            Route::patch('/account/password',              [TenantControllers\AccountController::class, 'updatePassword'])->name('account.password');
+            Route::patch('/account/pin',                   [TenantControllers\AccountController::class, 'setPin'])->name('account.pin');
+            Route::patch('/account/pin/clear',             [TenantControllers\AccountController::class, 'clearPin'])->name('account.pin.clear');
+            Route::post('/account/device/{id}/revoke',     [TenantControllers\AccountController::class, 'revokeDevice'])->name('account.device.revoke');
+            Route::post('/account/sign-out-everywhere',    [TenantControllers\AccountController::class, 'signOutEverywhere'])->name('account.sign-out-everywhere');
 
             // Stripe billing portal (card update, invoices, cancel).
             // Plan changes happen in-app, not via the portal.
