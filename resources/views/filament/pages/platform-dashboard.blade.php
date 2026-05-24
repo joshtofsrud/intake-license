@@ -226,7 +226,8 @@
 
     <div class="pd-health">
       @foreach($health as $row)
-        <a class="pd-h-row {{ $row['state'] }}" @if($row['href']) href="{{ $row['href'] }}" @endif>
+        {{-- MARKER-PATCH-137 — no inline @if inside opening tags; renders href via ternary --}}
+        <a class="pd-h-row {{ $row['state'] }}" href="{{ $row['href'] ?? '#' }}">
           <div class="pd-h-stripe"></div>
           <div class="pd-h-symbol">{{ ['ok'=>'OK','warn'=>'!','bad'=>'!!','idle'=>'—'][$row['state']] ?? '?' }}</div>
           <div>
