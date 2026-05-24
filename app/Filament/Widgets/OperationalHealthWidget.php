@@ -48,9 +48,25 @@ class OperationalHealthWidget extends BaseWidget
             ->color($count > 10 ? 'warning' : ($count > 0 ? 'gray' : 'success'));
     }
 
+    // MARKER-PATCH-133 — failed_jobs table is optional; guard for its absence.
     protected function failedJobs(): Stat
     {
-        $count = (int) DB::table('failed_jobs')->where('failed_at', '>=', now()->subDay())->count();
+        $count = 0;
+        $tableMissing = false;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('failed_jobs')) {
+                $count = (int) DB::table('failed_jobs')->where('failed_at', '>=', now()->subDay())->count();
+            } else {
+                $tableMissing = true;
+            }
+        } catch (\Throwable $e) {
+            $tableMissing = true;
+        }
+        if ($tableMissing) {
+            return Stat::make('Failed jobs (24h)', 'n/a')
+                ->description('failed_jobs table not created')
+                ->color('gray');
+        }
         return Stat::make('Failed jobs (24h)', number_format($count))
             ->description($count > 0 ? 'investigate' : 'clean')
             ->color($count > 0 ? 'danger' : 'success');
