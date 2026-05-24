@@ -213,12 +213,12 @@ class TeamController extends Controller
 
     // ─────────────────────────── Devices ────────────────────────────
 
+    // MARKER-PATCH-131 — no tenantUser relation; devices are tenant-scoped.
     public function devices()
     {
         $this->requireOwner();
         $tenant = tenant();
         $devices = TenantTrustedDevice::activeForTenant($tenant->id)
-            ->with(['tenantUser'])
             ->orderBy('last_used_at', 'desc')
             ->get();
         return view('tenant.team.devices', compact('devices'));

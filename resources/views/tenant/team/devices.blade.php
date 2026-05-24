@@ -42,12 +42,8 @@
   @foreach($devices as $d)
     <div class="td-row">
       <div>
-        <div class="td-label">
-          {{ $d->label ?: 'Unnamed device' }}
-          @if($d->tenantUser)
-            <span class="ia-badge" style="font-size:10px">{{ $d->tenantUser->name }}</span>
-          @endif
-        </div>
+        {{-- MARKER-PATCH-131 — no per-device user; devices are tenant-scoped --}}
+        <div class="td-label">{{ $d->label ?: 'Unnamed device' }}</div>
         <div class="td-meta">
           Last used {{ $d->last_used_at?->diffForHumans() ?? '—' }}
           · IP {{ $d->ip_last_seen ?? '—' }}
