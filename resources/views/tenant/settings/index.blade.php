@@ -772,20 +772,69 @@
         </div>
       </div>
 
-      {{-- MARKER-PATCH-143 — Test send block --}}
-      <div style="margin-top:14px;padding:14px;background:rgba(190,242,100,.06);border:1px solid rgba(190,242,100,.18);border-radius:var(--ia-r-md)">
+      {{-- MARKER-PATCH-144 — Test send block (no nested form, uses fetch) --}}
+      <div style="margin-top:14px;padding:14px;background:rgba(190,242,100,.06);border:1px solid rgba(190,242,100,.18);border-radius:var(--ia-r-md)" id="email-test-block">
         <div style="font-size:13px;font-weight:500;margin-bottom:6px">Test your email setup</div>
         <div style="font-size:12px;color:var(--ia-text-dim);margin-bottom:10px;line-height:1.55">
           Save any changes above first. Then enter a recipient and send a test email to verify the From name and reply-to look right.
         </div>
-        <form method="POST" action="{{ route('tenant.settings.email.test') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          @csrf
-          <input type="email" name="recipient" class="ia-input" style="flex:1;min-width:240px"
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="email" id="email-test-recipient" class="ia-input" style="flex:1;min-width:240px"
             placeholder="recipient@example.com"
-            value="{{ Auth::guard('tenant')->user()->email ?? '' }}" required>
-          <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Send test email</button>
-        </form>
+            value="{{ Auth::guard('tenant')->user()->email ?? '' }}">
+          <button type="button" id="email-test-btn" class="ia-btn ia-btn--ghost ia-btn--sm">Send test email</button>
+        </div>
+        <div id="email-test-result" style="margin-top:10px;font-size:12px;display:none"></div>
       </div>
+      <script>
+        (function() {
+          const btn = document.getElementById('email-test-btn');
+          const recipient = document.getElementById('email-test-recipient');
+          const result = document.getElementById('email-test-result');
+          if (!btn) return;
+          btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const r = (recipient.value || '').trim();
+            if (!r) {
+              result.style.display = 'block';
+              result.style.color = 'var(--ia-bad, #F87171)';
+              result.textContent = 'Enter a recipient email first.';
+              return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+            result.style.display = 'block';
+            result.style.color = 'var(--ia-text-dim)';
+            result.textContent = 'Sending test email to ' + r + '…';
+            try {
+              const resp = await fetch('{{ route('tenant.settings.email.test') }}', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Accept': 'application/json'
+                },
+                body: 'recipient=' + encodeURIComponent(r)
+              });
+              if (resp.ok) {
+                result.style.color = 'var(--ia-ok, #86EFAC)';
+                result.textContent = 'Sent to ' + r + '. Check the inbox (and spam folder) within ~1 minute.';
+              } else {
+                const body = await resp.text();
+                result.style.color = 'var(--ia-bad, #F87171)';
+                result.textContent = 'Send failed (HTTP ' + resp.status + '). Check logs for details.';
+              }
+            } catch (err) {
+              result.style.color = 'var(--ia-bad, #F87171)';
+              result.textContent = 'Send failed: ' + err.message;
+            } finally {
+              btn.disabled = false;
+              btn.textContent = 'Send test email';
+            }
+          });
+        })();
+      </script>
       <div class="ia-form-group">
         <label class="ia-form-label">New booking notification email</label>
         <input type="email" name="notification_email" class="ia-input"

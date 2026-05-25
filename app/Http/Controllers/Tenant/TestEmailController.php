@@ -21,10 +21,14 @@ class TestEmailController extends Controller
      *
      * Permissioned to manager+ to avoid staff spamming themselves.
      */
+    // MARKER-PATCH-144 — JSON response for XHR, fallback redirect for non-XHR
     public function sendSettingsTest(Request $request)
     {
         $me = Auth::guard('tenant')->user();
         if (! $me || ! $me->isManager()) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'message' => 'Manager or owner access required.'], 403);
+            }
             return back()->with('error', 'Manager or owner access required.');
         }
 
@@ -34,6 +38,10 @@ class TestEmailController extends Controller
 
         $recipient = $data['recipient'] ?? $me->email;
         $result = $this->tests->sendSettingsTest(tenant(), $recipient);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json($result, $result['ok'] ? 200 : 500);
+        }
 
         return back()->with($result['ok'] ? 'success' : 'error', $result['message']);
     }
