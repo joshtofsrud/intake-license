@@ -68,6 +68,7 @@ class AdminPanelProvider extends PanelProvider
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
+                \App\Filament\Pages\EmailHealth::class,  // MARKER-PATCH-148
             ])
             ->widgets([
                 ServerHealthWidget::class,

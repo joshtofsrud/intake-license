@@ -545,6 +545,11 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
             // MARKER-PATCH-143 — Test email send endpoint (settings card)
             Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
 
+            // MARKER-PATCH-147 — Tenant suppression list
+            Route::get('/email/suppressions',         [TenantControllers\SuppressionController::class, 'index'])->name('suppressions.index');
+            Route::post('/email/suppressions',        [TenantControllers\SuppressionController::class, 'store'])->name('suppressions.store');
+            Route::delete('/email/suppressions/{id}', [TenantControllers\SuppressionController::class, 'destroy'])->name('suppressions.destroy');
+
             // Self-service account surfaces (current user only)
             Route::get('/account',                         [TenantControllers\AccountController::class, 'index'])->name('account.index');
             Route::patch('/account/name',                  [TenantControllers\AccountController::class, 'updateName'])->name('account.name');
