@@ -153,10 +153,26 @@ class CreateTenant extends CreateRecord
         $stash = session('gift_tenant_password');
         if (! $stash) return;
 
+        // MARKER-PATCH-143 — also send the welcome email with the temp password.
+        try {
+            $tenant = \App\Models\Tenant::find($this->record->id);
+            $owner = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
+                ->where('role', 'owner')->first();
+            if ($tenant && $owner) {
+                \Illuminate\Support\Facades\Mail::to($owner->email)->send(
+                    new \App\Mail\WelcomeEmail($tenant, $owner, $stash['password'], 'gift')
+                );
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Gift welcome email failed (non-fatal)', [
+                'tenant_id' => $this->record->id, 'error' => $e->getMessage(),
+            ]);
+        }
+
         Notification::make()
             ->success()
             ->title('Gift tenant created')
-            ->body("Owner sign-in:\n  Email: {$stash['email']}\n  Password: {$stash['password']}\n  URL: https://{$stash['subdomain']}.intake.works/login\n\nCopy this now — it will not be shown again.")
+            ->body("Owner sign-in:\n  Email: {$stash['email']}\n  Password: {$stash['password']}\n  URL: https://{$stash['subdomain']}.intake.works/login\n\nCopy this now — it will not be shown again. The owner has also been emailed.")
             ->persistent()
             ->send();
     }

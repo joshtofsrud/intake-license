@@ -350,6 +350,17 @@ class OnboardingController extends Controller
             'is_active'  => true,
         ]);
 
+        // MARKER-PATCH-143 — fire welcome email on billing signup path
+        try {
+            \Illuminate\Support\Facades\Mail::to($user->email)->send(
+                new \App\Mail\WelcomeEmail($tenant, $user, null, 'signup')
+            );
+        } catch (\Throwable $mailErr) {
+            \Illuminate\Support\Facades\Log::warning('Welcome email send failed (non-fatal)', [
+                'tenant_id' => $tenant->id, 'error' => $mailErr->getMessage(),
+            ]);
+        }
+
         return [$tenant, $user];
     }
 
@@ -384,6 +395,16 @@ class OnboardingController extends Controller
                     'is_active'  => true,
                 ]);
 
+                // MARKER-PATCH-143 — fire welcome email on no-billing signup path
+                try {
+                    \Illuminate\Support\Facades\Mail::to($user->email)->send(
+                        new \App\Mail\WelcomeEmail($tenant, $user, null, 'signup')
+                    );
+                } catch (\Throwable $mailErr) {
+                    \Illuminate\Support\Facades\Log::warning('Welcome email send failed (non-fatal)', [
+                        'tenant_id' => $tenant->id, 'error' => $mailErr->getMessage(),
+                    ]);
+                }
                 return [$tenant, $user];
             });
         } catch (\Throwable $e) {

@@ -538,6 +538,9 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
             Route::patch('/team/{id}',                     [TenantControllers\TeamController::class, 'update'])->name('team.update');
             Route::delete('/team/{id}',                    [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
 
+            // MARKER-PATCH-143 — Test email send endpoint (settings card)
+            Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
+
             // Self-service account surfaces (current user only)
             Route::get('/account',                         [TenantControllers\AccountController::class, 'index'])->name('account.index');
             Route::patch('/account/name',                  [TenantControllers\AccountController::class, 'updateName'])->name('account.name');

@@ -750,18 +750,41 @@
           value="{{ old('email_from_name', $currentTenant->email_from_name) }}"
           placeholder="{{ $currentTenant->name }}">
       </div>
+      {{-- MARKER-PATCH-143 — From address locked to <subdomain>@intake.works until custom domains land --}}
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
           <label class="ia-form-label">From email address</label>
-          <input type="email" name="email_from_address" class="ia-input"
-            value="{{ old('email_from_address', $currentTenant->email_from_address) }}"
-            placeholder="{{ $currentTenant->subdomain }}@intake.works">
+          <input type="email" class="ia-input" readonly disabled
+            value="{{ $currentTenant->subdomain }}@intake.works"
+            style="opacity:.7;cursor:not-allowed">
+          <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+            All your customer emails come from this address. Custom domains coming soon.
+          </div>
         </div>
         <div class="ia-form-group">
           <label class="ia-form-label">Reply-to (optional)</label>
           <input type="email" name="email_reply_to" class="ia-input"
-            value="{{ old('email_reply_to', $currentTenant->email_reply_to) }}">
+            value="{{ old('email_reply_to', $currentTenant->email_reply_to) }}"
+            placeholder="{{ Auth::guard('tenant')->user()->email ?? '' }}">
+          <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+            Where replies go. Usually your shop's main email.
+          </div>
         </div>
+      </div>
+
+      {{-- MARKER-PATCH-143 — Test send block --}}
+      <div style="margin-top:14px;padding:14px;background:rgba(190,242,100,.06);border:1px solid rgba(190,242,100,.18);border-radius:var(--ia-r-md)">
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px">Test your email setup</div>
+        <div style="font-size:12px;color:var(--ia-text-dim);margin-bottom:10px;line-height:1.55">
+          Save any changes above first. Then enter a recipient and send a test email to verify the From name and reply-to look right.
+        </div>
+        <form method="POST" action="{{ route('tenant.settings.email.test') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          @csrf
+          <input type="email" name="recipient" class="ia-input" style="flex:1;min-width:240px"
+            placeholder="recipient@example.com"
+            value="{{ Auth::guard('tenant')->user()->email ?? '' }}" required>
+          <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Send test email</button>
+        </form>
       </div>
       <div class="ia-form-group">
         <label class="ia-form-label">New booking notification email</label>
