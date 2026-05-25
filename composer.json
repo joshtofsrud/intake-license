@@ -8,6 +8,7 @@
     "license": "proprietary",
     "require": {
         "php": "^8.2",
+        "aws/aws-php-sns-message-validator": "^1.10",
         "aws/aws-sdk-php": "^3.382",
         "filament/filament": "^3.2",
         "laravel/framework": "^11.0",
