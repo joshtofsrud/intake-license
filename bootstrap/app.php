@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/stripe',
             'webhooks/stripe/*',
             'webhooks/cloudflare', // MARKER-PATCH-118
+            'webhooks/ses-bounce',  // MARKER-PATCH-146
             'api/plan-quiz/*',
         ]);
     })

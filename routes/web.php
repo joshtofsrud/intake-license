@@ -157,6 +157,10 @@ $tenantRoutes = function () {
 Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
     ->name('webhooks.cloudflare');
 
+// MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified inside controller)
+Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
+    ->name('webhooks.ses-bounce');
+
     Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 

@@ -42,16 +42,28 @@ class EmailService
         $fromEmail = $this->tenant->emailFromAddress();
         $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
 
+        // MARKER-PATCH-146 — suppression gate
+        if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
+            logger()->info("EmailService skipped (suppressed) [{$templateKey}]", [
+                'tenant_id' => $this->tenant->id,
+                'to'        => $toEmail,
+            ]);
+            return;
+        }
+
         try {
+            $tenantId = $this->tenant->id;
             Mail::send([], [], function ($message) use (
-                $toEmail, $subject, $body, $fromName, $fromEmail, $replyTo
+                $toEmail, $subject, $body, $fromName, $fromEmail, $replyTo, $tenantId
             ) {
                 $message
                     ->to($toEmail)
                     ->from($fromEmail, $fromName)
                     ->replyTo($replyTo)
                     ->subject($subject)
-                    ->html($body);
+                    ->html($body)
+                    // MARKER-PATCH-146 — header lets the bounce webhook map events back to tenants
+                    ->getHeaders()->addTextHeader('X-Tenant-Id', $tenantId);
             });
         } catch (\Throwable $e) {
             logger()->error("EmailService send failed [{$templateKey}]: {$e->getMessage()}");
