@@ -24,27 +24,27 @@ class TestSendMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    // MARKER-PATCH-145 — renamed $replyTo to $testReplyTo to avoid Mailable parent collision.
     public function __construct(
-        public readonly string $fromEmail,
-        public readonly string $fromName,
-        public readonly ?string $replyTo,
-        public readonly string $shopName,
+        public string $fromEmail,
+        public string $fromName,
+        public ?string $testReplyTo,
+        public string $shopName,
     ) {}
 
     public function envelope(): Envelope
     {
-        $env = new Envelope(
-            from: new Address($this->fromEmail, $this->fromName),
-            subject: 'Test email — ' . $this->shopName,
-        );
-        if ($this->replyTo) {
-            $env = new Envelope(
+        if ($this->testReplyTo) {
+            return new Envelope(
                 from: new Address($this->fromEmail, $this->fromName),
-                replyTo: [new Address($this->replyTo)],
+                replyTo: [new Address($this->testReplyTo)],
                 subject: 'Test email — ' . $this->shopName,
             );
         }
-        return $env;
+        return new Envelope(
+            from: new Address($this->fromEmail, $this->fromName),
+            subject: 'Test email — ' . $this->shopName,
+        );
     }
 
     public function content(): Content
@@ -52,9 +52,10 @@ class TestSendMail extends Mailable
         return new Content(
             view: 'emails.test-send',
             with: [
+                // MARKER-PATCH-145 — $replyTo -> $testReplyTo; view variable name unchanged.
                 'fromEmail' => $this->fromEmail,
                 'fromName'  => $this->fromName,
-                'replyTo'   => $this->replyTo,
+                'replyTo'   => $this->testReplyTo,
                 'shopName'  => $this->shopName,
             ],
         );
