@@ -177,11 +177,13 @@ class TenantResource extends Resource
         ];
     }
 
+    // MARKER-PATCH-142 — wire up Create route for the gift-tenant flow.
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListTenants::route('/'),
-            'edit'  => Pages\EditTenant::route('/{record}/edit'),
+            'index'  => Pages\ListTenants::route('/'),
+            'create' => Pages\CreateTenant::route('/create'),
+            'edit'   => Pages\EditTenant::route('/{record}/edit'),
         ];
     }
 }
