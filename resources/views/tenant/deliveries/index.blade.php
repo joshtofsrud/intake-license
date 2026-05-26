@@ -760,11 +760,10 @@
 <script>
   window.delDeliveries = @json($deliveriesForJs);
   window.delEditing = null;
+  // MARKER-PATCH-152B-FIX1 — base URLs only; client appends /{id}/[action]
   window.delRoutes = {
     store:    @json(route('tenant.deliveries.store')),
-    update:   "@json(route('tenant.deliveries.update', ['id' => '__ID__']))".replace(/&quot;/g, ''),
-    complete: "@json(route('tenant.deliveries.complete', ['id' => '__ID__']))".replace(/&quot;/g, ''),
-    cancel:   "@json(route('tenant.deliveries.cancel', ['id' => '__ID__']))".replace(/&quot;/g, ''),
+    base:     @json(route('tenant.deliveries.index')),
   };
 
   function delOpenCreate(type) {
@@ -800,7 +799,7 @@
     document.getElementById('del-drawer').classList.add('is-open');
     document.getElementById('del-drawer-title').textContent = 'Edit ' + d.type;
     document.getElementById('del-drawer-sub').textContent = d.status === 'completed' ? 'Completed ' + (d.completed_at || '') : 'Scheduled';
-    document.getElementById('del-form').action = window.delRoutes.update.replace('__ID__', id);
+    document.getElementById('del-form').action = window.delRoutes.base + '/' + id;
     document.getElementById('del-form-method').value = 'PATCH';
     delSelectType(d.type);
     var iso = d.scheduled_at_iso || '';
@@ -850,7 +849,7 @@
     if (!confirm('Mark this delivery complete?')) return;
     var f = document.createElement('form');
     f.method = 'POST';
-    f.action = window.delRoutes.complete.replace('__ID__', window.delEditing);
+    f.action = window.delRoutes.base + '/' + window.delEditing + '/complete';
     f.innerHTML = '<input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="_method" value="PATCH">';
     document.body.appendChild(f);
     f.submit();
@@ -860,7 +859,7 @@
     if (!confirm('Cancel this delivery? The customer will NOT be auto-notified of the cancellation.')) return;
     var f = document.createElement('form');
     f.method = 'POST';
-    f.action = window.delRoutes.cancel.replace('__ID__', window.delEditing);
+    f.action = window.delRoutes.base + '/' + window.delEditing + '/cancel';
     f.innerHTML = '<input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="_method" value="PATCH">';
     document.body.appendChild(f);
     f.submit();
