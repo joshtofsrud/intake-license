@@ -535,6 +535,99 @@
 }
 .ma-charge-row:last-child { border-bottom: 0; }
 
+/* ============== MARKER-PATCH-158-E4 — Parts table ============== */
+.ma-parts-card {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 14px;
+}
+.ma-parts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ma-parts-table th {
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ia-text-faint, #52525b);
+  padding: 6px 0;
+  text-align: left;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ma-parts-table th.num { text-align: right; }
+.ma-parts-table td {
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--ia-border);
+  vertical-align: middle;
+}
+.ma-parts-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ma-parts-table tr:last-child td { border-bottom: 0; }
+.ma-part-qty-edit {
+  width: 60px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ia-text);
+  font: inherit; font-size: 12.5px;
+  padding: 3px 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ma-part-qty-edit:hover { border-color: var(--ia-border); }
+.ma-part-qty-edit:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+}
+.ma-part-qty-edit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ma-part-picker-result {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ma-part-picker-result:last-child { border-bottom: 0; }
+.ma-part-picker-result:hover,
+.ma-part-picker-result.is-active {
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+}
+.ma-part-picker-result .name {
+  font-size: 13px;
+}
+.ma-part-picker-result .meta {
+  font-size: 11px;
+  color: var(--ia-text-dim);
+  margin-top: 2px;
+  display: flex;
+  justify-content: space-between;
+}
+.ma-part-picker-custom {
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+  border-top: 0.5px solid var(--ia-border);
+  font-size: 12.5px;
+  color: var(--ia-accent, #BEF264);
+}
+.ma-part-picker-custom:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+}
+.ma-part-picker-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ia-text-dim);
+}
+
 /* Payment status badge */
 .ma-payment-badge {
   display: inline-block;
@@ -564,20 +657,37 @@
   background: rgba(248, 113, 113, 0.10);
   color: #fca5a5;
 }
-  background: transparent;
-  border: 1px solid transparent;
+
+/* Asset name inline edit */
+/* MARKER-PATCH-158-E4 — fixed CSS specificity so input doesn't pick up
+   browser/ia-input default white background. Higher specificity + !important
+   on the visual properties because ia-input wins generic selectors. */
+.ma-asset .ma-asset-name-edit,
+input.ma-asset-name-edit {
+  background: transparent !important;
+  border: 1px solid transparent !important;
   border-radius: 4px;
-  color: var(--ia-text);
-  font: inherit; font-size: 14px; font-weight: 500;
+  color: var(--ia-text) !important;
+  font: inherit;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  font-family: var(--ia-font, inherit) !important;
   padding: 2px 6px;
   width: 100%;
   max-width: 100%;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
 }
-.ma-asset-name-edit:hover { border-color: var(--ia-border); }
-.ma-asset-name-edit:focus {
-  outline: none;
-  border-color: var(--ia-accent, #BEF264);
-  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+.ma-asset .ma-asset-name-edit:hover,
+input.ma-asset-name-edit:hover {
+  border-color: var(--ia-border) !important;
+}
+.ma-asset .ma-asset-name-edit:focus,
+input.ma-asset-name-edit:focus {
+  outline: none !important;
+  border-color: var(--ia-accent, #BEF264) !important;
+  background: var(--ia-surface-2, rgba(255,255,255,0.02)) !important;
 }
 
 /* ============== MARKER-PATCH-158-E1 — Modals ============== */
@@ -1063,6 +1173,112 @@
             <span style="font-variant-numeric: tabular-nums;">${{ number_format($appointment->charges->sum('amount_cents') / 100, 2) }}</span>
           </div>
         @endif
+      </div>
+
+      {{-- MARKER-PATCH-158-E4 — Inventory parts card --}}
+      <div class="ma-parts-card">
+        <div class="ma-charges-head">
+          <div class="ma-section-title">Parts &amp; products</div>
+          <div style="font-size: 11px; color: var(--ia-text-faint, #52525b);">
+            Physical items consumed during the work
+          </div>
+        </div>
+
+        @if($appointment->parts->isNotEmpty())
+          <table class="ma-parts-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="num" style="width: 80px;">Qty</th>
+                <th class="num" style="width: 90px;">Price</th>
+                <th class="num" style="width: 90px;">Total</th>
+                <th style="width: 28px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach($appointment->parts as $part)
+                @php
+                  $invItem = $part->inventoryItem;
+                  $stockNow = $invItem ? (int) ($invItem->computed_stock_count ?? 0) : null;
+                  $stockProjected = ($stockNow !== null && !$part->isCommitted())
+                    ? $stockNow - (int) $part->quantity
+                    : null;
+                @endphp
+                <tr class="ma-part-row" data-part-id="{{ $part->id }}" data-committed="{{ $part->isCommitted() ? '1' : '0' }}">
+                  <td>
+                    <div style="font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span>{{ $part->item_name_snapshot }}</span>
+                      @if(!$part->inventory_item_id)
+                        <span class="ma-pill">Custom</span>
+                      @endif
+                    </div>
+                    @if($part->item_sku_snapshot)
+                      <div style="font-size: 11px; opacity: .45; font-family: ui-monospace, 'SF Mono', monospace; margin-top: 2px;">{{ $part->item_sku_snapshot }}</div>
+                    @endif
+                    @if($stockNow !== null)
+                      <div style="font-size: 11px; opacity: .55; margin-top: 3px;">
+                        @if($part->isCommitted())
+                          Stock decremented · current: {{ $stockNow }}
+                        @else
+                          Stock: {{ $stockNow }} → {{ $stockProjected }} on completion
+                        @endif
+                      </div>
+                    @endif
+                  </td>
+                  <td class="num">
+                    <input type="number" min="1" max="999"
+                      class="ma-part-qty-edit"
+                      value="{{ $part->quantity }}"
+                      data-part-id="{{ $part->id }}"
+                      {{ ($part->isCommitted() && $part->inventory_item_id) ? 'disabled' : '' }}>
+                  </td>
+                  <td class="num">${{ number_format($part->effectiveUnitPriceCents() / 100, 2) }}</td>
+                  <td class="num" data-line-total>${{ number_format($part->lineTotalCents() / 100, 2) }}</td>
+                  <td>
+                    <button type="button" class="ma-service-remove ma-part-remove" data-part-id="{{ $part->id }}" title="Remove">&#x2715;</button>
+                  </td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        @else
+          <p style="font-size: 13px; opacity: .4; margin: 0 0 12px;">No products added yet.</p>
+        @endif
+
+        {{-- Part picker --}}
+        <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--ia-border); align-items: center; position: relative;">
+          <input type="text" id="ma-part-picker-input" class="ia-input"
+                 placeholder="+ Add product from inventory or custom item…"
+                 style="flex: 1;" autocomplete="off">
+          <div id="ma-part-picker-results"
+               style="display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--ia-surface, #111); border: 1px solid var(--ia-border); border-radius: 6px; max-height: 280px; overflow-y: auto; z-index: 20;">
+          </div>
+        </div>
+
+        {{-- Custom item inline form (shown when user clicks "+ Custom item" in picker) --}}
+        <div id="ma-custom-item-form" style="display: none; margin-top: 10px; padding: 12px; border: 0.5px solid var(--ia-border); border-radius: 6px; background: var(--ia-surface-2, rgba(255,255,255,0.02));">
+          <div style="font-size: 12px; font-weight: 500; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <span>Custom item</span>
+            <button type="button" id="ma-custom-item-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="padding: 2px 8px; font-size: 11px;">Cancel</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1.6fr 0.7fr 0.5fr auto; gap: 8px; align-items: end;">
+            <div>
+              <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Name</label>
+              <input type="text" id="ma-custom-item-name" class="ia-input" maxlength="255" placeholder="e.g. Scratched paint touch-up">
+            </div>
+            <div>
+              <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Price</label>
+              <input type="number" id="ma-custom-item-price" class="ia-input" min="0" step="0.01" placeholder="0.00" style="text-align: right;">
+            </div>
+            <div>
+              <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Qty</label>
+              <input type="number" id="ma-custom-item-qty" class="ia-input" min="1" max="999" value="1" style="text-align: right;">
+            </div>
+            <div>
+              <button type="button" id="ma-custom-item-save" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
+            </div>
+          </div>
+        </div>
       </div>
 
     </main>
@@ -1675,6 +1891,186 @@
       const url = result.data?.redirect_url;
       if (url) { window.location.href = url; }
       else { location.reload(); }
+    });
+  })();
+
+  // ---------------------- MARKER-PATCH-158-E4 — Inventory parts ----------------------
+
+  // Part quantity inline edit
+  document.querySelectorAll('.ma-part-qty-edit').forEach(function(input) {
+    let originalValue = input.value;
+    input.addEventListener('focus', function() { originalValue = input.value; input.select(); });
+    input.addEventListener('blur', async function() {
+      const newQty = parseInt(input.value, 10);
+      if (isNaN(newQty) || newQty < 1) { input.value = originalValue; return; }
+      if (String(newQty) === originalValue) return;
+      const partId = input.dataset.partId;
+      const result = await post({
+        op: 'update_part_quantity',
+        part_id: partId,
+        quantity: newQty,
+      });
+      if (!result.ok) {
+        input.value = originalValue;
+        if (window.IntakeToast) IntakeToast.error('Could not update quantity: ' + result.message);
+        else alert('Could not update quantity: ' + result.message);
+        return;
+      }
+      originalValue = String(newQty);
+      // Update line total cell in this row
+      const row = input.closest('.ma-part-row');
+      if (row && result.data && result.data.line_total_display) {
+        const totalCell = row.querySelector('[data-line-total]');
+        if (totalCell) totalCell.textContent = result.data.line_total_display;
+      }
+      if (window.IntakeToast) IntakeToast.success('Quantity updated');
+    });
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { input.value = originalValue; input.blur(); }
+    });
+  });
+
+  // Part remove button
+  document.querySelectorAll('.ma-part-remove').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (!confirm('Remove this part from the appointment?')) return;
+      const partId = btn.dataset.partId;
+      const result = await post({ op: 'remove_part', part_id: partId });
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not remove: ' + result.message);
+        else alert('Could not remove: ' + result.message);
+        return;
+      }
+      location.reload();
+    });
+  });
+
+  // Part picker with autocomplete
+  (function() {
+    const input   = document.getElementById('ma-part-picker-input');
+    const results = document.getElementById('ma-part-picker-results');
+    const customForm = document.getElementById('ma-custom-item-form');
+    if (!input || !results) return;
+
+    const searchUrl = {!! json_encode(route('tenant.appointments.inventory-search')) !!};
+    let debounceTimer = null;
+    let lastQuery = '';
+
+    async function doSearch(q) {
+      const r = await fetch(searchUrl + '?q=' + encodeURIComponent(q), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+      });
+      const data = await r.json();
+      renderResults(data.items || [], q);
+    }
+
+    function renderResults(items, q) {
+      let html = '';
+      if (items.length === 0) {
+        html = '<div class="ma-part-picker-empty">No matching items.</div>';
+      } else {
+        items.forEach(function(it) {
+          html += '<div class="ma-part-picker-result" data-id="' + it.id + '">' +
+                  '  <div class="name">' + escapeHtml(it.name) + '</div>' +
+                  '  <div class="meta">' +
+                  '    <span>' + (it.sku ? escapeHtml(it.sku) + ' · ' : '') + (it.price_display || '$0.00') + '</span>' +
+                  '    <span>' + (it.stock > 0 ? it.stock + ' in stock' : (it.allow_oversell ? 'Oversell ok' : 'Out of stock')) + '</span>' +
+                  '  </div>' +
+                  '</div>';
+        });
+      }
+      html += '<div class="ma-part-picker-custom" id="ma-picker-custom-trigger">+ Add custom item' +
+              (q ? ' "' + escapeHtml(q) + '"' : '') + '</div>';
+      results.innerHTML = html;
+      results.style.display = 'block';
+
+      // Wire selection
+      results.querySelectorAll('.ma-part-picker-result').forEach(function(el) {
+        el.addEventListener('click', async function() {
+          const id = el.dataset.id;
+          results.style.display = 'none';
+          input.value = '';
+          const result = await post({ op: 'add_part', inventory_item_id: id, quantity: 1 });
+          if (!result.ok) {
+            if (window.IntakeToast) IntakeToast.error('Could not add: ' + result.message);
+            else alert('Could not add: ' + result.message);
+            return;
+          }
+          location.reload();
+        });
+      });
+
+      // Wire custom trigger
+      const trig = document.getElementById('ma-picker-custom-trigger');
+      if (trig) trig.addEventListener('click', function() {
+        results.style.display = 'none';
+        customForm.style.display = 'block';
+        const nameField = document.getElementById('ma-custom-item-name');
+        if (q && nameField) nameField.value = q;
+        if (nameField) setTimeout(function() { nameField.focus(); }, 50);
+        input.value = '';
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    input.addEventListener('input', function() {
+      const q = input.value.trim();
+      if (q === lastQuery) return;
+      lastQuery = q;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function() { doSearch(q); }, 180);
+    });
+    input.addEventListener('focus', function() {
+      if (lastQuery !== input.value.trim() || results.innerHTML === '') {
+        lastQuery = input.value.trim();
+        doSearch(lastQuery);
+      } else {
+        results.style.display = 'block';
+      }
+    });
+
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+      if (!input.contains(e.target) && !results.contains(e.target)) {
+        results.style.display = 'none';
+      }
+    });
+
+    // Custom item form save / cancel
+    const customCancel = document.getElementById('ma-custom-item-cancel');
+    const customSave   = document.getElementById('ma-custom-item-save');
+    if (customCancel) customCancel.addEventListener('click', function() {
+      customForm.style.display = 'none';
+      document.getElementById('ma-custom-item-name').value = '';
+      document.getElementById('ma-custom-item-price').value = '';
+      document.getElementById('ma-custom-item-qty').value = '1';
+    });
+    if (customSave) customSave.addEventListener('click', async function() {
+      const name  = document.getElementById('ma-custom-item-name').value.trim();
+      const price = parseFloat(document.getElementById('ma-custom-item-price').value);
+      const qty   = parseInt(document.getElementById('ma-custom-item-qty').value, 10) || 1;
+      if (!name) { alert('Name is required.'); return; }
+      if (isNaN(price) || price < 0) { alert('Enter a valid price.'); return; }
+      customSave.disabled = true;
+      const result = await post({
+        op: 'add_custom_item',
+        name: name,
+        unit_price_cents: Math.round(price * 100),
+        quantity: qty,
+      });
+      customSave.disabled = false;
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not add: ' + result.message);
+        else alert('Could not add: ' + result.message);
+        return;
+      }
+      location.reload();
     });
   })();
 
