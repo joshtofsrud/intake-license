@@ -1,6 +1,8 @@
 @props([
-  'active' => 'calendar',  // 'calendar', 'appointments', or 'classes'
+  'active' => 'calendar',
 ])
+
+{{-- MARKER-PATCH-152A — added Deliveries pill --}}
 
 <div class="ia-schedule-toggle">
   <a href="{{ route('tenant.calendar.index') }}"
@@ -28,4 +30,14 @@
     Classes
   </a>
   @endif
+  <a href="{{ route('tenant.deliveries.index') }}"
+     class="ia-schedule-pill {{ $active === 'deliveries' ? 'is-active' : '' }}">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+      <path d="M1 9V5a1 1 0 011-1h6v6H1z" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M8 6h3l2 2v2H8V6z" stroke="currentColor" stroke-width="1.2"/>
+      <circle cx="4" cy="11" r="1.2" fill="currentColor"/>
+      <circle cx="10.5" cy="11" r="1.2" fill="currentColor"/>
+    </svg>
+    Deliveries
+  </a>
 </div>

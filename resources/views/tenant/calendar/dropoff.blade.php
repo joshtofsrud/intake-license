@@ -23,6 +23,9 @@
   </div>
 </div>
 
+{{-- MARKER-PATCH-152A — capacity-mode was missing the schedule sub-toggle --}}
+<x-tenant.schedule-tabs active="calendar" />
+
 @if(session('flash'))
   <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>
 @endif
