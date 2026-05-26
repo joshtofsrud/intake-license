@@ -46,6 +46,12 @@ class TenantAppointment extends Model
     public function location(): BelongsTo  { return $this->belongsTo(TenantLocation::class, 'location_id'); }
     public function items(): HasMany       { return $this->hasMany(TenantAppointmentItem::class, 'appointment_id'); }
     public function addons(): HasMany      { return $this->hasMany(TenantAppointmentAddon::class, 'appointment_id'); }
+
+    // MARKER-PATCH-158-A — multi-asset support
+    public function assets(): HasMany
+    {
+        return $this->hasMany(TenantAppointmentAsset::class, 'appointment_id')->orderBy('sort_order');
+    }
     public function parts(): HasMany       { return $this->hasMany(TenantAppointmentPart::class, 'appointment_id'); }
     public function responses(): HasMany   { return $this->hasMany(TenantAppointmentResponse::class, 'appointment_id'); }
     public function notes(): HasMany       { return $this->hasMany(TenantAppointmentNote::class, 'appointment_id')->orderBy('created_at'); }

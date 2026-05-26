@@ -12,6 +12,7 @@ class TenantAppointmentItem extends Model
     protected $fillable = [
         'appointment_id',
         'service_item_id',
+        'appointment_asset_id', // MARKER-PATCH-158-A — pins this service to a specific asset card
         'item_name_snapshot',
         'price_cents',
         'price_cents_override',
@@ -49,5 +50,11 @@ class TenantAppointmentItem extends Model
     public function serviceItem(): BelongsTo
     {
         return $this->belongsTo(TenantServiceItem::class, 'service_item_id');
+    }
+
+    // MARKER-PATCH-158-A — nullable; null means "loose" on the appointment
+    public function appointmentAsset(): BelongsTo
+    {
+        return $this->belongsTo(TenantAppointmentAsset::class, 'appointment_asset_id');
     }
 }

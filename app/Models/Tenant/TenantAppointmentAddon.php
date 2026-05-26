@@ -12,6 +12,7 @@ class TenantAppointmentAddon extends Model
     protected $fillable = [
         'appointment_id',
         'addon_id',
+        'appointment_asset_id', // MARKER-PATCH-158-A — pins this addon to a specific asset card
         'addon_name_snapshot',
         'price_cents',
         'price_cents_override',
@@ -45,5 +46,11 @@ class TenantAppointmentAddon extends Model
     public function addon(): BelongsTo
     {
         return $this->belongsTo(TenantAddon::class, 'addon_id');
+    }
+
+    // MARKER-PATCH-158-A — nullable; null means "loose" on the appointment
+    public function appointmentAsset(): BelongsTo
+    {
+        return $this->belongsTo(TenantAppointmentAsset::class, 'appointment_asset_id');
     }
 }

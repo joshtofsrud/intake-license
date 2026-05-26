@@ -35,6 +35,10 @@ class TenantCustomer extends Authenticatable
     public function notes(): HasMany          { return $this->hasMany(TenantCustomerNote::class, 'customer_id')->orderByDesc('created_at'); }
     public function fullName(): string        { return $this->first_name . ' ' . $this->last_name; }
 
+    // MARKER-PATCH-158-A
+    public function assets(): HasMany         { return $this->hasMany(TenantCustomerAsset::class, 'customer_id'); }
+    public function activeAssets(): HasMany   { return $this->hasMany(TenantCustomerAsset::class, 'customer_id')->whereNull('archived_at'); }
+
     public function packs(): HasMany
     {
         return $this->hasMany(TenantCustomerPack::class, 'customer_id');
