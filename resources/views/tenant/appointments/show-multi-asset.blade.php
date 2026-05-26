@@ -1245,7 +1245,8 @@ input.ma-asset-name-edit:focus {
 @section('mobile-back', 'Appointments|' . route('tenant.appointments.index'))
 
 @section('content')
-<div class="ia-page" style="padding: 24px 28px 60px; max-width: 1400px; margin: 0 auto;">
+{{-- MARKER-PATCH-158-G8 — Removed max-width:1400px + margin:0 auto. No other tenant page uses centered wrapper; this one shouldn't either. --}}
+<div class="ia-page" style="padding: 24px 28px 60px;">
 
   {{-- Header --}}
   <div class="ma-page-head">
