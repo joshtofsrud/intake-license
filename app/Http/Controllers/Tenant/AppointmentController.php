@@ -1279,7 +1279,13 @@ class AppointmentController extends Controller
             $item = \App\Models\Tenant\TenantAppointmentItem::where('id', $itemId)
                 ->where('appointment_id', $appointment->id)->first();
             if (!$item) return response()->json(['ok' => false, 'message' => 'Item not found.'], 422);
+            // MARKER-PATCH-158-E2 — snapshot asset FK before delete so we can refresh its subtotal
+            $assetId = $item->appointment_asset_id;
             $item->delete();
+            if ($assetId) {
+                $aa = \App\Models\Tenant\TenantAppointmentAsset::find($assetId);
+                if ($aa) $aa->refreshSubtotal();
+            }
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);
         }
@@ -1307,7 +1313,13 @@ class AppointmentController extends Controller
             $addon = \App\Models\Tenant\TenantAppointmentAddon::where('id', $addonId)
                 ->where('appointment_id', $appointment->id)->first();
             if (!$addon) return response()->json(['ok' => false, 'message' => 'Add-on not found.'], 422);
+            // MARKER-PATCH-158-E2 — snapshot asset FK before delete so we can refresh its subtotal
+            $assetId = $addon->appointment_asset_id;
             $addon->delete();
+            if ($assetId) {
+                $aa = \App\Models\Tenant\TenantAppointmentAsset::find($assetId);
+                if ($aa) $aa->refreshSubtotal();
+            }
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);
         }
@@ -1326,7 +1338,7 @@ class AppointmentController extends Controller
         //   - detach_asset           → removes the pivot, unpins services (set FK null)
         //   - add_service_to_asset   → creates an item or addon pinned to a specific asset
         // -------------------------------------------------------------------
-        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset'], true)) {
+        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset', 'rename_appointment_asset'], true)) {
             if (!$tenant->multi_asset_enabled) {
                 return response()->json(['ok' => false, 'message' => 'Multi-asset is not enabled for this tenant.'], 403);
             }
@@ -1482,6 +1494,21 @@ class AppointmentController extends Controller
             // Recalc this asset's subtotal + the appointment grand total
             $aa->refreshSubtotal();
             $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        // MARKER-PATCH-158-E2 — rename an appointment-asset (snapshot only,
+        // doesn't touch the underlying customer_asset)
+        if ($op === 'rename_appointment_asset') {
+            $data = $request->validate([
+                'appointment_asset_id' => ['required', 'uuid'],
+                'name'                 => ['required', 'string', 'max:200'],
+            ]);
+            $aa = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->where('id', $data['appointment_asset_id'])
+                ->first();
+            if (!$aa) return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+            $aa->update(['asset_name_snapshot' => $data['name']]);
             return response()->json(['ok' => true]);
         }
 
@@ -1724,6 +1751,11 @@ class AppointmentController extends Controller
             $row->price_cents_override      = ($price === null || $price === '')      ? null : (int) $price;
             $row->duration_minutes_override = ($duration === null || $duration === '') ? null : (int) $duration;
             $row->save();
+            // MARKER-PATCH-158-E2 — refresh asset subtotal if this row is pinned to one
+            if ($row->appointment_asset_id) {
+                $aa = \App\Models\Tenant\TenantAppointmentAsset::find($row->appointment_asset_id);
+                if ($aa) $aa->refreshSubtotal();
+            }
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);
         }

@@ -26,6 +26,14 @@
   $addonCount   = $appointmentAssets->sum(fn($a) => $a->addons->count()) + $looseAddons->count();
 
   $updateUrl = route('tenant.appointments.update', $appointment->id);
+
+  // MARKER-PATCH-158-E2 — status pipeline (mirrors legacy show.blade.php)
+  $isTerminal    = in_array($appointment->status, ['cancelled', 'refunded']);
+  $pipelineSteps = ['pending', 'confirmed', 'in_progress', 'completed'];
+  if ($appointment->status === 'shipped') $pipelineSteps[] = 'shipped';
+  if ($appointment->status === 'closed')  $pipelineSteps[] = 'closed';
+  $currentIndex = array_search($appointment->status, $pipelineSteps);
+  if ($currentIndex === false) $currentIndex = 0;
 @endphp
 
 @push('styles')
@@ -215,8 +223,8 @@
 .ma-asset-services { padding: 8px 18px 14px; }
 .ma-service-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
+  grid-template-columns: 1fr 90px 90px 24px;
+  gap: 10px;
   align-items: center;
   padding: 10px 12px;
   background: var(--ia-surface-2, rgba(255,255,255,0.02));
@@ -375,6 +383,149 @@
   max-width: 360px;
   margin-left: auto; margin-right: auto;
   line-height: 1.5;
+}
+
+/* ============== MARKER-PATCH-158-E2 — Status pipeline (mirrors legacy) ============== */
+.ma-progress-card {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+}
+.ma-progress-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+  gap: 4px;
+}
+.ma-progress-bar::before {
+  content: '';
+  position: absolute;
+  top: 12px; left: 12px; right: 12px;
+  height: 2px; background: var(--ia-border);
+  z-index: 0;
+}
+.ma-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 12px; left: 12px;
+  height: 2px; background: var(--ia-accent, #BEF264);
+  z-index: 0;
+  width: calc(var(--progress-pct, 0) * 1%);
+  transition: width 0.3s;
+}
+.ma-progress-step {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  flex: 1;
+}
+.ma-progress-step:disabled { cursor: default; }
+.ma-progress-dot {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--ia-surface, #111);
+  border: 2px solid var(--ia-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ia-accent-text, #0a0a0a);
+  transition: all 0.15s;
+}
+.ma-progress-step.is-done .ma-progress-dot {
+  background: var(--ia-accent, #BEF264);
+  border-color: var(--ia-accent, #BEF264);
+}
+.ma-progress-step.is-current .ma-progress-dot {
+  border: 2px solid var(--ia-accent, #BEF264);
+  background: var(--ia-surface, #111);
+}
+.ma-progress-dot-inner {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ia-accent, #BEF264);
+}
+.ma-progress-label {
+  font-size: 11px;
+  color: var(--ia-text-dim);
+  transition: color 0.15s;
+}
+.ma-progress-step.is-current .ma-progress-label {
+  font-weight: 500;
+  color: var(--ia-text);
+}
+.ma-progress-step:not(:disabled):hover .ma-progress-dot {
+  border-color: var(--ia-accent, #BEF264);
+}
+.ma-progress-step.is-saving .ma-progress-dot { opacity: 0.5; }
+
+.ma-terminal-card {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.ma-terminal-icon {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  color: var(--ia-text-dim);
+}
+.ma-terminal-title { font-size: 13px; font-weight: 500; }
+
+/* Inline edits + remove on service rows */
+.ma-service-edit {
+  width: 70px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ia-text);
+  font: inherit; font-size: 12.5px;
+  padding: 3px 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ma-service-edit:hover { border-color: var(--ia-border); }
+.ma-service-edit:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+}
+.ma-service-remove {
+  background: transparent; border: 0;
+  color: var(--ia-text-faint, #52525b);
+  font-size: 12px;
+  width: 22px; height: 22px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ma-service-remove:hover { color: #f87171; background: rgba(248,113,113,0.08); }
+
+/* Asset name inline edit */
+.ma-asset-name-edit {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--ia-text);
+  font: inherit; font-size: 14px; font-weight: 500;
+  padding: 2px 6px;
+  width: 100%;
+  max-width: 100%;
+}
+.ma-asset-name-edit:hover { border-color: var(--ia-border); }
+.ma-asset-name-edit:focus {
+  outline: none;
+  border-color: var(--ia-accent, #BEF264);
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
 }
 
 /* ============== MARKER-PATCH-158-E1 — Modals ============== */
@@ -537,6 +688,52 @@
     </div>
   </div>
 
+  {{-- MARKER-PATCH-158-E2 — Status pipeline (mirrors legacy show.blade.php) --}}
+  @if($isTerminal)
+    <div class="ma-terminal-card">
+      <div class="ma-terminal-icon">
+        @if($appointment->status === 'cancelled')
+          ✕
+        @else
+          ↩
+        @endif
+      </div>
+      <div class="ma-terminal-title">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</div>
+      <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-status="pending" id="ma-reopen-btn" style="margin-left:auto;">
+        Reopen
+      </button>
+    </div>
+  @else
+    <div class="ma-progress-card">
+      <div class="ma-progress-bar"
+           data-current-index="{{ $currentIndex }}"
+           data-update-url="{{ $updateUrl }}"
+           style="--progress-pct: {{ count($pipelineSteps) > 1 ? round(100 * $currentIndex / (count($pipelineSteps) - 1)) : 0 }};">
+        @foreach($pipelineSteps as $idx => $step)
+          @php
+            $stepLabel = $statusLabels[$step] ?? $step;
+            $isDone    = $idx < $currentIndex;
+            $isCurrent = $idx === $currentIndex;
+          @endphp
+          <button type="button"
+                  class="ma-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
+                  data-status="{{ $step }}"
+                  data-step-index="{{ $idx }}"
+                  data-label="{{ $stepLabel }}">
+            <span class="ma-progress-dot">
+              @if($isDone)
+                <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              @elseif($isCurrent)
+                <span class="ma-progress-dot-inner"></span>
+              @endif
+            </span>
+            <span class="ma-progress-label">{{ $stepLabel }}</span>
+          </button>
+        @endforeach
+      </div>
+    </div>
+  @endif
+
   {{-- Customer card --}}
   @if($appointment->customer)
     @php
@@ -598,7 +795,13 @@
             <span class="ma-asset-num">{{ $idx + 1 }}</span>
             <div>
               <div class="ma-asset-name">
-                {{ $aa->asset_name_snapshot }}
+                {{-- MARKER-PATCH-158-E2 — inline rename --}}
+                <input type="text"
+                       class="ma-asset-name-edit asset-name-edit"
+                       data-aa-id="{{ $aa->id }}"
+                       value="{{ $aa->asset_name_snapshot }}"
+                       maxlength="200"
+                       title="Click to edit name">
                 @if($isExistingAsset)
                   <span class="ma-pill ma-pill--persistent">Existing</span>
                 @endif
@@ -626,15 +829,29 @@
 
           <div class="ma-asset-services">
             @forelse($aa->items as $item)
-              <div class="ma-service-row">
+              {{-- MARKER-PATCH-158-E2 — inline edits + remove --}}
+              <div class="ma-service-row line-row" data-kind="service" data-item-id="{{ $item->id }}">
                 <div>
                   <div class="ma-service-name">{{ $item->item_name_snapshot }}</div>
-                  @if($item->effectiveDurationMinutes() > 0)
-                    <div class="ma-service-meta">{{ $item->effectiveDurationMinutes() }} min</div>
-                  @endif
+                  <div class="ma-service-meta" style="margin-top:1px;">
+                    <span class="ma-service-tag">Service</span>
+                  </div>
                 </div>
-                <span class="ma-service-tag">Service</span>
-                <span class="ma-service-price">${{ number_format($item->effectivePriceCents() / 100, 2) }}</span>
+                <div style="text-align:right;">
+                  <input type="number" min="0" class="ma-service-edit line-edit"
+                    data-field="duration_minutes"
+                    value="{{ $item->duration_minutes_override ?? $item->duration_minutes_snapshot ?? 0 }}"
+                    title="Duration (minutes)">
+                  <span style="font-size:10px;opacity:.5;">min</span>
+                </div>
+                <div style="text-align:right;">
+                  <span style="opacity:.5;font-size:11px;">$</span>
+                  <input type="number" min="0" step="0.01" class="ma-service-edit line-edit"
+                    data-field="price_dollars"
+                    value="{{ number_format(($item->price_cents_override ?? $item->price_cents) / 100, 2, '.', '') }}"
+                    title="Price (dollars)">
+                </div>
+                <button type="button" class="ma-service-remove line-remove" title="Remove">&#x2715;</button>
               </div>
             @empty
               @if($aa->addons->isEmpty())
@@ -642,15 +859,28 @@
               @endif
             @endforelse
             @foreach($aa->addons as $addon)
-              <div class="ma-service-row">
+              <div class="ma-service-row line-row" data-kind="addon" data-item-id="{{ $addon->id }}">
                 <div>
-                  <div class="ma-service-name">{{ $addon->addon_name_snapshot }}</div>
-                  @if($addon->effectiveDurationMinutes() > 0)
-                    <div class="ma-service-meta">{{ $addon->effectiveDurationMinutes() }} min</div>
-                  @endif
+                  <div class="ma-service-name">+ {{ $addon->addon_name_snapshot }}</div>
+                  <div class="ma-service-meta" style="margin-top:1px;">
+                    <span class="ma-service-tag ma-service-tag--addon">Add-on</span>
+                  </div>
                 </div>
-                <span class="ma-service-tag ma-service-tag--addon">Add-on</span>
-                <span class="ma-service-price">${{ number_format($addon->effectivePriceCents() / 100, 2) }}</span>
+                <div style="text-align:right;">
+                  <input type="number" min="0" class="ma-service-edit line-edit"
+                    data-field="duration_minutes"
+                    value="{{ $addon->duration_minutes_override ?? $addon->duration_minutes_snapshot ?? 0 }}"
+                    title="Duration (minutes)">
+                  <span style="font-size:10px;opacity:.5;">min</span>
+                </div>
+                <div style="text-align:right;">
+                  <span style="opacity:.5;font-size:11px;">$</span>
+                  <input type="number" min="0" step="0.01" class="ma-service-edit line-edit"
+                    data-field="price_dollars"
+                    value="{{ number_format(($addon->price_cents_override ?? $addon->price_cents) / 100, 2, '.', '') }}"
+                    title="Price (dollars)">
+                </div>
+                <button type="button" class="ma-service-remove line-remove" title="Remove">&#x2715;</button>
               </div>
             @endforeach
 
@@ -667,25 +897,57 @@
         <div class="ma-loose-card">
           <div class="ma-loose-title">Unassigned services</div>
           @foreach($looseItems as $item)
-            <div class="ma-service-row" style="margin-bottom: 6px;">
+            <div class="ma-service-row line-row" data-kind="service" data-item-id="{{ $item->id }}" style="margin-bottom: 6px;">
               <div>
                 <div class="ma-service-name">{{ $item->item_name_snapshot }}</div>
+                <div class="ma-service-meta" style="margin-top:1px;">
+                  <span class="ma-service-tag">Service</span>
+                </div>
               </div>
-              <span class="ma-service-tag">Service</span>
-              <span class="ma-service-price">${{ number_format($item->effectivePriceCents() / 100, 2) }}</span>
+              <div style="text-align:right;">
+                <input type="number" min="0" class="ma-service-edit line-edit"
+                  data-field="duration_minutes"
+                  value="{{ $item->duration_minutes_override ?? $item->duration_minutes_snapshot ?? 0 }}"
+                  title="Duration (minutes)">
+                <span style="font-size:10px;opacity:.5;">min</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="opacity:.5;font-size:11px;">$</span>
+                <input type="number" min="0" step="0.01" class="ma-service-edit line-edit"
+                  data-field="price_dollars"
+                  value="{{ number_format(($item->price_cents_override ?? $item->price_cents) / 100, 2, '.', '') }}"
+                  title="Price (dollars)">
+              </div>
+              <button type="button" class="ma-service-remove line-remove" title="Remove">&#x2715;</button>
             </div>
           @endforeach
           @foreach($looseAddons as $addon)
-            <div class="ma-service-row" style="margin-bottom: 6px;">
+            <div class="ma-service-row line-row" data-kind="addon" data-item-id="{{ $addon->id }}" style="margin-bottom: 6px;">
               <div>
-                <div class="ma-service-name">{{ $addon->addon_name_snapshot }}</div>
+                <div class="ma-service-name">+ {{ $addon->addon_name_snapshot }}</div>
+                <div class="ma-service-meta" style="margin-top:1px;">
+                  <span class="ma-service-tag ma-service-tag--addon">Add-on</span>
+                </div>
               </div>
-              <span class="ma-service-tag ma-service-tag--addon">Add-on</span>
-              <span class="ma-service-price">${{ number_format($addon->effectivePriceCents() / 100, 2) }}</span>
+              <div style="text-align:right;">
+                <input type="number" min="0" class="ma-service-edit line-edit"
+                  data-field="duration_minutes"
+                  value="{{ $addon->duration_minutes_override ?? $addon->duration_minutes_snapshot ?? 0 }}"
+                  title="Duration (minutes)">
+                <span style="font-size:10px;opacity:.5;">min</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="opacity:.5;font-size:11px;">$</span>
+                <input type="number" min="0" step="0.01" class="ma-service-edit line-edit"
+                  data-field="price_dollars"
+                  value="{{ number_format(($addon->price_cents_override ?? $addon->price_cents) / 100, 2, '.', '') }}"
+                  title="Price (dollars)">
+              </div>
+              <button type="button" class="ma-service-remove line-remove" title="Remove">&#x2715;</button>
             </div>
           @endforeach
           <div style="font-size: 11.5px; color: var(--ia-text-faint, #52525b); margin-top: 8px; line-height: 1.5;">
-            These services aren't pinned to any asset. Pinning interaction comes in patch 158-E.
+            These services aren't pinned to any asset. Attach an asset above and add new services to pin them.
           </div>
         </div>
       @endif
@@ -762,7 +1024,7 @@
           </div>
         @endif
         <div style="font-size: 11px; color: var(--ia-text-faint, #52525b); margin-top: 10px; line-height: 1.5;">
-          Status pipeline, charges, and payment actions land in patch 158-E2.
+          Payment actions coming in patch 158-E3.
         </div>
       </div>
 
@@ -1035,6 +1297,122 @@
     if (!result.ok) { alert('Detach failed: ' + result.message); return; }
     location.reload();
   };
+
+  // ---------------------- MARKER-PATCH-158-E2 ----------------------
+
+  // Status pipeline click → transition
+  document.querySelectorAll('.ma-progress-step').forEach(function(step) {
+    step.addEventListener('click', async function() {
+      if (step.classList.contains('is-current')) return; // already there
+      if (step.classList.contains('is-saving')) return;
+      const newStatus = step.dataset.status;
+      const label = step.dataset.label;
+      step.classList.add('is-saving');
+      const result = await post({ op: 'status', status: newStatus });
+      step.classList.remove('is-saving');
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not change status: ' + result.message);
+        else alert('Could not change status: ' + result.message);
+        return;
+      }
+      if (window.IntakeToast) IntakeToast.success(label);
+      setTimeout(function() { location.reload(); }, 350);
+    });
+  });
+
+  // Reopen button (terminal state)
+  const reopenBtn = document.getElementById('ma-reopen-btn');
+  if (reopenBtn) {
+    reopenBtn.addEventListener('click', async function() {
+      if (!confirm('Reopen this appointment? Status will return to pending.')) return;
+      const result = await post({ op: 'status', status: 'pending' });
+      if (!result.ok) { alert('Could not reopen: ' + result.message); return; }
+      location.reload();
+    });
+  }
+
+  // Inline edit (price + duration) on service/addon rows
+  document.querySelectorAll('.line-edit').forEach(function(input) {
+    input.addEventListener('blur', async function() {
+      const row  = input.closest('.line-row');
+      if (!row) return;
+      const kind = row.dataset.kind;
+      const id   = row.dataset.itemId;
+
+      const durInput = row.querySelector('.line-edit[data-field="duration_minutes"]');
+      const priInput = row.querySelector('.line-edit[data-field="price_dollars"]');
+      const duration = durInput ? parseInt(durInput.value, 10) : null;
+      const dollars  = priInput ? parseFloat(priInput.value) : null;
+      const cents    = (dollars === null || isNaN(dollars)) ? null : Math.round(dollars * 100);
+
+      const result = await post({
+        op: 'update_line_item',
+        kind: kind,
+        item_id: id,
+        price_cents: cents === null ? '' : cents,
+        duration_minutes: (duration === null || isNaN(duration)) ? '' : duration,
+      });
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not save: ' + result.message);
+        else alert('Could not save: ' + result.message);
+      } else if (window.IntakeToast) {
+        IntakeToast.success('Saved');
+      }
+    });
+
+    // Select all on focus so editing feels snappy
+    input.addEventListener('focus', function() { input.select(); });
+  });
+
+  // Remove button on each service/addon row
+  document.querySelectorAll('.line-remove').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      const row  = btn.closest('.line-row');
+      if (!row) return;
+      const kind = row.dataset.kind;
+      const id   = row.dataset.itemId;
+      if (!confirm('Remove this ' + (kind === 'addon' ? 'add-on' : 'service') + '?')) return;
+      const result = await post({
+        op: kind === 'addon' ? 'remove_addon' : 'remove_service',
+        [kind === 'addon' ? 'addon_id' : 'item_id']: id,
+      });
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not remove: ' + result.message);
+        else alert('Could not remove: ' + result.message);
+        return;
+      }
+      location.reload();
+    });
+  });
+
+  // Asset name inline rename
+  document.querySelectorAll('.asset-name-edit').forEach(function(input) {
+    let originalValue = input.value;
+    input.addEventListener('focus', function() { originalValue = input.value; input.select(); });
+    input.addEventListener('blur', async function() {
+      const newName = input.value.trim();
+      if (newName === originalValue) return;
+      if (newName === '') { input.value = originalValue; return; }
+      const aaId = input.dataset.aaId;
+      const result = await post({
+        op: 'rename_appointment_asset',
+        appointment_asset_id: aaId,
+        name: newName,
+      });
+      if (!result.ok) {
+        input.value = originalValue;
+        if (window.IntakeToast) IntakeToast.error('Could not rename: ' + result.message);
+        else alert('Could not rename: ' + result.message);
+        return;
+      }
+      originalValue = newName;
+      if (window.IntakeToast) IntakeToast.success('Renamed');
+    });
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { input.value = originalValue; input.blur(); }
+    });
+  });
 
   // Escape closes any open modal
   document.addEventListener('keydown', function(e) {
