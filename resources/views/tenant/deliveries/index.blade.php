@@ -739,7 +739,7 @@
         <textarea name="notes" class="del-textarea" id="del-notes" placeholder="Gate code, dog warning, where to leave the bike…"></textarea>
       </div>
 
-      {{-- Notify banner — MARKER-PATCH-152C --}}
+      {{-- Notify banner — MARKER-PATCH-152C / MARKER-PATCH-157 --}}
       @php
         $channelLabels = [];
         if ($notifyEmail) $channelLabels[] = 'email';
@@ -748,10 +748,10 @@
       @if(count($channelLabels) > 0)
         <div class="del-notify">
           <div>
-            <strong>Customer will be notified by {{ implode(' + ', $channelLabels) }}</strong>
+            <strong>Notify by {{ implode(' + ', $channelLabels) }}?</strong>
             <div style="color: var(--ia-text-2, rgba(255,255,255,.78)); margin-top: 2px;">
-              Fires on save. Email goes to the customer's saved address; SMS to their saved phone.
-              <a href="{{ route('tenant.settings.index') }}#notifications" style="color: var(--ia-accent, #BEF264);">Change in settings</a>.
+              Click <em>Save</em> to schedule silently, or <em>Save &amp; notify</em> to send the customer details now.
+              <a href="{{ route('tenant.settings.index') }}#notifications" style="color: var(--ia-accent, #BEF264);">Change channels in settings</a>.
             </div>
           </div>
         </div>
@@ -760,7 +760,7 @@
           <div>
             <strong style="color: #F87171;">Notifications are off</strong>
             <div style="color: var(--ia-text-2, rgba(255,255,255,.78)); margin-top: 2px;">
-              No email or SMS will be sent to the customer.
+              <em>Save &amp; notify</em> won't send anything because both channels are off.
               <a href="{{ route('tenant.settings.index') }}#notifications" style="color: var(--ia-accent, #BEF264);">Enable in settings</a>.
             </div>
           </div>
@@ -776,7 +776,10 @@
       <div class="del-drawer-foot-right">
         <button type="button" class="del-btn del-btn--ghost" id="del-complete-btn" style="display:none;" onclick="delComplete()">Mark complete</button>
         <button type="button" class="del-btn del-btn--ghost" onclick="delCloseDrawer()">Close</button>
-        <button type="submit" class="del-btn del-btn--primary" id="del-save-btn" onclick="return delPrepSubmit()">Save delivery</button>
+        {{-- MARKER-PATCH-157 — hidden notify flag, set by the two save buttons --}}
+        <input type="hidden" name="notify" id="del-notify-flag" value="0">
+        <button type="submit" class="del-btn del-btn--ghost"   id="del-save-btn"        onclick="return delPrepSubmit(false)">Save delivery</button>
+        <button type="submit" class="del-btn del-btn--primary" id="del-save-notify-btn" onclick="return delPrepSubmit(true)">Save &amp; notify</button>
       </div>
     </div>
 
@@ -840,7 +843,9 @@
     document.getElementById('del-notes').value = '';
     document.getElementById('del-complete-btn').style.display = 'none';
     document.getElementById('del-cancel-btn').style.display = 'none';
+    // MARKER-PATCH-157 — set both button labels for create mode
     document.getElementById('del-save-btn').textContent = 'Save delivery';
+    document.getElementById('del-save-notify-btn').textContent = 'Save & notify';
   }
 
   function delOpenEdit(id) {
@@ -867,7 +872,9 @@
     document.getElementById('del-notes').value = d.notes || '';
     document.getElementById('del-complete-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
     document.getElementById('del-cancel-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
+    // MARKER-PATCH-157 — set both button labels for edit mode
     document.getElementById('del-save-btn').textContent = 'Update delivery';
+    document.getElementById('del-save-notify-btn').textContent = 'Update & notify';
   }
 
   function delCloseDrawer() {
@@ -902,7 +909,8 @@
     if (inField) inField.value = name || '';
     if (clear)   clear.hidden = !id;
   }
-  function delPrepSubmit() {
+  // MARKER-PATCH-157 — accepts notify flag from the clicked button
+  function delPrepSubmit(notify) {
     var d = document.getElementById('del-date').value;
     var t = document.getElementById('del-time').value;
     if (!d || !t) {
@@ -910,6 +918,7 @@
       return false;
     }
     document.getElementById('del-scheduled-at').value = d + ' ' + t + ':00';
+    document.getElementById('del-notify-flag').value = notify ? '1' : '0';
     return true;
   }
   function delComplete() {

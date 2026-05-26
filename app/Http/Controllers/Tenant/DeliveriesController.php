@@ -94,12 +94,17 @@ class DeliveriesController extends Controller
             'notes'                 => $data['notes'] ?? null,
         ]);
 
-        // MARKER-PATCH-152C — fire customer notification (email + SMS)
-        // Failures are logged but don't break the save flow.
-        \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
-            ->sendScheduled($delivery);
+        // MARKER-PATCH-157 — notification is now opt-in per click.
+        // "Save & Notify" sends; plain "Save" doesn't.
+        $notify = (bool) $request->input('notify', false);
+        $flash  = ucfirst($data['type']) . ' scheduled.';
+        if ($notify) {
+            \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
+                ->sendScheduled($delivery);
+            $flash .= ' Customer notified.';
+        }
 
-        return back()->with('success', ucfirst($data['type']) . ' scheduled.');
+        return back()->with('success', $flash);
     }
 
     public function update(Request $request, string $id): RedirectResponse
@@ -141,7 +146,17 @@ class DeliveriesController extends Controller
             'notes'                 => $data['notes'] ?? null,
         ]);
 
-        return back()->with('success', 'Delivery updated.');
+        // MARKER-PATCH-157 — opt-in notify on update.
+        // "Update & Notify" re-sends scheduled-notification with latest details.
+        $notify = (bool) $request->input('notify', false);
+        $flash  = 'Delivery updated.';
+        if ($notify) {
+            \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
+                ->sendScheduled($delivery);
+            $flash .= ' Customer notified.';
+        }
+
+        return back()->with('success', $flash);
     }
 
     public function complete(string $id): RedirectResponse
@@ -190,6 +205,7 @@ class DeliveriesController extends Controller
             'work_order_id'         => ['nullable', 'uuid'],
             'appointment_id'        => ['nullable', 'uuid'],
             'notes'                 => ['nullable', 'string', 'max:5000'],
+            'notify'                => ['nullable'], // MARKER-PATCH-157 — checkbox or 0/1
         ]);
     }
 }
