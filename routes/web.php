@@ -159,7 +159,7 @@ $tenantRoutes = function () {
 Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
     ->name('webhooks.cloudflare');
 
-// MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified inside controller)
+// MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified, public)
 Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
     ->name('webhooks.ses-bounce');
 
@@ -307,6 +307,7 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
             Route::post('/deliveries/resources',                [TenantControllers\DeliveryResourcesController::class, 'store'])->name('deliveries.resources.store');
             Route::patch('/deliveries/resources/{id}',          [TenantControllers\DeliveryResourcesController::class, 'update'])->name('deliveries.resources.update');
             Route::delete('/deliveries/resources/{id}',         [TenantControllers\DeliveryResourcesController::class, 'destroy'])->name('deliveries.resources.destroy');
+
             Route::get('/reports',              [TenantControllers\ReportsController::class, 'index'])->name('reports.index');
             Route::get('/reports/customers',    [TenantControllers\ReportsController::class, 'customers'])->name('reports.customers');
             Route::get('/reports/services',     [TenantControllers\ReportsController::class, 'services'])->name('reports.services');
@@ -354,6 +355,12 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
             Route::get('/customers/{id}',       [TenantControllers\CustomerController::class, 'show'])->name('customers.show');
             Route::post('/customers',           [TenantControllers\CustomerController::class, 'store'])->name('customers.store');
             Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');
+
+            // MARKER-PATCH-158-C — customer asset CRUD (gated by multi_asset_enabled in controller)
+            Route::post('/customers/{customerId}/assets',                  [TenantControllers\CustomerAssetsController::class, 'store'])->name('customers.assets.store');
+            Route::patch('/customers/{customerId}/assets/{id}',            [TenantControllers\CustomerAssetsController::class, 'update'])->name('customers.assets.update');
+            Route::post('/customers/{customerId}/assets/{id}/archive',     [TenantControllers\CustomerAssetsController::class, 'archive'])->name('customers.assets.archive');
+            Route::post('/customers/{customerId}/assets/{id}/unarchive',   [TenantControllers\CustomerAssetsController::class, 'unarchive'])->name('customers.assets.unarchive');
 
             // Inventory (POS Phase 1) — gated by `retail` capability via FeatureAccessService
             Route::prefix('inventory')->name('inventory.')->group(function () {

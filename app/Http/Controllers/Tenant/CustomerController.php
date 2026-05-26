@@ -217,6 +217,18 @@ class CustomerController extends Controller
                 ->get(['id', 'name', 'credit_count', 'expiry_days', 'price_cents']);
         }
 
+        // MARKER-PATCH-158-C — load customer assets when multi_asset is on
+        $customerActiveAssets   = collect();
+        $customerArchivedAssets = collect();
+        if ($tenant->multi_asset_enabled) {
+            $allAssets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->orderBy('created_at')
+                ->get();
+            $customerActiveAssets   = $allAssets->whereNull('archived_at')->values();
+            $customerArchivedAssets = $allAssets->whereNotNull('archived_at')->values();
+        }
+
         // Special orders for this customer (added by patch 88, Stage 5)
         $specialOrdersOpen = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
             ->where('customer_id', $id)
@@ -242,7 +254,8 @@ class CustomerController extends Controller
             'totalSpend', 'lastService', 'updateUrl',
             'customerMemberships', 'customerPacks',
             'membershipProducts', 'packProducts',
-            'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors'));
+            'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors',
+            'customerActiveAssets', 'customerArchivedAssets')); // MARKER-PATCH-158-C
     }
 
     public function store(Request $request)

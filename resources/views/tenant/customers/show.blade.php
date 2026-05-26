@@ -734,6 +734,133 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
   .cust-edit-sheet,
   .cust-edit-backdrop { display: none !important; }
 }
+
+/* ============ MARKER-PATCH-158-C — Customer assets ============ */
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.asset-tile {
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.asset-tile.is-archived { opacity: 0.55; }
+.asset-tile .asset-name { font-size: 13.5px; font-weight: 500; }
+.asset-tile .asset-id {
+  font-size: 11px;
+  color: var(--ia-text-dim);
+  font-family: ui-monospace, 'SF Mono', monospace;
+}
+.asset-tile .asset-notes {
+  font-size: 11.5px;
+  color: var(--ia-text-dim);
+  margin-top: 4px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.asset-tile .asset-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--ia-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ia-text-dim);
+}
+.asset-tile .asset-actions {
+  display: flex;
+  gap: 4px;
+}
+.asset-tile .asset-action {
+  background: transparent;
+  border: 0;
+  color: var(--ia-text-dim);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.asset-tile .asset-action:hover { background: var(--ia-surface-3, rgba(255,255,255,0.04)); color: var(--ia-text); }
+.asset-tile .asset-action.danger:hover { color: #f87171; background: rgba(248,113,113,0.08); }
+.asset-tile .asset-action.success:hover { color: var(--ia-accent, #BEF264); background: rgba(190,242,100,0.06); }
+.asset-empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ia-text-dim);
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+  border: 1px dashed var(--ia-border);
+  border-radius: 8px;
+}
+.asset-archived-toggle {
+  font-size: 11.5px;
+  color: var(--ia-text-dim);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 8px 0;
+  margin-top: 10px;
+}
+.asset-archived-toggle:hover { color: var(--ia-text); }
+.asset-archived-section { margin-top: 12px; display: none; }
+.asset-archived-section.expanded { display: block; }
+
+/* Asset modal (CRUD) */
+.asset-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.asset-modal-backdrop.is-open { display: flex; }
+.asset-modal {
+  background: var(--ia-surface, #111);
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  width: 480px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.asset-modal-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ia-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.asset-modal-title { font-size: 14px; font-weight: 500; }
+.asset-modal-body { padding: 18px 20px; }
+.asset-modal-foot {
+  padding: 12px 20px;
+  border-top: 1px solid var(--ia-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.asset-form-row { margin-bottom: 14px; }
+.asset-form-row:last-child { margin-bottom: 0; }
+.asset-form-label {
+  font-size: 11.5px;
+  color: var(--ia-text-dim);
+  margin-bottom: 5px;
+  display: block;
+}
+.asset-form-label .opt { color: var(--ia-text-faint, #52525b); font-weight: 400; }
+.asset-form-help { font-size: 11px; color: var(--ia-text-dim); margin-top: 4px; }
 </style>
 @endpush
 
@@ -1152,6 +1279,153 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
         </div>
       </form>
     </div>
+
+    {{-- MARKER-PATCH-158-C — Assets (multi-asset-enabled tenants only) --}}
+    @if($currentTenant->multi_asset_enabled)
+      <div class="ia-card" style="margin-bottom:24px" id="cust-assets-card">
+        <div class="ia-card-head">
+          <span class="ia-card-title">Assets <span style="font-size:11px;font-weight:500;padding:2px 7px;background:var(--ia-surface-3, rgba(255,255,255,0.04));border-radius:4px;color:var(--ia-text-dim);margin-left:6px">{{ $customerActiveAssets->count() }}</span></span>
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="openAssetModal()">+ Add asset</button>
+        </div>
+        <div style="font-size:12px;color:var(--ia-text-dim);margin-bottom:14px;line-height:1.55">
+          Bikes, vehicles, or other items that belong to this customer. Pickable when scheduling an appointment.
+        </div>
+
+        @if($customerActiveAssets->isEmpty())
+          <div class="asset-empty">
+            No assets yet. Click <strong>+ Add asset</strong> to add the customer's first bike, vehicle, or pet.
+          </div>
+        @else
+          <div class="asset-grid">
+            @foreach($customerActiveAssets as $asset)
+              <div class="asset-tile">
+                <div class="asset-name">{{ $asset->name }}</div>
+                @if($asset->identifier)
+                  <div class="asset-id">{{ $asset->identifier }}</div>
+                @endif
+                @if($asset->notes)
+                  <div class="asset-notes">{{ $asset->notes }}</div>
+                @endif
+                <div class="asset-meta">
+                  <span>
+                    @if($asset->last_seen_at)
+                      Last seen {{ \Carbon\Carbon::parse($asset->last_seen_at)->format('M j, Y') }}
+                    @else
+                      Never serviced
+                    @endif
+                  </span>
+                  <div class="asset-actions">
+                    <button type="button" class="asset-action"
+                      onclick="openAssetModal('{{ $asset->id }}', @js($asset->name), @js($asset->identifier ?? ''), @js($asset->notes ?? ''))">Edit</button>
+                    <form method="POST" action="{{ route('tenant.customers.assets.archive', ['customerId' => $customer->id, 'id' => $asset->id]) }}" style="display:inline" onsubmit="return confirm('Archive this asset? It won\'t appear in the appointment picker.');">
+                      @csrf
+                      <button type="submit" class="asset-action danger">Archive</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            @endforeach
+          </div>
+        @endif
+
+        @if($customerArchivedAssets->isNotEmpty())
+          <button type="button" class="asset-archived-toggle" onclick="this.nextElementSibling.classList.toggle('expanded'); this.textContent = this.textContent.includes('Show') ? 'Hide archived assets ({{ $customerArchivedAssets->count() }})' : 'Show archived assets ({{ $customerArchivedAssets->count() }})';">
+            Show archived assets ({{ $customerArchivedAssets->count() }})
+          </button>
+          <div class="asset-archived-section">
+            <div class="asset-grid">
+              @foreach($customerArchivedAssets as $asset)
+                <div class="asset-tile is-archived">
+                  <div class="asset-name">{{ $asset->name }}</div>
+                  @if($asset->identifier)
+                    <div class="asset-id">{{ $asset->identifier }}</div>
+                  @endif
+                  <div class="asset-meta">
+                    <span>
+                      Archived {{ \Carbon\Carbon::parse($asset->archived_at)->format('M j, Y') }}
+                    </span>
+                    <form method="POST" action="{{ route('tenant.customers.assets.unarchive', ['customerId' => $customer->id, 'id' => $asset->id]) }}" style="display:inline">
+                      @csrf
+                      <button type="submit" class="asset-action success">Restore</button>
+                    </form>
+                  </div>
+                </div>
+              @endforeach
+            </div>
+          </div>
+        @endif
+      </div>
+
+      {{-- Asset modal — used for both create and edit --}}
+      <div class="asset-modal-backdrop" id="asset-modal-backdrop" onclick="if(event.target===this) closeAssetModal()">
+        <div class="asset-modal">
+          <form method="POST" id="asset-form">
+            @csrf
+            <input type="hidden" name="_method" id="asset-form-method" value="POST">
+            <div class="asset-modal-head">
+              <div class="asset-modal-title" id="asset-modal-title">Add asset</div>
+              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="closeAssetModal()">✕</button>
+            </div>
+            <div class="asset-modal-body">
+              <div class="asset-form-row">
+                <label class="asset-form-label">Name</label>
+                <input class="ia-input" type="text" name="name" id="asset-form-name" required maxlength="200" placeholder="e.g. Red Cannondale Synapse">
+                <div class="asset-form-help">Whatever the customer calls it — make it recognizable.</div>
+              </div>
+              <div class="asset-form-row">
+                <label class="asset-form-label">Identifier <span class="opt">— optional</span></label>
+                <input class="ia-input" type="text" name="identifier" id="asset-form-identifier" maxlength="120" placeholder="Serial, license plate, microchip, tag…">
+                <div class="asset-form-help">Bikes use serial number. Auto shops use VIN. Groomers might use a chip ID.</div>
+              </div>
+              <div class="asset-form-row">
+                <label class="asset-form-label">Notes <span class="opt">— optional</span></label>
+                <textarea class="ia-input" name="notes" id="asset-form-notes" rows="3" maxlength="5000" placeholder="Color, distinguishing features, prior issues…"></textarea>
+              </div>
+            </div>
+            <div class="asset-modal-foot">
+              <button type="button" class="ia-btn ia-btn--ghost" onclick="closeAssetModal()">Cancel</button>
+              <button type="submit" class="ia-btn ia-btn--primary" id="asset-form-submit">Save asset</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <script>
+        // MARKER-PATCH-158-C — asset modal open/close + populate for edit
+        function openAssetModal(id, name, identifier, notes) {
+          const form  = document.getElementById('asset-form');
+          const title = document.getElementById('asset-modal-title');
+          const meth  = document.getElementById('asset-form-method');
+          const submit = document.getElementById('asset-form-submit');
+          if (id) {
+            // Edit mode
+            form.action = '{{ route('tenant.customers.assets.update', ['customerId' => $customer->id, 'id' => '__ID__']) }}'.replace('__ID__', id);
+            meth.value  = 'PATCH';
+            title.textContent  = 'Edit asset';
+            submit.textContent = 'Save changes';
+            document.getElementById('asset-form-name').value = name || '';
+            document.getElementById('asset-form-identifier').value = identifier || '';
+            document.getElementById('asset-form-notes').value = notes || '';
+          } else {
+            // Create mode
+            form.action = '{{ route('tenant.customers.assets.store', ['customerId' => $customer->id]) }}';
+            meth.value  = 'POST';
+            title.textContent  = 'Add asset';
+            submit.textContent = 'Save asset';
+            form.reset();
+          }
+          document.getElementById('asset-modal-backdrop').classList.add('is-open');
+          setTimeout(() => document.getElementById('asset-form-name').focus(), 60);
+        }
+        function closeAssetModal() {
+          document.getElementById('asset-modal-backdrop').classList.remove('is-open');
+        }
+        // Escape to close
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') closeAssetModal();
+        });
+      </script>
+    @endif
 
     {{-- Memberships & Packs (classes-enabled tenants only) --}}
     @if($currentTenant->classes_enabled)
