@@ -510,8 +510,60 @@
 }
 .ma-service-remove:hover { color: #f87171; background: rgba(248,113,113,0.08); }
 
-/* Asset name inline edit */
-.ma-asset-name-edit {
+/* ============== MARKER-PATCH-158-E3 — Charges + Payment ============== */
+.ma-charges-card {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 14px;
+}
+.ma-charges-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.ma-add-charge-form {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ma-charge-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0;
+  border-bottom: 0.5px solid var(--ia-border);
+  font-size: 13px;
+}
+.ma-charge-row:last-child { border-bottom: 0; }
+
+/* Payment status badge */
+.ma-payment-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+  color: var(--ia-text-dim);
+}
+.ma-payment-badge--paid {
+  background: rgba(74, 222, 128, 0.12);
+  color: #86efac;
+}
+.ma-payment-badge--partial,
+.ma-payment-badge--deposit_paid {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fcd34d;
+}
+.ma-payment-badge--unpaid {
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+  color: var(--ia-text-dim);
+}
+.ma-payment-badge--refunded {
+  background: rgba(248, 113, 113, 0.10);
+  color: #fca5a5;
+}
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -959,6 +1011,60 @@
         </button>
       @endif
 
+      {{-- MARKER-PATCH-158-E3 — Additional charges card --}}
+      <div class="ma-charges-card">
+        <div class="ma-charges-head">
+          <div class="ma-section-title">Additional charges</div>
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ma-add-charge-toggle">
+            + Add charge
+          </button>
+        </div>
+
+        <form method="POST" action="{{ $updateUrl }}" class="ma-add-charge-form" id="ma-add-charge-form" style="display: none;">
+          @csrf
+          @method('PATCH')
+          <input type="hidden" name="op" value="add_charge">
+          <div style="display: grid; grid-template-columns: 1fr 140px; gap: 10px; margin-bottom: 10px;">
+            <div>
+              <label class="ma-form-label">Description</label>
+              <input type="text" name="description" class="ia-input" placeholder="e.g. New brake cable" required>
+            </div>
+            <div>
+              <label class="ma-form-label">Amount ($)</label>
+              <input type="number" name="amount_display" class="ia-input" placeholder="25.00"
+                     step="0.01" min="0.01" id="ma-charge-amount-display" required>
+              <input type="hidden" name="amount_cents" id="ma-charge-amount-cents">
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save charge</button>
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ma-add-charge-cancel">Cancel</button>
+          </div>
+        </form>
+
+        @if($appointment->charges->isEmpty())
+          <p style="font-size: 13px; opacity: .4; margin: 0;">No additional charges.</p>
+        @else
+          @foreach($appointment->charges as $charge)
+            <div class="ma-charge-row">
+              <div>
+                <div style="font-size: 13px;">{{ $charge->description }}</div>
+                <div style="font-size: 11px; opacity: .4; margin-top: 1px;">
+                  {{ \Carbon\Carbon::parse($charge->created_at)->format('M j') }} ·
+                  {{ $charge->is_paid ? 'Paid' : 'Unpaid' }}
+                </div>
+              </div>
+              <div style="font-weight: 500; font-variant-numeric: tabular-nums;">${{ number_format($charge->amount_cents / 100, 2) }}</div>
+            </div>
+          @endforeach
+
+          <div class="ma-charge-row" style="font-weight: 500; border-bottom: 0; padding-top: 10px;">
+            <span>Charges total</span>
+            <span style="font-variant-numeric: tabular-nums;">${{ number_format($appointment->charges->sum('amount_cents') / 100, 2) }}</span>
+          </div>
+        @endif
+      </div>
+
     </main>
 
     {{-- RIGHT RAIL --}}
@@ -1011,21 +1117,108 @@
         </div>
       @endif
 
+      {{-- MARKER-PATCH-158-E3 — Payment ledger (mirrors legacy show.blade.php) --}}
+      @php
+        $payments      = $appointment->payments;
+        $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
+        $overage       = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
+        $openSale      = $appointment->openRegisterSale();
+        $hasOpenSale   = $openSale !== null;
+      @endphp
       <div class="ma-rail-card">
         <div class="ma-rail-card-title">Payment</div>
+
         <div class="ma-rail-row">
           <span class="k">Status</span>
-          <span class="v" style="text-transform: capitalize;">{{ $appointment->payment_status ?? 'unpaid' }}</span>
+          <span class="v" style="text-transform: capitalize;">
+            <span class="ma-payment-badge ma-payment-badge--{{ $appointment->payment_status }}">
+              {{ ucwords(str_replace('_', ' ', $appointment->payment_status ?? 'unpaid')) }}
+            </span>
+          </span>
         </div>
-        @if(($appointment->paid_cents ?? 0) > 0)
+        <div class="ma-rail-row">
+          <span class="k">Subtotal</span>
+          <span class="v">${{ number_format($appointment->subtotal_cents / 100, 2) }}</span>
+        </div>
+        @if(($appointment->tax_cents ?? 0) > 0)
           <div class="ma-rail-row">
-            <span class="k">Paid</span>
-            <span class="v">${{ number_format($appointment->paid_cents / 100, 2) }}</span>
+            <span class="k">Tax</span>
+            <span class="v">${{ number_format($appointment->tax_cents / 100, 2) }}</span>
           </div>
         @endif
-        <div style="font-size: 11px; color: var(--ia-text-faint, #52525b); margin-top: 10px; line-height: 1.5;">
-          Payment actions coming in patch 158-E3.
+        <div class="ma-rail-row" style="font-weight: 500;">
+          <span class="k">Total</span>
+          <span class="v" style="font-size: 16px;">${{ number_format($appointment->total_cents / 100, 2) }}</span>
         </div>
+
+        @if($payments->isNotEmpty())
+          <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border);">
+            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600; margin-bottom: 8px;">Ledger</div>
+            @foreach($payments as $p)
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; padding: 6px 0; border-bottom: 0.5px solid var(--ia-border);">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 500; color: var(--ia-text);">
+                    {{ in_array($p->kind, ['refund', 'overage_refund']) ? 'Refund' : ucfirst($p->kind) }}
+                    · {{ $p->methodLabel() }}
+                  </div>
+                  <div style="font-size: 10px; color: var(--ia-text-dim); margin-top: 2px;">
+                    {{ $p->recorded_at?->format('M j · g:i A') }}
+                    @if($p->source === 'register_sale' && $p->register_sale_id)
+                      · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
+                    @endif
+                  </div>
+                </div>
+                <div style="font-weight: 500; color: {{ $p->amount_cents < 0 ? '#F09595' : '#A8D670' }};">
+                  {{ $p->amount_cents < 0 ? '−' : '+' }}${{ number_format(abs($p->amount_cents) / 100, 2) }}
+                </div>
+              </div>
+            @endforeach
+          </div>
+        @endif
+
+        <div class="ma-rail-row" style="margin-top: 8px;">
+          <span class="k">Paid so far</span>
+          <span class="v" style="color: #A8D670;">${{ number_format(($appointment->paid_cents ?? 0) / 100, 2) }}</span>
+        </div>
+
+        @if($balanceDue > 0)
+          <div class="ma-rail-row" style="font-weight: 500;">
+            <span class="k">Balance owed</span>
+            <span class="v" style="font-size: 14px; font-weight: 500;">${{ number_format($balanceDue / 100, 2) }}</span>
+          </div>
+        @elseif($overage > 0)
+          <div class="ma-rail-row" style="font-weight: 500;">
+            <span class="k" style="color: #FBBF24;">Customer is owed</span>
+            <span class="v" style="font-size: 14px; font-weight: 500; color: #FBBF24;">${{ number_format($overage / 100, 2) }}</span>
+          </div>
+        @else
+          <div class="ma-rail-row" style="font-weight: 500;">
+            <span class="k">Balance owed</span>
+            <span class="v" style="font-size: 14px; font-weight: 500; color: #A8D670;">$0.00</span>
+          </div>
+        @endif
+
+        @if($hasOpenSale)
+          <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
+             class="ia-btn ia-btn--primary ia-btn--sm"
+             style="display: block; width: 100%; text-align: center; margin-top: 14px;">
+            Take payment in register
+          </a>
+        @elseif($balanceDue > 0 && !$isTerminal)
+          <button type="button" id="ma-record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width: 100%; margin-top: 14px;">
+            + Record deposit
+          </button>
+          <div id="ma-record-deposit-form" style="display: none; margin-top: 10px; padding: 12px; background: var(--ia-surface-2, rgba(255,255,255,0.02)); border-radius: 6px; border: 0.5px solid var(--ia-border);">
+            <label style="font-size: 11px; color: var(--ia-text-dim); display: block; margin-bottom: 4px;">Amount</label>
+            <input type="number" id="ma-record-deposit-amount" min="0.01" step="0.01" placeholder="0.00"
+                   style="width: 100%; padding: 6px 10px; background: var(--ia-surface, #111); border: 0.5px solid var(--ia-border); color: var(--ia-text); border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
+            <div style="display: flex; gap: 6px;">
+              <button type="button" id="ma-record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex: 1;">Cancel</button>
+              <button type="button" id="ma-record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex: 1;">Send to register</button>
+            </div>
+            <p style="font-size: 10px; color: var(--ia-text-dim); margin: 8px 0 0;">Creates a draft sale in the register where you take the actual payment.</p>
+          </div>
+        @endif
       </div>
 
     </aside>
@@ -1413,6 +1606,77 @@
       if (e.key === 'Escape') { input.value = originalValue; input.blur(); }
     });
   });
+
+  // ---------------------- MARKER-PATCH-158-E3 ----------------------
+
+  // Add-charge form toggle
+  (function() {
+    const toggle = document.getElementById('ma-add-charge-toggle');
+    const form   = document.getElementById('ma-add-charge-form');
+    const cancel = document.getElementById('ma-add-charge-cancel');
+    const dollarsInput = document.getElementById('ma-charge-amount-display');
+    const centsInput   = document.getElementById('ma-charge-amount-cents');
+    if (!toggle || !form) return;
+
+    toggle.addEventListener('click', function() {
+      form.style.display = 'block';
+      toggle.style.display = 'none';
+      setTimeout(function() { form.querySelector('input[name="description"]').focus(); }, 50);
+    });
+    if (cancel) cancel.addEventListener('click', function() {
+      form.style.display = 'none';
+      toggle.style.display = '';
+      form.reset();
+    });
+    // Convert dollars -> cents in hidden input on submit
+    form.addEventListener('submit', function(e) {
+      const dollars = parseFloat(dollarsInput.value);
+      if (isNaN(dollars) || dollars <= 0) {
+        e.preventDefault();
+        alert('Enter a valid amount.');
+        return;
+      }
+      centsInput.value = Math.round(dollars * 100);
+    });
+  })();
+
+  // Record-deposit flow
+  (function() {
+    const toggleBtn = document.getElementById('ma-record-deposit-toggle');
+    const form      = document.getElementById('ma-record-deposit-form');
+    const cancelBtn = document.getElementById('ma-record-deposit-cancel');
+    const goBtn     = document.getElementById('ma-record-deposit-go');
+    const amtInput  = document.getElementById('ma-record-deposit-amount');
+    if (!toggleBtn || !form) return;
+
+    toggleBtn.addEventListener('click', function() {
+      form.style.display = 'block';
+      toggleBtn.style.display = 'none';
+      setTimeout(function() { amtInput.focus(); }, 50);
+    });
+    if (cancelBtn) cancelBtn.addEventListener('click', function() {
+      form.style.display = 'none';
+      toggleBtn.style.display = '';
+      amtInput.value = '';
+    });
+    if (goBtn) goBtn.addEventListener('click', async function() {
+      const dollars = parseFloat(amtInput.value);
+      if (isNaN(dollars) || dollars <= 0) { alert('Enter a valid amount.'); return; }
+      const cents = Math.round(dollars * 100);
+      goBtn.disabled = true;
+      const result = await post({ op: 'record_deposit', amount_cents: cents });
+      goBtn.disabled = false;
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error(result.message);
+        else alert(result.message);
+        return;
+      }
+      // Redirect to register
+      const url = result.data?.redirect_url;
+      if (url) { window.location.href = url; }
+      else { location.reload(); }
+    });
+  })();
 
   // Escape closes any open modal
   document.addEventListener('keydown', function(e) {
