@@ -781,6 +781,14 @@
   border: 0.5px solid rgba(251, 191, 36, 0.45);
 }
 
+/* MARKER-PATCH-158-G2 — Rail action stack (reschedule + cancel) */
+.ma-rail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 /* Payment status badge */
 .ma-payment-badge {
   display: inline-block;
@@ -1840,6 +1848,49 @@ input.ma-asset-name-edit:focus {
         @endif
       </div>
 
+      {{-- MARKER-PATCH-158-G2 — Resource card (matches legacy data-attr API so
+           public/js/tenant/appointment-resource.js auto-binds the save handler) --}}
+      <div class="ma-rail-card" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
+        <div class="ma-rail-card-title">Resource</div>
+        @php
+          $maCurrentResource = $availableResources->firstWhere('id', $appointment->resource_id);
+        @endphp
+        <div class="ma-rail-row">
+          <span class="k">Currently</span>
+          <span class="v" style="display:flex;align-items:center;gap:6px;">
+            @if($maCurrentResource)
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ $maCurrentResource->color_hex ?: '#888' }}"></span>
+              {{ $maCurrentResource->name }}
+            @else
+              <span style="opacity:.5;">Unassigned</span>
+            @endif
+          </span>
+        </div>
+        <label class="ma-form-label" style="margin-top:12px;">Change to</label>
+        <select class="ia-input" data-appt-resource-select style="margin-bottom:8px;">
+          @foreach($availableResources as $r)
+            <option value="{{ $r->id }}" @selected($r->id === $appointment->resource_id)>
+              {{ $r->name }}@if($r->subtitle) · {{ $r->subtitle }}@endif
+            </option>
+          @endforeach
+        </select>
+        <button type="button"
+                class="ia-btn ia-btn--ghost ia-btn--sm"
+                data-appt-resource-save
+                style="width:100%;">Save resource</button>
+        <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4;">
+          If the new resource is busy at this time, you'll get a warning before the change is saved.
+        </p>
+      </div>
+
+      {{-- MARKER-PATCH-158-G2 — Actions (reschedule + cancel) --}}
+      @unless($isTerminal)
+        <div class="ma-rail-actions">
+          <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-b-reschedule-btn" style="width:100%;">↻ Reschedule</button>
+          <button type="button" class="ia-btn ia-btn--danger ia-btn--sm ma-cancel-btn" style="width:100%;">Cancel appointment</button>
+        </div>
+      @endunless
+
     </aside>
 
   </div>
@@ -2624,5 +2675,50 @@ input.ma-asset-name-edit:focus {
   });
 })();
 </script>
+
+{{-- MARKER-PATCH-158-G2 — Shared reschedule modal partial (markup + JS) --}}
+@include('tenant.appointments._reschedule_modal')
+
+{{-- MARKER-PATCH-158-G2 — Resource picker save handler (shared with legacy view) --}}
+@push('scripts')
+<script src="{{ asset('js/tenant/appointment-resource.js') }}?v={{ filemtime(public_path('js/tenant/appointment-resource.js')) }}" defer></script>
+<script>
+// MARKER-PATCH-158-G2 — Cancel-appointment handler (mirrors legacy)
+(function() {
+  const cancelBtn = document.querySelector('.ma-cancel-btn');
+  if (!cancelBtn) return;
+  cancelBtn.addEventListener('click', async function() {
+    const proceed = window.IntakeConfirm
+      ? await window.IntakeConfirm.show({
+          title:       'Cancel this appointment?',
+          message:     "The appointment will be removed from the calendar and the customer's slot released. This stays in your records but won't show on the active schedule.",
+          confirmText: 'Cancel appointment',
+          cancelText:  'Keep it',
+          danger:      true,
+        })
+      : confirm('Cancel this appointment?');
+    if (!proceed) return;
+    const fd = new FormData();
+    fd.append('_token', {!! json_encode(csrf_token()) !!});
+    fd.append('_method', 'PATCH');
+    fd.append('op', 'status');
+    fd.append('status', 'cancelled');
+    const r = await fetch({!! json_encode(route('tenant.appointments.update', $appointment->id)) !!}, {
+      method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    });
+    let data = null;
+    try { data = await r.json(); } catch(e) {}
+    if (!r.ok || !data || !data.ok) {
+      if (window.IntakeToast) IntakeToast.error((data && data.message) || 'Could not cancel.');
+      else alert((data && data.message) || 'Could not cancel.');
+      return;
+    }
+    if (window.IntakeToast) IntakeToast.success('Cancelled');
+    setTimeout(function() { window.location.href = {!! json_encode(route('tenant.calendar.index')) !!}; }, 600);
+  });
+})();
+</script>
+@endpush
 
 @endsection
