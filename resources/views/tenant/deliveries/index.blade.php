@@ -302,6 +302,27 @@
     outline: none; border-color: var(--ia-accent, #BEF264);
   }
   .del-textarea { resize: vertical; min-height: 60px; }
+
+  /* MARKER-PATCH-153-FIX1 — match customer-search component to drawer input styling */
+  .del-drawer .ia-cs,
+  .del-drawer .ia-cs-input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .del-drawer .ia-cs-input {
+    background: var(--ia-surface-2);
+    border: 0.5px solid var(--ia-border);
+    color: var(--ia-text);
+    padding: 9px 12px;
+    padding-right: 28px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .del-drawer .ia-cs-input:focus {
+    outline: none;
+    border-color: var(--ia-accent, #BEF264);
+  }
   .del-type-toggle { display: flex; gap: 8px; }
   .del-type-tile {
     flex: 1; padding: 14px 12px;
@@ -635,7 +656,7 @@
     <div class="del-drawer-head">
       <div>
         <div class="del-drawer-title" id="del-drawer-title">New pickup</div>
-        <div class="del-drawer-sub" id="del-drawer-sub">Schedule a private pickup or dropoff. Customer notification fires in 152-c.</div>
+        <div class="del-drawer-sub" id="del-drawer-sub">Schedule a private pickup or dropoff.</div>
       </div>
       <button type="button" class="del-drawer-close" onclick="delCloseDrawer()">✕</button>
     </div>
@@ -797,7 +818,7 @@
     document.getElementById('del-drawer-bg').classList.add('is-open');
     document.getElementById('del-drawer').classList.add('is-open');
     document.getElementById('del-drawer-title').textContent = 'New ' + type;
-    document.getElementById('del-drawer-sub').textContent = 'Schedule a private pickup or dropoff. Customer notification fires in 152-c.';
+    document.getElementById('del-drawer-sub').textContent = 'Schedule a private pickup or dropoff.';
     document.getElementById('del-form').action = window.delRoutes.store;
     document.getElementById('del-form-method').value = 'POST';
     delSelectType(type);
