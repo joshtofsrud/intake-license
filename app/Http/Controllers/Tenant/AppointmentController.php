@@ -1185,7 +1185,9 @@ class AppointmentController extends Controller
         if ($op === 'add_note') {
             $note = mb_substr(trim($request->input('note', '')), 0, 500);
             if (!$note) return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
-            $n = TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'staff', 'is_customer_visible' => false, 'note_content' => $note, 'created_at' => now()]);
+            // MARKER-PATCH-158-E5 — accept visibility flag (default false = internal)
+            $isCustomerVisible = (bool) $request->input('is_customer_visible', false);
+            $n = TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'staff', 'is_customer_visible' => $isCustomerVisible, 'note_content' => $note, 'created_at' => now()]);
             $user = Auth::guard('tenant')->user();
             return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note_content, 'author' => $user->name, 'created_at' => $n->created_at->format('M j, g:i a')]);
         }

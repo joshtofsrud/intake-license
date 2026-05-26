@@ -628,6 +628,80 @@
   color: var(--ia-text-dim);
 }
 
+/* ============== MARKER-PATCH-158-E5 — Work order + Notes ============== */
+.ma-wo-card,
+.ma-notes-card {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 14px;
+}
+.ma-wo-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+
+/* Notes list styling — mirrors legacy ia-note look */
+.ma-note {
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ma-note:first-child { padding-top: 0; }
+.ma-note:last-child { border-bottom: 0; padding-bottom: 0; }
+.ma-note-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+}
+.ma-note-author {
+  font-weight: 500;
+  color: var(--ia-text);
+}
+.ma-note-time {
+  color: var(--ia-text-faint, #52525b);
+}
+.ma-note-visibility {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+  color: var(--ia-text-dim);
+}
+.ma-note-visibility--customer {
+  background: rgba(96, 165, 250, 0.10);
+  color: #93c5fd;
+}
+.ma-note-delete {
+  background: transparent;
+  border: 0;
+  color: var(--ia-text-faint, #52525b);
+  font-size: 11px;
+  width: 18px; height: 18px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ma-note-delete:hover { color: #f87171; background: rgba(248, 113, 113, 0.08); }
+.ma-note-body {
+  font-size: 13px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.ma-notes-empty {
+  font-size: 13px;
+  opacity: .4;
+  margin: 0;
+}
+
 /* Payment status badge */
 .ma-payment-badge {
   display: inline-block;
@@ -1278,6 +1352,148 @@ input.ma-asset-name-edit:focus {
               <button type="button" id="ma-custom-item-save" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {{-- MARKER-PATCH-158-E5 — Work order card --}}
+      @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
+        @php
+          $responsesByFieldId = $appointment->workOrderResponses->keyBy('field_id');
+          $identifierField = $appointment->workOrderFields->firstWhere('is_identifier', true);
+          $identifierValue = $identifierField ? ($responsesByFieldId[$identifierField->id]->response_value ?? null) : null;
+          $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
+          $filledNonIdentifier = $nonIdentifierFields->filter(fn($f) => !empty($responsesByFieldId[$f->id]->response_value ?? null));
+        @endphp
+        <div class="ma-wo-card" id="ma-wo-card">
+          <div class="ma-wo-head">
+            <div class="ma-section-title">Work order</div>
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ma-wo-edit-toggle">Edit</button>
+          </div>
+
+          {{-- Display mode --}}
+          <div id="ma-wo-display">
+            @if($identifierField && $identifierValue)
+              <div style="margin-bottom: 16px; padding-bottom: 14px; border-bottom: 0.5px solid var(--ia-border);">
+                <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--ia-text-faint, #52525b); font-weight: 500; margin-bottom: 6px;">
+                  {{ $identifierField->label }}
+                </div>
+                <div style="font-family: ui-monospace, 'SF Mono', monospace; font-size: 17px; font-weight: 500; letter-spacing: .02em;">
+                  {{ $identifierValue }}
+                </div>
+              </div>
+            @endif
+
+            @if($filledNonIdentifier->isEmpty() && (!$identifierField || !$identifierValue))
+              <p style="font-size: 13px; opacity: .4; margin: 0;">No work order details recorded yet. Click <strong>Edit</strong> to add.</p>
+            @elseif($filledNonIdentifier->isNotEmpty())
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px;">
+                @foreach($filledNonIdentifier as $field)
+                  <div>
+                    <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--ia-text-faint, #52525b); font-weight: 500; margin-bottom: 3px;">
+                      {{ $field->label }}
+                    </div>
+                    <div style="font-size: 13.5px;">{{ $responsesByFieldId[$field->id]->response_value }}</div>
+                  </div>
+                @endforeach
+              </div>
+            @endif
+          </div>
+
+          {{-- Edit mode --}}
+          <form id="ma-wo-edit-form" style="display: none;" method="POST" action="{{ $updateUrl }}">
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="op" value="save_work_order">
+
+            @foreach($appointment->workOrderFields as $field)
+              @php $currentValue = $responsesByFieldId[$field->id]->response_value ?? ''; @endphp
+              <div class="ma-form-row">
+                <label class="ma-form-label">
+                  {{ $field->label }}
+                  @if($field->is_identifier)
+                    <span style="background: var(--ia-accent, #BEF264); color: var(--ia-accent-text, #0a0a0a); font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: .05em; margin-left: 6px;">ID</span>
+                  @endif
+                  @if($field->is_required)
+                    <span style="color: #f87171;">*</span>
+                  @endif
+                </label>
+                @if($field->field_type === 'textarea')
+                  <textarea name="values[{{ $field->id }}]" class="ia-input" rows="3" @if($field->is_required) required @endif>{{ $currentValue }}</textarea>
+                @elseif($field->field_type === 'number')
+                  <input type="number" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
+                @elseif($field->field_type === 'select')
+                  <select name="values[{{ $field->id }}]" class="ia-input" @if($field->is_required) required @endif>
+                    <option value="">—</option>
+                    @foreach(($field->options ?? []) as $opt)
+                      <option value="{{ $opt }}" @selected($currentValue === $opt)>{{ $opt }}</option>
+                    @endforeach
+                  </select>
+                @else
+                  <input type="text" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
+                @endif
+                @if($field->help_text)
+                  <div style="font-size: 11px; color: var(--ia-text-dim); margin-top: 4px;">{{ $field->help_text }}</div>
+                @endif
+              </div>
+            @endforeach
+
+            <div style="display: flex; gap: 8px; margin-top: 14px;">
+              <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save work order</button>
+              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ma-wo-edit-cancel">Cancel</button>
+            </div>
+          </form>
+        </div>
+      @endif
+
+      {{-- MARKER-PATCH-158-E5 — Notes card --}}
+      <div class="ma-notes-card" id="ma-notes-card">
+        <div class="ma-charges-head">
+          <div class="ma-section-title">Notes</div>
+        </div>
+
+        <div style="margin-bottom: 14px;">
+          <textarea id="ma-note-input" rows="3" maxlength="500"
+            placeholder="Add a note…" class="ia-input"
+            style="width: 100%; resize: vertical; font-family: inherit;"></textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ia-text-dim); cursor: pointer;">
+              <input type="checkbox" id="ma-note-customer-visible" style="accent-color: var(--ia-accent, #BEF264);">
+              Also show to customer
+            </label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="ma-note-char-count" style="font-size: 11px; color: var(--ia-text-dim); font-variant-numeric: tabular-nums;">500</span>
+              <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" id="ma-note-submit">
+                Add note
+              </button>
+            </div>
+          </div>
+          <p id="ma-note-error" style="font-size: 12px; color: #f87171; margin-top: 6px; display: none;"></p>
+        </div>
+
+        <div id="ma-notes-list">
+          @forelse($appointment->notes->sortByDesc('created_at') as $note)
+            <div class="ma-note" data-note-id="{{ $note->id }}">
+              <div class="ma-note-head">
+                <span class="ma-note-author">
+                  {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
+                </span>
+                @if($note->is_customer_visible)
+                  <span class="ma-note-visibility ma-note-visibility--customer">Customer-visible</span>
+                @endif
+                <span class="ma-note-time">
+                  {{ \Carbon\Carbon::parse($note->created_at)->format('M j, g:i a') }}
+                </span>
+                @if($note->note_type !== 'system')
+                  <button type="button" class="ma-note-delete"
+                    data-note-id="{{ $note->id }}"
+                    title="Delete">&#x2715;</button>
+                @endif
+              </div>
+              <div class="ma-note-body">{{ $note->note_content }}</div>
+            </div>
+          @empty
+            <p class="ma-notes-empty">No notes yet.</p>
+          @endforelse
         </div>
       </div>
 
@@ -2073,6 +2289,97 @@ input.ma-asset-name-edit:focus {
       location.reload();
     });
   })();
+
+  // ---------------------- MARKER-PATCH-158-E5 — Notes + Work order ----------------------
+
+  // Work order: Edit / display toggle
+  (function() {
+    const card        = document.getElementById('ma-wo-card');
+    if (!card) return;
+    const editToggle  = document.getElementById('ma-wo-edit-toggle');
+    const displayDiv  = document.getElementById('ma-wo-display');
+    const editForm    = document.getElementById('ma-wo-edit-form');
+    const editCancel  = document.getElementById('ma-wo-edit-cancel');
+    if (!editToggle || !displayDiv || !editForm) return;
+
+    editToggle.addEventListener('click', function() {
+      displayDiv.style.display = 'none';
+      editForm.style.display = 'block';
+      editToggle.style.display = 'none';
+    });
+    if (editCancel) editCancel.addEventListener('click', function() {
+      displayDiv.style.display = '';
+      editForm.style.display = 'none';
+      editToggle.style.display = '';
+    });
+    // Form submit goes through normal PATCH redirect (full page reload after save_work_order)
+  })();
+
+  // Notes: char count
+  (function() {
+    const input = document.getElementById('ma-note-input');
+    const counter = document.getElementById('ma-note-char-count');
+    if (!input || !counter) return;
+    function updateCount() {
+      const remaining = 500 - input.value.length;
+      counter.textContent = remaining;
+      counter.style.color = remaining < 50 ? '#f87171' : '';
+    }
+    input.addEventListener('input', updateCount);
+    updateCount();
+  })();
+
+  // Notes: add note
+  (function() {
+    const submitBtn  = document.getElementById('ma-note-submit');
+    const input      = document.getElementById('ma-note-input');
+    const visBox     = document.getElementById('ma-note-customer-visible');
+    const errEl      = document.getElementById('ma-note-error');
+    if (!submitBtn || !input) return;
+
+    submitBtn.addEventListener('click', async function() {
+      const note = input.value.trim();
+      errEl.style.display = 'none';
+      if (!note) {
+        errEl.textContent = 'Note can\'t be empty.';
+        errEl.style.display = 'block';
+        return;
+      }
+      submitBtn.disabled = true;
+      const result = await post({
+        op: 'add_note',
+        note: note,
+        is_customer_visible: visBox && visBox.checked ? '1' : '0',
+      });
+      submitBtn.disabled = false;
+      if (!result.ok) {
+        errEl.textContent = 'Could not save: ' + result.message;
+        errEl.style.display = 'block';
+        return;
+      }
+      // Clear + reload to render the new note
+      input.value = '';
+      if (visBox) visBox.checked = false;
+      location.reload();
+    });
+  })();
+
+  // Notes: delete
+  document.querySelectorAll('.ma-note-delete').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (!confirm('Delete this note?')) return;
+      const noteId = btn.dataset.noteId;
+      const result = await post({ op: 'delete_note', note_id: noteId });
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not delete: ' + result.message);
+        else alert('Could not delete: ' + result.message);
+        return;
+      }
+      // Remove the note element directly without reload
+      const noteEl = btn.closest('.ma-note');
+      if (noteEl) noteEl.remove();
+    });
+  });
 
   // Escape closes any open modal
   document.addEventListener('keydown', function(e) {
