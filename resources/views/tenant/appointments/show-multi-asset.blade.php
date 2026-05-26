@@ -366,7 +366,9 @@
   top: 12px; left: 12px;
   height: 2px; background: var(--ia-accent, #BEF264);
   z-index: 0;
-  width: calc(var(--progress-pct, 0) * 1%);
+  /* MARKER-PATCH-158-G1 — fixed overshoot: legacy uses fraction (0..1) of
+     (100% - 24px) to account for the 12px padding on each side. */
+  width: calc((100% - 24px) * var(--progress, 0));
   transition: width 0.3s;
 }
 .ma-progress-step {
@@ -742,6 +744,43 @@
   color: var(--ia-text-dim);
 }
 
+/* ============== MARKER-PATCH-158-G1 — Sale callout banners ============== */
+.ma-sale-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+}
+.ma-sale-banner-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.ma-sale-banner-body { flex: 1; min-width: 0; }
+.ma-sale-banner-title {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ia-text);
+}
+.ma-sale-banner-sub {
+  font-size: 12px;
+  color: var(--ia-text-dim);
+  margin-top: 2px;
+}
+.ma-sale-banner--checkout {
+  background: rgba(251, 191, 36, 0.10);
+  border: 0.5px solid rgba(251, 191, 36, 0.35);
+}
+.ma-sale-banner--paid {
+  background: rgba(132, 204, 22, 0.08);
+  border: 0.5px solid rgba(132, 204, 22, 0.30);
+}
+.ma-sale-banner--overage {
+  background: rgba(251, 191, 36, 0.10);
+  border: 0.5px solid rgba(251, 191, 36, 0.45);
+}
+
 /* Payment status badge */
 .ma-payment-badge {
   display: inline-block;
@@ -964,6 +1003,50 @@ input.ma-asset-name-edit:focus {
     </div>
   </div>
 
+  {{-- MARKER-PATCH-158-G1 — Sale callout banners (mirrors legacy bannerSale) --}}
+  @php
+    $bannerSale     = $appointment->openRegisterSale();
+    $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
+    $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
+    $bannerPaidFull = ($appointment->payment_status === 'paid');
+  @endphp
+  @if($bannerSale)
+    <div class="ma-sale-banner ma-sale-banner--checkout">
+      <span class="ma-sale-banner-icon">💳</span>
+      <div class="ma-sale-banner-body">
+        <div class="ma-sale-banner-title">Ready for checkout — ${{ number_format($bannerBalance / 100, 2) }}</div>
+        <div class="ma-sale-banner-sub">
+          Sale {{ $bannerSale->sale_number }} parked in the register for
+          {{ trim(($appointment->customer->first_name ?? '') . ' ' . ($appointment->customer->last_name ?? '')) ?: 'this customer' }}.
+        </div>
+      </div>
+      <a href="{{ route('tenant.register.index', []) }}?resume={{ $bannerSale->id }}"
+         class="ia-btn ia-btn--primary ia-btn--sm">Open in register →</a>
+    </div>
+  @elseif($bannerPaidFull)
+    <div class="ma-sale-banner ma-sale-banner--paid">
+      <span class="ma-sale-banner-icon">✅</span>
+      <div class="ma-sale-banner-body">
+        <div class="ma-sale-banner-title">Paid in full — ${{ number_format(($appointment->paid_cents ?? 0) / 100, 2) }}</div>
+        <div class="ma-sale-banner-sub">
+          @if($appointment->payments()->count() === 1 && $appointment->payments()->first()->kind === 'deposit')
+            Customer prepaid before service. No checkout needed.
+          @else
+            {{ $appointment->payments()->count() }} {{ $appointment->payments()->count() === 1 ? 'payment' : 'payments' }} on file.
+          @endif
+        </div>
+      </div>
+    </div>
+  @elseif($bannerOverage > 0)
+    <div class="ma-sale-banner ma-sale-banner--overage">
+      <span class="ma-sale-banner-icon">⚠</span>
+      <div class="ma-sale-banner-body">
+        <div class="ma-sale-banner-title">Customer overpaid — ${{ number_format($bannerOverage / 100, 2) }}</div>
+        <div class="ma-sale-banner-sub">Refund the overage or adjust the total.</div>
+      </div>
+    </div>
+  @endif
+
   {{-- MARKER-PATCH-158-E2 — Status pipeline (mirrors legacy show.blade.php) --}}
   @if($isTerminal)
     <div class="ma-terminal-card">
@@ -984,7 +1067,7 @@ input.ma-asset-name-edit:focus {
       <div class="ma-progress-bar"
            data-current-index="{{ $currentIndex }}"
            data-update-url="{{ $updateUrl }}"
-           style="--progress-pct: {{ count($pipelineSteps) > 1 ? round(100 * $currentIndex / (count($pipelineSteps) - 1)) : 0 }};">
+           style="--progress: {{ count($pipelineSteps) > 1 ? $currentIndex / (count($pipelineSteps) - 1) : 0 }};">
         @foreach($pipelineSteps as $idx => $step)
           @php
             $stepLabel = $statusLabels[$step] ?? $step;
@@ -2029,34 +2112,82 @@ input.ma-asset-name-edit:focus {
 
   // ---------------------- MARKER-PATCH-158-E2 ----------------------
 
-  // Status pipeline click → transition
-  document.querySelectorAll('.ma-progress-step').forEach(function(step) {
-    step.addEventListener('click', async function() {
-      if (step.classList.contains('is-current')) return; // already there
-      if (step.classList.contains('is-saving')) return;
-      const newStatus = step.dataset.status;
-      const label = step.dataset.label;
-      step.classList.add('is-saving');
-      const result = await post({ op: 'status', status: newStatus });
-      step.classList.remove('is-saving');
-      if (!result.ok) {
-        if (window.IntakeToast) IntakeToast.error('Could not change status: ' + result.message);
-        else alert('Could not change status: ' + result.message);
-        return;
-      }
-      if (window.IntakeToast) IntakeToast.success(label);
-      setTimeout(function() { location.reload(); }, 350);
+  // Status pipeline click → transition.
+  // MARKER-PATCH-158-G1 — Forward moves go silently. Backward moves prompt
+  // via IntakeConfirm (matches legacy view's behavior). Falls back to native
+  // confirm() if IntakeConfirm isn't loaded for some reason.
+  (function() {
+    const bar = document.querySelector('.ma-progress-bar');
+    if (!bar) return;
+    const currentIndex = parseInt(bar.dataset.currentIndex, 10);
+
+    bar.querySelectorAll('.ma-progress-step').forEach(function(step) {
+      step.addEventListener('click', async function() {
+        if (step.classList.contains('is-current')) return;
+        if (step.classList.contains('is-saving')) return;
+
+        const newStatus = step.dataset.status;
+        const label     = step.dataset.label;
+        const stepIndex = parseInt(step.dataset.stepIndex, 10);
+        const isBackward = stepIndex < currentIndex;
+
+        const go = async function() {
+          step.classList.add('is-saving');
+          const result = await post({ op: 'status', status: newStatus });
+          step.classList.remove('is-saving');
+          if (!result.ok) {
+            if (window.IntakeToast) IntakeToast.error('Could not change status: ' + result.message);
+            else alert('Could not change status: ' + result.message);
+            return;
+          }
+          if (window.IntakeToast) IntakeToast.success(label);
+          setTimeout(function() { location.reload(); }, 600);
+        };
+
+        if (isBackward) {
+          if (window.IntakeConfirm) {
+            const ok = await window.IntakeConfirm.show({
+              title:       'Move back to ' + label + '?',
+              message:     'This appointment is currently further along. Going back may surprise the customer and will revert any register sale.',
+              confirmText: 'Move back',
+              cancelText:  'Keep where it is',
+            });
+            if (ok) go();
+          } else {
+            if (confirm('Move back to ' + label + '?')) go();
+          }
+        } else {
+          go();
+        }
+      });
     });
-  });
+  })();
 
   // Reopen button (terminal state)
+  // MARKER-PATCH-158-G1 — Use IntakeConfirm to match legacy
   const reopenBtn = document.getElementById('ma-reopen-btn');
   if (reopenBtn) {
     reopenBtn.addEventListener('click', async function() {
-      if (!confirm('Reopen this appointment? Status will return to pending.')) return;
+      let proceed = false;
+      if (window.IntakeConfirm) {
+        proceed = await window.IntakeConfirm.show({
+          title:       'Reopen this appointment?',
+          message:     'This will return it to Pending status.',
+          confirmText: 'Reopen',
+          cancelText:  'Keep closed',
+        });
+      } else {
+        proceed = confirm('Reopen this appointment? Status will return to pending.');
+      }
+      if (!proceed) return;
       const result = await post({ op: 'status', status: 'pending' });
-      if (!result.ok) { alert('Could not reopen: ' + result.message); return; }
-      location.reload();
+      if (!result.ok) {
+        if (window.IntakeToast) IntakeToast.error('Could not reopen: ' + result.message);
+        else alert('Could not reopen: ' + result.message);
+        return;
+      }
+      if (window.IntakeToast) IntakeToast.success('Reopened');
+      setTimeout(function() { location.reload(); }, 600);
     });
   }
 
