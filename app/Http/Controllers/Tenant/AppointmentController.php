@@ -677,6 +677,31 @@ class AppointmentController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // MARKER-PATCH-158-D — branch to multi-asset view when:
+        //   1) tenant has the feature enabled, AND
+        //   2) this appointment actually has assets attached (back-compat: pre-existing
+        //      single-asset appointments render in the legacy view even after the
+        //      flag is flipped on).
+        if ($tenant->multi_asset_enabled) {
+            $appointmentAssets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
+                ->where('appointment_id', $appointment->id)
+                ->with(['customerAsset', 'items.serviceItem', 'addons.addon'])
+                ->orderBy('sort_order')
+                ->get();
+
+            if ($appointmentAssets->isNotEmpty()) {
+                // Loose items/addons = those NOT pinned to any asset (back-compat)
+                $looseItems  = $appointment->items->whereNull('appointment_asset_id');
+                $looseAddons = $appointment->addons->whereNull('appointment_asset_id');
+
+                return view('tenant.appointments.show-multi-asset', compact(
+                    'appointment', 'appointmentAssets', 'looseItems', 'looseAddons',
+                    'transitions', 'destructive',
+                    'availableServices', 'availableAddons', 'availableResources',
+                    'specialOrdersForAppt', 'soVendors'));
+            }
+        }
+
         return view('tenant.appointments.show', compact(
             'appointment', 'transitions', 'destructive',
             'availableServices', 'availableAddons', 'availableResources', 'specialOrdersForAppt', 'soVendors'));
