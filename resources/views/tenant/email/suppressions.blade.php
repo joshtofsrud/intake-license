@@ -103,19 +103,19 @@
 
   <div class="ia-card">
     <div class="sup-tabs">
-      <a href="{{ route('tenant.suppressions.index', ['subdomain' => $currentTenant->subdomain, 'tab' => 'all']) }}"
+      <a href="{{ route('tenant.suppressions.index', ['tab' => 'all']) }}"
          class="{{ $tab === 'all' ? 'active' : '' }}">All · {{ $counts['all'] }}</a>
-      <a href="{{ route('tenant.suppressions.index', ['subdomain' => $currentTenant->subdomain, 'tab' => 'bounced']) }}"
+      <a href="{{ route('tenant.suppressions.index', ['tab' => 'bounced']) }}"
          class="{{ $tab === 'bounced' ? 'active' : '' }}">Bounced · {{ $counts['bounced'] }}</a>
-      <a href="{{ route('tenant.suppressions.index', ['subdomain' => $currentTenant->subdomain, 'tab' => 'complained']) }}"
+      <a href="{{ route('tenant.suppressions.index', ['tab' => 'complained']) }}"
          class="{{ $tab === 'complained' ? 'active' : '' }}">Complained · {{ $counts['complained'] }}</a>
-      <a href="{{ route('tenant.suppressions.index', ['subdomain' => $currentTenant->subdomain, 'tab' => 'other']) }}"
+      <a href="{{ route('tenant.suppressions.index', ['tab' => 'other']) }}"
          class="{{ $tab === 'other' ? 'active' : '' }}">Unsub'd / Manual · {{ $counts['other'] }}</a>
     </div>
 
     <div id="sup-add" class="sup-add-block">
       <div style="font-size: 13px; font-weight: 500; margin-bottom: 8px;">Manually suppress an address</div>
-      <form method="POST" action="{{ route('tenant.suppressions.store', ['subdomain' => $currentTenant->subdomain]) }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
+      <form method="POST" action="{{ route('tenant.suppressions.store') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
         @csrf
         <div style="flex: 1; min-width: 240px;">
           <label class="ia-label" style="margin-bottom: 4px;">Email</label>
@@ -173,7 +173,7 @@
               @if($row->reason === 'complaint' || is_null($row->tenant_id))
                 <span style="font-size: 11.5px; color: var(--ia-text-dim);">Permanent</span>
               @else
-                <form method="POST" action="{{ route('tenant.suppressions.destroy', ['subdomain' => $currentTenant->subdomain, 'id' => $row->id]) }}" style="display: inline;">
+                <form method="POST" action="{{ route('tenant.suppressions.destroy', ['id' => $row->id]) }}" style="display: inline;">
                   @csrf
                   @method('DELETE')
                   <button type="submit" class="ia-btn ia-btn--ghost" style="font-size: 11.5px; padding: 4px 10px;"

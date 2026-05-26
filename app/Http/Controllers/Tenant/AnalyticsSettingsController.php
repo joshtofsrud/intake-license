@@ -19,7 +19,7 @@ class AnalyticsSettingsController extends Controller
     /**
      * POST /admin/settings/analytics
      */
-    public function update(string $subdomain, Request $request)
+    public function update(Request $request)
     {
         $me = Auth::guard('tenant')->user();
         if (! $me || ! $me->isManager()) {

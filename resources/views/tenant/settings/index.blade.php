@@ -738,33 +738,7 @@
       </div>
     </div>
 
-    {{-- MARKER-PATCH-150 — Web analytics card --}}
-    <form method="POST"
-          action="{{ route('tenant.settings.analytics.update', ['subdomain' => $currentTenant->subdomain]) }}"
-          class="ia-card" style="margin-bottom: 18px;">
-      @csrf
-      <div class="ia-card-head">
-        <span class="ia-card-title">Web analytics</span>
-      </div>
-      <p style="color: var(--ia-text-muted, rgba(255,255,255,.62)); font-size: 13px; margin-bottom: 14px;">
-        Connect Google Analytics 4 to your public-facing pages. We'll inject the tracking script automatically.
-        Leave blank to disable.
-      </p>
-      <label class="ia-label">GA-4 measurement ID</label>
-      <input type="text" name="analytics_ga4_id" class="ia-input mono"
-             value="{{ old('analytics_ga4_id', $currentTenant->settings['analytics_ga4_id'] ?? '') }}"
-             placeholder="G-XXXXXXXXXX"
-             style="max-width: 320px; font-family: var(--ia-font-mono, 'JetBrains Mono', monospace);">
-      <div class="ia-help" style="margin-top: 6px; font-size: 11.5px; color: var(--ia-text-dim, rgba(255,255,255,.42));">
-        Find this in your GA-4 Admin → Data Streams → Measurement ID. Starts with <code>G-</code>.
-      </div>
-      @error('analytics_ga4_id')
-        <div style="color: #F47373; font-size: 12px; margin-top: 6px;">{{ $message }}</div>
-      @enderror
-      <div style="margin-top: 14px;">
-        <button type="submit" class="ia-btn ia-btn--primary">Save analytics</button>
-      </div>
-    </form>
+
 
     {{-- Email sender details --}}
     <div class="ia-card" style="margin-bottom:20px">
@@ -1009,6 +983,36 @@
       </div>
     </div>
   </form>
+  {{-- MARKER-PATCH-150-FIX — Web analytics card, outside parent form (HTML disallows nested forms) --}}
+  <div class="ia-card" style="margin-bottom: 20px;">
+    <div class="ia-card-head">
+      <span class="ia-card-title">Web analytics</span>
+    </div>
+    <p style="font-size:13px;opacity:.5;margin-bottom:14px">
+      Connect Google Analytics 4 to your public-facing pages. We'll inject the tracking script automatically.
+      Leave blank to disable.
+    </p>
+    <form method="POST" action="{{ route('tenant.settings.analytics.update') }}">
+      @csrf
+      <div class="ia-form-group">
+        <label class="ia-form-label">GA-4 measurement ID</label>
+        <input type="text" name="analytics_ga4_id" class="ia-input"
+               value="{{ old('analytics_ga4_id', $currentTenant->settings['analytics_ga4_id'] ?? '') }}"
+               placeholder="G-XXXXXXXXXX"
+               style="max-width: 320px; font-family: var(--ia-font-mono, 'JetBrains Mono', monospace);">
+        <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+          Find this in your GA-4 Admin → Data Streams → Measurement ID. Starts with <code>G-</code>.
+        </div>
+      </div>
+      @error('analytics_ga4_id')
+        <div style="color: #F47373; font-size: 12px; margin-top: 6px;">{{ $message }}</div>
+      @enderror
+      <div style="margin-top: 14px;">
+        <button type="submit" class="ia-btn ia-btn--primary">Save analytics</button>
+      </div>
+    </form>
+  </div>
+
 </div>
 
 {{-- =====================================================================

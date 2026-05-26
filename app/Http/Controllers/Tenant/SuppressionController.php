@@ -22,11 +22,11 @@ class SuppressionController extends Controller
     /**
      * GET /admin/email/suppressions
      */
-    public function index(string $subdomain, Request $request)
+    public function index(Request $request)
     {
         $me = Auth::guard('tenant')->user();
         if (! $me || ! $me->isManager()) {
-            return redirect()->route('tenant.dashboard', $subdomain);
+            return redirect()->route('tenant.dashboard');
         }
 
         $tenant = tenant();
@@ -78,7 +78,7 @@ class SuppressionController extends Controller
      * Removes a tenant-scoped suppression. Platform-wide rows and
      * complaint-reason rows are not removable here.
      */
-    public function destroy(string $subdomain, int $id)
+    public function destroy(int $id)
     {
         $me = Auth::guard('tenant')->user();
         if (! $me || ! $me->isManager()) {
@@ -114,7 +114,7 @@ class SuppressionController extends Controller
      *
      * Manually suppress an address for this tenant only.
      */
-    public function store(string $subdomain, Request $request)
+    public function store(Request $request)
     {
         $me = Auth::guard('tenant')->user();
         if (! $me || ! $me->isManager()) {
