@@ -357,17 +357,21 @@
   .del-drawer-foot {
     padding: 16px 24px;
     border-top: 0.5px solid var(--ia-border);
-    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    display: flex; flex-direction: column; gap: 10px;
     position: sticky; bottom: 0;
     background: var(--ia-surface);
   }
+  /* MARKER-PATCH-157-FIX1 — top row: cancel left, action buttons right */
+  .del-drawer-foot-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .del-drawer-foot-right { display: flex; gap: 10px; }
+  .del-btn--full { width: 100%; justify-content: center; } /* MARKER-PATCH-157-FIX1 */
   .del-btn {
     height: 32px; padding: 0 14px;
     border: 0; border-radius: 4px;
     font-size: 12.5px; cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
     font-family: inherit;
+    white-space: nowrap; /* MARKER-PATCH-157-FIX1 — prevent label wrapping */
     text-decoration: none;
   }
   .del-btn--primary { background: var(--ia-accent, #BEF264); color: var(--ia-accent-text, #0a0a0a); font-weight: 600; }
@@ -769,18 +773,21 @@
 
     </div>
 
+    {{-- MARKER-PATCH-157-FIX1 — two-row footer for cleaner spacing --}}
     <div class="del-drawer-foot">
-      <div id="del-foot-left">
-        <button type="button" class="del-btn del-btn--danger" id="del-cancel-btn" style="display:none;" onclick="delCancel()">Cancel delivery</button>
+      <div class="del-drawer-foot-row">
+        <div id="del-foot-left">
+          <button type="button" class="del-btn del-btn--danger" id="del-cancel-btn" style="display:none;" onclick="delCancel()">Cancel</button>
+        </div>
+        <div class="del-drawer-foot-right">
+          <button type="button" class="del-btn del-btn--ghost" onclick="delCloseDrawer()">Close</button>
+          {{-- MARKER-PATCH-157 — hidden notify flag, set by the two save buttons --}}
+          <input type="hidden" name="notify" id="del-notify-flag" value="0">
+          <button type="submit" class="del-btn del-btn--ghost"   id="del-save-btn"        onclick="return delPrepSubmit(false)">Save</button>
+          <button type="submit" class="del-btn del-btn--primary" id="del-save-notify-btn" onclick="return delPrepSubmit(true)">Save &amp; notify</button>
+        </div>
       </div>
-      <div class="del-drawer-foot-right">
-        <button type="button" class="del-btn del-btn--ghost" id="del-complete-btn" style="display:none;" onclick="delComplete()">Mark complete</button>
-        <button type="button" class="del-btn del-btn--ghost" onclick="delCloseDrawer()">Close</button>
-        {{-- MARKER-PATCH-157 — hidden notify flag, set by the two save buttons --}}
-        <input type="hidden" name="notify" id="del-notify-flag" value="0">
-        <button type="submit" class="del-btn del-btn--ghost"   id="del-save-btn"        onclick="return delPrepSubmit(false)">Save delivery</button>
-        <button type="submit" class="del-btn del-btn--primary" id="del-save-notify-btn" onclick="return delPrepSubmit(true)">Save &amp; notify</button>
-      </div>
+      <button type="button" class="del-btn del-btn--ghost del-btn--full" id="del-complete-btn" style="display:none;" onclick="delComplete()">Complete</button>
     </div>
 
   </form>
@@ -844,7 +851,8 @@
     document.getElementById('del-complete-btn').style.display = 'none';
     document.getElementById('del-cancel-btn').style.display = 'none';
     // MARKER-PATCH-157 — set both button labels for create mode
-    document.getElementById('del-save-btn').textContent = 'Save delivery';
+    // MARKER-PATCH-157-FIX1 — shorter labels
+    document.getElementById('del-save-btn').textContent = 'Save';
     document.getElementById('del-save-notify-btn').textContent = 'Save & notify';
   }
 
@@ -873,7 +881,8 @@
     document.getElementById('del-complete-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
     document.getElementById('del-cancel-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
     // MARKER-PATCH-157 — set both button labels for edit mode
-    document.getElementById('del-save-btn').textContent = 'Update delivery';
+    // MARKER-PATCH-157-FIX1 — shorter labels
+    document.getElementById('del-save-btn').textContent = 'Update';
     document.getElementById('del-save-notify-btn').textContent = 'Update & notify';
   }
 
