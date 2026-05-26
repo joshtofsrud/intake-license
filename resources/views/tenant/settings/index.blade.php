@@ -24,6 +24,10 @@
   $notifyDeliveryEmail = $currentTenant->notificationEnabled('delivery_scheduled_email');
   $notifyDeliverySms   = $currentTenant->notificationEnabled('delivery_scheduled_sms');
 
+  // MARKER-PATCH-154 — appointment reminder toggles
+  $notifyApptReminderEmail = $currentTenant->notificationEnabled('appointment_reminder_email');
+  $notifyApptReminderSms   = $currentTenant->notificationEnabled('appointment_reminder_sms');
+
   // SMS auth token: don't render the actual value back to the form. Show
   // a masked placeholder if one is set, blank if not. Controller treats
   // an empty submission as "leave unchanged."
@@ -993,22 +997,26 @@
         </div>
       </div>
 
-      {{-- 24-hour reminder (NOT WIRED) --}}
-      <div class="notif-row is-disabled">
+      {{-- MARKER-PATCH-154 — Appointment reminder (WIRED) --}}
+      <div class="notif-row">
         <div class="notif-row-main">
-          <div class="notif-row-title">24-hour reminder <span class="notif-coming">Coming soon</span></div>
-          <div class="notif-row-desc">Reminds the customer the day before their appointment.</div>
+          <div class="notif-row-title">Appointment reminder</div>
+          <div class="notif-row-desc">Reminds the customer about their appointment 24 hours before.</div>
         </div>
         <div class="notif-row-toggles">
           <label class="notif-row-toggle-label">
-            <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="Email 24-hour reminder (coming soon)">
-              <span class="ia-toggle-sr">Off</span>
+            <input type="hidden" name="notify_appointment_reminder_email" id="notify_appointment_reminder_email_input" value="{{ $notifyApptReminderEmail ? '1' : '0' }}">
+            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyApptReminderEmail ? 'on' : '' }}"
+              id="notify-appt-reminder-email-btn" aria-label="Email appointment reminder">
+              <span class="ia-toggle-sr">{{ $notifyApptReminderEmail ? 'On' : 'Off' }}</span>
             </button>
             <span>Email</span>
           </label>
           <label class="notif-row-toggle-label">
-            <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="SMS 24-hour reminder (coming soon)">
-              <span class="ia-toggle-sr">Off</span>
+            <input type="hidden" name="notify_appointment_reminder_sms" id="notify_appointment_reminder_sms_input" value="{{ $notifyApptReminderSms ? '1' : '0' }}">
+            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyApptReminderSms ? 'on' : '' }}"
+              id="notify-appt-reminder-sms-btn" aria-label="SMS appointment reminder">
+              <span class="ia-toggle-sr">{{ $notifyApptReminderSms ? 'On' : 'Off' }}</span>
             </button>
             <span>SMS</span>
           </label>
@@ -1371,6 +1379,9 @@
   // MARKER-PATCH-152C
   bindToggle('notify-delivery-email-btn',   'notify_delivery_email_input');
   bindToggle('notify-delivery-sms-btn',     'notify_delivery_sms_input');
+  // MARKER-PATCH-154
+  bindToggle('notify-appt-reminder-email-btn', 'notify_appointment_reminder_email_input');
+  bindToggle('notify-appt-reminder-sms-btn',   'notify_appointment_reminder_sms_input');
 
   /* -----------------------------------------------------------------------
    * Branding: color picker text/swatch sync

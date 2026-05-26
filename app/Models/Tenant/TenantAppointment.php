@@ -22,6 +22,7 @@ class TenantAppointment extends Model
         'stripe_payment_intent_id','paypal_order_id',
         'subtotal_cents','tax_cents','total_cents','paid_cents','staff_notes',
         'needs_time_review',
+        'reminded_at', // MARKER-PATCH-154
     ];
     protected $casts = [
         'appointment_date'         => 'date',
@@ -36,6 +37,7 @@ class TenantAppointment extends Model
         'tax_cents'                => 'integer',
         'total_cents'              => 'integer',
         'paid_cents'               => 'integer',
+        'reminded_at'              => 'datetime', // MARKER-PATCH-154
     ];
 
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }

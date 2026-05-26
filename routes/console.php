@@ -45,3 +45,13 @@ Schedule::command('domains:poll')
     ->withoutOverlapping()
     ->runInBackground();
 
+// ----------------------------------------------------------------
+// MARKER-PATCH-154 — 24-hour appointment reminders
+// Hourly cron with a 23-25h window. reminded_at column on the row is
+// the idempotence guard so each appointment is reminded once.
+// ----------------------------------------------------------------
+Schedule::command('appointments:remind')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();
+
