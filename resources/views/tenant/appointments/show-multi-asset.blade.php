@@ -270,33 +270,6 @@
   color: var(--ia-text-dim); margin-bottom: 12px;
 }
 
-/* "Coming in 158-E" affordances — visible but disabled */
-.ma-coming-soon {
-  width: 100%;
-  font: inherit;
-  font-size: 13px;
-  padding: 14px;
-  background: transparent;
-  border: 1px dashed var(--ia-border);
-  border-radius: 10px;
-  color: var(--ia-text-faint, #52525b);
-  display: flex; align-items: center; justify-content: center;
-  cursor: not-allowed;
-}
-.ma-coming-soon-inner-service {
-  width: 100%;
-  font: inherit;
-  font-size: 12px;
-  padding: 8px;
-  background: transparent;
-  border: 1px dashed var(--ia-border);
-  border-radius: 6px;
-  color: var(--ia-text-faint, #52525b);
-  margin-top: 8px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: not-allowed;
-}
-
 /* Right rail cards */
 .ma-rail { display: flex; flex-direction: column; gap: 12px; }
 .ma-rail-card {
@@ -338,26 +311,6 @@
   letter-spacing: 0.06em;
   align-self: center;
 }
-
-/* "Use legacy view" banner — for any debugging fallback */
-.ma-fallback-banner {
-  background: rgba(251,191,36,0.06);
-  border: 1px solid rgba(251,191,36,0.18);
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 18px;
-  font-size: 12px;
-  color: var(--ia-text-dim);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-.ma-fallback-banner a {
-  color: var(--ia-accent, #BEF264);
-  text-decoration: none;
-}
-.ma-fallback-banner a:hover { text-decoration: underline; }
 
 /* ============== MARKER-PATCH-158-F — Empty state ============== */
 .ma-empty {
@@ -700,6 +653,93 @@
   font-size: 13px;
   opacity: .4;
   margin: 0;
+}
+
+/* ============== MARKER-PATCH-158-E6 — Special orders + polish ============== */
+.ma-so-card {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-top: 14px;
+}
+.ma-so-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.ma-so-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.ma-so-warning strong { color: #F59E0B; }
+.ma-so-warning span { color: var(--ia-text-dim); }
+.ma-so-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ma-so-table th {
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ia-text-faint, #52525b);
+  padding: 6px 0;
+  text-align: left;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ma-so-table th.num { text-align: right; }
+.ma-so-table td {
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--ia-border);
+  vertical-align: middle;
+}
+.ma-so-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ma-so-table tr:last-child td { border-bottom: 0; }
+.ma-so-table tbody tr:hover {
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+}
+.ma-so-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ma-so-status--needed   { background: rgba(167,139,250,0.10); color: #A78BFA; }
+.ma-so-status--ordered  { background: rgba(96,165,250,0.10);  color: #60A5FA; }
+.ma-so-status--arrived  { background: rgba(190,242,100,0.10); color: var(--ia-accent, #BEF264); }
+.ma-so-status--pulled   { background: rgba(200,200,200,0.06); color: var(--ia-text-dim); }
+.ma-so-status--cancelled{ background: rgba(248,113,113,0.10); color: #F87171; text-decoration: line-through; }
+.ma-so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
+
+/* System notes — visually differentiated as activity-log entries */
+.ma-note--system {
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-bottom: 0 !important;
+}
+.ma-note--system + .ma-note:not(.ma-note--system) { margin-top: 10px; }
+.ma-note--system .ma-note-author {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ia-text-faint, #52525b);
+}
+.ma-note--system .ma-note-body {
+  font-size: 12px;
+  color: var(--ia-text-dim);
 }
 
 /* Payment status badge */
@@ -1355,6 +1395,70 @@ input.ma-asset-name-edit:focus {
         </div>
       </div>
 
+      {{-- MARKER-PATCH-158-E6 — Special-order parts --}}
+      @isset($specialOrdersForAppt)
+        @php
+          $unArrivedSos = $specialOrdersForAppt->whereIn('status', ['needed', 'ordered']);
+          $showBlockWarning = $appointment->status === 'in_progress' && $unArrivedSos->isNotEmpty();
+        @endphp
+        <div class="ma-so-card" id="ma-so-parts-card" style="{{ $showBlockWarning ? 'border-left: 3px solid #F59E0B;' : '' }}">
+          <div class="ma-so-head">
+            <div class="ma-section-title">Special-order parts</div>
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
+                    onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
+              + SO for this appointment
+            </button>
+          </div>
+
+          @if($showBlockWarning)
+            <div class="ma-so-warning">
+              <strong>⚠ {{ $unArrivedSos->count() }} part{{ $unArrivedSos->count() === 1 ? '' : 's' }} not yet arrived.</strong>
+              <span>Completing this appointment will leave the customer waiting on parts. Consider waiting until parts arrive, or proceed if customer is OK with split pickup.</span>
+            </div>
+          @endif
+
+          @if($specialOrdersForAppt->isEmpty())
+            <p style="font-size: 13px; color: var(--ia-text-dim); padding: 6px 0; margin: 0;">No special-order parts on this appointment.</p>
+          @else
+            <table class="ma-so-table">
+              <thead>
+                <tr>
+                  <th>Part</th>
+                  <th class="num" style="width: 60px;">Qty</th>
+                  <th style="width: 110px;">Status</th>
+                  <th style="width: 80px;">ETA</th>
+                  <th>Vendor</th>
+                  <th style="width: 80px;">SO #</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($specialOrdersForAppt as $so)
+                  @php
+                    $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast();
+                    $rowOpacity = in_array($so->status, ['pulled', 'cancelled']) ? '0.55' : '1';
+                  @endphp
+                  <tr style="cursor: pointer; opacity: {{ $rowOpacity }};"
+                      onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
+                    <td><strong>{{ $so->item_name_snapshot }}</strong></td>
+                    <td class="num">{{ $so->quantity }}</td>
+                    <td>
+                      <span class="ma-so-status ma-so-status--{{ $isOverdue ? 'overdue' : $so->status }}">{{ $isOverdue ? 'Overdue' : ucfirst($so->status) }}</span>
+                    </td>
+                    <td style="color: var(--ia-text-dim); font-size: 12px;">
+                      @if($so->expected_arrival_date){{ $so->expected_arrival_date->format('M j') }}@else — @endif
+                    </td>
+                    <td style="color: var(--ia-text-dim); font-size: 12px;">{{ $so->vendor?->name ?? 'TBD' }}</td>
+                    <td style="font-size: 11px; color: var(--ia-text-dim);">{{ $so->so_number }}</td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          @endif
+        </div>
+
+        @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
+      @endisset
+
       {{-- MARKER-PATCH-158-E5 — Work order card --}}
       @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
         @php
@@ -1472,10 +1576,10 @@ input.ma-asset-name-edit:focus {
 
         <div id="ma-notes-list">
           @forelse($appointment->notes->sortByDesc('created_at') as $note)
-            <div class="ma-note" data-note-id="{{ $note->id }}">
+            <div class="ma-note {{ $note->note_type === 'system' ? 'ma-note--system' : '' }}" data-note-id="{{ $note->id }}">
               <div class="ma-note-head">
                 <span class="ma-note-author">
-                  {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
+                  {{ $note->user?->name ?? ($note->note_type === 'system' ? 'Activity' : 'Staff') }}
                 </span>
                 @if($note->is_customer_visible)
                   <span class="ma-note-visibility ma-note-visibility--customer">Customer-visible</span>
