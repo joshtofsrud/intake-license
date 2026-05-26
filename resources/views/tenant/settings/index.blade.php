@@ -479,6 +479,24 @@
       </div>
     </div>
 
+    {{-- MARKER-PATCH-158-B — Multi-asset --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Multi-asset appointments</span></div>
+      <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:14px;font-weight:500">Track customer assets</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Track bikes, vehicles, pets, or other items per customer, and attach multiple to a single appointment. Useful for family drop-offs, fleet servicing, or multi-pet appointments.</div>
+        </div>
+        <input type="hidden" name="multi_asset_enabled" id="multi_asset_enabled_input" value="{{ $currentTenant->multi_asset_enabled ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ $currentTenant->multi_asset_enabled ? 'on' : '' }}"
+          id="multi-asset-toggle-btn"
+          aria-label="Enable multi-asset tracking">
+          <span class="ia-toggle-sr">{{ $currentTenant->multi_asset_enabled ? 'Enabled' : 'Disabled' }}</span>
+        </button>
+      </div>
+    </div>
+
     {{-- Tax --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Sales tax</span></div>
@@ -1463,6 +1481,8 @@
   bindToggle('classes-toggle-btn',          'classes_enabled_input');
   // MARKER-PATCH-156
   bindToggle('deliveries-toggle-btn',       'deliveries_enabled_input');
+  // MARKER-PATCH-158-B
+  bindToggle('multi-asset-toggle-btn',      'multi_asset_enabled_input');
   bindToggle('tax-services-toggle-btn',     'tax_services_default_input');
   bindToggle('tax-exempt-toggle-btn',       'tax_supports_exempt_input');
   bindToggle('sms-enabled-toggle-btn',      'sms_enabled_input');

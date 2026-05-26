@@ -62,6 +62,7 @@ class SettingsController extends Controller
             'min_notice_hours'     => ['required', 'integer', 'min:0', 'max:168'],
             'classes_enabled'      => ['nullable', 'boolean'],
             'deliveries_enabled'   => ['nullable', 'boolean'], // MARKER-PATCH-156
+            'multi_asset_enabled'  => ['nullable', 'boolean'], // MARKER-PATCH-158-B
             'default_tax_rate'     => ['nullable', 'numeric', 'min:0', 'max:25'],
             'tax_services_default' => ['nullable', 'boolean'],
             'tax_supports_exempt'  => ['nullable', 'boolean'],
@@ -75,6 +76,7 @@ class SettingsController extends Controller
             'min_notice_hours'     => (int) $request->input('min_notice_hours'),
             'classes_enabled'      => (bool) $request->input('classes_enabled'),
             'deliveries_enabled'   => (bool) $request->input('deliveries_enabled'), // MARKER-PATCH-156
+            'multi_asset_enabled'  => (bool) $request->input('multi_asset_enabled'), // MARKER-PATCH-158-B
             'default_tax_rate'     => $request->filled('default_tax_rate')
                 ? (float) $request->input('default_tax_rate')
                 : null,

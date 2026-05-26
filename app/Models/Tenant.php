@@ -26,7 +26,7 @@ class Tenant extends Model
         'payment_processor', 'payment_processor_status',
         'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
-        'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled',
+        'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
         // Tax (Path B onboarding)
@@ -50,6 +50,7 @@ class Tenant extends Model
         'booking_mode'        => 'string',
         'classes_enabled'     => 'boolean',
         'deliveries_enabled'  => 'boolean', // MARKER-PATCH-156
+        'multi_asset_enabled' => 'boolean', // MARKER-PATCH-158-B
         'trial_ends_at'       => 'datetime',
         'payment_processor_connected_at' => 'datetime',
         // Logo display heights (px)
