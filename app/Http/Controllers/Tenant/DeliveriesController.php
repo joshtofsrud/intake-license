@@ -26,8 +26,9 @@ class DeliveriesController extends Controller
         $view   = $request->query('view', 'day');
         if (!in_array($view, ['day', 'week'], true)) $view = 'day';
 
+        $tz      = $tenant->timezone ?? config('app.timezone', 'UTC');
         $dateStr = $request->query('date');
-        $date    = $dateStr ? Carbon::parse($dateStr) : Carbon::today();
+        $date    = $dateStr ? Carbon::parse($dateStr, $tz) : Carbon::now($tz)->startOfDay();
 
         $svc = new TenantDeliveryService($tenant);
 

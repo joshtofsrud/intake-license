@@ -777,7 +777,11 @@
     delSelectType(type);
     // Default date = today, time = next round hour
     var now = new Date();
-    document.getElementById('del-date').value = now.toISOString().split('T')[0];
+    // MARKER-PATCH-152B-FIX2 — use LOCAL date components, not UTC
+    var y = now.getFullYear();
+    var m = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    document.getElementById('del-date').value = y + '-' + m + '-' + dd;
     var hh = String(now.getHours() + 1).padStart(2, '0');
     document.getElementById('del-time').value = hh + ':00';
     document.getElementById('del-window').value = '30';
