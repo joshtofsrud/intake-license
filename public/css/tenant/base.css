@@ -766,9 +766,6 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   padding: 4px;
   z-index: 100;
 }
-.ia-sb-user-menu-item:hover {
-  background: rgba(255,255,255,.08) !important;
-}
 .ia-sb-user-menu-item {
   display: flex;
   align-items: center;
@@ -786,7 +783,8 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   font-family: inherit;
 }
 .ia-sb-user-menu-item:hover {
-  background: var(--ia-surface-3, rgba(255,255,255,.07));
+  /* MARKER-PATCH-150-POLISH-D — dark sidebar, dark hover always */
+  background: rgba(255, 255, 255, .08);
 }
 
 /* Location row INSIDE the identity block — override the floating pill
@@ -825,6 +823,33 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   min-width: 0;
 }
 
+/* MARKER-PATCH-150-POLISH-D — lock location-switcher colours when inside the dark sidebar */
+.ia-sb-location-wrap .ia-loc-switcher-details > summary {
+  color: #f0f0f0;
+}
+.ia-sb-location-wrap .ia-loc-switcher-details > summary:hover,
+.ia-sb-location-wrap .ia-loc-switcher-details[open] > summary {
+  background: rgba(255, 255, 255, .07);
+  border-color: transparent;
+}
+.ia-sb-location-wrap .ia-loc-switcher-menu {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, .12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+.ia-sb-location-wrap .ia-loc-switcher-menu-label {
+  color: rgba(255, 255, 255, .55);
+}
+.ia-sb-location-wrap .ia-loc-switcher-item {
+  color: #f0f0f0;
+}
+.ia-sb-location-wrap .ia-loc-switcher-item:hover {
+  background: rgba(255, 255, 255, .08);
+}
+.ia-sb-location-wrap .ia-loc-switcher-item.is-current {
+  color: #BEF264;
+}
+
 /* Make sure the sidebar pushes the brand footer to the bottom. */
 .ia-sidebar {
   display: flex;
@@ -846,27 +871,7 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   text-underline-offset: 2px;
 }
 
-/* Light theme polish */
-.ia-theme-b .ia-sidebar-identity {
-  border-bottom-color: rgba(0,0,0,.08);
-}
-.ia-theme-b .ia-sb-user-details > summary:hover,
-.ia-theme-b .ia-sb-user-details[open] > summary,
-.ia-theme-b .ia-sb-location-wrap .ia-loc-switcher-details > summary:hover,
-.ia-theme-b .ia-sb-location-wrap .ia-loc-switcher-details[open] > summary {
-  background: rgba(0,0,0,.05);
-}
-.ia-theme-b .ia-sb-user-menu {
-  background: #ffffff;
-  border-color: rgba(0,0,0,.10);
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
-}
-.ia-theme-b .ia-sb-user-menu-item:hover {
-  background: rgba(0,0,0,.05);
-}
-.ia-theme-b .ia-sidebar-bottom {
-  border-top-color: rgba(0,0,0,.08);
-}
+/* MARKER-PATCH-150-POLISH-D — sidebar is always dark, theme-b overrides removed */
 
 
 /* === Idle lock overlay (chunk 6) === */
