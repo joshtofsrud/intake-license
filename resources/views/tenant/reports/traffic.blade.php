@@ -345,7 +345,9 @@
     </div>
 
     @php
-      $maxFunnel = max(array_map(fn ($s) => $s['count'], $funnel['steps']) ?: [1], [1]);
+      // MARKER-PATCH-151B-FIX1 — max() of step counts, with 1 as floor
+      $stepCounts = array_map(fn ($s) => (int) $s['count'], $funnel['steps']);
+      $maxFunnel = !empty($stepCounts) ? max($stepCounts) : 0;
       $maxFunnel = max($maxFunnel, 1);
     @endphp
 
