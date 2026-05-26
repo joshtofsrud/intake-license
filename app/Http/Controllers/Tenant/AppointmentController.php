@@ -684,13 +684,14 @@ class AppointmentController extends Controller
         if ($tenant->multi_asset_enabled) {
             $appointmentAssets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
                 ->where('appointment_id', $appointment->id)
-                ->with(['customerAsset', 'items.serviceItem', 'addons.addon'])
+                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem']) // MARKER-PATCH-158-G4
                 ->orderBy('sort_order')
                 ->get();
 
-            // Loose items/addons = those NOT pinned to any asset (back-compat)
+            // Loose items/addons/parts = NOT pinned to any asset (back-compat)
             $looseItems  = $appointment->items->whereNull('appointment_asset_id');
             $looseAddons = $appointment->addons->whereNull('appointment_asset_id');
+            $looseParts  = $appointment->parts->whereNull('appointment_asset_id'); // MARKER-PATCH-158-G4
 
             // Picker data: customer's saved assets not already attached
             $attachedAssetIds = $appointmentAssets->pluck('customer_asset_id')->filter()->values()->all();
@@ -702,7 +703,7 @@ class AppointmentController extends Controller
                 ->get();
 
             return view('tenant.appointments.show-multi-asset', compact(
-                'appointment', 'appointmentAssets', 'looseItems', 'looseAddons',
+                'appointment', 'appointmentAssets', 'looseItems', 'looseAddons', 'looseParts',
                 'pickerAssets',
                 'transitions', 'destructive',
                 'availableServices', 'availableAddons', 'availableResources',
@@ -1524,8 +1525,9 @@ class AppointmentController extends Controller
 
         if ($op === 'add_part') {
             $request->validate([
-                'inventory_item_id' => ['required', 'uuid'],
-                'quantity'          => ['nullable', 'integer', 'min:1', 'max:999'],
+                'inventory_item_id'     => ['required', 'uuid'],
+                'quantity'              => ['nullable', 'integer', 'min:1', 'max:999'],
+                'appointment_asset_id'  => ['nullable', 'uuid'], // MARKER-PATCH-158-G4
             ]);
 
             $invItem = TenantInventoryItem::where('id', $request->input('inventory_item_id'))
@@ -1536,6 +1538,17 @@ class AppointmentController extends Controller
             }
 
             $qty = (int) ($request->input('quantity') ?? 1);
+
+            // MARKER-PATCH-158-G4 — validate optional asset FK is on this appointment
+            $assetId = $request->input('appointment_asset_id');
+            if ($assetId) {
+                $assetExists = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                    ->where('id', $assetId)
+                    ->exists();
+                if (!$assetExists) {
+                    return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+                }
+            }
 
             // Add-time stock check — warn if we'd go negative without oversell.
             // We don't hard-block; the caller can set allow_oversell on items
@@ -1550,15 +1563,16 @@ class AppointmentController extends Controller
             }
 
             $part = TenantAppointmentPart::create([
-                'appointment_id'     => $appointment->id,
-                'inventory_item_id'  => $invItem->id,
-                'item_name_snapshot' => $invItem->name,
-                'item_sku_snapshot'  => $invItem->sku,
-                'quantity'           => $qty,
-                'unit_price_cents'   => (int) ($invItem->effectiveSellPriceCents() ?? 0),
-                'cost_cents_at_time' => $invItem->effectiveCostCents(),
-                'is_taxable'         => true,
-                'committed_at'       => null,
+                'appointment_id'        => $appointment->id,
+                'inventory_item_id'     => $invItem->id,
+                'appointment_asset_id'  => $assetId, // MARKER-PATCH-158-G4
+                'item_name_snapshot'    => $invItem->name,
+                'item_sku_snapshot'     => $invItem->sku,
+                'quantity'              => $qty,
+                'unit_price_cents'      => (int) ($invItem->effectiveSellPriceCents() ?? 0),
+                'cost_cents_at_time'    => $invItem->effectiveCostCents(),
+                'is_taxable'            => true,
+                'committed_at'          => null,
             ]);
 
             // Audit note for the activity log.
@@ -1601,24 +1615,37 @@ class AppointmentController extends Controller
         // existing null-check makes commit/refund a no-op for these rows.
         if ($op === 'add_custom_item') {
             $request->validate([
-                'name'             => ['required', 'string', 'max:255'],
-                'unit_price_cents' => ['required', 'integer', 'min:0', 'max:99999999'],
-                'quantity'         => ['nullable', 'integer', 'min:1', 'max:999'],
-                'is_taxable'       => ['nullable', 'boolean'],
+                'name'                 => ['required', 'string', 'max:255'],
+                'unit_price_cents'     => ['required', 'integer', 'min:0', 'max:99999999'],
+                'quantity'             => ['nullable', 'integer', 'min:1', 'max:999'],
+                'is_taxable'           => ['nullable', 'boolean'],
+                'appointment_asset_id' => ['nullable', 'uuid'], // MARKER-PATCH-158-G4
             ]);
 
             $qty = (int) ($request->input('quantity') ?? 1);
 
+            // MARKER-PATCH-158-G4 — validate optional asset FK is on this appointment
+            $assetId = $request->input('appointment_asset_id');
+            if ($assetId) {
+                $assetExists = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                    ->where('id', $assetId)
+                    ->exists();
+                if (!$assetExists) {
+                    return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+                }
+            }
+
             $part = TenantAppointmentPart::create([
-                'appointment_id'     => $appointment->id,
-                'inventory_item_id'  => null,
-                'item_name_snapshot' => trim($request->input('name')),
-                'item_sku_snapshot'  => null,
-                'quantity'           => $qty,
-                'unit_price_cents'   => (int) $request->input('unit_price_cents'),
-                'cost_cents_at_time' => null,
-                'is_taxable'         => $request->boolean('is_taxable', true),
-                'committed_at'       => null,
+                'appointment_id'        => $appointment->id,
+                'inventory_item_id'     => null,
+                'appointment_asset_id'  => $assetId, // MARKER-PATCH-158-G4
+                'item_name_snapshot'    => trim($request->input('name')),
+                'item_sku_snapshot'     => null,
+                'quantity'              => $qty,
+                'unit_price_cents'      => (int) $request->input('unit_price_cents'),
+                'cost_cents_at_time'    => null,
+                'is_taxable'            => $request->boolean('is_taxable', true),
+                'committed_at'          => null,
             ]);
 
             TenantAppointmentNote::create([

@@ -25,6 +25,7 @@ class TenantAppointmentPart extends Model
     protected $fillable = [
         'appointment_id',
         'inventory_item_id',
+        'appointment_asset_id', // MARKER-PATCH-158-G4 — pins this part to a specific asset card
         'item_name_snapshot',
         'item_sku_snapshot',
         'quantity',
@@ -52,6 +53,12 @@ class TenantAppointmentPart extends Model
     public function inventoryItem(): BelongsTo
     {
         return $this->belongsTo(TenantInventoryItem::class, 'inventory_item_id');
+    }
+
+    // MARKER-PATCH-158-G4 — nullable; null means "loose" on the appointment
+    public function appointmentAsset(): BelongsTo
+    {
+        return $this->belongsTo(TenantAppointmentAsset::class, 'appointment_asset_id');
     }
 
     /** Effective unit price = override if set, otherwise the snapshot. */

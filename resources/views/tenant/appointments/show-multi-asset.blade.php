@@ -579,7 +579,99 @@
 }
 .ma-charge-row:last-child { border-bottom: 0; }
 
-/* ============== MARKER-PATCH-158-E4 — Parts table ============== */
+/* ============== MARKER-PATCH-158-G4 — Per-asset Parts section ============== */
+
+/* The collapsible Parts section lives inside each asset card, just below
+   the services list. <details> drives the open/closed state with no JS. */
+.ma-asset-parts {
+  border-top: 0.5px solid var(--ia-border);
+  margin-top: 8px;
+}
+.ma-asset-parts-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 8px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.ma-asset-parts-head::-webkit-details-marker { display: none; }
+.ma-asset-parts-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ia-text);
+}
+.ma-asset-parts-count {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 7px;
+  background: var(--ia-surface-2, rgba(255,255,255,0.04));
+  color: var(--ia-text-dim);
+  border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.ma-asset-parts-chev {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ia-text-faint, #52525b);
+  transition: transform 0.15s;
+}
+.ma-asset-parts[open] .ma-asset-parts-chev { transform: rotate(180deg); }
+
+.ma-asset-parts-body {
+  padding-top: 4px;
+  padding-bottom: 8px;
+}
+.ma-asset-parts-empty {
+  font-size: 12px;
+  opacity: .4;
+  margin: 4px 0 12px;
+}
+
+/* Per-asset picker: same styles as the loose .ma-part-picker, but scoped */
+.ma-asset-part-pickerwrap {
+  position: relative;
+  margin-top: 10px;
+}
+.ma-asset-part-pickerwrap .ia-input { width: 100%; }
+.ma-asset-part-results {
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  margin-top: 4px;
+  background: var(--ia-surface, #111);
+  border: 1px solid var(--ia-border);
+  border-radius: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.ma-asset-part-results[hidden] { display: none; }
+
+.ma-asset-custom-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 0.5px solid var(--ia-border);
+  border-radius: 6px;
+  background: var(--ia-surface-2, rgba(255,255,255,0.02));
+}
+.ma-asset-custom-form[hidden] { display: none; }
+.ma-asset-custom-form-head {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ma-asset-custom-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 0.5fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+/* ============== MARKER-PATCH-158-E4 — Parts card + table (reused by G4 Unassigned section) ============== */
 .ma-parts-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
   border: 1px solid var(--ia-border);
@@ -1395,6 +1487,111 @@ input.ma-asset-name-edit:focus {
               + Add service or add-on to this bike
             </button>
           </div>
+
+          {{-- MARKER-PATCH-158-G4 — Parts section per asset (collapsible) --}}
+          <details class="ma-asset-parts" data-aa-id="{{ $aa->id }}" @if($aa->parts->isNotEmpty()) open @endif>
+            <summary class="ma-asset-parts-head">
+              <span class="ma-asset-parts-title">Parts &amp; products</span>
+              <span class="ma-asset-parts-count">{{ $aa->parts->count() }}</span>
+              <span class="ma-asset-parts-chev">▾</span>
+            </summary>
+            <div class="ma-asset-parts-body">
+              @if($aa->parts->isNotEmpty())
+                <table class="ma-parts-table">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th class="num" style="width: 70px;">Qty</th>
+                      <th class="num" style="width: 80px;">Price</th>
+                      <th class="num" style="width: 80px;">Total</th>
+                      <th style="width: 22px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @foreach($aa->parts as $part)
+                      @php
+                        $invItem = $part->inventoryItem;
+                        $stockNow = $invItem ? (int) ($invItem->computed_stock_count ?? 0) : null;
+                        $stockProjected = ($stockNow !== null && !$part->isCommitted())
+                          ? $stockNow - (int) $part->quantity
+                          : null;
+                      @endphp
+                      <tr class="ma-part-row" data-part-id="{{ $part->id }}" data-committed="{{ $part->isCommitted() ? '1' : '0' }}">
+                        <td>
+                          <div style="font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span>{{ $part->item_name_snapshot }}</span>
+                            @if(!$part->inventory_item_id)
+                              <span class="ma-pill">Custom</span>
+                            @endif
+                          </div>
+                          @if($part->item_sku_snapshot)
+                            <div style="font-size: 11px; opacity: .45; font-family: ui-monospace, 'SF Mono', monospace; margin-top: 2px;">{{ $part->item_sku_snapshot }}</div>
+                          @endif
+                          @if($stockNow !== null)
+                            <div style="font-size: 11px; opacity: .55; margin-top: 3px;">
+                              @if($part->isCommitted())
+                                Stock decremented · current: {{ $stockNow }}
+                              @else
+                                Stock: {{ $stockNow }} → {{ $stockProjected }} on completion
+                              @endif
+                            </div>
+                          @endif
+                        </td>
+                        <td class="num">
+                          <input type="number" min="1" max="999"
+                            class="ma-part-qty-edit"
+                            value="{{ $part->quantity }}"
+                            data-part-id="{{ $part->id }}"
+                            {{ ($part->isCommitted() && $part->inventory_item_id) ? 'disabled' : '' }}>
+                        </td>
+                        <td class="num">${{ number_format($part->effectiveUnitPriceCents() / 100, 2) }}</td>
+                        <td class="num" data-line-total>${{ number_format($part->lineTotalCents() / 100, 2) }}</td>
+                        <td>
+                          <button type="button" class="ma-service-remove ma-part-remove" data-part-id="{{ $part->id }}" title="Remove">&#x2715;</button>
+                        </td>
+                      </tr>
+                    @endforeach
+                  </tbody>
+                </table>
+              @else
+                <p class="ma-asset-parts-empty">No products yet.</p>
+              @endif
+
+              {{-- Per-asset picker. Same UI as the loose picker but scoped via data-aa-id. --}}
+              <div class="ma-asset-part-pickerwrap">
+                <input type="text" class="ia-input ma-asset-part-picker"
+                       data-aa-id="{{ $aa->id }}"
+                       placeholder="+ Add product or custom item to this bike…"
+                       autocomplete="off">
+                <div class="ma-asset-part-results" data-aa-id="{{ $aa->id }}" hidden></div>
+              </div>
+
+              {{-- Per-asset custom item form (hidden until user clicks "+ Custom item" in picker) --}}
+              <div class="ma-asset-custom-form" data-aa-id="{{ $aa->id }}" hidden>
+                <div class="ma-asset-custom-form-head">
+                  <span>Custom item</span>
+                  <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm ma-asset-custom-cancel" data-aa-id="{{ $aa->id }}" style="padding: 2px 8px; font-size: 11px;">Cancel</button>
+                </div>
+                <div class="ma-asset-custom-grid">
+                  <div>
+                    <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Name</label>
+                    <input type="text" class="ia-input ma-asset-custom-name" maxlength="255" placeholder="e.g. Special-order grommet">
+                  </div>
+                  <div>
+                    <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Price</label>
+                    <input type="number" class="ia-input ma-asset-custom-price" min="0" step="0.01" placeholder="0.00" style="text-align: right;">
+                  </div>
+                  <div>
+                    <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Qty</label>
+                    <input type="number" class="ia-input ma-asset-custom-qty" min="1" max="999" value="1" style="text-align: right;">
+                  </div>
+                  <div>
+                    <button type="button" class="ia-btn ia-btn--primary ia-btn--sm ma-asset-custom-save" data-aa-id="{{ $aa->id }}">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
         </article>
       @endforeach
 
@@ -1519,16 +1716,17 @@ input.ma-asset-name-edit:focus {
         @endif
       </div>
 
-      {{-- MARKER-PATCH-158-E4 — Inventory parts card --}}
-      <div class="ma-parts-card">
-        <div class="ma-charges-head">
-          <div class="ma-section-title">Parts &amp; products</div>
-          <div style="font-size: 11px; color: var(--ia-text-faint, #52525b);">
-            Physical items consumed during the work
+      {{-- MARKER-PATCH-158-G4 — Unassigned parts (only shown if any parts are unpinned).
+           Parts pinned to an asset live in that asset's collapsible Parts section above. --}}
+      @if($looseParts->isNotEmpty())
+        <div class="ma-parts-card">
+          <div class="ma-charges-head">
+            <div class="ma-section-title">Unassigned parts</div>
+            <div style="font-size: 11px; color: var(--ia-text-faint, #52525b);">
+              Not pinned to any specific asset
+            </div>
           </div>
-        </div>
 
-        @if($appointment->parts->isNotEmpty())
           <table class="ma-parts-table">
             <thead>
               <tr>
@@ -1540,7 +1738,7 @@ input.ma-asset-name-edit:focus {
               </tr>
             </thead>
             <tbody>
-              @foreach($appointment->parts as $part)
+              @foreach($looseParts as $part)
                 @php
                   $invItem = $part->inventoryItem;
                   $stockNow = $invItem ? (int) ($invItem->computed_stock_count ?? 0) : null;
@@ -1585,45 +1783,8 @@ input.ma-asset-name-edit:focus {
               @endforeach
             </tbody>
           </table>
-        @else
-          <p style="font-size: 13px; opacity: .4; margin: 0 0 12px;">No products added yet.</p>
-        @endif
-
-        {{-- Part picker --}}
-        <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--ia-border); align-items: center; position: relative;">
-          <input type="text" id="ma-part-picker-input" class="ia-input"
-                 placeholder="+ Add product from inventory or custom item…"
-                 style="flex: 1;" autocomplete="off">
-          <div id="ma-part-picker-results"
-               style="display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: var(--ia-surface, #111); border: 1px solid var(--ia-border); border-radius: 6px; max-height: 280px; overflow-y: auto; z-index: 20;">
-          </div>
         </div>
-
-        {{-- Custom item inline form (shown when user clicks "+ Custom item" in picker) --}}
-        <div id="ma-custom-item-form" style="display: none; margin-top: 10px; padding: 12px; border: 0.5px solid var(--ia-border); border-radius: 6px; background: var(--ia-surface-2, rgba(255,255,255,0.02));">
-          <div style="font-size: 12px; font-weight: 500; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
-            <span>Custom item</span>
-            <button type="button" id="ma-custom-item-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="padding: 2px 8px; font-size: 11px;">Cancel</button>
-          </div>
-          <div style="display: grid; grid-template-columns: 1.6fr 0.7fr 0.5fr auto; gap: 8px; align-items: end;">
-            <div>
-              <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Name</label>
-              <input type="text" id="ma-custom-item-name" class="ia-input" maxlength="255" placeholder="e.g. Scratched paint touch-up">
-            </div>
-            <div>
-              <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Price</label>
-              <input type="number" id="ma-custom-item-price" class="ia-input" min="0" step="0.01" placeholder="0.00" style="text-align: right;">
-            </div>
-            <div>
-              <label class="ma-form-label" style="font-size: 11px; margin-bottom: 4px;">Qty</label>
-              <input type="number" id="ma-custom-item-qty" class="ia-input" min="1" max="999" value="1" style="text-align: right;">
-            </div>
-            <div>
-              <button type="button" id="ma-custom-item-save" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
-            </div>
-          </div>
-        </div>
-      </div>
+      @endif
 
       {{-- MARKER-PATCH-158-E6 — Special-order parts --}}
       @isset($specialOrdersForAppt)
@@ -2671,6 +2832,148 @@ input.ma-asset-name-edit:focus {
         return;
       }
       location.reload();
+    });
+  })();
+
+  // ---------------------- MARKER-PATCH-158-G4 — Per-asset part pickers ----------------------
+  //
+  // Same UI/UX as the loose picker above, but scoped to each asset card via
+  // data-aa-id. Each asset gets its own input + results dropdown + custom-item
+  // form. The asset id is passed to the backend as appointment_asset_id so the
+  // part is pinned to that asset.
+  (function() {
+    const pickers = document.querySelectorAll('.ma-asset-part-picker');
+    if (pickers.length === 0) return;
+
+    const searchUrl = {!! json_encode(route('tenant.appointments.inventory-search')) !!};
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    pickers.forEach(function(input) {
+      const aaId       = input.dataset.aaId;
+      const results    = document.querySelector('.ma-asset-part-results[data-aa-id="' + aaId + '"]');
+      const customForm = document.querySelector('.ma-asset-custom-form[data-aa-id="' + aaId + '"]');
+      if (!results || !customForm) return;
+
+      let debounceTimer = null;
+      let lastQuery = '';
+
+      async function doSearch(q) {
+        const r = await fetch(searchUrl + '?q=' + encodeURIComponent(q), {
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        });
+        const data = await r.json();
+        renderResults(data.items || [], q);
+      }
+
+      function renderResults(items, q) {
+        let html = '';
+        if (items.length === 0) {
+          html = '<div class="ma-part-picker-empty">No matching items.</div>';
+        } else {
+          items.forEach(function(it) {
+            html += '<div class="ma-part-picker-result" data-id="' + it.id + '">' +
+                    '  <div class="name">' + escapeHtml(it.name) + '</div>' +
+                    '  <div class="meta">' +
+                    '    <span>' + (it.sku ? escapeHtml(it.sku) + ' · ' : '') + (it.price_display || '$0.00') + '</span>' +
+                    '    <span>' + (it.stock > 0 ? it.stock + ' in stock' : (it.allow_oversell ? 'Oversell ok' : 'Out of stock')) + '</span>' +
+                    '  </div>' +
+                    '</div>';
+          });
+        }
+        html += '<div class="ma-part-picker-custom ma-asset-picker-custom-trigger">+ Add custom item' +
+                (q ? ' "' + escapeHtml(q) + '"' : '') + '</div>';
+        results.innerHTML = html;
+        results.hidden = false;
+
+        results.querySelectorAll('.ma-part-picker-result').forEach(function(el) {
+          el.addEventListener('click', async function() {
+            const id = el.dataset.id;
+            results.hidden = true;
+            input.value = '';
+            const result = await post({
+              op: 'add_part',
+              inventory_item_id: id,
+              quantity: 1,
+              appointment_asset_id: aaId, // MARKER-PATCH-158-G4
+            });
+            if (!result.ok) {
+              if (window.IntakeToast) IntakeToast.error('Could not add: ' + result.message);
+              else alert('Could not add: ' + result.message);
+              return;
+            }
+            location.reload();
+          });
+        });
+
+        const trig = results.querySelector('.ma-asset-picker-custom-trigger');
+        if (trig) trig.addEventListener('click', function() {
+          results.hidden = true;
+          customForm.hidden = false;
+          const nameField = customForm.querySelector('.ma-asset-custom-name');
+          if (q && nameField) nameField.value = q;
+          if (nameField) setTimeout(function() { nameField.focus(); }, 50);
+          input.value = '';
+        });
+      }
+
+      input.addEventListener('input', function() {
+        const q = input.value.trim();
+        if (q === lastQuery) return;
+        lastQuery = q;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() { doSearch(q); }, 180);
+      });
+      input.addEventListener('focus', function() {
+        if (lastQuery !== input.value.trim() || results.innerHTML === '') {
+          lastQuery = input.value.trim();
+          doSearch(lastQuery);
+        } else {
+          results.hidden = false;
+        }
+      });
+
+      document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !results.contains(e.target)) {
+          results.hidden = true;
+        }
+      });
+
+      // Custom form cancel/save for this asset
+      const cancelBtn = customForm.querySelector('.ma-asset-custom-cancel');
+      const saveBtn   = customForm.querySelector('.ma-asset-custom-save');
+      if (cancelBtn) cancelBtn.addEventListener('click', function() {
+        customForm.hidden = true;
+        customForm.querySelector('.ma-asset-custom-name').value = '';
+        customForm.querySelector('.ma-asset-custom-price').value = '';
+        customForm.querySelector('.ma-asset-custom-qty').value = '1';
+      });
+      if (saveBtn) saveBtn.addEventListener('click', async function() {
+        const name  = customForm.querySelector('.ma-asset-custom-name').value.trim();
+        const price = parseFloat(customForm.querySelector('.ma-asset-custom-price').value);
+        const qty   = parseInt(customForm.querySelector('.ma-asset-custom-qty').value, 10) || 1;
+        if (!name) { alert('Name is required.'); return; }
+        if (isNaN(price) || price < 0) { alert('Enter a valid price.'); return; }
+        saveBtn.disabled = true;
+        const result = await post({
+          op: 'add_custom_item',
+          name: name,
+          unit_price_cents: Math.round(price * 100),
+          quantity: qty,
+          appointment_asset_id: aaId, // MARKER-PATCH-158-G4
+        });
+        saveBtn.disabled = false;
+        if (!result.ok) {
+          if (window.IntakeToast) IntakeToast.error('Could not add: ' + result.message);
+          else alert('Could not add: ' + result.message);
+          return;
+        }
+        location.reload();
+      });
     });
   })();
 

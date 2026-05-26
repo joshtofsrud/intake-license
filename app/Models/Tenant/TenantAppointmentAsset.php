@@ -75,6 +75,17 @@ class TenantAppointmentAsset extends Model
         return $this->hasMany(TenantAppointmentAddon::class, 'appointment_asset_id');
     }
 
+    /**
+     * MARKER-PATCH-158-G4 — Parts (inventory items) pinned to this asset
+     * on this appointment. Parts are tracked separately from services and
+     * don't roll up into subtotal_cents (that's services + addons only);
+     * parts roll up into the appointment's parts_subtotal_cents instead.
+     */
+    public function parts(): HasMany
+    {
+        return $this->hasMany(TenantAppointmentPart::class, 'appointment_asset_id');
+    }
+
     // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------
