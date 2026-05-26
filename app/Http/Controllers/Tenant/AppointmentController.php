@@ -694,8 +694,19 @@ class AppointmentController extends Controller
                 $looseItems  = $appointment->items->whereNull('appointment_asset_id');
                 $looseAddons = $appointment->addons->whereNull('appointment_asset_id');
 
+                // MARKER-PATCH-158-E1 — picker data: customer's saved assets
+                // that aren't already attached to this appointment.
+                $attachedAssetIds = $appointmentAssets->pluck('customer_asset_id')->filter()->values()->all();
+                $pickerAssets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+                    ->where('customer_id', $appointment->customer_id)
+                    ->whereNull('archived_at')
+                    ->whereNotIn('id', $attachedAssetIds)
+                    ->orderBy('name')
+                    ->get();
+
                 return view('tenant.appointments.show-multi-asset', compact(
                     'appointment', 'appointmentAssets', 'looseItems', 'looseAddons',
+                    'pickerAssets',
                     'transitions', 'destructive',
                     'availableServices', 'availableAddons', 'availableResources',
                     'specialOrdersForAppt', 'soVendors'));
@@ -1301,6 +1312,179 @@ class AppointmentController extends Controller
                 ->where('appointment_id', $appointment->id)->first();
             if (!$addon) return response()->json(['ok' => false, 'message' => 'Add-on not found.'], 422);
             $addon->delete();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        // -------------------------------------------------------------------
+        // MARKER-PATCH-158-E1 — Multi-asset operations
+        //
+        // These ops only make sense when the tenant has multi_asset_enabled.
+        // Guarded explicitly rather than relying on view-side gating, so that
+        // a stale/malicious request can't sneak through to a tenant that
+        // never opted in.
+        //
+        // Ops added:
+        //   - attach_existing_asset  → pivots an existing customer asset onto this appointment
+        //   - attach_new_asset       → creates a new customer asset AND attaches it
+        //   - detach_asset           → removes the pivot, unpins services (set FK null)
+        //   - add_service_to_asset   → creates an item or addon pinned to a specific asset
+        // -------------------------------------------------------------------
+        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset'], true)) {
+            if (!$tenant->multi_asset_enabled) {
+                return response()->json(['ok' => false, 'message' => 'Multi-asset is not enabled for this tenant.'], 403);
+            }
+        }
+
+        if ($op === 'attach_existing_asset') {
+            $request->validate([
+                'customer_asset_id' => ['required', 'uuid'],
+            ]);
+            $asset = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+                ->where('customer_id', $appointment->customer_id)
+                ->where('id', $request->input('customer_asset_id'))
+                ->whereNull('archived_at')
+                ->first();
+            if (!$asset) return response()->json(['ok' => false, 'message' => 'Asset not found or archived.'], 422);
+
+            // Don't double-attach the same asset
+            $alreadyAttached = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->where('customer_asset_id', $asset->id)
+                ->exists();
+            if ($alreadyAttached) {
+                return response()->json(['ok' => false, 'message' => 'Asset already attached to this appointment.'], 422);
+            }
+
+            $maxSort = (int) \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->max('sort_order');
+
+            \App\Models\Tenant\TenantAppointmentAsset::create([
+                'tenant_id'           => $tenant->id,
+                'appointment_id'      => $appointment->id,
+                'customer_asset_id'   => $asset->id,
+                'asset_name_snapshot' => $asset->name,
+                'identifier_snapshot' => $asset->identifier,
+                'sort_order'          => $maxSort + 10,
+                'subtotal_cents'      => 0,
+            ]);
+
+            // Update last-seen on the persistent asset
+            $asset->update([
+                'last_seen_at'        => now(),
+                'last_appointment_id' => $appointment->id,
+            ]);
+
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'attach_new_asset') {
+            $data = $request->validate([
+                'name'       => ['required', 'string', 'max:200'],
+                'identifier' => ['nullable', 'string', 'max:120'],
+                'notes'      => ['nullable', 'string', 'max:5000'],
+            ]);
+
+            // Create the persistent customer asset, then attach
+            $asset = \App\Models\Tenant\TenantCustomerAsset::create([
+                'tenant_id'           => $tenant->id,
+                'customer_id'         => $appointment->customer_id,
+                'name'                => $data['name'],
+                'identifier'          => $data['identifier'] ?? null,
+                'notes'               => $data['notes'] ?? null,
+                'last_seen_at'        => now(),
+                'last_appointment_id' => $appointment->id,
+            ]);
+
+            $maxSort = (int) \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->max('sort_order');
+
+            \App\Models\Tenant\TenantAppointmentAsset::create([
+                'tenant_id'           => $tenant->id,
+                'appointment_id'      => $appointment->id,
+                'customer_asset_id'   => $asset->id,
+                'asset_name_snapshot' => $asset->name,
+                'identifier_snapshot' => $asset->identifier,
+                'sort_order'          => $maxSort + 10,
+                'subtotal_cents'      => 0,
+            ]);
+
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'detach_asset') {
+            $request->validate(['appointment_asset_id' => ['required', 'uuid']]);
+            $aa = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->where('id', $request->input('appointment_asset_id'))
+                ->first();
+            if (!$aa) return response()->json(['ok' => false, 'message' => 'Asset attachment not found.'], 422);
+
+            // Unpin all services pinned to this asset rather than deleting them.
+            // nullOnDelete in the DB does this automatically when the row is
+            // dropped, but doing it explicitly here makes the intent clearer
+            // in code.
+            \App\Models\Tenant\TenantAppointmentItem::where('appointment_asset_id', $aa->id)
+                ->update(['appointment_asset_id' => null]);
+            \App\Models\Tenant\TenantAppointmentAddon::where('appointment_asset_id', $aa->id)
+                ->update(['appointment_asset_id' => null]);
+
+            $aa->delete();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        if ($op === 'add_service_to_asset') {
+            $data = $request->validate([
+                'appointment_asset_id' => ['required', 'uuid'],
+                'kind'                 => ['required', 'in:service,addon'],
+                'service_item_id'      => ['nullable', 'uuid'],
+                'addon_id'             => ['nullable', 'uuid'],
+            ]);
+
+            $aa = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->where('id', $data['appointment_asset_id'])
+                ->first();
+            if (!$aa) return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+
+            if ($data['kind'] === 'service') {
+                if (empty($data['service_item_id'])) {
+                    return response()->json(['ok' => false, 'message' => 'service_item_id required.'], 422);
+                }
+                $service = \App\Models\Tenant\TenantServiceItem::where('id', $data['service_item_id'])
+                    ->where('tenant_id', $tenant->id)->where('is_active', true)->first();
+                if (!$service) return response()->json(['ok' => false, 'message' => 'Service not found.'], 422);
+
+                \App\Models\Tenant\TenantAppointmentItem::create([
+                    'id'                             => (string) \Illuminate\Support\Str::uuid(),
+                    'appointment_id'                 => $appointment->id,
+                    'appointment_asset_id'           => $aa->id,
+                    'service_item_id'                => $service->id,
+                    'item_name_snapshot'             => $service->name,
+                    'price_cents'                    => $service->price_cents,
+                    'duration_minutes_snapshot'      => $service->duration_minutes,
+                    'prep_before_minutes_snapshot'   => $service->prep_before_minutes ?? 0,
+                    'cleanup_after_minutes_snapshot' => $service->cleanup_after_minutes ?? 0,
+                ]);
+            } else {
+                if (empty($data['addon_id'])) {
+                    return response()->json(['ok' => false, 'message' => 'addon_id required.'], 422);
+                }
+                $addon = \App\Models\Tenant\TenantAddon::where('id', $data['addon_id'])
+                    ->where('tenant_id', $tenant->id)->where('is_active', true)->first();
+                if (!$addon) return response()->json(['ok' => false, 'message' => 'Add-on not found.'], 422);
+
+                \App\Models\Tenant\TenantAppointmentAddon::create([
+                    'id'                        => (string) \Illuminate\Support\Str::uuid(),
+                    'appointment_id'            => $appointment->id,
+                    'appointment_asset_id'      => $aa->id,
+                    'addon_id'                  => $addon->id,
+                    'addon_name_snapshot'       => $addon->name,
+                    'price_cents'               => $addon->price_cents,
+                    'duration_minutes_snapshot' => $addon->default_duration_minutes ?? 0,
+                ]);
+            }
+
+            // Recalc this asset's subtotal + the appointment grand total
+            $aa->refreshSubtotal();
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);
         }
