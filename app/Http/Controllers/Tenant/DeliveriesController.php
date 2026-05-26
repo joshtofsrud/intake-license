@@ -41,7 +41,7 @@ class DeliveriesController extends Controller
             'date'        => $date,
             'is_timeslot' => $isTimeSlot,
             'resources'   => $isTimeSlot ? $svc->activeResources() : collect(),
-            'customers'   => $svc->customersForPicker(),
+            // MARKER-PATCH-153 — customer list now loads on demand via customer-search component
         ];
 
         if ($view === 'week') {

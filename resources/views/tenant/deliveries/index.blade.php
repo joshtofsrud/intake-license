@@ -659,25 +659,10 @@
         </div>
       </div>
 
-      {{-- Customer --}}
+      {{-- Customer — MARKER-PATCH-153 — using shared customer-search component --}}
       <div class="del-row">
         <label class="del-label">Customer</label>
-        <select name="customer_id" class="del-select" id="del-customer" onchange="delMaybePrefillAddress()" required>
-          <option value="">— select customer —</option>
-          @foreach($customers as $c)
-            @php
-              $name = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? ''));
-              if (!$name) $name = $c->email ?: 'Unnamed';
-              $contact = $c->email ?? $c->phone;
-            @endphp
-            <option value="{{ $c->id }}"
-                    data-address="{{ $c->address ?? '' }}"
-                    data-phone="{{ $c->phone ?? '' }}"
-                    data-email="{{ $c->email ?? '' }}">
-              {{ $name }}{{ $contact ? ' · ' . $contact : '' }}
-            </option>
-          @endforeach
-        </select>
+        <x-tenant.customer-search name="customer_id" required />
         @error('customer_id')<div class="del-error">{{ $message }}</div>@enderror
       </div>
 
@@ -707,11 +692,10 @@
         </select>
       </div>
 
-      {{-- Address --}}
+      {{-- Address — MARKER-PATCH-153 — manual entry, no autofill --}}
       <div class="del-row">
         <label class="del-label">Address</label>
-        <input type="text" name="address" class="del-input" id="del-address" placeholder="Defaults from customer record">
-        <div class="del-help">Override for this delivery if different from the customer's main address.</div>
+        <input type="text" name="address" class="del-input" id="del-address" placeholder="123 Main St, Spokane, WA 99201">
       </div>
 
       {{-- Delivery resource (time-slot only) --}}
@@ -791,6 +775,8 @@
       'window_minutes'       => $d->window_minutes,
       'address'              => $d->address,
       'customer_id'          => $d->customer_id,
+      // MARKER-PATCH-153 — needed by drawer edit-mode preselect
+      'customer_name'        => trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: ($d->customer->email ?? 'Customer'),
       'delivery_resource_id' => $d->delivery_resource_id,
       'notes'                => $d->notes,
     ];
@@ -825,7 +811,8 @@
     var hh = String(now.getHours() + 1).padStart(2, '0');
     document.getElementById('del-time').value = hh + ':00';
     document.getElementById('del-window').value = '30';
-    document.getElementById('del-customer').value = '';
+    // MARKER-PATCH-153 — customer-search component reset
+    delResetCustomer();
     document.getElementById('del-address').value = '';
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = '';
@@ -851,7 +838,8 @@
     document.getElementById('del-date').value = parts[0] || '';
     document.getElementById('del-time').value = parts[1] || '';
     document.getElementById('del-window').value = String(d.window_minutes || 30);
-    document.getElementById('del-customer').value = d.customer_id || '';
+    // MARKER-PATCH-153 — populate search box with customer name
+    delSetCustomer(d.customer_id, d.customer_name || '');
     document.getElementById('del-address').value = d.address || '';
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = d.delivery_resource_id || '';
@@ -870,13 +858,28 @@
     document.getElementById('del-tile-dropoff').classList.toggle('is-selected', t === 'dropoff');
     document.getElementById('del-form-type').value = t;
   }
-  function delMaybePrefillAddress() {
-    var sel = document.getElementById('del-customer');
-    var opt = sel.options[sel.selectedIndex];
-    var addrField = document.getElementById('del-address');
-    if (!addrField.value && opt && opt.dataset.address) {
-      addrField.value = opt.dataset.address;
-    }
+  // MARKER-PATCH-153 — customer-search component helpers
+  // Reset the search box on create.
+  function delResetCustomer() {
+    var root = document.querySelector('.del-drawer [data-customer-search]');
+    if (!root) return;
+    var idField = root.querySelector('[data-cs-id]');
+    var inField = root.querySelector('[data-cs-input]');
+    var clear   = root.querySelector('[data-cs-clear]');
+    if (idField) idField.value = '';
+    if (inField) inField.value = '';
+    if (clear)   clear.hidden = true;
+  }
+  // Programmatically set the customer when editing.
+  function delSetCustomer(id, name) {
+    var root = document.querySelector('.del-drawer [data-customer-search]');
+    if (!root) return;
+    var idField = root.querySelector('[data-cs-id]');
+    var inField = root.querySelector('[data-cs-input]');
+    var clear   = root.querySelector('[data-cs-clear]');
+    if (idField) idField.value = id || '';
+    if (inField) inField.value = name || '';
+    if (clear)   clear.hidden = !id;
   }
   function delPrepSubmit() {
     var d = document.getElementById('del-date').value;
