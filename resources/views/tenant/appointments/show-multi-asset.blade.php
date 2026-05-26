@@ -351,6 +351,32 @@
 }
 .ma-fallback-banner a:hover { text-decoration: underline; }
 
+/* ============== MARKER-PATCH-158-F — Empty state ============== */
+.ma-empty {
+  text-align: center;
+  padding: 48px 20px;
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px dashed var(--ia-border);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+.ma-empty-icon {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--ia-surface-3, rgba(255,255,255,0.04));
+  margin: 0 auto 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--ia-text-faint, #52525b);
+}
+.ma-empty-title { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.ma-empty-sub {
+  font-size: 12.5px; color: var(--ia-text-dim);
+  margin-bottom: 16px;
+  max-width: 360px;
+  margin-left: auto; margin-right: auto;
+  line-height: 1.5;
+}
+
 /* ============== MARKER-PATCH-158-E1 — Modals ============== */
 .ma-modal-backdrop {
   position: fixed; inset: 0;
@@ -546,6 +572,22 @@
       </div>
       <p class="ma-section-sub">Each asset has its own services and add-ons. Subtotals roll up to the total on the right.</p>
 
+      {{-- MARKER-PATCH-158-F — empty state when no assets attached yet --}}
+      @if($appointmentAssets->isEmpty())
+        <div class="ma-empty">
+          <div class="ma-empty-icon">⊕</div>
+          <div class="ma-empty-title">No assets yet</div>
+          <div class="ma-empty-sub">
+            @if($pickerAssets->isNotEmpty())
+              Pick from {{ $appointment->customer->first_name ?? 'this customer' }}'s {{ $pickerAssets->count() }} saved {{ \Illuminate\Support\Str::plural('asset', $pickerAssets->count()) }}, or add a new one.
+            @else
+              Attach a bike, vehicle, or other item to this appointment.
+            @endif
+          </div>
+          <button type="button" class="ia-btn ia-btn--primary" onclick="maOpenAttachAssetModal()">+ Attach asset</button>
+        </div>
+      @endif
+
       {{-- Render each asset card --}}
       @foreach($appointmentAssets as $idx => $aa)
         @php
@@ -648,10 +690,12 @@
         </div>
       @endif
 
-      {{-- MARKER-PATCH-158-E1 — real Attach asset button --}}
-      <button type="button" class="ma-add-asset-btn" onclick="maOpenAttachAssetModal()">
-        + Attach asset to this appointment
-      </button>
+      {{-- MARKER-PATCH-158-E1 — real Attach asset button (only when assets already exist; empty state has its own) --}}
+      @if($appointmentAssets->isNotEmpty())
+        <button type="button" class="ma-add-asset-btn" onclick="maOpenAttachAssetModal()">
+          + Attach asset to this appointment
+        </button>
+      @endif
 
     </main>
 

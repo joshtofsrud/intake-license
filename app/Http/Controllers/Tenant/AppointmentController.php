@@ -677,11 +677,10 @@ class AppointmentController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // MARKER-PATCH-158-D — branch to multi-asset view when:
-        //   1) tenant has the feature enabled, AND
-        //   2) this appointment actually has assets attached (back-compat: pre-existing
-        //      single-asset appointments render in the legacy view even after the
-        //      flag is flipped on).
+        // MARKER-PATCH-158-F — branch to multi-asset view whenever the feature is on
+        // (drops the previous "must have at least one asset attached" requirement,
+        // which created a chicken-and-egg where users couldn't attach the first
+        // asset because the view wasn't rendered yet).
         if ($tenant->multi_asset_enabled) {
             $appointmentAssets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
                 ->where('appointment_id', $appointment->id)
@@ -689,28 +688,25 @@ class AppointmentController extends Controller
                 ->orderBy('sort_order')
                 ->get();
 
-            if ($appointmentAssets->isNotEmpty()) {
-                // Loose items/addons = those NOT pinned to any asset (back-compat)
-                $looseItems  = $appointment->items->whereNull('appointment_asset_id');
-                $looseAddons = $appointment->addons->whereNull('appointment_asset_id');
+            // Loose items/addons = those NOT pinned to any asset (back-compat)
+            $looseItems  = $appointment->items->whereNull('appointment_asset_id');
+            $looseAddons = $appointment->addons->whereNull('appointment_asset_id');
 
-                // MARKER-PATCH-158-E1 — picker data: customer's saved assets
-                // that aren't already attached to this appointment.
-                $attachedAssetIds = $appointmentAssets->pluck('customer_asset_id')->filter()->values()->all();
-                $pickerAssets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
-                    ->where('customer_id', $appointment->customer_id)
-                    ->whereNull('archived_at')
-                    ->whereNotIn('id', $attachedAssetIds)
-                    ->orderBy('name')
-                    ->get();
+            // Picker data: customer's saved assets not already attached
+            $attachedAssetIds = $appointmentAssets->pluck('customer_asset_id')->filter()->values()->all();
+            $pickerAssets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+                ->where('customer_id', $appointment->customer_id)
+                ->whereNull('archived_at')
+                ->whereNotIn('id', $attachedAssetIds)
+                ->orderBy('name')
+                ->get();
 
-                return view('tenant.appointments.show-multi-asset', compact(
-                    'appointment', 'appointmentAssets', 'looseItems', 'looseAddons',
-                    'pickerAssets',
-                    'transitions', 'destructive',
-                    'availableServices', 'availableAddons', 'availableResources',
-                    'specialOrdersForAppt', 'soVendors'));
-            }
+            return view('tenant.appointments.show-multi-asset', compact(
+                'appointment', 'appointmentAssets', 'looseItems', 'looseAddons',
+                'pickerAssets',
+                'transitions', 'destructive',
+                'availableServices', 'availableAddons', 'availableResources',
+                'specialOrdersForAppt', 'soVendors'));
         }
 
         return view('tenant.appointments.show', compact(
