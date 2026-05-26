@@ -185,12 +185,13 @@ HTML;
             ],
 
             // MARKER-PATCH-154 — 24-hour appointment reminder
+            // MARKER-PATCH-154-FIX1 — uses when_human to handle drop-off mode
             'appointment_reminder' => [
-                'subject'   => 'Reminder: appointment tomorrow at {{appointment_time}}',
+                'subject'   => 'Reminder: your appointment is tomorrow',
                 'body_html' => "<p>Hi {{first_name}},</p>
 <p>A quick reminder that you have an appointment with {$shop} tomorrow.</p>
 <table style='font-size:14px;line-height:1.8;margin:12px 0'>
-  <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{appointment_date}} at {{appointment_time}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{when_human}}</strong></td></tr>
   <tr><td style='color:#666;padding-right:16px'>Reference</td><td>{{ra_number}}</td></tr>
 </table>
 <p>See you then!</p>

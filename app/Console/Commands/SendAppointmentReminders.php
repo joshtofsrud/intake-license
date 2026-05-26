@@ -60,21 +60,31 @@ class SendAppointmentReminders extends Command
             $totalTenants++;
             $tz = $tenant->timezone ?? config('app.timezone', 'UTC');
 
-            // In the tenant's local time, "tomorrow at this hour" is the
-            // target window center. Use UTC for the actual query against
-            // the DB (Laravel will convert).
-            $windowStart = Carbon::now($tz)->addHours(23);
-            $windowEnd   = Carbon::now($tz)->addHours(25);
+            // MARKER-PATCH-154-FIX1 — two reminder modes
+            //
+            //  Time-slot appointments (have appointment_time): fire 23-25h before
+            //  the precise scheduled wall-clock time. Hourly cron + reminded_at
+            //  guard ensures one send per row.
+            //
+            //  Drop-off appointments (appointment_time is null): fire at a fixed
+            //  hour the day before. Default is 10am tenant local. Only the cron
+            //  tick that lands in the 10am hour fires these reminders.
 
-            // appointment_date is a DATE column; appointment_time is a TIME
-            // column. Combine in SQL to get the wall-clock datetime in
-            // tenant TZ.
+            $nowLocal    = Carbon::now($tz);
+            $windowStart = $nowLocal->copy()->addHours(23);
+            $windowEnd   = $nowLocal->copy()->addHours(25);
+
+            // Drop-off branch only fires when the local hour == 10.
+            $isDropoffReminderHour = ((int) $nowLocal->format('G')) === 10;
+            $tomorrowDate          = $nowLocal->copy()->addDay()->toDateString();
+
+            // Pull a single window of candidate rows. Cover both:
+            //  - appointment_date in [today, day-after-tomorrow] for time-slot
+            //  - appointment_date == tomorrow for drop-off
             $rows = TenantAppointment::query()
                 ->where('tenant_id', $tenant->id)
                 ->whereNotIn('status', ['cancelled', 'refunded'])
                 ->whereNull('reminded_at')
-                // appointment_date between windowStart->date and windowEnd->date
-                // narrows by index; the precise time filter happens in PHP.
                 ->whereBetween('appointment_date', [
                     $windowStart->copy()->startOfDay()->toDateString(),
                     $windowEnd->copy()->endOfDay()->toDateString(),
@@ -84,21 +94,28 @@ class SendAppointmentReminders extends Command
                 ->get();
 
             foreach ($rows as $row) {
-                // Combine date + time into a single Carbon in tenant TZ
-                $apptTime = $row->appointment_time ?? '00:00:00';
-                $combined = Carbon::parse(
-                    $row->appointment_date->toDateString() . ' ' . $apptTime,
-                    $tz
-                );
+                $isDropoff = empty($row->appointment_time);
 
-                if ($combined->lt($windowStart) || $combined->gt($windowEnd)) {
-                    continue; // Outside the precise window; skip.
+                if ($isDropoff) {
+                    // Drop-off: fire only at 10am tenant local on the day-before.
+                    if (!$isDropoffReminderHour) continue;
+                    if ($row->appointment_date->toDateString() !== $tomorrowDate) continue;
+                } else {
+                    // Time-slot: precise 23-25h window check.
+                    $combined = Carbon::parse(
+                        $row->appointment_date->toDateString() . ' ' . $row->appointment_time,
+                        $tz
+                    );
+                    if ($combined->lt($windowStart) || $combined->gt($windowEnd)) continue;
                 }
 
                 if ($dry) {
                     $this->line(sprintf(
-                        '  WOULD SEND: tenant=%s appt=%s when=%s',
-                        $tenant->id, $row->id, $combined->toDateTimeString()
+                        '  WOULD SEND: tenant=%s appt=%s mode=%s date=%s',
+                        $tenant->id,
+                        $row->id,
+                        $isDropoff ? 'dropoff' : 'time-slot',
+                        $row->appointment_date->toDateString()
                     ));
                     $totalSent++;
                     continue;
@@ -181,19 +198,34 @@ class SendAppointmentReminders extends Command
 
     private function buildVars(Tenant $tenant, TenantAppointment $row, string $tz): array
     {
-        $apptTime = $row->appointment_time ?? '00:00:00';
-        $combined = Carbon::parse(
-            $row->appointment_date->toDateString() . ' ' . $apptTime, $tz
-        );
+        // MARKER-PATCH-154-FIX1 — date-only appointments leave time blank
+        $isDropoff = empty($row->appointment_time);
+
+        $dateOnly = Carbon::parse($row->appointment_date->toDateString(), $tz);
+
+        if ($isDropoff) {
+            $appointment_time = '';            // empty so templates can swallow it
+            $when_human       = $dateOnly->format('l, F j');
+            $when_sms         = $dateOnly->format('l (M j)');
+        } else {
+            $combined = Carbon::parse(
+                $row->appointment_date->toDateString() . ' ' . $row->appointment_time, $tz
+            );
+            $appointment_time = $combined->format('g:i A');
+            $when_human       = $dateOnly->format('l, F j') . ' at ' . $appointment_time;
+            $when_sms         = $dateOnly->format('M j') . ' at ' . $appointment_time;
+        }
 
         return [
             'first_name'       => $row->customer_first_name ?? '',
             'last_name'        => $row->customer_last_name ?? '',
             'shop_name'        => $tenant->name,
             'ra_number'        => $row->ra_number ?? '',
-            'appointment_date' => $combined->format('l, F j'),
-            'appointment_time' => $combined->format('g:i A'),
-            'date_short'       => $combined->format('M j'),
+            'appointment_date' => $dateOnly->format('l, F j'),
+            'appointment_time' => $appointment_time,   // empty for drop-off
+            'when_human'       => $when_human,         // composes date + time
+            'when_sms'         => $when_sms,
+            'date_short'       => $dateOnly->format('M j'),
             'accent'           => $tenant->accent_color ?? '#BEF264',
             'accent_text'      => \App\Support\ColorHelper::accentTextColor(
                                       $tenant->accent_color ?? '#BEF264'
@@ -204,7 +236,7 @@ class SendAppointmentReminders extends Command
     private function renderSmsBody(Tenant $tenant, array $vars): string
     {
         $shop = $vars['shop_name'];
-        $when = $vars['date_short'] . ' at ' . $vars['appointment_time'];
-        return "{$shop}: Reminder, your appointment is tomorrow ({$when}). Reply STOP to opt out.";
+        // MARKER-PATCH-154-FIX1 — use when_sms (handles both modes)
+        return "{$shop}: Reminder, your appointment is tomorrow ({$vars['when_sms']}). Reply STOP to opt out.";
     }
 }
