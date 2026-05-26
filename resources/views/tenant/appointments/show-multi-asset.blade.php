@@ -671,6 +671,59 @@
   align-items: end;
 }
 
+/* ============== MARKER-PATCH-158-G5 — Per-asset Work order section ============== */
+.ma-asset-wo {
+  border-top: 0.5px solid var(--ia-border);
+  margin-top: 8px;
+}
+.ma-asset-wo .ma-asset-parts-head { /* reuse parts head styles */ }
+.ma-asset-wo-body {
+  padding-top: 4px;
+  padding-bottom: 8px;
+}
+.ma-asset-wo-empty {
+  font-size: 12px;
+  opacity: .5;
+  margin: 4px 0 12px;
+}
+.ma-asset-wo-id-block {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 0.5px solid var(--ia-border);
+}
+.ma-asset-wo-id-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ia-text-faint, #52525b);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.ma-asset-wo-id-value {
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.ma-asset-wo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 24px;
+}
+.ma-asset-wo-field-value { font-size: 13px; }
+.ma-asset-wo-edit-form[hidden] { display: none; }
+.ma-wo-id-pill {
+  background: var(--ia-accent, #BEF264);
+  color: var(--ia-accent-text, #0a0a0a);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 6px;
+}
+
 /* ============== MARKER-PATCH-158-E4 — Parts card + table (reused by G4 Unassigned section) ============== */
 .ma-parts-card {
   background: var(--ia-surface, rgba(255,255,255,0.02));
@@ -1592,6 +1645,99 @@ input.ma-asset-name-edit:focus {
               </div>
             </div>
           </details>
+
+          {{-- MARKER-PATCH-158-G5 — Work order details section per asset (collapsible).
+               Renders only when the tenant has work-order fields configured.
+               Responses are keyed by (appointment_id, field_id, appointment_asset_id). --}}
+          @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
+            @php
+              $aaResponses        = $aa->workOrderResponses->keyBy('field_id');
+              $aaIdentifierField  = $appointment->workOrderFields->firstWhere('is_identifier', true);
+              $aaIdentifierValue  = $aaIdentifierField ? ($aaResponses[$aaIdentifierField->id]->response_value ?? null) : null;
+              $aaNonIdentifier    = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
+              $aaFilledCount      = $appointment->workOrderFields->filter(fn($f) => !empty($aaResponses[$f->id]->response_value ?? null))->count();
+            @endphp
+            <details class="ma-asset-wo" data-aa-id="{{ $aa->id }}" @if($aaFilledCount > 0) open @endif>
+              <summary class="ma-asset-parts-head">
+                <span class="ma-asset-parts-title">Work order details</span>
+                <span class="ma-asset-parts-count">{{ $aaFilledCount }}/{{ $appointment->workOrderFields->count() }}</span>
+                <span class="ma-asset-parts-chev">▾</span>
+              </summary>
+              <div class="ma-asset-wo-body">
+
+                {{-- Display mode --}}
+                <div class="ma-asset-wo-display" data-aa-id="{{ $aa->id }}">
+                  @if($aaIdentifierField && $aaIdentifierValue)
+                    <div class="ma-asset-wo-id-block">
+                      <div class="ma-asset-wo-id-label">{{ $aaIdentifierField->label }}</div>
+                      <div class="ma-asset-wo-id-value">{{ $aaIdentifierValue }}</div>
+                    </div>
+                  @endif
+
+                  @php $aaFilledNonId = $aaNonIdentifier->filter(fn($f) => !empty($aaResponses[$f->id]->response_value ?? null)); @endphp
+                  @if($aaFilledNonId->isEmpty() && (!$aaIdentifierField || !$aaIdentifierValue))
+                    <p class="ma-asset-wo-empty">No details yet — click <strong>Edit</strong> to add.</p>
+                  @elseif($aaFilledNonId->isNotEmpty())
+                    <div class="ma-asset-wo-grid">
+                      @foreach($aaFilledNonId as $field)
+                        <div>
+                          <div class="ma-asset-wo-id-label">{{ $field->label }}</div>
+                          <div class="ma-asset-wo-field-value">{{ $aaResponses[$field->id]->response_value }}</div>
+                        </div>
+                      @endforeach
+                    </div>
+                  @endif
+
+                  <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm ma-asset-wo-edit-toggle" data-aa-id="{{ $aa->id }}" style="margin-top: 10px;">
+                    Edit
+                  </button>
+                </div>
+
+                {{-- Edit mode --}}
+                <form class="ma-asset-wo-edit-form" data-aa-id="{{ $aa->id }}" data-update-url="{{ $updateUrl }}" hidden>
+                  <input type="hidden" name="appointment_asset_id" value="{{ $aa->id }}">
+
+                  @foreach($appointment->workOrderFields as $field)
+                    @php $currentValue = $aaResponses[$field->id]->response_value ?? ''; @endphp
+                    <div class="ma-form-row">
+                      <label class="ma-form-label">
+                        {{ $field->label }}
+                        @if($field->is_identifier)
+                          <span class="ma-wo-id-pill">ID</span>
+                        @endif
+                        @if($field->is_required)
+                          <span style="color: #f87171;">*</span>
+                        @endif
+                      </label>
+                      @if($field->field_type === 'textarea')
+                        <textarea name="values[{{ $field->id }}]" class="ia-input" rows="3" @if($field->is_required) required @endif>{{ $currentValue }}</textarea>
+                      @elseif($field->field_type === 'number')
+                        <input type="number" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
+                      @elseif($field->field_type === 'select')
+                        <select name="values[{{ $field->id }}]" class="ia-input" @if($field->is_required) required @endif>
+                          <option value="">—</option>
+                          @foreach(($field->options ?? []) as $opt)
+                            <option value="{{ $opt }}" @selected($currentValue === $opt)>{{ $opt }}</option>
+                          @endforeach
+                        </select>
+                      @else
+                        <input type="text" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
+                      @endif
+                      @if($field->help_text)
+                        <div style="font-size: 11px; color: var(--ia-text-dim); margin-top: 4px;">{{ $field->help_text }}</div>
+                      @endif
+                    </div>
+                  @endforeach
+
+                  <div style="display: flex; gap: 8px; margin-top: 14px;">
+                    <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
+                    <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm ma-asset-wo-edit-cancel" data-aa-id="{{ $aa->id }}">Cancel</button>
+                  </div>
+                </form>
+
+              </div>
+            </details>
+          @endif
         </article>
       @endforeach
 
@@ -1850,95 +1996,7 @@ input.ma-asset-name-edit:focus {
         @include('tenant.special-orders._drawer', ['vendors' => $soVendors ?? collect()])
       @endisset
 
-      {{-- MARKER-PATCH-158-E5 — Work order card --}}
-      @if($appointment->workOrderFields && $appointment->workOrderFields->isNotEmpty())
-        @php
-          $responsesByFieldId = $appointment->workOrderResponses->keyBy('field_id');
-          $identifierField = $appointment->workOrderFields->firstWhere('is_identifier', true);
-          $identifierValue = $identifierField ? ($responsesByFieldId[$identifierField->id]->response_value ?? null) : null;
-          $nonIdentifierFields = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
-          $filledNonIdentifier = $nonIdentifierFields->filter(fn($f) => !empty($responsesByFieldId[$f->id]->response_value ?? null));
-        @endphp
-        <div class="ma-wo-card" id="ma-wo-card">
-          <div class="ma-wo-head">
-            <div class="ma-section-title">Work order</div>
-            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ma-wo-edit-toggle">Edit</button>
-          </div>
-
-          {{-- Display mode --}}
-          <div id="ma-wo-display">
-            @if($identifierField && $identifierValue)
-              <div style="margin-bottom: 16px; padding-bottom: 14px; border-bottom: 0.5px solid var(--ia-border);">
-                <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--ia-text-faint, #52525b); font-weight: 500; margin-bottom: 6px;">
-                  {{ $identifierField->label }}
-                </div>
-                <div style="font-family: ui-monospace, 'SF Mono', monospace; font-size: 17px; font-weight: 500; letter-spacing: .02em;">
-                  {{ $identifierValue }}
-                </div>
-              </div>
-            @endif
-
-            @if($filledNonIdentifier->isEmpty() && (!$identifierField || !$identifierValue))
-              <p style="font-size: 13px; opacity: .4; margin: 0;">No work order details recorded yet. Click <strong>Edit</strong> to add.</p>
-            @elseif($filledNonIdentifier->isNotEmpty())
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px;">
-                @foreach($filledNonIdentifier as $field)
-                  <div>
-                    <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--ia-text-faint, #52525b); font-weight: 500; margin-bottom: 3px;">
-                      {{ $field->label }}
-                    </div>
-                    <div style="font-size: 13.5px;">{{ $responsesByFieldId[$field->id]->response_value }}</div>
-                  </div>
-                @endforeach
-              </div>
-            @endif
-          </div>
-
-          {{-- Edit mode --}}
-          <form id="ma-wo-edit-form" style="display: none;" method="POST" action="{{ $updateUrl }}">
-            @csrf
-            @method('PATCH')
-            <input type="hidden" name="op" value="save_work_order">
-
-            @foreach($appointment->workOrderFields as $field)
-              @php $currentValue = $responsesByFieldId[$field->id]->response_value ?? ''; @endphp
-              <div class="ma-form-row">
-                <label class="ma-form-label">
-                  {{ $field->label }}
-                  @if($field->is_identifier)
-                    <span style="background: var(--ia-accent, #BEF264); color: var(--ia-accent-text, #0a0a0a); font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: .05em; margin-left: 6px;">ID</span>
-                  @endif
-                  @if($field->is_required)
-                    <span style="color: #f87171;">*</span>
-                  @endif
-                </label>
-                @if($field->field_type === 'textarea')
-                  <textarea name="values[{{ $field->id }}]" class="ia-input" rows="3" @if($field->is_required) required @endif>{{ $currentValue }}</textarea>
-                @elseif($field->field_type === 'number')
-                  <input type="number" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
-                @elseif($field->field_type === 'select')
-                  <select name="values[{{ $field->id }}]" class="ia-input" @if($field->is_required) required @endif>
-                    <option value="">—</option>
-                    @foreach(($field->options ?? []) as $opt)
-                      <option value="{{ $opt }}" @selected($currentValue === $opt)>{{ $opt }}</option>
-                    @endforeach
-                  </select>
-                @else
-                  <input type="text" name="values[{{ $field->id }}]" value="{{ $currentValue }}" class="ia-input" @if($field->is_required) required @endif>
-                @endif
-                @if($field->help_text)
-                  <div style="font-size: 11px; color: var(--ia-text-dim); margin-top: 4px;">{{ $field->help_text }}</div>
-                @endif
-              </div>
-            @endforeach
-
-            <div style="display: flex; gap: 8px; margin-top: 14px;">
-              <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save work order</button>
-              <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="ma-wo-edit-cancel">Cancel</button>
-            </div>
-          </form>
-        </div>
-      @endif
+      {{-- MARKER-PATCH-158-G5 — Bottom work-order card removed; now per-asset inside each asset card --}}
 
       {{-- MARKER-PATCH-158-E5 — Notes card --}}
       <div class="ma-notes-card" id="ma-notes-card">
@@ -2973,6 +3031,75 @@ input.ma-asset-name-edit:focus {
           return;
         }
         location.reload();
+      });
+    });
+  })();
+
+  // ---------------------- MARKER-PATCH-158-G5 — Per-asset work order forms ----------------------
+  //
+  // Each asset card has its own work-order details section. The display/edit
+  // toggle and save submission are scoped to that asset via data-aa-id. The
+  // form posts to save_work_order with appointment_asset_id, so the response
+  // rows get pinned to that asset.
+  (function() {
+    document.querySelectorAll('.ma-asset-wo-edit-toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const aaId = btn.dataset.aaId;
+        const display = document.querySelector('.ma-asset-wo-display[data-aa-id="' + aaId + '"]');
+        const form    = document.querySelector('.ma-asset-wo-edit-form[data-aa-id="' + aaId + '"]');
+        if (!display || !form) return;
+        display.hidden = true;
+        form.hidden = false;
+      });
+    });
+
+    document.querySelectorAll('.ma-asset-wo-edit-cancel').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        const aaId = btn.dataset.aaId;
+        const display = document.querySelector('.ma-asset-wo-display[data-aa-id="' + aaId + '"]');
+        const form    = document.querySelector('.ma-asset-wo-edit-form[data-aa-id="' + aaId + '"]');
+        if (!display || !form) return;
+        form.hidden = true;
+        display.hidden = false;
+      });
+    });
+
+    document.querySelectorAll('.ma-asset-wo-edit-form').forEach(function(form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const aaId = form.dataset.aaId;
+        const url  = form.dataset.updateUrl;
+
+        const fd = new FormData(form);
+        fd.append('_token', {!! json_encode(csrf_token()) !!});
+        fd.append('_method', 'PATCH');
+        fd.append('op', 'save_work_order');
+        // appointment_asset_id is already included via the hidden input in the form
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+          const r = await fetch(url, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+          });
+          let data = null;
+          try { data = await r.json(); } catch(e) {}
+          if (!r.ok || !data || !data.ok) {
+            if (window.IntakeToast) IntakeToast.error((data && data.message) || 'Could not save.');
+            else alert((data && data.message) || 'Could not save.');
+            if (submitBtn) submitBtn.disabled = false;
+            return;
+          }
+          if (window.IntakeToast) IntakeToast.success('Work order saved');
+          setTimeout(function() { location.reload(); }, 500);
+        } catch (err) {
+          if (window.IntakeToast) IntakeToast.error('Network error. Try again.');
+          else alert('Network error. Try again.');
+          if (submitBtn) submitBtn.disabled = false;
+        }
       });
     });
   })();

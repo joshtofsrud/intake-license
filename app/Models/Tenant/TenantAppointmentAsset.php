@@ -86,6 +86,16 @@ class TenantAppointmentAsset extends Model
         return $this->hasMany(TenantAppointmentPart::class, 'appointment_asset_id');
     }
 
+    /**
+     * MARKER-PATCH-158-G5 — Work-order responses scoped to this asset.
+     * Lets each asset card carry its own intake answers (serial, brand,
+     * what's wrong, etc.) instead of one form for the whole appointment.
+     */
+    public function workOrderResponses(): HasMany
+    {
+        return $this->hasMany(TenantAppointmentWorkOrderResponse::class, 'appointment_asset_id');
+    }
+
     // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------

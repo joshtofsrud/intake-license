@@ -17,6 +17,7 @@ class TenantAppointmentWorkOrderResponse extends Model
         'tenant_id',
         'appointment_id',
         'field_id',
+        'appointment_asset_id', // MARKER-PATCH-158-G5 — pins this response to a specific asset card
         'field_label_snapshot',
         'response_value',
     ];
@@ -34,5 +35,11 @@ class TenantAppointmentWorkOrderResponse extends Model
     public function field(): BelongsTo
     {
         return $this->belongsTo(TenantWorkOrderField::class, 'field_id');
+    }
+
+    // MARKER-PATCH-158-G5
+    public function appointmentAsset(): BelongsTo
+    {
+        return $this->belongsTo(TenantAppointmentAsset::class, 'appointment_asset_id');
     }
 }

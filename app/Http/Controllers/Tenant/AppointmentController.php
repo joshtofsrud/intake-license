@@ -684,7 +684,7 @@ class AppointmentController extends Controller
         if ($tenant->multi_asset_enabled) {
             $appointmentAssets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
                 ->where('appointment_id', $appointment->id)
-                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem']) // MARKER-PATCH-158-G4
+                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem', 'workOrderResponses']) // MARKER-PATCH-158-G5
                 ->orderBy('sort_order')
                 ->get();
 
@@ -1198,6 +1198,19 @@ class AppointmentController extends Controller
                 return response()->json(['ok' => false, 'message' => 'values must be an array.'], 422);
             }
 
+            // MARKER-PATCH-158-G5 — Optional asset scope. NULL = appointment-wide
+            // (legacy behavior). When set, the response is pinned to that asset
+            // card so multiple assets each carry their own intake answers.
+            $assetId = $request->input('appointment_asset_id');
+            if ($assetId) {
+                $assetExists = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                    ->where('id', $assetId)
+                    ->exists();
+                if (!$assetExists) {
+                    return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+                }
+            }
+
             // Load fields once so we can snapshot labels and detect the identifier
             $fields = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
                 ->whereIn('id', array_keys($values))
@@ -1214,9 +1227,17 @@ class AppointmentController extends Controller
                 $value = is_string($rawValue) ? trim($rawValue) : $rawValue;
                 $value = ($value === '' || $value === null) ? null : (string) $value;
 
+                // MARKER-PATCH-158-G5 — Upsert key now includes appointment_asset_id
                 $existing = \App\Models\Tenant\TenantAppointmentWorkOrderResponse::where('tenant_id', $tenant->id)
                     ->where('appointment_id', $appointment->id)
                     ->where('field_id', $field->id)
+                    ->where(function ($q) use ($assetId) {
+                        if ($assetId === null) {
+                            $q->whereNull('appointment_asset_id');
+                        } else {
+                            $q->where('appointment_asset_id', $assetId);
+                        }
+                    })
                     ->first();
 
                 if ($value === null) {
@@ -1231,6 +1252,7 @@ class AppointmentController extends Controller
                         'tenant_id'            => $tenant->id,
                         'appointment_id'       => $appointment->id,
                         'field_id'             => $field->id,
+                        'appointment_asset_id' => $assetId, // MARKER-PATCH-158-G5
                         'field_label_snapshot' => $field->label,
                         'response_value'       => $value,
                     ]);
@@ -1242,7 +1264,10 @@ class AppointmentController extends Controller
                 }
             }
 
-            // Update the promoted identifier column if any identifier field was in the payload
+            // Update the promoted identifier column if any identifier field was in the payload.
+            // MARKER-PATCH-158-G5 — In multi-asset mode this captures the last asset's
+            // identifier written. Cross-appointment identifier search (?serial=ABC) hits
+            // this column; a future enhancement could index per-asset identifiers separately.
             $identifierTouched = $fields->contains(fn($f) => (bool) $f->is_identifier);
             if ($identifierTouched) {
                 $appointment->update([
