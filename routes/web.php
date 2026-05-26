@@ -298,6 +298,11 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
 
             // MARKER-PATCH-152A — Deliveries (internal pickup/dropoff schedule)
             Route::get('/deliveries',                           [TenantControllers\DeliveriesController::class, 'index'])->name('deliveries.index');
+            // MARKER-PATCH-152B — create + edit + complete + cancel
+            Route::post('/deliveries',                           [TenantControllers\DeliveriesController::class, 'store'])->name('deliveries.store');
+            Route::patch('/deliveries/{id}',                     [TenantControllers\DeliveriesController::class, 'update'])->name('deliveries.update');
+            Route::patch('/deliveries/{id}/complete',            [TenantControllers\DeliveriesController::class, 'complete'])->name('deliveries.complete');
+            Route::patch('/deliveries/{id}/cancel',              [TenantControllers\DeliveriesController::class, 'cancel'])->name('deliveries.cancel');
             Route::get('/deliveries/resources',                 [TenantControllers\DeliveryResourcesController::class, 'index'])->name('deliveries.resources.index');
             Route::post('/deliveries/resources',                [TenantControllers\DeliveryResourcesController::class, 'store'])->name('deliveries.resources.store');
             Route::patch('/deliveries/resources/{id}',          [TenantControllers\DeliveryResourcesController::class, 'update'])->name('deliveries.resources.update');
