@@ -371,6 +371,10 @@
   $today    = \Carbon\Carbon::now($tz)->startOfDay();
   $isToday  = $date->copy()->setTimezone($tz)->startOfDay()->equalTo($today);
 
+  // MARKER-PATCH-152C — what notification channels will fire on save?
+  $notifyEmail = $tenant->notificationEnabled('delivery_scheduled_email');
+  $notifySms   = $tenant->notificationEnabled('delivery_scheduled_sms');
+
   // MARKER-PATCH-152B-FIX3 — auto-fit day-view hour range
   // Default to 8am–6pm. If deliveries exist outside that, expand to cover them.
   $openHour  = 8;
@@ -730,13 +734,33 @@
         <textarea name="notes" class="del-textarea" id="del-notes" placeholder="Gate code, dog warning, where to leave the bike…"></textarea>
       </div>
 
-      {{-- Notify banner --}}
-      <div class="del-notify">
-        <div>
-          <strong>Customer will be notified on save</strong>
-          <div style="color: var(--ia-text-2, rgba(255,255,255,.78)); margin-top: 2px;">Via the channels in your Notification settings. (Wiring lands in patch 152-c.)</div>
+      {{-- Notify banner — MARKER-PATCH-152C --}}
+      @php
+        $channelLabels = [];
+        if ($notifyEmail) $channelLabels[] = 'email';
+        if ($notifySms)   $channelLabels[] = 'SMS';
+      @endphp
+      @if(count($channelLabels) > 0)
+        <div class="del-notify">
+          <div>
+            <strong>Customer will be notified by {{ implode(' + ', $channelLabels) }}</strong>
+            <div style="color: var(--ia-text-2, rgba(255,255,255,.78)); margin-top: 2px;">
+              Fires on save. Email goes to the customer's saved address; SMS to their saved phone.
+              <a href="{{ route('tenant.settings.index') }}#notifications" style="color: var(--ia-accent, #BEF264);">Change in settings</a>.
+            </div>
+          </div>
         </div>
-      </div>
+      @else
+        <div class="del-notify" style="background: rgba(248,113,113,.04); border-color: rgba(248,113,113,.15);">
+          <div>
+            <strong style="color: #F87171;">Notifications are off</strong>
+            <div style="color: var(--ia-text-2, rgba(255,255,255,.78)); margin-top: 2px;">
+              No email or SMS will be sent to the customer.
+              <a href="{{ route('tenant.settings.index') }}#notifications" style="color: var(--ia-accent, #BEF264);">Enable in settings</a>.
+            </div>
+          </div>
+        </div>
+      @endif
 
     </div>
 

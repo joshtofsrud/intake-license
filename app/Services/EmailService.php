@@ -183,6 +183,32 @@ HTML;
 <p>This link expires in 60 minutes. If you didn't request this, you can safely ignore this email.</p>
 <p>— The {$shop} team</p>",
             ],
+
+            // MARKER-PATCH-152C — internal delivery scheduling notifications
+            'delivery_pickup_scheduled' => [
+                'subject'   => 'Pickup scheduled — {{date_short}} at {{time_start}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>{$shop} has scheduled a <strong>pickup</strong> for your bike.</p>
+<table style='font-size:14px;line-height:1.8;margin:12px 0'>
+  <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{date_human}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>From</td><td>{{address}}</td></tr>
+</table>
+<p>We'll text you when we're on our way.</p>
+<p>— The {$shop} team</p>",
+            ],
+            'delivery_dropoff_scheduled' => [
+                'subject'   => 'Dropoff scheduled — {{date_short}} at {{time_start}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Your bike is ready! {$shop} has scheduled a <strong>dropoff</strong> back to you.</p>
+<table style='font-size:14px;line-height:1.8;margin:12px 0'>
+  <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{date_human}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>To</td><td>{{address}}</td></tr>
+</table>
+<p>Reply to this email if you need to change anything.</p>
+<p>— The {$shop} team</p>",
+            ],
         ];
 
         return $defaults[$key] ?? null;

@@ -20,6 +20,10 @@
   $notifyBookingEmail = $currentTenant->notificationEnabled('booking_confirmation_email');
   $notifyBookingSms   = $currentTenant->notificationEnabled('booking_confirmation_sms');
 
+  // MARKER-PATCH-152C — delivery scheduled toggles
+  $notifyDeliveryEmail = $currentTenant->notificationEnabled('delivery_scheduled_email');
+  $notifyDeliverySms   = $currentTenant->notificationEnabled('delivery_scheduled_sms');
+
   // SMS auth token: don't render the actual value back to the form. Show
   // a masked placeholder if one is set, blank if not. Controller treats
   // an empty submission as "leave unchanged."
@@ -963,6 +967,32 @@
         </div>
       </div>
 
+      {{-- MARKER-PATCH-152C — Delivery scheduled (WIRED) --}}
+      <div class="notif-row">
+        <div class="notif-row-main">
+          <div class="notif-row-title">Delivery scheduled</div>
+          <div class="notif-row-desc">Sent to the customer when you schedule a pickup or dropoff.</div>
+        </div>
+        <div class="notif-row-toggles">
+          <label class="notif-row-toggle-label">
+            <input type="hidden" name="notify_delivery_scheduled_email" id="notify_delivery_email_input" value="{{ $notifyDeliveryEmail ? '1' : '0' }}">
+            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryEmail ? 'on' : '' }}"
+              id="notify-delivery-email-btn" aria-label="Email delivery scheduled">
+              <span class="ia-toggle-sr">{{ $notifyDeliveryEmail ? 'On' : 'Off' }}</span>
+            </button>
+            <span>Email</span>
+          </label>
+          <label class="notif-row-toggle-label">
+            <input type="hidden" name="notify_delivery_scheduled_sms" id="notify_delivery_sms_input" value="{{ $notifyDeliverySms ? '1' : '0' }}">
+            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliverySms ? 'on' : '' }}"
+              id="notify-delivery-sms-btn" aria-label="SMS delivery scheduled">
+              <span class="ia-toggle-sr">{{ $notifyDeliverySms ? 'On' : 'Off' }}</span>
+            </button>
+            <span>SMS</span>
+          </label>
+        </div>
+      </div>
+
       {{-- 24-hour reminder (NOT WIRED) --}}
       <div class="notif-row is-disabled">
         <div class="notif-row-main">
@@ -1338,6 +1368,9 @@
   bindToggle('sms-enabled-toggle-btn',      'sms_enabled_input');
   bindToggle('notify-booking-email-btn',    'notify_booking_email_input');
   bindToggle('notify-booking-sms-btn',      'notify_booking_sms_input');
+  // MARKER-PATCH-152C
+  bindToggle('notify-delivery-email-btn',   'notify_delivery_email_input');
+  bindToggle('notify-delivery-sms-btn',     'notify_delivery_sms_input');
 
   /* -----------------------------------------------------------------------
    * Branding: color picker text/swatch sync

@@ -77,7 +77,7 @@ class DeliveriesController extends Controller
             }
         }
 
-        TenantDelivery::create([
+        $delivery = TenantDelivery::create([
             'tenant_id'             => $tenant->id,
             'type'                  => $data['type'],
             'status'                => TenantDelivery::STATUS_SCHEDULED,
@@ -90,6 +90,11 @@ class DeliveriesController extends Controller
             'delivery_resource_id'  => $data['delivery_resource_id'] ?? null,
             'notes'                 => $data['notes'] ?? null,
         ]);
+
+        // MARKER-PATCH-152C — fire customer notification (email + SMS)
+        // Failures are logged but don't break the save flow.
+        \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
+            ->sendScheduled($delivery);
 
         return back()->with('success', ucfirst($data['type']) . ' scheduled.');
     }
