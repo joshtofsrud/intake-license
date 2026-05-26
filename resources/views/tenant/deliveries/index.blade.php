@@ -371,10 +371,26 @@
   $today    = \Carbon\Carbon::now($tz)->startOfDay();
   $isToday  = $date->copy()->setTimezone($tz)->startOfDay()->equalTo($today);
 
-  // Day-view hour range. Use a default 7am-7pm; later this could read from
-  // tenant.business_hours.
-  $openHour  = 7;
-  $closeHour = 19;
+  // MARKER-PATCH-152B-FIX3 — auto-fit day-view hour range
+  // Default to 8am–6pm. If deliveries exist outside that, expand to cover them.
+  $openHour  = 8;
+  $closeHour = 18;
+  if ($view === 'day' && $deliveries->isNotEmpty()) {
+    $earliestHour = 23;
+    $latestHour   = 0;
+    foreach ($deliveries as $d) {
+      $local = $d->scheduled_at->copy()->setTimezone($tz);
+      $startH = (int) $local->format('G');
+      $endH   = (int) $local->copy()->addMinutes($d->window_minutes ?: 30)->format('G');
+      if ($startH < $earliestHour) $earliestHour = $startH;
+      if ($endH   > $latestHour)   $latestHour   = $endH;
+    }
+    $openHour  = min($openHour,  $earliestHour);
+    $closeHour = max($closeHour, $latestHour + 1);
+    // Safety clamp 0–24
+    $openHour  = max(0, min(23, $openHour));
+    $closeHour = max($openHour + 1, min(24, $closeHour));
+  }
 
   // Group day-view deliveries by hour (for capacity mode).
   $byHour = [];

@@ -23,8 +23,8 @@ class DeliveriesController extends Controller
     public function index(Request $request): View
     {
         $tenant = tenant();
-        $view   = $request->query('view', 'day');
-        if (!in_array($view, ['day', 'week'], true)) $view = 'day';
+        $view   = $request->query('view', 'week');
+        if (!in_array($view, ['day', 'week'], true)) $view = 'week';
 
         $tz      = $tenant->timezone ?? config('app.timezone', 'UTC');
         $dateStr = $request->query('date');
