@@ -122,6 +122,8 @@ $tenantRoutes = function () {
     Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
     Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
+    // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
+    Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
 
