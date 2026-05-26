@@ -29,11 +29,13 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;  // MARKER-PATCH-158-G9
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;  // MARKER-PATCH-158-G9
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -89,6 +91,33 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
+            // MARKER-PATCH-158-G9 — Restore subtle scrollbar styling on the master-admin
+            // sidebar. Filament's sidebar scrolls when nav items exceed viewport height
+            // (which happens once the panel has ~15+ items), and a recent change started
+            // showing the OS default chunky scrollbar. This injects thin/dim styling
+            // scoped to the sidebar nav so it gently scrolls without visually dominating.
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn (): string => Blade::render(<<<'HTML'
+                <style>
+                  /* Firefox */
+                  .fi-sidebar-nav {
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(127,127,127,0.25) transparent;
+                  }
+                  /* WebKit (Safari, Chrome) */
+                  .fi-sidebar-nav::-webkit-scrollbar { width: 6px; }
+                  .fi-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+                  .fi-sidebar-nav::-webkit-scrollbar-thumb {
+                    background: rgba(127,127,127,0.25);
+                    border-radius: 3px;
+                  }
+                  .fi-sidebar-nav::-webkit-scrollbar-thumb:hover {
+                    background: rgba(127,127,127,0.45);
+                  }
+                </style>
+                HTML)
+            )
             ->authGuard('web')
             ->authMiddleware([
                 Authenticate::class,
