@@ -55,3 +55,13 @@ Schedule::command('appointments:remind')
     ->withoutOverlapping()
     ->runInBackground();
 
+// ----------------------------------------------------------------
+// MARKER-PATCH-155 — 24-hour delivery reminders
+// Same hourly cadence as appointments:remind. reminded_at column
+// is the idempotence guard.
+// ----------------------------------------------------------------
+Schedule::command('deliveries:remind')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();
+

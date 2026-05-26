@@ -22,6 +22,7 @@ class TenantDelivery extends Model
         'notes',
         'notified_at', 'notification_channels',
         'completed_at', 'cancelled_at',
+        'reminded_at', // MARKER-PATCH-155
     ];
 
     protected $casts = [
@@ -30,6 +31,7 @@ class TenantDelivery extends Model
         'notified_at'    => 'datetime',
         'completed_at'   => 'datetime',
         'cancelled_at'   => 'datetime',
+        'reminded_at'    => 'datetime', // MARKER-PATCH-155
     ];
 
     public const TYPE_PICKUP  = 'pickup';

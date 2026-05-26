@@ -223,6 +223,32 @@ HTML;
 <p>Reply to this email if you need to change anything.</p>
 <p>— The {$shop} team</p>",
             ],
+
+            // MARKER-PATCH-155 — 24-hour delivery reminders
+            'delivery_pickup_reminder' => [
+                'subject'   => 'Reminder: pickup tomorrow at {{time_start}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>A quick reminder that {$shop} will pick up your bike <strong>{{when_human}}</strong>.</p>
+<table style='font-size:14px;line-height:1.8;margin:12px 0'>
+  <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{when_human}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>From</td><td>{{address}}</td></tr>
+</table>
+<p>Reply to this email if you need to change anything.</p>
+<p>— The {$shop} team</p>",
+            ],
+            'delivery_dropoff_reminder' => [
+                'subject'   => 'Reminder: bike dropoff tomorrow at {{time_start}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>A quick reminder that {$shop} will drop off your bike <strong>{{when_human}}</strong>.</p>
+<table style='font-size:14px;line-height:1.8;margin:12px 0'>
+  <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{when_human}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
+  <tr><td style='color:#666;padding-right:16px'>To</td><td>{{address}}</td></tr>
+</table>
+<p>Reply to this email if you need to change anything.</p>
+<p>— The {$shop} team</p>",
+            ],
         ];
 
         return $defaults[$key] ?? null;

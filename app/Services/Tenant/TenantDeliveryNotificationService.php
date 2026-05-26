@@ -106,6 +106,77 @@ class TenantDeliveryNotificationService
     }
 
     /**
+     * Send the 24-hour reminder for a delivery via the channels
+     * enabled for this tenant. Mirrors sendScheduled() but uses
+     * the *_reminder template keys and reminder-specific toggles.
+     *
+     * Caller (deliveries:remind command) is responsible for stamping
+     * reminded_at — we just send. Different from sendScheduled which
+     * stamps notified_at internally, since the cron needs the stamp
+     * to land even on full-failure to prevent retries.
+     *
+     * MARKER-PATCH-155
+     */
+    public function sendReminder(TenantDelivery $delivery): array
+    {
+        $delivery->loadMissing('customer');
+        $customer = $delivery->customer;
+        if (!$customer) {
+            Log::warning('Delivery reminder: no customer', [
+                'delivery_id' => $delivery->id,
+            ]);
+            return [];
+        }
+
+        $vars = $this->buildVars($delivery);
+        // Re-frame the date phrase for "tomorrow" context
+        $vars['when_human'] = 'tomorrow, ' . $vars['date_human'] . ' at ' . $vars['time_start'];
+        $vars['when_sms']   = 'tomorrow (' . $vars['date_short'] . ' at ' . $vars['time_start'] . ')';
+
+        $channels = [];
+
+        if (
+            $this->tenant->notificationEnabled('delivery_reminder_email')
+            && !empty($customer->email)
+        ) {
+            try {
+                $templateKey = $delivery->isPickup()
+                    ? 'delivery_pickup_reminder'
+                    : 'delivery_dropoff_reminder';
+                EmailService::forTenant($this->tenant)->send(
+                    $templateKey,
+                    $customer->email,
+                    $vars
+                );
+                $channels[] = 'email';
+            } catch (\Throwable $e) {
+                Log::error('Delivery reminder email failed', [
+                    'delivery_id' => $delivery->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (
+            $this->tenant->notificationEnabled('delivery_reminder_sms')
+            && !empty($customer->phone)
+        ) {
+            try {
+                $body = $this->renderReminderSmsBody($delivery, $vars);
+                SmsService::send($this->tenant, $customer->phone, $body);
+                $channels[] = 'sms';
+            } catch (\Throwable $e) {
+                Log::error('Delivery reminder SMS failed', [
+                    'delivery_id' => $delivery->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $channels;
+    }
+
+    /**
      * Build the variable map used by both email templates and the SMS body.
      */
     private function buildVars(TenantDelivery $delivery): array
@@ -149,5 +220,19 @@ class TenantDeliveryNotificationService
             return "{$shop}: We'll {$verb} your bike on {$when} ({$vars['window']}). Reply STOP to opt out.";
         }
         return "{$shop}: We'll {$verb} your bike on {$when} ({$vars['window']}) at {$vars['address']}. Reply STOP to opt out.";
+    }
+
+    /**
+     * SMS body for the 24-hour reminder. Tomorrow-framed.
+     * MARKER-PATCH-155
+     */
+    private function renderReminderSmsBody(TenantDelivery $delivery, array $vars): string
+    {
+        $shop = $vars['shop_name'];
+        $verb = $vars['type_verb'];
+        if ($delivery->isPickup()) {
+            return "{$shop}: Reminder \u{2014} we'll {$verb} your bike {$vars['when_sms']}. Reply STOP to opt out.";
+        }
+        return "{$shop}: Reminder \u{2014} we'll {$verb} your bike {$vars['when_sms']} at {$vars['address']}. Reply STOP to opt out.";
     }
 }

@@ -155,6 +155,9 @@ class SettingsController extends Controller
             // MARKER-PATCH-154
             'notify_appointment_reminder_email' => ['nullable', 'boolean'],
             'notify_appointment_reminder_sms'   => ['nullable', 'boolean'],
+            // MARKER-PATCH-155
+            'notify_delivery_reminder_email'    => ['nullable', 'boolean'],
+            'notify_delivery_reminder_sms'      => ['nullable', 'boolean'],
         ]);
 
         // Don't overwrite an existing token with empty input — the form posts
@@ -187,6 +190,9 @@ class SettingsController extends Controller
         // MARKER-PATCH-154
         $settings['notify_appointment_reminder_email'] = (bool) $request->input('notify_appointment_reminder_email');
         $settings['notify_appointment_reminder_sms']   = (bool) $request->input('notify_appointment_reminder_sms');
+        // MARKER-PATCH-155
+        $settings['notify_delivery_reminder_email']    = (bool) $request->input('notify_delivery_reminder_email');
+        $settings['notify_delivery_reminder_sms']      = (bool) $request->input('notify_delivery_reminder_sms');
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Communication settings saved.');

@@ -28,6 +28,10 @@
   $notifyApptReminderEmail = $currentTenant->notificationEnabled('appointment_reminder_email');
   $notifyApptReminderSms   = $currentTenant->notificationEnabled('appointment_reminder_sms');
 
+  // MARKER-PATCH-155 — delivery reminder toggles
+  $notifyDeliveryReminderEmail = $currentTenant->notificationEnabled('delivery_reminder_email');
+  $notifyDeliveryReminderSms   = $currentTenant->notificationEnabled('delivery_reminder_sms');
+
   // SMS auth token: don't render the actual value back to the form. Show
   // a masked placeholder if one is set, blank if not. Controller treats
   // an empty submission as "leave unchanged."
@@ -1023,6 +1027,32 @@
         </div>
       </div>
 
+      {{-- MARKER-PATCH-155 — Delivery reminder (WIRED) --}}
+      <div class="notif-row">
+        <div class="notif-row-main">
+          <div class="notif-row-title">Delivery reminder</div>
+          <div class="notif-row-desc">Reminds the customer 24 hours before a scheduled pickup or dropoff.</div>
+        </div>
+        <div class="notif-row-toggles">
+          <label class="notif-row-toggle-label">
+            <input type="hidden" name="notify_delivery_reminder_email" id="notify_delivery_reminder_email_input" value="{{ $notifyDeliveryReminderEmail ? '1' : '0' }}">
+            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderEmail ? 'on' : '' }}"
+              id="notify-delivery-reminder-email-btn" aria-label="Email delivery reminder">
+              <span class="ia-toggle-sr">{{ $notifyDeliveryReminderEmail ? 'On' : 'Off' }}</span>
+            </button>
+            <span>Email</span>
+          </label>
+          <label class="notif-row-toggle-label">
+            <input type="hidden" name="notify_delivery_reminder_sms" id="notify_delivery_reminder_sms_input" value="{{ $notifyDeliveryReminderSms ? '1' : '0' }}">
+            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderSms ? 'on' : '' }}"
+              id="notify-delivery-reminder-sms-btn" aria-label="SMS delivery reminder">
+              <span class="ia-toggle-sr">{{ $notifyDeliveryReminderSms ? 'On' : 'Off' }}</span>
+            </button>
+            <span>SMS</span>
+          </label>
+        </div>
+      </div>
+
       {{-- Receipt (NOT WIRED) --}}
       <div class="notif-row is-disabled">
         <div class="notif-row-main">
@@ -1382,6 +1412,9 @@
   // MARKER-PATCH-154
   bindToggle('notify-appt-reminder-email-btn', 'notify_appointment_reminder_email_input');
   bindToggle('notify-appt-reminder-sms-btn',   'notify_appointment_reminder_sms_input');
+  // MARKER-PATCH-155
+  bindToggle('notify-delivery-reminder-email-btn', 'notify_delivery_reminder_email_input');
+  bindToggle('notify-delivery-reminder-sms-btn',   'notify_delivery_reminder_sms_input');
 
   /* -----------------------------------------------------------------------
    * Branding: color picker text/swatch sync
