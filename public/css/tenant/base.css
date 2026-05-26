@@ -729,7 +729,8 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 .ia-sb-user-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--ia-text, inherit);
+  /* MARKER-PATCH-150-POLISH-C — sidebar is always dark, lock text colour */
+  color: #f0f0f0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -737,7 +738,8 @@ body.ia-theme-c .ia-schedule-pill.is-active {
 }
 .ia-sb-user-role {
   font-size: 11px;
-  opacity: .6;
+  /* MARKER-PATCH-150-POLISH-C — sidebar is always dark, lock text colour */
+  color: rgba(255, 255, 255, .55);
   margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
@@ -756,12 +758,16 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--ia-surface-1, #1a1a1a);
-  border: 1px solid var(--ia-border, rgba(255,255,255,.12));
+  /* MARKER-PATCH-150-POLISH-C — sidebar dropdown matches sidebar (always dark) */
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,.12);
   border-radius: var(--ia-r-md, 8px);
   box-shadow: 0 8px 24px rgba(0,0,0,.35);
   padding: 4px;
   z-index: 100;
+}
+.ia-sb-user-menu-item:hover {
+  background: rgba(255,255,255,.08) !important;
 }
 .ia-sb-user-menu-item {
   display: flex;
@@ -775,7 +781,9 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   cursor: pointer;
   font-size: 13px;
   text-align: left;
-  color: inherit;
+  /* MARKER-PATCH-150-POLISH-C — sidebar dropdown is always dark */
+  color: #f0f0f0;
+  font-family: inherit;
 }
 .ia-sb-user-menu-item:hover {
   background: var(--ia-surface-3, rgba(255,255,255,.07));

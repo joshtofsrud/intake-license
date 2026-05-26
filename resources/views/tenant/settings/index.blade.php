@@ -86,8 +86,10 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 18px;
-  align-items: start;
+  /* MARKER-PATCH-150-POLISH-C — same-row cards match heights */
+  align-items: stretch;
 }
+.set-section--grid > .ia-card { display: flex; flex-direction: column; }
 .set-section--grid .set-card--wide,
 .set-section--grid .set-savebar {
   grid-column: 1 / -1;
@@ -1007,6 +1009,8 @@
     </div>
   </form>
   {{-- MARKER-PATCH-150-FIX — Web analytics card, outside parent form (HTML disallows nested forms) --}}
+  {{-- MARKER-PATCH-150-POLISH-C — wrap in grid section so set-card--wide applies --}}
+  <div class="set-section set-section--grid">
   <div class="ia-card set-card--wide" style="margin-bottom: 20px;">
     <div class="ia-card-head">
       <span class="ia-card-title">Web analytics</span>
@@ -1035,6 +1039,7 @@
       </div>
     </form>
   </div>
+  </div>{{-- MARKER-PATCH-150-POLISH-C close grid wrapper --}}
 
 </div>
 
