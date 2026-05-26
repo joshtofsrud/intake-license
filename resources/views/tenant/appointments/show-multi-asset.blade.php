@@ -587,11 +587,14 @@
   border-top: 0.5px solid var(--ia-border);
   margin-top: 8px;
 }
+/* MARKER-PATCH-158-G6 — Horizontal padding so the collapsible content
+   doesn't sit flush against the asset card edges. Matches .ma-asset-head's
+   18px so labels/inputs align vertically with the card title above. */
 .ma-asset-parts-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 0 8px;
+  padding: 10px 18px 8px;
   cursor: pointer;
   user-select: none;
   list-style: none;
@@ -620,8 +623,7 @@
 .ma-asset-parts[open] .ma-asset-parts-chev { transform: rotate(180deg); }
 
 .ma-asset-parts-body {
-  padding-top: 4px;
-  padding-bottom: 8px;
+  padding: 4px 18px 12px;
 }
 .ma-asset-parts-empty {
   font-size: 12px;
@@ -678,8 +680,9 @@
 }
 .ma-asset-wo .ma-asset-parts-head { /* reuse parts head styles */ }
 .ma-asset-wo-body {
-  padding-top: 4px;
-  padding-bottom: 8px;
+  /* MARKER-PATCH-158-G6 — Horizontal padding so form fields don't touch
+     the asset card edges. Matches .ma-asset-parts-body. */
+  padding: 4px 18px 12px;
 }
 .ma-asset-wo-empty {
   font-size: 12px;
