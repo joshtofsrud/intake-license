@@ -301,6 +301,8 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
             Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
             Route::get('/reports/money',        [TenantControllers\ReportsController::class, 'money'])->name('reports.money');
             Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
+            // MARKER-PATCH-151A — Traffic tab
+            Route::get('/reports/traffic',      [TenantControllers\ReportsController::class, 'traffic'])->name('reports.traffic');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
             Route::get('/calendar/quick-book',  [TenantControllers\QuickBookController::class, 'picker'])->name('calendar.quick-book.picker');
             Route::post('/calendar/quick-book', [TenantControllers\QuickBookController::class, 'store'])->name('calendar.quick-book.store');

@@ -10,4 +10,6 @@
   <a href="{{ route('tenant.reports.retail',    []) }}" class="{{ ($active ?? '') === 'retail'     ? 'active' : '' }}">Retail</a>
   <a href="{{ route('tenant.reports.money',     []) }}" class="{{ ($active ?? '') === 'money'      ? 'active' : '' }}">Money</a>
   <a href="{{ route('tenant.reports.staff',     []) }}" class="{{ ($active ?? '') === 'staff'      ? 'active' : '' }}">Staff</a>
+  {{-- MARKER-PATCH-151A — Traffic reports tab --}}
+  <a href="{{ route('tenant.reports.traffic',   []) }}" class="{{ ($active ?? '') === 'traffic'    ? 'active' : '' }}">Traffic</a>
 </nav>

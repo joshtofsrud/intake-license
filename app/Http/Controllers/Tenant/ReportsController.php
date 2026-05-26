@@ -275,6 +275,29 @@ class ReportsController extends Controller
         ]);
     }
 
+    /**
+     * Traffic tab — site usage analytics over tenant_funnel_events.
+     * Free for all tenants. Window: 7d / 30d (default) / 90d.
+     * MARKER-PATCH-151A
+     */
+    public function traffic(Request $request): View
+    {
+        $tenant = tenant();
+        $window = $request->query('window', '30d');
+        if (!in_array($window, ['7d', '30d', '90d'], true)) {
+            $window = '30d';
+        }
+
+        $svc = new \App\Services\Tenant\TrafficReportService($tenant, $window);
+
+        return view('tenant.reports.traffic', [
+            'tenant'         => $tenant,
+            'window'         => $window,
+            'topStats'       => $svc->topStats(),
+            'dailyVisitors'  => $svc->dailyVisitors(),
+        ]);
+    }
+
     public function staff(Request $request): View
     {
         $tenant = tenant();
