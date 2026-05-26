@@ -323,7 +323,6 @@
   <button type="button" class="set-tab"        data-tab="branding"      role="tab">Branding</button>
   <button type="button" class="set-tab"        data-tab="communication" role="tab">Communication</button>
   <button type="button" class="set-tab"        data-tab="account"       role="tab">Account</button>
-  <button type="button" class="set-tab"        data-tab="appearance"    role="tab">Appearance</button>
   <button type="button" class="set-tab"        data-tab="payments"      role="tab">Payments</button>
 </div>
 
@@ -765,7 +764,7 @@
 
 
     {{-- Email sender details --}}
-    <div class="ia-card set-card--wide" style="margin-bottom:20px">
+    <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Email sender details</span></div>
       <p style="font-size:13px;opacity:.5;margin-bottom:16px">
         All emails to your customers will be sent from these details.
@@ -1125,55 +1124,6 @@
       @endif
     </div>
   </div>
-</div>
-
-{{-- =====================================================================
-     APPEARANCE — admin theme
-     ===================================================================== --}}
-<div class="set-pane" id="pane-appearance" role="tabpanel">
-  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
-    @csrf @method('PATCH')
-    <input type="hidden" name="tab" value="appearance">
-
-    <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg">Saved.</span>
-      <div class="set-savebar-actions">
-        <button type="button" class="set-discard-btn" data-discard>Discard</button>
-        <button type="submit" class="set-save-btn">Save appearance</button>
-      </div>
-    </div>
-
-    <div class="ia-card" style="margin-bottom:20px">
-      <div class="ia-card-head"><span class="ia-card-title">Admin theme</span></div>
-      <p style="font-size:13px;opacity:.5;margin-bottom:12px">
-        Choose the theme for your admin dashboard. Affects only what you see, not your customers.
-      </p>
-      <div class="theme-grid">
-        @foreach([
-          ['b', 'Light premium',   'preview-b-wrap',  null],
-          ['c', 'Dark premium',    'preview-c-side',  'preview-c-main'],
-        ] as [$val, $label, $class1, $class2])
-        <label class="theme-card {{ $adminTheme === $val ? 'selected' : '' }}" id="theme-card-{{ $val }}">
-          <input type="radio" name="admin_theme" value="{{ $val }}"
-            {{ $adminTheme === $val ? 'checked' : '' }}
-            onchange="document.querySelectorAll('.theme-card').forEach(c=>c.classList.remove('selected'));document.getElementById('theme-card-{{ $val }}').classList.add('selected')">
-          <div class="theme-preview">
-            @if($val === 'b')
-              <div class="preview-b-wrap">
-                <div class="preview-b-top"></div>
-                <div class="preview-b-main"></div>
-              </div>
-            @else
-              <div class="{{ $class1 }}"></div>
-              <div class="{{ $class2 }}"></div>
-            @endif
-          </div>
-          <div class="theme-label">{{ $label }}</div>
-        </label>
-        @endforeach
-      </div>
-    </div>
-  </form>
 </div>
 
 {{-- =====================================================================
