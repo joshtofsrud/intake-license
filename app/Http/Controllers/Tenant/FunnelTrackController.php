@@ -28,21 +28,21 @@ class FunnelTrackController extends Controller
     /**
      * POST /funnel/track
      */
-    public function store(string $subdomain, Request $request)
+    public function store(Request $request)
     {
-        // Rate limit: 60 events / minute per IP per tenant. Generous
-        // enough for legitimate use (page_view per nav, booking events
-        // per step) but blocks abusive scripted floods.
-        $key = 'funnel-track:' . $request->ip() . ':' . $subdomain;
-        if (RateLimiter::tooManyAttempts($key, 60)) {
-            return response()->json(['ok' => false, 'reason' => 'rate_limited'], 429);
-        }
-        RateLimiter::hit($key, 60);
-
         $tenant = tenant();
         if (! $tenant) {
             return response()->json(['ok' => false, 'reason' => 'no_tenant'], 404);
         }
+
+        // Rate limit: 60 events / minute per IP per tenant. Generous
+        // enough for legitimate use (page_view per nav, booking events
+        // per step) but blocks abusive scripted floods.
+        $key = 'funnel-track:' . $request->ip() . ':' . $tenant->id;
+        if (RateLimiter::tooManyAttempts($key, 60)) {
+            return response()->json(['ok' => false, 'reason' => 'rate_limited'], 429);
+        }
+        RateLimiter::hit($key, 60);
 
         $data = $request->validate([
             'event_type'   => ['required', 'string', 'in:' . implode(',', TenantFunnelEvent::VALID_TYPES)],
