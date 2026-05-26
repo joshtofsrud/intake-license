@@ -295,6 +295,12 @@ class ReportsController extends Controller
             'window'         => $window,
             'topStats'       => $svc->topStats(),
             'dailyVisitors'  => $svc->dailyVisitors(),
+            // MARKER-PATCH-151B — additional panels
+            'funnel'         => $svc->funnel(),
+            'topSources'     => $svc->topSources(),
+            'deviceSplit'    => $svc->deviceSplit(),
+            'topPages'       => $svc->topPages(),
+            'newVsReturning' => $svc->newVsReturning(),
         ]);
     }
 

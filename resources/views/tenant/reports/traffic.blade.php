@@ -109,6 +109,105 @@
     font-size: 13px;
     line-height: 1.6;
   }
+
+  /* MARKER-PATCH-151B — panel-specific styles */
+  .rep-two-col {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .rep-two-col { grid-template-columns: 1fr; }
+  }
+
+  /* Funnel */
+  .rep-funnel { padding: 6px 0; }
+  .rep-funnel-step {
+    display: grid;
+    grid-template-columns: 200px 1fr 130px;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--ia-border);
+  }
+  .rep-funnel-step:last-of-type { border-bottom: none; }
+  .rep-funnel-label { font-size: 13px; color: var(--ia-text-2, rgba(255,255,255,.78)); }
+  .rep-funnel-bar-track {
+    background: rgba(255,255,255,.04);
+    border-radius: 4px;
+    height: 22px;
+    overflow: hidden;
+  }
+  .rep-funnel-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--ia-accent, #BEF264), rgba(190,242,100,.55));
+    border-radius: 4px;
+    min-width: 4px;
+  }
+  .rep-funnel-count {
+    text-align: right;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    font-feature-settings: 'tnum';
+  }
+  .rep-funnel-count small {
+    color: var(--ia-text-dim, rgba(255,255,255,.42));
+    font-size: 11px;
+    margin-left: 2px;
+  }
+  .rep-funnel-drop {
+    font-size: 11.5px;
+    padding: 8px 12px;
+    margin: 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    background: rgba(255,255,255,.02);
+    border-bottom: 1px solid var(--ia-border);
+  }
+  .rep-funnel-drop:last-of-type { border-bottom: none; }
+  .rep-funnel-drop-pct {
+    color: var(--ia-bad, #F87171);
+    font-weight: 600;
+  }
+  @media (max-width: 700px) {
+    .rep-funnel-step { grid-template-columns: 130px 1fr 90px; }
+  }
+
+  /* Tables (shared with other reports) */
+  table.rep-tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.rep-tbl th {
+    text-align: left; padding: 10px 12px;
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--ia-text-dim, rgba(255,255,255,.42)); font-weight: 700;
+    border-bottom: 1px solid var(--ia-border);
+  }
+  table.rep-tbl th.right { text-align: right; }
+  table.rep-tbl td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--ia-border);
+    vertical-align: top;
+  }
+  table.rep-tbl td.right { text-align: right; font-feature-settings: 'tnum'; font-weight: 600; }
+  table.rep-tbl tr:last-child td { border-bottom: none; }
+  table.rep-tbl tr:hover td { background: rgba(255,255,255,0.02); }
+  .rep-cell-name { color: var(--ia-text, #f0f0f0); font-weight: 600; }
+  .rep-cell-meta { color: var(--ia-text-dim, rgba(255,255,255,.42)); font-size: 11px; margin-top: 2px; }
+
+  /* Device bars */
+  .rep-bar-track {
+    background: rgba(255,255,255,.05);
+    border-radius: 99px;
+    height: 6px;
+    overflow: hidden;
+    margin: 6px 0 2px;
+  }
+  .rep-bar-track > span {
+    display: block;
+    height: 100%;
+    background: var(--ia-accent, #BEF264);
+    border-radius: 99px;
+  }
 </style>
 @endpush
 
@@ -230,17 +329,175 @@
     </div>
   </div>
 
-  {{-- 151-b will add: funnel, top sources, devices, top pages --}}
+  {{-- MARKER-PATCH-151B — full panel set --}}
+
+  {{-- Booking funnel --}}
   <div class="rep-zone">
     <div class="rep-zone-head">
       <div>
-        <div class="rep-zone-title">More panels coming</div>
-        <div class="rep-zone-sub">Funnel · Sources · Devices · Top pages · New vs returning</div>
+        <div class="rep-zone-title">Booking funnel</div>
+        <div class="rep-zone-sub">Visitors → completed bookings · last {{ $window }}</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ia-text-dim, rgba(255,255,255,.42)); font-weight: 700;">Overall conversion</div>
+        <div style="font-size: 22px; font-weight: 700; color: var(--ia-accent, #BEF264);">{{ $funnel['overall_pct'] }}%</div>
       </div>
     </div>
-    <div class="rep-empty" style="padding: 16px 20px;">
-      The next patch adds the booking funnel breakdown, traffic sources, device split, and top pages.
+
+    @php
+      $maxFunnel = max(array_map(fn ($s) => $s['count'], $funnel['steps']) ?: [1], [1]);
+      $maxFunnel = max($maxFunnel, 1);
+    @endphp
+
+    <div class="rep-funnel">
+      @foreach($funnel['steps'] as $i => $step)
+        <div class="rep-funnel-step">
+          <div class="rep-funnel-label">{{ $step['label'] }}</div>
+          <div class="rep-funnel-bar-track">
+            <div class="rep-funnel-bar" style="width: {{ max(2, ($step['count'] / $maxFunnel) * 100) }}%;"></div>
+          </div>
+          <div class="rep-funnel-count">
+            <strong>{{ number_format($step['count']) }}</strong>
+            <small>· {{ $step['pct'] }}%</small>
+          </div>
+        </div>
+        @if(isset($funnel['dropoffs'][$i]))
+          <div class="rep-funnel-drop">
+            <span class="rep-funnel-drop-pct">↓ {{ $funnel['dropoffs'][$i]['pct'] }}% drop-off</span>
+            <span style="color: var(--ia-text-dim, rgba(255,255,255,.42));">· {{ number_format($funnel['dropoffs'][$i]['lost']) }} {{ Str::lower($funnel['dropoffs'][$i]['from']) }}</span>
+          </div>
+        @endif
+      @endforeach
     </div>
+  </div>
+
+  {{-- Two-column row: sources + devices --}}
+  <div class="rep-two-col">
+    {{-- Top sources --}}
+    <div class="rep-zone">
+      <div class="rep-zone-head">
+        <div>
+          <div class="rep-zone-title">Top sources</div>
+          <div class="rep-zone-sub">Where your visitors came from</div>
+        </div>
+      </div>
+
+      @if(empty($topSources))
+        <div class="rep-empty">No source data yet.</div>
+      @else
+        <table class="rep-tbl">
+          <thead><tr><th>Source</th><th class="right">Visits</th><th class="right">Conv.</th></tr></thead>
+          <tbody>
+            @foreach($topSources as $src)
+              <tr>
+                <td>
+                  <div class="rep-cell-name">{{ $src['name'] === '(direct)' ? 'Direct' : $src['name'] }}</div>
+                  @if($src['name'] === '(direct)')
+                    <div class="rep-cell-meta">Typed URL or bookmark</div>
+                  @endif
+                </td>
+                <td class="right">{{ number_format($src['visits']) }}</td>
+                <td class="right" style="color: {{ $src['conv_pct'] >= 5 ? 'var(--ia-accent, #BEF264)' : 'var(--ia-text-dim, rgba(255,255,255,.42))' }};">
+                  {{ $src['conv_pct'] }}%
+                </td>
+              </tr>
+            @endforeach
+          </tbody>
+        </table>
+      @endif
+    </div>
+
+    {{-- Devices --}}
+    <div class="rep-zone">
+      <div class="rep-zone-head">
+        <div>
+          <div class="rep-zone-title">Devices</div>
+          <div class="rep-zone-sub">How visitors browse your site</div>
+        </div>
+      </div>
+
+      @if(empty($deviceSplit))
+        <div class="rep-empty">No device data yet.</div>
+      @else
+        <div style="padding: 6px 0;">
+          @foreach($deviceSplit as $d)
+            <div style="font-size: 12.5px; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span class="rep-cell-name">{{ ucfirst($d['device']) }}</span>
+                <span style="color: var(--ia-text-dim, rgba(255,255,255,.42)); font-size: 11.5px; font-family: 'JetBrains Mono', ui-monospace, monospace;">
+                  {{ number_format($d['count']) }} {{ Str::plural('visitor', $d['count']) }}
+                </span>
+              </div>
+              <div class="rep-bar-track"><span style="width: {{ $d['pct'] }}%;"></span></div>
+              <div style="font-size: 11px; color: var(--ia-text-dim, rgba(255,255,255,.42)); margin-top: 2px;">{{ $d['pct'] }}%</div>
+            </div>
+          @endforeach
+        </div>
+      @endif
+    </div>
+  </div>
+
+  {{-- Top pages (full width) --}}
+  <div class="rep-zone">
+    <div class="rep-zone-head">
+      <div>
+        <div class="rep-zone-title">Top pages</div>
+        <div class="rep-zone-sub">Most-visited paths · last {{ $window }}</div>
+      </div>
+    </div>
+
+    @if(empty($topPages))
+      <div class="rep-empty">No page-view data yet.</div>
+    @else
+      <table class="rep-tbl">
+        <thead><tr><th>Page</th><th class="right">Views</th><th class="right">Unique</th></tr></thead>
+        <tbody>
+          @foreach($topPages as $page)
+            <tr>
+              <td>
+                <div class="rep-cell-name" style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12.5px;">{{ $page['path'] }}</div>
+              </td>
+              <td class="right">{{ number_format($page['views']) }}</td>
+              <td class="right" style="color: var(--ia-text-dim, rgba(255,255,255,.42));">{{ number_format($page['unique_visitors']) }}</td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    @endif
+  </div>
+
+  {{-- New vs returning (full width) --}}
+  <div class="rep-zone">
+    <div class="rep-zone-head">
+      <div>
+        <div class="rep-zone-title">New vs returning</div>
+        <div class="rep-zone-sub">Are you reaching new people, or retaining existing customers?</div>
+      </div>
+    </div>
+
+    <div class="rep-stat-strip" style="grid-template-columns: 1fr 1fr;">
+      <div class="rep-stat-cell">
+        <div class="lbl">New visitors</div>
+        <div class="val">{{ number_format($newVsReturning['new']['count']) }}</div>
+        <div class="delta flat">{{ $newVsReturning['new']['pct'] }}% of total · {{ $newVsReturning['new']['conv_pct'] }}% booking rate</div>
+      </div>
+      <div class="rep-stat-cell feat">
+        <div class="lbl">Returning</div>
+        <div class="val">{{ number_format($newVsReturning['returning']['count']) }}</div>
+        <div class="delta flat">{{ $newVsReturning['returning']['pct'] }}% of total · {{ $newVsReturning['returning']['conv_pct'] }}% booking rate</div>
+      </div>
+    </div>
+
+    @if($newVsReturning['returning']['conv_pct'] > 0 && $newVsReturning['new']['conv_pct'] > 0)
+      @php
+        $ratio = $newVsReturning['new']['conv_pct'] > 0 ? round($newVsReturning['returning']['conv_pct'] / $newVsReturning['new']['conv_pct'], 1) : 0;
+      @endphp
+      @if($ratio >= 1.5)
+        <div style="margin-top: 16px; padding: 12px 14px; background: rgba(190,242,100,.06); border-radius: 8px; font-size: 12.5px; line-height: 1.6; color: var(--ia-text-2, rgba(255,255,255,.78));">
+          Returning visitors book at <strong style="color: var(--ia-accent, #BEF264);">{{ $newVsReturning['returning']['conv_pct'] }}%</strong> vs new at <strong>{{ $newVsReturning['new']['conv_pct'] }}%</strong> — about <strong>{{ $ratio }}×</strong> higher. Retention (email, follow-up) is paying off.
+        </div>
+      @endif
+    @endif
   </div>
   @endif
 </div>
