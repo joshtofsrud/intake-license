@@ -48,6 +48,103 @@
   .ma-layout { grid-template-columns: 1fr; }
 }
 
+/* ============== MARKER-PATCH-158-G3 — Top row (status | customer tile) ============== */
+.ma-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 18px;
+  align-items: stretch;
+}
+@media (max-width: 900px) {
+  .ma-top-row { grid-template-columns: 1fr; }
+}
+.ma-top-tile {
+  background: var(--ia-surface, rgba(255,255,255,0.02));
+  border: 1px solid var(--ia-border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+}
+.ma-top-tile-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ia-text-faint, #52525b);
+  margin-bottom: 14px;
+}
+
+/* When the progress card is a top tile, drop its outer padding/margins and
+   let the tile container handle them. The bar centers vertically in the
+   remaining space so it visually aligns with the right-tile content. */
+.ma-top-tile.ma-progress-card {
+  padding: 16px 20px;
+  margin-bottom: 0;
+  justify-content: flex-start;
+}
+.ma-top-tile.ma-terminal-card {
+  margin-bottom: 0;
+  align-items: center;
+  flex-direction: row;
+  gap: 12px;
+}
+
+/* Customer header inside the right tile */
+.ma-top-customer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ma-top-customer-main {
+  flex: 1;
+  min-width: 0;
+}
+.ma-top-customer-main .ma-customer-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+.ma-top-customer-main .ma-customer-meta {
+  font-size: 11.5px;
+  color: var(--ia-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  display: block;
+}
+.ma-top-customer-main .ma-customer-meta .sep { margin: 0 4px; opacity: 0.6; }
+.ma-top-view-link {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ia-accent, #BEF264);
+  text-decoration: none;
+}
+.ma-top-view-link:hover { text-decoration: underline; }
+
+/* Resource picker row inside right tile */
+.ma-top-resource {
+  padding-top: 12px;
+  border-top: 0.5px solid var(--ia-border);
+  margin-bottom: 12px;
+}
+.ma-top-resource-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Actions row inside right tile */
+.ma-top-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--ia-border);
+  margin-top: auto; /* push actions to bottom of tile when tile is taller */
+}
+
 /* Header */
 .ma-page-head {
   display: flex; justify-content: space-between; align-items: flex-start;
@@ -80,26 +177,18 @@
 }
 .ma-page-sub .dot { color: var(--ia-text-faint, #52525b); }
 
-/* Customer card */
-.ma-customer-card {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 18px;
-  background: var(--ia-surface, rgba(255,255,255,0.02));
-  border: 1px solid var(--ia-border);
-  border-radius: 10px;
-  margin-bottom: 20px;
-}
+/* Customer avatar + name + meta — used in the top-row tile (G3) */
 .ma-customer-avatar {
-  width: 44px; height: 44px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   background: rgba(190,242,100,0.15);
   color: var(--ia-accent, #BEF264);
   display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 500; font-size: 15px;
+  font-weight: 500; font-size: 13px;
+  flex-shrink: 0;
 }
-.ma-customer-name { font-size: 15px; font-weight: 500; }
+.ma-customer-name { font-size: 14px; font-weight: 500; }
 .ma-customer-meta {
   font-size: 12px; color: var(--ia-text-dim);
-  display: flex; gap: 14px; margin-top: 2px; flex-wrap: wrap;
 }
 .ma-customer-meta .sep { color: var(--ia-text-faint, #52525b); }
 
@@ -789,6 +878,20 @@
   margin-top: 4px;
 }
 
+/* MARKER-PATCH-158-G3 — Cancel button dark-red theme (mirrors legacy CANCEL-RED-DARK).
+   Without this, ia-btn--danger renders too light against the dark surface. */
+.ma-cancel-btn.ia-btn--danger,
+button.ma-cancel-btn {
+  background: #6B1F1F !important;
+  color: #FFD0D0 !important;
+  border: 1px solid #8C2C2C !important;
+}
+.ma-cancel-btn.ia-btn--danger:hover,
+button.ma-cancel-btn:hover {
+  background: #8C2C2C !important;
+  color: #FFE5E5 !important;
+}
+
 /* Payment status badge */
 .ma-payment-badge {
   display: inline-block;
@@ -1055,73 +1158,109 @@ input.ma-asset-name-edit:focus {
     </div>
   @endif
 
-  {{-- MARKER-PATCH-158-E2 — Status pipeline (mirrors legacy show.blade.php) --}}
-  @if($isTerminal)
-    <div class="ma-terminal-card">
-      <div class="ma-terminal-icon">
-        @if($appointment->status === 'cancelled')
-          ✕
-        @else
-          ↩
-        @endif
-      </div>
-      <div class="ma-terminal-title">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</div>
-      <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-status="pending" id="ma-reopen-btn" style="margin-left:auto;">
-        Reopen
-      </button>
-    </div>
-  @else
-    <div class="ma-progress-card">
-      <div class="ma-progress-bar"
-           data-current-index="{{ $currentIndex }}"
-           data-update-url="{{ $updateUrl }}"
-           style="--progress: {{ count($pipelineSteps) > 1 ? $currentIndex / (count($pipelineSteps) - 1) : 0 }};">
-        @foreach($pipelineSteps as $idx => $step)
-          @php
-            $stepLabel = $statusLabels[$step] ?? $step;
-            $isDone    = $idx < $currentIndex;
-            $isCurrent = $idx === $currentIndex;
-          @endphp
-          <button type="button"
-                  class="ma-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
-                  data-status="{{ $step }}"
-                  data-step-index="{{ $idx }}"
-                  data-label="{{ $stepLabel }}">
-            <span class="ma-progress-dot">
-              @if($isDone)
-                <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              @elseif($isCurrent)
-                <span class="ma-progress-dot-inner"></span>
-              @endif
-            </span>
-            <span class="ma-progress-label">{{ $stepLabel }}</span>
-          </button>
-        @endforeach
-      </div>
-    </div>
-  @endif
+  {{-- MARKER-PATCH-158-G3 — Top row: status pipeline (left) + customer/resource/actions tile (right) --}}
+  @php
+    $maCurrentResource = $availableResources->firstWhere('id', $appointment->resource_id);
+    $maInitials = $appointment->customer
+      ? strtoupper(substr($appointment->customer->first_name ?? '?', 0, 1) . substr($appointment->customer->last_name ?? '', 0, 1))
+      : '?';
+  @endphp
+  <div class="ma-top-row">
 
-  {{-- Customer card --}}
-  @if($appointment->customer)
-    @php
-      $initials = strtoupper(substr($appointment->customer->first_name ?? '?', 0, 1) . substr($appointment->customer->last_name ?? '', 0, 1));
-    @endphp
-    <div class="ma-customer-card">
-      <div class="ma-customer-avatar">{{ $initials }}</div>
-      <div>
-        <div class="ma-customer-name">{{ $appointment->customer->first_name }} {{ $appointment->customer->last_name }}</div>
-        <div class="ma-customer-meta">
-          @if($appointment->customer->email)<span>{{ $appointment->customer->email }}</span>@endif
-          @if($appointment->customer->email && $appointment->customer->phone)<span class="sep">·</span>@endif
-          @if($appointment->customer->phone)<span>{{ $appointment->customer->phone }}</span>@endif
+    {{-- LEFT: Status pipeline (or terminal card) --}}
+    @if($isTerminal)
+      <div class="ma-top-tile ma-terminal-card">
+        <div class="ma-terminal-icon">
+          @if($appointment->status === 'cancelled')✕@else↩@endif
+        </div>
+        <div class="ma-terminal-title">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</div>
+        <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-status="pending" id="ma-reopen-btn" style="margin-left:auto;">
+          Reopen
+        </button>
+      </div>
+    @else
+      <div class="ma-top-tile ma-progress-card">
+        <div class="ma-top-tile-label">Status</div>
+        <div class="ma-progress-bar"
+             data-current-index="{{ $currentIndex }}"
+             data-update-url="{{ $updateUrl }}"
+             style="--progress: {{ count($pipelineSteps) > 1 ? $currentIndex / (count($pipelineSteps) - 1) : 0 }};">
+          @foreach($pipelineSteps as $idx => $step)
+            @php
+              $stepLabel = $statusLabels[$step] ?? $step;
+              $isDone    = $idx < $currentIndex;
+              $isCurrent = $idx === $currentIndex;
+            @endphp
+            <button type="button"
+                    class="ma-progress-step {{ $isDone ? 'is-done' : '' }} {{ $isCurrent ? 'is-current' : '' }}"
+                    data-status="{{ $step }}"
+                    data-step-index="{{ $idx }}"
+                    data-label="{{ $stepLabel }}">
+              <span class="ma-progress-dot">
+                @if($isDone)
+                  <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                @elseif($isCurrent)
+                  <span class="ma-progress-dot-inner"></span>
+                @endif
+              </span>
+              <span class="ma-progress-label">{{ $stepLabel }}</span>
+            </button>
+          @endforeach
         </div>
       </div>
-      <div style="margin-left: auto;">
-        <a href="{{ route('tenant.customers.show', $appointment->customer->id) }}"
-           class="ia-btn ia-btn--ghost ia-btn--sm">View customer →</a>
+    @endif
+
+    {{-- RIGHT: Customer + resource + actions tile --}}
+    <div class="ma-top-tile" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
+      @if($appointment->customer)
+        <div class="ma-top-customer">
+          <div class="ma-customer-avatar">{{ $maInitials }}</div>
+          <div class="ma-top-customer-main">
+            <div class="ma-customer-name">{{ $appointment->customer->first_name }} {{ $appointment->customer->last_name }}</div>
+            <div class="ma-customer-meta">
+              @if($appointment->customer->email)<span>{{ $appointment->customer->email }}</span>@endif
+              @if($appointment->customer->email && $appointment->customer->phone)<span class="sep">·</span>@endif
+              @if($appointment->customer->phone)<span>{{ $appointment->customer->phone }}</span>@endif
+            </div>
+          </div>
+          <a href="{{ route('tenant.customers.show', $appointment->customer->id) }}"
+             class="ma-top-view-link">View →</a>
+        </div>
+      @endif
+
+      {{-- Resource picker (data attrs match legacy so appointment-resource.js auto-binds) --}}
+      <div class="ma-top-resource">
+        <div class="ma-top-tile-label" style="margin-bottom: 6px;">Resource</div>
+        <div class="ma-top-resource-row">
+          @if($maCurrentResource)
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ $maCurrentResource->color_hex ?: '#888' }};flex-shrink:0;"></span>
+          @else
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#666;flex-shrink:0;"></span>
+          @endif
+          <select class="ia-input ia-input--sm" data-appt-resource-select style="flex: 1; min-width: 0;">
+            @foreach($availableResources as $r)
+              <option value="{{ $r->id }}" @selected($r->id === $appointment->resource_id)>
+                {{ $r->name }}@if($r->subtitle) · {{ $r->subtitle }}@endif
+              </option>
+            @endforeach
+          </select>
+          <button type="button"
+                  class="ia-btn ia-btn--ghost ia-btn--sm"
+                  data-appt-resource-save
+                  style="flex-shrink: 0;">Save</button>
+        </div>
       </div>
+
+      {{-- Actions (reschedule + cancel) --}}
+      @unless($isTerminal)
+        <div class="ma-top-actions">
+          <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-b-reschedule-btn" style="flex: 1;">↻ Reschedule</button>
+          <button type="button" class="ia-btn ia-btn--danger ia-btn--sm ma-cancel-btn" style="flex: 1;">Cancel</button>
+        </div>
+      @endunless
     </div>
-  @endif
+
+  </div>
 
   <div class="ma-layout">
 
@@ -1848,48 +1987,7 @@ input.ma-asset-name-edit:focus {
         @endif
       </div>
 
-      {{-- MARKER-PATCH-158-G2 — Resource card (matches legacy data-attr API so
-           public/js/tenant/appointment-resource.js auto-binds the save handler) --}}
-      <div class="ma-rail-card" data-appt-resource-card data-appt-id="{{ $appointment->id }}">
-        <div class="ma-rail-card-title">Resource</div>
-        @php
-          $maCurrentResource = $availableResources->firstWhere('id', $appointment->resource_id);
-        @endphp
-        <div class="ma-rail-row">
-          <span class="k">Currently</span>
-          <span class="v" style="display:flex;align-items:center;gap:6px;">
-            @if($maCurrentResource)
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ $maCurrentResource->color_hex ?: '#888' }}"></span>
-              {{ $maCurrentResource->name }}
-            @else
-              <span style="opacity:.5;">Unassigned</span>
-            @endif
-          </span>
-        </div>
-        <label class="ma-form-label" style="margin-top:12px;">Change to</label>
-        <select class="ia-input" data-appt-resource-select style="margin-bottom:8px;">
-          @foreach($availableResources as $r)
-            <option value="{{ $r->id }}" @selected($r->id === $appointment->resource_id)>
-              {{ $r->name }}@if($r->subtitle) · {{ $r->subtitle }}@endif
-            </option>
-          @endforeach
-        </select>
-        <button type="button"
-                class="ia-btn ia-btn--ghost ia-btn--sm"
-                data-appt-resource-save
-                style="width:100%;">Save resource</button>
-        <p style="font-size:11px;opacity:.4;margin-top:8px;line-height:1.4;">
-          If the new resource is busy at this time, you'll get a warning before the change is saved.
-        </p>
-      </div>
-
-      {{-- MARKER-PATCH-158-G2 — Actions (reschedule + cancel) --}}
-      @unless($isTerminal)
-        <div class="ma-rail-actions">
-          <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-b-reschedule-btn" style="width:100%;">↻ Reschedule</button>
-          <button type="button" class="ia-btn ia-btn--danger ia-btn--sm ma-cancel-btn" style="width:100%;">Cancel appointment</button>
-        </div>
-      @endunless
+      {{-- MARKER-PATCH-158-G3 — Resource card + Action buttons moved to top tile (G3) --}}
 
     </aside>
 
