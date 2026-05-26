@@ -70,7 +70,31 @@
 /* Panes */
 .set-pane { display:none; }
 .set-pane.active { display:block; }
-.set-section { max-width:680px; }
+
+/* MARKER-PATCH-150-POLISH-A — responsive card grid */
+.set-section {
+  display: block;
+  max-width: 1200px;
+}
+/* Each card in a settings form becomes a grid cell.
+   Cards default to ~half width (min 420px). Cards with .set-card--wide
+   span the full row. Save bars and headers are always full-row. */
+.set-section .ia-card {
+  margin-bottom: 0;
+}
+.set-section--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.set-section--grid .set-card--wide,
+.set-section--grid .set-savebar {
+  grid-column: 1 / -1;
+}
+@media (max-width: 880px) {
+  .set-section--grid { grid-template-columns: 1fr; }
+}
 
 /* Save bar — sticky at top of pane, dims when no changes */
 .set-savebar {
@@ -308,7 +332,7 @@
      ===================================================================== --}}
 <div class="set-pane active" id="pane-business" role="tabpanel">
 
-  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section" data-dirty-form>
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
     @csrf @method('PATCH')
     <input type="hidden" name="tab" value="business">
 
@@ -480,8 +504,8 @@
   </form>
 
   {{-- Drop-off methods (separate block — own endpoints, not part of the main form) --}}
-  <div class="set-section">
-    <div class="ia-card" style="margin-bottom:20px">
+  <div class="set-section set-section--grid">
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
       <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
         <span class="ia-card-title">Drop-off methods</span>
         <span style="font-size:11px;opacity:.45">Shown on the booking page so customers tell you how they're getting items to you</span>
@@ -547,7 +571,7 @@
      BRANDING — shop identity, logos, colors, typography
      ===================================================================== --}}
 <div class="set-pane" id="pane-branding" role="tabpanel">
-  <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section" data-dirty-form>
+  <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section set-section--grid" data-dirty-form>
     @csrf @method('PATCH')
     <input type="hidden" name="tab" value="branding">
 
@@ -572,7 +596,7 @@
       </div>
     </div>
 
-    <div class="ia-card" style="margin-bottom:20px">
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Logos</span></div>
       <p style="font-size:13px;opacity:.5;margin-bottom:16px">
         Upload two versions of your logo. The system automatically picks the right one based on the background color.
@@ -605,7 +629,7 @@
       </div>
     </div>
 
-    <div class="ia-card" style="margin-bottom:20px">
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Logo display size</span></div>
       <p style="font-size:13px;opacity:.5;margin-bottom:18px">
         Drag the sliders to set how big the uploaded logo renders. The preview shows what it'll look like.
@@ -726,7 +750,7 @@
      COMMUNICATION — email sender, SMS provider, notifications
      ===================================================================== --}}
 <div class="set-pane" id="pane-communication" role="tabpanel">
-  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section" data-dirty-form>
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
     @csrf @method('PATCH')
     <input type="hidden" name="tab" value="communication">
 
@@ -741,7 +765,7 @@
 
 
     {{-- Email sender details --}}
-    <div class="ia-card" style="margin-bottom:20px">
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Email sender details</span></div>
       <p style="font-size:13px;opacity:.5;margin-bottom:16px">
         All emails to your customers will be sent from these details.
@@ -904,7 +928,7 @@
     </div>
 
     {{-- Notifications --}}
-    <div class="ia-card" style="margin-bottom:20px">
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Notifications</span></div>
       <p style="font-size:13px;opacity:.5;margin-bottom:8px;line-height:1.55">
         Choose which messages get sent automatically. Email and SMS toggle independently per event.
@@ -984,7 +1008,7 @@
     </div>
   </form>
   {{-- MARKER-PATCH-150-FIX — Web analytics card, outside parent form (HTML disallows nested forms) --}}
-  <div class="ia-card" style="margin-bottom: 20px;">
+  <div class="ia-card set-card--wide" style="margin-bottom: 20px;">
     <div class="ia-card-head">
       <span class="ia-card-title">Web analytics</span>
     </div>
@@ -1019,7 +1043,7 @@
      ACCOUNT — booking URL, custom domain, subscription
      ===================================================================== --}}
 <div class="set-pane" id="pane-account" role="tabpanel">
-  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section" data-dirty-form>
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
     @csrf @method('PATCH')
     <input type="hidden" name="tab" value="account">
 
@@ -1060,7 +1084,7 @@
   </form>
 
   {{-- Subscription (read-only, separate from form) --}}
-  <div class="set-section">
+  <div class="set-section set-section--grid">
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Subscription</span></div>
 
@@ -1107,7 +1131,7 @@
      APPEARANCE — admin theme
      ===================================================================== --}}
 <div class="set-pane" id="pane-appearance" role="tabpanel">
-  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section" data-dirty-form>
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
     @csrf @method('PATCH')
     <input type="hidden" name="tab" value="appearance">
 
@@ -1156,7 +1180,7 @@
      PAYMENTS — Stripe + PayPal (preserved verbatim)
      ===================================================================== --}}
 <div class="set-pane" id="pane-payments" role="tabpanel">
-  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section" data-dirty-form>
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
     @csrf @method('PATCH')
     <input type="hidden" name="tab" value="payments">
 
