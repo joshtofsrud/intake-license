@@ -208,6 +208,38 @@
     background: var(--ia-accent, #BEF264);
     border-radius: 99px;
   }
+
+  /* MARKER-PATCH-151C — link-out panel CTAs */
+  .rep-link-out { display: flex; flex-direction: column; }
+  .rep-link-out p { flex: 1; }
+  .rep-link-out-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 9px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ia-accent, #BEF264);
+    background: rgba(190, 242, 100, 0.08);
+    border: 1px solid rgba(190, 242, 100, 0.2);
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .rep-link-out-btn:hover {
+    background: rgba(190, 242, 100, 0.14);
+    border-color: rgba(190, 242, 100, 0.35);
+  }
+  .rep-link-out-btn--ghost {
+    color: var(--ia-text-2, rgba(255, 255, 255, 0.78));
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--ia-border);
+  }
+  .rep-link-out-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
 </style>
 @endpush
 
@@ -501,6 +533,54 @@
       @endif
     @endif
   </div>
+
+  {{-- MARKER-PATCH-151C — link-out panels for data we deliberately don't track --}}
+  <div class="rep-two-col">
+    {{-- Top search terms — Search Console link --}}
+    <div class="rep-zone rep-link-out">
+      <div class="rep-zone-head">
+        <div>
+          <div class="rep-zone-title">Top search terms</div>
+          <div class="rep-zone-sub">What people searched before finding you</div>
+        </div>
+      </div>
+      <p style="font-size: 12.5px; line-height: 1.6; color: var(--ia-text-2, rgba(255,255,255,.78)); margin: 0 0 16px;">
+        We don't track search referrer query strings — Google strips them from referrer headers for privacy, and accurate search-term data is only available through Search Console.
+      </p>
+      <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" class="rep-link-out-btn">
+        Open Search Console
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M7 17L17 7M7 7h10v10"/>
+        </svg>
+      </a>
+    </div>
+
+    {{-- Top locations — GA-4 link --}}
+    <div class="rep-zone rep-link-out">
+      <div class="rep-zone-head">
+        <div>
+          <div class="rep-zone-title">Top locations</div>
+          <div class="rep-zone-sub">Where your visitors are based</div>
+        </div>
+      </div>
+      <p style="font-size: 12.5px; line-height: 1.6; color: var(--ia-text-2, rgba(255,255,255,.78)); margin: 0 0 16px;">
+        We deliberately don't store IP addresses or geolocate visitors. If you've connected GA-4 in Settings &rarr; Communication, Google Analytics breaks visits down by country, region, and city.
+      </p>
+      @if(!empty($tenant->settings['analytics_ga4_id'] ?? null))
+        <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" class="rep-link-out-btn">
+          Open GA-4 ({{ $tenant->settings['analytics_ga4_id'] }})
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7 17L17 7M7 7h10v10"/>
+          </svg>
+        </a>
+      @else
+        <a href="{{ route('tenant.settings.index') }}#communication" class="rep-link-out-btn rep-link-out-btn--ghost">
+          Connect Google Analytics &rarr;
+        </a>
+      @endif
+    </div>
+  </div>
+
   @endif
 </div>
 @endsection

@@ -26,6 +26,16 @@ Schedule::command('memberships:tick')
     ->runInBackground();
 
 // ----------------------------------------------------------------
+// MARKER-PATCH-151C — Prune tenant_funnel_events older than 90 days.
+// Cheap (single composite-indexed delete in chunks). Runs at 03:00 so
+// it finishes well before debug-log:prune at 03:30.
+// ----------------------------------------------------------------
+Schedule::command('funnel:prune')
+    ->dailyAt('03:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// ----------------------------------------------------------------
 // MARKER-PATCH-118 - Custom domain state polling
 // Cheap (per-row API call to Cloudflare, only for domains past their
 // backoff). Failures per-domain don't kill the batch.
