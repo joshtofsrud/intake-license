@@ -590,11 +590,16 @@
 /* MARKER-PATCH-158-G6 — Horizontal padding so the collapsible content
    doesn't sit flush against the asset card edges. Matches .ma-asset-head's
    18px so labels/inputs align vertically with the card title above. */
+/* MARKER-PATCH-158-G7 — Symmetric vertical padding + explicit min-height
+   so the Parts head and the Work order head render exactly the same
+   height when stacked. */
 .ma-asset-parts-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px 8px;
+  padding: 10px 18px;
+  min-height: 40px;
+  box-sizing: border-box;
   cursor: pointer;
   user-select: none;
   list-style: none;
