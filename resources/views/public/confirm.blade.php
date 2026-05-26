@@ -3,6 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+{{-- MARKER-PATCH-150 — fire booking_completed on confirm page load --}}
+<script>
+  // Coordinated with __intakeFunnel from _funnel_tracker partial. Defer until that has loaded.
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.__intakeFunnel && window.__intakeFunnel.send) {
+      window.__intakeFunnel.send('booking_completed');
+    }
+  });
+</script>
   <title>Booking confirmed — {{ $currentTenant->name }}</title>
   @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

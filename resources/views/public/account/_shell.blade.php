@@ -59,6 +59,8 @@
     .ac-intake-footer a { border-bottom: 1px solid currentColor; }
   </style>
   @stack('styles')
+  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
+  @include('public._funnel_tracker')
 </head>
 <body>
 @php

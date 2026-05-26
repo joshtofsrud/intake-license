@@ -546,6 +546,8 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
 
             // MARKER-PATCH-143 — Test email send endpoint (settings card)
             Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
+            // MARKER-PATCH-150 — Web analytics settings (GA-4 etc)
+            Route::post('/settings/analytics', [TenantControllers\AnalyticsSettingsController::class, 'update'])->name('settings.analytics.update');
 
             // MARKER-PATCH-147 — Tenant suppression list
             Route::get('/email/suppressions',         [TenantControllers\SuppressionController::class, 'index'])->name('suppressions.index');

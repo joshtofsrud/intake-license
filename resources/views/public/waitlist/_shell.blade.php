@@ -72,6 +72,8 @@
     .w-offer-slot-time{font-size:22px;font-weight:700;margin-top:4px;font-family:var(--p-font-heading)}
     .w-offer-service{font-size:17px;color:var(--p-text);margin-top:4px}
   </style>
+  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
+  @include('public._funnel_tracker')
 </head>
 <body>
 <div class="w-shell">
