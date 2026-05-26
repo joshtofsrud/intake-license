@@ -44,6 +44,9 @@ class SendDeliveryReminders extends Command
         $totalTenants = 0;
 
         foreach ($tenants->cursor() as $tenant) {
+            // MARKER-PATCH-156 — skip tenants without deliveries enabled
+            if (!$tenant->deliveries_enabled) continue;
+
             $totalTenants++;
             $tz = $tenant->timezone ?? config('app.timezone', 'UTC');
 

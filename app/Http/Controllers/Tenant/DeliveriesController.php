@@ -23,6 +23,8 @@ class DeliveriesController extends Controller
     public function index(Request $request): View
     {
         $tenant = tenant();
+        // MARKER-PATCH-156 — gate behind feature toggle
+        abort_unless($tenant->deliveries_enabled, 404);
         $view   = $request->query('view', 'week');
         if (!in_array($view, ['day', 'week'], true)) $view = 'week';
 
@@ -56,6 +58,7 @@ class DeliveriesController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $data = $this->validateInput($request);
 
         $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC');
@@ -102,6 +105,7 @@ class DeliveriesController extends Controller
     public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $delivery = TenantDelivery::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -143,6 +147,7 @@ class DeliveriesController extends Controller
     public function complete(string $id): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $delivery = TenantDelivery::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -159,6 +164,7 @@ class DeliveriesController extends Controller
     public function cancel(string $id): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $delivery = TenantDelivery::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)

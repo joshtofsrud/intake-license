@@ -461,6 +461,24 @@
       </div>
     </div>
 
+    {{-- MARKER-PATCH-156 — Deliveries --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Deliveries</span></div>
+      <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:14px;font-weight:500">Enable deliveries</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Internal pickup &amp; dropoff scheduling. Adds a Deliveries pill to your Schedule menu.</div>
+        </div>
+        <input type="hidden" name="deliveries_enabled" id="deliveries_enabled_input" value="{{ $currentTenant->deliveries_enabled ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ $currentTenant->deliveries_enabled ? 'on' : '' }}"
+          id="deliveries-toggle-btn"
+          aria-label="Enable deliveries">
+          <span class="ia-toggle-sr">{{ $currentTenant->deliveries_enabled ? 'Enabled' : 'Disabled' }}</span>
+        </button>
+      </div>
+    </div>
+
     {{-- Tax --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head"><span class="ia-card-title">Sales tax</span></div>
@@ -975,29 +993,50 @@
         </div>
       </div>
 
-      {{-- MARKER-PATCH-152C — Delivery scheduled (WIRED) --}}
-      <div class="notif-row">
+      {{-- MARKER-PATCH-152C — Delivery scheduled --}}
+      {{-- MARKER-PATCH-156 — gated by deliveries_enabled --}}
+      <div class="notif-row {{ $currentTenant->deliveries_enabled ? '' : 'is-disabled' }}">
         <div class="notif-row-main">
-          <div class="notif-row-title">Delivery scheduled</div>
+          <div class="notif-row-title">
+            Delivery scheduled
+            @unless($currentTenant->deliveries_enabled)
+              <span class="notif-coming">Enable Deliveries to use</span>
+            @endunless
+          </div>
           <div class="notif-row-desc">Sent to the customer when you schedule a pickup or dropoff.</div>
         </div>
         <div class="notif-row-toggles">
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_delivery_scheduled_email" id="notify_delivery_email_input" value="{{ $notifyDeliveryEmail ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryEmail ? 'on' : '' }}"
-              id="notify-delivery-email-btn" aria-label="Email delivery scheduled">
-              <span class="ia-toggle-sr">{{ $notifyDeliveryEmail ? 'On' : 'Off' }}</span>
-            </button>
-            <span>Email</span>
-          </label>
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_delivery_scheduled_sms" id="notify_delivery_sms_input" value="{{ $notifyDeliverySms ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliverySms ? 'on' : '' }}"
-              id="notify-delivery-sms-btn" aria-label="SMS delivery scheduled">
-              <span class="ia-toggle-sr">{{ $notifyDeliverySms ? 'On' : 'Off' }}</span>
-            </button>
-            <span>SMS</span>
-          </label>
+          @if($currentTenant->deliveries_enabled)
+            <label class="notif-row-toggle-label">
+              <input type="hidden" name="notify_delivery_scheduled_email" id="notify_delivery_email_input" value="{{ $notifyDeliveryEmail ? '1' : '0' }}">
+              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryEmail ? 'on' : '' }}"
+                id="notify-delivery-email-btn" aria-label="Email delivery scheduled">
+                <span class="ia-toggle-sr">{{ $notifyDeliveryEmail ? 'On' : 'Off' }}</span>
+              </button>
+              <span>Email</span>
+            </label>
+            <label class="notif-row-toggle-label">
+              <input type="hidden" name="notify_delivery_scheduled_sms" id="notify_delivery_sms_input" value="{{ $notifyDeliverySms ? '1' : '0' }}">
+              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliverySms ? 'on' : '' }}"
+                id="notify-delivery-sms-btn" aria-label="SMS delivery scheduled">
+                <span class="ia-toggle-sr">{{ $notifyDeliverySms ? 'On' : 'Off' }}</span>
+              </button>
+              <span>SMS</span>
+            </label>
+          @else
+            <label class="notif-row-toggle-label">
+              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="Email delivery scheduled (disabled)">
+                <span class="ia-toggle-sr">Off</span>
+              </button>
+              <span>Email</span>
+            </label>
+            <label class="notif-row-toggle-label">
+              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="SMS delivery scheduled (disabled)">
+                <span class="ia-toggle-sr">Off</span>
+              </button>
+              <span>SMS</span>
+            </label>
+          @endif
         </div>
       </div>
 
@@ -1027,29 +1066,50 @@
         </div>
       </div>
 
-      {{-- MARKER-PATCH-155 — Delivery reminder (WIRED) --}}
-      <div class="notif-row">
+      {{-- MARKER-PATCH-155 — Delivery reminder --}}
+      {{-- MARKER-PATCH-156 — gated by deliveries_enabled --}}
+      <div class="notif-row {{ $currentTenant->deliveries_enabled ? '' : 'is-disabled' }}">
         <div class="notif-row-main">
-          <div class="notif-row-title">Delivery reminder</div>
+          <div class="notif-row-title">
+            Delivery reminder
+            @unless($currentTenant->deliveries_enabled)
+              <span class="notif-coming">Enable Deliveries to use</span>
+            @endunless
+          </div>
           <div class="notif-row-desc">Reminds the customer 24 hours before a scheduled pickup or dropoff.</div>
         </div>
         <div class="notif-row-toggles">
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_delivery_reminder_email" id="notify_delivery_reminder_email_input" value="{{ $notifyDeliveryReminderEmail ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderEmail ? 'on' : '' }}"
-              id="notify-delivery-reminder-email-btn" aria-label="Email delivery reminder">
-              <span class="ia-toggle-sr">{{ $notifyDeliveryReminderEmail ? 'On' : 'Off' }}</span>
-            </button>
-            <span>Email</span>
-          </label>
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_delivery_reminder_sms" id="notify_delivery_reminder_sms_input" value="{{ $notifyDeliveryReminderSms ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderSms ? 'on' : '' }}"
-              id="notify-delivery-reminder-sms-btn" aria-label="SMS delivery reminder">
-              <span class="ia-toggle-sr">{{ $notifyDeliveryReminderSms ? 'On' : 'Off' }}</span>
-            </button>
-            <span>SMS</span>
-          </label>
+          @if($currentTenant->deliveries_enabled)
+            <label class="notif-row-toggle-label">
+              <input type="hidden" name="notify_delivery_reminder_email" id="notify_delivery_reminder_email_input" value="{{ $notifyDeliveryReminderEmail ? '1' : '0' }}">
+              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderEmail ? 'on' : '' }}"
+                id="notify-delivery-reminder-email-btn" aria-label="Email delivery reminder">
+                <span class="ia-toggle-sr">{{ $notifyDeliveryReminderEmail ? 'On' : 'Off' }}</span>
+              </button>
+              <span>Email</span>
+            </label>
+            <label class="notif-row-toggle-label">
+              <input type="hidden" name="notify_delivery_reminder_sms" id="notify_delivery_reminder_sms_input" value="{{ $notifyDeliveryReminderSms ? '1' : '0' }}">
+              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderSms ? 'on' : '' }}"
+                id="notify-delivery-reminder-sms-btn" aria-label="SMS delivery reminder">
+                <span class="ia-toggle-sr">{{ $notifyDeliveryReminderSms ? 'On' : 'Off' }}</span>
+              </button>
+              <span>SMS</span>
+            </label>
+          @else
+            <label class="notif-row-toggle-label">
+              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="Email delivery reminder (disabled)">
+                <span class="ia-toggle-sr">Off</span>
+              </button>
+              <span>Email</span>
+            </label>
+            <label class="notif-row-toggle-label">
+              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="SMS delivery reminder (disabled)">
+                <span class="ia-toggle-sr">Off</span>
+              </button>
+              <span>SMS</span>
+            </label>
+          @endif
         </div>
       </div>
 
@@ -1401,6 +1461,8 @@
     });
   }
   bindToggle('classes-toggle-btn',          'classes_enabled_input');
+  // MARKER-PATCH-156
+  bindToggle('deliveries-toggle-btn',       'deliveries_enabled_input');
   bindToggle('tax-services-toggle-btn',     'tax_services_default_input');
   bindToggle('tax-exempt-toggle-btn',       'tax_supports_exempt_input');
   bindToggle('sms-enabled-toggle-btn',      'sms_enabled_input');

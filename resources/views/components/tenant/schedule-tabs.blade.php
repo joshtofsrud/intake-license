@@ -30,6 +30,8 @@
     Classes
   </a>
   @endif
+  {{-- MARKER-PATCH-156 — gate Deliveries pill behind feature toggle --}}
+  @if($currentTenant->deliveries_enabled)
   <a href="{{ route('tenant.deliveries.index') }}"
      class="ia-schedule-pill {{ $active === 'deliveries' ? 'is-active' : '' }}">
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -40,4 +42,5 @@
     </svg>
     Deliveries
   </a>
+  @endif
 </div>

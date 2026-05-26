@@ -20,6 +20,7 @@ class DeliveryResourcesController extends Controller
     public function index(Request $request): View
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
 
         $resources = TenantDeliveryResource::query()
             ->where('tenant_id', $tenant->id)
@@ -36,6 +37,7 @@ class DeliveryResourcesController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $data = $request->validate([
             'name'      => ['required', 'string', 'max:120'],
             'subtitle'  => ['nullable', 'string', 'max:160'],
@@ -61,6 +63,7 @@ class DeliveryResourcesController extends Controller
     public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $res = TenantDeliveryResource::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -86,6 +89,7 @@ class DeliveryResourcesController extends Controller
     public function destroy(string $id): RedirectResponse
     {
         $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $res = TenantDeliveryResource::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
