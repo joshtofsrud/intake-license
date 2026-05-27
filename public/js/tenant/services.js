@@ -1228,6 +1228,12 @@
     renderInlineServiceCreator(state.categories[0].id);
   }
 
+  // MARKER-PATCH-167 — inline service creator UX:
+  //   - Explicit "Save & edit details ->" button (was hidden behind keyboard shortcut)
+  //   - Visible keyboard hint
+  //   - Plain Enter / blur saves WITHOUT auto-opening the drawer (no surprise jump)
+  //   - "Save & edit details" saves AND opens the drawer AND scrolls to it
+  //     so the row movement feels intentional, not jarring.
   function renderInlineServiceCreator(categoryId) {
     var body = document.getElementById('sv-list-body');
     if (!body) return;
@@ -1238,34 +1244,63 @@
       return '<option value="' + esc(c.id) + '"' + (c.id === categoryId ? ' selected' : '') + '>' + esc(c.name) + '</option>';
     }).join('');
 
+    // Two-row layout: the normal grid row + a hint/action strip that
+    // shares the same accent background. The strip lives inside the
+    // expanded-section pattern so its presence isn't disruptive.
     var row = document.createElement('div');
-    row.className = 'sv-list-row';
+    row.className = 'sv-list-row sv-inline-create-row';
     row.id = 'sv-inline-create-row';
     row.style.background = 'var(--ia-accent-soft)';
     row.innerHTML = ''
       + '<div class="sv-drag">+</div>'
-      + '<div><input type="text" class="sv-cell-input" id="sv-inline-name" placeholder="New service name…" style="padding:4px 7px;background:var(--ia-input-bg);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-sm);font-size:13.5px"></div>'
+      + '<div><input type="text" class="sv-cell-input" id="sv-inline-name" placeholder="New service name…" style="padding:4px 7px;background:var(--ia-input-bg);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-sm);font-size:13.5px;width:100%"></div>'
       + '<div><select class="sv-drawer-select" id="sv-inline-category" style="padding:4px 7px;font-size:12.5px">' + categoryOptions + '</select></div>'
       + '<div class="sv-num" style="opacity:.4;font-size:12px">—</div>'
       + '<div class="sv-num" style="opacity:.4;font-size:12px">30 min</div>'
       + '<div style="text-align:center;opacity:.4;font-size:11px">auto</div>'
       + '<div><button type="button" class="sv-expand-btn" id="sv-inline-cancel" title="Cancel">×</button></div>';
 
+    // Action/hint strip sits as a sibling row, spanning all columns.
+    var strip = document.createElement('div');
+    strip.className = 'sv-inline-create-strip';
+    strip.id = 'sv-inline-create-strip';
+    strip.style.cssText = 'background:var(--ia-accent-soft);border-bottom:0.5px solid var(--ia-border);padding:8px 14px 12px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:12px';
+    strip.innerHTML = ''
+      + '<div style="color:var(--ia-text-muted);font-size:11.5px">'
+      +   '<kbd style="background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:3px;padding:1px 5px;font-family:inherit;font-size:11px">Enter</kbd> save · '
+      +   '<kbd style="background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:3px;padding:1px 5px;font-family:inherit;font-size:11px">Esc</kbd> cancel'
+      + '</div>'
+      + '<div style="display:flex;gap:6px">'
+      +   '<button type="button" id="sv-inline-save-edit" class="ia-btn ia-btn--sm" style="font-size:11.5px;padding:5px 10px">Save &amp; edit details →</button>'
+      +   '<button type="button" id="sv-inline-save" class="ia-btn ia-btn--sm ia-btn--primary" style="font-size:11.5px;padding:5px 10px">Save</button>'
+      + '</div>';
+
     body.insertBefore(row, body.firstChild);
+    body.insertBefore(strip, row.nextSibling);
 
     var nameInput = row.querySelector('#sv-inline-name');
     var catSelect = row.querySelector('#sv-inline-category');
     var cancelBtn = row.querySelector('#sv-inline-cancel');
+    var saveBtn   = strip.querySelector('#sv-inline-save');
+    var saveEditBtn = strip.querySelector('#sv-inline-save-edit');
 
     nameInput.focus();
 
     var committed = false;
+
+    function cleanupUI() {
+      row.remove();
+      strip.remove();
+    }
+
     function cancel() {
       if (committed) return;
       committed = true;
-      row.remove();
+      cleanupUI();
     }
-    function commit() {
+
+    // openDrawer === true -> auto-expand the new service's drawer + scroll to it.
+    function commit(openDrawer) {
       if (committed) return;
       var name = nameInput.value.trim();
       if (!name) { cancel(); return; }
@@ -1273,31 +1308,53 @@
       row.style.opacity = '.6';
       nameInput.disabled = true;
       catSelect.disabled = true;
+      saveBtn.disabled = true;
+      saveEditBtn.disabled = true;
       ajax(D.urls.servicesBase, 'POST', {
         op: 'save_service', name: name, category_id: catSelect.value,
         price_cents: 0, prep_before_minutes: 0,
         duration_minutes: 30, cleanup_after_minutes: 0, slot_weight: 1,
       }).then(function (r) {
-        row.remove();
+        cleanupUI();
         if (!serviceResponseOk(r)) { alert('Service save failed: ' + serviceErrorMessage(r)); return; }
         var newService = normalizeService(Object.assign({ addons: [] }, r.json.data));
         var cat = state.categories.find(function (c) { return c.id === catSelect.value; });
         if (cat) cat.services.push(newService);
-        state.expanded = newService.id;
-        renderAll();
+
+        if (openDrawer) {
+          state.expanded = newService.id;
+          renderAll();
+          // Scroll the newly-expanded row into view so the position change feels intentional.
+          requestAnimationFrame(function () {
+            var newRow = document.querySelector('[data-service="' + newService.id + '"]');
+            if (newRow && newRow.scrollIntoView) {
+              newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          });
+        } else {
+          // Plain save: no auto-expand. New service appears in its sorted
+          // category position. User can click it to open the drawer.
+          state.expanded = null;
+          renderAll();
+        }
       });
     }
 
     nameInput.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+      if (ev.key === 'Enter')  { ev.preventDefault(); commit(false); }
       if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
     });
+    // Blur commits as a save without auto-expand. Only triggers if focus
+    // hasn't moved to one of the row's own controls.
     nameInput.addEventListener('blur', function () {
       setTimeout(function () {
-        if (document.activeElement !== catSelect && document.activeElement !== cancelBtn) commit();
+        var inRow = row.contains(document.activeElement) || strip.contains(document.activeElement);
+        if (!inRow) commit(false);
       }, 120);
     });
     cancelBtn.addEventListener('click', cancel);
+    saveBtn.addEventListener('click', function () { commit(false); });
+    saveEditBtn.addEventListener('click', function () { commit(true); });
   }
 
   function renderInlineCategoryCreator(onCreated) {
