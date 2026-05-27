@@ -31,6 +31,8 @@ class TenantSale extends Model
         'stripe_payment_intent_id', 'stripe_charge_id',
         'card_brand', 'card_last4', 'card_funding',
         'checkout_session_id',
+        // MARKER-PATCH-171 — Stripe refund ID for refund-direction rows
+        'stripe_refund_id',
         'register_id',
         'location_id',
         'quote_expires_at',

@@ -749,6 +749,13 @@ class RegisterController extends Controller
             $sale = $result['sale'];
             $refund = $result['refund'];
 
+            // MARKER-PATCH-171 — fire Stripe refund if refund half exists and
+            // refund_method=card. Mirrors storeRefund behavior for the mixed path.
+            $stripeRefundError = null;
+            if ($refund && ($validated['refund']['refund_method'] ?? null) === 'card') {
+                $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
+            }
+
             return response()->json([
                 'ok'             => true,
                 'transaction_id' => $result['transaction_id'],
@@ -757,6 +764,9 @@ class RegisterController extends Controller
                 'total_cents'    => ($sale?->total_cents ?? 0) - ($refund?->total_cents ?? 0),
                 'sale_total'     => $sale?->total_cents ?? 0,
                 'refund_total'   => $refund?->total_cents ?? 0,
+                // MARKER-PATCH-171 — Stripe refund outcome
+                'stripe_refund_error' => $stripeRefundError ?? null,
+                'stripe_refund_id'    => $refund?->fresh()?->stripe_refund_id,
                 'redirect'       => route('tenant.register.index'),
             ]);
         } catch (SaleValidationException $e) {
@@ -1325,16 +1335,75 @@ class RegisterController extends Controller
                 'item_ids'           => $validated['item_ids'],
             ]);
 
+            // MARKER-PATCH-171 — fire a Stripe refund when the refund is to card
+            // AND the original sale was paid via direct-payments Stripe flow.
+            // Failure here is REPORTED but doesn\'t roll back the Intake refund row —
+            // the operator can retry from sale detail (or via Stripe dashboard).
+            $stripeRefundError = null;
+            if ($validated['refund_method'] === 'card') {
+                $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
+            }
+
             return response()->json([
-                'ok'          => true,
-                'refund_id'   => $refund->id,
-                'sale_number' => $refund->sale_number,
-                'total_cents' => $refund->total_cents,
+                'ok'                  => true,
+                'refund_id'           => $refund->id,
+                'sale_number'         => $refund->sale_number,
+                'total_cents'         => $refund->total_cents,
+                'stripe_refund_error' => $stripeRefundError,
+                'stripe_refund_id'    => $refund->fresh()->stripe_refund_id,
             ]);
         } catch (SaleValidationException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (InventoryStockException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * MARKER-PATCH-171 — shared helper to fire a Stripe refund for a refund row.
+     * Returns null on success, or an error message string on failure.
+     *
+     * The refund row\'s own stripe_payment_intent_id is copied from the original
+     * sale in SaleService::createRefund via the existing snapshot machinery —
+     * but to be safe and explicit, we read the original sale fresh from the DB
+     * and use ITS stripe_payment_intent_id (the refund row may not have one set
+     * depending on snapshot config).
+     */
+    protected function fireStripeRefund(\App\Models\Tenant $tenant, \App\Models\Tenant\TenantSale $refundRow): ?string
+    {
+        if (! $tenant->direct_payments_enabled) {
+            // Not an error — just nothing to do.
+            return null;
+        }
+
+        $original = \App\Models\Tenant\TenantSale::find($refundRow->refund_of_sale_id);
+        if (! $original || ! $original->stripe_payment_intent_id) {
+            // Original wasn\'t paid via Stripe; nothing to refund there.
+            return null;
+        }
+
+        try {
+            $direct = new DirectPaymentsService($tenant);
+            $stripeRefund = $direct->refundCharge(
+                $original->stripe_payment_intent_id,
+                (int) $refundRow->total_cents,
+                [
+                    'intake_refund_sale_id'   => $refundRow->id,
+                    'intake_original_sale_id' => $original->id,
+                ]
+            );
+            $refundRow->stripe_refund_id = $stripeRefund->id;
+            $refundRow->save();
+            return null;
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.refund_failed', [
+                'tenant_id'        => $tenant->id,
+                'refund_sale_id'   => $refundRow->id,
+                'original_sale_id' => $original->id,
+                'pi'               => $original->stripe_payment_intent_id,
+                'error'            => $e->getMessage(),
+            ]);
+            return $e->getMessage();
         }
     }
 

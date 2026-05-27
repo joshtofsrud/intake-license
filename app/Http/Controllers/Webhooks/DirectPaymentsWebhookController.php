@@ -86,8 +86,15 @@ class DirectPaymentsWebhookController extends Controller
                 $this->onPaymentIntentSucceeded($event, $tenant);
                 break;
 
+            // MARKER-PATCH-171 — refunds initiated outside Intake (Stripe
+            // dashboard, direct API call, our own refundCharge) all emit
+            // charge.refunded. Sync state so a sale paid via card can\'t
+            // show "paid" in Intake when Stripe says it\'s been refunded.
+            case 'charge.refunded':
+                $this->onChargeRefunded($event, $tenant);
+                break;
+
             // 2B will handle: checkout.session.completed
-            // 2C will handle: charge.refunded
 
             default:
                 Log::info('direct_payments_webhook.ignored_event', [
@@ -133,6 +140,71 @@ class DirectPaymentsWebhookController extends Controller
             'pi'        => $piId,
             'amount'    => $pi->amount,
             'metadata'  => $pi->metadata ?? null,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-171 — charge.refunded fires for every refund, whether
+     * initiated from Intake or from the Stripe dashboard.
+     *
+     * Intake-initiated refunds already have the refund row + stripe_refund_id
+     * stored synchronously (storeRefund + fireStripeRefund). We just log.
+     *
+     * Stripe-dashboard refunds arrive here without a corresponding Intake
+     * refund row. We update the ORIGINAL sale\'s payment_status to 'refunded'
+     * so the sale doesn\'t show stale "paid" in Intake. We do NOT auto-create
+     * a refund row — that\'s a real reverse-inventory + accounting operation
+     * the staff should do explicitly via the register.
+     */
+    protected function onChargeRefunded(\Stripe\Event $event, Tenant $tenant): void
+    {
+        $charge = $event->data->object;
+        $piId = $charge->payment_intent ?? null;
+        if (! $piId) {
+            Log::info('direct_payments_webhook.charge_refunded_no_pi', [
+                'tenant_id' => $tenant->id,
+                'charge_id' => $charge->id ?? null,
+            ]);
+            return;
+        }
+
+        $original = TenantSale::where('tenant_id', $tenant->id)
+            ->where('stripe_payment_intent_id', $piId)
+            ->whereNull('refund_of_sale_id') // only update the original, not refund rows
+            ->first();
+
+        if (! $original) {
+            Log::info('direct_payments_webhook.charge_refunded_unknown_sale', [
+                'tenant_id' => $tenant->id,
+                'pi'        => $piId,
+            ]);
+            return;
+        }
+
+        // Check for an Intake-recorded refund covering this charge. If one
+        // already exists, this event is a duplicate (we initiated it) and we
+        // don\'t need to mutate state.
+        $hasIntakeRefund = TenantSale::where('tenant_id', $tenant->id)
+            ->where('refund_of_sale_id', $original->id)
+            ->exists();
+
+        if ($hasIntakeRefund) {
+            return;
+        }
+
+        // Stripe-dashboard refund with no matching Intake row. Mark the
+        // original as refunded so it doesn\'t look paid anymore.
+        $refundedAmount = (int) ($charge->amount_refunded ?? 0);
+        $totalAmount    = (int) ($charge->amount ?? 0);
+        $original->payment_status = ($refundedAmount >= $totalAmount) ? 'refunded' : 'partial_refund';
+        $original->save();
+
+        Log::warning('direct_payments_webhook.external_refund_detected', [
+            'tenant_id'       => $tenant->id,
+            'original_sale'   => $original->id,
+            'pi'              => $piId,
+            'refunded_amount' => $refundedAmount,
+            'total_amount'    => $totalAmount,
         ]);
     }
 }

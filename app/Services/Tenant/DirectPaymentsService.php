@@ -101,30 +101,93 @@ class DirectPaymentsService
      */
     public function extractCardDetails(\Stripe\PaymentIntent $pi): array
     {
+        // MARKER-PATCH-171 — handles two response shapes:
+        //   1. Classic: PI.latest_charge.payment_method_details.card.{brand,last4,funding}
+        //   2. Payment Element with automatic methods: same path, but charge
+        //      may come back as a string ID until we explicitly expand it.
+        //   3. Fallback: pull from PI.payment_method_options.card or
+        //      retrieve the PaymentMethod object directly.
+        $chargeId = null;
         $charge = $pi->latest_charge ?? null;
-        if (! $charge || ! is_object($charge)) {
-            // Could be a string ID if not expanded; we always expand above
-            // but defensively try to expand it.
-            if (is_string($charge)) {
-                try {
-                    $charge = $this->client()->charges->retrieve($charge, ['expand' => ['payment_method_details']]);
-                } catch (\Throwable $e) {
-                    return ['brand' => null, 'last4' => null, 'funding' => null, 'charge_id' => null];
-                }
-            } else {
-                return ['brand' => null, 'last4' => null, 'funding' => null, 'charge_id' => null];
+
+        if (is_string($charge)) {
+            try {
+                $charge = $this->client()->charges->retrieve($charge, [
+                    'expand' => ['payment_method_details'],
+                ]);
+            } catch (\Throwable $e) {
+                $charge = null;
             }
         }
 
-        $pmDetails = $charge->payment_method_details ?? null;
-        $card = $pmDetails?->card ?? null;
+        $brand = null; $last4 = null; $funding = null;
+
+        if (is_object($charge)) {
+            $chargeId = $charge->id ?? null;
+            $pmDetails = $charge->payment_method_details ?? null;
+            if ($pmDetails) {
+                $card = $pmDetails->card ?? null;
+                if ($card) {
+                    $brand   = $card->brand ?? null;
+                    $last4   = $card->last4 ?? null;
+                    $funding = $card->funding ?? null;
+                }
+            }
+        }
+
+        // Fallback: hit the PaymentMethod directly if we still don\'t have it.
+        // Happens when the PI confirms via certain digital-wallet routes that
+        // surface differently in latest_charge.
+        if (! $brand && ! $last4) {
+            $pmId = is_string($pi->payment_method ?? null) ? $pi->payment_method : null;
+            if ($pmId) {
+                try {
+                    $pm = $this->client()->paymentMethods->retrieve($pmId);
+                    if ($pm->type === 'card' && $pm->card) {
+                        $brand   = $pm->card->brand ?? null;
+                        $last4   = $pm->card->last4 ?? null;
+                        $funding = $pm->card->funding ?? null;
+                    }
+                } catch (\Throwable $e) {
+                    // Best effort — leave nulls.
+                }
+            }
+        }
 
         return [
-            'brand'     => $card?->brand ?? null,
-            'last4'     => $card?->last4 ?? null,
-            'funding'   => $card?->funding ?? null,
-            'charge_id' => $charge->id ?? null,
+            'brand'     => $brand,
+            'last4'     => $last4,
+            'funding'   => $funding,
+            'charge_id' => $chargeId,
         ];
+    }
+
+    /**
+     * MARKER-PATCH-171 — Refund a Stripe charge for a sale that was paid
+     * via the direct-payments flow.
+     *
+     * $amountCents=null means full refund. Stripe handles partial.
+     * $metadata is merged into the refund\'s metadata for traceability.
+     *
+     * Returns the Refund object on success. Throws on failure — the caller
+     * must decide how to handle (different from refundPaymentIntent helper
+     * in 170B, which never throws; that one is used for auto-cleanup paths
+     * where errors are non-fatal).
+     */
+    public function refundCharge(string $piId, ?int $amountCents = null, array $metadata = []): \Stripe\Refund
+    {
+        $params = [
+            'payment_intent' => $piId,
+            'reason'         => 'requested_by_customer',
+            'metadata'       => array_filter(array_merge([
+                'intake_tenant_id'    => $this->tenant->id,
+                'intake_source'       => 'sale_refund',
+            ], $metadata)),
+        ];
+        if ($amountCents !== null) {
+            $params['amount'] = $amountCents;
+        }
+        return $this->client()->refunds->create($params);
     }
 
     /**
