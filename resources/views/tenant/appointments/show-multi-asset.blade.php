@@ -219,7 +219,12 @@
   border: 1px solid var(--ia-border);
   border-radius: 10px;
   margin-bottom: 12px;
-  overflow: hidden;
+  /* MARKER-PATCH-158-G11 — Removed overflow:hidden; was clipping the
+     per-asset part-picker autocomplete dropdown (positioned absolute
+     below the input, extending past the card edge). The defensive
+     clipping wasn't actually needed — child backgrounds don't bleed
+     past the rounded corners. */
+  position: relative;
 }
 .ma-asset-head {
   display: grid;
