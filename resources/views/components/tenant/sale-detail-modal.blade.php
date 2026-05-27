@@ -355,6 +355,69 @@
         + '</div>';
     }
 
+    // MARKER-PATCH-161 — Email send log + re-send actions (only on committed, non-draft, non-quote sales)
+    if (sale.sale_number && !sale.is_draft && !sale.is_quote) {
+      var log = sale.send_log || [];
+      var defaultEmail = (sale.customer && sale.customer.email) ? sale.customer.email : '';
+
+      html += '<div class="sd-section" style="margin-top:24px">'
+        + '<div class="sd-section-h" style="display:flex;justify-content:space-between;align-items:center">'
+        +   '<span>Email receipts</span>'
+        +   '<span style="font-size:11px;opacity:.5;font-weight:400">' + log.length + ' send' + (log.length === 1 ? '' : 's') + '</span>'
+        + '</div>';
+
+      if (log.length > 0) {
+        html += '<div style="background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:6px;padding:10px 12px;margin-bottom:10px">';
+        log.slice(0, 5).forEach(function(entry, idx) {
+          var statusBadge = '';
+          if (entry.status === 'sent')    statusBadge = '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(34,139,34,.15);color:#3fb04a;text-transform:uppercase;letter-spacing:.05em;font-weight:600">Sent</span>';
+          else if (entry.status === 'failed')  statusBadge = '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(248,113,113,.15);color:#f87171;text-transform:uppercase;letter-spacing:.05em;font-weight:600">Failed</span>';
+          else if (entry.status === 'skipped') statusBadge = '<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(150,150,150,.15);color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Skipped</span>';
+
+          var border = idx < Math.min(log.length, 5) - 1 ? 'border-bottom:0.5px solid var(--ia-border);' : '';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:12.5px;' + border + '">'
+            +   '<div style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+            +     '<span style="color:var(--ia-text)">' + escapeHtml(entry.recipient || '(none)') + '</span>'
+            +     '<span style="color:var(--ia-text-dim);margin-left:8px;font-size:11px">— ' + escapeHtml(fmtDate(entry.created_at)) + '</span>'
+            +     (entry.error ? '<div style="font-size:10.5px;color:#f87171;margin-top:2px">' + escapeHtml(entry.error) + '</div>' : '')
+            +   '</div>'
+            +   statusBadge
+            + '</div>';
+        });
+        html += '</div>';
+      } else {
+        html += '<div style="font-size:12.5px;color:var(--ia-text-dim);padding:8px 0;margin-bottom:10px">No receipts have been sent yet.</div>';
+      }
+
+      // Action buttons
+      var resendDisabled = defaultEmail ? '' : 'disabled';
+      var resendLabel = defaultEmail
+        ? 'Re-send to ' + escapeHtml(defaultEmail)
+        : 'Re-send (no email on file)';
+
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +   '<button type="button" class="ia-btn ia-btn--secondary ia-btn--sm" data-action="resend-default" ' + resendDisabled + '>'
+        +     resendLabel
+        +   '</button>'
+        +   '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-action="resend-other">'
+        +     '+ Send to another email'
+        +   '</button>'
+        + '</div>';
+
+      // Inline form for "send to another"
+      html += '<div data-resend-form style="display:none;margin-top:10px;padding:10px;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:6px">'
+        +   '<input type="email" data-resend-input class="ia-input" placeholder="email@example.com" style="margin-bottom:8px;font-size:13px">'
+        +   '<div style="display:flex;gap:6px">'
+        +     '<button type="button" class="ia-btn ia-btn--primary ia-btn--sm" data-action="resend-submit">Send</button>'
+        +     '<button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-action="resend-cancel">Cancel</button>'
+        +   '</div>'
+        + '</div>';
+
+      html += '<div data-resend-toast style="display:none;margin-top:10px;padding:8px 12px;background:rgba(190,242,100,.08);border:0.5px solid rgba(190,242,100,.3);border-radius:6px;font-size:12.5px;color:var(--ia-text)"></div>';
+
+      html += '</div>';
+    }
+
     bodyEl.innerHTML = html;
 
     // Wire any inline open-sale links (refund-of / refunds list)
@@ -364,6 +427,87 @@
         window.openSaleModal(a.dataset.openSale);
       });
     });
+
+    // MARKER-PATCH-161 — Re-send wiring
+    var resendUrl = @json(route('tenant.sales.resend_receipt', ['id' => '__ID__']));
+    var saleId    = sale.id;
+    var defaultEmail = (sale.customer && sale.customer.email) ? sale.customer.email : '';
+
+    function showResendToast(msg, isError) {
+      var toast = bodyEl.querySelector('[data-resend-toast]');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.display = '';
+      toast.style.background = isError ? 'rgba(248,113,113,.08)' : 'rgba(190,242,100,.08)';
+      toast.style.borderColor = isError ? 'rgba(248,113,113,.3)' : 'rgba(190,242,100,.3)';
+      setTimeout(function(){ toast.style.display = 'none'; }, 4000);
+    }
+
+    function postResend(email, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      var url = resendUrl.replace('__ID__', encodeURIComponent(saleId));
+      var headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      var csrf = document.querySelector('meta[name="csrf-token"]');
+      if (csrf) headers['X-CSRF-TOKEN'] = csrf.getAttribute('content');
+
+      return fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: headers,
+        body: JSON.stringify(email ? { email: email } : {}),
+      })
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok && d.ok, body: d }; }); })
+      .then(function(res){
+        if (res.ok) {
+          showResendToast('Re-send queued. It will arrive in a few seconds.', false);
+          // Refresh the modal to show the new log entry after a short delay.
+          setTimeout(function(){ window.openSaleModal(saleId); }, 1500);
+        } else {
+          showResendToast((res.body && res.body.error) || 'Could not re-send.', true);
+        }
+      })
+      .catch(function(){ showResendToast('Network error.', true); });
+    }
+
+    var resendDefault = bodyEl.querySelector('[data-action="resend-default"]');
+    if (resendDefault) {
+      resendDefault.addEventListener('click', function(){
+        if (!defaultEmail) return;
+        postResend(null, resendDefault);
+      });
+    }
+
+    var resendOther = bodyEl.querySelector('[data-action="resend-other"]');
+    var resendForm  = bodyEl.querySelector('[data-resend-form]');
+    var resendInput = bodyEl.querySelector('[data-resend-input]');
+    var resendSubmit= bodyEl.querySelector('[data-action="resend-submit"]');
+    var resendCancel= bodyEl.querySelector('[data-action="resend-cancel"]');
+
+    if (resendOther && resendForm) {
+      resendOther.addEventListener('click', function(){
+        resendForm.style.display = '';
+        if (resendInput) resendInput.focus();
+      });
+    }
+    if (resendCancel && resendForm) {
+      resendCancel.addEventListener('click', function(){
+        resendForm.style.display = 'none';
+        if (resendInput) resendInput.value = '';
+      });
+    }
+    if (resendSubmit && resendInput) {
+      resendSubmit.addEventListener('click', function(){
+        var email = (resendInput.value || '').trim();
+        if (!email) { resendInput.focus(); return; }
+        postResend(email, resendSubmit);
+      });
+      resendInput.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') { e.preventDefault(); resendSubmit.click(); }
+      });
+    }
 
     // Actions: refund button only on committed, non-refund, non-draft, non-quote sales
     actionsEl.style.display = 'flex';

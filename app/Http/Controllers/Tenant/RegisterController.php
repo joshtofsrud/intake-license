@@ -234,6 +234,8 @@ class RegisterController extends Controller
             'items.*.is_taxable'       => 'nullable|boolean',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
+            // MARKER-PATCH-161 — per-sale receipt skip
+            'skip_receipt'             => 'nullable|boolean',
         ]);
 
         try {
@@ -262,7 +264,10 @@ class RegisterController extends Controller
             }
 
             // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
-            \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            if (! $request->boolean('skip_receipt')) {
+                \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            }
 
             return response()->json([
                 'ok'          => true,
@@ -543,6 +548,8 @@ class RegisterController extends Controller
             'tip_cents'         => 'nullable|integer|min:0',
             'customer_id'       => 'nullable|uuid',
             'notes'             => 'nullable|string',
+            // MARKER-PATCH-161 — per-sale receipt skip
+            'skip_receipt'      => 'nullable|boolean',
         ]);
 
         try {
@@ -566,7 +573,10 @@ class RegisterController extends Controller
             }
 
             // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
-            \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            if (! $request->boolean('skip_receipt')) {
+                \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            }
 
             return response()->json([
                 'ok'          => true,
@@ -816,6 +826,24 @@ class RegisterController extends Controller
                 'line_total_cents' => (int) $i->line_total_cents,
             ]);
 
+        // MARKER-PATCH-161 — email send log for this sale.
+        $sendLog = \App\Models\Tenant\TenantNotificationLog::where('tenant_id', $tenant->id)
+            ->where('related_type', 'sale')
+            ->where('related_id', $sale->id)
+            ->where('channel', 'email')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['event_type','recipient','status','error_message','template_key','created_at'])
+            ->map(fn ($r) => [
+                'event_type'   => $r->event_type,
+                'recipient'    => $r->recipient,
+                'status'       => $r->status,
+                'error'        => $r->error_message,
+                'template_key' => $r->template_key,
+                'created_at'   => $r->created_at?->toIso8601String(),
+            ])
+            ->values();
+
         return response()->json([
             'ok'   => true,
             'sale' => [
@@ -856,6 +884,7 @@ class RegisterController extends Controller
                 ] : null,
                 'refunds'        => $refunds,
                 'items'          => $items,
+                'send_log'       => $sendLog,
             ],
         ]);
     }

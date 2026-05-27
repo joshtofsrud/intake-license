@@ -188,6 +188,36 @@
     background:var(--reg-danger-bg);
     border:0.5px solid var(--reg-danger);
   }
+  /* MARKER-PATCH-161 — receipt indicator */
+  .reg-cust-receipt{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:8px 12px;
+    margin-top:8px;
+    background:rgba(190,242,100,.06);
+    border:0.5px solid rgba(190,242,100,.2);
+    border-radius:var(--ia-r-sm);
+    font-size:12px;
+    flex-wrap:wrap;
+  }
+  .reg-cust-receipt--none{
+    background:var(--ia-surface);
+    border-color:var(--ia-border);
+    color:var(--ia-text-dim);
+  }
+  .reg-cust-receipt-status{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+  .reg-cust-receipt-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--ia-accent);
+    box-shadow:0 0 0 3px rgba(190,242,100,.15);flex-shrink:0;
+  }
+  .reg-cust-receipt-skip{
+    display:flex;align-items:center;gap:6px;cursor:pointer;
+    font-size:11.5px;color:var(--ia-text-dim);user-select:none;flex-shrink:0;
+  }
+  .reg-cust-receipt-skip input{width:14px;height:14px;accent-color:var(--ia-accent)}
+
   .reg-attach.warning{
     border:0.5px dashed var(--reg-danger);
     color:var(--reg-danger)
@@ -593,6 +623,7 @@ const ROUTES = {
   quotesIndex: @json(route('tenant.register.quotes.index')),
   lookupSale:  @json(route('tenant.register.lookup-sale')),
   commitTxn:   @json(route('tenant.register.transactions.store')),
+  // MARKER-PATCH-161
   customerBase: @json(url('/admin/customers')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
@@ -640,6 +671,7 @@ const cart = {
   tipCents: 0, discountCents: 0,
   payment_method: null, payment_reference: null,
   tax_locked: false,    // when true, calcTax sums per-line tax_cents instead of computing from rate
+  skipReceipt: false,   // MARKER-PATCH-161 — cashier opted out of receipt for this sale
 };
 const fmt = (cents) => '$' + (cents / 100).toFixed(2);
 const fmtNeg = (cents) => '-$' + (cents / 100).toFixed(2);
@@ -1149,19 +1181,45 @@ function renderCart() {
     const metaInner = (emailRow || phoneRow)
       ? `<div class="meta">${emailRow}${phoneRow}</div>`
       : '';
+    // MARKER-PATCH-161 — receipt indicator
+    const hasEmail = !!c.email;
+    const skipChecked = cart.skipReceipt ? 'checked' : '';
+    const receiptRow = hasEmail
+      ? `<div class="reg-cust-receipt">
+           <span class="reg-cust-receipt-status">
+             <span class="reg-cust-receipt-dot"></span>
+             Receipt will email to <b>${escapeHtml(c.email)}</b>
+           </span>
+           <label class="reg-cust-receipt-skip">
+             <input type="checkbox" id="skipReceiptChk" ${skipChecked}>
+             Skip receipt
+           </label>
+         </div>`
+      : `<div class="reg-cust-receipt reg-cust-receipt--none">
+           <span class="reg-cust-receipt-status">No email on file — no receipt will send</span>
+         </div>`;
+
     slot.innerHTML = `
       <div class="reg-cust">
         <div class="head">
           <span class="name">${escapeHtml(c.name || '(no name)')}</span>
         </div>
         ${metaInner}
+        ${receiptRow}
         <div class="actions">
           <a class="profile-link" href="${profileUrl}" target="_blank" rel="noopener">View profile →</a>
           <span class="clear" id="clearCust">Remove</span>
         </div>
       </div>`;
+    var skipChk = document.getElementById('skipReceiptChk');
+    if (skipChk) {
+      skipChk.addEventListener('change', function(){
+        cart.skipReceipt = !!skipChk.checked;
+      });
+    }
     document.getElementById('clearCust').addEventListener('click', () => {
       cart.customer = null;
+      cart.skipReceipt = false; // MARKER-PATCH-161
       renderCart();
       queueDraftSave();
     });
@@ -1547,6 +1605,7 @@ async function commitTransaction(opts = {}) {
         payment_reference: cart.payment_reference,
         tip_cents: cart.tipCents,
         customer_id: cart.customer ? cart.customer.id : null,
+        skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
       };
     } else {
       // Fallback path — pure sale, no draft, send full cart.
@@ -1558,6 +1617,7 @@ async function commitTransaction(opts = {}) {
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
         items: cart.items.map(serializeLine),
+        skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
       };
     }
 

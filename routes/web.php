@@ -519,6 +519,10 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
             Route::post('/sales/{id}/resend-receipt',
                 [TenantControllers\RegisterController::class, 'resendReceipt'])
                 ->name('sales.resend_receipt');
+            // MARKER-PATCH-161 — receipt automation toggles
+            Route::patch('/emails-settings',
+                [TenantControllers\EmailController::class, 'settingsUpdate'])
+                ->name('emails.settings.update');
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
