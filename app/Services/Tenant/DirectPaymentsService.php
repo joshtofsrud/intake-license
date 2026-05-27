@@ -127,6 +127,37 @@ class DirectPaymentsService
         ];
     }
 
+    /**
+     * MARKER-PATCH-170B — auto-refund a PaymentIntent that succeeded but
+     * couldn\'t be committed to a sale. Used as defense in depth when
+     * createSale throws AFTER the card already authorized.
+     *
+     * Returns the Refund object on success, or null + logs on failure.
+     * We never let this throw — the caller is already handling a primary
+     * failure and we don\'t want to mask it.
+     */
+    public function refundPaymentIntent(string $piId, ?string $reason = null): ?\Stripe\Refund
+    {
+        try {
+            return $this->client()->refunds->create([
+                'payment_intent' => $piId,
+                'reason'         => 'requested_by_customer',
+                'metadata'       => array_filter([
+                    'intake_tenant_id'   => $this->tenant->id,
+                    'intake_auto_refund' => '1',
+                    'intake_reason'      => $reason,
+                ]),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.auto_refund_failed', [
+                'tenant_id' => $this->tenant->id,
+                'pi'        => $piId,
+                'error'     => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
     protected function client(): StripeClient
     {
         $key = $this->activeSecretKey();

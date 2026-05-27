@@ -242,6 +242,8 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
                 // MARKER-PATCH-170 — Direct Payments hand-keyed card endpoints
                 Route::post('/register/payment-intent',   [TenantControllers\RegisterController::class, 'createPaymentIntent'])->name('register.payment_intent.create');
                 Route::post('/register/payment-intent/confirm', [TenantControllers\RegisterController::class, 'confirmPaymentIntent'])->name('register.payment_intent.confirm');
+                // MARKER-PATCH-170B — auto-refund when commit fails after charge succeeds
+                Route::post('/register/payment-intent/auto-refund', [TenantControllers\RegisterController::class, 'autoRefundPaymentIntent'])->name('register.payment_intent.auto_refund');
                 Route::get('/register/drafts',            [TenantControllers\RegisterController::class, 'listDrafts'])->name('register.drafts.index');
                 Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
                 Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');

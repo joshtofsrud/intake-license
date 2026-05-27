@@ -1166,8 +1166,11 @@ class RegisterController extends Controller
         $tenant = tenant();
 
         $validated = $request->validate([
-            'amount_cents' => 'required|integer|min:50',
-            'sale_id'      => 'nullable|uuid',
+            'amount_cents'      => 'required|integer|min:50',
+            'sale_id'           => 'nullable|uuid',
+            // MARKER-PATCH-170B — preflight payload so we can validate before charging
+            'customer_id'       => 'nullable|uuid',
+            'has_service_line'  => 'nullable|boolean',
         ]);
 
         $direct = new DirectPaymentsService($tenant);
@@ -1175,6 +1178,15 @@ class RegisterController extends Controller
             return response()->json([
                 'ok' => false,
                 'error' => 'Card payments are not enabled for this tenant.',
+            ], 422);
+        }
+
+        // MARKER-PATCH-170B — pre-charge cart validation. Mirrors SaleService
+        // checks so we never authorize a card for a sale that won\'t commit.
+        if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Customer is required when the sale has any service line.',
             ], 422);
         }
 
@@ -1247,6 +1259,45 @@ class RegisterController extends Controller
             'card_last4'               => $card['last4'],
             'card_funding'             => $card['funding'],
             'amount_received_cents'    => $pi->amount_received,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-170B — auto-refund a PaymentIntent. Called by the client
+     * when commitTransaction fails after a charge already authorized.
+     *
+     * Idempotent: if the PI was already refunded, Stripe returns the existing
+     * refund instead of erroring.
+     */
+    public function autoRefundPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+            'reason'         => 'nullable|string|max:255',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        $refund = $direct->refundPaymentIntent(
+            $validated['payment_intent'],
+            $validated['reason'] ?? 'sale_commit_failed'
+        );
+
+        if (! $refund) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Refund failed. Charge may still be live in Stripe — check the Stripe dashboard.',
+            ], 500);
+        }
+
+        return response()->json([
+            'ok'        => true,
+            'refund_id' => $refund->id,
+            'amount'    => $refund->amount,
         ]);
     }
 

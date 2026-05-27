@@ -656,6 +656,8 @@ const ROUTES = {
   directPaymentsPk: @json(($tenant->direct_payments_enabled ?? false) ? (($tenant->settings['register_payments_mode'] ?? 'test') === 'live' ? ($tenant->settings['register_payments_live_pk'] ?? '') : ($tenant->settings['register_payments_test_pk'] ?? '')) : ''),
   paymentIntentCreate: @json(url('/admin/register/payment-intent')),
   paymentIntentConfirm: @json(url('/admin/register/payment-intent/confirm')),
+  // MARKER-PATCH-170B
+  paymentIntentAutoRefund: @json(url('/admin/register/payment-intent/auto-refund')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -1560,6 +1562,18 @@ let DirectPay = {
 };
 
 async function openCardPaymentModal() {
+  // MARKER-PATCH-170B — pre-charge validation. Block the modal entirely
+  // if the cart isn\'t commit-able. We never want to authorize a card for
+  // a sale that the backend will refuse.
+  const hasServiceLine = cart.items.some(i => i.type === 'service');
+  if (hasServiceLine && !cart.customer) {
+    const banner = document.getElementById('errBanner');
+    banner.textContent = 'Customer is required when the sale has any service line.';
+    banner.style.display = '';
+    closeModal('tenderModal');
+    return;
+  }
+
   const errBox = document.getElementById('cardPaymentError');
   errBox.style.display = 'none';
   errBox.textContent = '';
@@ -1588,7 +1602,12 @@ async function openCardPaymentModal() {
     const res = await fetch(ROUTES.paymentIntentCreate, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-      body: JSON.stringify({ amount_cents: amountCents }),
+      body: JSON.stringify({
+        amount_cents: amountCents,
+        // MARKER-PATCH-170B — preflight context
+        customer_id: cart.customer ? cart.customer.id : null,
+        has_service_line: cart.items.some(i => i.type === 'service'),
+      }),
     });
     intent = await res.json();
     if (!intent.ok) throw new Error(intent.error || 'Could not initialize card payment.');
@@ -1701,10 +1720,49 @@ async function confirmCardPayment() {
     ? (conf.card_brand + ' ····' + conf.card_last4)
     : null;
 
-  // Close modal and run the existing commit pipeline
+  // Close modal and run the existing commit pipeline.
+  // MARKER-PATCH-170B — wrap commit in our own try; if commitTransaction
+  // shows the failure banner, we still hold the PI in cart.stripe_payment_intent_id.
+  // commitTransaction itself calls autoRefundOnCommitFailure() if its commit fails.
   closeModal('cardPaymentModal');
   DirectPay.inFlight = false;
   if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
+}
+
+// MARKER-PATCH-170B — called by commitTransaction's error path when the
+// charge has already authorized but the commit step failed. Refunds the
+// PaymentIntent server-side and clears the Stripe metadata from the cart
+// so the user doesn\'t double-charge.
+async function autoRefundOnCommitFailure(reason) {
+  if (!cart.stripe_payment_intent_id) return;
+  const pi = cart.stripe_payment_intent_id;
+  // Optimistically clear from cart so a retry doesn\'t re-send the stale PI
+  cart.stripe_payment_intent_id = null;
+  cart.stripe_charge_id = null;
+  cart.card_brand = null;
+  cart.card_last4 = null;
+  cart.card_funding = null;
+  cart.payment_reference = null;
+
+  try {
+    const res = await fetch(ROUTES.paymentIntentAutoRefund, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ payment_intent: pi, reason: reason || 'commit_failed' }),
+    });
+    const data = await res.json();
+    const banner = document.getElementById('errBanner');
+    if (data.ok) {
+      banner.textContent = (banner.textContent || '') + ' The card charge was automatically refunded.';
+    } else {
+      banner.textContent = (banner.textContent || '') + ' WARNING: card was charged but refund failed — check Stripe dashboard for payment intent ' + pi;
+    }
+    banner.style.display = '';
+  } catch (e) {
+    const banner = document.getElementById('errBanner');
+    banner.textContent = 'Card was charged but refund attempt failed. Stripe payment intent: ' + pi + '. Please refund manually in Stripe dashboard.';
+    banner.style.display = '';
+  }
 }
 
 document.getElementById('cardPaymentCancelBtn').addEventListener('click', () => {
@@ -1869,7 +1927,14 @@ async function commitTransaction(opts = {}) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!data.ok) { showError(data.error || 'Could not complete the transaction.'); return; }
+    if (!data.ok) {
+      // MARKER-PATCH-170B — auto-refund the card if we authorized one
+      if (cart.stripe_payment_intent_id) {
+        await autoRefundOnCommitFailure(data.error || 'commit_failed');
+      }
+      showError(data.error || 'Could not complete the transaction.');
+      return;
+    }
     showReceipt(data);
   } catch (e) {
     showError('Network error. Please try again.');
