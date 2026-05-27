@@ -123,6 +123,9 @@
     <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('item', $total) }}</p>
   </div>
   <div class="ia-page-actions">
+    {{-- MARKER-PATCH-158-G10 — Categories link always visible (was only shown
+         when categories were empty, leaving no entry point once 1+ existed). --}}
+    <a href="{{ route('tenant.inventory.categories.index') }}" class="ia-btn">Categories</a>
     <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn">Receiving ↓</a>
     @if($hasCategories)
       <a href="{{ route('tenant.inventory.create') }}" class="ia-btn ia-btn--primary">+ New item</a>
@@ -132,6 +135,10 @@
   </div>
   {{-- Mobile-only action row (right-aligned icon buttons). --}}
   <div class="inv-head-m inv-actions-m" style="margin-left:auto">
+    {{-- MARKER-PATCH-158-G10 — Categories icon button on mobile too --}}
+    <a href="{{ route('tenant.inventory.categories.index') }}" class="inv-icon-btn-m" title="Categories" aria-label="Categories">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+    </a>
     <a href="{{ route('tenant.inventory.receiving.index') }}" class="inv-icon-btn-m" title="Receiving" aria-label="Receiving">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
     </a>
