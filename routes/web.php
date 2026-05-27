@@ -515,6 +515,10 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
 
             Route::get('/emails',               [TenantControllers\EmailController::class, 'index'])->name('emails.index');
             Route::patch('/emails/{type}',      [TenantControllers\EmailController::class, 'update'])->name('emails.update');
+            // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
+            Route::post('/sales/{id}/resend-receipt',
+                [TenantControllers\RegisterController::class, 'resendReceipt'])
+                ->name('sales.resend_receipt');
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');

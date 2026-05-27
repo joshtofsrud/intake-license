@@ -25,6 +25,17 @@ class EmailController extends Controller
             'desc'  => 'Sent to staff members when they request a password reset.',
             'vars'  => ['name', 'reset_url', 'shop_name', 'accent', 'accent_text'],
         ],
+        // MARKER-PATCH-160
+        'sale_receipt' => [
+            'label' => 'Sale receipt',
+            'desc'  => 'Sent automatically when a POS sale is paid. Itemized lines and totals come from the sale itself; the subject + greeting below are customizable.',
+            'vars'  => ['first_name', 'sale_number', 'shop_name', 'date', 'total'],
+        ],
+        'appointment_receipt' => [
+            'label' => 'Appointment work-order receipt',
+            'desc'  => 'Sent when a service appointment is marked complete (or other states you choose). Work performed + totals come from the appointment; the subject + greeting below are customizable.',
+            'vars'  => ['first_name', 'ra_number', 'shop_name', 'date', 'total'],
+        ],
     ];
 
     public function index()

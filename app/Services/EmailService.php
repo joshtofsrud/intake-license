@@ -71,6 +71,51 @@ class EmailService
     }
 
     // ----------------------------------------------------------------
+    // MARKER-PATCH-160 — send pre-rendered HTML
+    // Used by receipts which need Blade-level looping for line items.
+    // Mirrors send(): suppression-gated, X-Tenant-Id header, from/reply-to.
+    // ----------------------------------------------------------------
+    public function sendRendered(
+        string $templateKey,
+        string $toEmail,
+        string $subject,
+        string $html
+    ): bool {
+        $fromName  = $this->tenant->emailFromName();
+        $fromEmail = $this->tenant->emailFromAddress();
+        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+
+        if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
+            logger()->info("EmailService::sendRendered skipped (suppressed) [{$templateKey}]", [
+                'tenant_id' => $this->tenant->id,
+                'to'        => $toEmail,
+            ]);
+            return false;
+        }
+
+        try {
+            $tenantId = $this->tenant->id;
+            Mail::send([], [], function ($message) use (
+                $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId, $templateKey
+            ) {
+                $message
+                    ->to($toEmail)
+                    ->from($fromEmail, $fromName)
+                    ->replyTo($replyTo)
+                    ->subject($subject)
+                    ->html($html);
+                $headers = $message->getHeaders();
+                $headers->addTextHeader('X-Tenant-Id', $tenantId);
+                $headers->addTextHeader('X-Mail-Template', $templateKey);
+            });
+            return true;
+        } catch (\Throwable $e) {
+            logger()->error("EmailService::sendRendered failed [{$templateKey}]: {$e->getMessage()}");
+            return false;
+        }
+    }
+
+    // ----------------------------------------------------------------
     // Interpolate {{variable}} placeholders
     // ----------------------------------------------------------------
     public function interpolate(string $template, array $vars): string
@@ -248,6 +293,20 @@ HTML;
 </table>
 <p>Reply to this email if you need to change anything.</p>
 <p>— The {$shop} team</p>",
+            ],
+
+            // MARKER-PATCH-160 — POS sale receipt (rendered via Blade, not string interpolation)
+            // Tenant edits subject + greeting + footer through the existing templates editor;
+            // the Blade view reads body_html as a 'greeting' block + footer line.
+            'sale_receipt' => [
+                'subject'   => 'Receipt from {{shop_name}} — #{{sale_number}}',
+                'body_html' => "Thanks for your purchase, {{first_name}}. Here's your receipt for the visit on {{date}}. We appreciate your business and hope to see you again soon.",
+            ],
+
+            // MARKER-PATCH-160 — appointment work-order receipt
+            'appointment_receipt' => [
+                'subject'   => 'Your {{shop_name}} work is complete — #{{ra_number}}',
+                'body_html' => "Hi {{first_name}} — we finished the work on your service request. Here's everything we did and what it cost. Reply to this email or call us with any questions.",
             ],
         ];
 

@@ -261,6 +261,9 @@ class RegisterController extends Controller
                 }
             }
 
+            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
+            \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+
             return response()->json([
                 'ok'          => true,
                 'sale_id'     => $sale->id,
@@ -561,6 +564,9 @@ class RegisterController extends Controller
                     $sale = $this->sales->recalculate($sale->fresh('items'));
                 }
             }
+
+            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
+            \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
 
             return response()->json([
                 'ok'          => true,
@@ -1061,6 +1067,27 @@ class RegisterController extends Controller
             });
 
         return response()->json(['sales' => $sales]);
+    }
+
+    // MARKER-PATCH-160 — re-send (or send to another email) a sale receipt
+    public function resendReceipt(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->first();
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Optional override — "send to another email" on the sale-detail card.
+        $override = trim((string) $request->input('email', ''));
+        if ($override !== '' && !filter_var($override, FILTER_VALIDATE_EMAIL)) {
+            return response()->json(['ok' => false, 'error' => 'Invalid email address.'], 422);
+        }
+
+        \App\Jobs\SendSaleReceiptJob::dispatch($sale->id, $override ?: null, 'manual_resend');
+        return response()->json(['ok' => true]);
     }
 
     public function storeRefund(Request $request): JsonResponse

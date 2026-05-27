@@ -881,6 +881,15 @@ class AppointmentController extends Controller
 
             $appointment->update(['status' => $newStatus]);
 
+            // MARKER-PATCH-160 — appointment receipt on configured terminal states.
+            // Defaults to ['completed']; tenants can add 'shipped' or 'closed' via
+            // settings.receipt_appointment_trigger_states.
+            $tenantSettings = $tenant->settings ?? [];
+            $triggerStates  = $tenantSettings['receipt_appointment_trigger_states'] ?? ['completed'];
+            if (in_array($newStatus, $triggerStates, true) && !in_array($oldStatus, $triggerStates, true)) {
+                \App\Jobs\SendAppointmentReceiptJob::dispatch($appointment->id)->afterCommit();
+            }
+
             // Register bridge:
             //   entering committed status → create draft sale (or mark paid / overage)
             //   leaving committed status  → void any open draft sale
