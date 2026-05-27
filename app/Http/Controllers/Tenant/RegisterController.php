@@ -12,6 +12,7 @@ use App\Services\Tenant\SaleService;
 use App\Services\Tenant\SaleValidationException;
 use App\Services\Tenant\InventoryStockException;
 use App\Services\Tenant\DirectPaymentsService;  // MARKER-PATCH-170
+use Illuminate\Support\Facades\Log;  // MARKER-PATCH-172B — missing import broke patches 170/170b/171/172
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
