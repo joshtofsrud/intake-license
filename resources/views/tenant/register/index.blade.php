@@ -495,6 +495,11 @@
     <div class="reg-tender-grid">
       <button type="button" class="reg-tender-btn" data-tender="cash">Cash</button>
       <button type="button" class="reg-tender-btn" data-tender="card">Card</button>
+      {{-- MARKER-PATCH-172 — payment-link tender (hidden when direct payments off) --}}
+      <button type="button" class="reg-tender-btn" data-tender="payment_link" id="tenderPaymentLinkBtn" style="display:none">
+        Send payment link
+        <div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">Customer pays from their phone</div>
+      </button>
       <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
       <button type="button" class="reg-tender-btn" data-tender="mark_paid">No tender (already paid)</button>
@@ -551,6 +556,36 @@
         <span id="cardPaymentChargeLabel">Charge</span>
         <span id="cardPaymentSpinner" style="display:none;margin-left:8px">…</span>
       </button>
+    </div>
+  </div>
+</div>
+
+{{-- MARKER-PATCH-172 — Send-payment-link modal --}}
+<div class="reg-modal-bg" id="paymentLinkModal">
+  <div class="reg-modal" style="max-width:520px">
+    <h2>Send payment link</h2>
+    <div class="lede">Share this link with your customer. They'll pay from their device.</div>
+
+    <div id="paymentLinkAmount" style="background:var(--ia-surface-2);border-radius:var(--ia-r-md);padding:14px;margin-bottom:14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;font-weight:600;font-size:15px"><span>Charge</span><span id="paymentLinkAmountValue">$0.00</span></div>
+    </div>
+
+    <div id="paymentLinkQRContainer" style="background:white;border-radius:var(--ia-r-md);padding:18px;margin-bottom:14px;display:flex;justify-content:center;align-items:center;min-height:240px">
+      <div id="paymentLinkQR"></div>
+    </div>
+
+    <div style="background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <code id="paymentLinkUrl" style="flex:1;font-size:11px;color:var(--ia-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></code>
+      <button type="button" class="reg-btn-secondary" id="paymentLinkCopyBtn" style="padding:6px 10px;font-size:11.5px">Copy</button>
+    </div>
+
+    <div id="paymentLinkStatus" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--ia-accent-soft);border:0.5px solid rgba(190,242,100,.25);border-radius:var(--ia-r-md);font-size:12.5px;color:var(--ia-text);margin-bottom:14px">
+      <span class="stripe-spinner" style="width:14px;height:14px;border:2px solid rgba(190,242,100,.2);border-top-color:var(--ia-accent);border-radius:50%;animation:spin 0.8s linear infinite"></span>
+      <span id="paymentLinkStatusText">Waiting for customer to pay…</span>
+    </div>
+
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="paymentLinkCancelBtn">Cancel</button>
     </div>
   </div>
 </div>
@@ -704,6 +739,10 @@ const ROUTES = {
   paymentIntentConfirm: @json(url('/admin/register/payment-intent/confirm')),
   // MARKER-PATCH-170B
   paymentIntentAutoRefund: @json(url('/admin/register/payment-intent/auto-refund')),
+  // MARKER-PATCH-172
+  checkoutSessionCreate: @json(url('/admin/register/checkout-session')),
+  checkoutSessionCheck:  @json(url('/admin/register/checkout-session/check')),
+  checkoutSessionCancel: @json(url('/admin/register/checkout-session/cancel')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -1620,6 +1659,20 @@ let DirectPay = {
   inFlight: false,
 };
 
+// MARKER-PATCH-172 — Send-payment-link state
+let PaymentLink = {
+  saleId: null,
+  sessionId: null,
+  checkoutUrl: null,
+  pollHandle: null,
+};
+
+// Show the Send-payment-link tender button when direct payments are enabled.
+if (ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+  const btn = document.getElementById('tenderPaymentLinkBtn');
+  if (btn) btn.style.display = '';
+}
+
 async function openCardPaymentModal() {
   // MARKER-PATCH-170B + 170C — pre-charge validation. The Charge button
   // pre-flight modal already catches this upstream, but defense-in-depth
@@ -1849,16 +1902,160 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
 
   // MARKER-PATCH-170 — Direct Payments path
-  // If card tender selected AND direct payments enabled, route through Stripe instead.
   if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
     closeModal('tenderModal');
     openCardPaymentModal();
     return;
   }
 
+  // MARKER-PATCH-172 — Send-payment-link path
+  if (cart.payment_method === 'payment_link' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+    closeModal('tenderModal');
+    openPaymentLinkModal();
+    return;
+  }
+
   // Default path (cash, check, store_credit, mark_paid, or card-without-Stripe)
   closeModal('tenderModal');
   if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
+});
+
+// MARKER-PATCH-172 — Send-payment-link modal flow
+async function openPaymentLinkModal() {
+  const statusText = document.getElementById('paymentLinkStatusText');
+  statusText.textContent = 'Creating payment link…';
+  document.getElementById('paymentLinkQR').innerHTML = '';
+  document.getElementById('paymentLinkUrl').textContent = '';
+  openModal('paymentLinkModal');
+
+  const totals = computeTotalsForCommit();
+  const amountCents = totals.total_cents + (cart.tipCents || 0);
+  document.getElementById('paymentLinkAmountValue').textContent = fmt(amountCents);
+
+  let resp;
+  try {
+    const res = await fetch(ROUTES.checkoutSessionCreate, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({
+        amount_cents: amountCents,
+        customer_id: cart.customer ? cart.customer.id : null,
+        has_service_line: cart.items.some(i => i.type === 'service'),
+        description: 'Purchase at ' + document.title,
+        items: cart.items.map(serializeLine),
+        tip_cents: cart.tipCents || 0,
+        discount_cents: cart.discountCents || 0,
+      }),
+    });
+    resp = await res.json();
+    if (!resp.ok) throw new Error(resp.error || 'Could not create payment link.');
+  } catch (e) {
+    closeModal('paymentLinkModal');
+    showError(e.message);
+    return;
+  }
+
+  PaymentLink.saleId = resp.sale_id;
+  PaymentLink.sessionId = resp.session_id;
+  PaymentLink.checkoutUrl = resp.checkout_url;
+
+  // Render QR code
+  const qrEl = document.getElementById('paymentLinkQR');
+  qrEl.innerHTML = '';
+  if (typeof qrcode === 'function') {
+    const qr = qrcode(0, 'L');
+    qr.addData(resp.checkout_url);
+    qr.make();
+    qrEl.innerHTML = qr.createSvgTag({ scalable: true, margin: 2 });
+    // Constrain SVG size
+    const svg = qrEl.querySelector('svg');
+    if (svg) { svg.style.width = '200px'; svg.style.height = '200px'; }
+  } else {
+    qrEl.textContent = '(QR library failed to load. Use the URL below.)';
+  }
+
+  document.getElementById('paymentLinkUrl').textContent = resp.checkout_url;
+  document.getElementById('paymentLinkStatusText').textContent = 'Waiting for customer to pay…';
+
+  // Start polling
+  startPaymentLinkPolling();
+}
+
+function startPaymentLinkPolling() {
+  stopPaymentLinkPolling();
+  PaymentLink.pollHandle = setInterval(checkPaymentLinkStatus, 3000);
+}
+function stopPaymentLinkPolling() {
+  if (PaymentLink.pollHandle) {
+    clearInterval(PaymentLink.pollHandle);
+    PaymentLink.pollHandle = null;
+  }
+}
+
+async function checkPaymentLinkStatus() {
+  if (!PaymentLink.saleId) return;
+  try {
+    const res = await fetch(ROUTES.checkoutSessionCheck, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ sale_id: PaymentLink.saleId }),
+    });
+    const data = await res.json();
+    if (!data.ok) return;
+
+    if (data.status === 'succeeded') {
+      stopPaymentLinkPolling();
+      closeModal('paymentLinkModal');
+      // Show the receipt screen using the existing flow
+      showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents });
+      // Clear cart since the sale completed
+      cart.draft_id = null;
+      cart.customer = null;
+      cart.items = [];
+      cart.refund_lines = [];
+      cart.tipCents = 0;
+      cart.discountCents = 0;
+      renderAll();
+      PaymentLink.saleId = null;
+      PaymentLink.sessionId = null;
+      PaymentLink.checkoutUrl = null;
+      return;
+    }
+
+    if (data.status === 'expired') {
+      stopPaymentLinkPolling();
+      document.getElementById('paymentLinkStatusText').textContent = 'Link expired. Cancel and try again.';
+    }
+  } catch (e) {
+    // Transient network errors — keep polling.
+  }
+}
+
+document.getElementById('paymentLinkCopyBtn').addEventListener('click', () => {
+  if (!PaymentLink.checkoutUrl) return;
+  navigator.clipboard.writeText(PaymentLink.checkoutUrl).then(() => {
+    const btn = document.getElementById('paymentLinkCopyBtn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+});
+
+document.getElementById('paymentLinkCancelBtn').addEventListener('click', async () => {
+  stopPaymentLinkPolling();
+  if (PaymentLink.saleId) {
+    try {
+      await fetch(ROUTES.checkoutSessionCancel, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify({ sale_id: PaymentLink.saleId }),
+      });
+    } catch (e) {}
+  }
+  PaymentLink.saleId = null;
+  PaymentLink.sessionId = null;
+  PaymentLink.checkoutUrl = null;
+  closeModal('paymentLinkModal');
 });
 
 function openTipModal() {
@@ -2466,5 +2663,7 @@ loadDrafts().then(refreshDraftsBanner);
 @if($tenant->direct_payments_enabled ?? false)
 {{-- MARKER-PATCH-170 — Stripe.js for Direct Payments hand-keyed flow --}}
 <script src="https://js.stripe.com/v3/"></script>
+{{-- MARKER-PATCH-172 — QR code library for send-payment-link --}}
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 @endif
 @endpush

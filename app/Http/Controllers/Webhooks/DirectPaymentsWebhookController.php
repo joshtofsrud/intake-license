@@ -94,7 +94,17 @@ class DirectPaymentsWebhookController extends Controller
                 $this->onChargeRefunded($event, $tenant);
                 break;
 
-            // 2B will handle: checkout.session.completed
+            // MARKER-PATCH-172 — send-payment-link flow. When the customer
+            // completes payment via the Stripe Checkout URL, we promote the
+            // matching draft sale to paid.
+            case 'checkout.session.completed':
+                $this->onCheckoutSessionCompleted($event, $tenant);
+                break;
+
+            // Async payment success (Klarna, etc.) — same handler.
+            case 'checkout.session.async_payment_succeeded':
+                $this->onCheckoutSessionCompleted($event, $tenant);
+                break;
 
             default:
                 Log::info('direct_payments_webhook.ignored_event', [
@@ -205,6 +215,76 @@ class DirectPaymentsWebhookController extends Controller
             'pi'              => $piId,
             'refunded_amount' => $refundedAmount,
             'total_amount'    => $totalAmount,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-172 — promote a draft sale to paid when its Checkout
+     * Session completes.
+     *
+     * Idempotent: if the sale is already paid (duplicate webhook delivery,
+     * polling-promoted, etc.) we no-op.
+     */
+    protected function onCheckoutSessionCompleted(\Stripe\Event $event, Tenant $tenant): void
+    {
+        $session = $event->data->object;
+        $sessionId = $session->id ?? null;
+        if (! $sessionId) return;
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('checkout_session_id', $sessionId)
+            ->first();
+
+        if (! $sale) {
+            Log::warning('direct_payments_webhook.checkout_no_sale', [
+                'tenant_id'  => $tenant->id,
+                'session_id' => $sessionId,
+            ]);
+            return;
+        }
+
+        if ($sale->payment_status === 'paid') {
+            // Already promoted — duplicate delivery.
+            return;
+        }
+
+        // Pull card details + payment_intent + charge from the session.
+        $piId = is_string($session->payment_intent ?? null) ? $session->payment_intent : ($session->payment_intent?->id ?? null);
+        $brand = null; $last4 = null; $funding = null; $chargeId = null;
+
+        if ($piId) {
+            try {
+                $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+                $pi = $direct->retrievePaymentIntent($piId);
+                $details = $direct->extractCardDetails($pi);
+                $brand    = $details['brand'];
+                $last4    = $details['last4'];
+                $funding  = $details['funding'];
+                $chargeId = $details['charge_id'];
+            } catch (\Throwable $e) {
+                Log::warning('direct_payments_webhook.checkout_card_extract_failed', [
+                    'tenant_id' => $tenant->id,
+                    'pi'        => $piId,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $sale->status                    = 'completed';
+        $sale->payment_status            = 'paid';
+        $sale->paid_at                   = now();
+        $sale->stripe_payment_intent_id  = $piId;
+        $sale->stripe_charge_id          = $chargeId;
+        $sale->card_brand                = $brand;
+        $sale->card_last4                = $last4;
+        $sale->card_funding              = $funding;
+        $sale->payment_reference         = ($brand && $last4) ? ($brand . ' ····' . $last4) : 'Paid via link';
+        $sale->save();
+
+        Log::info('direct_payments_webhook.checkout_completed', [
+            'tenant_id'  => $tenant->id,
+            'sale_id'    => $sale->id,
+            'session_id' => $sessionId,
         ]);
     }
 }

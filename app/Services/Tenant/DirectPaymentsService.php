@@ -163,6 +163,60 @@ class DirectPaymentsService
     }
 
     /**
+     * MARKER-PATCH-172 — Create a Stripe Checkout Session for a customer-pays-
+     * remotely flow (send-payment-link). Customer pays from their own device
+     * via a Stripe-hosted page.
+     *
+     * Single-use session, expires in 24h. amount_cents lives in a single
+     * line_item so the Stripe page shows a single "Charge" line for the
+     * shop. We don\'t itemize individual cart lines on the Stripe page —
+     * the customer sees the total + the shop name, that\'s it.
+     */
+    public function createCheckoutSession(int $amountCents, string $description, array $metadata = []): \Stripe\Checkout\Session
+    {
+        $client = $this->client();
+
+        $session = $client->checkout->sessions->create([
+            'mode' => 'payment',
+            'payment_method_types' => ['card'],
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => 'usd',
+                    'product_data' => [
+                        'name' => $description ?: 'Payment',
+                    ],
+                    'unit_amount' => $amountCents,
+                ],
+                'quantity' => 1,
+            ]],
+            'success_url' => 'https://' . $this->tenantHost() . '/admin/register/checkout-success?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url'  => 'https://' . $this->tenantHost() . '/admin/register/checkout-cancel?session_id={CHECKOUT_SESSION_ID}',
+            'expires_at'  => time() + (24 * 60 * 60),
+            'metadata' => array_merge([
+                'intake_tenant_id'   => $this->tenant->id,
+                'intake_environment' => app()->environment(),
+            ], $metadata),
+            // Surface customer email collection so receipts can attach.
+            'customer_email' => $metadata['customer_email'] ?? null,
+        ]);
+
+        return $session;
+    }
+
+    public function retrieveCheckoutSession(string $sessionId): \Stripe\Checkout\Session
+    {
+        return $this->client()->checkout->sessions->retrieve($sessionId, [
+            'expand' => ['payment_intent.latest_charge.payment_method_details'],
+        ]);
+    }
+
+    protected function tenantHost(): string
+    {
+        return $this->tenant->custom_domain
+            ?: ($this->tenant->subdomain . '.intake.works');
+    }
+
+    /**
      * MARKER-PATCH-171 — Refund a Stripe charge for a sale that was paid
      * via the direct-payments flow.
      *

@@ -244,6 +244,10 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
                 Route::post('/register/payment-intent/confirm', [TenantControllers\RegisterController::class, 'confirmPaymentIntent'])->name('register.payment_intent.confirm');
                 // MARKER-PATCH-170B — auto-refund when commit fails after charge succeeds
                 Route::post('/register/payment-intent/auto-refund', [TenantControllers\RegisterController::class, 'autoRefundPaymentIntent'])->name('register.payment_intent.auto_refund');
+                // MARKER-PATCH-172 — send-payment-link (Stripe Checkout)
+                Route::post('/register/checkout-session',         [TenantControllers\RegisterController::class, 'createCheckoutSession'])->name('register.checkout_session.create');
+                Route::post('/register/checkout-session/check',   [TenantControllers\RegisterController::class, 'checkCheckoutSession'])->name('register.checkout_session.check');
+                Route::post('/register/checkout-session/cancel',  [TenantControllers\RegisterController::class, 'cancelCheckoutSession'])->name('register.checkout_session.cancel');
                 Route::get('/register/drafts',            [TenantControllers\RegisterController::class, 'listDrafts'])->name('register.drafts.index');
                 Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
                 Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');

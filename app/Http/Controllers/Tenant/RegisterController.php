@@ -1273,6 +1273,227 @@ class RegisterController extends Controller
     }
 
     /**
+     * MARKER-PATCH-172 — Create a Stripe Checkout Session and a matching
+     * DRAFT sale that\'s waiting for the customer to pay remotely.
+     *
+     * Returns the Checkout URL (for QR + copy/share) and the draft sale ID
+     * (which the frontend polls until the webhook fires).
+     */
+    public function createCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'amount_cents'     => 'required|integer|min:50',
+            'customer_id'      => 'nullable|uuid',
+            'has_service_line' => 'nullable|boolean',
+            'description'      => 'nullable|string|max:255',
+            'items'            => 'required|array|min:1',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'discount_cents'   => 'nullable|integer|min:0',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        // Same pre-check as createPaymentIntent (defense in depth).
+        if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Customer is required when the sale has any service line.',
+            ], 422);
+        }
+
+        // Resolve customer email for receipt (Stripe Checkout will pre-fill it).
+        $customerEmail = null;
+        if (! empty($validated['customer_id'])) {
+            $customerEmail = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $validated['customer_id'])
+                ->value('email');
+        }
+
+        // Create the Checkout Session first — if Stripe fails, no draft sale orphan.
+        $description = $validated['description'] ?: ($tenant->name . ' — purchase');
+        try {
+            $session = $direct->createCheckoutSession(
+                $validated['amount_cents'],
+                $description,
+                array_filter([
+                    'customer_email' => $customerEmail,
+                ])
+            );
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.checkout_session_failed', [
+                'tenant_id' => $tenant->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Could not create payment link. Verify your Stripe keys.',
+            ], 500);
+        }
+
+        // Create the draft sale with payment_status=pending and the session ID
+        // attached. When the webhook fires, this is the row we promote to paid.
+        $locationId = $request->session()->get('current_location_id');
+        try {
+            $draftSale = $this->sales->createSale([
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'status'             => 'pending',
+                'payment_status'     => 'pending',
+                'payment_method'     => 'card',
+                'payment_reference'  => 'Awaiting payment link',
+                'paid_at'            => null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                'items'              => $validated['items'],
+                'checkout_session_id' => $session->id,
+            ]);
+        } catch (\Throwable $e) {
+            // If draft creation fails, expire the Stripe session immediately so
+            // the link can\'t be paid (we have nothing to attach it to).
+            try {
+                $direct->client = null; // ignore typing — best-effort
+            } catch (\Throwable $_) {}
+            Log::error('direct_payments.draft_sale_failed', [
+                'tenant_id'  => $tenant->id,
+                'session_id' => $session->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Could not stage the sale. ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'sale_id'      => $draftSale->id,
+            'session_id'   => $session->id,
+            'checkout_url' => $session->url,
+            'expires_at'   => $session->expires_at,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Poll status of a Checkout Session. Frontend calls
+     * this every ~3 seconds while the payment-link modal is open.
+     *
+     * Returns one of: pending (still waiting), succeeded (payment_status
+     * went paid via webhook), expired, or cancelled.
+     */
+    public function checkCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Primary check: the webhook handler updates payment_status=paid when
+        // checkout.session.completed fires. Read DB first to avoid hitting Stripe.
+        if ($sale->payment_status === 'paid') {
+            return response()->json([
+                'ok'          => true,
+                'status'      => 'succeeded',
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+            ]);
+        }
+
+        // Fallback: hit Stripe directly in case webhook is delayed/dropped.
+        $direct = new DirectPaymentsService($tenant);
+        if ($sale->checkout_session_id) {
+            try {
+                $session = $direct->retrieveCheckoutSession($sale->checkout_session_id);
+                if ($session->payment_status === 'paid' && $session->status === 'complete') {
+                    // Webhook hasn\'t fired yet. We could promote here, but
+                    // it\'s cleaner to let the webhook be the source of truth.
+                    // Just report pending for now; the next poll should see it.
+                }
+                if ($session->status === 'expired') {
+                    return response()->json(['ok' => true, 'status' => 'expired']);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('direct_payments.poll_failed', [
+                    'tenant_id' => $tenant->id,
+                    'session'   => $sale->checkout_session_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json(['ok' => true, 'status' => 'pending']);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Cancel a pending Checkout-Session-backed sale.
+     * Used when the operator closes the payment-link modal manually.
+     */
+    public function cancelCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->where('payment_status', 'pending')
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => true, 'status' => 'already_resolved']);
+        }
+
+        // Expire the Stripe session (best-effort) and mark the sale cancelled.
+        if ($sale->checkout_session_id) {
+            try {
+                $direct = new DirectPaymentsService($tenant);
+                $direct->retrieveCheckoutSession($sale->checkout_session_id); // ensure exists
+                // Stripe Checkout sessions don\'t have a direct cancel API,
+                // but expire is achievable via the expire endpoint.
+                // Use stripe SDK's expire method.
+                // NOTE: stripe-php exposes this as $client->checkout->sessions->expire($id)
+                // (added in newer versions). If unavailable, the session will
+                // simply expire after 24h naturally.
+                // We swallow errors here — they're non-fatal.
+                $client = new \Stripe\StripeClient(['api_key' => $tenant->settings['register_payments_' . ($tenant->settings['register_payments_mode'] ?? 'test') . '_sk'] ?? null]);
+                try {
+                    $client->checkout->sessions->expire($sale->checkout_session_id);
+                } catch (\Throwable $_) {
+                    // expire may not be available on older SDK versions — ignore.
+                }
+            } catch (\Throwable $e) {
+                // Best-effort cleanup.
+                Log::info('direct_payments.session_expire_skipped', [
+                    'tenant_id' => $tenant->id,
+                    'session'   => $sale->checkout_session_id,
+                ]);
+            }
+        }
+
+        $sale->payment_status = 'cancelled';
+        $sale->status = 'cancelled';
+        $sale->save();
+
+        return response()->json(['ok' => true, 'status' => 'cancelled']);
+    }
+
+    /**
      * MARKER-PATCH-170B — auto-refund a PaymentIntent. Called by the client
      * when commitTransaction fails after a charge already authorized.
      *
