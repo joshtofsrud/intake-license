@@ -223,7 +223,32 @@
     color:var(--reg-danger)
   }
 
-  .reg-err{background:var(--reg-danger-bg);color:var(--reg-danger);border-radius:var(--ia-r-sm);padding:10px 12px;font-size:13px;margin-bottom:12px}
+  .reg-err{background:var(--reg-danger-bg);color:var(--reg-danger);border-radius:var(--ia-r-sm);padding:10px 12px;font-size:13px;margin-bottom:12px;border:0.5px solid rgba(248,113,113,.30)}
+  /* MARKER-PATCH-170C — shake animation for errors. Triggered by toggling .reg-err--shake. */
+  @keyframes reg-shake {
+    0%,100% { transform: translateX(0); }
+    15%     { transform: translateX(-6px); }
+    30%     { transform: translateX(5px); }
+    45%     { transform: translateX(-4px); }
+    60%     { transform: translateX(3px); }
+    75%     { transform: translateX(-2px); }
+    90%     { transform: translateX(1px); }
+  }
+  .reg-err--shake { animation: reg-shake 0.55s ease-out; }
+
+  /* Pre-flight blocker modal — uses the same surfaces as other reg-modals
+     but with a danger-tinged accent on the title. */
+  .reg-preflight-icon {
+    width: 44px; height: 44px;
+    background: rgba(248,113,113,.10);
+    border: 0.5px solid rgba(248,113,113,.25);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #f87171;
+    margin: 0 auto 14px;
+  }
+  .reg-preflight h2 { text-align: center; }
+  .reg-preflight .lede { text-align: center; }
 
   .reg-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
   .reg-modal-bg.open{display:flex}
@@ -481,6 +506,27 @@
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
       <button type="button" class="reg-btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+{{-- MARKER-PATCH-170C — Pre-flight blocker modal. Shown when the Charge
+     button is pressed but the cart isn't commit-able. Replaces hidden inline
+     errors that were easy to miss. --}}
+<div class="reg-modal-bg" id="preflightModal">
+  <div class="reg-modal reg-preflight">
+    <div class="reg-preflight-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <h2 id="preflightTitle">Add a customer</h2>
+    <div class="lede" id="preflightLede">A customer is required when the sale includes a service.</div>
+    <div class="reg-modal-actions" style="justify-content:center;gap:10px">
+      <button type="button" class="reg-btn-secondary" data-close-modal="preflightModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="preflightActionBtn">Add customer →</button>
     </div>
   </div>
 </div>
@@ -1480,6 +1526,15 @@ document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('payBtn').addEventListener('click', () => {
+  // MARKER-PATCH-170C — pre-flight validation FIRST. If the cart can't
+  // be committed (e.g. service line without customer), block the tender
+  // modal entirely and show a focused dialog explaining what to fix.
+  const blocker = preflightCheck();
+  if (blocker) {
+    openPreflightModal(blocker);
+    return;
+  }
+
   // Net total decides which path we take.
   const sub = calcSubtotal();
   const refundSub = calcRefundSubtotal();
@@ -1542,7 +1597,11 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
     btn.classList.add('selected');
     cart.payment_method = btn.dataset.tender;
     document.getElementById('tenderConfirmBtn').disabled = false;
-    const showRef = ['card', 'check'].includes(cart.payment_method);
+    // MARKER-PATCH-170C — reference field only meaningful for checks now.
+    // Card no longer needs a hand-typed reference (with direct payments the
+    // brand+last4 becomes the reference automatically; without direct payments
+    // the field was always low-value friction).
+    const showRef = ['check'].includes(cart.payment_method);
     document.getElementById('tenderRefRow').style.display = showRef ? '' : 'none';
     renderTotals();
   });
@@ -1562,15 +1621,18 @@ let DirectPay = {
 };
 
 async function openCardPaymentModal() {
-  // MARKER-PATCH-170B — pre-charge validation. Block the modal entirely
-  // if the cart isn\'t commit-able. We never want to authorize a card for
-  // a sale that the backend will refuse.
+  // MARKER-PATCH-170B + 170C — pre-charge validation. The Charge button
+  // pre-flight modal already catches this upstream, but defense-in-depth
+  // in case openCardPaymentModal is reached via some other path.
   const hasServiceLine = cart.items.some(i => i.type === 'service');
   if (hasServiceLine && !cart.customer) {
-    const banner = document.getElementById('errBanner');
-    banner.textContent = 'Customer is required when the sale has any service line.';
-    banner.style.display = '';
     closeModal('tenderModal');
+    openPreflightModal({
+      title: 'Add a customer',
+      message: 'A customer is required when the sale includes a service.',
+      actionLabel: 'Add customer →',
+      actionFn: () => { closeModal('preflightModal'); openCustomerModal(); },
+    });
     return;
   }
 
@@ -1958,6 +2020,47 @@ function showError(msg) {
   const el = document.getElementById('errBanner');
   el.textContent = msg;
   el.style.display = '';
+  // MARKER-PATCH-170C — shake to draw attention, even on repeat errors.
+  // Re-trigger by removing then re-adding the class on the next frame.
+  el.classList.remove('reg-err--shake');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { el.classList.add('reg-err--shake'); });
+  });
+}
+
+// MARKER-PATCH-170C — pre-flight cart validation.
+// Returns null if the cart is commit-able, or a blocker object
+// { title, message, actionLabel, actionFn } describing what's wrong.
+// Order matters: surface the most-actionable problem first.
+function preflightCheck() {
+  // Service-line-without-customer is the only blocker we know about today.
+  // More can be added (e.g. price-zero items, missing location) without
+  // changing the call site.
+  const hasServiceLine = cart.items.some(i => i.type === 'service');
+  if (hasServiceLine && !cart.customer) {
+    return {
+      title: 'Add a customer',
+      message: 'A customer is required when the sale includes a service. Attach a customer and we\'ll continue.',
+      actionLabel: 'Add customer →',
+      actionFn: () => {
+        closeModal('preflightModal');
+        openCustomerModal();
+      },
+    };
+  }
+  return null;
+}
+
+function openPreflightModal(blocker) {
+  document.getElementById('preflightTitle').textContent = blocker.title;
+  document.getElementById('preflightLede').textContent  = blocker.message;
+  const btn = document.getElementById('preflightActionBtn');
+  btn.textContent = blocker.actionLabel;
+  // Replace previous click handler — clone the node to drop bound listeners.
+  const fresh = btn.cloneNode(true);
+  btn.parentNode.replaceChild(fresh, btn);
+  fresh.addEventListener('click', blocker.actionFn);
+  openModal('preflightModal');
 }
 function showReceipt(data) {
   document.getElementById('receiptNum').textContent = data.sale_number;
