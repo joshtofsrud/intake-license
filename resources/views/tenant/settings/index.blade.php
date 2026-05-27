@@ -321,11 +321,7 @@
   </a>
 </div>
 
-@if(session('success'))
-<div style="padding:10px 14px;margin-bottom:16px;border-radius:var(--ia-r-md);background:rgba(120,200,120,.10);border:0.5px solid rgba(120,200,120,.25);font-size:13px;color:#78c878">
-  {{ session('success') }}
-</div>
-@endif
+{{-- MARKER-PATCH-165 — success flash removed; the global layout renders it once at the top. --}}
 @if($errors->any())
 <div style="padding:10px 14px;margin-bottom:16px;border-radius:var(--ia-r-md);background:rgba(240,149,149,.10);border:0.5px solid rgba(240,149,149,.25);font-size:13px;color:#F09595">
   @foreach($errors->all() as $err){{ $err }}<br>@endforeach
@@ -350,7 +346,7 @@
     <input type="hidden" name="tab" value="business">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg">Saved.</span>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save business settings</button>
@@ -625,7 +621,7 @@
     <input type="hidden" name="tab" value="branding">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg">Saved.</span>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save branding</button>
@@ -804,7 +800,7 @@
     <input type="hidden" name="tab" value="communication">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg">Saved.</span>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save communication settings</button>
@@ -1198,7 +1194,7 @@
     <input type="hidden" name="tab" value="account">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg">Saved.</span>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save account</button>
@@ -1286,7 +1282,7 @@
     <input type="hidden" name="tab" value="payments">
 
     <div class="set-savebar" data-savebar>
-      <span class="set-savebar-msg">Saved.</span>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
       <div class="set-savebar-actions">
         <button type="button" class="set-discard-btn" data-discard>Discard</button>
         <button type="submit" class="set-save-btn">Save payment settings</button>
@@ -1409,6 +1405,11 @@
   /* -----------------------------------------------------------------------
    * Dirty tracking — per form, save bar dims when no changes
    * ----------------------------------------------------------------------- */
+  // MARKER-PATCH-165 — "Saved." only after a real save, not on every clean state.
+  // justSaved is true only when the page just reloaded from a successful POST
+  // (session('success') was set server-side). Drives the brief confirmation flash.
+  var justSaved = @json(session('success') ? true : false);
+
   document.querySelectorAll('[data-dirty-form]').forEach(function(form) {
     var savebar = form.querySelector('[data-savebar]');
     var msg     = savebar ? savebar.querySelector('.set-savebar-msg') : null;
@@ -1440,9 +1441,22 @@
       var dirty = nowSerialized !== initial;
       if (savebar) {
         savebar.classList.toggle('dirty', dirty);
-        if (msg) msg.textContent = dirty ? 'You have unsaved changes.' : 'Saved.';
+        // MARKER-PATCH-165 — message states: dirty | just-saved | idle.
+        // Idle (initial page load, never touched) is BLANK, not "Saved."
+        if (msg) {
+          if (dirty) {
+            msg.textContent = 'You have unsaved changes.';
+          } else if (justSaved) {
+            msg.textContent = 'Saved.';
+          } else {
+            msg.textContent = '';
+          }
+        }
       }
     }
+
+    // Initial paint
+    checkDirty();
 
     form.addEventListener('input', checkDirty);
     form.addEventListener('change', checkDirty);
