@@ -248,6 +248,21 @@ class SettingsController extends Controller
         $settings['stripe_live_sk']        = $request->input('stripe_live_sk', '');
         $settings['stripe_webhook_secret'] = $request->input('stripe_webhook_secret', '');
 
+        // MARKER-PATCH-169 — Direct Payments bridge feature.
+        // Register card-sale keys, namespaced separately from the booking-deposit
+        // Stripe keys above (which power BookingController via App\Services\StripeService).
+        // Only saved if the tenant has direct_payments_enabled set by master admin;
+        // otherwise the form fields don\'t render and the inputs come back empty,
+        // which is fine.
+        if ($tenant->direct_payments_enabled) {
+            $settings['register_payments_mode']           = $request->input('register_payments_mode', 'test');
+            $settings['register_payments_test_pk']        = $request->input('register_payments_test_pk', '');
+            $settings['register_payments_test_sk']        = $request->input('register_payments_test_sk', '');
+            $settings['register_payments_live_pk']        = $request->input('register_payments_live_pk', '');
+            $settings['register_payments_live_sk']        = $request->input('register_payments_live_sk', '');
+            $settings['register_payments_webhook_secret'] = $request->input('register_payments_webhook_secret', '');
+        }
+
         $settings['paypal_enabled']        = (bool) $request->input('paypal_enabled');
         $settings['paypal_mode']           = $request->input('paypal_mode', 'sandbox');
         $settings['paypal_test_client_id'] = $request->input('paypal_test_client_id', '');

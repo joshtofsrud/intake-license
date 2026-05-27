@@ -38,6 +38,19 @@ class TenantResource extends Resource
                     ->required(),
             ])->columns(2),
 
+            // MARKER-PATCH-169 — Direct Payments bridge feature.
+            // Single toggle that exposes the tenant-side keys panel. Tenant
+            // pastes their own Stripe keys; nothing in this resource handles
+            // the keys themselves.
+            Forms\Components\Section::make('Direct card payments (beta)')
+                ->description('When ON, this tenant can paste their own Stripe keys in their Settings -> Payments tab and run register card-sales directly through their Stripe account. Bridge feature ahead of the full Connect integration.')
+                ->schema([
+                    Forms\Components\Toggle::make('direct_payments_enabled')
+                        ->label('Enable direct card payments for this tenant')
+                        ->helperText('Off by default. Flip on for beta testers and yourself.'),
+                ])
+                ->collapsed(),
+
             Forms\Components\Section::make('Owner account')->schema([
                 Forms\Components\TextInput::make('owner_name')
                     ->label('Owner name')

@@ -1289,6 +1289,68 @@
       </div>
     </div>
 
+    {{-- MARKER-PATCH-169 — Direct Payments bridge feature.
+         Only renders when master admin flipped direct_payments_enabled on for this tenant.
+         Tenant pastes their own Stripe keys here for register card-sales. --}}
+    @if($currentTenant->direct_payments_enabled ?? false)
+    <div class="provider-card enabled" id="register-payments-card" style="border-color:var(--ia-accent);background:linear-gradient(0deg,rgba(190,242,100,.03),transparent)">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px">
+            Register card payments
+            <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:999px;background:var(--ia-accent-soft);color:var(--ia-accent);border:0.5px solid rgba(190,242,100,.25)">beta</span>
+          </div>
+          <div style="font-size:12px;opacity:.6;margin-top:2px">Hand-key card numbers and send payment links from the register. Paste your own Stripe keys below.</div>
+        </div>
+      </div>
+      <div class="provider-fields" style="display:block">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Mode</label>
+          <select name="register_payments_mode" class="ia-input" style="width:auto">
+            <option value="test" @selected(($s['register_payments_mode'] ?? 'test') === 'test')>Test</option>
+            <option value="live" @selected(($s['register_payments_mode'] ?? 'test') === 'live')>Live</option>
+          </select>
+          <div style="font-size:11px;opacity:.55;margin-top:6px">Start in test mode. Switch to live only after you've verified end-to-end flows with test cards.</div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Test publishable key</label>
+            <input type="text" name="register_payments_test_pk" value="{{ $s['register_payments_test_pk'] ?? '' }}" class="ia-input" placeholder="pk_test_…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Test secret key</label>
+            <input type="password" name="register_payments_test_sk" value="{{ $s['register_payments_test_sk'] ?? '' }}" class="ia-input" placeholder="sk_test_…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Live publishable key</label>
+            <input type="text" name="register_payments_live_pk" value="{{ $s['register_payments_live_pk'] ?? '' }}" class="ia-input" placeholder="pk_live_…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Live secret key</label>
+            <input type="password" name="register_payments_live_sk" value="{{ $s['register_payments_live_sk'] ?? '' }}" class="ia-input" placeholder="sk_live_…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div class="ia-form-group">
+          <label class="ia-form-label">Webhook signing secret</label>
+          <input type="password" name="register_payments_webhook_secret" value="{{ $s['register_payments_webhook_secret'] ?? '' }}" class="ia-input" placeholder="whsec_…" autocomplete="off" spellcheck="false">
+          <div style="font-size:11px;opacity:.55;margin-top:6px">
+            From Stripe Dashboard -> Developers -> Webhooks. Point a new endpoint at <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">{{ url('/webhooks/stripe-direct/' . $currentTenant->id) }}</code> and subscribe to <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">payment_intent.succeeded</code>, <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">checkout.session.completed</code>, and <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">charge.refunded</code>. (The webhook endpoint itself ships in Session 2.)
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding:10px 12px;background:rgba(251,191,36,.06);border:0.5px solid rgba(251,191,36,.2);border-radius:var(--ia-r-md);font-size:12px;color:var(--ia-text-muted)">
+          <strong style="color:#fbbf24">Beta:</strong> register card-payment flow ships in the next update. Save your keys now so it's ready when it does.
+        </div>
+      </div>
+    </div>
+    @endif
+
     {{-- Stripe --}}
     <div class="provider-card {{ ($s['stripe_enabled'] ?? false) ? 'enabled' : '' }}" id="stripe-card">
       <div class="provider-header">

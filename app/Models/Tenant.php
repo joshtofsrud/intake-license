@@ -49,6 +49,8 @@ class Tenant extends Model
         'min_notice_hours'    => 'integer',
         'booking_mode'        => 'string',
         'classes_enabled'     => 'boolean',
+        // MARKER-PATCH-169 — Direct Payments bridge toggle
+        'direct_payments_enabled' => 'boolean',
         // MARKER-PATCH-168 — Stripe Connect casts
         'stripe_connect_charges_enabled'        => 'boolean',
         'stripe_connect_payouts_enabled'        => 'boolean',
