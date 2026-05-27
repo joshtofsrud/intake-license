@@ -10,6 +10,12 @@
     <h1 class="ia-page-title">Calendar</h1>
     <p class="ia-page-subtitle">Drop-off mode · {{ $date->format('l, F j, Y') }}</p>
   </div>
+    <div class="ia-page-actions" style="margin-left:auto">
+      {{-- MARKER-PATCH-163 — canonical new-appointment entry point on calendar header --}}
+      <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
+        + New appointment
+      </button>
+    </div>
   <div class="ia-page-head-right" style="display:flex;gap:10px;align-items:center">
     <div class="cal-view-toggle">
       <a href="?view=day&date={{ $date->format('Y-m-d') }}" class="cal-view-tab is-active">Day</a>
@@ -92,6 +98,9 @@
 @endif
 
 @include('tenant._appt-drawer')
+
+{{-- MARKER-PATCH-163 — defines window.openApptModal() --}}
+@include('tenant.appointments._create_modal')
 
 @endsection
 
