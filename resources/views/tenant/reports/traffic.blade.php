@@ -244,7 +244,8 @@
 @endpush
 
 @section('content')
-<div class="ia-page">
+{{-- MARKER-PATCH-164 — match the other reports tabs' padding wrapper --}}
+<div style="padding: 32px 40px;">
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">How your business is performing.</div>
 
