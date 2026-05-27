@@ -1345,8 +1345,11 @@ class RegisterController extends Controller
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
                 'customer_id'        => $validated['customer_id'] ?? null,
+                // MARKER-PATCH-172C — 'pending' isn't in the payment_status ENUM.
+                // 'unpaid' is the semantically correct value: customer received the
+                // link, hasn't paid yet.
                 'status'             => 'pending',
-                'payment_status'     => 'pending',
+                'payment_status'     => 'unpaid',
                 'payment_method'     => 'card',
                 'payment_reference'  => 'Awaiting payment link',
                 'paid_at'            => null,
@@ -1453,7 +1456,7 @@ class RegisterController extends Controller
 
         $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
             ->where('id', $validated['sale_id'])
-            ->where('payment_status', 'pending')
+            ->where('payment_status', 'unpaid')  // MARKER-PATCH-172C
             ->first();
 
         if (! $sale) {
@@ -1487,7 +1490,9 @@ class RegisterController extends Controller
             }
         }
 
-        $sale->payment_status = 'cancelled';
+        // MARKER-PATCH-172C — payment_status enum doesn't have 'cancelled'.
+        // status column already has 'cancelled'. payment_status stays 'unpaid'
+        // (customer didn't pay; was never going to from this aborted attempt).
         $sale->status = 'cancelled';
         $sale->save();
 

@@ -206,7 +206,8 @@ class DirectPaymentsWebhookController extends Controller
         // original as refunded so it doesn\'t look paid anymore.
         $refundedAmount = (int) ($charge->amount_refunded ?? 0);
         $totalAmount    = (int) ($charge->amount ?? 0);
-        $original->payment_status = ($refundedAmount >= $totalAmount) ? 'refunded' : 'partial_refund';
+        // MARKER-PATCH-172C — 'partial' is in the enum; 'partial_refund' is not.
+        $original->payment_status = ($refundedAmount >= $totalAmount) ? 'refunded' : 'partial';
         $original->save();
 
         Log::warning('direct_payments_webhook.external_refund_detected', [
