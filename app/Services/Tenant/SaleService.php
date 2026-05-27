@@ -25,7 +25,10 @@ class SaleService
      */
     public function nextSaleNumber(string $tenantId, ?string $saleDate = null): string
     {
-        $date = $saleDate ? Carbon::parse($saleDate) : Carbon::today();
+        // MARKER-PATCH-159 — tenant-local "today" for date-only sale_number generation
+        $tenant = \App\Models\Tenant::find($tenantId);
+        $tz = $tenant ? $tenant->timezone() : 'UTC';
+        $date = $saleDate ? Carbon::parse($saleDate, $tz) : Carbon::today($tz);
         $datePart = $date->format('Ymd');
 
         return DB::transaction(function () use ($tenantId, $date, $datePart) {
@@ -74,7 +77,8 @@ class SaleService
 
         return DB::transaction(function () use ($data, $items) {
             $tenantId = $data['tenant_id'];
-            $saleDate = $data['sale_date'] ?? Carbon::today()->toDateString();
+            // MARKER-PATCH-159 — tenant-local today, not UTC
+            $saleDate = $data['sale_date'] ?? \App\Models\Tenant::find($data['tenant_id'])?->localToday()->toDateString() ?? Carbon::today()->toDateString();
 
             $sale = TenantSale::create([
                 'tenant_id'          => $tenantId,
@@ -199,7 +203,8 @@ class SaleService
                 // Nuke-and-rebuild items. Drafts are transient; IDs don't matter.
                 $draft->items()->delete();
             } else {
-                $saleDate = $data['sale_date'] ?? Carbon::today()->toDateString();
+                // MARKER-PATCH-159 — tenant-local today, not UTC
+                $saleDate = $data['sale_date'] ?? \App\Models\Tenant::find($data['tenant_id'])?->localToday()->toDateString() ?? Carbon::today()->toDateString();
                 $draft = TenantSale::create([
                     'tenant_id'          => $data['tenant_id'],
                     'sale_number'        => null,
@@ -624,7 +629,8 @@ class SaleService
 
         return DB::transaction(function () use ($data, $original, $itemsToRefund, $refundLocationId) {
             $tenantId = $data['tenant_id'];
-            $today = Carbon::today()->toDateString();
+            // MARKER-PATCH-159 — tenant-local today for refund sale_date
+            $today = \App\Models\Tenant::find($tenantId)?->localToday()->toDateString() ?? Carbon::today()->toDateString();
             $reason = trim((string) ($data['reason'] ?? ''));
             $notes  = trim((string) ($data['notes'] ?? ''));
             $combinedNotes = trim($reason . ($reason && $notes ? "\n" : '') . $notes);
