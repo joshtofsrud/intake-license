@@ -485,6 +485,30 @@
   </div>
 </div>
 
+{{-- MARKER-PATCH-170 — Direct Payments card-entry modal --}}
+<div class="reg-modal-bg" id="cardPaymentModal">
+  <div class="reg-modal">
+    <h2>Card payment</h2>
+    <div class="lede">Enter card details. Powered by Stripe.</div>
+
+    <div id="cardPaymentSummary" style="background:var(--ia-surface-2);border-radius:var(--ia-r-md);padding:14px;margin-bottom:14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;font-weight:600;font-size:15px"><span>Charge</span><span id="cardPaymentAmount">$0.00</span></div>
+    </div>
+
+    <div id="card-payment-element" style="background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:16px;margin-bottom:14px;min-height:60px"></div>
+
+    <div id="cardPaymentError" style="display:none;padding:12px 14px;background:rgba(248,113,113,.10);border:0.5px solid rgba(248,113,113,.25);border-radius:var(--ia-r-md);font-size:12.5px;color:#f87171;margin-bottom:14px"></div>
+
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="cardPaymentCancelBtn">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="cardPaymentChargeBtn" disabled>
+        <span id="cardPaymentChargeLabel">Charge</span>
+        <span id="cardPaymentSpinner" style="display:none;margin-left:8px">…</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="tipModal">
   <div class="reg-modal">
     <h2>Add tip?</h2>
@@ -627,6 +651,11 @@ const ROUTES = {
   customerBase: @json(url('/admin/customers')),
   // MARKER-PATCH-162
   multiLocationActive: {{ $multiLocationActive ? 'true' : 'false' }},
+  // MARKER-PATCH-170 — Direct Payments
+  directPaymentsEnabled: {{ ($tenant->direct_payments_enabled ?? false) ? 'true' : 'false' }},
+  directPaymentsPk: @json(($tenant->direct_payments_enabled ?? false) ? (($tenant->settings['register_payments_mode'] ?? 'test') === 'live' ? ($tenant->settings['register_payments_live_pk'] ?? '') : ($tenant->settings['register_payments_test_pk'] ?? '')) : ''),
+  paymentIntentCreate: @json(url('/admin/register/payment-intent')),
+  paymentIntentConfirm: @json(url('/admin/register/payment-intent/confirm')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -1517,8 +1546,197 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
   });
 });
 
+// MARKER-PATCH-170 — Direct Payments hand-keyed card flow
+// When the card tender is selected AND the tenant has direct payments
+// enabled, intercept to run the Stripe Payment Element BEFORE commit.
+// Other tender types (cash, check, etc.) flow unchanged.
+let DirectPay = {
+  stripe: null,
+  elements: null,
+  paymentElement: null,
+  clientSecret: null,
+  paymentIntentId: null,
+  inFlight: false,
+};
+
+async function openCardPaymentModal() {
+  const errBox = document.getElementById('cardPaymentError');
+  errBox.style.display = 'none';
+  errBox.textContent = '';
+  document.getElementById('cardPaymentChargeBtn').disabled = true;
+  document.getElementById('cardPaymentSpinner').style.display = 'none';
+
+  const totals = computeTotalsForCommit();
+  const amountCents = totals.total_cents + (cart.tipCents || 0);
+  document.getElementById('cardPaymentAmount').textContent = fmt(amountCents);
+  document.getElementById('cardPaymentChargeLabel').textContent = 'Charge ' + fmt(amountCents);
+
+  openModal('cardPaymentModal');
+
+  // Reset Stripe.js elements between opens
+  if (DirectPay.paymentElement) {
+    try { DirectPay.paymentElement.unmount(); } catch (e) {}
+  }
+  DirectPay.elements = null;
+  DirectPay.paymentElement = null;
+  DirectPay.clientSecret = null;
+  DirectPay.paymentIntentId = null;
+
+  // Create the PaymentIntent
+  let intent;
+  try {
+    const res = await fetch(ROUTES.paymentIntentCreate, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ amount_cents: amountCents }),
+    });
+    intent = await res.json();
+    if (!intent.ok) throw new Error(intent.error || 'Could not initialize card payment.');
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = '';
+    return;
+  }
+
+  DirectPay.clientSecret = intent.client_secret;
+  DirectPay.paymentIntentId = intent.payment_intent;
+
+  // Lazy-init Stripe.js with the tenant\'s publishable key
+  if (!DirectPay.stripe) {
+    DirectPay.stripe = Stripe(intent.publishable_key);
+  }
+
+  DirectPay.elements = DirectPay.stripe.elements({
+    clientSecret: DirectPay.clientSecret,
+    appearance: {
+      theme: 'night',
+      variables: {
+        colorPrimary: '#BEF264',
+        colorBackground: '#1c1c1c',
+        colorText: '#f0f0f0',
+        colorDanger: '#f87171',
+        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        borderRadius: '6px',
+      },
+    },
+  });
+  DirectPay.paymentElement = DirectPay.elements.create('payment', {
+    layout: 'tabs',
+  });
+  DirectPay.paymentElement.mount('#card-payment-element');
+  DirectPay.paymentElement.on('ready', () => {
+    document.getElementById('cardPaymentChargeBtn').disabled = false;
+  });
+  DirectPay.paymentElement.on('change', (ev) => {
+    document.getElementById('cardPaymentChargeBtn').disabled = !!ev.empty;
+    if (ev.error) {
+      errBox.textContent = ev.error.message;
+      errBox.style.display = '';
+    } else {
+      errBox.style.display = 'none';
+    }
+  });
+}
+
+async function confirmCardPayment() {
+  if (DirectPay.inFlight) return;
+  DirectPay.inFlight = true;
+
+  const errBox = document.getElementById('cardPaymentError');
+  errBox.style.display = 'none';
+  const chargeBtn = document.getElementById('cardPaymentChargeBtn');
+  chargeBtn.disabled = true;
+  document.getElementById('cardPaymentSpinner').style.display = '';
+
+  let result;
+  try {
+    result = await DirectPay.stripe.confirmPayment({
+      elements: DirectPay.elements,
+      redirect: 'if_required',
+    });
+  } catch (e) {
+    errBox.textContent = e.message || 'Payment failed.';
+    errBox.style.display = '';
+    chargeBtn.disabled = false;
+    document.getElementById('cardPaymentSpinner').style.display = 'none';
+    DirectPay.inFlight = false;
+    return;
+  }
+
+  if (result.error) {
+    errBox.textContent = result.error.message;
+    errBox.style.display = '';
+    chargeBtn.disabled = false;
+    document.getElementById('cardPaymentSpinner').style.display = 'none';
+    DirectPay.inFlight = false;
+    return;
+  }
+
+  // Verify with our server (Stripe is source of truth, not the client)
+  let conf;
+  try {
+    const res = await fetch(ROUTES.paymentIntentConfirm, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ payment_intent: DirectPay.paymentIntentId }),
+    });
+    conf = await res.json();
+    if (!conf.ok) throw new Error(conf.error || 'Could not verify payment.');
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = '';
+    chargeBtn.disabled = false;
+    document.getElementById('cardPaymentSpinner').style.display = 'none';
+    DirectPay.inFlight = false;
+    return;
+  }
+
+  // Stash Stripe metadata for the sale commit
+  cart.stripe_payment_intent_id = conf.payment_intent;
+  cart.stripe_charge_id         = conf.stripe_charge_id;
+  cart.card_brand               = conf.card_brand;
+  cart.card_last4               = conf.card_last4;
+  cart.card_funding             = conf.card_funding;
+  cart.payment_reference        = (conf.card_brand && conf.card_last4)
+    ? (conf.card_brand + ' ····' + conf.card_last4)
+    : null;
+
+  // Close modal and run the existing commit pipeline
+  closeModal('cardPaymentModal');
+  DirectPay.inFlight = false;
+  if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
+}
+
+document.getElementById('cardPaymentCancelBtn').addEventListener('click', () => {
+  if (DirectPay.paymentElement) {
+    try { DirectPay.paymentElement.unmount(); } catch (e) {}
+  }
+  DirectPay.inFlight = false;
+  closeModal('cardPaymentModal');
+});
+document.getElementById('cardPaymentChargeBtn').addEventListener('click', confirmCardPayment);
+
+// Helper used by openCardPaymentModal to compute the current charge total.
+// Mirrors the math in commitTransaction\'s totals without firing a save.
+function computeTotalsForCommit() {
+  const sub = calcSubtotal();
+  const tax = Math.round(sub * (CFG.taxRate || 0));
+  const total = sub + tax - (cart.discountCents || 0);
+  return { subtotal_cents: sub, tax_cents: tax, total_cents: Math.max(0, total) };
+}
+
 document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
+
+  // MARKER-PATCH-170 — Direct Payments path
+  // If card tender selected AND direct payments enabled, route through Stripe instead.
+  if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+    closeModal('tenderModal');
+    openCardPaymentModal();
+    return;
+  }
+
+  // Default path (cash, check, store_credit, mark_paid, or card-without-Stripe)
   closeModal('tenderModal');
   if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
 });
@@ -1596,6 +1814,12 @@ async function commitTransaction(opts = {}) {
         tip_cents: cart.tipCents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
+        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
+        stripe_charge_id: cart.stripe_charge_id || null,
+        card_brand: cart.card_brand || null,
+        card_last4: cart.card_last4 || null,
+        card_funding: cart.card_funding || null,
         items: hasNewSale ? cart.items.map(serializeLine) : [],
         refund: {
           original_sale_id: cart.refund_meta.original_sale_id,
@@ -1612,6 +1836,12 @@ async function commitTransaction(opts = {}) {
         tip_cents: cart.tipCents,
         customer_id: cart.customer ? cart.customer.id : null,
         skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
+        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
+        stripe_charge_id: cart.stripe_charge_id || null,
+        card_brand: cart.card_brand || null,
+        card_last4: cart.card_last4 || null,
+        card_funding: cart.card_funding || null,
       };
     } else {
       // Fallback path — pure sale, no draft, send full cart.
@@ -1624,6 +1854,12 @@ async function commitTransaction(opts = {}) {
         payment_reference: cart.payment_reference,
         items: cart.items.map(serializeLine),
         skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
+        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
+        stripe_charge_id: cart.stripe_charge_id || null,
+        card_brand: cart.card_brand || null,
+        card_last4: cart.card_last4 || null,
+        card_funding: cart.card_funding || null,
       };
     }
 
@@ -2058,4 +2294,9 @@ loadDrafts().then(refreshDraftsBanner);
   }
 })();
 </script>
+
+@if($tenant->direct_payments_enabled ?? false)
+{{-- MARKER-PATCH-170 — Stripe.js for Direct Payments hand-keyed flow --}}
+<script src="https://js.stripe.com/v3/"></script>
+@endif
 @endpush

@@ -11,6 +11,7 @@ use App\Models\Tenant\TenantCustomer;
 use App\Services\Tenant\SaleService;
 use App\Services\Tenant\SaleValidationException;
 use App\Services\Tenant\InventoryStockException;
+use App\Services\Tenant\DirectPaymentsService;  // MARKER-PATCH-170
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -250,6 +251,12 @@ class RegisterController extends Controller
                 'payment_status'     => 'paid',
                 'payment_method'     => $validated['payment_method'],
                 'payment_reference'  => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
                 'paid_at'            => Carbon::now(),
                 'notes'              => $validated['notes'] ?? null,
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
@@ -569,6 +576,12 @@ class RegisterController extends Controller
                 'payment_status'    => 'paid',
                 'payment_method'    => $validated['payment_method'],
                 'payment_reference' => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
                 'paid_at'           => Carbon::now(),
                 'tip_cents'         => $validated['tip_cents'] ?? null,
                 'customer_id'       => $validated['customer_id'] ?? null,
@@ -722,6 +735,12 @@ class RegisterController extends Controller
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                 'payment_method'     => $validated['payment_method'],
                 'payment_reference'  => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
                 'items'              => $validated['items'] ?? [],
                 'refund'             => $validated['refund'],
             ]);
@@ -1129,6 +1148,106 @@ class RegisterController extends Controller
 
         \App\Jobs\SendSaleReceiptJob::dispatch($sale->id, $override ?: null, 'manual_resend');
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-PATCH-170 — Direct Payments Session 2A.
+     *
+     * Create a Stripe PaymentIntent for a cart. Returns the client_secret
+     * which the front-end uses with Stripe.js to confirm the card.
+     *
+     * This is called BEFORE the sale is committed. After Stripe confirms
+     * the payment client-side, the front-end POSTs to /register/sales (or
+     * /register/drafts/{id}/commit) with payment_method=card AND the
+     * stripe_payment_intent_id so the controller can verify + record.
+     */
+    public function createPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'amount_cents' => 'required|integer|min:50',
+            'sale_id'      => 'nullable|uuid',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Card payments are not enabled for this tenant.',
+            ], 422);
+        }
+
+        try {
+            $pi = $direct->createPaymentIntent($validated['amount_cents'], 'usd', array_filter([
+                'intake_sale_id' => $validated['sale_id'] ?? null,
+            ]));
+            return response()->json([
+                'ok'             => true,
+                'client_secret'  => $pi->client_secret,
+                'payment_intent' => $pi->id,
+                'publishable_key' => $direct->publishableKey(),
+                'mode'           => $direct->mode(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.create_pi_failed', [
+                'tenant_id' => $tenant->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok' => false,
+                'error' => 'Could not initialize card payment. Verify your Stripe keys are correct.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify a PaymentIntent's final state with Stripe. Returns the card
+     * details if succeeded so the front-end can include them in the
+     * subsequent commit call (which writes them to the sale row).
+     */
+    public function confirmPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        try {
+            $pi = $direct->retrievePaymentIntent($validated['payment_intent']);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.retrieve_pi_failed', [
+                'tenant_id' => $tenant->id,
+                'pi'        => $validated['payment_intent'],
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Could not verify payment.'], 500);
+        }
+
+        if ($pi->status !== 'succeeded') {
+            return response()->json([
+                'ok'     => false,
+                'status' => $pi->status,
+                'error'  => 'Payment is not in a succeeded state (status: ' . $pi->status . ').',
+            ], 409);
+        }
+
+        $card = $direct->extractCardDetails($pi);
+        return response()->json([
+            'ok'                       => true,
+            'payment_intent'           => $pi->id,
+            'stripe_charge_id'         => $card['charge_id'],
+            'card_brand'               => $card['brand'],
+            'card_last4'               => $card['last4'],
+            'card_funding'             => $card['funding'],
+            'amount_received_cents'    => $pi->amount_received,
+        ]);
     }
 
     public function storeRefund(Request $request): JsonResponse

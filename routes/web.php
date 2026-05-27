@@ -165,6 +165,13 @@ Route::post('webhooks/stripe-connect',
     [\App\Http\Controllers\Webhooks\StripeConnectWebhookController::class, 'handle']
 )->name('webhooks.stripe-connect');
 
+// MARKER-PATCH-170 - Direct Payments webhook (per-tenant, path-scoped).
+// Each tenant has their own Stripe account so we route by tenant_id in the
+// URL and verify against that tenant\'s webhook signing secret.
+Route::post('webhooks/stripe-direct/{tenantId}',
+    [\App\Http\Controllers\Webhooks\DirectPaymentsWebhookController::class, 'handle']
+)->name('webhooks.stripe-direct');
+
 // MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified, public)
 Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
     ->name('webhooks.ses-bounce');
@@ -232,6 +239,9 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
                 Route::get('/register/appointment-tray', [TenantControllers\RegisterController::class, 'appointmentTray'])->name('register.appointment-tray');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
                 Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
+                // MARKER-PATCH-170 — Direct Payments hand-keyed card endpoints
+                Route::post('/register/payment-intent',   [TenantControllers\RegisterController::class, 'createPaymentIntent'])->name('register.payment_intent.create');
+                Route::post('/register/payment-intent/confirm', [TenantControllers\RegisterController::class, 'confirmPaymentIntent'])->name('register.payment_intent.confirm');
                 Route::get('/register/drafts',            [TenantControllers\RegisterController::class, 'listDrafts'])->name('register.drafts.index');
                 Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
                 Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');

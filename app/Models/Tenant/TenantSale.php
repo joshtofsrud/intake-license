@@ -27,6 +27,10 @@ class TenantSale extends Model
         'surcharge_cents', 'tip_cents', 'total_cents',
         'tax_locked',
         'paid_at', 'payment_method', 'payment_reference',
+        // MARKER-PATCH-170 — Direct Payments card metadata
+        'stripe_payment_intent_id', 'stripe_charge_id',
+        'card_brand', 'card_last4', 'card_funding',
+        'checkout_session_id',
         'register_id',
         'location_id',
         'quote_expires_at',
