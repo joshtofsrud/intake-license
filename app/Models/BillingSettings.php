@@ -18,9 +18,11 @@ class BillingSettings extends Model
         'stripe_test_publishable_key',
         'stripe_test_secret_key',
         'stripe_test_webhook_secret',
+        'stripe_test_connect_webhook_secret',
         'stripe_live_publishable_key',
         'stripe_live_secret_key',
         'stripe_live_webhook_secret',
+        'stripe_live_connect_webhook_secret',
         'stripe_mode',
         'stripe_price_starter_monthly',
         'stripe_price_starter_annual',
@@ -34,13 +36,15 @@ class BillingSettings extends Model
     ];
 
     protected $casts = [
-        // All 6 key columns encrypted via APP_KEY
+        // All key columns encrypted via APP_KEY
         'stripe_test_publishable_key' => 'encrypted',
         'stripe_test_secret_key' => 'encrypted',
         'stripe_test_webhook_secret' => 'encrypted',
+        'stripe_test_connect_webhook_secret' => 'encrypted',
         'stripe_live_publishable_key' => 'encrypted',
         'stripe_live_secret_key' => 'encrypted',
         'stripe_live_webhook_secret' => 'encrypted',
+        'stripe_live_connect_webhook_secret' => 'encrypted',
         'last_verified_at' => 'datetime',
     ];
 
@@ -94,6 +98,17 @@ class BillingSettings extends Model
         return $this->isLive()
             ? $this->stripe_live_webhook_secret
             : $this->stripe_test_webhook_secret;
+    }
+
+    /**
+     * MARKER-PATCH-168 — Connect events use a separate signing secret.
+     * Platform billing events come through activeWebhookSecret() above.
+     */
+    public function activeConnectWebhookSecret(): ?string
+    {
+        return $this->isLive()
+            ? $this->stripe_live_connect_webhook_secret
+            : $this->stripe_test_connect_webhook_secret;
     }
 
     /**

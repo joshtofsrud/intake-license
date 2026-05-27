@@ -159,6 +159,12 @@ $tenantRoutes = function () {
 Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
     ->name('webhooks.cloudflare');
 
+// MARKER-PATCH-168 - Stripe Connect events (account.updated, etc.). Separate
+// from platform-billing webhooks; different signing secret.
+Route::post('webhooks/stripe-connect',
+    [\App\Http\Controllers\Webhooks\StripeConnectWebhookController::class, 'handle']
+)->name('webhooks.stripe-connect');
+
 // MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified, public)
 Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
     ->name('webhooks.ses-bounce');
@@ -538,6 +544,12 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
 
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
+
+            // MARKER-PATCH-168 — Stripe Connect Session A: tenant payments settings
+            Route::get( '/settings/payments',            [TenantControllers\Settings\PaymentsController::class, 'index'])->name('settings.payments.index');
+            Route::post('/settings/payments/connect',    [TenantControllers\Settings\PaymentsController::class, 'connect'])->name('settings.payments.connect');
+            Route::post('/settings/payments/resume',     [TenantControllers\Settings\PaymentsController::class, 'resume'])->name('settings.payments.resume');
+            Route::post('/settings/payments/disconnect', [TenantControllers\Settings\PaymentsController::class, 'disconnect'])->name('settings.payments.disconnect');
 
             // MARKER-PATCH-120 - Custom domain management
             Route::get('/settings/domains',                [TenantControllers\DomainController::class, 'index'])->name('domains.index');

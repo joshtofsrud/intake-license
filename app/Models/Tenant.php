@@ -49,6 +49,12 @@ class Tenant extends Model
         'min_notice_hours'    => 'integer',
         'booking_mode'        => 'string',
         'classes_enabled'     => 'boolean',
+        // MARKER-PATCH-168 — Stripe Connect casts
+        'stripe_connect_charges_enabled'        => 'boolean',
+        'stripe_connect_payouts_enabled'        => 'boolean',
+        'stripe_connect_details_submitted_at'   => 'datetime',
+        'stripe_connect_requirements_due'       => 'array',
+        'stripe_connect_last_synced_at'         => 'datetime',
         'deliveries_enabled'  => 'boolean', // MARKER-PATCH-156
         'multi_asset_enabled' => 'boolean', // MARKER-PATCH-158-B
         'trial_ends_at'       => 'datetime',
@@ -359,6 +365,37 @@ class Tenant extends Model
             return false;
         }
         return $this->locations()->where('is_active', true)->count() >= 2;
+    }
+
+    /**
+     * MARKER-PATCH-168 — Stripe Connect state.
+     *
+     * stripe_connect_status returns one of:
+     *   not_connected      — no account_id stored
+     *   onboarding         — account exists but details not submitted
+     *   restricted         — account submitted but charges disabled (requirements due)
+     *   live               — charges enabled
+     */
+    public function getStripeConnectStatusAttribute(): string
+    {
+        if (! $this->stripe_connect_account_id) return 'not_connected';
+        if (! $this->stripe_connect_details_submitted_at) return 'onboarding';
+        if (! $this->stripe_connect_charges_enabled) return 'restricted';
+        return 'live';
+    }
+
+    public function getCardPaymentsEnabledAttribute(): bool
+    {
+        return $this->stripe_connect_status === 'live';
+    }
+
+    /**
+     * Application fee in basis points (100 = 1%). Default 0 = pass-through.
+     * Used when creating PaymentIntents in Session B.
+     */
+    public function applicationFeeBps(): int
+    {
+        return (int) ($this->stripe_application_fee_bps ?? 0);
     }
 
     public function getMultiLocationEnabledAttribute(): bool
