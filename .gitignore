@@ -62,3 +62,4 @@ npm-debug.log
 # Tinker-saved-as-file accidents (e.g. "Tenant::where('subdomain'...")
 Tenant::*
 /patch-*.sh
+patch-*.py
