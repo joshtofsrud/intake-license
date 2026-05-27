@@ -228,13 +228,24 @@
 {{-- Page sections --}}
 @foreach($sections as $section)
   @if($section->is_visible)
-    @include('public.sections._' . $section->section_type, [
-      'c'        => $section->content ?? [],
-      'section'  => $section,
-      'navItems' => $navItems,
-      'catalog'  => $catalog,
-      'tenant'   => $currentTenant,
-    ])
+    {{-- MARKER-PATCH-158-G14 — Guard against section types that exist in the
+         admin builder's DEFAULTS but have no matching public partial. Without
+         this, an unknown type causes a ViewException → 500 for the whole page. --}}
+    @php $partial = 'public.sections._' . $section->section_type; @endphp
+    @if(view()->exists($partial))
+      @include($partial, [
+        'c'        => $section->content ?? [],
+        'section'  => $section,
+        'navItems' => $navItems,
+        'catalog'  => $catalog,
+        'tenant'   => $currentTenant,
+      ])
+    @elseif(config('app.debug'))
+      <div style="padding:24px;margin:20px auto;max-width:800px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;color:#78350f;font-family:monospace;font-size:13px;">
+        <strong>⚠ Page builder section unsupported on public renderer:</strong> <code>{{ $section->section_type }}</code><br>
+        <span style="opacity:.7">This section type exists in the admin builder but has no public partial at <code>{{ $partial }}.blade.php</code>. Edit the page and switch to a supported type, or build the missing partial. (Visible in debug mode only.)</span>
+      </div>
+    @endif
   @endif
 @endforeach
 

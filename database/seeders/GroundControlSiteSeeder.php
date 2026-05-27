@@ -87,6 +87,14 @@ class GroundControlSiteSeeder extends Seeder
         }
         $this->command?->info('  Nav: 5 items seeded.');
 
+        // ----------------------------------------------------------------
+        // Section types used: nav, hero, services, text_image, cta_banner,
+        // contact_form, booking_embed, footer. These are the types with
+        // public partials at resources/views/public/sections/_*.blade.php.
+        // Some content is represented via text_image with multi-line body
+        // (white-space: pre-line on the body keeps line breaks).
+        // ----------------------------------------------------------------
+
         // --- Home page ---
         $this->seedPage($tenant, 'home', 'Ground Control', 'Mobile bike service · Spokane, WA', true, [
 
@@ -114,71 +122,36 @@ class GroundControlSiteSeeder extends Seeder
                 'note'                => 'Free local pickup · 24h typical turnaround',
             ]],
 
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'  => '',
-                'heading'  => '',
-                'subheading' => '',
-                'columns'  => 4,
-                'features' => [
-                    ['icon' => '→',  'title' => 'Pickup & return',  'body' => 'Free in Spokane & surrounding'],
-                    ['icon' => '24', 'title' => '24h turnaround',   'body' => 'Most jobs back the next day'],
-                    ['icon' => '$',  'title' => 'Quote first',      'body' => 'No surprise charges, ever'],
-                    ['icon' => '◫',  'title' => 'Photo report',     'body' => 'Every job documented'],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => 'Why mobile',
+                'heading'        => 'Service without the trip.',
+                'body'           => "→ Pickup & return — Free in Spokane & surrounding\n24h turnaround — Most jobs back the next day\n$ Quote first — No surprise charges, ever\n◫ Photo report — Every job documented",
+                'image_url'      => '',
+                'image_position' => 'right',
             ]],
 
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'    => 'Service menu',
-                'heading'    => 'Full-service workshop, on wheels.',
-                'subheading' => 'From a quick tune to a complete teardown. Pricing starts at the figures below — final quote always confirmed after inspection.',
-                'columns'    => 3,
-                'features' => [
-                    ['icon' => '01', 'title' => 'Standard tune-up · $95',
-                     'body' => 'Full safety inspection · Drivetrain clean & lube · Shift & brake adjustment · Wheel true & tire pressure · Bolt torque check. 30-day warranty on labor.'],
-                    ['icon' => '02', 'title' => 'Full tune-up · $165',
-                     'body' => 'Everything in Standard, plus: Wheels off, hubs inspected · Bottom bracket & headset check · Ultrasonic drivetrain clean · Frame wash & finish. 60-day warranty on labor.'],
-                    ['icon' => '03', 'title' => 'Complete overhaul · $295',
-                     'body' => 'Stripped & deep cleaned · Bearings serviced or replaced · Drivetrain wear measured · Cable & housing replacement · Reassembled & test ridden. 60-day warranty on labor.'],
-                ],
-                'cta_label' => 'Schedule a pickup',
-                'cta_url'   => '/book',
+            ['type' => 'services', 'content' => [
+                'heading'     => 'Full-service workshop, on wheels.',
+                'show_prices' => true,
+                'columns'     => 3,
             ]],
 
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'    => 'Suspension specialty',
-                'heading'    => 'Forks, shocks & dropper posts.',
-                'subheading' => "Out-of-area suspension shipments welcome — we'll send you a label.",
-                'columns'    => 3,
-                'features'   => [
-                    ['icon' => '✓', 'title' => 'Lower service · $90 & up',  'body' => 'Legs/sleeve off, cleaned, new wipers & oil.'],
-                    ['icon' => '✓', 'title' => 'Full rebuild · $150 & up',  'body' => 'Teardown, damper rebuild, air spring service.'],
-                    ['icon' => '✓', 'title' => 'Dropper post · $120 & up', 'body' => 'Teardown, all new o-rings, seals, & oil.'],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => 'Suspension specialty',
+                'heading'        => 'Forks, shocks & dropper posts.',
+                'body'           => "Out-of-area suspension shipments welcome — we'll send you a label.\n\n• Lower service — \$90 & up. Legs/sleeve off, cleaned, new wipers & oil.\n• Full rebuild — \$150 & up. Teardown, damper rebuild, air spring service.\n• Dropper post — \$120 & up. Teardown, all new o-rings, seals, & oil.\n\nSuspension service from RockShox, Fox, Marzocchi, Öhlins, and DVO.",
+                'image_position' => 'left',
+                'cta_label'      => 'Schedule a pickup',
+                'cta_url'        => '/book',
             ]],
 
-            ['type' => 'step_timeline', 'content' => [
-                'eyebrow'    => 'How it works',
-                'heading'    => 'Four steps, door to door.',
-                'subheading' => 'No parking, no waiting room, no carrying your bike across town.',
-                'steps'      => [
-                    ['title' => 'Book online', 'desc' => 'Pick services and a pickup day.', 'done' => true],
-                    ['title' => 'We pick up',  'desc' => 'We come to you in Spokane.',      'done' => true],
-                    ['title' => 'We service',  'desc' => 'Most jobs turn around within 24 hours.', 'done' => true],
-                    ['title' => 'We return',   'desc' => 'Back to your door, ready to ride.', 'done' => false],
-                ],
-            ]],
-
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'  => 'Suspension service from',
-                'heading'  => '',
-                'columns'  => 5,
-                'features' => [
-                    ['icon' => '', 'title' => 'RockShox',   'body' => ''],
-                    ['icon' => '', 'title' => 'Fox',        'body' => ''],
-                    ['icon' => '', 'title' => 'Marzocchi',  'body' => ''],
-                    ['icon' => '', 'title' => 'Öhlins',     'body' => ''],
-                    ['icon' => '', 'title' => 'DVO',        'body' => ''],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => 'How it works',
+                'heading'        => 'Four steps, door to door.',
+                'body'           => "No parking, no waiting room, no carrying your bike across town.\n\n01 — Book online. Pick services and a pickup day.\n02 — We pick up. We come to you in Spokane.\n03 — We service. Most jobs turn around within 24 hours.\n04 — We return. Back to your door, ready to ride.",
+                'image_position' => 'right',
+                'cta_label'      => 'See the full breakdown',
+                'cta_url'        => '/how-it-works',
             ]],
 
             ['type' => 'cta_banner', 'content' => [
@@ -210,35 +183,25 @@ class GroundControlSiteSeeder extends Seeder
                 'subheading'        => 'You book online. We pick up, service in the workshop, and return your bike ready to ride. Most jobs back within 24 hours.',
                 'bg_type'           => 'color',
                 'bg_color'          => '#0a0a0a',
+                'text_color'        => '#ffffff',
                 'cta_primary_label' => 'Schedule pickup',
                 'cta_primary_url'   => '/book',
                 'height'            => 'medium',
                 'text_align'        => 'left',
             ]],
 
-            ['type' => 'step_timeline', 'content' => [
-                'eyebrow'    => 'The process',
-                'heading'    => 'Door to door in 24 hours.',
-                'subheading' => 'No shop trip required.',
-                'steps'      => [
-                    ['title' => 'Book online',  'desc' => 'Pick services and a pickup day. Most jobs $95–$295. Quote always confirmed after inspection.', 'done' => true],
-                    ['title' => 'We pick up',   'desc' => 'We come to your door anywhere in Spokane. Free in our service zone. Quick visual check on pickup.', 'done' => true],
-                    ['title' => 'We service',   'desc' => 'Fully equipped workshop. Most jobs turn around in 24 hours. You get a photo report when complete.', 'done' => true],
-                    ['title' => 'We return',    'desc' => 'Back to your door, ready to ride. Pay on completion. 30–60 day warranty on labor.', 'done' => false],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => 'The process',
+                'heading'        => 'Door to door in 24 hours.',
+                'body'           => "01 — Book online\nPick services and a pickup day. Most jobs \$95–\$295. Quote always confirmed after inspection.\n\n02 — We pick up\nWe come to your door anywhere in Spokane. Free in our service zone. Quick visual check on pickup.\n\n03 — We service\nFully equipped workshop. Most jobs turn around in 24 hours. You get a photo report when complete.\n\n04 — We return\nBack to your door, ready to ride. Pay on completion. 30–60 day warranty on labor.",
+                'image_position' => 'right',
             ]],
 
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'    => 'Service area',
-                'heading'    => 'Where we go.',
-                'subheading' => 'Local zones get free pickup. Suspension work ships nationally.',
-                'columns'    => 2,
-                'features'   => [
-                    ['icon' => '⟐', 'title' => 'Spokane & surrounding · Free pickup',
-                     'body' => 'South Hill · North Side · Spokane Valley · Liberty Lake · Mead · Airway Heights. Door-to-door within 24h typically.'],
-                    ['icon' => '✈', 'title' => 'National · Suspension only',
-                     'body' => "Ship your fork, shock, or dropper to us — we'll send a label, service it, ship it back. Bike shops welcome to send customer work too."],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => 'Service area',
+                'heading'        => 'Where we go.',
+                'body'           => "⟐ Spokane & surrounding — Free pickup\nSouth Hill · North Side · Spokane Valley · Liberty Lake · Mead · Airway Heights. Door-to-door within 24h typically.\n\n✈ National — Suspension only\nShip your fork, shock, or dropper to us — we'll send a label, service it, ship it back. Bike shops welcome to send customer work too.",
+                'image_position' => 'left',
             ]],
 
             ['type' => 'cta_banner', 'content' => [
@@ -264,6 +227,7 @@ class GroundControlSiteSeeder extends Seeder
                 'subheading' => "A few quick details — pick a service, your address, and a day that works. We'll confirm by text within an hour.",
                 'bg_type'    => 'color',
                 'bg_color'   => '#0a0a0a',
+                'text_color' => '#ffffff',
                 'height'     => 'small',
                 'text_align' => 'left',
             ]],
@@ -272,22 +236,16 @@ class GroundControlSiteSeeder extends Seeder
                 'heading' => 'Pick a service',
             ]],
 
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'    => "What you'll need",
-                'heading'    => 'A few quick details.',
-                'subheading' => '',
-                'columns'    => 4,
-                'features'   => [
-                    ['icon' => '①', 'title' => 'Your address',  'body' => 'For pickup & return.'],
-                    ['icon' => '②', 'title' => 'Bike info',     'body' => 'Make, model, what brings it in.'],
-                    ['icon' => '③', 'title' => 'Pickup window', 'body' => 'Pick a date that works.'],
-                    ['icon' => '④', 'title' => 'Contact',       'body' => "We'll text to confirm."],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => "What you'll need",
+                'heading'        => 'A few quick details.',
+                'body'           => "① Your address — For pickup & return.\n② Bike info — Make, model, what brings it in.\n③ Pickup window — Pick a date that works.\n④ Contact — We'll text to confirm.",
+                'image_position' => 'right',
             ]],
 
             ['type' => 'cta_banner', 'content' => [
                 'headline'   => 'Questions before you book?',
-                'subheading' => "Email or call — we usually reply same day.",
+                'subheading' => 'Email or call — we usually reply same day.',
                 'cta_label'  => 'Ask a question',
                 'cta_url'    => '/contact',
                 'bg_color'   => '#0a0a0a',
@@ -308,43 +266,30 @@ class GroundControlSiteSeeder extends Seeder
                 'subheading' => "Everything we get asked the most. Don't see your question? Send us a message and we'll add it.",
                 'bg_type'    => 'color',
                 'bg_color'   => '#0a0a0a',
+                'text_color' => '#ffffff',
                 'height'     => 'small',
                 'text_align' => 'left',
             ]],
 
-            ['type' => 'faq_accordion', 'content' => [
-                'eyebrow'    => '',
-                'heading'    => 'Pickup & return',
-                'subheading' => '',
-                'items'      => [
-                    ['q' => 'Where do you pick up?',        'a' => "Free pickup anywhere in Spokane and surrounding areas — South Hill, North Side, Valley, Liberty Lake, Mead, Airway Heights. Outside that radius, we may charge a small travel fee depending on distance."],
-                    ['q' => 'What does pickup cost?',      'a' => "Free in our standard service zone. We'll let you know up front if your address falls outside."],
-                    ['q' => 'How fast is turnaround?',     'a' => "Most jobs go out the next day. Tune-ups and small jobs are often same-day. Major work or special-order parts can take longer — we'll always quote a turnaround when you book."],
-                    ['q' => 'What if my bike needs more work than expected?', 'a' => "We'll always quote first. If we find something on inspection — a worn cassette, a damaged tire — we'll text you with the additional cost before doing anything."],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => '',
+                'heading'        => 'Pickup & return',
+                'body'           => "Q: Where do you pick up?\nFree pickup anywhere in Spokane and surrounding areas — South Hill, North Side, Valley, Liberty Lake, Mead, Airway Heights. Outside that radius, we may charge a small travel fee.\n\nQ: What does pickup cost?\nFree in our standard service zone. We'll let you know up front if your address falls outside.\n\nQ: How fast is turnaround?\nMost jobs go out the next day. Tune-ups and small jobs are often same-day. Major work or special-order parts can take longer.\n\nQ: What if my bike needs more work than expected?\nWe'll always quote first. If we find something on inspection, we'll text you with the additional cost before doing anything.",
+                'image_position' => 'right',
             ]],
 
-            ['type' => 'faq_accordion', 'content' => [
-                'eyebrow'    => '',
-                'heading'    => 'Service & pricing',
-                'subheading' => '',
-                'items'      => [
-                    ['q' => 'How do you decide which tune-up I need?', 'a' => "Standard is great for a bike ridden regularly and in good shape. Full is the right call if it's been a year or more or if you ride hard. Complete is for end-of-season overhauls, neglected bikes, or anything you want stripped and brought back to like-new."],
-                    ['q' => 'Do you sell parts?',                 'a' => "Yes — we keep common consumables (chains, cables, tubes, brake pads) in stock. Anything we don't have we'll order; turnaround depends on the part."],
-                    ['q' => 'Do you work on e-bikes?',            'a' => "Yes, on mechanicals. Drive units and battery diagnostics we typically refer to the manufacturer's authorized service center."],
-                    ['q' => 'Suspension service?',                'a' => "It's our specialty. Forks, rear shocks, and dropper posts. We service everything from RockShox and Fox to Öhlins, Marzocchi, and DVO."],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => '',
+                'heading'        => 'Service & pricing',
+                'body'           => "Q: How do you decide which tune-up I need?\nStandard is great for a bike ridden regularly and in good shape. Full is right if it's been a year or more or if you ride hard. Complete is for end-of-season overhauls, neglected bikes, or anything you want stripped and brought back to like-new.\n\nQ: Do you sell parts?\nYes — common consumables (chains, cables, tubes, brake pads) in stock. Anything else we'll order.\n\nQ: Do you work on e-bikes?\nYes, on mechanicals. Drive units and battery diagnostics we typically refer to the manufacturer.\n\nQ: Suspension service?\nIt's our specialty. Forks, rear shocks, dropper posts. RockShox, Fox, Öhlins, Marzocchi, DVO.",
+                'image_position' => 'left',
             ]],
 
-            ['type' => 'faq_accordion', 'content' => [
-                'eyebrow'    => '',
-                'heading'    => 'Warranty & payment',
-                'subheading' => '',
-                'items'      => [
-                    ['q' => 'How do I pay?',           'a' => "Card on completion, or contactless tap. Sometimes we take a deposit at booking for jobs over $200."],
-                    ['q' => 'Is there a warranty?',    'a' => "30-day warranty on labor for Standard tune-ups. 60 days for Full tune-ups and Complete overhauls. Parts are covered by manufacturer warranty."],
-                    ['q' => "What if I'm not happy?", 'a' => "Tell us — we'll make it right. Service businesses live and die on reputation; we'd rather fix it than have you leave unhappy."],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => '',
+                'heading'        => 'Warranty & payment',
+                'body'           => "Q: How do I pay?\nCard on completion, or contactless tap. Deposits sometimes at booking for jobs over \$200.\n\nQ: Is there a warranty?\n30-day warranty on labor for Standard tune-ups. 60 days for Full and Complete. Parts under manufacturer warranty.\n\nQ: What if I'm not happy?\nTell us — we'll make it right.",
+                'image_position' => 'right',
             ]],
 
             ['type' => 'cta_banner', 'content' => [
@@ -370,19 +315,16 @@ class GroundControlSiteSeeder extends Seeder
                 'subheading' => "Phone, email, or the form below. Usual response: same day during business hours.",
                 'bg_type'    => 'color',
                 'bg_color'   => '#0a0a0a',
+                'text_color' => '#ffffff',
                 'height'     => 'small',
                 'text_align' => 'left',
             ]],
 
-            ['type' => 'feature_grid', 'content' => [
-                'eyebrow'  => 'Direct lines',
-                'heading'  => '',
-                'columns'  => 3,
-                'features' => [
-                    ['icon' => '☎', 'title' => 'Phone',   'body' => '(509) 262-4122 · Tue–Sat'],
-                    ['icon' => '✉', 'title' => 'Email',   'body' => 'josh@grndctrl.co'],
-                    ['icon' => '⌖', 'title' => 'Location','body' => 'Spokane, WA · By appointment'],
-                ],
+            ['type' => 'text_image', 'content' => [
+                'eyebrow'        => 'Direct lines',
+                'heading'        => 'Get in touch.',
+                'body'           => "☎ Phone\n(509) 262-4122 · Tue–Sat\n\n✉ Email\njosh@grndctrl.co\n\n⌖ Location\nSpokane, WA · By appointment",
+                'image_position' => 'right',
             ]],
 
             ['type' => 'contact_form', 'content' => [
