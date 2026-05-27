@@ -625,6 +625,8 @@ const ROUTES = {
   commitTxn:   @json(route('tenant.register.transactions.store')),
   // MARKER-PATCH-161
   customerBase: @json(url('/admin/customers')),
+  // MARKER-PATCH-162
+  multiLocationActive: {{ $multiLocationActive ? 'true' : 'false' }},
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const CFG = {
@@ -1105,11 +1107,15 @@ function renderCart() {
           badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
 
           // Action row: each button is either active (button) or already-fired (pill).
+          // MARKER-PATCH-162 — transfer button only renders when the tenant
+          // has 2+ active locations to move stock between. Single-location
+          // tenants still see the pill if a transfer was previously created
+          // (orphan rows pre-patch), but can't create new ones.
           let transferBtn = '';
           if (i.transfer_request_id) {
             const fromLabel = i.transfer_request_from ? ' from ' + escapeHtml(i.transfer_request_from) : '';
             transferBtn = `<span class="reg-oversell-pill">✓ Transfer requested${fromLabel}</span>`;
-          } else if (i.type === 'product' && i.source_id) {
+          } else if (ROUTES.multiLocationActive && i.type === 'product' && i.source_id) {
             transferBtn = `<button type="button" class="reg-oversell-btn" data-action="transfer" data-key="${i.key}">Request transfer</button>`;
           }
 

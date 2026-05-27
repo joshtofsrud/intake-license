@@ -19,7 +19,7 @@ use Illuminate\Http\Request;
  */
 class TransferRequestController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         // patch-102 location scope — tab determines which side of the
         // flow we're showing:
@@ -30,6 +30,18 @@ class TransferRequestController extends Controller
         //   fulfilled     — completed
         //   cancelled     — cancelled
         $tenant = tenant();
+
+        // MARKER-PATCH-162 — single-location tenants with no historical rows
+        // get bounced to inventory. If they have orphan rows (created before
+        // this patch), we still let them in so they can cancel them out.
+        if (! $tenant->multi_location_active) {
+            $hasAny = TenantTransferRequest::where('tenant_id', $tenant->id)->exists();
+            if (! $hasAny) {
+                return redirect()->route('tenant.inventory.index')
+                    ->with('info', 'Transfer requests require at least two active locations.');
+            }
+        }
+
         $view = $request->input('view', 'to_send');
         $sessionLocId = $request->session()->get('current_location_id');
 

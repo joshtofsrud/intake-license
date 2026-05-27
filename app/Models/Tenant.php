@@ -344,6 +344,23 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'pos');
     }
 
+    /**
+     * MARKER-PATCH-162 — multi_location_active
+     * True when the tenant can meaningfully operate across locations:
+     * retail capability is on AND there are 2+ active locations to move
+     * stock between. Used to gate the Transfer Requests UI.
+     *
+     * Single-location tenants get this as false even with retail on —
+     * a transfer-from-nowhere is nonsensical.
+     */
+    public function getMultiLocationActiveAttribute(): bool
+    {
+        if (! $this->retail_enabled) {
+            return false;
+        }
+        return $this->locations()->where('is_active', true)->count() >= 2;
+    }
+
     public function getMultiLocationEnabledAttribute(): bool
     {
         $svc = app(\App\Services\FeatureAccessService::class);

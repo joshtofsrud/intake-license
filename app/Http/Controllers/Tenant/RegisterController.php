@@ -56,6 +56,8 @@ class RegisterController extends Controller
             'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
             'taxLabel'   => $this->taxLabel($tenant),
             'appointmentTrayCount' => $appointmentTrayCount,
+            // MARKER-PATCH-162 — hide "Request transfer" button on oversell rows for single-location tenants
+            'multiLocationActive' => (bool) $tenant->multi_location_active,
             'tipsConfig' => [
                 'enabled'      => (bool) $tenant->tips_enabled,
                 'method'       => $tenant->tip_default_method,
@@ -359,6 +361,16 @@ class RegisterController extends Controller
 
         if (!$locationId) {
             return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        // MARKER-PATCH-162 — single-location tenants have nowhere to transfer FROM.
+        // Defense in depth against stale tabs or URL fuzzing. Client UI already
+        // hides the button, so a normal user can't hit this branch.
+        if (! $tenant->multi_location_active) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Transfer requests require at least two active locations.',
+            ], 422);
         }
 
         $validated = $request->validate([
