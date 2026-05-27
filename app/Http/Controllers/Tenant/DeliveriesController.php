@@ -61,7 +61,7 @@ class DeliveriesController extends Controller
         abort_unless($tenant->deliveries_enabled, 404); // MARKER-PATCH-156
         $data = $this->validateInput($request);
 
-        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC');
+        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC')->utc(); // MARKER-PATCH-158 — explicit UTC conversion; Eloquent datetime cast does not convert.
 
         // Conflict check on the delivery resource (if any)
         $svc = new TenantDeliveryService($tenant);
@@ -117,7 +117,7 @@ class DeliveriesController extends Controller
             ->firstOrFail();
 
         $data = $this->validateInput($request);
-        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC');
+        $start = CarbonImmutable::parse($data['scheduled_at'], $tenant->timezone ?? 'UTC')->utc(); // MARKER-PATCH-158 — explicit UTC conversion; Eloquent datetime cast does not convert.
 
         $svc = new TenantDeliveryService($tenant);
         if (!empty($data['delivery_resource_id'])) {
