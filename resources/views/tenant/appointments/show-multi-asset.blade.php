@@ -1278,7 +1278,14 @@ input.ma-asset-name-edit:focus {
     $bannerSale     = $appointment->openRegisterSale();
     $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
     $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
-    $bannerPaidFull = ($appointment->payment_status === 'paid');
+    // MARKER-PATCH-158-G12 — Derive "paid in full" from actual cents, not the
+    // payment_status column. The column gets set when a deposit equals the
+    // total at that moment, but new charges/parts/tax can push total higher
+    // without the column ever being updated. Only show "Paid in full" when
+    // there's actually no balance owed AND the total is non-zero.
+    $bannerPaidFull = ((int)$appointment->total_cents > 0)
+                      && ((int)$appointment->paid_cents >= (int)$appointment->total_cents)
+                      && ($bannerOverage === 0);
   @endphp
   @if($bannerSale)
     <div class="ma-sale-banner ma-sale-banner--checkout">
@@ -2069,6 +2076,19 @@ input.ma-asset-name-edit:focus {
     {{-- RIGHT RAIL --}}
     <aside class="ma-rail">
 
+      @php
+        $payments      = $appointment->payments;
+        $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
+        $overage       = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
+        $openSale      = $appointment->openRegisterSale();
+        $hasOpenSale   = $openSale !== null;
+      @endphp
+
+      {{-- MARKER-PATCH-158-G12 — Totals + Payment merged into one card.
+           Previously two separate cards duplicated Subtotal/Tax/Total and
+           used different sources (one recomputed from live items, one from
+           snapshot columns), so they could disagree. Now: snapshot is the
+           single source of truth, kept fresh by recalcAppointmentTotals(). --}}
       <div class="ma-rail-card">
         <div class="ma-rail-card-title">Totals</div>
         <div class="ma-rail-row"><span class="k">Assets</span><span class="v">{{ $appointmentAssets->count() }}</span></div>
@@ -2076,12 +2096,109 @@ input.ma-asset-name-edit:focus {
         @if($addonCount > 0)
           <div class="ma-rail-row"><span class="k">Add-ons</span><span class="v">{{ $addonCount }}</span></div>
         @endif
-        <div class="ma-rail-row"><span class="k">Subtotal</span><span class="v">${{ number_format($subtotalCents / 100, 2) }}</span></div>
-        @if($taxRate > 0)
-          <div class="ma-rail-row"><span class="k">Tax ({{ $taxRate }}%)</span><span class="v">${{ number_format($taxCents / 100, 2) }}</span></div>
+        @php $partCount = $appointmentAssets->sum(fn($a) => $a->parts->count()) + $looseParts->count(); @endphp
+        @if($partCount > 0)
+          <div class="ma-rail-row"><span class="k">Parts</span><span class="v">{{ $partCount }}</span></div>
         @endif
-        <div class="ma-rail-row ma-rail-row--total"><span class="k">Total</span><span class="v">${{ number_format($totalCents / 100, 2) }}</span></div>
+
+        <div class="ma-rail-row" style="margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--ia-border);">
+          <span class="k">Subtotal</span>
+          <span class="v">${{ number_format(($appointment->subtotal_cents ?? 0) / 100, 2) }}</span>
+        </div>
+        @if(($appointment->tax_cents ?? 0) > 0)
+          <div class="ma-rail-row">
+            <span class="k">Tax</span>
+            <span class="v">${{ number_format($appointment->tax_cents / 100, 2) }}</span>
+          </div>
+        @endif
+        <div class="ma-rail-row ma-rail-row--total">
+          <span class="k">Total</span>
+          <span class="v">${{ number_format(($appointment->total_cents ?? 0) / 100, 2) }}</span>
+        </div>
+
+        {{-- Payment section --}}
+        <div style="margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--ia-border);">
+          <div class="ma-rail-row" style="margin-bottom: 6px;">
+            <span class="k" style="font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600;">Payment</span>
+            <span class="v" style="text-transform: capitalize;">
+              <span class="ma-payment-badge ma-payment-badge--{{ $appointment->payment_status }}">
+                {{ ucwords(str_replace('_', ' ', $appointment->payment_status ?? 'unpaid')) }}
+              </span>
+            </span>
+          </div>
+
+          @if($payments->isNotEmpty())
+            <div style="margin-top: 10px;">
+              <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600; margin-bottom: 6px;">Ledger</div>
+              @foreach($payments as $p)
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; padding: 6px 0; border-bottom: 0.5px solid var(--ia-border);">
+                  <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 500; color: var(--ia-text);">
+                      {{ in_array($p->kind, ['refund', 'overage_refund']) ? 'Refund' : ucfirst($p->kind) }}
+                      · {{ $p->methodLabel() }}
+                    </div>
+                    <div style="font-size: 10px; color: var(--ia-text-dim); margin-top: 2px;">
+                      {{ $p->recorded_at?->format('M j · g:i A') }}
+                      @if($p->source === 'register_sale' && $p->register_sale_id)
+                        · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
+                      @endif
+                    </div>
+                  </div>
+                  <div style="font-weight: 500; color: {{ $p->amount_cents < 0 ? '#F09595' : '#A8D670' }};">
+                    {{ $p->amount_cents < 0 ? '−' : '+' }}${{ number_format(abs($p->amount_cents) / 100, 2) }}
+                  </div>
+                </div>
+              @endforeach
+            </div>
+          @endif
+
+          <div class="ma-rail-row" style="margin-top: 8px;">
+            <span class="k">Paid so far</span>
+            <span class="v" style="color: #A8D670;">${{ number_format(($appointment->paid_cents ?? 0) / 100, 2) }}</span>
+          </div>
+
+          @if($balanceDue > 0)
+            <div class="ma-rail-row" style="font-weight: 500;">
+              <span class="k">Balance owed</span>
+              <span class="v" style="font-size: 14px; font-weight: 500;">${{ number_format($balanceDue / 100, 2) }}</span>
+            </div>
+          @elseif($overage > 0)
+            <div class="ma-rail-row" style="font-weight: 500;">
+              <span class="k" style="color: #FBBF24;">Customer is owed</span>
+              <span class="v" style="font-size: 14px; font-weight: 500; color: #FBBF24;">${{ number_format($overage / 100, 2) }}</span>
+            </div>
+          @else
+            <div class="ma-rail-row" style="font-weight: 500;">
+              <span class="k">Balance owed</span>
+              <span class="v" style="font-size: 14px; font-weight: 500; color: #A8D670;">$0.00</span>
+            </div>
+          @endif
+
+          @if($hasOpenSale)
+            <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
+               class="ia-btn ia-btn--primary ia-btn--sm"
+               style="display: block; width: 100%; text-align: center; margin-top: 14px;">
+              Take payment in register
+            </a>
+          @elseif($balanceDue > 0 && !$isTerminal)
+            <button type="button" id="ma-record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width: 100%; margin-top: 14px;">
+              + Record deposit
+            </button>
+            <div id="ma-record-deposit-form" style="display: none; margin-top: 10px; padding: 12px; background: var(--ia-surface-2, rgba(255,255,255,0.02)); border-radius: 6px; border: 0.5px solid var(--ia-border);">
+              <label style="font-size: 11px; color: var(--ia-text-dim); display: block; margin-bottom: 4px;">Amount</label>
+              <input type="number" id="ma-record-deposit-amount" min="0.01" step="0.01" placeholder="0.00"
+                     style="width: 100%; padding: 6px 10px; background: var(--ia-surface, #111); border: 0.5px solid var(--ia-border); color: var(--ia-text); border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
+              <div style="display: flex; gap: 6px;">
+                <button type="button" id="ma-record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex: 1;">Cancel</button>
+                <button type="button" id="ma-record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex: 1;">Send to register</button>
+              </div>
+              <p style="font-size: 10px; color: var(--ia-text-dim); margin: 8px 0 0;">Creates a draft sale in the register where you take the actual payment.</p>
+            </div>
+          @endif
+        </div>
       </div>
+
+      {{-- MARKER-PATCH-158-G12 — Old separate Payment card removed (merged into Totals above). --}}
 
       <div class="ma-rail-card">
         <div class="ma-rail-card-title">Schedule</div>
@@ -2116,109 +2233,6 @@ input.ma-asset-name-edit:focus {
         </div>
       @endif
 
-      {{-- MARKER-PATCH-158-E3 — Payment ledger (mirrors legacy show.blade.php) --}}
-      @php
-        $payments      = $appointment->payments;
-        $balanceDue    = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
-        $overage       = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
-        $openSale      = $appointment->openRegisterSale();
-        $hasOpenSale   = $openSale !== null;
-      @endphp
-      <div class="ma-rail-card">
-        <div class="ma-rail-card-title">Payment</div>
-
-        <div class="ma-rail-row">
-          <span class="k">Status</span>
-          <span class="v" style="text-transform: capitalize;">
-            <span class="ma-payment-badge ma-payment-badge--{{ $appointment->payment_status }}">
-              {{ ucwords(str_replace('_', ' ', $appointment->payment_status ?? 'unpaid')) }}
-            </span>
-          </span>
-        </div>
-        <div class="ma-rail-row">
-          <span class="k">Subtotal</span>
-          <span class="v">${{ number_format($appointment->subtotal_cents / 100, 2) }}</span>
-        </div>
-        @if(($appointment->tax_cents ?? 0) > 0)
-          <div class="ma-rail-row">
-            <span class="k">Tax</span>
-            <span class="v">${{ number_format($appointment->tax_cents / 100, 2) }}</span>
-          </div>
-        @endif
-        <div class="ma-rail-row" style="font-weight: 500;">
-          <span class="k">Total</span>
-          <span class="v" style="font-size: 16px;">${{ number_format($appointment->total_cents / 100, 2) }}</span>
-        </div>
-
-        @if($payments->isNotEmpty())
-          <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border);">
-            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ia-text-dim); font-weight: 600; margin-bottom: 8px;">Ledger</div>
-            @foreach($payments as $p)
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; font-size: 12px; padding: 6px 0; border-bottom: 0.5px solid var(--ia-border);">
-                <div style="flex: 1; min-width: 0;">
-                  <div style="font-weight: 500; color: var(--ia-text);">
-                    {{ in_array($p->kind, ['refund', 'overage_refund']) ? 'Refund' : ucfirst($p->kind) }}
-                    · {{ $p->methodLabel() }}
-                  </div>
-                  <div style="font-size: 10px; color: var(--ia-text-dim); margin-top: 2px;">
-                    {{ $p->recorded_at?->format('M j · g:i A') }}
-                    @if($p->source === 'register_sale' && $p->register_sale_id)
-                      · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
-                    @endif
-                  </div>
-                </div>
-                <div style="font-weight: 500; color: {{ $p->amount_cents < 0 ? '#F09595' : '#A8D670' }};">
-                  {{ $p->amount_cents < 0 ? '−' : '+' }}${{ number_format(abs($p->amount_cents) / 100, 2) }}
-                </div>
-              </div>
-            @endforeach
-          </div>
-        @endif
-
-        <div class="ma-rail-row" style="margin-top: 8px;">
-          <span class="k">Paid so far</span>
-          <span class="v" style="color: #A8D670;">${{ number_format(($appointment->paid_cents ?? 0) / 100, 2) }}</span>
-        </div>
-
-        @if($balanceDue > 0)
-          <div class="ma-rail-row" style="font-weight: 500;">
-            <span class="k">Balance owed</span>
-            <span class="v" style="font-size: 14px; font-weight: 500;">${{ number_format($balanceDue / 100, 2) }}</span>
-          </div>
-        @elseif($overage > 0)
-          <div class="ma-rail-row" style="font-weight: 500;">
-            <span class="k" style="color: #FBBF24;">Customer is owed</span>
-            <span class="v" style="font-size: 14px; font-weight: 500; color: #FBBF24;">${{ number_format($overage / 100, 2) }}</span>
-          </div>
-        @else
-          <div class="ma-rail-row" style="font-weight: 500;">
-            <span class="k">Balance owed</span>
-            <span class="v" style="font-size: 14px; font-weight: 500; color: #A8D670;">$0.00</span>
-          </div>
-        @endif
-
-        @if($hasOpenSale)
-          <a href="{{ route('tenant.register.index', []) }}?resume={{ $openSale->id }}"
-             class="ia-btn ia-btn--primary ia-btn--sm"
-             style="display: block; width: 100%; text-align: center; margin-top: 14px;">
-            Take payment in register
-          </a>
-        @elseif($balanceDue > 0 && !$isTerminal)
-          <button type="button" id="ma-record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width: 100%; margin-top: 14px;">
-            + Record deposit
-          </button>
-          <div id="ma-record-deposit-form" style="display: none; margin-top: 10px; padding: 12px; background: var(--ia-surface-2, rgba(255,255,255,0.02)); border-radius: 6px; border: 0.5px solid var(--ia-border);">
-            <label style="font-size: 11px; color: var(--ia-text-dim); display: block; margin-bottom: 4px;">Amount</label>
-            <input type="number" id="ma-record-deposit-amount" min="0.01" step="0.01" placeholder="0.00"
-                   style="width: 100%; padding: 6px 10px; background: var(--ia-surface, #111); border: 0.5px solid var(--ia-border); color: var(--ia-text); border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
-            <div style="display: flex; gap: 6px;">
-              <button type="button" id="ma-record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex: 1;">Cancel</button>
-              <button type="button" id="ma-record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex: 1;">Send to register</button>
-            </div>
-            <p style="font-size: 10px; color: var(--ia-text-dim); margin: 8px 0 0;">Creates a draft sale in the register where you take the actual payment.</p>
-          </div>
-        @endif
-      </div>
 
       {{-- MARKER-PATCH-158-G3 — Resource card + Action buttons moved to top tile (G3) --}}
 
@@ -2749,14 +2763,10 @@ input.ma-asset-name-edit:focus {
         else alert('Could not update quantity: ' + result.message);
         return;
       }
-      originalValue = String(newQty);
-      // Update line total cell in this row
-      const row = input.closest('.ma-part-row');
-      if (row && result.data && result.data.line_total_display) {
-        const totalCell = row.querySelector('[data-line-total]');
-        if (totalCell) totalCell.textContent = result.data.line_total_display;
-      }
+      // MARKER-PATCH-158-G12 — Reload so the Totals card recomputes from the
+      // updated snapshot. Inline line-total update alone left the rail stale.
       if (window.IntakeToast) IntakeToast.success('Quantity updated');
+      setTimeout(function() { location.reload(); }, 400);
     });
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
