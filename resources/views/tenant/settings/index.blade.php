@@ -1405,11 +1405,8 @@
   /* -----------------------------------------------------------------------
    * Dirty tracking — per form, save bar dims when no changes
    * ----------------------------------------------------------------------- */
-  // MARKER-PATCH-165 — "Saved." only after a real save, not on every clean state.
-  // justSaved is true only when the page just reloaded from a successful POST
-  // (session('success') was set server-side). Drives the brief confirmation flash.
-  var justSaved = @json(session('success') ? true : false);
-
+  // MARKER-PATCH-166 — savebar shows ONLY the unsaved-changes warning.
+  // Save confirmation lives in the top flash banner (one source of truth).
   document.querySelectorAll('[data-dirty-form]').forEach(function(form) {
     var savebar = form.querySelector('[data-savebar]');
     var msg     = savebar ? savebar.querySelector('.set-savebar-msg') : null;
@@ -1441,16 +1438,11 @@
       var dirty = nowSerialized !== initial;
       if (savebar) {
         savebar.classList.toggle('dirty', dirty);
-        // MARKER-PATCH-165 — message states: dirty | just-saved | idle.
-        // Idle (initial page load, never touched) is BLANK, not "Saved."
+        // MARKER-PATCH-166 — savebar shows the warning only.
+        // Save confirmation is handled by the global flash banner at the top
+        // (layouts/tenant/app.blade.php). Dual confirmation was confusing.
         if (msg) {
-          if (dirty) {
-            msg.textContent = 'You have unsaved changes.';
-          } else if (justSaved) {
-            msg.textContent = 'Saved.';
-          } else {
-            msg.textContent = '';
-          }
+          msg.textContent = dirty ? 'You have unsaved changes.' : '';
         }
       }
     }
