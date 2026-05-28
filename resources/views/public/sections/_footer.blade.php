@@ -64,6 +64,10 @@
       $copyTpl
   );
 
+  // MARKER-PATCH-158-G26B — per-section "Powered by Intake" toggle restored.
+  // Default true. The layout-level badge is suppressed when a footer section
+  // exists (G26a), so this is the only place the badge would render on pages
+  // that have a footer section.
   $showPoweredBy = (bool)($c['show_powered_by'] ?? true);
 
   // Advanced
@@ -230,6 +234,21 @@
   color: {{ $mutedColor }};
   text-align: {{ $hAlign }};
 }
+.{{ $instId }} .p-ftr-bottom.p-ftr-bottom--has-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  text-align: left;
+}
+@media (max-width: 560px) {
+  .{{ $instId }} .p-ftr-bottom.p-ftr-bottom--has-badge {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
 .{{ $instId }} .p-ftr-bottom a {
   color: {{ $linkColor }};
   text-decoration: none;
@@ -340,8 +359,11 @@
       @endif
     </div>
 
-    <div class="p-ftr-bottom">
+    <div class="p-ftr-bottom {{ $showPoweredBy ? 'p-ftr-bottom--has-badge' : '' }}">
       <span>{{ $copyText }}</span>
+      @if($showPoweredBy)
+        <span>Powered by <a href="https://intake.works" target="_blank" rel="noopener">Intake</a></span>
+      @endif
     </div>
 
   </div>

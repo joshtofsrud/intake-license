@@ -276,6 +276,7 @@ class PageBuilderController extends Controller
             'show_hours'      => false,
             // Copyright
             'copyright_text'  => '',
+            'show_powered_by' => true,
             // Layout
             'layout'          => 'columns',      // columns | centered | minimal
             'text_align'      => 'left',

@@ -160,9 +160,10 @@
       <input type="text" class="pb2-input" data-field="copyright_text" value="{{ $get('copyright_text') }}" placeholder="© {year} {name}. All rights reserved.">
     </div>
 
-    <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:8px">
-      The "Powered by Intake" badge is managed by your plan tier in account settings.
-    </div>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="show_powered_by" value="1" {{ $get('show_powered_by', true) ? 'checked' : '' }}>
+      <span>Show "Powered by Intake" badge</span>
+    </label>
   </div>
 
 </div>
