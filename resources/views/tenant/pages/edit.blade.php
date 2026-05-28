@@ -1166,6 +1166,35 @@
   padding: 3px 8px;
 }
 
+/* MARKER-PATCH-158-G31 — feature_grid features list editor */
+.pb2-insp-body .pb2-feat {
+  background: var(--pb2-surface-2);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-feat-head {
+  display: grid;
+  grid-template-columns: 14px 38px 1fr 22px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-feat-icon {
+  text-align: center;
+  font-family: var(--pb2-mono);
+}
+.pb2-insp-body .pb2-feat-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pb2-insp-body .pb2-feat-cta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1940,6 +1969,75 @@
     // MARKER-PATCH-158-G30 — Pricing table plans list editor (nested:
     // plan rows + features sub-list per plan + radio-like featured toggle)
     initPlansList(body);
+
+    // MARKER-PATCH-158-G31 — feature_grid features list editor
+    initFeaturesList(body);
+  }
+
+  function initFeaturesList(body) {
+    const root   = body.querySelector('#pb2-feat-list');
+    const addBtn = body.querySelector('#pb2-feat-add');
+    const json   = body.querySelector('#pb2-feat-json');
+    const count  = body.querySelector('#pb2-feat-count');
+    if (!root || !json) return;
+
+    const MAX_FEATS = 12;
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-feat').forEach(featEl => {
+        out.push({
+          icon:      featEl.querySelector('[data-feat-field="icon"]')?.value || '',
+          title:     featEl.querySelector('[data-feat-field="title"]')?.value || '',
+          price:     featEl.querySelector('[data-feat-field="price"]')?.value || '',
+          body:      featEl.querySelector('[data-feat-field="body"]')?.value || '',
+          cta_label: featEl.querySelector('[data-feat-field="cta_label"]')?.value || '',
+          cta_url:   featEl.querySelector('[data-feat-field="cta_url"]')?.value || '',
+        });
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX_FEATS;
+    }
+
+    function wireFeat(featEl) {
+      featEl.querySelectorAll('[data-feat-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = featEl.querySelector('[data-feat-remove]');
+      if (rm) rm.addEventListener('click', () => { featEl.remove(); serialize(); });
+    }
+
+    root.querySelectorAll('.pb2-feat').forEach(wireFeat);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (root.querySelectorAll('.pb2-feat').length >= MAX_FEATS) return;
+        const featEl = document.createElement('div');
+        featEl.className = 'pb2-feat';
+        featEl.innerHTML = `
+          <div class="pb2-feat-head">
+            <span class="pb2-navlist-handle">⋮⋮</span>
+            <input type="text" class="pb2-input pb2-input-sm pb2-feat-icon" data-feat-field="icon" placeholder="✓" maxlength="4">
+            <input type="text" class="pb2-input pb2-input-sm" data-feat-field="title" placeholder="Title">
+            <button type="button" class="pb2-navlist-remove" data-feat-remove title="Remove">×</button>
+          </div>
+          <div class="pb2-feat-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-feat-field="price" placeholder="Price (optional)">
+            <textarea class="pb2-input pb2-input-sm pb2-textarea" data-feat-field="body" rows="2" placeholder="Description"></textarea>
+            <div class="pb2-feat-cta-row">
+              <input type="text" class="pb2-input pb2-input-sm" data-feat-field="cta_label" placeholder="Optional CTA label">
+              <input type="text" class="pb2-input pb2-input-sm" data-feat-field="cta_url" placeholder="/url">
+            </div>
+          </div>
+        `;
+        root.appendChild(featEl);
+        wireFeat(featEl);
+        serialize();
+        featEl.querySelector('[data-feat-field="title"]')?.focus();
+      });
+    }
   }
 
   function initPlansList(body) {

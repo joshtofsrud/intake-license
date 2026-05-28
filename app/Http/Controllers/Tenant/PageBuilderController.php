@@ -345,14 +345,41 @@ class PageBuilderController extends Controller
             'hide_on_mobile'   => false,
             'hide_on_desktop'  => false,
         ],
+        // MARKER-PATCH-158-G31 — feature_grid v2 fields (Phase 2)
         'feature_grid' => [
-            'eyebrow' => '', 'heading' => 'Features', 'subheading' => '', 'columns' => 3,
-            'features' => [
-                ['icon' => '✓', 'title' => 'Feature 1', 'body' => 'Short description.'],
-                ['icon' => '✓', 'title' => 'Feature 2', 'body' => 'Short description.'],
-                ['icon' => '✓', 'title' => 'Feature 3', 'body' => 'Short description.'],
+            // Content
+            'eyebrow'          => '',
+            'heading'          => '',
+            'accent_words'     => '',
+            'subheading'       => '',
+            'features'         => [
+                ['icon'=>'','title'=>'Lower service','price'=>'$90 & up','body'=>'Legs/sleeve off, cleaned, new wipers & oil.','cta_label'=>'','cta_url'=>''],
+                ['icon'=>'','title'=>'Full rebuild','price'=>'$180 & up','body'=>'Teardown, damper rebuild, air spring service.','cta_label'=>'','cta_url'=>''],
+                ['icon'=>'','title'=>'Dropper post','price'=>'$120 & up','body'=>'Teardown, all new o-rings, seals, & oil.','cta_label'=>'','cta_url'=>''],
             ],
-            'cta_label' => '', 'cta_url' => '',
+            // Layout
+            'layout'           => 'grid',     // grid | intro_split
+            'columns'          => 3,
+            'card_style'       => 'card',     // card | minimal
+            'show_icons'       => true,
+            'text_align'       => 'center',
+            'padding_top'      => 'normal',
+            'padding_bottom'   => 'normal',
+            // Style
+            'bg_mode'          => 'none',
+            'bg_color'         => '#0a0f1a',
+            'bg_gradient_from' => '#0a0f1a',
+            'bg_gradient_to'   => '#0f1828',
+            'card_bg'          => '',
+            'card_border'      => '',
+            'text_color'       => '',
+            'text_color_body'  => '',
+            'accent_color'     => '',
+            // Advanced
+            'anchor_id'        => '',
+            'custom_classes'   => '',
+            'hide_on_mobile'   => false,
+            'hide_on_desktop'  => false,
         ],
         'step_timeline' => [
             'eyebrow' => '', 'heading' => 'How it works', 'subheading' => '',
