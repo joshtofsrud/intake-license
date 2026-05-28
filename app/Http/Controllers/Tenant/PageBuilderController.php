@@ -141,7 +141,25 @@ class PageBuilderController extends Controller
             ->with('success', 'Page created. Start adding sections.');
     }
 
-    public function edit(Request $request, string $id)        { return redirect()->route('tenant.pages.index', ['edit' => $id]); }
+    // MARKER-PATCH-158-G15 — edit() renders the v2 chrome directly.
+    // Also serves the inspector partial when called with ?_inspector={section_id} —
+    // the v2 right pane fetches just the rendered _section.blade.php for the
+    // selected section via AJAX so we don't reload the whole page on selection.
+    public function edit(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        if ($request->has('_inspector')) {
+            $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+            $section = TenantPageSection::where('page_id', $page->id)
+                ->where('id', $request->input('_inspector'))
+                ->firstOrFail();
+            return view('tenant.pages._section', ['section' => $section])->render();
+        }
+
+        return $this->editPage($tenant, $id);
+    }
+
     public function update(Request $request, string $id)      { return $this->handlePageUpdate(tenant(), $id, $request); }
     public function destroy(Request $request, string $id)     { return $this->handlePageDelete(tenant(), $id); }
     public function addSection(Request $request, string $id)  { $request->merge(['section_op' => 'add', 'page_id' => $id]); return $this->handleSectionOp(tenant(), $request); }
