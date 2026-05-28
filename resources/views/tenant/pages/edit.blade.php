@@ -1210,12 +1210,12 @@
   // Same handler accepts the same payload here.
   const STORE_URL  = @json($storeUrl);
   const PREVIEW_URL = @json($previewUrl);
-  // MARKER-PATCH-158-G19 — upload endpoint. Marketing context shares the
-  // tenant uploads route for now (the controller is tenant-scoped). If a
-  // future master-admin upload route appears, swap here.
+  // MARKER-PATCH-158-G19 — upload endpoint  (revised by MARKER-PATCH-158-G19A). Built as a raw URL string
+  // instead of route() to avoid RouteNotFoundException if the route cache
+  // is stale post-deploy. The endpoint path is stable and tenant-scoped.
   const UPLOAD_URL = @json($isMarketing
-      ? route('tenant.uploads.store')
-      : route('tenant.uploads.store'));
+      ? url('/admin/uploads')
+      : url('/admin/uploads'));
   const TYPE_LABELS = @json($typeLabels);
 
   const PREVIEW_IFRAME = document.getElementById('pb2-preview');
