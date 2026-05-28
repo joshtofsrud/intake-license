@@ -34,8 +34,11 @@
 
   // Colors
   $textColor     = $c['text_color']      ?? '#ffffff';
-  $textColorBody = $c['text_color_body'] ?: null;  // empty string falls through
-  $accentColor   = $c['accent_color']    ?: null;
+  // MARKER-PATCH-158-G19B — Use ?? (null-coalesce) not ?: (truthy-or). Older
+  // hero rows seeded before G19 don't have these keys, so ?: blows up on
+  // "undefined array key". ?? checks for existence first.
+  $textColorBody = ($c['text_color_body'] ?? '') ?: null;
+  $accentColor   = ($c['accent_color']    ?? '') ?: null;
 
   // Buttons — prefer buttons[] array, fall back to legacy cta_primary/secondary
   $buttons = $c['buttons'] ?? [];
