@@ -330,7 +330,40 @@ class PageBuilderController extends Controller
         'faq_accordion'    => ['eyebrow'=>'','heading'=>'Frequently asked','subheading'=>'','items'=>[['q'=>'A common question?','a'=>'A clear answer.']]],
         'comparison_table' => ['eyebrow'=>'','heading'=>'How we compare','subheading'=>'','competitors'=>['Intake','Other'],'rows'=>[['feature'=>'Feature','values'=>['yes','no']]]],
         'industry_pack_showcase' => ['eyebrow'=>'','heading'=>'Built for your industry','subheading'=>'Pick your industry, get pre-configured services, pricing, and content.','limit'=>12,'show_all_link'=>true],
-        'stats_row'        => ['eyebrow'=>'','heading'=>'','stats'=>[['number'=>'200+','label'=>'Businesses'],['number'=>'50k+','label'=>'Appointments'],['number'=>'24','label'=>'Industries']]],
+        // MARKER-PATCH-158-G27 — stats_row v2 fields (Phase 2)
+        'stats_row'        => [
+            // Content
+            'eyebrow'         => '',
+            'heading'         => '',
+            'accent_words'    => '',
+            'subheading'      => '',
+            'stats'           => [
+                ['number'=>'200+','label'=>'Businesses','description'=>''],
+                ['number'=>'50k+','label'=>'Appointments','description'=>''],
+                ['number'=>'24','label'=>'Industries','description'=>''],
+            ],
+            // Layout
+            'columns'         => 'auto',
+            'number_size'     => 'large',
+            'stats_align'     => 'center',
+            'text_align'      => 'center',
+            'divider'         => 'none',
+            'padding_top'     => 'normal',
+            'padding_bottom'  => 'normal',
+            // Style
+            'bg_mode'         => 'none',
+            'bg_color'        => '#ffffff',
+            'bg_gradient_from'=> '#ffffff',
+            'bg_gradient_to'  => '#fafafa',
+            'text_color'      => '',
+            'text_color_body' => '',
+            'accent_color'    => '',
+            // Advanced
+            'anchor_id'       => '',
+            'custom_classes'  => '',
+            'hide_on_mobile'  => false,
+            'hide_on_desktop' => false,
+        ],
         'screen_showcase'  => ['eyebrow'=>'','step_num'=>1,'heading'=>'Step heading','body'=>'Short body for this step.','points'=>[],'desktop_label'=>'Desktop','desktop_lines'=>[],'mobile_label'=>'Mobile','mobile_lines'=>[],'mobile_note'=>'','flip'=>false],
         'legal_doc'        => ['doc_title'=>'Document title','effective_date'=>'','updated_date'=>'','intro_paragraph'=>'','show_toc'=>true,'sections'=>[['heading'=>'Section heading','blocks'=>[['type'=>'paragraph','text'=>'']]]]],
     ];

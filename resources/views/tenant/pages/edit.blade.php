@@ -1073,6 +1073,23 @@
   padding: 3px 8px;
 }
 
+/* MARKER-PATCH-158-G27 — Stats row list editor */
+.pb2-insp-body .pb2-statrow {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--pb2-surface-2);
+  border-radius: 4px;
+  padding: 8px 8px 8px 10px;
+  margin-bottom: 6px;
+}
+.pb2-insp-body .pb2-statrow-fields {
+  display: grid;
+  grid-template-columns: 80px 1fr 1.2fr;
+  gap: 6px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1840,6 +1857,67 @@
     // Both serialize to hidden JSON [data-field] inputs that autosave picks up.
     initFooterLinkColumns(body);
     initFooterSocialLinks(body);
+
+    // MARKER-PATCH-158-G27 — Stats row list editor
+    initStatsList(body);
+  }
+
+  // Stats row list editor — flat list of { number, label, description }.
+  // Serializes to #pb2-stats-json.
+  function initStatsList(body) {
+    const list   = body.querySelector('#pb2-stats-list');
+    const addBtn = body.querySelector('#pb2-stats-add');
+    const json   = body.querySelector('#pb2-stats-json');
+    const count  = body.querySelector('#pb2-stats-count');
+    if (!list || !json) return;
+
+    const MAX_STATS = 6;
+
+    function serialize() {
+      const out = [];
+      list.querySelectorAll('.pb2-statrow').forEach(row => {
+        out.push({
+          number:      row.querySelector('[data-stat-field="number"]')?.value || '',
+          label:       row.querySelector('[data-stat-field="label"]')?.value || '',
+          description: row.querySelector('[data-stat-field="description"]')?.value || '',
+        });
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = `${out.length} / ${MAX_STATS}`;
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-stat-field]').forEach(input => {
+        input.addEventListener('input', serialize);
+        input.addEventListener('change', serialize);
+      });
+      const rm = row.querySelector('[data-stat-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+    }
+
+    list.querySelectorAll('.pb2-statrow').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (list.querySelectorAll('.pb2-statrow').length >= MAX_STATS) return;
+        const row = document.createElement('div');
+        row.className = 'pb2-statrow';
+        row.innerHTML = `
+          <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-statrow-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-stat-field="number" placeholder="200+">
+            <input type="text" class="pb2-input pb2-input-sm" data-stat-field="label" placeholder="Bikes serviced">
+            <input type="text" class="pb2-input pb2-input-sm" data-stat-field="description" placeholder="Description (optional)">
+          </div>
+          <button type="button" class="pb2-navlist-remove" data-stat-remove title="Remove">×</button>
+        `;
+        list.appendChild(row);
+        wireRow(row);
+        serialize();
+        row.querySelector('[data-stat-field="number"]')?.focus();
+      });
+    }
   }
 
   // Footer link columns — nested editor: list of columns, each with heading
