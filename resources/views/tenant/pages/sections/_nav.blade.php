@@ -146,6 +146,16 @@
       <input type="hidden" data-field="height" value="{{ $get('height', 'normal') }}">
     </div>
 
+    {{-- MARKER-PATCH-158-G28 — independent logo size control --}}
+    <div class="pb2-field">
+      <label class="pb2-field-label">Logo size</label>
+      <select class="pb2-input" data-field="logo_size">
+        @foreach(['small'=>'Small (22px)','medium'=>'Medium (30px)','large'=>'Large (40px)','xl'=>'Extra large (52px)'] as $v => $n)
+          <option value="{{ $v }}" {{ $get('logo_size', 'medium') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        @endforeach
+      </select>
+    </div>
+
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="sticky" value="1" {{ $get('sticky', true) ? 'checked' : '' }}>
       <span>Sticky (stays at top when scrolling)</span>

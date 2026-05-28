@@ -56,6 +56,16 @@
       <span>Show logo</span>
     </label>
 
+    {{-- MARKER-PATCH-158-G28 — logo size control --}}
+    <div class="pb2-field" style="margin-top:10px">
+      <label class="pb2-field-label">Logo size</label>
+      <select class="pb2-input" data-field="logo_size">
+        @foreach(['small'=>'Small (22px)','medium'=>'Medium (28px)','large'=>'Large (40px)','xl'=>'Extra large (56px)'] as $v => $n)
+          <option value="{{ $v }}" {{ $get('logo_size', 'medium') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        @endforeach
+      </select>
+    </div>
+
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label">Tagline override <span class="pb2-field-hint">blank = use tenant tagline</span></label>
       <textarea class="pb2-input pb2-textarea" data-field="tagline_override" rows="2" placeholder="A short line about your business">{{ $get('tagline_override') }}</textarea>
@@ -150,6 +160,40 @@
       <input type="checkbox" data-field="show_hours" value="1" {{ $get('show_hours', false) ? 'checked' : '' }}>
       <span>Show hours</span>
     </label>
+  </div>
+
+  {{-- MARKER-PATCH-158-G29 — inline footer contact form --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Contact form</div>
+
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="show_form" value="1" {{ $get('show_form', false) ? 'checked' : '' }}>
+      <span>Show inline form in footer</span>
+    </label>
+
+    <div class="pb2-field-hint" style="text-align:left;margin-top:6px;display:block">
+      A compact name + email + message form. Submissions go to your tenant email like the standalone contact form section.
+    </div>
+
+    <div class="pb2-field" style="margin-top:10px">
+      <label class="pb2-field-label">Form heading</label>
+      <input type="text" class="pb2-input" data-field="form_heading" value="{{ $get('form_heading', 'Get in touch') }}">
+    </div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Form description <span class="pb2-field-hint">optional, above form</span></label>
+      <input type="text" class="pb2-input" data-field="form_description" value="{{ $get('form_description') }}" placeholder="Drop us a note — we usually reply within 24 hours.">
+    </div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Button label</label>
+      <input type="text" class="pb2-input" data-field="form_button_label" value="{{ $get('form_button_label', 'Send') }}">
+    </div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Success message</label>
+      <input type="text" class="pb2-input" data-field="form_success_text" value="{{ $get('form_success_text', 'Thanks! We\'ll be in touch soon.') }}">
+    </div>
   </div>
 
   <div class="pb2-group">

@@ -37,6 +37,15 @@
   $navBg    = $bgMode === 'transparent' ? 'transparent' : $bgColor;
   $logoUrl  = $showLogo && isset($tenant) ? \App\Support\ColorHelper::pickLogo($tenant, $navBg) : null;
 
+  // MARKER-PATCH-158-G28 — independent logo size, no longer tied to nav height
+  $logoSizeMap = [
+      'small'  => '22px',
+      'medium' => '30px',
+      'large'  => '40px',
+      'xl'     => '52px',
+  ];
+  $logoHeight = $logoSizeMap[$c['logo_size'] ?? 'medium'] ?? '30px';
+
   // Colors
   $textColor = ($c['text_color'] ?? '') ?: '#0a0a0a';
   $linkColor = ($c['link_color'] ?? '') ?: $textColor;
@@ -103,7 +112,7 @@
   margin: 0 auto;
   @endif
 }
-.{{ $instId }} .p-nav-logo img { height: {{ $height === 'compact' ? '24px' : ($height === 'spacious' ? '38px' : '30px') }}; width: auto; }
+.{{ $instId }} .p-nav-logo img { height: {{ $logoHeight }}; width: auto; }
 
 .{{ $instId }} .p-nav-links {
   display: flex;

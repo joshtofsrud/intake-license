@@ -33,6 +33,7 @@ class PageBuilderController extends Controller
             // Logo
             'show_logo'       => true,
             'logo_alignment'  => 'left',     // left | center
+            'logo_size'       => 'medium',   // small | medium | large | xl
             // CTA
             'show_cta'        => true,
             'cta_label'       => 'Book Now',
@@ -265,6 +266,7 @@ class PageBuilderController extends Controller
         'footer'        => [
             // Brand
             'show_logo'       => true,
+            'logo_size'       => 'medium',  // small | medium | large | xl
             'tagline_override'=> '',
             // Repeatable lists
             'link_columns'    => [],
@@ -274,6 +276,12 @@ class PageBuilderController extends Controller
             'show_email'      => true,
             'show_address'    => false,
             'show_hours'      => false,
+            // MARKER-PATCH-158-G29 — inline contact form
+            'show_form'       => false,
+            'form_heading'    => 'Get in touch',
+            'form_description'=> '',
+            'form_button_label' => 'Send',
+            'form_success_text' => "Thanks! We'll be in touch soon.",
             // Copyright
             'copyright_text'  => '',
             'show_powered_by' => true,

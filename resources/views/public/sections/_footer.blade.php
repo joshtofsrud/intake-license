@@ -34,6 +34,15 @@
   $footerBg = $bgMode === 'gradient' ? $gradF : $bgColor;
   $logoUrl  = $showLogo && isset($tenant) ? \App\Support\ColorHelper::pickLogo($tenant, $footerBg) : null;
 
+  // MARKER-PATCH-158-G28 — logo size control
+  $logoSizeMap = [
+      'small'  => '22px',
+      'medium' => '28px',
+      'large'  => '40px',
+      'xl'     => '56px',
+  ];
+  $logoHeight = $logoSizeMap[$c['logo_size'] ?? 'medium'] ?? '28px';
+
   // Link columns
   $linkColumns = $c['link_columns'] ?? [];
   if (is_string($linkColumns)) { $d = json_decode($linkColumns, true); $linkColumns = is_array($d) ? $d : []; }
@@ -69,6 +78,13 @@
   // exists (G26a), so this is the only place the badge would render on pages
   // that have a footer section.
   $showPoweredBy = (bool)($c['show_powered_by'] ?? true);
+
+  // MARKER-PATCH-158-G29 — inline contact form
+  $showForm        = (bool)($c['show_form'] ?? false);
+  $formHeading     = $c['form_heading']      ?? 'Get in touch';
+  $formDescription = $c['form_description']  ?? '';
+  $formButton      = $c['form_button_label'] ?? 'Send';
+  $formSuccess     = $c['form_success_text'] ?? "Thanks! We'll be in touch soon.";
 
   // Advanced
   $anchorId    = trim($c['anchor_id'] ?? '');
@@ -120,7 +136,7 @@
 .{{ $instId }} .p-ftr-top {
   display: grid;
   @if($layout === 'columns')
-  grid-template-columns: minmax(0, 1.4fr) repeat({{ max(1, min(4, count($linkColumns) + ($hasContactBlock ? 1 : 0))) }}, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.4fr) repeat({{ max(1, min(4, count($linkColumns) + ($hasContactBlock ? 1 : 0) + ($showForm ? 1 : 0))) }}, minmax(0, 1fr));
   gap: 48px;
   align-items: start;
   @elseif($layout === 'centered')
@@ -157,7 +173,7 @@
   margin-bottom: 12px;
   @if($layout === 'centered') justify-content: center; @endif
 }
-.{{ $instId }} .p-ftr-logo img { height: 28px; width: auto; }
+.{{ $instId }} .p-ftr-logo img { height: {{ $logoHeight }}; width: auto; }
 .{{ $instId }} .p-ftr-tagline {
   font-size: 14px;
   line-height: 1.55;
@@ -225,6 +241,79 @@
   letter-spacing: 0.08em;
   color: {{ $mutedColor }};
   margin-bottom: 3px;
+}
+
+/* MARKER-PATCH-158-G29 — inline contact form */
+.{{ $instId }} .p-ftr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.{{ $instId }} .p-ftr-form-desc {
+  font-size: 13px;
+  color: {{ $mutedColor }};
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+.{{ $instId }} .p-ftr-form input,
+.{{ $instId }} .p-ftr-form textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: {{ $textColor }};
+  padding: 9px 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.{{ $instId }} .p-ftr-form input:focus,
+.{{ $instId }} .p-ftr-form textarea:focus {
+  border-color: {{ $linkColor }};
+}
+.{{ $instId }} .p-ftr-form input::placeholder,
+.{{ $instId }} .p-ftr-form textarea::placeholder {
+  color: {{ $mutedColor }};
+  opacity: .9;
+}
+.{{ $instId }} .p-ftr-form textarea { resize: vertical; min-height: 60px; }
+.{{ $instId }} .p-ftr-form button {
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+  background: {{ $textColor }};
+  color: {{ $bgColor }};
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.{{ $instId }} .p-ftr-form button:hover { filter: brightness(0.92); }
+.{{ $instId }} .p-ftr-form-success {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(190,242,100,0.1);
+  border: 1px solid rgba(190,242,100,0.2);
+  color: {{ $textColor }};
+  font-size: 13px;
+}
+.{{ $instId }} .p-ftr-form-error {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255,100,100,0.1);
+  border: 1px solid rgba(255,100,100,0.2);
+  color: #ffaaaa;
+  font-size: 13px;
+}
+.{{ $instId }} .p-ftr-form-heading {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: {{ $textColor }};
+  margin: 0 0 14px;
+  opacity: .85;
 }
 
 .{{ $instId }} .p-ftr-bottom {
@@ -353,6 +442,34 @@
                 <strong>Hours</strong>
                 {{ $tenant->hours }}
               </p>
+            @endif
+          </div>
+        @endif
+
+        {{-- MARKER-PATCH-158-G29 — inline contact form column --}}
+        @if($showForm)
+          <div class="p-ftr-col">
+            @if($formHeading !== '')
+              <h4 class="p-ftr-form-heading">{{ $formHeading }}</h4>
+            @endif
+
+            @if(session('contact_success'))
+              <div class="p-ftr-form-success">{{ $formSuccess }}</div>
+            @else
+              @if($formDescription !== '')
+                <p class="p-ftr-form-desc">{{ $formDescription }}</p>
+              @endif
+
+              <form method="POST" action="/contact" class="p-ftr-form">
+                @csrf
+                @if($errors->any())
+                  <div class="p-ftr-form-error">{{ $errors->first() }}</div>
+                @endif
+                <input type="text" name="name" placeholder="Your name" value="{{ old('name') }}" required>
+                <input type="email" name="email" placeholder="you@example.com" value="{{ old('email') }}" required>
+                <textarea name="message" rows="2" placeholder="How can we help?" required>{{ old('message') }}</textarea>
+                <button type="submit">{{ $formButton }}</button>
+              </form>
             @endif
           </div>
         @endif
