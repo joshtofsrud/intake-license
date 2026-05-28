@@ -1040,6 +1040,39 @@
   text-align: left;
 }
 
+/* MARKER-PATCH-158-G26 — Footer link columns (nested list editor) */
+.pb2-insp-body .pb2-ftr-col {
+  background: var(--pb2-surface-2);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-ftr-col-head {
+  display: grid;
+  grid-template-columns: 14px 1fr 22px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-ftr-col-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding-left: 18px;
+}
+.pb2-insp-body .pb2-ftr-link {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 22px;
+  gap: 4px;
+  align-items: center;
+}
+.pb2-insp-body .pb2-ftr-addlink {
+  margin-left: 18px;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1802,6 +1835,161 @@
     // MARKER-PATCH-158-G25 — Nav links editor (saves to update_nav op,
     // not into content[]. Nav items are a tenant-global resource.)
     initNavLinkList(body);
+
+    // MARKER-PATCH-158-G26 — Footer link columns + social links list editors.
+    // Both serialize to hidden JSON [data-field] inputs that autosave picks up.
+    initFooterLinkColumns(body);
+    initFooterSocialLinks(body);
+  }
+
+  // Footer link columns — nested editor: list of columns, each with heading
+  // + nested list of links. Serializes to #pb2-ftr-cols-json.
+  function initFooterLinkColumns(body) {
+    const root   = body.querySelector('#pb2-ftr-collist');
+    const addCol = body.querySelector('#pb2-ftr-addcol');
+    const json   = body.querySelector('#pb2-ftr-cols-json');
+    const count  = body.querySelector('#pb2-ftr-cols-count');
+    if (!root || !json) return;
+
+    function serialize() {
+      const cols = [];
+      root.querySelectorAll('.pb2-ftr-col').forEach(colEl => {
+        const heading = colEl.querySelector('[data-col-field="heading"]')?.value || '';
+        const links = [];
+        colEl.querySelectorAll('.pb2-ftr-link').forEach(linkEl => {
+          const label = linkEl.querySelector('[data-link-field="label"]')?.value || '';
+          const url   = linkEl.querySelector('[data-link-field="url"]')?.value || '';
+          if (label || url) links.push({ label, url });
+        });
+        cols.push({ heading, links });
+      });
+      json.value = JSON.stringify(cols);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = cols.length + ' column' + (cols.length === 1 ? '' : 's');
+    }
+
+    function wireLink(linkEl) {
+      linkEl.querySelectorAll('[data-link-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = linkEl.querySelector('[data-link-remove]');
+      if (rm) rm.addEventListener('click', () => { linkEl.remove(); serialize(); });
+    }
+
+    function wireCol(colEl) {
+      colEl.querySelectorAll('[data-col-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = colEl.querySelector('[data-col-remove]');
+      if (rm) rm.addEventListener('click', () => { colEl.remove(); serialize(); });
+
+      colEl.querySelectorAll('.pb2-ftr-link').forEach(wireLink);
+
+      const addLink = colEl.querySelector('[data-col-addlink]');
+      if (addLink) {
+        addLink.addEventListener('click', () => {
+          const linksWrap = colEl.querySelector('.pb2-ftr-col-links');
+          if (!linksWrap) return;
+          const linkEl = document.createElement('div');
+          linkEl.className = 'pb2-ftr-link';
+          linkEl.innerHTML = `
+            <input type="text" class="pb2-input pb2-input-sm" data-link-field="label" placeholder="Label">
+            <input type="text" class="pb2-input pb2-input-sm" data-link-field="url" placeholder="URL">
+            <button type="button" class="pb2-navlist-remove" data-link-remove title="Remove link">×</button>
+          `;
+          linksWrap.appendChild(linkEl);
+          wireLink(linkEl);
+          serialize();
+          linkEl.querySelector('[data-link-field="label"]')?.focus();
+        });
+      }
+    }
+
+    root.querySelectorAll('.pb2-ftr-col').forEach(wireCol);
+
+    if (addCol) {
+      addCol.addEventListener('click', () => {
+        const colEl = document.createElement('div');
+        colEl.className = 'pb2-ftr-col';
+        colEl.innerHTML = `
+          <div class="pb2-ftr-col-head">
+            <span class="pb2-navlist-handle">⋮⋮</span>
+            <input type="text" class="pb2-input pb2-input-sm" data-col-field="heading" placeholder="Column heading">
+            <button type="button" class="pb2-navlist-remove" data-col-remove title="Remove column">×</button>
+          </div>
+          <div class="pb2-ftr-col-links"></div>
+          <button type="button" class="pb2-addrow pb2-ftr-addlink" data-col-addlink>+ Add link</button>
+        `;
+        root.appendChild(colEl);
+        wireCol(colEl);
+        serialize();
+        colEl.querySelector('[data-col-field="heading"]')?.focus();
+      });
+    }
+  }
+
+  // Footer social links — flat list of { platform, url }.
+  // Serializes to #pb2-ftr-social-json.
+  function initFooterSocialLinks(body) {
+    const list   = body.querySelector('#pb2-ftr-sociallist');
+    const addBtn = body.querySelector('#pb2-ftr-addsocial');
+    const json   = body.querySelector('#pb2-ftr-social-json');
+    const count  = body.querySelector('#pb2-ftr-social-count');
+    if (!list || !json) return;
+
+    function serialize() {
+      const out = [];
+      list.querySelectorAll('.pb2-navlist-item').forEach(row => {
+        const platform = row.querySelector('[data-social-field="platform"]')?.value || 'website';
+        const url      = row.querySelector('[data-social-field="url"]')?.value || '';
+        if (url) out.push({ platform, url });
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' link' + (out.length === 1 ? '' : 's');
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-social-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = row.querySelector('[data-social-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+    }
+
+    list.querySelectorAll('.pb2-navlist-item').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'pb2-navlist-item';
+        row.innerHTML = `
+          <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-navlist-fields">
+            <select class="pb2-input pb2-input-sm" data-social-field="platform">
+              <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
+              <option value="twitter">X / Twitter</option>
+              <option value="youtube">YouTube</option>
+              <option value="tiktok">TikTok</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="pinterest">Pinterest</option>
+              <option value="github">GitHub</option>
+              <option value="website">Website</option>
+              <option value="email">Email</option>
+            </select>
+            <input type="text" class="pb2-input pb2-input-sm" data-social-field="url" placeholder="https://...">
+          </div>
+          <button type="button" class="pb2-navlist-remove" data-social-remove title="Remove">×</button>
+        `;
+        list.appendChild(row);
+        wireRow(row);
+        row.querySelector('[data-social-field="url"]')?.focus();
+      });
+    }
   }
 
   // Nav link list editor. Each row has label + URL + open-in-new-tab toggle.

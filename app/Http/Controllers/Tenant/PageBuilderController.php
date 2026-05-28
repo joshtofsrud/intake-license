@@ -23,6 +23,8 @@ class PageBuilderController extends Controller
         'buttons',
         // MARKER-PATCH-158-G22 — services category filter (multi-select)
         'category_ids',
+        // MARKER-PATCH-158-G26 — footer link columns + social links
+        'link_columns', 'social_links',
     ];
 
     private const DEFAULTS = [
@@ -259,7 +261,46 @@ class PageBuilderController extends Controller
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
         'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
         'changelog_list'=> ['intro_text'=>'Everything we shipped lately, reverse-chronological.'],
-        'footer'        => ['show_logo'=>true,'show_copyright'=>true,'copyright_text'=>''],
+        // MARKER-PATCH-158-G26 — footer v2 fields (Phase 2)
+        'footer'        => [
+            // Brand
+            'show_logo'       => true,
+            'tagline_override'=> '',
+            // Repeatable lists
+            'link_columns'    => [],
+            'social_links'    => [],
+            // Contact info toggles
+            'show_phone'      => false,
+            'show_email'      => true,
+            'show_address'    => false,
+            'show_hours'      => false,
+            // Copyright + badges
+            'copyright_text'  => '',
+            'show_powered_by' => true,
+            // Layout
+            'layout'          => 'columns',      // columns | centered | minimal
+            'bottom_layout'   => 'split',        // split | stacked | copyright_only
+            'text_align'      => 'left',
+            'padding_top'     => 'normal',
+            'padding_bottom'  => 'normal',
+            // Style
+            'bg_mode'         => 'color',
+            'bg_color'        => '#0a0a0a',
+            'bg_gradient_from'=> '#0a0a0a',
+            'bg_gradient_to'  => '#1a1a1a',
+            'border_top'      => 'none',
+            'text_color'      => '',
+            'link_color'      => '',
+            'muted_color'     => '',
+            // Advanced
+            'anchor_id'       => '',
+            'custom_classes'  => '',
+            'hide_on_mobile'  => false,
+            'hide_on_desktop' => false,
+
+            // Legacy compat
+            'show_copyright'  => true,
+        ],
 
         'pricing_table' => [
             'eyebrow'    => '', 'heading' => 'Pricing', 'subheading' => 'Pick the plan that fits.',
