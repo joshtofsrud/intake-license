@@ -309,9 +309,41 @@ class PageBuilderController extends Controller
             'show_copyright'  => true,
         ],
 
+        // MARKER-PATCH-158-G30 — pricing_table v2 fields (Phase 2)
         'pricing_table' => [
-            'eyebrow'    => '', 'heading' => 'Pricing', 'subheading' => 'Pick the plan that fits.',
-            'source'     => 'config', 'featured' => 'branded', 'plans' => [], 'footnote' => '',
+            // Content
+            'eyebrow'          => '',
+            'heading'          => '',
+            'accent_words'     => '',
+            'subheading'       => '',
+            'footnote'         => '',
+            'plans'            => [
+                ['eyebrow'=>'01 · BASIC','title'=>'Standard','price'=>'$90','price_suffix'=>'& up','badge_label'=>'','featured'=>false,'features'=>['Feature one','Feature two','Feature three'],'cta_label'=>'','cta_url'=>''],
+                ['eyebrow'=>'02 · POPULAR','title'=>'Advanced','price'=>'$140','price_suffix'=>'& up','badge_label'=>'MOST BOOKED','featured'=>true,'features'=>['Everything in Standard','Feature four','Feature five'],'cta_label'=>'','cta_url'=>''],
+                ['eyebrow'=>'03 · PREMIUM','title'=>'Premium','price'=>'$295','price_suffix'=>'& up','badge_label'=>'','featured'=>false,'features'=>['Everything in Advanced','Feature six','Feature seven'],'cta_label'=>'','cta_url'=>''],
+            ],
+            // Layout
+            'columns'          => 'auto',     // auto | 2 | 3 | 4
+            'featured_style'   => 'border',   // border | elevated | scale
+            'feature_divider'  => 'dashed',   // none | solid | dashed
+            'text_align'       => 'center',
+            'padding_top'      => 'normal',
+            'padding_bottom'   => 'normal',
+            // Style
+            'bg_mode'          => 'none',
+            'bg_color'         => '#0a0f1a',
+            'bg_gradient_from' => '#0a0f1a',
+            'bg_gradient_to'   => '#0f1828',
+            'card_bg'          => '',
+            'card_border'      => '',
+            'text_color'       => '',
+            'text_color_body'  => '',
+            'accent_color'     => '',
+            // Advanced
+            'anchor_id'        => '',
+            'custom_classes'   => '',
+            'hide_on_mobile'   => false,
+            'hide_on_desktop'  => false,
         ],
         'feature_grid' => [
             'eyebrow' => '', 'heading' => 'Features', 'subheading' => '', 'columns' => 3,

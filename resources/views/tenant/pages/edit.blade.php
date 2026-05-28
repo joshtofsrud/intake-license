@@ -1090,6 +1090,82 @@
   gap: 6px;
 }
 
+/* MARKER-PATCH-158-G30 — Pricing table plans list editor */
+.pb2-insp-body .pb2-plan {
+  background: var(--pb2-surface-2);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.pb2-insp-body .pb2-plan-head {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.pb2-insp-body .pb2-plan-pos {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pb2-text-dim);
+}
+.pb2-insp-body .pb2-plan-featured {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--pb2-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pb2-insp-body .pb2-plan-featured:hover { background: var(--pb2-bg); }
+.pb2-insp-body .pb2-plan-featured input[type="checkbox"] { accent-color: var(--pb2-accent); }
+.pb2-insp-body .pb2-plan-featured input[type="checkbox"]:checked + span { color: var(--pb2-accent); }
+
+.pb2-insp-body .pb2-plan-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pb2-insp-body .pb2-plan-price-row,
+.pb2-insp-body .pb2-plan-cta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.pb2-insp-body .pb2-plan-features {
+  background: var(--pb2-bg);
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 4px;
+}
+.pb2-insp-body .pb2-plan-features-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  color: var(--pb2-text-faint);
+  margin-bottom: 6px;
+}
+.pb2-insp-body .pb2-plan-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.pb2-insp-body .pb2-plan-feature {
+  display: grid;
+  grid-template-columns: 1fr 22px;
+  gap: 4px;
+  align-items: center;
+}
+.pb2-insp-body .pb2-plan-addfeat {
+  font-size: 10.5px;
+  padding: 3px 8px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1860,6 +1936,145 @@
 
     // MARKER-PATCH-158-G27 — Stats row list editor
     initStatsList(body);
+
+    // MARKER-PATCH-158-G30 — Pricing table plans list editor (nested:
+    // plan rows + features sub-list per plan + radio-like featured toggle)
+    initPlansList(body);
+  }
+
+  function initPlansList(body) {
+    const root   = body.querySelector('#pb2-plans-list');
+    const addBtn = body.querySelector('#pb2-plans-add');
+    const json   = body.querySelector('#pb2-plans-json');
+    const count  = body.querySelector('#pb2-plans-count');
+    if (!root || !json) return;
+
+    const MAX_PLANS = 6;
+
+    function serialize() {
+      const plans = [];
+      root.querySelectorAll('.pb2-plan').forEach((planEl, i) => {
+        const plan = {
+          eyebrow:      planEl.querySelector('[data-plan-field="eyebrow"]')?.value || '',
+          title:        planEl.querySelector('[data-plan-field="title"]')?.value || '',
+          price:        planEl.querySelector('[data-plan-field="price"]')?.value || '',
+          price_suffix: planEl.querySelector('[data-plan-field="price_suffix"]')?.value || '',
+          badge_label:  planEl.querySelector('[data-plan-field="badge_label"]')?.value || '',
+          featured:     planEl.querySelector('[data-plan-field="featured"]')?.checked ? true : false,
+          cta_label:    planEl.querySelector('[data-plan-field="cta_label"]')?.value || '',
+          cta_url:      planEl.querySelector('[data-plan-field="cta_url"]')?.value || '',
+          features:     [],
+        };
+        planEl.querySelectorAll('.pb2-plan-feature').forEach(featEl => {
+          const txt = featEl.querySelector('[data-feat-field="text"]')?.value || '';
+          if (txt.trim() !== '') plan.features.push(txt);
+        });
+        plans.push(plan);
+        const posLabel = planEl.querySelector('.pb2-plan-pos');
+        if (posLabel) posLabel.textContent = 'Plan ' + (i + 1);
+      });
+      json.value = JSON.stringify(plans);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = plans.length + ' / ' + MAX_PLANS;
+    }
+
+    // Only-one-featured enforcement
+    function enforceSingleFeatured(justCheckedEl) {
+      root.querySelectorAll('[data-plan-field="featured"]').forEach(cb => {
+        if (cb !== justCheckedEl) cb.checked = false;
+      });
+    }
+
+    function wireFeatureRow(featEl) {
+      featEl.querySelectorAll('[data-feat-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = featEl.querySelector('[data-feat-remove]');
+      if (rm) rm.addEventListener('click', () => { featEl.remove(); serialize(); });
+    }
+
+    function wirePlan(planEl) {
+      planEl.querySelectorAll('[data-plan-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      // Featured checkbox enforces single-on
+      const feat = planEl.querySelector('[data-plan-field="featured"]');
+      if (feat) {
+        feat.addEventListener('change', () => {
+          if (feat.checked) enforceSingleFeatured(feat);
+          serialize();
+        });
+      }
+      const rm = planEl.querySelector('[data-plan-remove]');
+      if (rm) rm.addEventListener('click', () => { planEl.remove(); serialize(); });
+
+      // Wire each feature row
+      planEl.querySelectorAll('.pb2-plan-feature').forEach(wireFeatureRow);
+
+      // Add-feature button
+      const addFeat = planEl.querySelector('[data-plan-addfeat]');
+      if (addFeat) {
+        addFeat.addEventListener('click', () => {
+          const featList = planEl.querySelector('.pb2-plan-feature-list');
+          if (!featList) return;
+          const featEl = document.createElement('div');
+          featEl.className = 'pb2-plan-feature';
+          featEl.innerHTML = `
+            <input type="text" class="pb2-input pb2-input-sm" data-feat-field="text" placeholder="Feature text">
+            <button type="button" class="pb2-navlist-remove" data-feat-remove title="Remove">×</button>
+          `;
+          featList.appendChild(featEl);
+          wireFeatureRow(featEl);
+          serialize();
+          featEl.querySelector('[data-feat-field="text"]')?.focus();
+        });
+      }
+    }
+
+    root.querySelectorAll('.pb2-plan').forEach(wirePlan);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (root.querySelectorAll('.pb2-plan').length >= MAX_PLANS) return;
+        const planEl = document.createElement('div');
+        planEl.className = 'pb2-plan';
+        planEl.innerHTML = `
+          <div class="pb2-plan-head">
+            <span class="pb2-navlist-handle">⋮⋮</span>
+            <span class="pb2-plan-pos">New plan</span>
+            <label class="pb2-plan-featured" title="Mark featured">
+              <input type="checkbox" data-plan-field="featured">
+              <span>★ Featured</span>
+            </label>
+            <button type="button" class="pb2-navlist-remove" data-plan-remove title="Remove plan">×</button>
+          </div>
+          <div class="pb2-plan-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-plan-field="eyebrow" placeholder="01 · BASIC">
+            <input type="text" class="pb2-input pb2-input-sm" data-plan-field="title" placeholder="Plan name">
+            <div class="pb2-plan-price-row">
+              <input type="text" class="pb2-input pb2-input-sm" data-plan-field="price" placeholder="$90">
+              <input type="text" class="pb2-input pb2-input-sm" data-plan-field="price_suffix" placeholder="& up">
+            </div>
+            <input type="text" class="pb2-input pb2-input-sm" data-plan-field="badge_label" placeholder="Badge label (only shown when featured)">
+            <div class="pb2-plan-features">
+              <div class="pb2-plan-features-label">Features</div>
+              <div class="pb2-plan-feature-list"></div>
+              <button type="button" class="pb2-addrow pb2-plan-addfeat" data-plan-addfeat>+ Add feature</button>
+            </div>
+            <div class="pb2-plan-cta-row">
+              <input type="text" class="pb2-input pb2-input-sm" data-plan-field="cta_label" placeholder="Optional CTA label">
+              <input type="text" class="pb2-input pb2-input-sm" data-plan-field="cta_url" placeholder="/url">
+            </div>
+          </div>
+        `;
+        root.appendChild(planEl);
+        wirePlan(planEl);
+        serialize();
+        planEl.querySelector('[data-plan-field="title"]')?.focus();
+      });
+    }
   }
 
   // Stats row list editor — flat list of { number, label, description }.
