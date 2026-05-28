@@ -36,6 +36,64 @@
     'industry_pack_showcase' => 'Industries',
     'stats_row'              => 'Stats row',
   ];
+
+  // MARKER-PATCH-158-G18 — Inline SVG icon paths per section type. Paths are
+  // 24x24 viewBox; stroke-currentcolor; rendered identically in the section
+  // list (left pane) and the add-section gallery so the icon is a reliable
+  // visual anchor for each type.
+  $typeIconPaths = [
+    'nav'            => '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+    'hero'           => '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="8" cy="15" r="1.2" fill="currentColor"/>',
+    'services'       => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    'text_image'     => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.4"/><polyline points="3 17 9 12 21 19"/>',
+    'cta_banner'     => '<path d="M3 11l18-5v12L3 14z"/>',
+    'image_gallery'  => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="1.2"/><polyline points="3 17 9 12 14 16 21 11"/>',
+    'contact_form'   => '<path d="M4 4h16v16H4z"/><polyline points="4 7 12 13 20 7"/>',
+    'booking_embed'  => '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+    'classes_embed'  => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+    'footer'         => '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="16" x2="21" y2="16"/>',
+    'feature_grid'   => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+    'step_timeline'  => '<line x1="3" y1="6" x2="3" y2="6.01"/><line x1="3" y1="12" x2="3" y2="12.01"/><line x1="3" y1="18" x2="3" y2="18.01"/><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
+    'pricing_table'  => '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    'faq_accordion'  => '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1-1 1.5-2.5 2.5"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
+    'testimonial_carousel' => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>',
+    'logo_bar'       => '<rect x="2" y="9" width="4" height="6" rx="1"/><rect x="10" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/>',
+    'comparison_table'=>'<rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="12" y1="3" x2="12" y2="21"/>',
+    'industry_pack_showcase'=>'<path d="M3 6l3-3h12l3 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V6z"/><path d="M5 12v9h14v-9"/>',
+    'stats_row'      => '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/>',
+  ];
+
+  // Add-section gallery descriptions (one-liners shown under the type label
+  // in the gallery card). Kept short so cards stay scannable.
+  $typeDescriptions = [
+    'nav'           => 'Top navigation with logo + CTA',
+    'hero'          => 'Big headline + lede + buttons',
+    'services'      => 'Live grid pulled from your services',
+    'text_image'    => 'Side-by-side text and image',
+    'cta_banner'    => 'Single call-to-action strip',
+    'image_gallery' => 'Photo grid (Instagram-style)',
+    'contact_form'  => 'Inbound contact form',
+    'booking_embed' => 'Live booking widget',
+    'classes_embed' => 'Class schedule widget',
+    'footer'        => 'Site footer with links + copyright',
+    'feature_grid'  => 'Icon-led feature cards in a grid',
+    'step_timeline' => 'Numbered process steps',
+    'faq_accordion' => 'Collapsible Q&A list',
+    'pricing_table' => 'Side-by-side pricing tiers',
+    'testimonial_carousel' => 'Customer quotes carousel',
+    'logo_bar'      => 'Trust bar with partner logos',
+    'comparison_table'=>'Feature vs competitor matrix',
+    'industry_pack_showcase'=>'Showcase of industries served',
+    'stats_row'     => 'Big-number stats row',
+  ];
+
+  // Logical grouping for the gallery. Order matters — common ones first.
+  $typeGroups = [
+    'Layout'     => ['nav','hero','footer'],
+    'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','faq_accordion','stats_row'],
+    'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table'],
+    'Social'     => ['testimonial_carousel','logo_bar'],
+  ];
 @endphp
 
 @extends($layoutName)
@@ -308,27 +366,94 @@
   margin: 6px 4px;
   background: var(--pb2-surface-2);
   border-radius: 6px;
-  padding: 8px;
+  padding: 10px;
   display: none;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 .pb2-add-panel.open { display: block; }
-.pb2-add-panel-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
+.pb2-add-panel::-webkit-scrollbar { width: 5px; }
+.pb2-add-panel::-webkit-scrollbar-thumb { background: var(--pb2-border-2); border-radius: 2px; }
+
+/* MARKER-PATCH-158-G18 — Add-section gallery */
+.pb2-gallery-group-label {
+  font-family: var(--pb2-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--pb2-text-faint);
+  font-weight: 500;
+  padding: 8px 4px 6px;
+  margin-top: 2px;
 }
-.pb2-add-type-btn {
+.pb2-gallery-group-label:first-child { margin-top: 0; padding-top: 2px; }
+
+.pb2-gallery-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.pb2-gallery-card {
   background: transparent;
-  border: 0;
+  border: 0.5px solid transparent;
   color: var(--pb2-text-dim);
-  padding: 8px 6px;
-  border-radius: 4px;
+  padding: 8px 10px;
+  border-radius: 5px;
   cursor: pointer;
-  font: inherit; font-size: 11px;
+  font: inherit;
   text-align: left;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: center;
   transition: all 0.12s;
 }
-.pb2-add-type-btn:hover { background: var(--pb2-surface-3); color: var(--pb2-text); }
+.pb2-gallery-card:hover {
+  background: var(--pb2-surface-3);
+  color: var(--pb2-text);
+  border-color: var(--pb2-border-2);
+}
+
+.pb2-gallery-card-icon {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--pb2-bg);
+  border-radius: 4px;
+  opacity: 0.85;
+}
+.pb2-gallery-card-icon svg { width: 14px; height: 14px; }
+.pb2-gallery-card:hover .pb2-gallery-card-icon { opacity: 1; }
+
+.pb2-gallery-card-text {
+  display: flex; flex-direction: column; gap: 1px;
+  min-width: 0;
+}
+.pb2-gallery-card-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: inherit;
+}
+.pb2-gallery-card-desc {
+  font-size: 10.5px;
+  color: var(--pb2-text-faint);
+  line-height: 1.35;
+}
+
+/* Drag-reorder visual states */
+.pb2-section-item.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+.pb2-section-item.drag-over-top {
+  border-top: 2px solid var(--pb2-accent);
+  padding-top: 5px;
+}
+.pb2-section-item.drag-over-bottom {
+  border-bottom: 2px solid var(--pb2-accent);
+  padding-bottom: 5px;
+}
 
 .pb2-pane-footer {
   border-top: 0.5px solid var(--pb2-border);
@@ -636,11 +761,13 @@
         @foreach($sections as $idx => $section)
           <div class="pb2-section-item @if($idx === 0) selected @endif @if(!$section->is_visible) hidden @endif"
                data-section-id="{{ $section->id }}"
-               data-section-type="{{ $section->section_type }}">
+               data-section-type="{{ $section->section_type }}"
+               draggable="false">
             <span class="pb2-drag-handle" title="Drag to reorder">⋮⋮</span>
             <span class="pb2-section-icon">
+              {{-- MARKER-PATCH-158-G18 — per-type icon (was generic rect for all) --}}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                {!! $typeIconPaths[$section->section_type] ?? '<rect x="3" y="3" width="18" height="18" rx="2"/>' !!}
               </svg>
             </span>
             <span class="pb2-section-name">{{ $typeLabels[$section->section_type] ?? $section->section_type }}</span>
@@ -654,16 +781,36 @@
         </div>
 
         <div class="pb2-add-panel" id="pb2-add-panel">
-          <div class="pb2-add-panel-grid">
-            @php
-              $availableTypes = $isMarketing
-                ? ['hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','nav']
-                : ['hero','services','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','footer','nav'];
-            @endphp
-            @foreach($availableTypes as $t)
-              <button type="button" class="pb2-add-type-btn" onclick="addSection('{{ $t }}')">
-                {{ $typeLabels[$t] ?? $t }}
-              </button>
+          {{-- MARKER-PATCH-158-G18 — Add-section gallery. Grouped by purpose,
+               each option shown as a card with icon + label + one-line desc.
+               Marketing context shows different types than tenant context. --}}
+          @php
+            $allowed = $isMarketing
+              ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase']
+              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row'];
+          @endphp
+
+          <div class="pb2-gallery">
+            @foreach($typeGroups as $groupName => $groupTypes)
+              @php $visibleTypes = array_intersect($groupTypes, $allowed); @endphp
+              @if(count($visibleTypes) > 0)
+                <div class="pb2-gallery-group-label">{{ $groupName }}</div>
+                <div class="pb2-gallery-grid">
+                  @foreach($visibleTypes as $t)
+                    <button type="button" class="pb2-gallery-card" onclick="addSection('{{ $t }}')">
+                      <span class="pb2-gallery-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                          {!! $typeIconPaths[$t] ?? '<rect x="3" y="3" width="18" height="18" rx="2"/>' !!}
+                        </svg>
+                      </span>
+                      <span class="pb2-gallery-card-text">
+                        <span class="pb2-gallery-card-name">{{ $typeLabels[$t] ?? $t }}</span>
+                        <span class="pb2-gallery-card-desc">{{ $typeDescriptions[$t] ?? '' }}</span>
+                      </span>
+                    </button>
+                  @endforeach
+                </div>
+              @endif
             @endforeach
           </div>
         </div>
@@ -712,6 +859,10 @@
           <div class="pb2-insp-actions">
             <button class="pb2-icon-btn" id="pb2-toggle-visible" title="Toggle visibility">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            {{-- MARKER-PATCH-158-G18 — duplicate button --}}
+            <button class="pb2-icon-btn" id="pb2-duplicate-section" title="Duplicate section">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             </button>
             <button class="pb2-icon-btn" id="pb2-delete-section" title="Delete">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -1009,6 +1160,133 @@
         .catch(err => { console.error('delete failed', err); alert('Could not delete section.'); });
     });
   }
+
+  // MARKER-PATCH-158-G18 — duplicate section
+  const dupBtn = document.getElementById('pb2-duplicate-section');
+  if (dupBtn) {
+    dupBtn.addEventListener('click', () => {
+      if (!selectedId) return;
+      const fd = new FormData();
+      fd.append('_token', getCsrf());
+      fd.append('section_op', 'duplicate');
+      fd.append('page_id', PAGE_ID);
+      fd.append('section_id', selectedId);
+      setStatus('Duplicating…');
+      fetch(STORE_URL, {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+      })
+        .then(r => r.json())
+        .then(resp => {
+          if (resp && resp.id) {
+            // Reload so the new section appears in the sidebar; the source
+            // selection state will reset to the first section by default.
+            location.reload();
+          } else {
+            setStatus('Duplicate failed', 3000);
+            console.error('duplicate response:', resp);
+          }
+        })
+        .catch(err => {
+          setStatus('Duplicate failed', 3000);
+          console.error('duplicate failed', err);
+        });
+    });
+  }
+
+  // MARKER-PATCH-158-G18 — drag-reorder via native HTML5 D&D, gated by the
+  // drag-handle. We set draggable=true on the row only while the user holds
+  // the drag handle, so clicks elsewhere on the row still select normally.
+  (function setupDragReorder() {
+    const list = document.getElementById('pb2-canvas');
+    if (!list) return;
+    let draggedEl = null;
+
+    document.querySelectorAll('.pb2-section-item').forEach(row => {
+      const handle = row.querySelector('.pb2-drag-handle');
+      if (!handle) return;
+
+      // Only enable drag when the handle is pressed
+      handle.addEventListener('mousedown', () => { row.draggable = true; });
+      handle.addEventListener('touchstart', () => { row.draggable = true; }, { passive: true });
+      row.addEventListener('mouseup',     () => { row.draggable = false; });
+      row.addEventListener('mouseleave',  () => { row.draggable = false; });
+
+      row.addEventListener('dragstart', e => {
+        draggedEl = row;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox needs data set or dragstart won't fire properly
+        try { e.dataTransfer.setData('text/plain', row.dataset.sectionId); } catch (_) {}
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        row.draggable = false;
+        document.querySelectorAll('.pb2-section-item').forEach(el => {
+          el.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        draggedEl = null;
+      });
+
+      row.addEventListener('dragover', e => {
+        if (!draggedEl || draggedEl === row) return;
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const mid  = rect.top + rect.height / 2;
+        row.classList.toggle('drag-over-top', e.clientY < mid);
+        row.classList.toggle('drag-over-bottom', e.clientY >= mid);
+      });
+      row.addEventListener('dragleave', () => {
+        row.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+
+      row.addEventListener('drop', e => {
+        if (!draggedEl || draggedEl === row) return;
+        e.preventDefault();
+        const rect = row.getBoundingClientRect();
+        const mid  = rect.top + rect.height / 2;
+        const insertBefore = e.clientY < mid;
+        row.classList.remove('drag-over-top', 'drag-over-bottom');
+
+        if (insertBefore) {
+          row.parentNode.insertBefore(draggedEl, row);
+        } else {
+          row.parentNode.insertBefore(draggedEl, row.nextSibling);
+        }
+        persistReorder();
+        refreshMetaNumbers();
+      });
+    });
+
+    function persistReorder() {
+      const ids = Array.from(document.querySelectorAll('.pb2-section-item'))
+        .map(el => el.dataset.sectionId)
+        .filter(Boolean);
+      const fd = new FormData();
+      fd.append('_token', getCsrf());
+      fd.append('section_op', 'reorder');
+      fd.append('page_id', PAGE_ID);
+      ids.forEach((id, i) => fd.append(`order[${i}]`, id));
+      setStatus('Reordering…');
+      fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json().catch(() => null))
+        .then(() => {
+          setStatus('Saved ✓', 1500);
+          refreshPreview();
+        })
+        .catch(err => {
+          setStatus('Reorder failed', 3000);
+          console.error('reorder failed', err);
+        });
+    }
+
+    function refreshMetaNumbers() {
+      document.querySelectorAll('.pb2-section-item').forEach((el, i) => {
+        const meta = el.querySelector('.pb2-section-meta');
+        if (meta) meta.textContent = String(i + 1).padStart(2, '0');
+      });
+    }
+  })();
 
   // ─── Device toggle ────────────────────────────────────────────────────
   document.querySelectorAll('.pb2-device-btn').forEach(btn => {

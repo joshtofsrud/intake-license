@@ -263,6 +263,32 @@ class PageBuilderController extends Controller
             return response()->json(['success' => true]);
         }
 
+        // MARKER-PATCH-158-G18 — section duplicate. Clones the source section's
+        // content + meta and inserts it right after the source in sort order.
+        // Subsequent sections get bumped down by 1 so the new clone slots in.
+        if ($op === 'duplicate') {
+            $sid = $request->input('section_id');
+            $source = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->firstOrFail();
+            $insertAt = $source->sort_order + 1;
+
+            // Bump everything at or after the insert slot down by 1.
+            TenantPageSection::where('page_id', $page->id)
+                ->where('sort_order', '>=', $insertAt)
+                ->increment('sort_order');
+
+            $clone = TenantPageSection::create([
+                'page_id'      => $page->id,
+                'tenant_id'    => $tenant->id,
+                'section_type' => $source->section_type,
+                'content'      => $source->content ?? [],
+                'bg_color'     => $source->bg_color,
+                'padding'      => $source->padding ?? 'normal',
+                'is_visible'   => $source->is_visible,
+                'sort_order'   => $insertAt,
+            ]);
+            return response()->json(['success' => true, 'id' => $clone->id, 'type' => $clone->section_type]);
+        }
+
         if ($op === 'reorder') {
             $order = $request->input('order', []);
             foreach ($order as $i => $sectionId) {
