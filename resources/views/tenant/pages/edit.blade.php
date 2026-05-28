@@ -1748,72 +1748,85 @@
     input.click();
   }
 
-  // Button list editor (Hero CTAs). Builds/maintains a JSON-serialized
-  // buttons[] array in #pb2-hero-buttons-json. Adding/removing rows mutates
-  // the DOM and re-serializes; per-row field changes also re-serialize.
+  // Button list editor — generalized for all section types that have a
+  // buttons[] list. Each list element has class .pb2-btnlist and is
+  // paired (within the same .pb2-group) with a hidden input[data-field="buttons"],
+  // an "+ Add button" button matched by a wrapping .pb2-group, and an
+  // optional count badge in the group title (matched by .pb2-group-meta).
+  // MARKER-PATCH-158-G20 — was hardcoded to #pb2-hero-* IDs; now class-based.
   function initButtonList(body) {
-    const list = body.querySelector('#pb2-hero-btnlist');
-    const json = body.querySelector('#pb2-hero-buttons-json');
-    const count = body.querySelector('#pb2-hero-btn-count');
-    const addBtn = body.querySelector('#pb2-hero-addbtn');
-    if (!list || !json) return;
+    body.querySelectorAll('.pb2-btnlist').forEach(list => {
+      // Find the group containing this list
+      const group = list.closest('.pb2-group');
+      if (!group) return;
+      const json   = group.querySelector('input[type="hidden"][data-field="buttons"]');
+      const addBtn = group.querySelector('.pb2-addrow');
+      const count  = group.querySelector('.pb2-group-meta');
+      if (!json) return;
 
-    function serialize() {
-      const out = [];
-      list.querySelectorAll('.pb2-btnlist-item').forEach(row => {
-        out.push({
-          label: row.querySelector('[data-btn-field="label"]').value,
-          url:   row.querySelector('[data-btn-field="url"]').value,
-          style: row.querySelector('[data-btn-field="style"]').value,
+      // Max-buttons read from the current meta text "N / X" (best effort).
+      // Defaults to 4. text_image and cta_banner use 3.
+      let maxBtns = 4;
+      if (count) {
+        const m = count.textContent.match(/\/\s*(\d+)/);
+        if (m) maxBtns = parseInt(m[1], 10);
+      }
+
+      function serialize() {
+        const out = [];
+        list.querySelectorAll('.pb2-btnlist-item').forEach(row => {
+          out.push({
+            label: row.querySelector('[data-btn-field="label"]')?.value || '',
+            url:   row.querySelector('[data-btn-field="url"]')?.value || '',
+            style: row.querySelector('[data-btn-field="style"]')?.value || 'primary',
+          });
         });
-      });
-      json.value = JSON.stringify(out);
-      json.dispatchEvent(new Event('change', { bubbles: true }));
-      if (count) count.textContent = `${out.length} / 4`;
-    }
+        json.value = JSON.stringify(out);
+        json.dispatchEvent(new Event('change', { bubbles: true }));
+        if (count) count.textContent = `${out.length} / ${maxBtns}`;
+      }
 
-    function wireRow(row) {
-      row.querySelectorAll('[data-btn-field]').forEach(input => {
-        input.addEventListener('input', serialize);
-        input.addEventListener('change', serialize);
-      });
-      const remove = row.querySelector('.pb2-btnlist-remove');
-      if (remove) {
-        remove.addEventListener('click', () => {
-          row.remove();
+      function wireRow(row) {
+        row.querySelectorAll('[data-btn-field]').forEach(input => {
+          input.addEventListener('input', serialize);
+          input.addEventListener('change', serialize);
+        });
+        const remove = row.querySelector('.pb2-btnlist-remove');
+        if (remove) {
+          remove.addEventListener('click', () => {
+            row.remove();
+            serialize();
+          });
+        }
+      }
+
+      list.querySelectorAll('.pb2-btnlist-item').forEach(wireRow);
+
+      if (addBtn) {
+        addBtn.addEventListener('click', () => {
+          if (list.querySelectorAll('.pb2-btnlist-item').length >= maxBtns) return;
+          const row = document.createElement('div');
+          row.className = 'pb2-btnlist-item';
+          row.innerHTML = `
+            <span class="pb2-btnlist-handle">⋮⋮</span>
+            <div class="pb2-btnlist-fields">
+              <input type="text" class="pb2-input pb2-input-sm" data-btn-field="label" placeholder="Button label">
+              <input type="text" class="pb2-input pb2-input-sm" data-btn-field="url" placeholder="/path or https://…">
+              <select class="pb2-input pb2-input-sm" data-btn-field="style">
+                <option value="primary">Primary</option>
+                <option value="outline">Outline</option>
+                <option value="ghost">Ghost</option>
+                <option value="link">Link</option>
+              </select>
+            </div>
+            <button type="button" class="pb2-btnlist-remove" title="Remove">×</button>
+          `;
+          list.appendChild(row);
+          wireRow(row);
           serialize();
         });
       }
-    }
-
-    list.querySelectorAll('.pb2-btnlist-item').forEach(wireRow);
-
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        if (list.querySelectorAll('.pb2-btnlist-item').length >= 4) return;
-        const idx = list.querySelectorAll('.pb2-btnlist-item').length;
-        const row = document.createElement('div');
-        row.className = 'pb2-btnlist-item';
-        row.dataset.btnIdx = idx;
-        row.innerHTML = `
-          <span class="pb2-btnlist-handle">⋮⋮</span>
-          <div class="pb2-btnlist-fields">
-            <input type="text" class="pb2-input pb2-input-sm" data-btn-field="label" placeholder="Button label">
-            <input type="text" class="pb2-input pb2-input-sm" data-btn-field="url" placeholder="/book or https://…">
-            <select class="pb2-input pb2-input-sm" data-btn-field="style">
-              <option value="primary">Primary</option>
-              <option value="outline">Outline</option>
-              <option value="ghost">Ghost</option>
-              <option value="link">Link</option>
-            </select>
-          </div>
-          <button type="button" class="pb2-btnlist-remove" title="Remove">×</button>
-        `;
-        list.appendChild(row);
-        wireRow(row);
-        serialize();
-      });
-    }
+    });
   }
 
   // Initial wire-up — the first section's fields are already rendered
