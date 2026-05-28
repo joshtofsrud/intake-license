@@ -942,6 +942,104 @@
   color: white;
 }
 
+/* MARKER-PATCH-158-G25 — Nav link list (similar to btnlist but with
+   different fields layout + per-row meta column for open-in-new-tab) */
+.pb2-insp-body .pb2-navlist { display: flex; flex-direction: column; gap: 6px; }
+.pb2-insp-body .pb2-navlist-item {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--pb2-surface-2);
+  border-radius: 4px;
+  padding: 8px 8px 8px 10px;
+}
+.pb2-insp-body .pb2-navlist-handle {
+  color: var(--pb2-text-faint);
+  cursor: grab;
+  font-size: 10px;
+  user-select: none;
+}
+.pb2-insp-body .pb2-navlist-fields {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 6px;
+}
+.pb2-insp-body .pb2-navlist-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pb2-insp-body .pb2-navlist-meta label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--pb2-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pb2-insp-body .pb2-navlist-meta label:hover { background: var(--pb2-bg); }
+.pb2-insp-body .pb2-navlist-meta label input[type="checkbox"] { accent-color: var(--pb2-accent); }
+.pb2-insp-body .pb2-navlist-meta label input[type="checkbox"]:checked + span { color: var(--pb2-accent); }
+.pb2-insp-body .pb2-navlist-remove {
+  background: transparent;
+  border: 0;
+  color: var(--pb2-text-faint);
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.pb2-insp-body .pb2-navlist-remove:hover {
+  background: var(--pb2-danger);
+  color: white;
+}
+
+/* Details disclosure for "Add from existing pages" */
+.pb2-insp-body .pb2-details { margin-top: 4px; }
+.pb2-insp-body .pb2-details-summary {
+  font-size: 11px;
+  color: var(--pb2-text-dim);
+  cursor: pointer;
+  padding: 6px 0;
+  user-select: none;
+  list-style: none;
+}
+.pb2-insp-body .pb2-details-summary::-webkit-details-marker { display: none; }
+.pb2-insp-body .pb2-details-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.12s;
+}
+.pb2-insp-body .pb2-details[open] .pb2-details-summary::before { transform: rotate(90deg); }
+.pb2-insp-body .pb2-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 6px;
+}
+.pb2-insp-body .pb2-pagelink {
+  background: transparent;
+  border: 0;
+  color: var(--pb2-text-dim);
+  text-align: left;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font: inherit;
+  font-size: 11.5px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pb2-insp-body .pb2-pagelink:hover { background: var(--pb2-surface-3); color: var(--pb2-text); }
+.pb2-insp-body .pb2-pagelink .pb2-field-hint {
+  margin-left: 6px;
+  text-align: left;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1700,6 +1798,137 @@
 
     // MARKER-PATCH-158-G22 — Services category multi-select serializer
     initServiceCategoryList(body);
+
+    // MARKER-PATCH-158-G25 — Nav links editor (saves to update_nav op,
+    // not into content[]. Nav items are a tenant-global resource.)
+    initNavLinkList(body);
+  }
+
+  // Nav link list editor. Each row has label + URL + open-in-new-tab toggle.
+  // Saves via the existing tenant.pages.store endpoint with op=update_nav.
+  // Auto-saves on input/change with the same 800/100ms debounce as content.
+  function initNavLinkList(body) {
+    const list   = body.querySelector('#pb2-nav-linklist');
+    const addBtn = body.querySelector('#pb2-nav-addlink');
+    const count  = body.querySelector('#pb2-nav-links-count');
+    const status = body.querySelector('#pb2-nav-status');
+    if (!list) return;
+
+    let saveTimer = null;
+    function scheduleSave(immediate) {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveNavLinks, immediate ? 100 : 800);
+    }
+
+    function setStatus(text) {
+      if (status) status.innerHTML = `<span class="pb2-field-hint" style="text-align:left">${text}</span>`;
+    }
+
+    function saveNavLinks() {
+      const items = [];
+      list.querySelectorAll('.pb2-navlist-item').forEach(row => {
+        const label = row.querySelector('[data-nav-field="label"]')?.value?.trim() || '';
+        const url   = row.querySelector('[data-nav-field="url"]')?.value?.trim() || '';
+        const newTab = row.querySelector('[data-nav-field="open_in_new_tab"]')?.checked ? '1' : '0';
+        if (!label) return; // skip blank rows
+        items.push({ label, url, open_in_new_tab: newTab });
+      });
+      if (count) count.textContent = items.length + ' link' + (items.length === 1 ? '' : 's');
+
+      const fd = new FormData();
+      fd.append('_token', getCsrf());
+      fd.append('op', 'update_nav');
+      items.forEach((it, i) => {
+        fd.append(`nav_items[${i}][label]`, it.label);
+        fd.append(`nav_items[${i}][url]`, it.url);
+        fd.append(`nav_items[${i}][open_in_new_tab]`, it.open_in_new_tab);
+      });
+
+      setStatus('Saving links…');
+      fetch(STORE_URL, {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+      })
+        .then(r => r.json().catch(() => null))
+        .then(() => {
+          setStatus('Links saved ✓');
+          // Reload preview so changes show
+          refreshPreview();
+          setTimeout(() => { if (status) status.innerHTML = ''; }, 1500);
+        })
+        .catch(err => {
+          setStatus('Save failed');
+          console.error('nav save failed', err);
+        });
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-nav-field]').forEach(input => {
+        input.addEventListener('input', () => scheduleSave(false));
+        input.addEventListener('change', () => scheduleSave(true));
+      });
+      const remove = row.querySelector('.pb2-navlist-remove');
+      if (remove) {
+        remove.addEventListener('click', () => {
+          row.remove();
+          scheduleSave(true);
+        });
+      }
+    }
+
+    list.querySelectorAll('.pb2-navlist-item').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'pb2-navlist-item';
+        row.innerHTML = `
+          <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-navlist-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="label" placeholder="Label">
+            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="url" placeholder="/page or https://...">
+          </div>
+          <div class="pb2-navlist-meta">
+            <label title="Open in new tab">
+              <input type="checkbox" data-nav-field="open_in_new_tab">
+              <span>↗</span>
+            </label>
+            <button type="button" class="pb2-navlist-remove" title="Remove">×</button>
+          </div>
+        `;
+        list.appendChild(row);
+        wireRow(row);
+        // Focus the new label field
+        row.querySelector('[data-nav-field="label"]')?.focus();
+      });
+    }
+
+    // "Add from existing pages" — fills label + URL from the page
+    body.querySelectorAll('.pb2-pagelink').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'pb2-navlist-item';
+        const title = btn.dataset.pageTitle || '';
+        const url   = btn.dataset.pageUrl || '/';
+        row.innerHTML = `
+          <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-navlist-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="label" value="${title.replace(/"/g, '&quot;')}">
+            <input type="text" class="pb2-input pb2-input-sm" data-nav-field="url" value="${url.replace(/"/g, '&quot;')}">
+          </div>
+          <div class="pb2-navlist-meta">
+            <label title="Open in new tab">
+              <input type="checkbox" data-nav-field="open_in_new_tab">
+              <span>↗</span>
+            </label>
+            <button type="button" class="pb2-navlist-remove" title="Remove">×</button>
+          </div>
+        `;
+        list.appendChild(row);
+        wireRow(row);
+        scheduleSave(true);
+      });
+    });
   }
 
   // Service category checkbox list — serializes checked IDs into a hidden

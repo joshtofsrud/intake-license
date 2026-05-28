@@ -26,7 +26,37 @@ class PageBuilderController extends Controller
     ];
 
     private const DEFAULTS = [
-        'nav'           => ['show_logo'=>true,'cta_label'=>'Book Now','cta_url'=>'/book','bg_style'=>'solid'],
+        // MARKER-PATCH-158-G25 — nav v2 fields (Phase 2)
+        'nav'           => [
+            // Logo
+            'show_logo'       => true,
+            'logo_alignment'  => 'left',     // left | center
+            // CTA
+            'show_cta'        => true,
+            'cta_label'       => 'Book Now',
+            'cta_url'         => '/book',
+            'cta_style'       => 'primary',  // primary | outline | ghost
+            // Layout
+            'layout'          => 'standard', // standard | centered | split
+            'sticky'          => true,
+            'height'          => 'normal',   // compact | normal | spacious
+            // Background
+            'bg_mode'         => 'solid',    // solid | transparent | blur
+            'bg_color'        => '#ffffff',
+            'border_bottom'   => 'hairline', // none | hairline | shadow
+            // Colors
+            'text_color'      => '',
+            'link_color'      => '',
+            'active_link_style' => 'underline', // none | underline | dot | pill
+            // Advanced
+            'anchor_id'       => '',
+            'custom_classes'  => '',
+            'hide_on_mobile'  => false,
+            'hide_on_desktop' => false,
+
+            // Legacy compat
+            'bg_style'        => 'solid',
+        ],
         // MARKER-PATCH-158-G19 — Phase 2 Hero fields (v2)
         // Legacy fields (eyebrow/headline/accent_words/subheading/bg_color/text_color/
         // text_align/cta_primary_*/cta_secondary_*/note/height) are preserved for
@@ -370,6 +400,20 @@ class PageBuilderController extends Controller
                         ->orderBy('sort_order')
                         ->get(['id', 'name', 'slug']);
                 }
+                // MARKER-PATCH-158-G25 — nav editor needs the current tenant
+                // nav items (global, not per-page) so the link list editor
+                // can render. Saved via the existing update_nav op.
+                if ($section->section_type === 'nav') {
+                    $extras['navItems'] = \App\Models\Tenant\TenantNavItem::where('tenant_id', $tenant->id)
+                        ->orderBy('sort_order')
+                        ->get(['id', 'label', 'url', 'is_external', 'open_in_new_tab', 'sort_order']);
+                    // List of available pages so the user can pick from existing
+                    // page URLs instead of typing them by hand.
+                    $extras['availablePages'] = TenantPage::where('tenant_id', $tenant->id)
+                        ->where('is_published', true)
+                        ->orderBy('nav_order')
+                        ->get(['id', 'title', 'slug', 'is_home']);
+                }
                 return view($perType, array_merge(
                     ['section' => $section, 'c' => $section->content ?? []],
                     $extras
@@ -407,14 +451,18 @@ class PageBuilderController extends Controller
         }
 
         if ($op === 'update_nav') {
+            // MARKER-PATCH-158-G25 — extended to save is_external + open_in_new_tab
+            // (model already supports these; v1 update_nav was just dropping them).
             TenantNavItem::where('tenant_id', $tenant->id)->delete();
             foreach ($request->input('nav_items', []) as $i => $item) {
                 if (empty($item['label'])) continue;
                 TenantNavItem::create([
-                    'tenant_id' => $tenant->id,
-                    'label' => $item['label'],
-                    'url' => $item['url'] ?? '/',
-                    'sort_order' => $i,
+                    'tenant_id'       => $tenant->id,
+                    'label'           => $item['label'],
+                    'url'             => $item['url'] ?? '/',
+                    'is_external'     => filter_var($item['is_external']    ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'open_in_new_tab' => filter_var($item['open_in_new_tab'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'sort_order'      => $i,
                 ]);
             }
 
