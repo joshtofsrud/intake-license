@@ -249,8 +249,16 @@
   @endif
 @endforeach
 
-{{-- Powered by intake — hidden when tenant is on Branded / Scale plan --}}
-@if($currentTenant->show_intake_branding ?? true)
+{{-- Powered by intake — shown only when:
+     (a) tenant plan tier permits the badge (show_intake_branding flag), AND
+     (b) the page doesn't have its own footer section
+         (MARKER-PATCH-158-G26 — when a footer section is present, the
+         credit lives there; this layout-level badge is the fallback for
+         pages without a footer section.) --}}
+@php
+  $hasFooterSection = $sections->contains(fn($s) => $s->is_visible && $s->section_type === 'footer');
+@endphp
+@if(($currentTenant->show_intake_branding ?? true) && !$hasFooterSection)
   <div class="p-intake-footer">
     Powered by <a href="https://intake.works" target="_blank" rel="noopener">intake</a>
   </div>

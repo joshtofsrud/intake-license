@@ -228,21 +228,7 @@
   padding-top: 22px;
   font-size: 12.5px;
   color: {{ $mutedColor }};
-  @if($bottomLayout === 'split')
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  @elseif($bottomLayout === 'stacked')
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  @else
-  text-align: center;
-  @endif
+  text-align: {{ $hAlign }};
 }
 .{{ $instId }} .p-ftr-bottom a {
   color: {{ $linkColor }};
@@ -356,9 +342,6 @@
 
     <div class="p-ftr-bottom">
       <span>{{ $copyText }}</span>
-      @if($showPoweredBy)
-        <span>Powered by <a href="https://intake.works" target="_blank" rel="noopener">Intake</a></span>
-      @endif
     </div>
 
   </div>

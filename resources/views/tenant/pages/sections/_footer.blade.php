@@ -153,17 +153,16 @@
   </div>
 
   <div class="pb2-group">
-    <div class="pb2-group-title">Copyright & badges</div>
+    <div class="pb2-group-title">Copyright</div>
 
     <div class="pb2-field">
       <label class="pb2-field-label">Copyright text <span class="pb2-field-hint">use {year} and {name}</span></label>
       <input type="text" class="pb2-input" data-field="copyright_text" value="{{ $get('copyright_text') }}" placeholder="© {year} {name}. All rights reserved.">
     </div>
 
-    <label class="pb2-checkbox-row">
-      <input type="checkbox" data-field="show_powered_by" value="1" {{ $get('show_powered_by', true) ? 'checked' : '' }}>
-      <span>Show "Powered by Intake" badge</span>
-    </label>
+    <div class="pb2-field-hint" style="text-align:left;display:block;margin-top:8px">
+      The "Powered by Intake" badge is managed by your plan tier in account settings.
+    </div>
   </div>
 
 </div>
@@ -183,15 +182,6 @@
           'minimal' => 'Minimal (single row)',
         ] as $v => $n)
           <option value="{{ $v }}" {{ $get('layout', 'columns') === $v ? 'selected' : '' }}>{{ $n }}</option>
-        @endforeach
-      </select>
-    </div>
-
-    <div class="pb2-field">
-      <label class="pb2-field-label">Bottom-row layout</label>
-      <select class="pb2-input" data-field="bottom_layout">
-        @foreach(['split'=>'Copyright left, badge right','stacked'=>'Stacked vertically','copyright_only'=>'Copyright only'] as $v => $n)
-          <option value="{{ $v }}" {{ $get('bottom_layout', 'split') === $v ? 'selected' : '' }}>{{ $n }}</option>
         @endforeach
       </select>
     </div>

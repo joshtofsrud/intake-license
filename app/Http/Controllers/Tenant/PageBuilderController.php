@@ -274,12 +274,10 @@ class PageBuilderController extends Controller
             'show_email'      => true,
             'show_address'    => false,
             'show_hours'      => false,
-            // Copyright + badges
+            // Copyright
             'copyright_text'  => '',
-            'show_powered_by' => true,
             // Layout
             'layout'          => 'columns',      // columns | centered | minimal
-            'bottom_layout'   => 'split',        // split | stacked | copyright_only
             'text_align'      => 'left',
             'padding_top'     => 'normal',
             'padding_bottom'  => 'normal',
