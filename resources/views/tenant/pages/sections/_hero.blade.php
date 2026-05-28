@@ -182,6 +182,29 @@
     </div>
   </div>
 
+  {{-- MARKER-PATCH-158-G21 — Typography sizing overrides --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Typography</div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Headline size</label>
+      <select class="pb2-input" data-field="headline_size">
+        @foreach(['auto'=>'Auto (responsive)','small'=>'Small','medium'=>'Medium','large'=>'Large','xl'=>'Extra large'] as $v => $n)
+          <option value="{{ $v }}" {{ $get('headline_size', 'auto') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        @endforeach
+      </select>
+    </div>
+
+    <div class="pb2-field">
+      <label class="pb2-field-label">Subheading size</label>
+      <select class="pb2-input" data-field="subheading_size">
+        @foreach(['xs'=>'Extra small','small'=>'Small','medium'=>'Medium','large'=>'Large','xl'=>'Extra large'] as $v => $n)
+          <option value="{{ $v }}" {{ $get('subheading_size', 'medium') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        @endforeach
+      </select>
+    </div>
+  </div>
+
 </div>
 
 {{--==================================================================

@@ -52,6 +52,9 @@ class PageBuilderController extends Controller
             'content_max_width'   => 680,
             'padding_top'         => 'normal',
             'padding_bottom'      => 'normal',
+            // MARKER-PATCH-158-G21 — typography
+            'headline_size'       => 'auto',
+            'subheading_size'     => 'medium',
             // Style
             'bg_mode'             => 'color', // color | image | gradient
             'bg_color'            => '#1a1a1a',

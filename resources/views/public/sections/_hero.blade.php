@@ -69,6 +69,25 @@
   $hideMobile  = !empty($c['hide_on_mobile']);
   $hideDesktop = !empty($c['hide_on_desktop']);
 
+  // MARKER-PATCH-158-G21 — typography size overrides. Auto preserves the
+  // responsive clamp() default; named presets use fixed sizes.
+  $headlineSizeMap = [
+      'auto'   => 'clamp(32px, 6vw, 64px)',
+      'small'  => '32px',
+      'medium' => '44px',
+      'large'  => '56px',
+      'xl'     => '72px',
+  ];
+  $subheadingSizeMap = [
+      'xs'     => '14px',
+      'small'  => '16px',
+      'medium' => 'clamp(16px, 2vw, 20px)',
+      'large'  => '22px',
+      'xl'     => '26px',
+  ];
+  $headlineSize   = $headlineSizeMap[$c['headline_size']   ?? 'auto']   ?? $headlineSizeMap['auto'];
+  $subheadingSize = $subheadingSizeMap[$c['subheading_size'] ?? 'medium'] ?? $subheadingSizeMap['medium'];
+
   // Stable per-section instance class so styles scope cleanly
   $instId = 'p-hero-' . ($section->id ?? uniqid());
 @endphp
@@ -127,7 +146,7 @@
   opacity: .9;
 }
 .{{ $instId }} .p-hero-headline {
-  font-size: clamp(32px, 6vw, 64px);
+  font-size: {{ $headlineSize }};
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -.025em;
@@ -135,12 +154,12 @@
   color: {{ $textColor }};
 }
 .{{ $instId }} .p-hero-accent {
+  /* MARKER-PATCH-158-G21 — accent no longer italicized; color + weight only */
   color: {{ $accentColor ?? '#BEF264' }};
-  font-style: italic;
   font-weight: 500;
 }
 .{{ $instId }} .p-hero-sub {
-  font-size: clamp(16px, 2vw, 20px);
+  font-size: {{ $subheadingSize }};
   line-height: 1.55;
   color: {{ $textColorBody ?? 'rgba(255,255,255,0.7)' }};
   margin: 0 0 28px;
