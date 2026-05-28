@@ -748,6 +748,7 @@
 @push('scripts')
 <script>
 // MARKER-PATCH-158-G15 — page builder v2 chrome
+// MARKER-PATCH-158-G16 — autosave + live preview reload
 (function() {
   const PAGE_ID    = @json($page->id);
   const UPDATE_URL = @json($isMarketing
@@ -759,47 +760,238 @@
   const ADD_SECTION_URL = @json($isMarketing
       ? url('/admin/marketing-pages/' . $page->id . '/sections')
       : url('/admin/pages/' . $page->id . '/sections'));
+  // MARKER-PATCH-158-G16 — STORE_URL is the endpoint that v1 used for section_op=update.
+  // Same handler accepts the same payload here.
+  const STORE_URL  = @json($storeUrl);
+  const PREVIEW_URL = @json($previewUrl);
   const TYPE_LABELS = @json($typeLabels);
 
   const PREVIEW_IFRAME = document.getElementById('pb2-preview');
 
-  // ─── Section selection ────────────────────────────────────────────────
-  let selectedId = document.querySelector('.pb2-section-item.selected')?.dataset.sectionId;
+  // ─── CSRF helper ──────────────────────────────────────────────────────
+  function getCsrf() {
+    return (window.IntakeAdmin && window.IntakeAdmin.csrfToken)
+        || document.querySelector('meta[name="csrf-token"]')?.content
+        || document.querySelector('input[name="_token"]')?.value
+        || '';
+  }
 
+  // ─── Inspector status indicator ───────────────────────────────────────
+  let statusTimer = null;
+  function setStatus(text, persistMs) {
+    const el = document.getElementById('pb2-save-time');
+    if (!el) return;
+    el.textContent = text;
+    clearTimeout(statusTimer);
+    if (persistMs) {
+      statusTimer = setTimeout(() => { el.textContent = 'Saved'; }, persistMs);
+    }
+  }
+
+  // ─── Preview iframe debounced reload ──────────────────────────────────
+  let previewTimer = null;
+  function refreshPreview(immediate) {
+    clearTimeout(previewTimer);
+    const fire = () => {
+      if (!PREVIEW_IFRAME) return;
+      // Same-origin iframe (tenant subdomain editor → tenant subdomain preview):
+      // contentWindow.reload() preserves scroll position and is cleaner than src=
+      // swap. Falls back to src+cache-bust if cross-origin (shouldn't happen,
+      // but harmless).
+      try {
+        PREVIEW_IFRAME.contentWindow.location.reload();
+      } catch (e) {
+        PREVIEW_IFRAME.src = PREVIEW_URL + (PREVIEW_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+      }
+    };
+    if (immediate) { fire(); return; }
+    previewTimer = setTimeout(fire, 600);
+  }
+
+  // ─── Save a section ───────────────────────────────────────────────────
+  // Mirrors v1 logic: collects [data-field] inputs from the inspector body
+  // and POSTs section_op=update to the existing endpoint.
+  function saveSection(sectionId) {
+    const body = document.getElementById('pb2-insp-body');
+    if (!body || !sectionId) return Promise.resolve();
+
+    setStatus('Saving…');
+
+    const content = {};
+
+    // Color picker text-shadow sync (mirrors v1) — fields ending in _text
+    // shadow a hex picker; keep them in lockstep, allow blank to clear.
+    body.querySelectorAll('input[data-field$="_text"]').forEach(textInput => {
+      const baseField = textInput.getAttribute('data-field').replace(/_text$/, '');
+      const picker = body.querySelector('input[data-field="' + baseField + '"][type="color"]');
+      if (!picker) return;
+      const txt = (textInput.value || '').trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(txt)) {
+        picker.value = txt;
+        picker.removeAttribute('data-blank');
+      } else if (txt === '') {
+        picker.setAttribute('data-blank', '1');
+      } else {
+        picker.removeAttribute('data-blank');
+      }
+    });
+
+    body.querySelectorAll('[data-field]').forEach(el => {
+      const field = el.getAttribute('data-field');
+      if (field.endsWith('_text')) return;
+      if (el.type === 'color' && el.getAttribute('data-blank') === '1') {
+        content[field] = '';
+        return;
+      }
+      if (el.type === 'checkbox') {
+        content[field] = el.checked ? '1' : '0';
+      } else {
+        content[field] = el.value;
+      }
+    });
+
+    // bg_color is persisted to its own column server-side (not under content[]).
+    const bgColor = content.bg_color;
+    delete content.bg_color;
+
+    const isVisibleEl = body.querySelector('[data-field="is_visible"]');
+    const isVisible   = isVisibleEl ? (isVisibleEl.checked ? 1 : 0) : 1;
+
+    const fd = new FormData();
+    fd.append('_token', getCsrf());
+    fd.append('section_op', 'update');
+    fd.append('page_id', PAGE_ID);
+    fd.append('section_id', sectionId);
+    fd.append('is_visible', isVisible);
+    if (bgColor !== undefined) fd.append('bg_color', bgColor);
+    Object.keys(content).forEach(k => fd.append('content[' + k + ']', content[k]));
+
+    return fetch(STORE_URL, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    })
+      .then(r => r.json().catch(() => ({ success: r.ok })))
+      .then(resp => {
+        if (resp && resp.success !== false) {
+          setStatus('Saved ✓', 1500);
+          refreshPreview();
+          // Reflect any title/label change in the section list (uses the
+          // first visible text input as a best-guess label proxy).
+          updateSidebarMetaFromInspector(sectionId);
+        } else {
+          setStatus('Save failed', 3000);
+          console.error('save failed', resp);
+        }
+      })
+      .catch(err => {
+        setStatus('Save failed', 3000);
+        console.error('save error', err);
+      });
+  }
+
+  // Soft refresh of the sidebar row's name if the section type label hasn't
+  // changed but the row is selected. Phase 2 may want richer titles (e.g.
+  // "Hero · Skip the shop visit") — for now we just leave the type label.
+  function updateSidebarMetaFromInspector(sectionId) { /* no-op for phase 1.2 */ }
+
+  // ─── Wire autosave listeners on inspector inputs ──────────────────────
+  // Called after the inspector body is populated (initial render + every
+  // section selection swap).
+  const saveTimers = {};
+  function attachAutosaveListeners(sectionId) {
+    const body = document.getElementById('pb2-insp-body');
+    if (!body) return;
+    body.querySelectorAll('input, textarea, select').forEach(input => {
+      // Skip our own non-field controls
+      if (!input.hasAttribute('data-field') && input.name !== 'is_visible') return;
+
+      input.addEventListener('input', () => {
+        clearTimeout(saveTimers[sectionId]);
+        saveTimers[sectionId] = setTimeout(() => saveSection(sectionId), 800);
+      });
+      input.addEventListener('change', () => {
+        clearTimeout(saveTimers[sectionId]);
+        saveTimers[sectionId] = setTimeout(() => saveSection(sectionId), 100);
+      });
+    });
+  }
+
+  // Wire on initial load (first section's fields are already rendered)
+  let selectedId = document.querySelector('.pb2-section-item.selected')?.dataset.sectionId;
+  if (selectedId) attachAutosaveListeners(selectedId);
+
+  // ─── Section selection (swap inspector body, re-attach autosave) ──────
   function selectSection(sectionId, type, idx) {
-    // Update sidebar selection state
     document.querySelectorAll('.pb2-section-item').forEach(el => el.classList.remove('selected'));
     const item = document.querySelector(`.pb2-section-item[data-section-id="${sectionId}"]`);
     if (!item) return;
     item.classList.add('selected');
     selectedId = sectionId;
 
-    // Update inspector header name
     const label = TYPE_LABELS[type] || type;
     const name  = document.getElementById('pb2-insp-name');
     const sub   = document.getElementById('pb2-insp-sub');
     if (name) name.textContent = label;
     if (sub)  sub.textContent  = `section · ${idx.toString().padStart(2, '0')}`;
 
-    // Fetch the section partial HTML for the inspector body
-    fetch(`${UPDATE_URL}?_inspector=${sectionId}`, { headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' } })
+    fetch(`${UPDATE_URL}?_inspector=${sectionId}`, {
+      headers: { 'Accept': 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+    })
       .then(r => r.text())
       .then(html => {
         const body = document.getElementById('pb2-insp-body');
-        if (body) body.innerHTML = html;
+        if (body) {
+          body.innerHTML = html;
+          attachAutosaveListeners(sectionId);
+        }
       })
       .catch(err => console.error('inspector load failed', err));
   }
 
   document.querySelectorAll('.pb2-section-item').forEach((el, idx) => {
     el.addEventListener('click', e => {
-      if (e.target.closest('.pb2-drag-handle')) return; // drag click, not select
+      if (e.target.closest('.pb2-drag-handle')) return;
       const sid  = el.dataset.sectionId;
       const type = el.dataset.sectionType;
       if (!sid) return;
       selectSection(sid, type, idx + 1);
     });
   });
+
+  // ─── Inspector header: visibility toggle + delete ─────────────────────
+  const visBtn = document.getElementById('pb2-toggle-visible');
+  if (visBtn) {
+    visBtn.addEventListener('click', () => {
+      if (!selectedId) return;
+      const body = document.getElementById('pb2-insp-body');
+      const isVisibleEl = body?.querySelector('[data-field="is_visible"]');
+      if (isVisibleEl) {
+        isVisibleEl.checked = !isVisibleEl.checked;
+        // Trigger change so autosave handles persistence
+        isVisibleEl.dispatchEvent(new Event('change'));
+      }
+      // Also flip the sidebar row's hidden class
+      const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
+      if (item) item.classList.toggle('hidden');
+    });
+  }
+
+  const delBtn = document.getElementById('pb2-delete-section');
+  if (delBtn) {
+    delBtn.addEventListener('click', () => {
+      if (!selectedId) return;
+      if (!confirm('Delete this section? This cannot be undone.')) return;
+      const fd = new FormData();
+      fd.append('_token', getCsrf());
+      fd.append('section_op', 'delete');
+      fd.append('page_id', PAGE_ID);
+      fd.append('section_id', selectedId);
+      fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(() => { location.reload(); })
+        .catch(err => { console.error('delete failed', err); alert('Could not delete section.'); });
+    });
+  }
 
   // ─── Device toggle ────────────────────────────────────────────────────
   document.querySelectorAll('.pb2-device-btn').forEach(btn => {
@@ -812,13 +1004,11 @@
     });
   });
 
-  // ─── Tab switching (cosmetic for now — Phase 2 adds real Layout/Style/Advanced fields) ──
+  // ─── Tab switching (cosmetic for Phase 1) ─────────────────────────────
   document.querySelectorAll('.pb2-insp-tab').forEach(t => {
     t.addEventListener('click', () => {
       document.querySelectorAll('.pb2-insp-tab').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
-      // For Phase 1: just toggle tab visuals. The body always shows content fields.
-      // (Phase 2 wires up real Layout/Style/Advanced field groups.)
     });
   });
 
@@ -829,35 +1019,27 @@
   };
 
   window.addSection = function(type) {
-    const csrf = document.querySelector('input[name="_token"]').value;
     const fd = new FormData();
-    fd.append('_token', csrf);
-    fd.append('section_type', type);
-    fetch(ADD_SECTION_URL, { method: 'POST', body: fd })
+    fd.append('_token', getCsrf());
+    fd.append('section_op', 'add');
+    fd.append('page_id', PAGE_ID);
+    fd.append('type', type);
+    fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.json().catch(() => null))
       .then(() => { location.reload(); })
       .catch(err => console.error('add section failed', err));
   };
 
-  // ─── Save page (placeholder, calls existing endpoint) ─────────────────
+  // ─── Save (manual button in topbar) ───────────────────────────────────
   window.savePageSettings = function() {
-    const t = document.getElementById('pb2-save-time');
-    if (t) t.textContent = 'Saving…';
-    setTimeout(() => { if (t) t.textContent = 'Saved'; }, 400);
+    if (selectedId) saveSection(selectedId).then(() => refreshPreview(true));
+    else setStatus('Saved', 1000);
   };
 
-  // ─── Preview iframe auto-refresh on section save ──────────────────────
-  // The _section.blade.php partial fires field-change events. After any save,
-  // reload the iframe so the preview reflects the latest content.
+  // ─── Listen for save events from inside inspector (future hook) ───────
   document.addEventListener('pb-section-saved', () => {
-    if (PREVIEW_IFRAME) {
-      try { PREVIEW_IFRAME.contentWindow.location.reload(); } catch (e) {}
-    }
-    const t = document.getElementById('pb2-save-time');
-    if (t) {
-      t.textContent = 'Saving…';
-      setTimeout(() => { t.textContent = 'Just saved'; }, 400);
-    }
+    refreshPreview();
+    setStatus('Saved ✓', 1500);
   });
 })();
 </script>
