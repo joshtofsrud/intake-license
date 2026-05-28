@@ -1688,6 +1688,32 @@
 
     // Button list (Hero CTAs)
     initButtonList(body);
+
+    // MARKER-PATCH-158-G22 — Services category multi-select serializer
+    initServiceCategoryList(body);
+  }
+
+  // Service category checkbox list — serializes checked IDs into a hidden
+  // JSON field that autosave picks up via the [data-field] contract.
+  function initServiceCategoryList(body) {
+    const catList   = body.querySelector('#pb2-svc-catlist');
+    const jsonField = body.querySelector('#pb2-svc-catids-json');
+    const countMeta = body.querySelector('#pb2-svc-cat-count');
+    if (!catList || !jsonField) return;
+
+    function serialize() {
+      const ids = [];
+      catList.querySelectorAll('input[type="checkbox"][data-svc-cat-id]').forEach(cb => {
+        if (cb.checked) ids.push(cb.dataset.svcCatId);
+      });
+      jsonField.value = JSON.stringify(ids);
+      jsonField.dispatchEvent(new Event('change', { bubbles: true }));
+      if (countMeta) countMeta.textContent = (ids.length === 0 ? 'all' : ids.length) + ' selected';
+    }
+
+    catList.querySelectorAll('input[type="checkbox"][data-svc-cat-id]').forEach(cb => {
+      cb.addEventListener('change', serialize);
+    });
   }
 
   function updateBgModePanes(body, mode) {

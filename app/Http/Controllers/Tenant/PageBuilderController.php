@@ -21,6 +21,8 @@ class PageBuilderController extends Controller
         'shop_names', 'logos', 'competitors', 'rows', 'stats', 'images',
         // MARKER-PATCH-158-G19 — Hero buttons list (Phase 2 field)
         'buttons',
+        // MARKER-PATCH-158-G22 — services category filter (multi-select)
+        'category_ids',
     ];
 
     private const DEFAULTS = [
@@ -75,7 +77,44 @@ class PageBuilderController extends Controller
             'hide_on_mobile'      => false,
             'hide_on_desktop'     => false,
         ],
-        'services'      => ['heading'=>'Our services','show_prices'=>true,'columns'=>3],
+        // MARKER-PATCH-158-G22 — services v2 fields (Phase 2)
+        'services'      => [
+            // Content
+            'eyebrow'         => '',
+            'heading'         => 'Our services',
+            'accent_words'    => '',
+            'subheading'      => '',
+            'empty_state_text'=> 'No services available yet.',
+            // Category filter
+            'category_ids'    => [],     // [] = show all categories; populated array = show only these
+            'max_per_category'=> 0,      // 0 = no limit
+            // Layout
+            'columns'         => 3,
+            'card_style'      => 'card', // card | list | minimal
+            'show_category_headers' => true,
+            'show_prices'     => true,
+            'show_descriptions' => true,
+            'show_addons'     => false,
+            'text_align'      => 'left',
+            'padding_top'     => 'normal',
+            'padding_bottom'  => 'normal',
+            // Style
+            'bg_mode'         => 'none', // none | color | gradient
+            'bg_color'        => '#ffffff',
+            'bg_gradient_from'=> '#ffffff',
+            'bg_gradient_to'  => '#fafafa',
+            'text_color'      => '',
+            'text_color_body' => '',
+            'accent_color'    => '',
+            'card_bg'         => '',
+            'card_border'     => '',
+            'card_hover_effect' => 'lift', // none | lift | accent-border
+            // Advanced
+            'anchor_id'       => '',
+            'custom_classes'  => '',
+            'hide_on_mobile'  => false,
+            'hide_on_desktop' => false,
+        ],
         // MARKER-PATCH-158-G20 — text_image v2 fields (Phase 2)
         'text_image'    => [
             'eyebrow'         => '',
@@ -280,7 +319,21 @@ class PageBuilderController extends Controller
 
             $perType = 'tenant.pages.sections._' . $section->section_type;
             if (view()->exists($perType)) {
-                return view($perType, ['section' => $section, 'c' => $section->content ?? []])->render();
+                // MARKER-PATCH-158-G22 — extra context per section type. The
+                // services editor needs a list of available service categories
+                // to populate its category filter. Other types pass through
+                // with no extras (keeps the contract minimal).
+                $extras = [];
+                if ($section->section_type === 'services') {
+                    $extras['categories'] = \App\Models\Tenant\TenantServiceCategory::where('tenant_id', $tenant->id)
+                        ->where('is_active', true)
+                        ->orderBy('sort_order')
+                        ->get(['id', 'name', 'slug']);
+                }
+                return view($perType, array_merge(
+                    ['section' => $section, 'c' => $section->content ?? []],
+                    $extras
+                ))->render();
             }
             return view('tenant.pages._section', ['section' => $section])->render();
         }
