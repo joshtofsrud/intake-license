@@ -1,101 +1,241 @@
+{{-- MARKER-PATCH-158-G19 — Hero public renderer (Phase 2 v2 fields) --}}
 @php
+  // Height presets (Layout tab)
   $heights = ['small'=>'380px','medium'=>'520px','large'=>'680px','fullscreen'=>'100vh'];
   $height  = $heights[$c['height'] ?? 'large'] ?? '680px';
-  $hasBgImage = !empty($c['bg_image_url']);
-  $bgColor    = $c['bg_color'] ?? '#1a1a1a';
-  $textColor  = $c['text_color'] ?? '#ffffff';
-  $align      = $c['text_align'] ?? 'left';
+
+  // Padding presets (Layout tab)
+  $padTokens = ['none'=>'0','compact'=>'40px','normal'=>'80px','spacious'=>'120px'];
+  $padTop    = $padTokens[$c['padding_top']    ?? 'normal'] ?? '80px';
+  $padBot    = $padTokens[$c['padding_bottom'] ?? 'normal'] ?? '80px';
+
+  // Alignment
+  $hAlign = $c['text_align']     ?? 'left';      // left | center | right
+  $vAlign = $c['vertical_align'] ?? 'center';    // top | center | bottom
+  $vAlignCss = ['top'=>'flex-start','center'=>'center','bottom'=>'flex-end'][$vAlign] ?? 'center';
+
+  // Content sizing
+  $maxW = (int)($c['content_max_width'] ?? 680);
+  if ($maxW < 320 || $maxW > 1600) $maxW = 680;
+
+  // Background
+  $bgMode  = $c['bg_mode'] ?? 'color';
+  $bgColor = $c['bg_color'] ?? '#1a1a1a';
+  $gradFrom= $c['bg_gradient_from'] ?? '#1a1a1a';
+  $gradTo  = $c['bg_gradient_to']   ?? '#0a0a0a';
+  $gradDeg = (int)($c['bg_gradient_angle'] ?? 135);
+  $imgUrl  = $c['bg_image_url'] ?? '';
+  $imgPos  = $c['bg_image_position'] ?? 'center';
+  $imgSize = $c['bg_image_size'] ?? 'cover';
+
+  // Overlay
+  $overlayOpacity = max(0, min(100, (int)($c['bg_overlay_opacity'] ?? 45)));
+  $overlayColor   = $c['bg_overlay_color'] ?? '#000000';
+
+  // Colors
+  $textColor     = $c['text_color']      ?? '#ffffff';
+  $textColorBody = $c['text_color_body'] ?: null;  // empty string falls through
+  $accentColor   = $c['accent_color']    ?: null;
+
+  // Buttons — prefer buttons[] array, fall back to legacy cta_primary/secondary
+  $buttons = $c['buttons'] ?? [];
+  if (is_string($buttons)) { $d = json_decode($buttons, true); $buttons = is_array($d) ? $d : []; }
+  if (!is_array($buttons)) $buttons = [];
+  if (empty($buttons) && !empty($c['cta_primary_label'] ?? '')) {
+      $buttons[] = ['label' => $c['cta_primary_label'], 'url' => $c['cta_primary_url'] ?? '/', 'style' => 'primary'];
+      if (!empty($c['cta_secondary_label'] ?? '')) {
+          $buttons[] = ['label' => $c['cta_secondary_label'], 'url' => $c['cta_secondary_url'] ?? '#', 'style' => 'outline'];
+      }
+  }
+
+  // Headline rendering — preserve \n, wrap accent_words in a span if present
+  $headlineHtml = e($c['headline'] ?? '');
+  $accentWords  = trim($c['accent_words'] ?? '');
+  if ($accentWords !== '' && stripos($headlineHtml, e($accentWords)) !== false) {
+      $headlineHtml = str_ireplace(
+          e($accentWords),
+          '<span class="p-hero-accent">' . e($accentWords) . '</span>',
+          $headlineHtml
+      );
+  }
+  $headlineHtml = nl2br($headlineHtml);
+
+  // Advanced
+  $anchorId    = trim($c['anchor_id'] ?? '');
+  $customClass = trim($c['custom_classes'] ?? '');
+  $hideMobile  = !empty($c['hide_on_mobile']);
+  $hideDesktop = !empty($c['hide_on_desktop']);
+
+  // Stable per-section instance class so styles scope cleanly
+  $instId = 'p-hero-' . ($section->id ?? uniqid());
 @endphp
 
 <style>
-.p-hero {
+.{{ $instId }} {
   min-height: {{ $height }};
   display: flex;
-  align-items: center;
+  align-items: {{ $vAlignCss }};
   position: relative;
   overflow: hidden;
+  padding-top: {{ $padTop }};
+  padding-bottom: {{ $padBot }};
+  @if($bgMode === 'image' && $imgUrl)
   background-color: {{ $bgColor }};
-  @if($hasBgImage)
-  background-image: url('{{ $c['bg_image_url'] }}');
-  background-size: cover;
-  background-position: center;
+  background-image: url('{{ $imgUrl }}');
+  background-size: {{ $imgSize }};
+  background-position: {{ $imgPos }};
+  @elseif($bgMode === 'gradient')
+  background: linear-gradient({{ $gradDeg }}deg, {{ $gradFrom }} 0%, {{ $gradTo }} 100%);
+  @else
+  background-color: {{ $bgColor }};
   @endif
 }
-.p-hero::after {
-  @if($hasBgImage)
+@if($bgMode === 'image' && $imgUrl && $overlayOpacity > 0)
+.{{ $instId }}::before {
   content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  @endif
+  position: absolute; inset: 0;
+  background: {{ $overlayColor }};
+  opacity: {{ $overlayOpacity / 100 }};
+  pointer-events: none;
 }
-.p-hero-content {
+@endif
+.{{ $instId }} .p-hero-content {
   position: relative;
   z-index: 1;
   color: {{ $textColor }};
-  padding: clamp(40px, 8vw, 96px) 0;
-  max-width: 680px;
-  text-align: {{ $align }};
-  @if($align === 'center')
-  margin: 0 auto;
-  @elseif($align === 'right')
+  width: 100%;
+  max-width: {{ $maxW }}px;
+  padding: 0 clamp(20px, 5vw, 48px);
+  text-align: {{ $hAlign }};
+  @if($hAlign === 'center')
+  margin-left: auto; margin-right: auto;
+  @elseif($hAlign === 'right')
   margin-left: auto;
   @endif
 }
-.p-hero-headline {
-  font-size: clamp(32px, 6vw, 72px);
-  font-weight: 800;
+.{{ $instId }} .p-hero-eyebrow {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: {{ $accentColor ?? $textColor }};
+  margin-bottom: 18px;
+  opacity: .9;
+}
+.{{ $instId }} .p-hero-headline {
+  font-size: clamp(32px, 6vw, 64px);
+  font-weight: 600;
   line-height: 1.08;
-  letter-spacing: -.02em;
-  margin-bottom: 20px;
+  letter-spacing: -.025em;
+  margin: 0 0 20px;
+  color: {{ $textColor }};
 }
-.p-hero-sub {
-  font-size: clamp(16px, 2.2vw, 22px);
+.{{ $instId }} .p-hero-accent {
+  color: {{ $accentColor ?? '#BEF264' }};
+  font-style: italic;
+  font-weight: 500;
+}
+.{{ $instId }} .p-hero-sub {
+  font-size: clamp(16px, 2vw, 20px);
   line-height: 1.55;
-  opacity: .8;
-  margin-bottom: 32px;
-  max-width: 520px;
-  @if($align === 'center')
-  margin-left: auto;
-  margin-right: auto;
-  @elseif($align === 'right')
+  color: {{ $textColorBody ?? 'rgba(255,255,255,0.7)' }};
+  margin: 0 0 28px;
+  max-width: 540px;
+  @if($hAlign === 'center')
+  margin-left: auto; margin-right: auto;
+  @elseif($hAlign === 'right')
   margin-left: auto;
   @endif
 }
-.p-hero-actions {
+.{{ $instId }} .p-hero-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  @if($align === 'center')
+  @if($hAlign === 'center')
   justify-content: center;
-  @elseif($align === 'right')
+  @elseif($hAlign === 'right')
   justify-content: flex-end;
   @endif
 }
+.{{ $instId }} .p-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 22px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+.{{ $instId }} .p-hero-btn--primary {
+  background: {{ $accentColor ?? '#BEF264' }};
+  color: #0a1a00;
+}
+.{{ $instId }} .p-hero-btn--primary:hover { filter: brightness(1.05); }
+.{{ $instId }} .p-hero-btn--outline {
+  background: transparent;
+  color: {{ $textColor }};
+  border-color: {{ $textColor }};
+  opacity: .85;
+}
+.{{ $instId }} .p-hero-btn--outline:hover { opacity: 1; }
+.{{ $instId }} .p-hero-btn--ghost {
+  background: rgba(255,255,255,0.06);
+  color: {{ $textColor }};
+}
+.{{ $instId }} .p-hero-btn--ghost:hover { background: rgba(255,255,255,0.12); }
+.{{ $instId }} .p-hero-btn--link {
+  background: transparent;
+  color: {{ $textColor }};
+  padding: 12px 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.{{ $instId }} .p-hero-footnote {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: {{ $textColorBody ?? 'rgba(255,255,255,0.5)' }};
+  margin-top: 24px;
+}
+@if($hideMobile)
+@media (max-width: 768px) { .{{ $instId }} { display: none; } }
+@endif
+@if($hideDesktop)
+@media (min-width: 769px) { .{{ $instId }} { display: none; } }
+@endif
 </style>
 
-<section class="p-hero">
-  <div class="p-container">
-    <div class="p-hero-content">
-      @if(!empty($c['headline']))
-        <h1 class="p-hero-headline">{{ $c['headline'] }}</h1>
-      @endif
-      @if(!empty($c['subheading']))
-        <p class="p-hero-sub">{{ $c['subheading'] }}</p>
-      @endif
+<section class="{{ $instId }} p-hero {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+  <div class="p-hero-content">
+    @if(!empty($c['eyebrow']))
+      <div class="p-hero-eyebrow">{{ $c['eyebrow'] }}</div>
+    @endif
+
+    @if(!empty($c['headline']))
+      <h1 class="p-hero-headline">{!! $headlineHtml !!}</h1>
+    @endif
+
+    @if(!empty($c['subheading']))
+      <p class="p-hero-sub">{{ $c['subheading'] }}</p>
+    @endif
+
+    @if(count($buttons) > 0)
       <div class="p-hero-actions">
-        @if(!empty($c['cta_primary_label']))
-          <a href="{{ $c['cta_primary_url'] ?? '/book' }}" class="p-btn p-btn--primary">
-            {{ $c['cta_primary_label'] }}
-          </a>
-        @endif
-        @if(!empty($c['cta_secondary_label']))
-          <a href="{{ $c['cta_secondary_url'] ?? '#' }}" class="p-btn p-btn--outline"
-             style="color:{{ $textColor }};border-color:{{ $textColor }}">
-            {{ $c['cta_secondary_label'] }}
-          </a>
-        @endif
+        @foreach($buttons as $btn)
+          @php $style = $btn['style'] ?? 'primary'; @endphp
+          @if(!empty($btn['label']))
+            <a href="{{ $btn['url'] ?? '#' }}" class="p-hero-btn p-hero-btn--{{ $style }}">
+              {{ $btn['label'] }}
+            </a>
+          @endif
+        @endforeach
       </div>
-    </div>
+    @endif
+
+    @if(!empty($c['note']))
+      <div class="p-hero-footnote">{{ $c['note'] }}</div>
+    @endif
   </div>
 </section>

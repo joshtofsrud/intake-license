@@ -664,6 +664,284 @@
    conflicted with the v2 inspector header's delete icon + footer status. */
 .pb2-insp-body .pb-section-actions { display: none; }
 
+/* ============================================================================
+   MARKER-PATCH-158-G19 — Phase 2 per-type editor partials (Hero first)
+   Field framework used by resources/views/tenant/pages/sections/_*.blade.php.
+   All [data-field] inputs are picked up by G16 autosave automatically.
+============================================================================ */
+
+/* Tab panels — only the one matching the active tab is shown */
+.pb2-insp-body .pb2-tab-panel { display: block; }
+.pb2-insp-body .pb2-tab-panel[hidden] { display: none; }
+
+/* Field groups — visual sections within a tab */
+.pb2-insp-body .pb2-group {
+  border-bottom: 0.5px solid var(--pb2-border);
+  padding: 14px 18px;
+}
+.pb2-insp-body .pb2-group:last-child { border-bottom: 0; }
+
+.pb2-insp-body .pb2-group-title {
+  font-family: var(--pb2-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--pb2-text-dim);
+  font-weight: 500;
+  margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pb2-insp-body .pb2-group-meta {
+  font-family: var(--pb2-mono);
+  font-size: 10px;
+  color: var(--pb2-text-faint);
+  font-weight: 400;
+}
+
+/* Fields */
+.pb2-insp-body .pb2-field { margin-bottom: 12px; }
+.pb2-insp-body .pb2-field:last-child { margin-bottom: 0; }
+.pb2-insp-body .pb2-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pb2-insp-body .pb2-field-row .pb2-field { margin-bottom: 0; }
+
+.pb2-insp-body .pb2-field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  color: var(--pb2-text-dim);
+  margin-bottom: 5px;
+  font-weight: 400;
+}
+.pb2-insp-body .pb2-field-hint {
+  font-family: var(--pb2-mono);
+  font-size: 10px;
+  color: var(--pb2-text-faint);
+  font-weight: 400;
+  margin-left: 8px;
+  text-align: right;
+}
+
+/* Inputs */
+.pb2-insp-body .pb2-input {
+  width: 100%;
+  background: var(--pb2-bg);
+  border: 0.5px solid var(--pb2-border);
+  color: var(--pb2-text);
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 4px;
+  height: 30px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.pb2-insp-body .pb2-textarea {
+  height: auto;
+  resize: vertical;
+  line-height: 1.5;
+  padding: 8px 10px;
+  min-height: 64px;
+}
+.pb2-insp-body .pb2-input-sm { font-size: 11px; height: 26px; padding: 4px 8px; }
+.pb2-insp-body .pb2-input-mono { font-family: var(--pb2-mono); font-size: 11px; }
+.pb2-insp-body .pb2-input:hover { border-color: var(--pb2-border-2); }
+.pb2-insp-body .pb2-input:focus {
+  outline: 0;
+  border-color: var(--pb2-accent);
+  background: var(--pb2-surface-2);
+}
+
+/* Segmented control */
+.pb2-insp-body .pb2-seg {
+  display: flex;
+  background: var(--pb2-bg);
+  border-radius: 4px;
+  padding: 2px;
+  gap: 2px;
+}
+.pb2-insp-body .pb2-seg-btn {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: var(--pb2-text-dim);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.pb2-insp-body .pb2-seg-btn:hover { color: var(--pb2-text); }
+.pb2-insp-body .pb2-seg-btn.active {
+  background: var(--pb2-surface-3);
+  color: var(--pb2-text);
+}
+
+/* Color picker row */
+.pb2-insp-body .pb2-color-row {
+  display: flex; gap: 6px; align-items: center;
+}
+.pb2-insp-body .pb2-color-swatch {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  border: 0.5px solid var(--pb2-border-2);
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+}
+
+/* Image tile / empty-state */
+.pb2-insp-body .pb2-image-tile {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 12px;
+  background: var(--pb2-surface-2);
+  border-radius: 4px;
+  padding: 10px;
+  align-items: center;
+}
+.pb2-insp-body .pb2-image-tile-thumb {
+  width: 56px; height: 56px;
+  border-radius: 4px;
+  border: 0.5px solid var(--pb2-border-2);
+  background: var(--pb2-bg);
+}
+.pb2-insp-body .pb2-image-tile-name {
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pb2-insp-body .pb2-image-tile-actions {
+  display: flex; gap: 12px;
+}
+.pb2-insp-body .pb2-textlink {
+  background: transparent; border: 0; padding: 0;
+  font: inherit; font-size: 11px;
+  color: var(--pb2-info);
+  cursor: pointer;
+}
+.pb2-insp-body .pb2-textlink:hover { text-decoration: underline; }
+.pb2-insp-body .pb2-textlink-danger { color: var(--pb2-danger); }
+
+.pb2-insp-body .pb2-image-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 100%;
+  padding: 22px;
+  background: var(--pb2-bg);
+  border: 1px dashed var(--pb2-border-2);
+  border-radius: 6px;
+  color: var(--pb2-text-dim);
+  font: inherit; font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.pb2-insp-body .pb2-image-empty:hover {
+  border-color: var(--pb2-accent);
+  color: var(--pb2-accent);
+  background: rgba(190,242,100,0.04);
+}
+.pb2-insp-body .pb2-image-empty-icon { font-size: 18px; margin-bottom: 2px; }
+
+/* Slider */
+.pb2-insp-body .pb2-slider-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 5px;
+}
+.pb2-insp-body .pb2-slider-value {
+  font-family: var(--pb2-mono);
+  font-size: 11px;
+  color: var(--pb2-text);
+}
+.pb2-insp-body input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--pb2-bg);
+  border-radius: 2px;
+  outline: none;
+}
+.pb2-insp-body input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--pb2-accent);
+  cursor: pointer;
+  border: 2px solid var(--pb2-surface);
+}
+
+/* Checkbox row */
+.pb2-insp-body .pb2-checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--pb2-text);
+}
+.pb2-insp-body .pb2-checkbox-row input { accent-color: var(--pb2-accent); }
+
+/* Add-row pseudo-button */
+.pb2-insp-body .pb2-addrow {
+  width: 100%;
+  border: 1px dashed var(--pb2-border-2);
+  border-radius: 4px;
+  padding: 8px;
+  text-align: center;
+  color: var(--pb2-text-dim);
+  font: inherit; font-size: 11px;
+  cursor: pointer;
+  background: transparent;
+  margin-top: 4px;
+  transition: all 0.12s;
+}
+.pb2-insp-body .pb2-addrow:hover {
+  border-color: var(--pb2-accent);
+  color: var(--pb2-accent);
+}
+
+/* Button list (Hero CTAs) */
+.pb2-insp-body .pb2-btnlist { display: flex; flex-direction: column; gap: 6px; }
+.pb2-insp-body .pb2-btnlist-item {
+  display: grid;
+  grid-template-columns: 14px 1fr 22px;
+  gap: 8px;
+  align-items: center;
+  background: var(--pb2-surface-2);
+  border-radius: 4px;
+  padding: 8px 8px 8px 10px;
+}
+.pb2-insp-body .pb2-btnlist-handle {
+  color: var(--pb2-text-faint);
+  cursor: grab;
+  font-size: 10px;
+  user-select: none;
+}
+.pb2-insp-body .pb2-btnlist-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 90px;
+  gap: 6px;
+}
+.pb2-insp-body .pb2-btnlist-remove {
+  background: transparent;
+  border: 0;
+  color: var(--pb2-text-faint);
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.pb2-insp-body .pb2-btnlist-remove:hover {
+  background: var(--pb2-danger);
+  color: white;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -932,6 +1210,12 @@
   // Same handler accepts the same payload here.
   const STORE_URL  = @json($storeUrl);
   const PREVIEW_URL = @json($previewUrl);
+  // MARKER-PATCH-158-G19 — upload endpoint. Marketing context shares the
+  // tenant uploads route for now (the controller is tenant-scoped). If a
+  // future master-admin upload route appears, swap here.
+  const UPLOAD_URL = @json($isMarketing
+      ? route('tenant.uploads.store')
+      : route('tenant.uploads.store'));
   const TYPE_LABELS = @json($typeLabels);
 
   const PREVIEW_IFRAME = document.getElementById('pb2-preview');
@@ -1112,6 +1396,8 @@
         if (body) {
           body.innerHTML = html;
           attachAutosaveListeners(sectionId);
+          // MARKER-PATCH-158-G19 — wire up new per-type controls
+          initInspectorControls();
         }
       })
       .catch(err => console.error('inspector load failed', err));
@@ -1299,13 +1585,239 @@
     });
   });
 
-  // ─── Tab switching (cosmetic for Phase 1) ─────────────────────────────
-  document.querySelectorAll('.pb2-insp-tab').forEach(t => {
-    t.addEventListener('click', () => {
-      document.querySelectorAll('.pb2-insp-tab').forEach(x => x.classList.remove('active'));
-      t.classList.add('active');
+  // ─── Tab switching ────────────────────────────────────────────────────
+  // MARKER-PATCH-158-G19 — was cosmetic; now actually swaps visible
+  // .pb2-tab-panel sections. Per-type partials (e.g. _hero.blade.php) wrap
+  // each tab's fields in <div class="pb2-tab-panel" data-tab="...">. The
+  // legacy _section.blade.php has no tab panels so all fields stay in
+  // "Content" by default.
+  let activeTab = 'content';
+  function showTab(tabName) {
+    activeTab = tabName;
+    document.querySelectorAll('.pb2-insp-tab').forEach(x => {
+      x.classList.toggle('active', x.dataset.tab === tabName);
     });
+    document.querySelectorAll('.pb2-insp-body .pb2-tab-panel').forEach(panel => {
+      panel.hidden = panel.dataset.tab !== tabName;
+    });
+  }
+  document.querySelectorAll('.pb2-insp-tab').forEach(t => {
+    t.addEventListener('click', () => showTab(t.dataset.tab));
   });
+
+  // MARKER-PATCH-158-G19 — Per-type interactive controls (segmented controls,
+  // bg-mode pane toggling, image upload, button list editor). Called after
+  // every inspector body swap so newly-injected controls work.
+  function initInspectorControls() {
+    const body = document.getElementById('pb2-insp-body');
+    if (!body) return;
+
+    // Restore the active tab after inspector reload so users don't bounce
+    // back to "Content" mid-edit. If the new partial has no panels at all
+    // (legacy), tabs become cosmetic again.
+    const hasPanels = body.querySelector('.pb2-tab-panel');
+    if (hasPanels) showTab(activeTab);
+
+    // Segmented controls — clicking a button updates the hidden input it
+    // controls (via data-field-seg) and dispatches a change event so
+    // autosave fires.
+    body.querySelectorAll('.pb2-seg').forEach(seg => {
+      const fieldName = seg.dataset.fieldSeg;
+      const target = body.querySelector(`input[type="hidden"][data-field="${fieldName}"]`);
+      seg.querySelectorAll('.pb2-seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          seg.querySelectorAll('.pb2-seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (target) {
+            target.value = btn.dataset.segValue;
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          // For bg_mode, show only the matching .pb2-bg-pane
+          if (fieldName === 'bg_mode') updateBgModePanes(body, btn.dataset.segValue);
+        });
+      });
+    });
+
+    // Show the right bg-mode pane on initial load
+    const bgModeInput = body.querySelector('input[type="hidden"][data-field="bg_mode"]');
+    if (bgModeInput) updateBgModePanes(body, bgModeInput.value);
+
+    // Color picker text-input sync (autosave layer handles the _text shadow
+    // pattern; we just need the swatch's input event to update its sibling
+    // text input visually as the user picks a color).
+    body.querySelectorAll('input[type="color"][data-field]').forEach(picker => {
+      const fieldName = picker.dataset.field;
+      const text = body.querySelector(`input[data-field="${fieldName}_text"]`);
+      picker.addEventListener('input', () => {
+        if (text) text.value = picker.value;
+      });
+      if (text) {
+        text.addEventListener('input', () => {
+          if (/^#[0-9a-fA-F]{6}$/.test(text.value)) picker.value = text.value;
+        });
+      }
+    });
+
+    // Image upload
+    body.querySelectorAll('[data-image-upload]').forEach(btn => {
+      const fieldName = btn.dataset.imageUpload;
+      btn.addEventListener('click', () => triggerImageUpload(fieldName));
+    });
+    body.querySelectorAll('[data-image-replace]').forEach(btn => {
+      const fieldName = btn.dataset.imageReplace;
+      btn.addEventListener('click', () => triggerImageUpload(fieldName));
+    });
+    body.querySelectorAll('[data-image-remove]').forEach(btn => {
+      const fieldName = btn.dataset.imageRemove;
+      btn.addEventListener('click', () => {
+        const hidden = body.querySelector(`input[data-field="${fieldName}"]`);
+        if (hidden) {
+          hidden.value = '';
+          hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        // Reload inspector to switch to empty-state UI
+        if (selectedId) {
+          const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
+          if (item) {
+            const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
+            setTimeout(() => selectSection(selectedId, item.dataset.sectionType, idx), 300);
+          }
+        }
+      });
+    });
+
+    // Button list (Hero CTAs)
+    initButtonList(body);
+  }
+
+  function updateBgModePanes(body, mode) {
+    body.querySelectorAll('.pb2-bg-pane').forEach(p => {
+      p.style.display = p.dataset.bgMode === mode ? 'block' : 'none';
+    });
+  }
+
+  // Image upload: opens a file picker, posts to /admin/uploads, injects URL
+  // into the hidden input + triggers a section save + reloads the inspector.
+  function triggerImageUpload(fieldName) {
+    const body = document.getElementById('pb2-insp-body');
+    if (!body) return;
+    const hidden = body.querySelector(`input[data-field="${fieldName}"]`);
+    if (!hidden) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (!file) return;
+      setStatus('Uploading…');
+      const fd = new FormData();
+      fd.append('_token', getCsrf());
+      fd.append('file', file);
+      fd.append('type', 'hero');
+      try {
+        const resp = await fetch(UPLOAD_URL, {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        });
+        const data = await resp.json();
+        if (data && data.ok && data.url) {
+          hidden.value = data.url;
+          hidden.dispatchEvent(new Event('change', { bubbles: true }));
+          setStatus('Uploaded ✓', 1500);
+          // Reload inspector so the image tile shows the new file
+          if (selectedId) {
+            const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
+            if (item) {
+              const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
+              setTimeout(() => selectSection(selectedId, item.dataset.sectionType, idx), 400);
+            }
+          }
+        } else {
+          setStatus('Upload failed', 3000);
+          alert(data?.message || 'Upload failed.');
+        }
+      } catch (e) {
+        setStatus('Upload failed', 3000);
+        console.error(e);
+        alert('Upload failed.');
+      }
+    });
+    input.click();
+  }
+
+  // Button list editor (Hero CTAs). Builds/maintains a JSON-serialized
+  // buttons[] array in #pb2-hero-buttons-json. Adding/removing rows mutates
+  // the DOM and re-serializes; per-row field changes also re-serialize.
+  function initButtonList(body) {
+    const list = body.querySelector('#pb2-hero-btnlist');
+    const json = body.querySelector('#pb2-hero-buttons-json');
+    const count = body.querySelector('#pb2-hero-btn-count');
+    const addBtn = body.querySelector('#pb2-hero-addbtn');
+    if (!list || !json) return;
+
+    function serialize() {
+      const out = [];
+      list.querySelectorAll('.pb2-btnlist-item').forEach(row => {
+        out.push({
+          label: row.querySelector('[data-btn-field="label"]').value,
+          url:   row.querySelector('[data-btn-field="url"]').value,
+          style: row.querySelector('[data-btn-field="style"]').value,
+        });
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = `${out.length} / 4`;
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-btn-field]').forEach(input => {
+        input.addEventListener('input', serialize);
+        input.addEventListener('change', serialize);
+      });
+      const remove = row.querySelector('.pb2-btnlist-remove');
+      if (remove) {
+        remove.addEventListener('click', () => {
+          row.remove();
+          serialize();
+        });
+      }
+    }
+
+    list.querySelectorAll('.pb2-btnlist-item').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (list.querySelectorAll('.pb2-btnlist-item').length >= 4) return;
+        const idx = list.querySelectorAll('.pb2-btnlist-item').length;
+        const row = document.createElement('div');
+        row.className = 'pb2-btnlist-item';
+        row.dataset.btnIdx = idx;
+        row.innerHTML = `
+          <span class="pb2-btnlist-handle">⋮⋮</span>
+          <div class="pb2-btnlist-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-btn-field="label" placeholder="Button label">
+            <input type="text" class="pb2-input pb2-input-sm" data-btn-field="url" placeholder="/book or https://…">
+            <select class="pb2-input pb2-input-sm" data-btn-field="style">
+              <option value="primary">Primary</option>
+              <option value="outline">Outline</option>
+              <option value="ghost">Ghost</option>
+              <option value="link">Link</option>
+            </select>
+          </div>
+          <button type="button" class="pb2-btnlist-remove" title="Remove">×</button>
+        `;
+        list.appendChild(row);
+        wireRow(row);
+        serialize();
+      });
+    }
+  }
+
+  // Initial wire-up — the first section's fields are already rendered
+  initInspectorControls();
 
   // ─── Add section panel ────────────────────────────────────────────────
   window.toggleAddPanel = function() {

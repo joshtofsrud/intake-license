@@ -19,11 +19,59 @@ class PageBuilderController extends Controller
     private const ARRAY_FIELDS = [
         'features', 'steps', 'plans', 'items', 'testimonials',
         'shop_names', 'logos', 'competitors', 'rows', 'stats', 'images',
+        // MARKER-PATCH-158-G19 — Hero buttons list (Phase 2 field)
+        'buttons',
     ];
 
     private const DEFAULTS = [
         'nav'           => ['show_logo'=>true,'cta_label'=>'Book Now','cta_url'=>'/book','bg_style'=>'solid'],
-        'hero'          => ['eyebrow'=>'','headline'=>'Your headline here','accent_words'=>'','subheading'=>'A short description.','bg_type'=>'color','bg_color'=>'#1a1a1a','text_color'=>'#ffffff','cta_primary_label'=>'Book Now','cta_primary_url'=>'/book','height'=>'large','text_align'=>'center','note'=>''],
+        // MARKER-PATCH-158-G19 — Phase 2 Hero fields (v2)
+        // Legacy fields (eyebrow/headline/accent_words/subheading/bg_color/text_color/
+        // text_align/cta_primary_*/cta_secondary_*/note/height) are preserved for
+        // backward compat. New fields below extend the editor: background image
+        // with overlay, multi-line headlines, vertical alignment, padding, max-width,
+        // button list (replaces cta_primary/secondary when set), advanced fields.
+        'hero'          => [
+            'eyebrow'             => '',
+            'headline'            => 'Your headline here',
+            'accent_words'        => '',
+            'subheading'          => 'A short description.',
+            'note'                => '',
+            // Buttons: array of {label, url, style: primary|outline|ghost|link}.
+            // If empty, renderer falls back to cta_primary/secondary for legacy.
+            'buttons'             => [],
+            // Legacy CTAs (kept for v1 content; new edits use buttons[])
+            'cta_primary_label'   => 'Book Now',
+            'cta_primary_url'     => '/book',
+            'cta_secondary_label' => '',
+            'cta_secondary_url'   => '',
+            // Layout
+            'height'              => 'large',
+            'text_align'          => 'left',
+            'vertical_align'      => 'center',
+            'content_max_width'   => 680,
+            'padding_top'         => 'normal',
+            'padding_bottom'      => 'normal',
+            // Style
+            'bg_mode'             => 'color', // color | image | gradient
+            'bg_color'            => '#1a1a1a',
+            'bg_gradient_from'    => '#1a1a1a',
+            'bg_gradient_to'      => '#0a0a0a',
+            'bg_gradient_angle'   => 135,
+            'bg_image_url'        => '',
+            'bg_image_position'   => 'center',
+            'bg_image_size'       => 'cover',
+            'bg_overlay_opacity'  => 45,
+            'bg_overlay_color'    => '#000000',
+            'text_color'          => '#ffffff',
+            'text_color_body'     => '',
+            'accent_color'        => '',
+            // Advanced
+            'anchor_id'           => '',
+            'custom_classes'      => '',
+            'hide_on_mobile'      => false,
+            'hide_on_desktop'     => false,
+        ],
         'services'      => ['heading'=>'Our services','show_prices'=>true,'columns'=>3],
         'text_image'    => ['eyebrow'=>'','heading'=>'','body'=>'Your content here.','image_url'=>'','image_position'=>'right','cta_label'=>'','cta_url'=>''],
         'cta_banner'    => ['headline'=>'Ready to book?','subheading'=>'','cta_label'=>'Book Now','cta_url'=>'/book','bg_color'=>'','text_color'=>''],
@@ -145,6 +193,12 @@ class PageBuilderController extends Controller
     // Also serves the inspector partial when called with ?_inspector={section_id} —
     // the v2 right pane fetches just the rendered _section.blade.php for the
     // selected section via AJAX so we don't reload the whole page on selection.
+    //
+    // MARKER-PATCH-158-G19 — Phase 2: per-type editor partials at
+    //   resources/views/tenant/pages/sections/_{type}.blade.php
+    // take precedence when they exist. The legacy _section.blade.php is the
+    // fallback for types we haven't migrated yet. This lets us rebuild one
+    // section type at a time without breaking the others.
     public function edit(Request $request, string $id)
     {
         $tenant = tenant();
@@ -154,6 +208,11 @@ class PageBuilderController extends Controller
             $section = TenantPageSection::where('page_id', $page->id)
                 ->where('id', $request->input('_inspector'))
                 ->firstOrFail();
+
+            $perType = 'tenant.pages.sections._' . $section->section_type;
+            if (view()->exists($perType)) {
+                return view($perType, ['section' => $section, 'c' => $section->content ?? []])->render();
+            }
             return view('tenant.pages._section', ['section' => $section])->render();
         }
 
