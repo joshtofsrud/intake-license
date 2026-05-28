@@ -1302,9 +1302,18 @@
       }
     });
 
-    // bg_color is persisted to its own column server-side (not under content[]).
-    const bgColor = content.bg_color;
-    delete content.bg_color;
+    // MARKER-PATCH-158-G23 — bg_color used to be stripped from content[] and
+    // sent as a top-level form field for the section's own bg_color column.
+    // That broke v2 partials where bg_color is just one of many fields inside
+    // content[] (gated by bg_mode). Now we send the bg_color column ONLY if
+    // the section has no bg_mode field (i.e. legacy partials) — v2 partials
+    // keep bg_color in content[] so the renderer picks up the value.
+    let bgColorForColumn;
+    const hasV2BgMode = body.querySelector('[data-field="bg_mode"]') !== null;
+    if (!hasV2BgMode && content.bg_color !== undefined) {
+      bgColorForColumn = content.bg_color;
+      delete content.bg_color;
+    }
 
     const isVisibleEl = body.querySelector('[data-field="is_visible"]');
     const isVisible   = isVisibleEl ? (isVisibleEl.checked ? 1 : 0) : 1;
@@ -1315,7 +1324,7 @@
     fd.append('page_id', PAGE_ID);
     fd.append('section_id', sectionId);
     fd.append('is_visible', isVisible);
-    if (bgColor !== undefined) fd.append('bg_color', bgColor);
+    if (bgColorForColumn !== undefined) fd.append('bg_color', bgColorForColumn);
     Object.keys(content).forEach(k => fd.append('content[' + k + ']', content[k]));
 
     return fetch(STORE_URL, {

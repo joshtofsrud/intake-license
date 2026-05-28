@@ -195,8 +195,8 @@
   padding: 24px 0;
 }
 
-@media (max-width: 900px) { .{{ $instId }} .p-svc-grid { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 560px) { .{{ $instId }} .p-svc-grid { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .{{ $instId }} .p-svc-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .{{ $instId }} .p-svc-grid { grid-template-columns: 1fr; } }
 
 @if($hideMobile)
 @media (max-width: 768px) { .{{ $instId }} { display: none; } }
