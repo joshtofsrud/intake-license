@@ -67,18 +67,29 @@
   --pb2-mono:        'JetBrains Mono', ui-monospace, monospace;
 }
 
-/* The editor takes over the full viewport below the global nav. We use
-   margin: -24px -24px to escape the global content padding, and set the
-   height to fill what's left. */
+/* The editor takes over the full viewport, anchored past the tenant sidebar.
+   MARKER-PATCH-158-G17 — replaced the original negative-margin escape with
+   position:fixed because the tenant layout's .ia-content uses padding 28px 32px
+   (not 24px), so the old -24px escape left bands of leftover padding around
+   the editor — visible as the cropped topbar + right pane bleeding off the
+   right edge. position:fixed sidesteps the layout padding entirely. */
 .pb2-shell {
-  margin: -24px -24px 0;
-  height: calc(100vh - 72px);
+  position: fixed;
+  top: 0;
+  left: 220px;          /* tenant sidebar width */
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  z-index: 50;          /* above .ia-content but below modals (z=200+) */
   background: var(--pb2-bg);
   color: var(--pb2-text);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   font-size: 13px;
+}
+@media (max-width: 900px) {
+  .pb2-shell { left: 0; }  /* sidebar collapses on mobile in tenant layout */
 }
 
 /* TOPBAR */
@@ -521,6 +532,12 @@
   border-color: var(--pb2-accent);
   background: var(--pb2-surface-2);
 }
+
+/* MARKER-PATCH-158-G17 — hide v1 _section.blade.php's footer when rendered
+   inside the v2 inspector. v1's `.pb-section-actions` had a duplicate
+   "Delete section" button and an "Auto-saves as you type" hint that
+   conflicted with the v2 inspector header's delete icon + footer status. */
+.pb2-insp-body .pb-section-actions { display: none; }
 
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
