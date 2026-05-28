@@ -154,9 +154,8 @@
   color: {{ $textColor }};
 }
 .{{ $instId }} .p-hero-accent {
-  /* MARKER-PATCH-158-G21 — accent no longer italicized; color + weight only */
+  /* MARKER-PATCH-158-G21A — color only; weight inherits from headline */
   color: {{ $accentColor ?? '#BEF264' }};
-  font-weight: 500;
 }
 .{{ $instId }} .p-hero-sub {
   font-size: {{ $subheadingSize }};
