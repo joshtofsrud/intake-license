@@ -114,12 +114,6 @@ class AppointmentRegisterBridgeService
         return DB::transaction(function () use ($appointment, $balanceCents) {
             $saleNumber = $this->generateSaleNumber($appointment->tenant_id);
 
-            // MARKER-PATCH-174 — how much has already been paid (deposit /
-            // prior payments). The balance sale must NET to the outstanding
-            // balance, so we itemize the full job then subtract this via a
-            // credit line below. Forgetting this was the deposit-double-count bug.
-            $depositApplied = max(0, (int) $appointment->total_cents - $balanceCents);
-
             // Resolve location: appointment's wins; tenant default fallback.
             $locationId = $appointment->location_id ?: \App\Models\Tenant\TenantLocation::query()
                 ->where('tenant_id', $appointment->tenant_id)
@@ -139,12 +133,9 @@ class AppointmentRegisterBridgeService
                 'appointment_id'      => $appointment->id,
                 'location_id'         => $locationId,
                 'rang_up_by_user_id'  => Auth::guard('tenant')->id() ?? $this->fallbackUserId($appointment),
-                // MARKER-PATCH-174 — net of the deposit credit appended below.
-                // Tax stays at the full job tax (a deposit is a prior payment,
-                // not a price cut); subtotal + tax still equals total.
-                'subtotal_cents'      => (int) $appointment->subtotal_cents - $depositApplied,
+                'subtotal_cents'      => (int) $appointment->subtotal_cents,
                 'tax_cents'           => (int) $appointment->tax_cents,
-                'total_cents'         => $balanceCents,
+                'total_cents'         => (int) $appointment->total_cents,
                 'tax_locked'          => true,
                 'notes'               => 'Auto-created from appointment ' . ($appointment->ra_number ?? $appointment->id),
             ]);
@@ -224,24 +215,6 @@ class AppointmentRegisterBridgeService
                 $spec['is_taxable']        = true;
             }
             unset($spec);
-
-            // MARKER-PATCH-174 — append the deposit/prior-payment credit as a
-            // final non-taxable line so the sale itemizes the full job for an
-            // honest receipt but nets to the real balance. Added AFTER the tax
-            // distribution loop so it never skews the proportional tax split.
-            if ($depositApplied > 0) {
-                $lineSpecs[] = [
-                    'type'                => 'open_item',
-                    'name'                => 'Deposit applied',
-                    'quantity'            => 1,
-                    'unit_price_cents'    => -$depositApplied,
-                    'line_subtotal_cents' => -$depositApplied,
-                    'tax_cents'           => 0,
-                    'tax_rate_snapshot'   => null,
-                    'is_taxable'          => false,
-                    'notes'               => 'Prior payments applied to appointment ' . ($appointment->ra_number ?? ''),
-                ];
-            }
 
             $position = 0;
             foreach ($lineSpecs as $spec) {
