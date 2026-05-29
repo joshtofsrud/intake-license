@@ -193,6 +193,14 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
         Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
         Route::post('/logout',          [TenantControllers\AuthController::class, 'logout'])->name('logout');
 
+        // MARKER-PATCH-173 — Customer-facing return pages for the send-payment-
+        // link (Stripe Checkout) flow. PUBLIC: the paying customer is anonymous
+        // on their own phone, so these must sit OUTSIDE the auth middleware
+        // sub-group below. Paths match the success_url/cancel_url baked into
+        // DirectPaymentsService so links already issued also resolve.
+        Route::get('/register/checkout-success', [TenantControllers\RegisterController::class, 'checkoutSuccess'])->name('register.checkout_success');
+        Route::get('/register/checkout-cancel',  [TenantControllers\RegisterController::class, 'checkoutCancel'])->name('register.checkout_cancel');
+
         // Staff switcher tier — requires trusted device, not signed-in user.
         // Lives between device auth (Layer 1) and user auth (Layer 2 PIN).
         Route::middleware([

@@ -1500,6 +1500,43 @@ class RegisterController extends Controller
     }
 
     /**
+     * MARKER-PATCH-173 — Customer-facing landing page after a successful
+     * Stripe Checkout payment (send-payment-link flow). PUBLIC route: the
+     * paying customer is anonymous on their own device. Tenant is resolved by
+     * ResolveTenant middleware and $currentTenant is shared to the view.
+     *
+     * No money depends on this page — the webhook has already promoted the
+     * sale to paid by the time Stripe redirects here. total_cents is set on
+     * the draft sale at link-creation time, so we show the amount without any
+     * synchronous Stripe round-trip.
+     */
+    public function checkoutSuccess(Request $request)
+    {
+        $tenant    = tenant();
+        $sessionId = (string) $request->query('session_id', '');
+
+        $sale = null;
+        if ($sessionId !== '') {
+            $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('checkout_session_id', $sessionId)
+                ->first();
+        }
+
+        return view('tenant.register.checkout-success', [
+            'amountCents' => $sale?->total_cents,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-173 — Customer-facing landing page when the customer backs
+     * out of the Stripe Checkout page. Nothing was charged. PUBLIC route.
+     */
+    public function checkoutCancel(Request $request)
+    {
+        return view('tenant.register.checkout-cancel');
+    }
+
+    /**
      * MARKER-PATCH-170B — auto-refund a PaymentIntent. Called by the client
      * when commitTransaction fails after a charge already authorized.
      *
