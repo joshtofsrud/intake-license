@@ -381,13 +381,40 @@ class PageBuilderController extends Controller
             'hide_on_mobile'   => false,
             'hide_on_desktop'  => false,
         ],
+        // MARKER-PATCH-158-G34 — step_timeline v2 fields (Phase 2)
         'step_timeline' => [
-            'eyebrow' => '', 'heading' => 'How it works', 'subheading' => '',
+            // Content
+            'eyebrow'          => '',
+            'heading'          => 'How it works',
+            'accent_words'     => '',
+            'subheading'       => '',
             'steps' => [
-                ['title' => 'Sign up', 'desc' => 'Short step description', 'done' => true],
-                ['title' => 'Customize', 'desc' => 'Short step description', 'done' => true],
-                ['title' => 'Launch', 'desc' => 'Short step description', 'done' => false],
+                ['title' => 'Drop off', 'desc' => 'Bring your bike in or schedule a pickup.',  'icon' => ''],
+                ['title' => 'Diagnose', 'desc' => 'We assess what your bike needs and quote.', 'icon' => ''],
+                ['title' => 'Service',  'desc' => 'Repairs and tuning done by our techs.',     'icon' => ''],
+                ['title' => 'Ride',     'desc' => 'Pick up and roll out. Better than new.',    'icon' => ''],
             ],
+            // Layout
+            'layout'           => 'horizontal',  // horizontal | vertical | cards
+            'connector'        => 'line',        // line | dots | arrow | none
+            'show_numbers'     => true,
+            'number_style'     => 'circle',      // circle | square | underline
+            'text_align'       => 'center',
+            'padding_top'      => 'normal',
+            'padding_bottom'   => 'normal',
+            // Style
+            'bg_mode'          => 'none',
+            'bg_color'         => '#ffffff',
+            'bg_gradient_from' => '#ffffff',
+            'bg_gradient_to'   => '#fafafa',
+            'text_color'       => '',
+            'text_color_body'  => '',
+            'accent_color'     => '',
+            // Advanced
+            'anchor_id'        => '',
+            'custom_classes'   => '',
+            'hide_on_mobile'   => false,
+            'hide_on_desktop'  => false,
         ],
         'testimonial_carousel' => [
             'eyebrow' => '', 'heading' => 'What customers say', 'subheading' => '',

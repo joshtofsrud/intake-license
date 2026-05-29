@@ -1250,6 +1250,31 @@
   gap: 6px;
 }
 
+/* MARKER-PATCH-158-G34 — step_timeline steps list editor */
+.pb2-insp-body .pb2-steprow {
+  background: var(--pb2-surface-2);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-steprow-head {
+  display: grid;
+  grid-template-columns: 14px 1fr 38px 22px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-steprow-pos {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pb2-text-dim);
+}
+.pb2-insp-body .pb2-steprow-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -2033,6 +2058,70 @@
 
     // MARKER-PATCH-158-G33 — faq_accordion items list editor
     initFaqList(body);
+
+    // MARKER-PATCH-158-G34 — step_timeline steps list editor
+    initStepsList(body);
+  }
+
+  function initStepsList(body) {
+    const root   = body.querySelector('#pb2-step-list');
+    const addBtn = body.querySelector('#pb2-step-add');
+    const json   = body.querySelector('#pb2-step-json');
+    const count  = body.querySelector('#pb2-step-count');
+    if (!root || !json) return;
+
+    const MAX_STEPS = 8;
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-steprow').forEach((row, i) => {
+        const title = row.querySelector('[data-step-field="title"]')?.value || '';
+        const desc  = row.querySelector('[data-step-field="desc"]')?.value || '';
+        const icon  = row.querySelector('[data-step-field="icon"]')?.value || '';
+        if (title.trim() === '' && desc.trim() === '') return;
+        out.push({ title, desc, icon });
+        const pos = row.querySelector('.pb2-steprow-pos');
+        if (pos) pos.textContent = 'Step ' + (i + 1);
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX_STEPS;
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-step-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = row.querySelector('[data-step-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+    }
+
+    root.querySelectorAll('.pb2-steprow').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (root.querySelectorAll('.pb2-steprow').length >= MAX_STEPS) return;
+        const row = document.createElement('div');
+        row.className = 'pb2-steprow';
+        row.innerHTML = `
+          <div class="pb2-steprow-head">
+            <span class="pb2-navlist-handle">⋮⋮</span>
+            <span class="pb2-steprow-pos">New step</span>
+            <input type="text" class="pb2-input pb2-input-sm pb2-feat-icon" data-step-field="icon" placeholder="🔧" maxlength="4">
+            <button type="button" class="pb2-navlist-remove" data-step-remove title="Remove">×</button>
+          </div>
+          <div class="pb2-steprow-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-step-field="title" placeholder="Step title">
+            <textarea class="pb2-input pb2-input-sm pb2-textarea" data-step-field="desc" rows="2" placeholder="Description (optional)"></textarea>
+          </div>
+        `;
+        root.appendChild(row);
+        wireRow(row);
+        serialize();
+        row.querySelector('[data-step-field="title"]')?.focus();
+      });
+    }
   }
 
   function initFaqList(body) {
