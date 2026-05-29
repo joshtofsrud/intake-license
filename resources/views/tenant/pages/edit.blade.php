@@ -1195,6 +1195,23 @@
   gap: 6px;
 }
 
+/* MARKER-PATCH-158-G32 — logo_bar logos list editor */
+.pb2-insp-body .pb2-logorow {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--pb2-surface-2);
+  border-radius: 4px;
+  padding: 8px 8px 8px 10px;
+  margin-bottom: 6px;
+}
+.pb2-insp-body .pb2-logorow-fields {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1.2fr;
+  gap: 6px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1972,6 +1989,66 @@
 
     // MARKER-PATCH-158-G31 — feature_grid features list editor
     initFeaturesList(body);
+
+    // MARKER-PATCH-158-G32 — logo_bar logos list editor
+    initLogosList(body);
+  }
+
+  function initLogosList(body) {
+    const root   = body.querySelector('#pb2-logo-list');
+    const addBtn = body.querySelector('#pb2-logo-add');
+    const json   = body.querySelector('#pb2-logo-json');
+    const count  = body.querySelector('#pb2-logo-count');
+    if (!root || !json) return;
+
+    const MAX_LOGOS = 12;
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-logorow').forEach(row => {
+        const name     = row.querySelector('[data-logo-field="name"]')?.value || '';
+        const logoUrl  = row.querySelector('[data-logo-field="logo_url"]')?.value || '';
+        const linkUrl  = row.querySelector('[data-logo-field="link_url"]')?.value || '';
+        // Skip totally empty rows
+        if (name.trim() === '' && logoUrl.trim() === '') return;
+        out.push({ name, logo_url: logoUrl, link_url: linkUrl });
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX_LOGOS;
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-logo-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = row.querySelector('[data-logo-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+    }
+
+    root.querySelectorAll('.pb2-logorow').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (root.querySelectorAll('.pb2-logorow').length >= MAX_LOGOS) return;
+        const row = document.createElement('div');
+        row.className = 'pb2-logorow';
+        row.innerHTML = `
+          <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-logorow-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-logo-field="name" placeholder="Name (e.g. Acme Co)">
+            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-logo-field="logo_url" placeholder="Logo image URL (optional)">
+            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-logo-field="link_url" placeholder="Link URL (optional)">
+          </div>
+          <button type="button" class="pb2-navlist-remove" data-logo-remove title="Remove">×</button>
+        `;
+        root.appendChild(row);
+        wireRow(row);
+        serialize();
+        row.querySelector('[data-logo-field="name"]')?.focus();
+      });
+    }
   }
 
   function initFeaturesList(body) {

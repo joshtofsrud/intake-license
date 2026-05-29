@@ -393,7 +393,40 @@ class PageBuilderController extends Controller
             'eyebrow' => '', 'heading' => 'What customers say', 'subheading' => '',
             'testimonials' => [['quote' => 'This changed how we run the shop.', 'author' => 'Name', 'role' => 'Owner']],
         ],
-        'logo_bar'         => ['heading' => 'Trusted by shops like', 'shop_names' => [], 'logos' => []],
+        // MARKER-PATCH-158-G32 — logo_bar v2 fields (Phase 2)
+        'logo_bar'         => [
+            // Content
+            'eyebrow'          => '',
+            'heading'          => 'Trusted by',
+            'accent_words'     => '',
+            'subheading'       => '',
+            'logos'            => [],
+            // Layout
+            'layout'           => 'grid',          // grid | marquee
+            'cols'             => 'auto',          // auto | 3 | 4 | 5 | 6
+            'logo_size'        => 'medium',        // small | medium | large
+            'marquee_speed'    => 'normal',        // slow | normal | fast
+            'text_align'       => 'center',
+            'padding_top'      => 'compact',
+            'padding_bottom'   => 'compact',
+            // Style
+            'bg_mode'          => 'none',
+            'bg_color'         => '#ffffff',
+            'bg_gradient_from' => '#ffffff',
+            'bg_gradient_to'   => '#fafafa',
+            'logo_treatment'   => 'grayscale_hover', // color | grayscale | grayscale_hover | muted
+            'text_color'       => '',
+            'text_color_body'  => '',
+            'accent_color'     => '',
+            // Advanced
+            'anchor_id'        => '',
+            'custom_classes'   => '',
+            'hide_on_mobile'   => false,
+            'hide_on_desktop'  => false,
+
+            // Legacy compat (v1 parallel array)
+            'shop_names'       => [],
+        ],
         'faq_accordion'    => ['eyebrow'=>'','heading'=>'Frequently asked','subheading'=>'','items'=>[['q'=>'A common question?','a'=>'A clear answer.']]],
         'comparison_table' => ['eyebrow'=>'','heading'=>'How we compare','subheading'=>'','competitors'=>['Intake','Other'],'rows'=>[['feature'=>'Feature','values'=>['yes','no']]]],
         'industry_pack_showcase' => ['eyebrow'=>'','heading'=>'Built for your industry','subheading'=>'Pick your industry, get pre-configured services, pricing, and content.','limit'=>12,'show_all_link'=>true],
