@@ -99,6 +99,9 @@ class SaleService
                 'card_brand'               => $data['card_brand']               ?? null,
                 'card_last4'               => $data['card_last4']               ?? null,
                 'card_funding'             => $data['card_funding']             ?? null,
+                // MARKER-PATCH-172E — Checkout Session ID for send-payment-link flow.
+                // Missing this passthrough broke patch 172's draft-sale linkage.
+                'checkout_session_id'      => $data['checkout_session_id']      ?? null,
                 'paid_at'            => $data['paid_at'] ?? null,
                 'notes'              => $data['notes'] ?? null,
                 'subtotal_cents'     => 0,
@@ -342,6 +345,9 @@ class SaleService
                 'card_brand'               => $data['card_brand']               ?? null,
                 'card_last4'               => $data['card_last4']               ?? null,
                 'card_funding'             => $data['card_funding']             ?? null,
+                // MARKER-PATCH-172E — Checkout Session ID for send-payment-link flow.
+                // Missing this passthrough broke patch 172's draft-sale linkage.
+                'checkout_session_id'      => $data['checkout_session_id']      ?? null,
                 'paid_at'           => $paidAt,
                 'tip_cents'         => (int) ($data['tip_cents'] ?? $sale->tip_cents),
                 'notes'             => $data['notes'] ?? $sale->notes,
