@@ -140,7 +140,13 @@ class CustomerTimelineService
                     'subtitle'     => $subtitle,
                     'status'       => $statusLabel,
                     'status_tone'  => $statusTone,
-                    'amount_cents' => (int) $a->total_cents,
+                    // MARKER-PATCH-174B — sales-as-money model: the appointment
+                    // is a service record, not a revenue row. Its money is
+                    // carried by the linked deposit/balance sales (which sum to
+                    // the appointment total). Counting the appointment total
+                    // here AND the sales double-counts. null keeps it off the
+                    // monthly revenue rollup while still showing in the feed.
+                    'amount_cents' => null,
                     'is_refunded'  => $isRefunded,
                     'href'         => route('tenant.appointments.show', [
                         'subdomain' => tenant()->subdomain,

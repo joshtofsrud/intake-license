@@ -133,94 +133,47 @@ class AppointmentRegisterBridgeService
                 'appointment_id'      => $appointment->id,
                 'location_id'         => $locationId,
                 'rang_up_by_user_id'  => Auth::guard('tenant')->id() ?? $this->fallbackUserId($appointment),
-                'subtotal_cents'      => (int) $appointment->subtotal_cents,
-                'tax_cents'           => (int) $appointment->tax_cents,
-                'total_cents'         => (int) $appointment->total_cents,
+                // MARKER-PATCH-174B — sales-as-money model: this balance-
+                // collection sale stores the OUTSTANDING balance, not the full
+                // job. The appointment holds the itemization and is the service
+                // record; sales carry the money. One positive "Service balance"
+                // line is built below (no negative line items — money columns
+                // are unsigned). Tax is already baked into the appointment's
+                // locked total, so the balance line is non-taxable here.
+                'subtotal_cents'      => $balanceCents,
+                'tax_cents'           => 0,
+                'total_cents'         => $balanceCents,
                 'tax_locked'          => true,
                 'notes'               => 'Auto-created from appointment ' . ($appointment->ra_number ?? $appointment->id),
             ]);
 
             // Build the line spec list first so we know subtotal-without-tax
             // and can distribute the appointment's tax proportionally.
-            $lineSpecs = [];
+            // MARKER-PATCH-174B — single positive "Service balance" line for
+            // the outstanding amount. We deliberately do NOT re-itemize the job:
+            // the appointment already holds the full itemization and is the
+            // service-record of truth, and re-listing it on the sale is what
+            // double-counted revenue. A balance-collection sale is a payment,
+            // so one line is correct and keeps every value positive (money
+            // columns are unsigned).
+            $depositApplied = max(0, (int) $appointment->total_cents - $balanceCents);
+            $balanceLabel = $depositApplied > 0
+                ? 'Service balance — ' . ($appointment->ra_number ?? 'appointment')
+                    . ' (after ' . format_money($depositApplied) . ' deposit)'
+                : 'Service balance — ' . ($appointment->ra_number ?? 'appointment');
 
-            foreach ($appointment->items as $item) {
-                $unitPrice = (int) ($item->price_cents_override ?? $item->price_cents);
-                $lineSpecs[] = [
-                    'type'             => 'service',
-                    'name'             => $item->item_name_snapshot,
-                    'quantity'         => 1,
-                    'unit_price_cents' => $unitPrice,
-                    'notes'            => 'From appointment ' . ($appointment->ra_number ?? ''),
-                ];
-            }
-
-            foreach ($appointment->addons as $addon) {
-                $unitPrice = (int) ($addon->price_cents_override ?? $addon->price_cents);
-                $lineSpecs[] = [
-                    'type'             => 'service',
-                    'name'             => '+ ' . $addon->addon_name_snapshot,
-                    'quantity'         => 1,
-                    'unit_price_cents' => $unitPrice,
-                    'notes'            => 'From appointment ' . ($appointment->ra_number ?? ''),
-                ];
-            }
-
-            foreach ($appointment->parts as $part) {
-                $lineSpecs[] = [
-                    'type'             => 'open_item',
-                    'name'             => $part->item_name_snapshot,
-                    'quantity'         => (int) $part->quantity,
-                    'unit_price_cents' => (int) $part->effectiveUnitPriceCents(),
-                    'notes'            => 'Inventory committed via appointment ' . ($appointment->ra_number ?? ''),
-                ];
-            }
-
-            // Compute pre-tax subtotal across all line specs.
-            $preTaxSubtotal = 0;
-            foreach ($lineSpecs as &$spec) {
-                $spec['line_subtotal_cents'] = $spec['unit_price_cents'] * $spec['quantity'];
-                $preTaxSubtotal += $spec['line_subtotal_cents'];
-            }
-            unset($spec);
-
-            // Distribute appointment's tax across lines proportionally.
-            $totalAppointmentTaxCents = (int) $appointment->tax_cents;
-            $taxRate = ($preTaxSubtotal > 0 && $totalAppointmentTaxCents > 0)
-                ? round($totalAppointmentTaxCents / $preTaxSubtotal, 4)
-                : 0.0;
-
-            $taxAssigned = 0;
-            $lastIdx = count($lineSpecs) - 1;
-
-            foreach ($lineSpecs as $i => &$spec) {
-                if ($preTaxSubtotal === 0 || $totalAppointmentTaxCents === 0) {
-                    $spec['tax_cents']         = 0;
-                    $spec['tax_rate_snapshot'] = 0;
-                    $spec['is_taxable']        = false;
-                    continue;
-                }
-
-                if ($i === $lastIdx) {
-                    // Last line absorbs rounding remainder so total matches.
-                    $spec['tax_cents'] = $totalAppointmentTaxCents - $taxAssigned;
-                } else {
-                    $spec['tax_cents'] = (int) round(
-                        $spec['line_subtotal_cents'] * $totalAppointmentTaxCents / $preTaxSubtotal
-                    );
-                    $taxAssigned += $spec['tax_cents'];
-                }
-
-                $spec['tax_rate_snapshot'] = $taxRate;
-                $spec['is_taxable']        = true;
-            }
-            unset($spec);
-
-            $position = 0;
-            foreach ($lineSpecs as $spec) {
-                $spec['position'] = $position++;
-                $this->createSaleLine($sale, $spec);
-            }
+            $this->createSaleLine($sale, [
+                'type'                => 'open_item',
+                'name'                => $balanceLabel,
+                'quantity'            => 1,
+                'unit_price_cents'    => $balanceCents,
+                'line_subtotal_cents' => $balanceCents,
+                'tax_cents'           => 0,
+                'tax_rate_snapshot'   => null,
+                'is_taxable'          => false,
+                'position'            => 0,
+                'notes'               => 'Outstanding balance for appointment ' . ($appointment->ra_number ?? ''),
+            ]);
 
             return $sale;
         });
