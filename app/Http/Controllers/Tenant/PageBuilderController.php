@@ -427,7 +427,38 @@ class PageBuilderController extends Controller
             // Legacy compat (v1 parallel array)
             'shop_names'       => [],
         ],
-        'faq_accordion'    => ['eyebrow'=>'','heading'=>'Frequently asked','subheading'=>'','items'=>[['q'=>'A common question?','a'=>'A clear answer.']]],
+        // MARKER-PATCH-158-G33 — faq_accordion v2 fields (Phase 2)
+        'faq_accordion'    => [
+            // Content
+            'eyebrow'          => '',
+            'heading'          => 'Frequently asked',
+            'accent_words'     => '',
+            'subheading'       => '',
+            'items'            => [
+                ['question'=>'A common question?','answer'=>'A clear answer.','open_default'=>false],
+            ],
+            // Layout
+            'open_mode'        => 'multiple',     // multiple | single
+            'style'            => 'divider',      // bordered | divider | minimal
+            'width'            => 'medium',
+            'icon_style'       => 'chevron',      // chevron | plus | arrow | none
+            'text_align'       => 'center',
+            'padding_top'      => 'normal',
+            'padding_bottom'   => 'normal',
+            // Style
+            'bg_mode'          => 'none',
+            'bg_color'         => '#ffffff',
+            'bg_gradient_from' => '#ffffff',
+            'bg_gradient_to'   => '#fafafa',
+            'text_color'       => '',
+            'text_color_body'  => '',
+            'accent_color'     => '',
+            // Advanced
+            'anchor_id'        => '',
+            'custom_classes'   => '',
+            'hide_on_mobile'   => false,
+            'hide_on_desktop'  => false,
+        ],
         'comparison_table' => ['eyebrow'=>'','heading'=>'How we compare','subheading'=>'','competitors'=>['Intake','Other'],'rows'=>[['feature'=>'Feature','values'=>['yes','no']]]],
         'industry_pack_showcase' => ['eyebrow'=>'','heading'=>'Built for your industry','subheading'=>'Pick your industry, get pre-configured services, pricing, and content.','limit'=>12,'show_all_link'=>true],
         // MARKER-PATCH-158-G27 — stats_row v2 fields (Phase 2)

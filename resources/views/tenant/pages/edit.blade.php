@@ -1212,6 +1212,44 @@
   gap: 6px;
 }
 
+/* MARKER-PATCH-158-G33 — FAQ accordion items list editor */
+.pb2-insp-body .pb2-faqrow {
+  background: var(--pb2-surface-2);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-faqrow-head {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.pb2-insp-body .pb2-faqrow-pos {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pb2-text-dim);
+}
+.pb2-insp-body .pb2-faqrow-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--pb2-text-faint);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pb2-insp-body .pb2-faqrow-open:hover { background: var(--pb2-bg); }
+.pb2-insp-body .pb2-faqrow-open input[type="checkbox"] { accent-color: var(--pb2-accent); }
+.pb2-insp-body .pb2-faqrow-open input[type="checkbox"]:checked + span { color: var(--pb2-accent); }
+.pb2-insp-body .pb2-faqrow-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .pb2-insp-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 10px 18px;
@@ -1992,6 +2030,73 @@
 
     // MARKER-PATCH-158-G32 — logo_bar logos list editor
     initLogosList(body);
+
+    // MARKER-PATCH-158-G33 — faq_accordion items list editor
+    initFaqList(body);
+  }
+
+  function initFaqList(body) {
+    const root   = body.querySelector('#pb2-faq-list');
+    const addBtn = body.querySelector('#pb2-faq-add');
+    const json   = body.querySelector('#pb2-faq-json');
+    const count  = body.querySelector('#pb2-faq-count');
+    if (!root || !json) return;
+
+    const MAX_FAQS = 20;
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-faqrow').forEach((row, i) => {
+        const q = row.querySelector('[data-faq-field="question"]')?.value || '';
+        const a = row.querySelector('[data-faq-field="answer"]')?.value || '';
+        const od = row.querySelector('[data-faq-field="open_default"]')?.checked ? true : false;
+        if (q.trim() === '' && a.trim() === '') return;
+        out.push({ question: q, answer: a, open_default: od });
+        const pos = row.querySelector('.pb2-faqrow-pos');
+        if (pos) pos.textContent = 'Q' + (i + 1);
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX_FAQS;
+    }
+
+    function wireRow(row) {
+      row.querySelectorAll('[data-faq-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = row.querySelector('[data-faq-remove]');
+      if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+    }
+
+    root.querySelectorAll('.pb2-faqrow').forEach(wireRow);
+
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        if (root.querySelectorAll('.pb2-faqrow').length >= MAX_FAQS) return;
+        const row = document.createElement('div');
+        row.className = 'pb2-faqrow';
+        row.innerHTML = `
+          <div class="pb2-faqrow-head">
+            <span class="pb2-navlist-handle">⋮⋮</span>
+            <span class="pb2-faqrow-pos">New</span>
+            <label class="pb2-faqrow-open" title="Open this item by default">
+              <input type="checkbox" data-faq-field="open_default">
+              <span>Open</span>
+            </label>
+            <button type="button" class="pb2-navlist-remove" data-faq-remove title="Remove">×</button>
+          </div>
+          <div class="pb2-faqrow-fields">
+            <input type="text" class="pb2-input pb2-input-sm" data-faq-field="question" placeholder="Question">
+            <textarea class="pb2-input pb2-input-sm pb2-textarea" data-faq-field="answer" rows="3" placeholder="Answer"></textarea>
+          </div>
+        `;
+        root.appendChild(row);
+        wireRow(row);
+        serialize();
+        row.querySelector('[data-faq-field="question"]')?.focus();
+      });
+    }
   }
 
   function initLogosList(body) {
