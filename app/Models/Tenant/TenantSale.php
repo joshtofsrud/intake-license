@@ -62,6 +62,8 @@ class TenantSale extends Model
     public function refundOf(): BelongsTo      { return $this->belongsTo(TenantSale::class, 'refund_of_sale_id'); }
     public function refunds(): HasMany         { return $this->hasMany(TenantSale::class, 'refund_of_sale_id'); }
     public function items(): HasMany           { return $this->hasMany(TenantSaleItem::class, 'sale_id'); }
+    // MARKER-PATCH-175 — sale payment ledger (source of truth for amount paid).
+    public function payments(): HasMany        { return $this->hasMany(TenantSalePayment::class, 'sale_id'); }
 
     public function scopeActive($q)            { return $q->whereNotIn('status', ['cancelled']); }
     public function scopeUnpaid($q)            { return $q->where('payment_status', 'unpaid'); }
