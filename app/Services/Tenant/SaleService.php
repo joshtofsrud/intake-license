@@ -128,29 +128,39 @@ class SaleService
 
             $finalSale = $this->recalculate($sale->fresh('items'));
 
-            // Appointment-payment hook (mirrors commitDraft path).
-            if ($finalSale->appointment_id && $finalSale->payment_status === 'paid') {
+            // MARKER-PATCH-176 — record payment on the SALE ledger (createSale
+            // path). Mirrors the commit path; appointment reads it through its
+            // sale. Refresh appointment paid_cents cache afterward.
+            if ($finalSale->payment_status === 'paid') {
                 try {
-                    $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
-                    if ($appointment) {
-                        $existingPayments = $appointment->payments()->count();
-                        $kind = $existingPayments === 0
-                            ? \App\Models\Tenant\TenantAppointmentPayment::KIND_DEPOSIT
-                            : \App\Models\Tenant\TenantAppointmentPayment::KIND_BALANCE;
+                    $existingOnSale = $finalSale->payments()->count();
+                    if ($existingOnSale === 0) {
+                        $kind = $finalSale->appointment_id
+                            ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT;
+                    } else {
+                        $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
+                    }
 
-                        app(\App\Services\Tenant\AppointmentPaymentService::class)->record(
-                            appointment:     $appointment,
-                            amountCents:     (int) $finalSale->total_cents,
-                            kind:            $kind,
-                            source:          \App\Models\Tenant\TenantAppointmentPayment::SOURCE_REGISTER_SALE,
-                            method:          $finalSale->payment_method ?? 'other',
-                            registerSaleId:  $finalSale->id,
-                            externalReference: $finalSale->payment_reference,
-                            notes:           "Paid via sale {$finalSale->sale_number}",
-                        );
+                    app(\App\Services\Tenant\SalePaymentService::class)->record(
+                        sale:               $finalSale,
+                        amountCents:        (int) $finalSale->total_cents,
+                        kind:               $kind,
+                        source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
+                        method:             $finalSale->payment_method ?? 'other',
+                        externalReference:  $finalSale->payment_reference,
+                        notes:              "Paid via sale {$finalSale->sale_number}",
+                    );
+
+                    if ($finalSale->appointment_id) {
+                        $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
+                        if ($appointment) {
+                            $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
+                            $appointment->save();
+                        }
                     }
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Appointment payment ledger write failed (createSale)', [
+                    \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed (createSale)', [
                         'sale_id'        => $finalSale->id,
                         'appointment_id' => $finalSale->appointment_id,
                         'error'          => $e->getMessage(),
@@ -377,28 +387,48 @@ class SaleService
             // ledger write fails for some reason, the sale is still real
             // money and committed, and an admin can manually record the
             // payment row later. Logging surfaces the issue.
-            if ($finalSale->appointment_id && $newPaymentStatus === 'paid') {
+            // MARKER-PATCH-176 — record the payment on the SALE ledger
+            // (sales-as-money). Every paid sale gets a payment row here; if the
+            // sale is appointment-linked, the appointment reads it THROUGH its
+            // sale (see TenantAppointment::payments()). We then refresh the
+            // appointment's paid_cents cache so its detail banner stays correct.
+            //
+            // Kind: first payment on THIS sale = deposit (appointment job) or
+            // payment (walk-in retail); subsequent payments = balance.
+            //
+            // Wrapped so a ledger failure never rolls back the sale — the sale
+            // is real money and committed; an admin can record the row later.
+            if ($newPaymentStatus === 'paid') {
                 try {
-                    $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
-                    if ($appointment) {
-                        $existingPayments = $appointment->payments()->count();
-                        $kind = $existingPayments === 0
-                            ? \App\Models\Tenant\TenantAppointmentPayment::KIND_DEPOSIT
-                            : \App\Models\Tenant\TenantAppointmentPayment::KIND_BALANCE;
+                    $existingOnSale = $finalSale->payments()->count();
+                    if ($existingOnSale === 0) {
+                        $kind = $finalSale->appointment_id
+                            ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT;
+                    } else {
+                        $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
+                    }
 
-                        app(\App\Services\Tenant\AppointmentPaymentService::class)->record(
-                            appointment:     $appointment,
-                            amountCents:     (int) $finalSale->total_cents,
-                            kind:            $kind,
-                            source:          \App\Models\Tenant\TenantAppointmentPayment::SOURCE_REGISTER_SALE,
-                            method:          $finalSale->payment_method ?? 'other',
-                            registerSaleId:  $finalSale->id,
-                            externalReference: $finalSale->payment_reference,
-                            notes:           "Paid via sale {$finalSale->sale_number}",
-                        );
+                    app(\App\Services\Tenant\SalePaymentService::class)->record(
+                        sale:               $finalSale,
+                        amountCents:        (int) $finalSale->total_cents,
+                        kind:               $kind,
+                        source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
+                        method:             $finalSale->payment_method ?? 'other',
+                        externalReference:  $finalSale->payment_reference,
+                        notes:              "Paid via sale {$finalSale->sale_number}",
+                    );
+
+                    // Refresh appointment paid_cents cache from the sale ledger.
+                    if ($finalSale->appointment_id) {
+                        $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
+                        if ($appointment) {
+                            $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
+                            $appointment->save();
+                        }
                     }
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Appointment payment ledger write failed', [
+                    \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed', [
                         'sale_id'        => $finalSale->id,
                         'appointment_id' => $finalSale->appointment_id,
                         'error'          => $e->getMessage(),
@@ -731,50 +761,62 @@ class SaleService
             // Phase 1 limitation: refunds against a single inbound payment.
             // If refund amount exceeds that one row, we log and bail rather
             // than half-implementing a cascade across deposit + balance.
-            if ($original->appointment_id) {
-                try {
-                    $refundCents = (int) abs($finalRefund->total_cents);
-                    if ($refundCents > 0) {
-                        $originalPayment = \App\Models\Tenant\TenantAppointmentPayment::query()
-                            ->where('register_sale_id', $original->id)
-                            ->whereIn('kind', [
-                                \App\Models\Tenant\TenantAppointmentPayment::KIND_DEPOSIT,
-                                \App\Models\Tenant\TenantAppointmentPayment::KIND_BALANCE,
-                            ])
-                            ->orderByDesc('recorded_at')
-                            ->first();
+            // MARKER-PATCH-176 — refund row on the SALE ledger. Identical-but-
+            // repointed from the appointment ledger (the standalone/simplified
+            // refund redesign is patch-177). We record a NEGATIVE row against
+            // the ORIGINAL sale so its net paid drops and recalcStatus reflects
+            // refunded/partial; the appointment (if any) reads it through the
+            // sale. Phase-1 behavior preserved: refund against a single inbound
+            // payment row; if it exceeds that row we log and skip the auto-write.
+            try {
+                $refundCents = (int) abs($finalRefund->total_cents);
+                if ($refundCents > 0) {
+                    $originalPayment = \App\Models\Tenant\TenantSalePayment::query()
+                        ->where('sale_id', $original->id)
+                        ->whereIn('kind', [
+                            \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT,
+                            \App\Models\Tenant\TenantSalePayment::KIND_BALANCE,
+                            \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT,
+                        ])
+                        ->orderByDesc('recorded_at')
+                        ->first();
 
-                        if (! $originalPayment) {
-                            \Illuminate\Support\Facades\Log::warning('Refund ledger: no original payment row found for sale', [
-                                'refund_sale_id'   => $finalRefund->id,
-                                'original_sale_id' => $original->id,
-                                'appointment_id'   => $original->appointment_id,
-                            ]);
-                        } elseif ($refundCents > $originalPayment->amount_cents) {
-                            \Illuminate\Support\Facades\Log::warning('Refund ledger: refund exceeds single original payment, skipping auto-write', [
-                                'refund_sale_id'      => $finalRefund->id,
-                                'refund_cents'        => $refundCents,
-                                'original_payment_id' => $originalPayment->id,
-                                'original_amount'     => $originalPayment->amount_cents,
-                            ]);
-                        } else {
-                            app(\App\Services\Tenant\AppointmentPaymentService::class)->refund(
-                                original:       $originalPayment,
-                                amountCents:    $refundCents,
-                                method:         $data['refund_method'] ?? null,
-                                registerSaleId: $finalRefund->id,
-                                notes:          "Refund via sale {$finalRefund->sale_number}",
-                            );
+                    if (! $originalPayment) {
+                        \Illuminate\Support\Facades\Log::warning('Refund ledger: no original payment row found for sale', [
+                            'refund_sale_id'   => $finalRefund->id,
+                            'original_sale_id' => $original->id,
+                        ]);
+                    } elseif ($refundCents > $originalPayment->amount_cents) {
+                        \Illuminate\Support\Facades\Log::warning('Refund ledger: refund exceeds single original payment, skipping auto-write', [
+                            'refund_sale_id'      => $finalRefund->id,
+                            'refund_cents'        => $refundCents,
+                            'original_payment_id' => $originalPayment->id,
+                            'original_amount'     => $originalPayment->amount_cents,
+                        ]);
+                    } else {
+                        app(\App\Services\Tenant\SalePaymentService::class)->refund(
+                            sale:               $original,
+                            amountCents:        $refundCents,
+                            method:             $data['refund_method'] ?? 'other',
+                            referencePaymentId: $originalPayment->id,
+                            notes:              "Refund via sale {$finalRefund->sale_number}",
+                        );
+
+                        if ($original->appointment_id) {
+                            $appointment = \App\Models\Tenant\TenantAppointment::find($original->appointment_id);
+                            if ($appointment) {
+                                $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
+                                $appointment->save();
+                            }
                         }
                     }
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error('Appointment refund ledger write failed', [
-                        'refund_sale_id'   => $finalRefund->id,
-                        'original_sale_id' => $original->id,
-                        'appointment_id'   => $original->appointment_id,
-                        'error'            => $e->getMessage(),
-                    ]);
                 }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Sale refund ledger write failed', [
+                    'refund_sale_id'   => $finalRefund->id,
+                    'original_sale_id' => $original->id,
+                    'error'            => $e->getMessage(),
+                ]);
             }
 
             return $finalRefund;

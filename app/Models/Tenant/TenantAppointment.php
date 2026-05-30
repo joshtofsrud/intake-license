@@ -56,7 +56,21 @@ class TenantAppointment extends Model
     public function responses(): HasMany   { return $this->hasMany(TenantAppointmentResponse::class, 'appointment_id'); }
     public function notes(): HasMany       { return $this->hasMany(TenantAppointmentNote::class, 'appointment_id')->orderBy('created_at'); }
     public function charges(): HasMany     { return $this->hasMany(TenantAppointmentCharge::class, 'appointment_id'); }
-    public function payments(): HasMany    { return $this->hasMany(TenantAppointmentPayment::class, 'appointment_id')->orderBy('recorded_at'); }
+    // MARKER-PATCH-176 — payments now live on the linked SALE ledger (sales-as-
+    // money). An appointment reaches its payments THROUGH its sale(s):
+    // appointment_id on tenant_sales, sale_id on tenant_sale_payments. Same row
+    // shape (kind/amount_cents/recorded_at) so existing reads keep working.
+    public function payments(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            TenantSalePayment::class,
+            TenantSale::class,
+            'appointment_id', // FK on tenant_sales -> appointments
+            'sale_id',        // FK on tenant_sale_payments -> sales
+            'id',             // local key on appointments
+            'id'              // local key on sales
+        )->orderBy('tenant_sale_payments.recorded_at');
+    }
     public function sales(): HasMany       { return $this->hasMany(TenantSale::class, 'appointment_id'); }
     public function specialOrders(): HasMany { return $this->hasMany(TenantSpecialOrder::class, 'appointment_id'); }
 

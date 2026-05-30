@@ -39,6 +39,7 @@ class TenantSalePayment extends Model
     protected $fillable = [
         'tenant_id',
         'sale_id',
+        'customer_id', // MARKER-PATCH-176 — always set for standalone refunds
         'amount_cents',
         'kind',
         'source',
@@ -58,6 +59,12 @@ class TenantSalePayment extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(TenantSale::class, 'sale_id');
+    }
+
+    // MARKER-PATCH-176 — a refund always has a customer; sale is optional.
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(TenantCustomer::class, 'customer_id');
     }
 
     public function referencePayment(): BelongsTo
