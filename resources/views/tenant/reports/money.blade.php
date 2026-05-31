@@ -3,6 +3,19 @@
 
 @push('styles')
 @include('tenant.reports._tab_styles')
+<style>
+/* MARKER-PATCH-185 — revenue split dots + composition bar */
+.rep-rev-strip .lbl{display:flex;align-items:center;gap:7px}
+.rep-rev-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.rep-rev-dot.is-svc{background:var(--ia-accent,#bef264);box-shadow:0 0 8px rgba(190,242,100,0.45)}
+.rep-rev-dot.is-ret{background:#5ea9ff}
+.rep-rev-dot.is-unc{background:#8b8b94}
+.rep-rev-bar{display:flex;height:8px;width:100%;border-radius:999px;overflow:hidden;margin-top:14px;background:var(--ia-surface-2,rgba(255,255,255,0.04));border:0.5px solid var(--ia-border)}
+.rep-rev-bar span{display:block;height:100%}
+.rep-rev-bar .b-svc{background:linear-gradient(90deg,#bef264,#a3e635)}
+.rep-rev-bar .b-ret{background:linear-gradient(90deg,#5ea9ff,#3b82f6)}
+.rep-rev-bar .b-unc{background:#8b8b94}
+</style>
 @endpush
 
 @section('content')
@@ -24,14 +37,29 @@
     </div>
   </div>
 
-  {{-- Revenue summary --}}
+  {{-- Revenue summary — MARKER-PATCH-185: service/retail/uncategorized by line-item type. --}}
+  @php
+    $revTotal = (int) $revenueSummary['total_revenue_cents'];
+    $revSvc   = (int) $revenueSummary['service_revenue_cents'];
+    $revRet   = (int) $revenueSummary['retail_revenue_cents'];
+    $revUnc   = (int) ($revenueSummary['uncategorized_revenue_cents'] ?? 0);
+    $pct = fn($c) => $revTotal > 0 ? round($c / $revTotal * 100) : 0;
+  @endphp
   <div class="rep-zone">
-    <div class="rep-zone-head"><div><div class="rep-zone-title">💰 Revenue</div><div class="rep-zone-sub">Paid service revenue + paid retail revenue. Refunds excluded.</div></div></div>
-    <div class="rep-stat-strip">
-      <div class="rep-stat-cell"><div class="lbl">Service</div><div class="val">${{ number_format($revenueSummary['service_revenue_cents'] / 100, 2) }}</div><div class="meta">paid appointments</div></div>
-      <div class="rep-stat-cell"><div class="lbl">Retail</div><div class="val">${{ number_format($revenueSummary['retail_revenue_cents'] / 100, 2) }}</div><div class="meta">paid sales</div></div>
-      <div class="rep-stat-cell feat"><div class="lbl">Total</div><div class="val">${{ number_format($revenueSummary['total_revenue_cents'] / 100, 2) }}</div><div class="meta">combined</div></div>
+    <div class="rep-zone-head"><div><div class="rep-zone-title">💰 Revenue</div><div class="rep-zone-sub">Payments received in this period. Refunds netted out.</div></div></div>
+    <div class="rep-stat-strip rep-rev-strip">
+      <div class="rep-stat-cell"><div class="lbl"><span class="rep-rev-dot is-svc"></span>Service</div><div class="val">${{ number_format($revSvc / 100, 2) }}</div><div class="meta">{{ $pct($revSvc) }}% of revenue</div></div>
+      <div class="rep-stat-cell"><div class="lbl"><span class="rep-rev-dot is-ret"></span>Retail</div><div class="val">${{ number_format($revRet / 100, 2) }}</div><div class="meta">{{ $pct($revRet) }}% of revenue</div></div>
+      <div class="rep-stat-cell"><div class="lbl"><span class="rep-rev-dot is-unc"></span>Uncategorized</div><div class="val">${{ number_format($revUnc / 100, 2) }}</div><div class="meta">{{ $pct($revUnc) }}% of revenue</div></div>
+      <div class="rep-stat-cell feat"><div class="lbl">Total revenue</div><div class="val">${{ number_format($revTotal / 100, 2) }}</div><div class="meta">combined</div></div>
     </div>
+    @if($revTotal > 0)
+    <div class="rep-rev-bar">
+      <span class="b-svc" style="width:{{ $pct($revSvc) }}%"></span>
+      <span class="b-ret" style="width:{{ $pct($revRet) }}%"></span>
+      <span class="b-unc" style="width:{{ $pct($revUnc) }}%"></span>
+    </div>
+    @endif
   </div>
 
   {{-- Refunds --}}

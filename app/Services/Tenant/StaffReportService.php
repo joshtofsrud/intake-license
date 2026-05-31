@@ -88,28 +88,43 @@ class StaffReportService
         // tenant_users has only `name` — no first_name/last_name. When a resource
         // is staff-linked we surface the user name; otherwise fall back to the
         // resource name; otherwise the user is "Unassigned".
-        $list = DB::table('tenant_appointments as a')
+        // MARKER-PATCH-185 — per-staff revenue = payments received (sale ledger),
+        // attributed via payment -> sale -> appointment -> resource -> staff_user.
+        // appt_count stays appointment-based (delivered jobs). recorded_at is UTC.
+        $tzSt = $this->tenant->timezone();
+        $stStart = $from->copy()->setTimezone($tzSt)->startOfDay()->utc();
+        $stEnd   = $to->copy()->setTimezone($tzSt)->endOfDay()->utc();
+
+        $apptCounts = DB::table('tenant_appointments as a')
             ->leftJoin('tenant_resources as r', 'r.id', '=', 'a.resource_id')
-            ->leftJoin('tenant_users as u', 'u.id', '=', 'r.staff_user_id')
             ->where('a.tenant_id', $this->tenant->id)
             ->whereIn('a.status', self::DELIVERED_STATUSES)
-            ->where('a.payment_status', 'paid')
             ->whereBetween('a.appointment_date', [$from->toDateString(), $to->toDateString()])
+            ->selectRaw('COALESCE(r.staff_user_id, "unassigned") as user_key, COUNT(*) as appt_count')
+            ->groupBy('user_key')
+            ->pluck('appt_count', 'user_key');
+
+        $list = DB::table('tenant_sale_payments as tsp')
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tsp.sale_id')
+            ->join('tenant_appointments as a', 'a.id', '=', 'ts.appointment_id')
+            ->leftJoin('tenant_resources as r', 'r.id', '=', 'a.resource_id')
+            ->leftJoin('tenant_users as u', 'u.id', '=', 'r.staff_user_id')
+            ->where('tsp.tenant_id', $this->tenant->id)
+            ->whereBetween('tsp.recorded_at', [$stStart, $stEnd])
             ->selectRaw('
                 COALESCE(r.staff_user_id, "unassigned") as user_key,
                 u.name as user_name,
                 r.name as resource_name,
-                COUNT(*) as appt_count,
-                SUM(a.total_cents) as revenue
+                SUM(tsp.amount_cents) as revenue
             ')
             ->groupBy('user_key', 'u.name', 'r.name')
             ->orderByDesc('revenue')
             ->get()
-            ->map(function($r) {
+            ->map(function($r) use ($apptCounts) {
                 $name = $r->user_name ?: ($r->resource_name ?: 'Unassigned');
                 return [
                     'name'           => $name,
-                    'appt_count'     => (int) $r->appt_count,
+                    'appt_count'     => (int) ($apptCounts[$r->user_key] ?? 0),
                     'revenue_cents'  => (int) $r->revenue,
                 ];
             })

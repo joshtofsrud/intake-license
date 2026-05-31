@@ -29,15 +29,16 @@ class MoneyReportService
      */
     public function revenueSummary(Carbon $from, Carbon $to, bool $aggregatesOnly = false): array
     {
-        // MARKER-PATCH-184E — single source of truth: payments received (ledger)
-        // in the window. No more appt+sale double-count. The service/retail split
-        // apportions each sale's payments by the service-vs-retail ratio of its
-        // line items, so service + retail == total (payments received).
+        // MARKER-PATCH-184E — Revenue = payments received (ledger) in window.
+        // Broken into Service (type=service), Retail (type=product), and
+        // Uncategorized (everything else, e.g. open_item) by apportioning each
+        // sale's payments across its line-item type composition. The three
+        // buckets sum to total. Deposits/balances are cash-flow mechanics, not
+        // a category — the money attributes by what the sale's lines are.
         $tz = $this->tenant->timezone();
         $winStart = $from->copy()->setTimezone($tz)->startOfDay()->utc();
         $winEnd   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
 
-        // Payments received per sale in the window (signed; refunds net out).
         $paidPerSale = DB::table('tenant_sale_payments')
             ->where('tenant_id', $this->tenant->id)
             ->whereBetween('recorded_at', [$winStart, $winEnd])
@@ -47,15 +48,16 @@ class MoneyReportService
 
         $totalRevenue = (int) $paidPerSale->sum();
 
-        // Service vs retail composition of those sales, from line items.
         $serviceRevenue = 0;
         $retailRevenue  = 0;
+        $uncategorizedRevenue = 0;
         if ($paidPerSale->isNotEmpty()) {
             $composition = DB::table('tenant_sale_items')
                 ->where('tenant_id', $this->tenant->id)
                 ->whereIn('sale_id', $paidPerSale->keys()->all())
                 ->selectRaw("sale_id,
                     SUM(CASE WHEN type = 'service' THEN line_total_cents ELSE 0 END) as service_cents,
+                    SUM(CASE WHEN type = 'product' THEN line_total_cents ELSE 0 END) as retail_cents,
                     SUM(line_total_cents) as all_cents")
                 ->groupBy('sale_id')
                 ->get()
@@ -64,21 +66,26 @@ class MoneyReportService
             foreach ($paidPerSale as $saleId => $paidCents) {
                 $comp = $composition->get($saleId);
                 $all  = (int) ($comp->all_cents ?? 0);
-                $svc  = (int) ($comp->service_cents ?? 0);
                 if ($all > 0) {
-                    $serviceShare = (int) round($paidCents * ($svc / $all));
+                    $svc = (int) round($paidCents * ((int) $comp->service_cents / $all));
+                    $ret = (int) round($paidCents * ((int) $comp->retail_cents / $all));
+                    // Remainder (rounding + non-service/non-product lines) -> uncategorized.
+                    $unc = $paidCents - $svc - $ret;
                 } else {
-                    $serviceShare = 0; // no line items (e.g. bare deposit) -> treat as retail/uncategorized
+                    // No line items at all -> uncategorized.
+                    $svc = 0; $ret = 0; $unc = $paidCents;
                 }
-                $serviceRevenue += $serviceShare;
-                $retailRevenue  += ($paidCents - $serviceShare);
+                $serviceRevenue       += $svc;
+                $retailRevenue        += $ret;
+                $uncategorizedRevenue += $unc;
             }
         }
 
         return [
-            'service_revenue_cents' => $serviceRevenue,
-            'retail_revenue_cents'  => $retailRevenue,
-            'total_revenue_cents'   => $totalRevenue,
+            'service_revenue_cents'       => $serviceRevenue,
+            'retail_revenue_cents'        => $retailRevenue,
+            'uncategorized_revenue_cents' => $uncategorizedRevenue,
+            'total_revenue_cents'         => $totalRevenue,
         ];
     }
 

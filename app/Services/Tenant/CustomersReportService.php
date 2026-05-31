@@ -177,44 +177,21 @@ class CustomersReportService
             ];
         }
 
-        // Appointment revenue per customer (delivered + paid only).
-        $apptRevenue = DB::table('tenant_appointments')
-            ->selectRaw('customer_id, SUM(total_cents) as cents')
-            ->where('tenant_id', $this->tenant->id)
-            ->whereIn('status', self::DELIVERED_STATUSES)
-            ->where('payment_status', 'paid')
-            ->whereNotNull('customer_id')
-            ->groupBy('customer_id');
-
-        // Sale revenue per customer (paid sales, refunds excluded from positive
-        // side and subtracted from negative side).
-        $salePositive = DB::table('tenant_sales')
-            ->selectRaw('customer_id, SUM(total_cents) as cents')
-            ->where('tenant_id', $this->tenant->id)
-            ->where('payment_status', 'paid')
-            ->whereNull('refund_of_sale_id')
-            ->whereNotNull('customer_id')
-            ->groupBy('customer_id');
-
-        $saleRefund = DB::table('tenant_sales')
-            ->selectRaw('customer_id, SUM(total_cents) as cents')
-            ->where('tenant_id', $this->tenant->id)
-            ->whereNotNull('refund_of_sale_id')
-            ->whereNotNull('customer_id')
-            ->groupBy('customer_id');
-
-        // Pull all three streams and merge in PHP. At <100K customers per
-        // tenant, three indexed-aggregate queries are cheaper than one
-        // many-way UNION with joins, and easier to reason about.
-        $apptMap = $apptRevenue->get()->keyBy('customer_id');
-        $salePosMap = $salePositive->get()->keyBy('customer_id');
-        $saleRefMap = $saleRefund->get()->keyBy('customer_id');
+        // MARKER-PATCH-185 — LTV = payments received (sale ledger) per customer,
+        // attributed via the sale's customer. Single source of truth; no more
+        // appt+sale double-count. Signed amounts net refunds automatically.
+        $ledgerLtv = DB::table('tenant_sale_payments as tsp')
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tsp.sale_id')
+            ->where('tsp.tenant_id', $this->tenant->id)
+            ->whereNotNull('ts.customer_id')
+            ->selectRaw('ts.customer_id as customer_id, SUM(tsp.amount_cents) as cents')
+            ->groupBy('ts.customer_id')
+            ->get()
+            ->keyBy('customer_id');
 
         // Build the LTV-by-customer dictionary.
         $ltv = [];
-        foreach ($apptMap as $cid => $row)    $ltv[$cid] = ($ltv[$cid] ?? 0) + (int)$row->cents;
-        foreach ($salePosMap as $cid => $row) $ltv[$cid] = ($ltv[$cid] ?? 0) + (int)$row->cents;
-        foreach ($saleRefMap as $cid => $row) $ltv[$cid] = ($ltv[$cid] ?? 0) - (int)$row->cents;
+        foreach ($ledgerLtv as $cid => $row) $ltv[$cid] = (int) $row->cents;
 
         // Filter out customers with non-positive LTV (refund-only edge case).
         $ltv = array_filter($ltv, fn($cents) => $cents > 0);

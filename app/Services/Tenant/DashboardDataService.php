@@ -83,7 +83,14 @@ class DashboardDataService
             ->whereBetween('appointment_date', [$weekStart, $today]);
 
         $weekBookings = (clone $weekBase)->count();
-        $weekRevenue = (int) (clone $weekBase)->where('payment_status', 'paid')->sum('total_cents');
+        // MARKER-PATCH-185 — week revenue = payments received (sale ledger).
+        $tzW = $this->tenant->timezone();
+        $weekRevenue = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_id', $this->tenant->id)
+            ->whereBetween('recorded_at', [
+                $weekStart->copy()->setTimezone($tzW)->startOfDay()->utc(),
+                $this->tnow()->setTimezone($tzW)->endOfDay()->utc(),
+            ])
+            ->sum('amount_cents');
         $weekCancellations = (clone $weekBase)->whereIn('status', ['cancelled', 'refunded'])->count();
 
         $weekNewCustomers = TenantCustomer::where('tenant_id', $this->tenant->id)
@@ -418,17 +425,21 @@ class DashboardDataService
         $thirtyAgo = $this->tnow()->subDays(29)->startOfDay();   // start of current 30d window
         $sixtyAgo  = $this->tnow()->subDays(59)->startOfDay();   // start of prior 30d window
 
-        $revenueCurrent = (int) TenantAppointment::where('tenant_id', $tenantId)
-            ->whereBetween('appointment_date', [$thirtyAgo->toDateString(), $today->toDateString()])
-            ->whereIn('status', ['completed', 'closed'])
-            ->where('payment_status', 'paid')
-            ->sum('total_cents');
+        // MARKER-PATCH-185 — revenue = payments received (sale ledger), matching
+        // Reports. recorded_at is UTC; bound by tenant-local windows -> UTC.
+        $tzG = $this->tenant->timezone();
+        $curStart = $thirtyAgo->copy()->setTimezone($tzG)->startOfDay()->utc();
+        $curEnd   = $today->copy()->setTimezone($tzG)->endOfDay()->utc();
+        $priStart = $sixtyAgo->copy()->setTimezone($tzG)->startOfDay()->utc();
+        $priEnd   = $thirtyAgo->copy()->subDay()->setTimezone($tzG)->endOfDay()->utc();
 
-        $revenuePrior = (int) TenantAppointment::where('tenant_id', $tenantId)
-            ->whereBetween('appointment_date', [$sixtyAgo->toDateString(), $thirtyAgo->copy()->subDay()->toDateString()])
-            ->whereIn('status', ['completed', 'closed'])
-            ->where('payment_status', 'paid')
-            ->sum('total_cents');
+        $revenueCurrent = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenantId)
+            ->whereBetween('recorded_at', [$curStart, $curEnd])
+            ->sum('amount_cents');
+
+        $revenuePrior = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenantId)
+            ->whereBetween('recorded_at', [$priStart, $priEnd])
+            ->sum('amount_cents');
 
         $revenueDelta = $revenuePrior > 0
             ? round((($revenueCurrent - $revenuePrior) / $revenuePrior) * 100)
@@ -652,11 +663,16 @@ class DashboardDataService
 
     private function dailyRevenueSeries(string $tenantId, Carbon $from, Carbon $to): array
     {
-        $rows = TenantAppointment::where('tenant_id', $tenantId)
-            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->whereIn('status', ['completed', 'closed'])
-            ->where('payment_status', 'paid')
-            ->selectRaw('DATE(appointment_date) as d, SUM(total_cents) as cents')
+        // MARKER-PATCH-185 — daily revenue spark = payments received (ledger),
+        // bucketed by recorded_at in tenant tz.
+        $tzS = $this->tenant->timezone();
+        $offS = Carbon::now($tzS)->utcOffset() * 60;
+        $rows = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenantId)
+            ->whereBetween('recorded_at', [
+                $from->copy()->setTimezone($tzS)->startOfDay()->utc(),
+                $to->copy()->setTimezone($tzS)->endOfDay()->utc(),
+            ])
+            ->selectRaw('DATE(DATE_ADD(recorded_at, INTERVAL ? SECOND)) as d, SUM(amount_cents) as cents', [$offS])
             ->groupBy('d')
             ->pluck('cents', 'd')
             ->toArray();
