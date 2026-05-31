@@ -106,6 +106,12 @@ class DirectPaymentsWebhookController extends Controller
                 $this->onCheckoutSessionCompleted($event, $tenant);
                 break;
 
+            // MARKER-PATCH-193 — the link lapsed without payment. Mark the still-
+            // unpaid sale expired so it stops showing as a live pending link.
+            case 'checkout.session.expired':
+                $this->onCheckoutSessionExpired($event, $tenant);
+                break;
+
             default:
                 Log::info('direct_payments_webhook.ignored_event', [
                     'type'      => $event->type,
@@ -232,14 +238,33 @@ class DirectPaymentsWebhookController extends Controller
         $sessionId = $session->id ?? null;
         if (! $sessionId) return;
 
+        // Resolve the PaymentIntent id early — used both as a fallback match key
+        // and (below) for card details.
+        $piId = is_string($session->payment_intent ?? null)
+            ? $session->payment_intent
+            : ($session->payment_intent?->id ?? null);
+
+        // MARKER-PATCH-193 — match the sale by checkout_session_id first, then
+        // FALL BACK to the PaymentIntent id. The session-only match stranded
+        // payments when a sale's checkout_session_id was null/mismatched (e.g.
+        // after a premature cancel) even though the money landed in Stripe.
         $sale = TenantSale::where('tenant_id', $tenant->id)
             ->where('checkout_session_id', $sessionId)
             ->first();
 
+        if (! $sale && $piId) {
+            $sale = TenantSale::where('tenant_id', $tenant->id)
+                ->where('stripe_payment_intent_id', $piId)
+                ->first();
+        }
+
         if (! $sale) {
+            // Genuinely unmatchable — the money is in Stripe with no home in
+            // Intake. Log loudly so the reconciliation report can surface it.
             Log::warning('direct_payments_webhook.checkout_no_sale', [
                 'tenant_id'  => $tenant->id,
                 'session_id' => $sessionId,
+                'payment_intent' => $piId,
             ]);
             return;
         }
@@ -249,8 +274,7 @@ class DirectPaymentsWebhookController extends Controller
             return;
         }
 
-        // Pull card details + payment_intent + charge from the session.
-        $piId = is_string($session->payment_intent ?? null) ? $session->payment_intent : ($session->payment_intent?->id ?? null);
+        // Pull card details + charge from the session ($piId resolved above).
         $brand = null; $last4 = null; $funding = null; $chargeId = null;
 
         if ($piId) {
@@ -329,6 +353,46 @@ class DirectPaymentsWebhookController extends Controller
         }
 
         Log::info('direct_payments_webhook.checkout_completed', [
+            'tenant_id'  => $tenant->id,
+            'sale_id'    => $sale->id,
+            'session_id' => $sessionId,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-193 — checkout.session.expired. Stripe fires this when a
+     * Checkout Session lapses (default 24h) without completing. Mark the
+     * matching sale expired ONLY if it's still unpaid — never touch a sale that
+     * was already paid (a completed event may race ahead of expiry).
+     */
+    protected function onCheckoutSessionExpired(\Stripe\Event $event, Tenant $tenant): void
+    {
+        $session = $event->data->object;
+        $sessionId = $session->id ?? null;
+        if (! $sessionId) return;
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('checkout_session_id', $sessionId)
+            ->first();
+
+        if (! $sale) {
+            return; // nothing to expire
+        }
+
+        // Already paid (e.g. completed event won the race) — leave it alone.
+        if ($sale->payment_status === 'paid' || $sale->payments()->count() > 0) {
+            return;
+        }
+
+        // Mark the sale expired. payment_status stays unpaid (enum has no
+        // 'expired'); status carries the lifecycle state.
+        if ($sale->status !== 'cancelled') {
+            $sale->status = 'cancelled';
+            $sale->payment_reference = 'Payment link expired';
+            $sale->save();
+        }
+
+        Log::info('direct_payments_webhook.checkout_expired', [
             'tenant_id'  => $tenant->id,
             'sale_id'    => $sale->id,
             'session_id' => $sessionId,
