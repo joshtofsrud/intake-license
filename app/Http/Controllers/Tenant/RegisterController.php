@@ -115,6 +115,37 @@ class RegisterController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-PATCH-180 — dismiss a parked appointment draft sale from the
+     * register tray. Voids the DRAFT sale (status=cancelled) so it leaves the
+     * "ready for checkout" list. Non-destructive: only unpaid draft sales are
+     * eligible; the appointment itself is untouched. The sale can be recreated
+     * later from the appointment if needed.
+     */
+    public function dismissTraySale(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found or not dismissible.'], 404);
+        }
+
+        $sale->status = 'cancelled';
+        $sale->save();
+
+        return response()->json(['ok' => true]);
+    }
+
     public function search(Request $request): JsonResponse
     {
         $tenant = tenant();

@@ -2635,16 +2635,21 @@ loadDrafts().then(refreshDraftsBanner);
             return;
           }
           listEl.innerHTML = data.sales.map(function (s) {
-            return '<div style="display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0;cursor:pointer" onclick="window.location.href=\'?resume=' + s.id + '\'">'
-                 + '<div>'
+            // MARKER-PATCH-180 — row carries data-sale-id; a × dismiss button
+            // removes the parked draft from the tray. Resume happens on the
+            // row body (not the buttons), wired via delegation below.
+            return '<div class="appt-tray-row" data-sale-id="' + escapeHtml(s.id) + '" style="display:grid;grid-template-columns:1fr auto auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0">'
+                 + '<div class="appt-tray-resume" style="cursor:pointer">'
                  + '<div style="font-weight:500;font-size:13px">' + escapeHtml(s.customer_name) + (s.ra_number ? ' — Appt ' + escapeHtml(s.ra_number) : '') + '</div>'
                  + '<div style="font-size:11px;color:var(--ia-text-dim);margin-top:2px">' + escapeHtml(s.sale_number) + ' · ' + s.item_count + ' line' + (s.item_count === 1 ? '' : 's') + '</div>'
                  + '</div>'
                  + '<div style="font-weight:500;font-size:14px">' + escapeHtml(s.total_display) + '</div>'
-                 + '<button class="ia-btn ia-btn--primary ia-btn--sm">Take payment →</button>'
+                 + '<button type="button" class="ia-btn ia-btn--primary ia-btn--sm appt-tray-pay">Take payment →</button>'
+                 + '<button type="button" class="appt-tray-dismiss" aria-label="Remove from list" title="Remove from list" style="background:none;border:none;color:var(--ia-text-dim);font-size:18px;line-height:1;cursor:pointer;padding:4px 8px">×</button>'
                  + '</div>';
           }).join('');
           loaded = true;
+          wireTrayRowActions();
         });
     }
     open = !open;
@@ -2657,6 +2662,51 @@ loadDrafts().then(refreshDraftsBanner);
     return String(s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // MARKER-PATCH-180 — wire resume/pay/dismiss on tray rows.
+  function wireTrayRowActions() {
+    listEl.querySelectorAll('.appt-tray-row').forEach(function (row) {
+      var saleId = row.getAttribute('data-sale-id');
+      var resume = function () { window.location.href = '?resume=' + saleId; };
+      var body = row.querySelector('.appt-tray-resume');
+      var pay  = row.querySelector('.appt-tray-pay');
+      if (body) body.addEventListener('click', resume);
+      if (pay)  pay.addEventListener('click', function (e) { e.stopPropagation(); resume(); });
+      var dismiss = row.querySelector('.appt-tray-dismiss');
+      if (dismiss) dismiss.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        dismiss.disabled = true;
+        try {
+          var res = await fetch('{{ route("tenant.register.appointment-tray.dismiss", ["subdomain" => tenant()->subdomain]) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            body: JSON.stringify({ sale_id: saleId }),
+            credentials: 'same-origin',
+          });
+          var data = await res.json();
+          if (!data.ok) { dismiss.disabled = false; if (window.IntakeToast) IntakeToast.error(data.error || 'Could not remove.'); return; }
+          row.style.transition = 'opacity .2s ease';
+          row.style.opacity = '0';
+          setTimeout(function () {
+            row.remove();
+            // Decrement the banner count; hide the whole banner if empty.
+            var countEl = document.querySelector('#appointment-tray-banner div[style*="font-weight:500"]');
+            var banner = document.getElementById('appointment-tray-banner');
+            if (!listEl.querySelector('.appt-tray-row')) {
+              if (banner) banner.style.display = 'none';
+              listEl.style.display = 'none';
+            } else if (countEl) {
+              var n = (listEl.querySelectorAll('.appt-tray-row').length);
+              countEl.textContent = n + (n === 1 ? ' appointment is' : ' appointments are') + ' ready for checkout';
+            }
+          }, 210);
+        } catch (err) {
+          dismiss.disabled = false;
+          if (window.IntakeToast) IntakeToast.error('Network error.');
+        }
+      });
+    });
   }
 })();
 </script>

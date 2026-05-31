@@ -245,6 +245,8 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
                     // Register (POS) — walk-in retail + service jobs
                 Route::get('/register',                  [TenantControllers\RegisterController::class, 'index'])->name('register.index');
                 Route::get('/register/appointment-tray', [TenantControllers\RegisterController::class, 'appointmentTray'])->name('register.appointment-tray');
+                // MARKER-PATCH-180 — dismiss a parked appointment draft from the tray
+                Route::post('/register/appointment-tray/dismiss', [TenantControllers\RegisterController::class, 'dismissTraySale'])->name('register.appointment-tray.dismiss');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
                 Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
                 // MARKER-PATCH-170 — Direct Payments hand-keyed card endpoints
