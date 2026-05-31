@@ -10,7 +10,18 @@
     <h1 class="ia-page-title">Calendar</h1>
     <p class="ia-page-subtitle">Drop-off mode · Week of {{ $weekStart->format('M j') }} – {{ $weekEnd->format('M j, Y') }}</p>
   </div>
-    <div class="ia-page-actions" style="margin-left:auto">
+    <div class="ia-page-actions" style="margin-left:auto;display:flex;gap:10px;align-items:center">
+      {{-- MARKER-PATCH-182B — legend trigger, matches time-slot mode --}}
+      <button type="button" class="ia-cal-legend-trigger" id="ia-cal-legend-trigger"
+              aria-label="Show calendar legend" aria-expanded="false">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M5.4 5.2c0-.9.7-1.6 1.6-1.6s1.6.7 1.6 1.6c0 .7-.4 1.1-1 1.4-.4.2-.6.4-.6.7v.5"
+                stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <circle cx="7" cy="10" r=".7" fill="currentColor"/>
+        </svg>
+        <span class="ia-cal-legend-trigger-label">Legend</span>
+      </button>
       {{-- MARKER-PATCH-163 — canonical new-appointment entry point on calendar header --}}
       <button type="button" class="ia-btn ia-btn--primary" onclick="openApptModal()">
         + New appointment
@@ -47,12 +58,32 @@
   </div>
 @else
   <div class="cal-week-wrap">
-    {{-- MARKER-PATCH-182 — status legend for capacity/drop-off week view --}}
-    <div class="cal-week-legend">
-      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-pending"></span>Pending</span>
-      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-confirmed"></span>Confirmed</span>
-      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-in-progress"></span>In progress</span>
-      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-completed"></span>Completed</span>
+    {{-- MARKER-PATCH-182B — reuse the time-slot legend component for consistency --}}
+    <div class="ia-cal-legend" id="ia-cal-legend" hidden>
+      <div class="ia-cal-legend-section">
+        <div class="ia-cal-legend-heading">Appointment status</div>
+        <div class="ia-cal-legend-rows">
+          <div class="ia-cal-legend-row">
+            <span class="ia-cal-legend-swatch is-status-pending"></span>
+            <span class="ia-cal-legend-text"><strong>Pending</strong> · dashed border. Booked but not yet confirmed.</span>
+          </div>
+          <div class="ia-cal-legend-row">
+            <span class="ia-cal-legend-swatch is-status-confirmed"></span>
+            <span class="ia-cal-legend-text"><strong>Confirmed</strong> · solid block. Customer is locked in.</span>
+          </div>
+          <div class="ia-cal-legend-row">
+            <span class="ia-cal-legend-swatch is-status-in-progress"></span>
+            <span class="ia-cal-legend-text"><strong>In progress</strong> · accent border. Work has started.</span>
+          </div>
+          <div class="ia-cal-legend-row">
+            <span class="ia-cal-legend-swatch is-status-completed"></span>
+            <span class="ia-cal-legend-text"><strong>Completed</strong> · muted with check. Done and closed.</span>
+          </div>
+          <div class="ia-cal-legend-row">
+            <span class="ia-cal-legend-text ia-cal-legend-note">Cancelled appointments are hidden from the grid by default. Find them in the Appointments list with the status filter.</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="cal-week-grid" style="grid-template-columns: 140px repeat(7, 1fr);">
       <div class="cal-week-corner"></div>
@@ -110,6 +141,8 @@
 @endsection
 
 @push('styles')
+{{-- MARKER-PATCH-182B — shared calendar CSS for the legend component --}}
+<link rel="stylesheet" href="{{ asset('css/tenant/calendar.css') }}?v={{ filemtime(public_path('css/tenant/calendar.css')) }}">
 <style>
 .cal-view-toggle{display:inline-flex;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:6px;padding:2px;gap:2px}
 .cal-view-tab{padding:6px 12px;font-size:12px;color:var(--ia-text-muted);border-radius:4px;text-decoration:none;font-weight:500}
@@ -157,18 +190,28 @@
 .cal-week-card[data-status="in_progress"]{border-left-color:#3B82F6}
 .cal-week-card[data-status="completed"]{border-left-color:#6C6C6C;opacity:0.7}
 .cal-week-card[data-status="completed"] .cal-week-card-name::after{content:" ✓";color:#6C6C6C}
-/* Compact status legend for capacity week view */
-.cal-week-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:10px 0 4px;font-size:11px;color:var(--ia-text-3)}
-.cal-week-legend-item{display:flex;align-items:center;gap:6px}
-.cal-week-legend-swatch{width:18px;height:0;border-top-width:3px;border-top-style:solid;display:inline-block}
-.cal-week-legend-swatch.is-pending{border-top-style:dashed;border-top-color:#F59E0B}
-.cal-week-legend-swatch.is-confirmed{border-top-color:var(--ia-accent)}
-.cal-week-legend-swatch.is-in-progress{border-top-color:#3B82F6}
-.cal-week-legend-swatch.is-completed{border-top-color:#6C6C6C}
 </style>
 @endpush
 
 @push('scripts')
+{{-- MARKER-PATCH-182B — legend toggle (same behavior + storage key as time-slot mode) --}}
+<script>
+(function () {
+  var KEY = 'intake.calendar.legend.open';
+  var trigger = document.getElementById('ia-cal-legend-trigger');
+  var panel   = document.getElementById('ia-cal-legend');
+  if (!trigger || !panel) return;
+  function set(open) {
+    panel.hidden = !open;
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+  }
+  var stored = '0';
+  try { stored = localStorage.getItem(KEY) || '0'; } catch (e) {}
+  set(stored === '1');
+  trigger.addEventListener('click', function () { set(panel.hidden); });
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
 window.CAL_DROPOFF_BOOT = {
