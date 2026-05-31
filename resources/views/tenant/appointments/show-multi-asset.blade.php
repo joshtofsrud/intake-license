@@ -2184,24 +2184,15 @@ input.ma-asset-name-edit:focus {
             <button type="button" id="ma-record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width: 100%; margin-top: 14px;">
               + Record deposit
             </button>
-            {{-- MARKER-PATCH-178A — deposit records a payment against the job sale --}}
             <div id="ma-record-deposit-form" style="display: none; margin-top: 10px; padding: 12px; background: var(--ia-surface-2, rgba(255,255,255,0.02)); border-radius: 6px; border: 0.5px solid var(--ia-border);">
               <label style="font-size: 11px; color: var(--ia-text-dim); display: block; margin-bottom: 4px;">Amount</label>
               <input type="number" id="ma-record-deposit-amount" min="0.01" step="0.01" placeholder="0.00"
                      style="width: 100%; padding: 6px 10px; background: var(--ia-surface, #111); border: 0.5px solid var(--ia-border); color: var(--ia-text); border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
-              <label style="font-size: 11px; color: var(--ia-text-dim); display: block; margin-bottom: 4px;">Method</label>
-              <select id="ma-record-deposit-method"
-                      style="width: 100%; padding: 6px 10px; background: var(--ia-surface, #111); border: 0.5px solid var(--ia-border); color: var(--ia-text); border-radius: 6px; font-size: 13px; margin-bottom: 8px;">
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="store_credit">Store credit</option>
-                <option value="mark_paid">Mark paid (no charge)</option>
-              </select>
               <div style="display: flex; gap: 6px;">
                 <button type="button" id="ma-record-deposit-cancel" class="ia-btn ia-btn--ghost ia-btn--sm" style="flex: 1;">Cancel</button>
-                <button type="button" id="ma-record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex: 1;">Record deposit</button>
+                <button type="button" id="ma-record-deposit-go" class="ia-btn ia-btn--primary ia-btn--sm" style="flex: 1;">Send to register</button>
               </div>
-              <p style="font-size: 10px; color: var(--ia-text-dim); margin: 8px 0 0;">Records a payment toward this appointment. Card &amp; payment-link coming soon.</p>
+              <p style="font-size: 10px; color: var(--ia-text-dim); margin: 8px 0 0;">Creates a draft sale in the register where you take the actual payment.</p>
             </div>
           @endif
         </div>
@@ -2731,23 +2722,22 @@ input.ma-asset-name-edit:focus {
       toggleBtn.style.display = '';
       amtInput.value = '';
     });
-    const methodSel = document.getElementById('ma-record-deposit-method');
     if (goBtn) goBtn.addEventListener('click', async function() {
       const dollars = parseFloat(amtInput.value);
       if (isNaN(dollars) || dollars <= 0) { alert('Enter a valid amount.'); return; }
       const cents = Math.round(dollars * 100);
-      const method = methodSel ? methodSel.value : 'cash';
       goBtn.disabled = true;
-      // MARKER-PATCH-178A — record a deposit payment against the job sale.
-      const result = await post({ op: 'record_deposit', amount_cents: cents, method: method });
+      const result = await post({ op: 'record_deposit', amount_cents: cents });
       goBtn.disabled = false;
       if (!result.ok) {
         if (window.IntakeToast) IntakeToast.error(result.message);
         else alert(result.message);
         return;
       }
-      if (window.IntakeToast) IntakeToast.success(result.data?.message || 'Deposit recorded.');
-      location.reload();
+      // Redirect to register
+      const url = result.data?.redirect_url;
+      if (url) { window.location.href = url; }
+      else { location.reload(); }
     });
   })();
 
