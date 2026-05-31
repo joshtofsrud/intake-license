@@ -43,6 +43,34 @@
 {{-- MARKER-PATCH-152A — capacity-mode was missing the schedule sub-toggle --}}
 <x-tenant.schedule-tabs active="calendar" />
 
+{{-- MARKER-PATCH-182C — legend sits ABOVE the calendar, not nested inside it --}}
+<div class="ia-cal-legend" id="ia-cal-legend" hidden style="margin-bottom:16px">
+  <div class="ia-cal-legend-section">
+    <div class="ia-cal-legend-heading">Appointment status</div>
+    <div class="ia-cal-legend-rows">
+      <div class="ia-cal-legend-row">
+        <span class="ia-cal-legend-swatch is-status-pending"></span>
+        <span class="ia-cal-legend-text"><strong>Pending</strong> · dashed border. Booked but not yet confirmed.</span>
+      </div>
+      <div class="ia-cal-legend-row">
+        <span class="ia-cal-legend-swatch is-status-confirmed"></span>
+        <span class="ia-cal-legend-text"><strong>Confirmed</strong> · solid block. Customer is locked in.</span>
+      </div>
+      <div class="ia-cal-legend-row">
+        <span class="ia-cal-legend-swatch is-status-in-progress"></span>
+        <span class="ia-cal-legend-text"><strong>In progress</strong> · accent border. Work has started.</span>
+      </div>
+      <div class="ia-cal-legend-row">
+        <span class="ia-cal-legend-swatch is-status-completed"></span>
+        <span class="ia-cal-legend-text"><strong>Completed</strong> · muted with check. Done and closed.</span>
+      </div>
+      <div class="ia-cal-legend-row">
+        <span class="ia-cal-legend-text ia-cal-legend-note">Cancelled appointments are hidden from the grid by default. Find them in the Appointments list with the status filter.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 @if(session('flash'))
   <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>
 @endif
@@ -58,33 +86,6 @@
   </div>
 @else
   <div class="cal-week-wrap">
-    {{-- MARKER-PATCH-182B — reuse the time-slot legend component for consistency --}}
-    <div class="ia-cal-legend" id="ia-cal-legend" hidden>
-      <div class="ia-cal-legend-section">
-        <div class="ia-cal-legend-heading">Appointment status</div>
-        <div class="ia-cal-legend-rows">
-          <div class="ia-cal-legend-row">
-            <span class="ia-cal-legend-swatch is-status-pending"></span>
-            <span class="ia-cal-legend-text"><strong>Pending</strong> · dashed border. Booked but not yet confirmed.</span>
-          </div>
-          <div class="ia-cal-legend-row">
-            <span class="ia-cal-legend-swatch is-status-confirmed"></span>
-            <span class="ia-cal-legend-text"><strong>Confirmed</strong> · solid block. Customer is locked in.</span>
-          </div>
-          <div class="ia-cal-legend-row">
-            <span class="ia-cal-legend-swatch is-status-in-progress"></span>
-            <span class="ia-cal-legend-text"><strong>In progress</strong> · accent border. Work has started.</span>
-          </div>
-          <div class="ia-cal-legend-row">
-            <span class="ia-cal-legend-swatch is-status-completed"></span>
-            <span class="ia-cal-legend-text"><strong>Completed</strong> · muted with check. Done and closed.</span>
-          </div>
-          <div class="ia-cal-legend-row">
-            <span class="ia-cal-legend-text ia-cal-legend-note">Cancelled appointments are hidden from the grid by default. Find them in the Appointments list with the status filter.</span>
-          </div>
-        </div>
-      </div>
-    </div>
     <div class="cal-week-grid" style="grid-template-columns: 140px repeat(7, 1fr);">
       <div class="cal-week-corner"></div>
       @foreach($days as $day)
