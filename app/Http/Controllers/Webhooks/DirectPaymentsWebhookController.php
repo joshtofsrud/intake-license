@@ -282,6 +282,52 @@ class DirectPaymentsWebhookController extends Controller
         $sale->payment_reference         = ($brand && $last4) ? ($brand . ' ····' . $last4) : 'Paid via link';
         $sale->save();
 
+        // MARKER-PATCH-178B — record the payment on the SALE ledger (this was
+        // missing: the webhook flipped status=paid but never wrote a ledger
+        // row, so link-paid sales never reconciled). Idempotent: skip if a
+        // payment row for this charge already exists. Then refresh the linked
+        // appointment's cache so it shows paid.
+        try {
+            $already = \App\Models\Tenant\TenantSalePayment::where('sale_id', $sale->id)
+                ->where('external_reference', $piId)
+                ->exists();
+            if (! $already && $piId) {
+                $hasPrior = $sale->payments()->count() > 0;
+                app(\App\Services\Tenant\SalePaymentService::class)->record(
+                    sale:               $sale,
+                    amountCents:        (int) $sale->total_cents,
+                    kind:               $hasPrior
+                        ? \App\Models\Tenant\TenantSalePayment::KIND_BALANCE
+                        : ($sale->appointment_id
+                            ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT),
+                    source:             \App\Models\Tenant\TenantSalePayment::SOURCE_DIRECT_PAYMENT_LINK,
+                    method:             'card',
+                    externalReference:  $piId,
+                    notes:              'Paid via payment link',
+                );
+                if ($sale->appointment_id) {
+                    $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
+                    if ($appt) {
+                        $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                        $total = (int) $appt->total_cents;
+                        if ($appt->paid_cents >= $total && $total > 0) {
+                            $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
+                        } elseif ($appt->paid_cents > 0) {
+                            $appt->payment_status = 'partial';
+                        }
+                        $appt->save();
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('direct_payments_webhook.ledger_write_failed', [
+                'tenant_id' => $tenant->id,
+                'sale_id'   => $sale->id,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+
         Log::info('direct_payments_webhook.checkout_completed', [
             'tenant_id'  => $tenant->id,
             'sale_id'    => $sale->id,

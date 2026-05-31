@@ -1945,6 +1945,7 @@ async function openPaymentLinkModal() {
         items: cart.items.map(serializeLine),
         tip_cents: cart.tipCents || 0,
         discount_cents: cart.discountCents || 0,
+        sale_id: cart.draft_id || null,
       }),
     });
     resp = await res.json();

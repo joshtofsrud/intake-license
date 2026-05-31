@@ -1349,6 +1349,10 @@ class RegisterController extends Controller
             'customer_id'      => 'nullable|uuid',
             'has_service_line' => 'nullable|boolean',
             'description'      => 'nullable|string|max:255',
+            // MARKER-PATCH-178B — when present, bind the link to THIS existing
+            // sale instead of minting a new (appointment-less) one. This is the
+            // resumed parked sale's id (cart.draft_id on the frontend).
+            'sale_id'          => 'nullable|uuid',
             'items'            => 'required|array|min:1',
             'tip_cents'        => 'nullable|integer|min:0',
             'discount_cents'   => 'nullable|integer|min:0',
@@ -1396,28 +1400,45 @@ class RegisterController extends Controller
             ], 500);
         }
 
-        // Create the draft sale with payment_status=pending and the session ID
-        // attached. When the webhook fires, this is the row we promote to paid.
+        // MARKER-PATCH-178B — bind the session to an EXISTING sale when sale_id
+        // is given (resumed parked/appointment sale), instead of minting a new
+        // appointment-less sale. This was the link-detach bug: link-paid
+        // appointments stayed unpaid because the charge landed on a separate
+        // sale. If no sale_id, fall back to creating a draft as before.
         $locationId = $request->session()->get('current_location_id');
         try {
-            $draftSale = $this->sales->createSale([
-                'tenant_id'          => $tenant->id,
-                'rang_up_by_user_id' => auth('tenant')->id(),
-                'location_id'        => $locationId,
-                'customer_id'        => $validated['customer_id'] ?? null,
-                // MARKER-PATCH-172C — 'pending' isn't in the payment_status ENUM.
-                // 'unpaid' is the semantically correct value: customer received the
-                // link, hasn't paid yet.
-                'status'             => 'pending',
-                'payment_status'     => 'unpaid',
-                'payment_method'     => 'card',
-                'payment_reference'  => 'Awaiting payment link',
-                'paid_at'            => null,
-                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
-                'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
-                'items'              => $validated['items'],
-                'checkout_session_id' => $session->id,
-            ]);
+            if (!empty($validated['sale_id'])) {
+                $draftSale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                    ->where('id', $validated['sale_id'])
+                    ->whereNotIn('status', ['cancelled', 'closed'])
+                    ->first();
+                if (!$draftSale) {
+                    return response()->json(['ok' => false, 'error' => 'Sale not found to attach the link.'], 404);
+                }
+                $draftSale->checkout_session_id = $session->id;
+                if (in_array($draftSale->payment_status, ['draft'], true)) {
+                    $draftSale->payment_status = 'unpaid';
+                }
+                $draftSale->payment_method    = $draftSale->payment_method ?: 'card';
+                $draftSale->payment_reference = $draftSale->payment_reference ?: 'Awaiting payment link';
+                $draftSale->save();
+            } else {
+                $draftSale = $this->sales->createSale([
+                    'tenant_id'          => $tenant->id,
+                    'rang_up_by_user_id' => auth('tenant')->id(),
+                    'location_id'        => $locationId,
+                    'customer_id'        => $validated['customer_id'] ?? null,
+                    'status'             => 'pending',
+                    'payment_status'     => 'unpaid',
+                    'payment_method'     => 'card',
+                    'payment_reference'  => 'Awaiting payment link',
+                    'paid_at'            => null,
+                    'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                    'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                    'items'              => $validated['items'],
+                    'checkout_session_id' => $session->id,
+                ]);
+            }
         } catch (\Throwable $e) {
             // If draft creation fails, expire the Stripe session immediately so
             // the link can\'t be paid (we have nothing to attach it to).
