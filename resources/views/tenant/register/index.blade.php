@@ -587,8 +587,12 @@
       <span id="paymentLinkStatusText">Waiting for customer to pay…</span>
     </div>
 
-    <div class="reg-modal-actions">
-      <button type="button" class="reg-btn-secondary" id="paymentLinkCancelBtn">Cancel</button>
+    {{-- MARKER-PATCH-192 — two distinct actions: "Done" keeps the link live
+         (sale stays pending, trackable from the appointment); "Cancel link" is
+         the explicit destructive action that expires the Stripe session. --}}
+    <div class="reg-modal-actions" style="display:flex;gap:10px;justify-content:space-between">
+      <button type="button" class="reg-btn-secondary" id="paymentLinkCancelBtn" style="color:var(--ia-red,#F87171)">Cancel link</button>
+      <button type="button" class="reg-btn-primary" id="paymentLinkDoneBtn">Done — keep link live</button>
     </div>
   </div>
 </div>
@@ -2047,7 +2051,10 @@ document.getElementById('paymentLinkCopyBtn').addEventListener('click', () => {
   });
 });
 
+// MARKER-PATCH-192 — "Cancel link": explicit destructive action. Expires the
+// Stripe session and marks the sale cancelled. Only fires on deliberate click.
 document.getElementById('paymentLinkCancelBtn').addEventListener('click', async () => {
+  if (!confirm('Cancel this payment link? The customer will no longer be able to pay it.')) return;
   stopPaymentLinkPolling();
   if (PaymentLink.saleId) {
     try {
@@ -2058,6 +2065,19 @@ document.getElementById('paymentLinkCancelBtn').addEventListener('click', async 
       });
     } catch (e) {}
   }
+  PaymentLink.saleId = null;
+  PaymentLink.sessionId = null;
+  PaymentLink.checkoutUrl = null;
+  closeModal('paymentLinkModal');
+});
+
+// MARKER-PATCH-192 — "Done — keep link live": the operator steps away while the
+// customer pays on their own time. Stops the foreground poll and closes the
+// modal, but leaves the sale PENDING and the Stripe session active. The webhook
+// will promote it when the customer pays; the appointment surfaces the pending
+// state so it's never lost. Does NOT cancel anything.
+document.getElementById('paymentLinkDoneBtn').addEventListener('click', () => {
+  stopPaymentLinkPolling();
   PaymentLink.saleId = null;
   PaymentLink.sessionId = null;
   PaymentLink.checkoutUrl = null;
