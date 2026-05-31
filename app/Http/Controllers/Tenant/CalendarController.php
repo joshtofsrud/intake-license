@@ -32,9 +32,18 @@ class CalendarController extends Controller
             ? ['day', 'week', 'month']
             : ['day', 'week'];
 
-        $view = $request->query('view', 'day');
+        // MARKER-PATCH-181 — remember the last Day/Week/Month choice. If ?view=
+        // is given explicitly, honor it and persist it in a 1-year cookie. If
+        // not (e.g. arriving from the nav), fall back to the remembered view,
+        // then to 'day'.
+        $remembered = $request->cookie('calendar_view');
+        $explicit   = $request->query('view');
+        $view = $explicit ?: ($remembered ?: 'day');
         if (!in_array($view, $allowedViews, true)) {
             $view = 'day';
+        }
+        if ($explicit && in_array($explicit, $allowedViews, true)) {
+            \Illuminate\Support\Facades\Cookie::queue('calendar_view', $explicit, 60 * 24 * 365);
         }
 
         if ($mode === 'drop_off') {
