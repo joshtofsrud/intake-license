@@ -85,10 +85,11 @@ class DashboardDataService
         $weekBookings = (clone $weekBase)->count();
         // MARKER-PATCH-185 — week revenue = payments received (sale ledger).
         $tzW = $this->tenant->timezone();
+        // $weekStart is a Y-m-d string; parse in tenant tz for the UTC window.
         $weekRevenue = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_id', $this->tenant->id)
             ->whereBetween('recorded_at', [
-                $weekStart->copy()->setTimezone($tzW)->startOfDay()->utc(),
-                $this->tnow()->setTimezone($tzW)->endOfDay()->utc(),
+                Carbon::parse($weekStart, $tzW)->startOfDay()->utc(),
+                $this->tnow()->copy()->setTimezone($tzW)->endOfDay()->utc(),
             ])
             ->sum('amount_cents');
         $weekCancellations = (clone $weekBase)->whereIn('status', ['cancelled', 'refunded'])->count();
