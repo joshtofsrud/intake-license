@@ -86,21 +86,30 @@ class ReportsDataService
     /** Zone 1: Revenue. */
     public function zoneRevenue(Carbon $from, Carbon $to): array
     {
+        // MARKER-PATCH-184 — revenue now reads the SALE PAYMENT LEDGER
+        // ("Payments Received", cash-basis), not appointment totals. Payments
+        // are signed (refunds negative) so the ledger nets correctly. recorded_at
+        // is stored UTC; we bound by the tenant-local day window converted to UTC,
+        // and bucket the series by recorded_at shifted into the tenant timezone.
+        $tz = $this->tenant->timezone();
         $isSingleDay = $from->isSameDay($to);
-        $totalCents = (int) TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->whereIn('status', self::DELIVERED_STATUSES)
-            ->where('payment_status', 'paid')
-            ->sum('total_cents');
 
-        // Hourly bars for single-day ranges; daily otherwise
+        $winStart = $from->copy()->setTimezone($tz)->startOfDay()->utc();
+        $winEnd   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
+
+        // Offset (seconds) from UTC to tenant-local, for SQL bucketing.
+        $offsetSec = Carbon::now($tz)->utcOffset() * 60;
+
+        $base = DB::table('tenant_sale_payments')
+            ->where('tenant_id', $this->tenant->id)
+            ->whereBetween('recorded_at', [$winStart, $winEnd]);
+
+        $totalCents = (int) (clone $base)->sum('amount_cents');
+
         $series = [];
         if ($isSingleDay) {
-            $hourly = TenantAppointment::where('tenant_id', $this->tenant->id)
-                ->where('appointment_date', $from->toDateString())
-                ->whereIn('status', self::DELIVERED_STATUSES)
-                ->where('payment_status', 'paid')
-                ->selectRaw("HOUR(appointment_time) as hour, SUM(total_cents) as cents, COUNT(*) as n")
+            $hourly = (clone $base)
+                ->selectRaw("HOUR(DATE_ADD(recorded_at, INTERVAL ? SECOND)) as hour, SUM(amount_cents) as cents, COUNT(*) as n", [$offsetSec])
                 ->groupBy('hour')
                 ->get()
                 ->keyBy('hour');
@@ -113,11 +122,8 @@ class ReportsDataService
                 ];
             }
         } else {
-            $daily = TenantAppointment::where('tenant_id', $this->tenant->id)
-                ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-                ->whereIn('status', self::DELIVERED_STATUSES)
-                ->where('payment_status', 'paid')
-                ->selectRaw('appointment_date as d, SUM(total_cents) as cents, COUNT(*) as n')
+            $daily = (clone $base)
+                ->selectRaw("DATE(DATE_ADD(recorded_at, INTERVAL ? SECOND)) as d, SUM(amount_cents) as cents, COUNT(*) as n", [$offsetSec])
                 ->groupBy('d')
                 ->get()
                 ->keyBy('d');
@@ -135,24 +141,33 @@ class ReportsDataService
 
         $bestBucket = collect($series)->sortByDesc('cents')->first();
 
-        $byService = DB::table('tenant_appointments as ta')
-            ->where('ta.tenant_id', $this->tenant->id)
-            ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->whereIn('ta.status', self::DELIVERED_STATUSES)
-            ->where('ta.payment_status', 'paid')
-            ->join('tenant_appointment_items as tai', 'tai.appointment_id', '=', 'ta.id')
-            ->selectRaw('tai.item_name_snapshot as name, SUM(COALESCE(tai.price_cents_override, tai.price_cents)) as cents, COUNT(DISTINCT ta.id) as bookings')
-            ->groupBy('name')
-            ->orderByDesc('cents')
-            ->limit(5)
-            ->get()
-            ->map(fn($r) => [
-                'name'     => $r->name,
-                'cents'    => (int) $r->cents,
-                'bookings' => (int) $r->bookings,
-                'pct'      => $totalCents > 0 ? round(($r->cents / $totalCents) * 100) : 0,
-            ])
-            ->all();
+        // Revenue by service: composition of the SALES that received payment in
+        // this window, by line-item name. Sums positive (non-refund) payments'
+        // sales only, grouping the sale's line items by name_snapshot. This keeps
+        // the breakdown aligned with the cash-basis headline.
+        $paidSaleIds = (clone $base)
+            ->where('amount_cents', '>', 0)
+            ->distinct()
+            ->pluck('sale_id');
+
+        $byService = [];
+        if ($paidSaleIds->isNotEmpty()) {
+            $byService = DB::table('tenant_sale_items')
+                ->where('tenant_id', $this->tenant->id)
+                ->whereIn('sale_id', $paidSaleIds)
+                ->selectRaw('name_snapshot as name, SUM(line_total_cents) as cents, COUNT(DISTINCT sale_id) as bookings')
+                ->groupBy('name')
+                ->orderByDesc('cents')
+                ->limit(5)
+                ->get()
+                ->map(fn($r) => [
+                    'name'     => $r->name,
+                    'cents'    => (int) $r->cents,
+                    'bookings' => (int) $r->bookings,
+                    'pct'      => $totalCents > 0 ? round(($r->cents / $totalCents) * 100) : 0,
+                ])
+                ->all();
+        }
 
         return [
             'total_cents'   => $totalCents,
@@ -164,8 +179,6 @@ class ReportsDataService
             'by_service'    => $byService,
         ];
     }
-
-    /** Zone 2: Bookings + cancellations. */
     public function zoneBookings(Carbon $from, Carbon $to): array
     {
         $isSingleDay = $from->isSameDay($to);
