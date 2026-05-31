@@ -1275,6 +1275,7 @@ input.ma-asset-name-edit:focus {
 
   {{-- MARKER-PATCH-158-G1 — Sale callout banners (mirrors legacy bannerSale) --}}
   @php
+    $bannerPendingLink = $appointment->pendingPaymentLinkSale(); // MARKER-PATCH-196
     $bannerSale     = $appointment->openRegisterSale();
     $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
     $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
@@ -1287,7 +1288,20 @@ input.ma-asset-name-edit:focus {
                       && ((int)$appointment->paid_cents >= (int)$appointment->total_cents)
                       && ($bannerOverage === 0);
   @endphp
-  @if($bannerSale)
+  @if($bannerPendingLink)
+    {{-- MARKER-PATCH-196 — a payment link is out and awaiting the customer. --}}
+    <div class="ma-sale-banner" style="background:rgba(96,165,250,.10);border:0.5px solid rgba(96,165,250,.35)">
+      <span class="ma-sale-banner-icon">🔗</span>
+      <div class="ma-sale-banner-body">
+        <div class="ma-sale-banner-title">Payment link sent — awaiting customer · {{ format_money($bannerPendingLink->total_cents) }}</div>
+        <div class="ma-sale-banner-sub">
+          Sale {{ $bannerPendingLink->sale_number ?? 'pending' }} · the customer can pay on their own time; this updates automatically when they do.
+        </div>
+      </div>
+      <a href="{{ route('tenant.register.index', []) }}?status={{ $bannerPendingLink->id }}"
+         class="ia-btn ia-btn--ghost ia-btn--sm">View status →</a>
+    </div>
+  @elseif($bannerSale)
     <div class="ma-sale-banner ma-sale-banner--checkout">
       <span class="ma-sale-banner-icon">💳</span>
       <div class="ma-sale-banner-body">
