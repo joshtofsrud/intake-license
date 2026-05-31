@@ -294,6 +294,9 @@
   .reg-receipt h2{font-size:24px;margin-bottom:6px}
   .reg-receipt .num{font-size:13px;color:var(--ia-text-dim);margin-bottom:18px;font-family:var(--ia-font-mono)}
   .reg-receipt .total{font-size:36px;font-weight:700;margin:14px 0}
+  /* MARKER-PATCH-187 — auto-reset countdown line */
+  .reg-receipt-auto{margin-top:14px;font-size:12px;color:var(--ia-text-dim)}
+  .reg-receipt-auto span{font-variant-numeric:tabular-nums;color:var(--ia-text)}
 
   .reg-cust-results{position:absolute;top:100%;left:0;right:0;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);margin-top:4px;max-height:240px;overflow-y:auto;z-index:10}
 
@@ -695,6 +698,8 @@
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-primary" id="receiptNewSale">New sale</button>
     </div>
+    {{-- MARKER-PATCH-187 — auto-reset countdown --}}
+    <div class="reg-receipt-auto" id="receiptAutoReset">Returning to a fresh register in <span id="receiptCountdown">45</span>s</div>
   </div>
 </div>
 
@@ -2260,13 +2265,21 @@ function openPreflightModal(blocker) {
   fresh.addEventListener('click', blocker.actionFn);
   openModal('preflightModal');
 }
-function showReceipt(data) {
-  document.getElementById('receiptNum').textContent = data.sale_number;
-  document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
-  openModal('receiptModal');
+// MARKER-PATCH-187 — after a completed sale the receipt sits briefly, then the
+// register auto-resets to a fresh state. A visible countdown shows it coming;
+// clicking "New sale" (or any cart interaction) resets immediately and cancels
+// the timer.
+const RECEIPT_AUTO_RESET_SECONDS = 45;
+let receiptResetTimer = null;
+let receiptCountdownTimer = null;
+
+function clearReceiptTimers() {
+  if (receiptResetTimer) { clearTimeout(receiptResetTimer); receiptResetTimer = null; }
+  if (receiptCountdownTimer) { clearInterval(receiptCountdownTimer); receiptCountdownTimer = null; }
 }
 
-document.getElementById('receiptNewSale').addEventListener('click', async () => {
+async function resetRegisterToFresh() {
+  clearReceiptTimers();
   cart.draft_id = null;
   cart.customer = null;
   cart.items = [];
@@ -2279,7 +2292,27 @@ document.getElementById('receiptNewSale').addEventListener('click', async () => 
   searchInput.value = '';
   resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
   refreshDraftsBanner(await loadDrafts());
-});
+}
+
+function showReceipt(data) {
+  document.getElementById('receiptNum').textContent = data.sale_number;
+  document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
+  openModal('receiptModal');
+
+  // Start the auto-reset countdown.
+  clearReceiptTimers();
+  let remaining = RECEIPT_AUTO_RESET_SECONDS;
+  const countdownEl = document.getElementById('receiptCountdown');
+  if (countdownEl) countdownEl.textContent = remaining;
+  receiptCountdownTimer = setInterval(() => {
+    remaining -= 1;
+    if (countdownEl) countdownEl.textContent = Math.max(0, remaining);
+    if (remaining <= 0) clearInterval(receiptCountdownTimer);
+  }, 1000);
+  receiptResetTimer = setTimeout(() => { resetRegisterToFresh(); }, RECEIPT_AUTO_RESET_SECONDS * 1000);
+}
+
+document.getElementById('receiptNewSale').addEventListener('click', () => { resetRegisterToFresh(); });
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
