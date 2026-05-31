@@ -691,7 +691,10 @@ td.ia-inline-cell { cursor: default; }
     //  - the "Unconfirmed bookings" attention filter (pending only)
     //  - the explicit status dropdown filter (must match exactly)
     let belongs = true;
-    if (activeFilter === 'unconfirmed' || activeFilter === 'pending') {
+    // MARKER-PATCH-179B — the real attention-filter value is
+    // 'unconfirmed_bookings'; treat any 'unconfirmed'/'pending' variant as the
+    // pending-only scope.
+    if (activeFilter.indexOf('unconfirmed') !== -1 || activeFilter === 'pending') {
       belongs = (newStatus === 'pending');
     } else if (statusFilter) {
       belongs = (newStatus === statusFilter);
