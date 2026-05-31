@@ -79,10 +79,8 @@
     <div class="schedule-list">
       @foreach($todayDeliveries->take(5) as $d)
         @php
-          // MARKER-PATCH-188 — scheduled_at is a UTC timestamp; convert to the
-          // tenant timezone before formatting (was showing UTC, e.g. 5 PM for a
-          // 10 AM Pacific delivery).
-          $dTime = $d->scheduled_at ? $d->scheduled_at->copy()->setTimezone(tenant()->timezone())->format('g:i A') : 'Any time';
+          // MARKER-PATCH-189 — tenant-tz display via the canonical tlocal() helper.
+          $dTime = $d->scheduled_at ? tlocal($d->scheduled_at) : 'Any time';
           $dWho  = $d->customer ? trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) : 'No customer';
           $dKind = $d->isPickup() ? 'Pickup' : 'Drop-off';
           $dStatus = str_replace('_', '-', $d->status);

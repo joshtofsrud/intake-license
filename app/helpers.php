@@ -46,6 +46,70 @@ if (! function_exists('format_money')) {
     }
 }
 
+if (! function_exists('tlocal')) {
+    /**
+     * MARKER-PATCH-189 — Render a UTC datetime instant in the current tenant's
+     * timezone. THE canonical way to display any 'datetime'-cast column
+     * (scheduled_at, starts_at, created_at, sent_at, …). Storing UTC and
+     * converting at the edge is the standard; this makes the conversion
+     * impossible to forget. For naive wall-clock values (appointment_time),
+     * do NOT use this — those are already tenant-local and must not be shifted.
+     *
+     * @param  \Carbon\Carbon|\DateTimeInterface|string|null $instant  UTC instant
+     * @param  string $format  PHP date format (default: '8:30 AM')
+     * @return string          Empty string for null
+     */
+    function tlocal($instant, string $format = 'g:i A'): string
+    {
+        if ($instant === null || $instant === '') {
+            return '';
+        }
+        $tz = tenant()?->timezone() ?? config('app.timezone', 'UTC');
+        $c  = $instant instanceof \Carbon\Carbon
+            ? $instant->copy()
+            : \Carbon\Carbon::parse($instant, 'UTC');
+        // A bare string/DateTime is assumed UTC (matches how the DB stores
+        // 'datetime' casts). Carbon instances already carry their own tz.
+        return $c->setTimezone($tz)->format($format);
+    }
+}
+
+if (! function_exists('tlocal_date')) {
+    /** Tenant-local date, e.g. "May 31, 2026". @see tlocal() */
+    function tlocal_date($instant, string $format = 'M j, Y'): string
+    {
+        return tlocal($instant, $format);
+    }
+}
+
+if (! function_exists('tlocal_datetime')) {
+    /** Tenant-local date + time, e.g. "May 31, 2026 8:30 AM". @see tlocal() */
+    function tlocal_datetime($instant, string $format = 'M j, Y g:i A'): string
+    {
+        return tlocal($instant, $format);
+    }
+}
+
+if (! function_exists('tlocal_carbon')) {
+    /**
+     * Same conversion as tlocal() but returns the Carbon (for further work /
+     * comparisons), not a formatted string. Returns null for null input.
+     *
+     * @return \Carbon\Carbon|null
+     */
+    function tlocal_carbon($instant): ?\Carbon\Carbon
+    {
+        if ($instant === null || $instant === '') {
+            return null;
+        }
+        $tz = tenant()?->timezone() ?? config('app.timezone', 'UTC');
+        $c  = $instant instanceof \Carbon\Carbon
+            ? $instant->copy()
+            : \Carbon\Carbon::parse($instant, 'UTC');
+        return $c->setTimezone($tz);
+    }
+}
+
 if (! function_exists('debug_log')) {
     /**
      * Shortcut to the DebugLogService singleton.
