@@ -959,6 +959,27 @@ class RegisterController extends Controller
                 'line_total_cents' => (int) $i->line_total_cents,
             ]);
 
+        // MARKER-PATCH-191 — the payment ledger for this sale (each deposit /
+        // balance / payment / refund row), so the modal shows exactly what was
+        // paid, how, and when — not just the sale total.
+        $payments = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->orderBy('recorded_at')
+            ->get()
+            ->map(fn ($p) => [
+                'amount_cents' => (int) $p->amount_cents,
+                'kind'         => $p->kind,
+                'method'       => $p->method,
+                'method_label' => method_exists($p, 'methodLabel') ? $p->methodLabel() : $p->method,
+                'source'       => $p->source,
+                'reference'    => $p->external_reference,
+                'notes'        => $p->notes,
+                'recorded_at'  => $p->recorded_at?->toIso8601String(),
+                'is_refund'    => $p->amount_cents < 0,
+            ])
+            ->values();
+        $paidCents = (int) $payments->sum('amount_cents');
+
         // MARKER-PATCH-161 — email send log for this sale.
         $sendLog = \App\Models\Tenant\TenantNotificationLog::where('tenant_id', $tenant->id)
             ->where('related_type', 'sale')
@@ -1018,6 +1039,8 @@ class RegisterController extends Controller
                 'refunds'        => $refunds,
                 'items'          => $items,
                 'send_log'       => $sendLog,
+                'payments'       => $payments,
+                'paid_cents'     => $paidCents,
             ],
         ]);
     }

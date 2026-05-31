@@ -347,6 +347,50 @@
     html += '<div class="sd-totals-row total"><span>Total</span><span class="num">' + escapeHtml(fmtMoney(sale.total_cents)) + '</span></div>';
     html += '</div>';
 
+    // MARKER-PATCH-191 — Payments ledger: show every payment against this sale
+    // (deposits, balance, refunds) with method, kind, date and amount, plus a
+    // paid/balance summary. This is the detail that was missing.
+    (function(){
+      var pays = sale.payments || [];
+      var paid = (typeof sale.paid_cents === 'number') ? sale.paid_cents : null;
+      html += '<div class="sd-section" style="margin-top:18px">'
+        + '<div class="sd-section-h">Payments</div>';
+      if (pays.length > 0) {
+        html += '<table class="sd-items"><tbody>';
+        pays.forEach(function(p){
+          var when = p.recorded_at ? fmtDate(p.recorded_at) : '';
+          var kind = (p.kind || '').replace('_',' ');
+          var label = p.method_label || p.method || '';
+          var meta = [label, kind].filter(Boolean).join(' · ');
+          var amtClass = p.is_refund ? ' style="color:#F87171"' : '';
+          var amtTxt = (p.is_refund ? '' : '') + fmtMoney(p.amount_cents);
+          html += '<tr>'
+            + '<td><div class="sd-item-name">' + escapeHtml(meta || 'Payment') + '</div>'
+            + (when ? '<div class="sd-item-desc">' + escapeHtml(when) + '</div>' : '')
+            + (p.notes ? '<div class="sd-item-desc">' + escapeHtml(p.notes) + '</div>' : '')
+            + '</td>'
+            + '<td class="num"' + amtClass + '>' + escapeHtml(amtTxt) + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+      } else {
+        html += '<div class="sd-loading">No payments recorded against this sale.</div>';
+      }
+      // Paid / balance summary
+      if (paid !== null) {
+        var bal = (sale.total_cents || 0) - paid;
+        html += '<div class="sd-totals" style="margin-top:6px">';
+        html += '<div class="sd-totals-row"><span>Paid</span><span class="num">' + escapeHtml(fmtMoney(paid)) + '</span></div>';
+        if (bal > 0) {
+          html += '<div class="sd-totals-row total"><span>Balance due</span><span class="num" style="color:#F59E0B">' + escapeHtml(fmtMoney(bal)) + '</span></div>';
+        } else if (bal < 0) {
+          html += '<div class="sd-totals-row"><span>Overpaid</span><span class="num" style="color:#F87171">' + escapeHtml(fmtMoney(-bal)) + '</span></div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    })();
+
     // Notes
     if (sale.notes && sale.notes.trim()) {
       html += '<div class="sd-section" style="margin-top:18px">'
