@@ -269,6 +269,8 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
                 Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
                 Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
+                // MARKER-PATCH-177 — standalone refund (customer + amount, no sale)
+                Route::post('/register/refunds/standalone', [TenantControllers\RegisterController::class, 'storeStandaloneRefund'])->name('register.refunds.standalone');
 
                 // patch-100a oversell actions — register cart buttons that
                 // create a transfer request or a special order when staff

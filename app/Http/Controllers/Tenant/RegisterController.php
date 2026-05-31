@@ -695,6 +695,66 @@ class RegisterController extends Controller
     }
 
     /**
+     * MARKER-PATCH-177 — Standalone refund: money out with NO sale attached.
+     *
+     * For refunds that aren't tied to a past sale in the system — e.g. refunding
+     * a fee charged before Intake existed. Always carries a customer; sale_id is
+     * null. Writes one negative row directly through the sale-payment ledger so
+     * it shows in "money out" / Payments Received reporting alongside everything
+     * else. Uncapped (there is no sale total to cap against — the operator types
+     * the amount). Line-item refunds against an existing sale keep using the
+     * existing storeTransaction flow; this is the no-sale path only.
+     */
+    public function storeStandaloneRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'   => 'required|uuid',
+            'amount_cents'  => 'required|integer|min:1',
+            'refund_method' => 'required|string|in:cash,card,check,store_credit,mark_paid',
+            'reason'        => 'required|string|max:500',
+        ]);
+
+        // Customer must belong to this tenant (defense against cross-tenant ids).
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $validated['customer_id'])
+            ->first();
+        if (!$customer) {
+            return response()->json(['ok' => false, 'error' => 'Customer not found.'], 404);
+        }
+
+        try {
+            $payment = app(\App\Services\Tenant\SalePaymentService::class)->recordStandaloneRefund(
+                tenantId:    $tenant->id,
+                customerId:  $customer->id,
+                amountCents: (int) $validated['amount_cents'],
+                method:      $validated['refund_method'],
+                reason:      $validated['reason'],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Standalone refund failed', [
+                'tenant_id'   => $tenant->id,
+                'customer_id' => $customer->id,
+                'error'       => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Could not record refund.'], 500);
+        }
+
+        return response()->json([
+            'ok'            => true,
+            'payment_id'    => $payment->id,
+            'amount_cents'  => abs($payment->amount_cents),
+            'customer'      => trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')),
+            'method'        => $validated['refund_method'],
+        ]);
+    }
+
+    /**
      * Commit a multi-row transaction (mixed sale + refund, or pure refund).
      * Pure sales still use storeSale or commitDraft.
      */

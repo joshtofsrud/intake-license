@@ -107,6 +107,41 @@ class SalePaymentService
     }
 
     /**
+     * MARKER-PATCH-177 — Record a standalone refund (no sale attached).
+     *
+     * Always carries a customer; sale_id stays null. Stored as a negative
+     * 'refund' row so it nets into money-out reporting like any other refund.
+     * Uncapped by design — there is no sale total to cap against.
+     */
+    public function recordStandaloneRefund(
+        string $tenantId,
+        string $customerId,
+        int $amountCents,
+        string $method,
+        string $reason,
+    ): TenantSalePayment {
+        $magnitude = abs($amountCents);
+        if ($magnitude === 0) {
+            throw new \InvalidArgumentException('Refund amount cannot be zero.');
+        }
+
+        return TenantSalePayment::create([
+            'tenant_id'            => $tenantId,
+            'sale_id'              => null,
+            'customer_id'          => $customerId,
+            'amount_cents'         => -$magnitude,
+            'kind'                 => TenantSalePayment::KIND_REFUND,
+            'source'               => TenantSalePayment::SOURCE_MANUAL_ENTRY,
+            'method'               => $method,
+            'reference_payment_id' => null,
+            'external_reference'   => null,
+            'recorded_by_user_id'  => \Illuminate\Support\Facades\Auth::guard('tenant')->id(),
+            'recorded_at'          => now(),
+            'notes'                => 'Standalone refund (no sale): ' . $reason,
+        ]);
+    }
+
+    /**
      * Recompute tenant_sales.payment_status + paid_at from the ledger.
      *
      * draft/quote are intentionally NOT overwritten — those are pre-money
