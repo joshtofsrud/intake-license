@@ -361,7 +361,7 @@ td.ia-inline-cell { cursor: default; }
 </div>
 
 <p class="ia-result-count appt-desktop-only">
-  <strong>{{ number_format($total) }}</strong> {{ Str::plural('appointment', $total) }}
+  <strong id="appt-result-count" data-count="{{ $total }}">{{ number_format($total) }}</strong> <span id="appt-result-noun">{{ Str::plural('appointment', $total) }}</span>
 </p>
 
 @if($appointments->isEmpty())
@@ -388,7 +388,7 @@ td.ia-inline-cell { cursor: default; }
   </div>
 @else
   <div class="ia-table-wrap appt-desktop-only">
-    <table class="ia-table" id="ia-appts-table" data-update-url="{{ route('tenant.appointments.update', ['id' => '__ID__']) }}">
+    <table class="ia-table" id="ia-appts-table" data-update-url="{{ route('tenant.appointments.update', ['id' => '__ID__']) }}" data-active-filter="{{ $filter ?? '' }}" data-status-filter="{{ $status ?? '' }}">
       <thead>
         <tr>
           <th>ITO #</th>
@@ -664,12 +664,54 @@ td.ia-inline-cell { cursor: default; }
       }
       // All ops succeeded
       setDirtyState(tr, false);
+      // MARKER-PATCH-179 — if this row no longer matches the active filter
+      // (e.g. confirming a booking on the "Unconfirmed bookings" list), fade
+      // it out and remove it, and decrement the result count — so the list
+      // stays accurate without a manual refresh.
+      maybePruneRow(tr, dirty);
     } catch (e) {
       console.error('inline-edit save failed', e);
       showError(tr, 'Network error. Try again.');
     } finally {
       saveBtn.disabled = false;
     }
+  }
+
+  // MARKER-PATCH-179 — remove a row that no longer belongs in the current
+  // filtered view after an inline status change.
+  function maybePruneRow(tr, dirty) {
+    if (!('status' in dirty)) return; // only status changes can drop a row
+    const table = document.getElementById('ia-appts-table');
+    if (!table) return;
+    const activeFilter = (table.dataset.activeFilter || '').toLowerCase();
+    const statusFilter = (table.dataset.statusFilter || '').toLowerCase();
+    const newStatus = (dirty.status || '').toLowerCase();
+
+    // Decide whether the row still belongs. Two filter sources:
+    //  - the "Unconfirmed bookings" attention filter (pending only)
+    //  - the explicit status dropdown filter (must match exactly)
+    let belongs = true;
+    if (activeFilter === 'unconfirmed' || activeFilter === 'pending') {
+      belongs = (newStatus === 'pending');
+    } else if (statusFilter) {
+      belongs = (newStatus === statusFilter);
+    }
+    if (belongs) return;
+
+    // Fade + remove, then decrement the count(s).
+    tr.style.transition = 'opacity .25s ease';
+    tr.style.opacity = '0';
+    setTimeout(() => {
+      tr.remove();
+      const strong = document.getElementById('appt-result-count');
+      if (strong) {
+        const n = Math.max(0, (parseInt(strong.dataset.count, 10) || 1) - 1);
+        strong.dataset.count = n;
+        strong.textContent = n.toLocaleString();
+        const noun = document.getElementById('appt-result-noun');
+        if (noun) noun.textContent = (n === 1 ? 'appointment' : 'appointments');
+      }
+    }, 260);
   }
 
   function cancelRow(tr) {
