@@ -275,6 +275,43 @@ class DirectPaymentsService
         }
     }
 
+    /**
+     * MARKER-PATCH-196 — list succeeded PaymentIntents since a unix timestamp,
+     * for Stripe-vs-ledger reconciliation. Paginates (100/page, capped) so a
+     * busy tenant doesn't blow the request. Returns an array of lightweight
+     * rows: [id, amount_cents, created, customer_email, card].
+     */
+    public function listSucceededPaymentIntents(int $sinceTs, int $maxPages = 5): array
+    {
+        $client = $this->client();
+        $out = [];
+        $params = [
+            'limit'   => 100,
+            'created' => ['gte' => $sinceTs],
+        ];
+        $page = 0;
+        do {
+            $resp = $client->paymentIntents->all($params);
+            foreach ($resp->data as $pi) {
+                if (($pi->status ?? null) !== 'succeeded') continue;
+                if ((int) ($pi->amount_received ?? 0) <= 0) continue;
+                $out[] = [
+                    'id'           => $pi->id,
+                    'amount_cents' => (int) ($pi->amount_received ?? $pi->amount ?? 0),
+                    'created'      => (int) ($pi->created ?? 0),
+                    'description'  => $pi->description ?? null,
+                ];
+            }
+            $page++;
+            $hasMore = $resp->has_more ?? false;
+            if ($hasMore && !empty($resp->data)) {
+                $params['starting_after'] = end($resp->data)->id;
+            }
+        } while ($hasMore && $page < $maxPages);
+
+        return $out;
+    }
+
     protected function client(): StripeClient
     {
         $key = $this->activeSecretKey();

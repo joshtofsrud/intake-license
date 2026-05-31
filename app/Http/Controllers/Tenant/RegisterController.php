@@ -1818,4 +1818,116 @@ class RegisterController extends Controller
         }
         return 'Tax · ' . rtrim(rtrim(number_format((float) $rate, 3), '0'), '.') . '%';
     }
+
+    /**
+     * MARKER-PATCH-197 — Stripe-vs-ledger reconciliation report. Lists succeeded
+     * Stripe payments with no matching ledger row ("paid in Stripe, unpaid in
+     * Intake"). The safety net for any payment that slips past the webhook.
+     */
+    public function reconciliation(\Illuminate\Http\Request $request)
+    {
+        $tenant = tenant();
+        $days = (int) $request->query('days', 30);
+        $days = max(1, min($days, 90));
+
+        $svc = new \App\Services\Tenant\PaymentReconciliationService($tenant);
+        $result = $svc->unmatchedPayments($days);
+
+        return view('tenant.register.reconciliation', [
+            'days'      => $days,
+            'scanned'   => $result['scanned'],
+            'unmatched' => $result['unmatched'],
+            'error'     => $result['error'],
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-197 — Reconcile a stranded Stripe payment by recording it
+     * against a sale through the ledger. Requires an explicit sale_id (the
+     * operator picks the candidate) and the PI id. Idempotent: refuses if a
+     * ledger row for this PI already exists.
+     */
+    public function reconcilePayment(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+            'sale_id'        => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Idempotency: never double-record a PI.
+        $already = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('external_reference', $validated['payment_intent'])
+            ->exists();
+        if ($already) {
+            return response()->json(['ok' => false, 'error' => 'This payment is already recorded in the ledger.'], 409);
+        }
+
+        // Verify the PI with Stripe before recording — don't trust the request.
+        $direct = new DirectPaymentsService($tenant);
+        try {
+            $pi = $direct->retrievePaymentIntent($validated['payment_intent']);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not verify payment with Stripe.'], 422);
+        }
+        if (($pi->status ?? null) !== 'succeeded' || (int) ($pi->amount_received ?? 0) <= 0) {
+            return response()->json(['ok' => false, 'error' => 'That Stripe payment is not a completed charge.'], 422);
+        }
+
+        $amountCents = (int) $pi->amount_received;
+        $details = [];
+        try { $details = $direct->extractCardDetails($pi); } catch (\Throwable $e) {}
+
+        try {
+            $hasPrior = $sale->payments()->count() > 0;
+            app(\App\Services\Tenant\SalePaymentService::class)->record(
+                sale:               $sale,
+                amountCents:        $amountCents,
+                kind:               $hasPrior
+                    ? \App\Models\Tenant\TenantSalePayment::KIND_BALANCE
+                    : ($sale->appointment_id
+                        ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                        : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT),
+                source:             \App\Models\Tenant\TenantSalePayment::SOURCE_DIRECT_PAYMENT_LINK,
+                method:             'card',
+                externalReference:  $pi->id,
+                notes:              'Reconciled from Stripe (was not recorded by webhook).',
+            );
+
+            // Stamp the sale's Stripe fields + un-cancel if it was cancelled.
+            $sale->stripe_payment_intent_id = $pi->id;
+            if (!empty($details['charge_id'])) $sale->stripe_charge_id = $details['charge_id'];
+            if (!empty($details['brand']))     $sale->card_brand       = $details['brand'];
+            if (!empty($details['last4']))     $sale->card_last4       = $details['last4'];
+            if (!empty($details['funding']))   $sale->card_funding     = $details['funding'];
+            if ($sale->status === 'cancelled') $sale->status = 'completed';
+            $sale->save();
+
+            // Refresh the linked appointment's paid cache.
+            if ($sale->appointment_id) {
+                $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
+                if ($appt) {
+                    $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                    $total = (int) $appt->total_cents;
+                    if ($appt->paid_cents >= $total && $total > 0) {
+                        $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
+                    } elseif ($appt->paid_cents > 0) {
+                        $appt->payment_status = 'partial';
+                    }
+                    $appt->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not record the payment: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'amount_cents' => $amountCents, 'sale_number' => $sale->sale_number]);
+    }
 }
