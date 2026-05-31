@@ -967,71 +967,102 @@ class AppointmentController extends Controller
         }
 
         if ($op === 'record_deposit') {
-            // Routes a deposit through the register: creates a tiny draft
-            // sale with one open_item line for the deposit amount, attached
-            // to this appointment. Staff completes the sale in the register
-            // to actually take the payment. On sale-close, the bridge
-            // writes a payment row.
-            //
-            // Validation: amount must be positive, balance must allow it
-            // (no taking deposits beyond the appointment total).
+            // MARKER-PATCH-178A — a deposit is a PAYMENT against the job's ONE
+            // sale, not its own sale. Immediate methods (cash/check/store_credit/
+            // mark_paid) record now. Card methods (keyed / payment link) are
+            // patch-178b — they share webhook+ledger plumbing and are built
+            // together there. Replaces the old "create draft sale, send to
+            // register" hand-off.
             $amountCents = (int) $request->input('amount_cents');
+            $method      = (string) $request->input('method', 'cash');
+
             if ($amountCents <= 0) {
                 return response()->json(['ok' => false, 'message' => 'Amount must be positive.'], 422);
             }
-            $balanceDue = max(0, (int) $appointment->total_cents - (int) $appointment->paid_cents);
-            if ($amountCents > $balanceDue && $balanceDue > 0) {
+            $allowedImmediate = ['cash', 'check', 'store_credit', 'mark_paid'];
+            if (!in_array($method, $allowedImmediate, true)) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Card deposits are coming soon. Use cash, check, store credit, or mark paid for now.',
+                ], 422);
+            }
+
+            // A deposit can't exceed the outstanding balance on the job.
+            $alreadyPaid = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
+            $balanceDue  = max(0, (int) $appointment->total_cents - $alreadyPaid);
+            if ($balanceDue > 0 && $amountCents > $balanceDue) {
                 return response()->json([
                     'ok'      => false,
                     'message' => "Deposit can't exceed remaining balance of " . format_money($balanceDue) . '.',
                 ], 422);
             }
 
-            // Build a one-line deposit-collection sale.
-            $sale = \DB::transaction(function () use ($appointment, $amountCents, $tenant) {
-                $saleNumber = $this->generateDepositSaleNumber($tenant->id);
-                $sale = \App\Models\Tenant\TenantSale::create([
-                    'id'                  => (string) Str::uuid(),
-                    'tenant_id'           => $tenant->id,
-                    'sale_number'         => $saleNumber,
-                    'sale_date'           => now()->toDateString(),
-                    'status'              => 'pending',
-                    'payment_status'      => 'draft',
-                    'customer_id'         => $appointment->customer_id,
-                    'appointment_id'      => $appointment->id,
-                    'rang_up_by_user_id'  => Auth::guard('tenant')->id(),
-                    'subtotal_cents'      => $amountCents,
-                    'tax_cents'           => 0,
-                    'total_cents'         => $amountCents,
-                    'notes'               => 'Deposit collection for appointment ' . ($appointment->ra_number ?? $appointment->id),
-                ]);
+            // Find-or-create the appointment's single job sale. Reuse any
+            // existing non-terminal sale for this appointment; otherwise create
+            // one priced at the appointment total, left unpaid.
+            $sale = $appointment->sales()
+                ->whereNotIn('status', ['cancelled', 'closed'])
+                ->whereNull('refund_of_sale_id')
+                ->latest('created_at')
+                ->first();
 
-                DB::table('tenant_sale_items')->insert([
-                    'id'                 => (string) Str::uuid(),
-                    'tenant_id'          => $tenant->id,
-                    'sale_id'            => $sale->id,
-                    'type'               => 'open_item',
-                    'name_snapshot'      => 'Deposit toward appointment ' . ($appointment->ra_number ?? ''),
-                    'quantity'           => 1,
-                    'unit_price_cents'   => $amountCents,
-                    'line_total_cents'   => $amountCents,
-                    'is_taxable'         => false,
-                    'position'           => 0,
-                    'notes'              => 'Auto-created deposit line; payment writes to appointment ledger on close.',
-                    'created_at'         => now(),
-                    'updated_at'         => now(),
-                ]);
+            if (!$sale) {
+                $sale = \DB::transaction(function () use ($appointment, $tenant) {
+                    return \App\Models\Tenant\TenantSale::create([
+                        'id'                 => (string) Str::uuid(),
+                        'tenant_id'          => $tenant->id,
+                        'sale_number'        => $this->generateDepositSaleNumber($tenant->id),
+                        'sale_date'          => now()->toDateString(),
+                        'status'             => 'pending',
+                        'payment_status'     => 'unpaid',
+                        'customer_id'        => $appointment->customer_id,
+                        'appointment_id'     => $appointment->id,
+                        'rang_up_by_user_id' => Auth::guard('tenant')->id(),
+                        'subtotal_cents'     => (int) $appointment->total_cents,
+                        'tax_cents'          => 0,
+                        'total_cents'        => (int) $appointment->total_cents,
+                        'notes'              => 'Job sale for appointment ' . ($appointment->ra_number ?? $appointment->id),
+                    ]);
+                });
+            }
 
-                return $sale;
-            });
+            // Record the deposit payment now.
+            try {
+                $kindFirst = $sale->payments()->count() === 0;
+                app(\App\Services\Tenant\SalePaymentService::class)->record(
+                    sale:        $sale,
+                    amountCents: $amountCents,
+                    kind:        $kindFirst
+                        ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                        : \App\Models\Tenant\TenantSalePayment::KIND_BALANCE,
+                    source:      \App\Models\Tenant\TenantSalePayment::SOURCE_MANUAL_ENTRY,
+                    method:      $method,
+                    notes:       'Deposit recorded from appointment ' . ($appointment->ra_number ?? ''),
+                );
+
+                $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
+                if ($appointment->paid_cents >= (int) $appointment->total_cents && (int) $appointment->total_cents > 0) {
+                    $appointment->payment_status = 'paid';
+                } elseif ($appointment->paid_cents > 0) {
+                    $appointment->payment_status = 'partial';
+                }
+                $appointment->save();
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Deposit payment record failed', [
+                    'appointment_id' => $appointment->id,
+                    'sale_id'        => $sale->id,
+                    'error'          => $e->getMessage(),
+                ]);
+                return response()->json(['ok' => false, 'message' => 'Could not record deposit.'], 500);
+            }
 
             return response()->json([
-                'ok'              => true,
-                'sale_id'         => $sale->id,
-                'sale_number'     => $sale->sale_number,
-                'redirect_url'    => route('tenant.register.index', [
-                    ]) . '?resume=' . $sale->id,
-                'message'         => 'Deposit sale created. Take payment in the register.',
+                'ok'           => true,
+                'sale_id'      => $sale->id,
+                'sale_number'  => $sale->sale_number,
+                'paid_cents'   => (int) $appointment->paid_cents,
+                'balance_due'  => max(0, (int) $appointment->total_cents - (int) $appointment->paid_cents),
+                'message'      => 'Deposit of ' . format_money($amountCents) . ' recorded.',
             ]);
         }
 
