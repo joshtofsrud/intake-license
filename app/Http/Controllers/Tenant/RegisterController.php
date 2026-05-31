@@ -1041,6 +1041,10 @@ class RegisterController extends Controller
                 'send_log'       => $sendLog,
                 'payments'       => $payments,
                 'paid_cents'     => $paidCents,
+                // MARKER-PATCH-195 — checkout link fields for the status view.
+                'checkout_session_id' => $sale->checkout_session_id,
+                'sale_status'    => $sale->status,
+                'appointment_id' => $sale->appointment_id,
             ],
         ]);
     }

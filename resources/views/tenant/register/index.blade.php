@@ -597,6 +597,46 @@
   </div>
 </div>
 
+{{-- MARKER-PATCH-195 — Payment-link status view. Opened from the appointment
+     banner (?status=<sale_id>) to show a live picture of an outstanding link. --}}
+<div class="reg-modal-bg" id="linkStatusModal">
+  <div class="reg-modal" style="max-width:560px">
+    <h2 style="display:flex;align-items:center;gap:10px">Payment link status <span id="lsStatusPill" class="ls-pill"></span></h2>
+    <div class="lede" id="lsHeader">Loading…</div>
+
+    <div id="lsBody" style="margin-top:14px">
+      <div class="ls-timeline" id="lsTimeline"></div>
+    </div>
+
+    <div class="ls-actions" id="lsActions" style="display:none;flex-direction:column;gap:8px;margin-top:16px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="lsUrl" readonly style="flex:1;font-size:11px;font-family:var(--ia-font-mono);background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);padding:8px 10px;color:var(--ia-text-muted)">
+        <button type="button" class="reg-btn-secondary" id="lsCopyBtn" style="padding:6px 12px;font-size:12px">Copy</button>
+      </div>
+    </div>
+
+    <div class="reg-modal-actions" style="margin-top:18px;display:flex;justify-content:space-between;gap:10px">
+      <button type="button" class="reg-btn-secondary" id="lsCancelLinkBtn" style="color:var(--ia-red,#F87171);display:none">Cancel link</button>
+      <button type="button" class="reg-btn-primary" id="lsCloseBtn" style="margin-left:auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ls-pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px}
+  .ls-pill.pending{background:rgba(96,165,250,.12);color:#60A5FA}
+  .ls-pill.paid{background:rgba(132,204,22,.12);color:#84CC16}
+  .ls-pill.expired{background:rgba(251,191,36,.12);color:#FBBF24}
+  .ls-timeline{position:relative;padding-left:22px}
+  .ls-timeline:before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:1.5px;background:var(--ia-border)}
+  .ls-te{position:relative;padding:7px 0}
+  .ls-te:before{content:'';position:absolute;left:-21px;top:11px;width:9px;height:9px;border-radius:50%;background:var(--ia-surface);border:2px solid var(--ia-text-dim)}
+  .ls-te.done:before{background:#84CC16;border-color:#84CC16}
+  .ls-te.now:before{background:#60A5FA;border-color:#60A5FA}
+  .ls-te .tt{font-size:13px;font-weight:500}
+  .ls-te .td{font-size:11.5px;color:var(--ia-text-dim);font-family:var(--ia-font-mono);margin-top:1px}
+</style>
+
 <div class="reg-modal-bg" id="tipModal">
   <div class="reg-modal">
     <h2>Add tip?</h2>
@@ -751,6 +791,7 @@ const ROUTES = {
   // MARKER-PATCH-172
   checkoutSessionCreate: @json(url('/admin/register/checkout-session')),
   checkoutSessionCheck:  @json(url('/admin/register/checkout-session/check')),
+  saleShow:              @json(route('tenant.register.sales.show', ['id' => '__ID__'])), {{-- MARKER-PATCH-195 --}}
   checkoutSessionCancel: @json(url('/admin/register/checkout-session/cancel')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
@@ -2500,6 +2541,125 @@ renderCart();
   const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
   window.history.replaceState({}, '', cleanUrl);
   resumeDraft(draftId);
+})();
+
+// MARKER-PATCH-195 — Payment-link status view. Opened from the appointment
+// "Payment link sent" banner via ?status=<sale_id>. Shows a live timeline of
+// the outstanding link, polls for resolution, and offers copy / cancel.
+const LinkStatus = { saleId: null, sessionId: null, url: null, poll: null };
+
+function lsRenderTimeline(sale, liveStatus) {
+  const paid = (liveStatus === 'succeeded') || sale.payment_status === 'paid' || (sale.paid_cents > 0);
+  const expired = (liveStatus === 'expired') || sale.sale_status === 'cancelled';
+  const created = sale.created_at ? lsFmtDate(sale.created_at) : '';
+  const rows = [];
+  rows.push(['done', 'Link created', created]);
+  rows.push(['done', 'Link sent to customer', sale.customer && sale.customer.email ? sale.customer.email : '']);
+  if (paid) {
+    rows.push(['done', 'Payment received', sale.paid_at ? lsFmtDate(sale.paid_at) : '']);
+    rows.push(['done', 'Recorded to ledger', sale.payments && sale.payments.length ? (sale.payments[0].method_label || 'card') : '']);
+  } else if (expired) {
+    rows.push(['', 'Link expired without payment', '']);
+  } else {
+    rows.push(['now', 'Awaiting payment', 'checking automatically…']);
+    rows.push(['', 'Payment received', '— pending —']);
+    rows.push(['', 'Recorded to ledger', '— pending —']);
+  }
+  return rows.map(r =>
+    '<div class="ls-te ' + r[0] + '"><div class="tt">' + esc(r[1]) + '</div>' +
+    (r[2] ? '<div class="td">' + esc(r[2]) + '</div>' : '') + '</div>'
+  ).join('');
+}
+
+function lsSetPill(status) {
+  const el = document.getElementById('lsStatusPill');
+  if (status === 'succeeded' || status === 'paid') { el.className = 'ls-pill paid'; el.textContent = 'Paid'; }
+  else if (status === 'expired') { el.className = 'ls-pill expired'; el.textContent = 'Expired'; }
+  else { el.className = 'ls-pill pending'; el.textContent = 'Awaiting payment'; }
+}
+
+function lsFmtDate(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d.getTime())) return iso; return d.toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+function esc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function openLinkStatus(saleId) {
+  if (!saleId) return;
+  LinkStatus.saleId = saleId;
+  openModal('linkStatusModal');
+  document.getElementById('lsHeader').textContent = 'Loading…';
+  document.getElementById('lsTimeline').innerHTML = '';
+  // Fetch the sale detail (showSaleJson — includes checkout + payments).
+  let sale = null;
+  try {
+    const showUrl = ROUTES.saleShow ? ROUTES.saleShow.replace('__ID__', encodeURIComponent(saleId)) : null;
+    if (showUrl) {
+      const r = await fetch(showUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+      const d = await r.json();
+      if (d.ok) sale = d.sale;
+    }
+  } catch (e) {}
+  if (!sale) { document.getElementById('lsHeader').textContent = 'Could not load this sale.'; return; }
+
+  const status = (sale.payment_status === 'paid' || sale.paid_cents > 0) ? 'paid'
+               : (sale.sale_status === 'cancelled' ? 'expired' : 'pending');
+  lsSetPill(status);
+  document.getElementById('lsHeader').innerHTML =
+    fmt(sale.total_cents) + ' · ' + esc(sale.customer ? sale.customer.name : 'No customer') +
+    (sale.sale_number ? ' · <span style="font-family:var(--ia-font-mono);font-size:11px">' + esc(sale.sale_number) + '</span>' : '');
+  document.getElementById('lsTimeline').innerHTML = lsRenderTimeline(sale, status === 'paid' ? 'succeeded' : (status === 'expired' ? 'expired' : 'pending'));
+
+  // Cancel-link action only while still pending.
+  const cancelBtn = document.getElementById('lsCancelLinkBtn');
+  cancelBtn.style.display = (status === 'pending') ? '' : 'none';
+
+  // Poll for resolution while pending.
+  if (LinkStatus.poll) clearInterval(LinkStatus.poll);
+  if (status === 'pending') {
+    LinkStatus.poll = setInterval(async () => {
+      try {
+        const res = await fetch(ROUTES.checkoutSessionCheck, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+          body: JSON.stringify({ sale_id: saleId }),
+        });
+        const d = await res.json();
+        if (!d.ok) return;
+        if (d.status === 'succeeded' || d.status === 'expired') {
+          clearInterval(LinkStatus.poll); LinkStatus.poll = null;
+          openLinkStatus(saleId); // re-render terminal state
+        }
+      } catch (e) {}
+    }, 4000);
+  }
+}
+
+function lsClose() {
+  if (LinkStatus.poll) { clearInterval(LinkStatus.poll); LinkStatus.poll = null; }
+  closeModal('linkStatusModal');
+}
+
+document.getElementById('lsCloseBtn').addEventListener('click', lsClose);
+document.getElementById('lsCancelLinkBtn').addEventListener('click', async () => {
+  if (!LinkStatus.saleId) return;
+  if (!confirm('Cancel this payment link? The customer will no longer be able to pay it.')) return;
+  try {
+    await fetch(ROUTES.checkoutSessionCancel, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ sale_id: LinkStatus.saleId }),
+    });
+  } catch (e) {}
+  lsClose();
+});
+
+// Autoload from ?status=<sale_id> (from the appointment banner).
+(function autoloadStatusFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get('status');
+  if (!sid) return;
+  params.delete('status');
+  const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  window.history.replaceState({}, '', cleanUrl);
+  openLinkStatus(sid);
 })();
 
 // --- Refund picker ---
