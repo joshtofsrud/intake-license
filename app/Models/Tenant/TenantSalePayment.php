@@ -61,6 +61,17 @@ class TenantSalePayment extends Model
         return $this->belongsTo(TenantSale::class, 'sale_id');
     }
 
+    // MARKER-PATCH-176C — back-compat alias. The old appointment-payment model
+    // exposed registerSale() (the sale that produced the payment, via
+    // register_sale_id). On the sale ledger that IS the sale (via sale_id), so
+    // registerSale() aliases sale(). Keeps the appointment detail view + the
+    // 'payments.registerSale' eager-load working unchanged. Null-safe for
+    // standalone refunds (sale_id null) — callers use optional()/?->.
+    public function registerSale(): BelongsTo
+    {
+        return $this->belongsTo(TenantSale::class, 'sale_id');
+    }
+
     // MARKER-PATCH-176 — a refund always has a customer; sale is optional.
     public function customer(): BelongsTo
     {
