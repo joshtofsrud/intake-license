@@ -90,9 +90,19 @@ class DashboardDataService
             ->where('created_at', '>=', $weekStart)
             ->count();
 
+        // MARKER-PATCH-183 — today's deliveries for the dashboard mini-section.
+        $todayDeliveries = collect();
+        try {
+            $todayDeliveries = (new \App\Services\Tenant\TenantDeliveryService($this->tenant))
+                ->forDay($this->tnow());
+        } catch (\Throwable $e) {
+            $todayDeliveries = collect();
+        }
+
         return [
             'appointments'        => $todayAppointments,
             'today_count'         => $todayAppointments->count(),
+            'today_deliveries'    => $todayDeliveries,
             'next_up'             => $nextUp,
             'last_24h_bookings'   => $last24hNewBookings,
             'week_bookings'       => $weekBookings,

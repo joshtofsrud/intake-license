@@ -136,5 +136,43 @@
     </div>
   </div>
   @endif
+
+  {{-- MARKER-PATCH-183 — today's deliveries, mirrors the appointments block --}}
+  @if(!empty($today['today_deliveries']) && $today['today_deliveries']->isNotEmpty())
+  <div class="ia-card" style="margin-top:20px">
+    <div class="ia-card-head">
+      <span class="ia-card-title">Deliveries · {{ $today['today_deliveries']->count() }} today</span>
+      <a href="{{ route('tenant.deliveries.index') }}" class="ia-card-action">Open deliveries →</a>
+    </div>
+
+    <div class="ia-dash-today-list">
+      @foreach($today['today_deliveries'] as $delivery)
+        <a href="{{ route('tenant.deliveries.index') }}" class="ia-dash-today-row">
+          <div class="ia-dash-today-time">
+            @if($delivery->scheduled_at)
+              <div class="ia-dash-today-time-hm">{{ $delivery->scheduled_at->format('g:i') }}</div>
+              <div class="ia-dash-today-time-ap">{{ $delivery->scheduled_at->format('A') }}</div>
+            @else
+              <div class="ia-dash-today-time-hm">Any time</div>
+            @endif
+          </div>
+          <div class="ia-dash-today-main">
+            <div class="ia-dash-today-service">
+              {{ $delivery->isPickup() ? 'Pickup' : 'Drop-off' }}@if($delivery->deliveryResource) · {{ $delivery->deliveryResource->name }}@endif
+            </div>
+            <div class="ia-dash-today-customer">
+              {{ $delivery->customer ? trim(($delivery->customer->first_name ?? '') . ' ' . ($delivery->customer->last_name ?? '')) : 'No customer' }}@if($delivery->address) · {{ $delivery->address }}@endif
+            </div>
+          </div>
+          <div class="ia-dash-today-status">
+            <span class="ia-badge ia-badge--{{ str_replace('_', '-', $delivery->status) }}">
+              {{ ucfirst($delivery->status) }}
+            </span>
+          </div>
+        </a>
+      @endforeach
+    </div>
+  </div>
+  @endif
   </div>{{-- /ia-day-panel --}}
 </div>
