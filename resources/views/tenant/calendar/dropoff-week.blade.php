@@ -47,6 +47,13 @@
   </div>
 @else
   <div class="cal-week-wrap">
+    {{-- MARKER-PATCH-182 — status legend for capacity/drop-off week view --}}
+    <div class="cal-week-legend">
+      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-pending"></span>Pending</span>
+      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-confirmed"></span>Confirmed</span>
+      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-in-progress"></span>In progress</span>
+      <span class="cal-week-legend-item"><span class="cal-week-legend-swatch is-completed"></span>Completed</span>
+    </div>
     <div class="cal-week-grid" style="grid-template-columns: 140px repeat(7, 1fr);">
       <div class="cal-week-corner"></div>
       @foreach($days as $day)
@@ -141,6 +148,23 @@
 .cal-week-card.sortable-chosen{cursor:grabbing}
 .cal-week-card-ra{font-size:9.5px;font-weight:600;color:var(--ia-text-3);font-feature-settings:"tnum"}
 .cal-week-card-name{font-size:11px;font-weight:500;color:var(--ia-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* MARKER-PATCH-182 — status visuals on capacity/drop-off week cards, matching
+   the time-slot status system. Left border carries the status color; pending
+   uses a dashed left border (booked-not-confirmed). */
+.cal-week-card{border-left-width:3px;border-left-style:solid;border-left-color:var(--ia-border)}
+.cal-week-card[data-status="pending"]{border-left-style:dashed;border-left-color:#F59E0B}
+.cal-week-card[data-status="confirmed"]{border-left-color:var(--ia-accent)}
+.cal-week-card[data-status="in_progress"]{border-left-color:#3B82F6}
+.cal-week-card[data-status="completed"]{border-left-color:#6C6C6C;opacity:0.7}
+.cal-week-card[data-status="completed"] .cal-week-card-name::after{content:" ✓";color:#6C6C6C}
+/* Compact status legend for capacity week view */
+.cal-week-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:10px 0 4px;font-size:11px;color:var(--ia-text-3)}
+.cal-week-legend-item{display:flex;align-items:center;gap:6px}
+.cal-week-legend-swatch{width:18px;height:0;border-top-width:3px;border-top-style:solid;display:inline-block}
+.cal-week-legend-swatch.is-pending{border-top-style:dashed;border-top-color:#F59E0B}
+.cal-week-legend-swatch.is-confirmed{border-top-color:var(--ia-accent)}
+.cal-week-legend-swatch.is-in-progress{border-top-color:#3B82F6}
+.cal-week-legend-swatch.is-completed{border-top-color:#6C6C6C}
 </style>
 @endpush
 
