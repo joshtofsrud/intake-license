@@ -276,14 +276,20 @@ class ReportsDataService
             ];
         }
 
+        // MARKER-PATCH-184C — top customers by SPEND now read the sale payment
+        // ledger (payments received in window), attributed via the sale's
+        // customer. "visits" = distinct sales paid in the window. recorded_at is
+        // UTC; bound by the tenant-local window converted to UTC.
+        $tz = $this->tenant->timezone();
+        $winStart = $from->copy()->setTimezone($tz)->startOfDay()->utc();
+        $winEnd   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
         $topCustomers = TenantCustomer::where('tenant_customers.tenant_id', $this->tenant->id)
-            ->join('tenant_appointments as ta', function ($j) use ($from, $to) {
-                $j->on('ta.customer_id', '=', 'tenant_customers.id')
-                  ->whereIn('ta.status', self::DELIVERED_STATUSES)
-                  ->where('ta.payment_status', 'paid')
-                  ->whereBetween('ta.appointment_date', [$from->toDateString(), $to->toDateString()]);
+            ->join('tenant_sales as ts', 'ts.customer_id', '=', 'tenant_customers.id')
+            ->join('tenant_sale_payments as tsp', function ($j) use ($winStart, $winEnd) {
+                $j->on('tsp.sale_id', '=', 'ts.id')
+                  ->whereBetween('tsp.recorded_at', [$winStart, $winEnd]);
             })
-            ->selectRaw('tenant_customers.id, tenant_customers.first_name, tenant_customers.last_name, tenant_customers.created_at, SUM(ta.total_cents) as cents, COUNT(ta.id) as visits')
+            ->selectRaw('tenant_customers.id, tenant_customers.first_name, tenant_customers.last_name, tenant_customers.created_at, SUM(tsp.amount_cents) as cents, COUNT(DISTINCT ts.id) as visits')
             ->groupBy('tenant_customers.id', 'tenant_customers.first_name', 'tenant_customers.last_name', 'tenant_customers.created_at')
             ->orderByDesc('cents')
             ->limit(5)
@@ -350,12 +356,20 @@ class ReportsDataService
             ->get()
             ->keyBy('resource_id');
 
-        $revenue = TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->whereBetween('appointment_date', [$from->toDateString(), $to->toDateString()])
-            ->whereIn('status', self::DELIVERED_STATUSES)
-            ->where('payment_status', 'paid')
-            ->selectRaw('resource_id, SUM(total_cents) as cents')
-            ->groupBy('resource_id')
+        // MARKER-PATCH-184D — per-resource revenue from the sale payment ledger
+        // (payments received in window), attributed via payment -> sale ->
+        // appointment -> resource_id. Walk-in retail sales (no appointment) carry
+        // no resource and are correctly excluded from per-staff revenue.
+        $tzStaff = $this->tenant->timezone();
+        $revWinStart = $from->copy()->setTimezone($tzStaff)->startOfDay()->utc();
+        $revWinEnd   = $to->copy()->setTimezone($tzStaff)->endOfDay()->utc();
+        $revenue = DB::table('tenant_sale_payments as tsp')
+            ->where('tsp.tenant_id', $this->tenant->id)
+            ->whereBetween('tsp.recorded_at', [$revWinStart, $revWinEnd])
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tsp.sale_id')
+            ->join('tenant_appointments as ta', 'ta.id', '=', 'ts.appointment_id')
+            ->selectRaw('ta.resource_id as resource_id, SUM(tsp.amount_cents) as cents')
+            ->groupBy('ta.resource_id')
             ->pluck('cents', 'resource_id')
             ->toArray();
 
@@ -533,11 +547,16 @@ class ReportsDataService
 
     private function revenueForDate(Carbon $date): int
     {
-        return (int) TenantAppointment::where('tenant_id', $this->tenant->id)
-            ->where('appointment_date', $date->toDateString())
-            ->whereIn('status', self::DELIVERED_STATUSES)
-            ->where('payment_status', 'paid')
-            ->sum('total_cents');
+        // MARKER-PATCH-184B — payments received (ledger) for the tenant-local
+        // day, replacing appointment totals. recorded_at is UTC; bound by the
+        // local-day window converted to UTC. Signed amounts net refunds.
+        $tz = $this->tenant->timezone();
+        $start = $date->copy()->setTimezone($tz)->startOfDay()->utc();
+        $end   = $date->copy()->setTimezone($tz)->endOfDay()->utc();
+        return (int) DB::table('tenant_sale_payments')
+            ->where('tenant_id', $this->tenant->id)
+            ->whereBetween('recorded_at', [$start, $end])
+            ->sum('amount_cents');
     }
 
     private function bookingCountForDate(Carbon $date): int

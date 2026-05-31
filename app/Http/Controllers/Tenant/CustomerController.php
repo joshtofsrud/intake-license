@@ -76,19 +76,32 @@ class CustomerController extends Controller
         $emails = $customers->pluck('email')->toArray();
         $stats = [];
         if (!empty($emails)) {
+            // last_service_date stays appointment-sourced (scheduling fact).
             $rows = TenantAppointment::where('tenant_id', $tenant->id)
                 ->whereIn('customer_email', $emails)
                 ->selectRaw('
                     customer_email,
-                    MAX(CASE WHEN status = \'completed\' THEN appointment_date END) AS last_service_date,
-                    COALESCE(SUM(CASE WHEN payment_status = \'paid\' THEN total_cents ELSE 0 END), 0) AS total_spend_cents
+                    MAX(CASE WHEN status = \'completed\' THEN appointment_date END) AS last_service_date
                 ')
                 ->groupBy('customer_email')
                 ->get()
                 ->keyBy('customer_email');
 
+            // MARKER-PATCH-184F — lifetime spend from the sale payment ledger,
+            // keyed by the sale's customer_id (payments received).
+            $spendByCustomer = \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+                ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
+                ->whereNotNull('ts.customer_id')
+                ->selectRaw('ts.customer_id as customer_id, SUM(tenant_sale_payments.amount_cents) as total_spend_cents')
+                ->groupBy('ts.customer_id')
+                ->pluck('total_spend_cents', 'customer_id');
+
             foreach ($customers as $c) {
-                $stats[$c->id] = $rows[$c->email] ?? null;
+                $row = $rows[$c->email] ?? null;
+                $stats[$c->id] = (object) [
+                    'last_service_date' => $row->last_service_date ?? null,
+                    'total_spend_cents' => (int) ($spendByCustomer[$c->id] ?? 0),
+                ];
             }
         }
 
@@ -178,7 +191,12 @@ class CustomerController extends Controller
         // Note: $customer->notes is a fillable string column on TenantCustomer.
         // The relationship is on notes() — call explicitly to get the collection.
         $notes       = $customer->notes()->orderByDesc('created_at')->get();
-        $totalSpend  = (int) $appointments->where('payment_status', 'paid')->sum('total_cents');
+        // MARKER-PATCH-184F — lifetime spend from the sale payment ledger
+        // (payments received, attributed via the sale's customer), not appt totals.
+        $totalSpend  = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
+            ->where('ts.customer_id', $customer->id)
+            ->sum('tenant_sale_payments.amount_cents');
         $lastService = $appointments->where('status', 'completed')->first()?->appointment_date;
         $updateUrl   = route('tenant.customers.update', $customer->id);
 
@@ -303,7 +321,11 @@ class CustomerController extends Controller
             ->where('customer_email', $customer->email)
             ->orderByDesc('appointment_date')->orderByDesc('created_at')->get();
 
-        $totalSpend = $appointments->where('payment_status', 'paid')->sum('total_cents');
+        // MARKER-PATCH-184F — lifetime spend from the sale payment ledger.
+        $totalSpend = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
+            ->where('ts.customer_id', $customer->id)
+            ->sum('tenant_sale_payments.amount_cents');
         $lastService = $appointments->where('status', 'completed')->max('appointment_date');
         $totalAppts = $appointments->count();
 
