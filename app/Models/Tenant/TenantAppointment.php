@@ -171,4 +171,20 @@ class TenantAppointment extends Model
             ->first();
     }
 
+    /**
+     * MARKER-PATCH-194 — a live payment-link sale awaiting the customer:
+     * has a Stripe checkout session, not yet paid, not cancelled. Drives the
+     * "payment pending" banner so a link sent from this appointment is visible
+     * and trackable instead of floating until it resolves.
+     */
+    public function pendingPaymentLinkSale(): ?TenantSale
+    {
+        return $this->sales()
+            ->whereNotNull('checkout_session_id')
+            ->whereNotIn('status', ['cancelled', 'closed', 'completed'])
+            ->whereNotIn('payment_status', ['paid', 'refunded'])
+            ->latest('created_at')
+            ->first();
+    }
+
 }

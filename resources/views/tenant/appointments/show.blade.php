@@ -544,13 +544,27 @@
   // Banner state — drives the top-of-page status banner.
   // Three cases: open draft sale (amber, take payment), paid (green),
   // overage (amber warning, refund customer). Anything else = no banner.
+  $bannerPendingLink = $appointment->pendingPaymentLinkSale(); // MARKER-PATCH-194
   $bannerSale     = $appointment->openRegisterSale();
   $bannerBalance  = max(0, (int)$appointment->total_cents - (int)$appointment->paid_cents);
   $bannerOverage  = max(0, (int)$appointment->paid_cents - (int)$appointment->total_cents);
   $bannerPaidFull = ($appointment->payment_status === 'paid');
 @endphp
 
-@if($bannerSale)
+@if($bannerPendingLink)
+  {{-- MARKER-PATCH-194 — a payment link is out and awaiting the customer. --}}
+  <div style="background:rgba(96,165,250,.10);border:0.5px solid rgba(96,165,250,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
+    <span style="font-size:20px;line-height:1">🔗</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px;color:var(--ia-text)">Payment link sent — awaiting customer · {{ format_money($bannerPendingLink->total_cents) }}</div>
+      <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">
+        Sale {{ $bannerPendingLink->sale_number ?? 'pending' }} · the customer can pay on their own time; this updates automatically when they do.
+      </div>
+    </div>
+    <a href="{{ route('tenant.register.index', []) }}?status={{ $bannerPendingLink->id }}"
+       class="ia-btn ia-btn--ghost ia-btn--sm">View status →</a>
+  </div>
+@elseif($bannerSale)
   <div style="background:rgba(251,191,36,.10);border:0.5px solid rgba(251,191,36,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
     <span style="font-size:20px;line-height:1">💳</span>
     <div style="flex:1">
