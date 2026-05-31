@@ -2000,4 +2000,79 @@ class RegisterController extends Controller
             'payment_status' => $sale->payment_status,
         ]);
     }
+
+    /**
+     * MARKER-PATCH-199 — Delete an empty sale (data correction for stray
+     * deposit-sales left after their payment was removed). REFUSES if the sale
+     * still has any ledger payments — you must clear those first (patch-198).
+     * Hard-deletes the sale + its line items, then refreshes the linked
+     * appointment's paid cache. Double-confirmed in the UI.
+     */
+    public function deleteSale(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Guard: never delete a sale that still carries money. The operator must
+        // remove the payments first (so the deletion can't silently lose a
+        // recorded payment).
+        $payCount = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->count();
+        if ($payCount > 0) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'This sale still has ' . $payCount . ' payment(s). Delete those first, then delete the sale.',
+            ], 409);
+        }
+
+        // Guard: never delete a refund record this way.
+        if ($sale->refund_of_sale_id) {
+            return response()->json(['ok' => false, 'error' => 'Refund records cannot be deleted here.'], 422);
+        }
+
+        $apptId = $sale->appointment_id;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $sale) {
+            \App\Models\Tenant\TenantSaleItem::where('tenant_id', $tenant->id)
+                ->where('sale_id', $sale->id)
+                ->delete();
+            $sale->delete();
+        });
+
+        // Recompute the linked appointment's paid cache from the remaining ledger.
+        if ($apptId) {
+            $appt = \App\Models\Tenant\TenantAppointment::find($apptId);
+            if ($appt) {
+                $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                $total = (int) $appt->total_cents;
+                if ($total > 0 && $appt->paid_cents >= $total) {
+                    $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
+                } elseif ($appt->paid_cents > 0) {
+                    $appt->payment_status = 'partial';
+                } else {
+                    $appt->payment_status = 'unpaid';
+                }
+                $appt->save();
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('sale.deleted', [
+            'tenant_id'   => $tenant->id,
+            'sale_id'     => $validated['sale_id'],
+            'sale_number' => $sale->sale_number,
+            'by'          => auth('tenant')->id(),
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
 }

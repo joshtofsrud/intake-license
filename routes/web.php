@@ -274,6 +274,8 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
                 Route::post('/register/reconciliation/record', [TenantControllers\RegisterController::class, 'reconcilePayment'])->name('register.reconciliation.record');
                 // MARKER-PATCH-198 — delete a single ledger payment (data correction).
                 Route::post('/register/sales/payment/delete', [TenantControllers\RegisterController::class, 'deleteSalePayment'])->name('register.sales.payment.delete');
+                // MARKER-PATCH-199 — delete an empty sale (data correction).
+                Route::post('/register/sales/delete', [TenantControllers\RegisterController::class, 'deleteSale'])->name('register.sales.delete');
                 Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
                 Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
                 // MARKER-PATCH-177 — standalone refund (customer + amount, no sale)

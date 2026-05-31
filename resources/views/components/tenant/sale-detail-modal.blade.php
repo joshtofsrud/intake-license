@@ -143,6 +143,9 @@
   }
   .sd-btn:hover{background:var(--ia-hover)}
   .sd-btn--primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
+  .sd-btn--danger{background:transparent;color:#F87171;border-color:rgba(248,113,113,.4)} /* MARKER-PATCH-199 */
+  .sd-btn--danger:hover{background:rgba(248,113,113,.10)}
+  .sd-btn--danger:disabled{opacity:.5;cursor:default}
   .sd-btn--primary:hover{filter:brightness(1.1);background:var(--ia-accent)}
 
   .sd-loading,.sd-error{
@@ -174,6 +177,10 @@
       <button type="button" class="sd-btn sd-btn--primary" id="sdRefundBtn" style="display:none">
         Refund this sale
       </button>
+      {{-- MARKER-PATCH-199 — delete an empty sale (no payments). --}}
+      <button type="button" class="sd-btn sd-btn--danger" id="sdDeleteSaleBtn" style="display:none">
+        Delete sale
+      </button>
     </div>
   </div>
 </div>
@@ -190,9 +197,11 @@
   var closeBtn  = document.getElementById('sdClose');
   var closeBtn2 = document.getElementById('sdCloseBtn');
   var refundBtn = document.getElementById('sdRefundBtn');
+  var deleteSaleBtn = document.getElementById('sdDeleteSaleBtn'); // MARKER-PATCH-199
 
   var SHOW_URL_TEMPLATE = @json(route('tenant.register.sales.show', ['id' => '__ID__']));
   var DELETE_PAYMENT_URL = @json(route('tenant.register.sales.payment.delete')); {{-- MARKER-PATCH-198 --}}
+  var DELETE_SALE_URL    = @json(route('tenant.register.sales.delete')); {{-- MARKER-PATCH-199 --}}
   var REGISTER_URL      = @json(route('tenant.register.index', []));
 
   function fmtMoney(cents) {
@@ -611,6 +620,20 @@
       refundBtn.style.display = 'none';
       refundBtn.dataset.saleNumber = '';
     }
+
+    // MARKER-PATCH-199 — offer "Delete sale" ONLY when the sale carries no
+    // money (no payments) and isn't a refund record. This is the stray-sale
+    // cleanup case: delete its payments first (patch-198), then the empty sale.
+    var noMoney = (typeof sale.paid_cents === 'number')
+      ? (sale.paid_cents === 0 && (!sale.payments || sale.payments.length === 0))
+      : (!sale.payments || sale.payments.length === 0);
+    if (noMoney && !sale.is_refund) {
+      deleteSaleBtn.style.display = '';
+      deleteSaleBtn.dataset.saleId = sale.id;
+    } else {
+      deleteSaleBtn.style.display = 'none';
+      deleteSaleBtn.dataset.saleId = '';
+    }
   }
 
   // Public API
@@ -650,6 +673,35 @@
     close();
     var sep = REGISTER_URL.indexOf('?') >= 0 ? '&' : '?';
     window.location.href = REGISTER_URL + sep + 'refund=' + encodeURIComponent(num);
+  });
+
+  // MARKER-PATCH-199 — delete an empty sale. Double-confirmed (confirm + typed
+  // DELETE). Server refuses if the sale still has payments.
+  deleteSaleBtn.addEventListener('click', function(){
+    var sid = deleteSaleBtn.dataset.saleId;
+    if (!sid) return;
+    if (!confirm('Delete this sale?\n\nThis permanently removes the sale and its line items. It has no payments on it. This cannot be undone.')) return;
+    var typed = prompt('Type DELETE to confirm removing this sale.');
+    if (!typed || typed.trim().toUpperCase() !== 'DELETE') return;
+    deleteSaleBtn.disabled = true; deleteSaleBtn.textContent = 'Deleting…';
+    var headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    if (csrf) headers['X-CSRF-TOKEN'] = csrf.getAttribute('content');
+    fetch(DELETE_SALE_URL, {
+      method: 'POST', credentials: 'same-origin', headers: headers,
+      body: JSON.stringify({ sale_id: sid }),
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d && d.ok) {
+        close();
+        window.location.reload();
+      } else {
+        alert((d && d.error) || 'Could not delete the sale.');
+        deleteSaleBtn.disabled = false; deleteSaleBtn.textContent = 'Delete sale';
+      }
+    })
+    .catch(function(){ alert('Network error.'); deleteSaleBtn.disabled = false; deleteSaleBtn.textContent = 'Delete sale'; });
   });
 })();
 </script>
