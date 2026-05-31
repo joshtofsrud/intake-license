@@ -172,7 +172,7 @@
     <h1 class="ia-page-title">{{ $session->template->name }}</h1>
     <p class="ia-page-subtitle">
       {{ $session->starts_at->format('l, F j, Y') }} ·
-      {{ $session->starts_at->format('g:i A') }} – {{ $session->ends_at->format('g:i A') }}
+      {{ tlocal($session->starts_at) }} – {{ tlocal($session->ends_at) }}
     </p>
   </div>
   <div class="ia-page-head-right">
@@ -518,7 +518,7 @@
         </div>
         <div class="cl-info-row">
           <span class="cl-info-label">Time</span>
-          <span class="cl-info-value">{{ $session->starts_at->format('g:i A') }} – {{ $session->ends_at->format('g:i A') }}</span>
+          <span class="cl-info-value">{{ tlocal($session->starts_at) }} – {{ tlocal($session->ends_at) }}</span>
         </div>
         <div class="cl-info-row">
           <span class="cl-info-label">Instructor</span>

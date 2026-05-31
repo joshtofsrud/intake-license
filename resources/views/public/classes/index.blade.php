@@ -95,7 +95,7 @@
               · {{ $session->template->duration_minutes }}min
             </div>
           </div>
-          <div class="cl-card-time">{{ $session->starts_at->format('g:i A') }}</div>
+          <div class="cl-card-time">{{ tlocal($session->starts_at) }}</div>
         </div>
         <div class="cl-card-footer">
           @if($isFull)

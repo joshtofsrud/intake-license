@@ -167,7 +167,7 @@
             <div class="cm-row-name">{{ $c->name }}</div>
             <div class="cm-row-meta">
               @if($c->scheduled_at)
-                Scheduled {{ $c->scheduled_at->format('M j · g:ia') }}
+                Scheduled {{ tlocal($c->scheduled_at, 'M j · g:ia') }}
               @else
                 Sending now…
               @endif

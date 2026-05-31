@@ -2138,7 +2138,7 @@ input.ma-asset-name-edit:focus {
                       · {{ $p->methodLabel() }}
                     </div>
                     <div style="font-size: 10px; color: var(--ia-text-dim); margin-top: 2px;">
-                      {{ $p->recorded_at?->format('M j · g:i A') }}
+                      {{ $p->recorded_at ? tlocal($p->recorded_at, 'M j · g:i A') : '' }}
                       @if($p->source === 'register_sale' && $p->register_sale_id)
                         · sale {{ optional($p->registerSale)->sale_number ?? '#' }}
                       @endif

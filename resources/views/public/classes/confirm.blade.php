@@ -61,7 +61,7 @@
     </div>
     <div class="cl-confirm-row">
       <div class="cl-confirm-label">Time</div>
-      <div class="cl-confirm-value">{{ $registration->session->starts_at->format('g:i A') }} – {{ $registration->session->ends_at->format('g:i A') }}</div>
+      <div class="cl-confirm-value">{{ tlocal($registration->session->starts_at) }} – {{ tlocal($registration->session->ends_at) }}</div>
     </div>
     @if($registration->session->instructor_snapshot)
       <div class="cl-confirm-row">

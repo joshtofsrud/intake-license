@@ -157,13 +157,13 @@
       @if($tr->sent_at)
         <tr>
           <td>Sent</td>
-          <td>{{ $tr->sent_at->format('M j, Y g:i a') }}</td>
+          <td>{{ tlocal($tr->sent_at, 'M j, Y g:i a') }}</td>
         </tr>
       @endif
       @if($tr->fulfilled_at)
         <tr>
           <td>Received</td>
-          <td>{{ $tr->fulfilled_at->format('M j, Y g:i a') }}</td>
+          <td>{{ tlocal($tr->fulfilled_at, 'M j, Y g:i a') }}</td>
         </tr>
       @endif
       @if($tr->notes)

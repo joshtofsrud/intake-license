@@ -111,7 +111,7 @@
       <div class="ac-list-row">
         <div>
           <div class="ac-list-name">{{ $reg->session->template->name }}</div>
-          <div class="ac-list-meta">{{ $reg->session->starts_at->format('D, M j · g:i A') }}</div>
+          <div class="ac-list-meta">{{ tlocal($reg->session->starts_at, 'D, M j · g:i A') }}</div>
         </div>
         <div class="ac-list-right">
           <span class="ac-pill ac-pill--{{ $reg->status }}">{{ ucfirst($reg->status) }}</span>

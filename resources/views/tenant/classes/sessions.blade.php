@@ -172,7 +172,7 @@
       <div class="cl-session-card" id="session-{{ $session->id }}">
         <div class="cl-session-head" onclick="toggleSession('{{ $session->id }}')">
           <div>
-            <div class="cl-session-time">{{ $session->starts_at->format('g:i A') }}</div>
+            <div class="cl-session-time">{{ tlocal($session->starts_at) }}</div>
             <div class="cl-session-date">{{ $session->starts_at->format('D, M j') }}</div>
           </div>
           <div>
@@ -298,7 +298,7 @@
           <a href="{{ $showUrl }}" class="cl-sess-card-m">
             <div class="cl-sess-top-m">
               <div class="cl-sess-left-m">
-                <div class="cl-sess-time-m">{{ $session->starts_at->format('g:i A') }} – {{ $session->ends_at->format('g:i A') }}</div>
+                <div class="cl-sess-time-m">{{ tlocal($session->starts_at) }} – {{ tlocal($session->ends_at) }}</div>
                 <div class="cl-sess-name-m">{{ $session->template->name }}</div>
                 <div class="cl-sess-meta-m">{{ $session->instructor_snapshot ?? 'No instructor' }} · {{ $session->template->duration_minutes }}min</div>
               </div>

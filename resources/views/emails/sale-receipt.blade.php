@@ -40,7 +40,7 @@
   </tr>
   <tr>
     <td style="font-size:12px;color:#666">
-      {{ \Carbon\Carbon::parse($saleDate)->format('M j, Y · g:i A') }}
+      {{ tlocal($saleDate, 'M j, Y · g:i A') }}
       @if($cashier) · Cashier: {{ $cashier }} @endif
     </td>
   </tr>

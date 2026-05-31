@@ -6,7 +6,7 @@
 @section('waitlist_slot')
 <div class="w-card" style="text-align:center">
   <p style="color:var(--p-muted);margin-bottom:20px;line-height:1.6">
-    The opening on <b>{{ $offer->slot_datetime->format('l, F j \a\t g:i A') }}</b> was just booked by someone else.
+    The opening on <b>{{ tlocal($offer->slot_datetime, 'l, F j \a\t g:i A') }}</b> was just booked by someone else.
   </p>
   <p style="color:var(--p-muted);line-height:1.6">
     You'll be notified again when another spot matching your preferences opens up.

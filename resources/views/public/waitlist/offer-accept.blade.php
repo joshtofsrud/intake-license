@@ -8,7 +8,7 @@
   <div class="w-offer-slot">
     <div class="w-offer-slot-label">Opening available</div>
     <div class="w-offer-slot-time">{{ $offer->slot_datetime->format('l, F j') }}</div>
-    <div class="w-offer-slot-time" style="font-size:18px;font-weight:500;margin-top:2px">{{ $offer->slot_datetime->format('g:i A') }}</div>
+    <div class="w-offer-slot-time" style="font-size:18px;font-weight:500;margin-top:2px">{{ tlocal($offer->slot_datetime) }}</div>
     <div class="w-offer-service">{{ $service?->name ?? 'Service' }}</div>
   </div>
 

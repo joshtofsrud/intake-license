@@ -9,7 +9,7 @@
   <div style="font-size:20px;font-weight:600;margin-bottom:8px">You're all set</div>
   <p style="color:var(--p-muted);line-height:1.6">
     We've booked <b>{{ $offer->entry?->serviceItem?->name ?? 'your service' }}</b><br>
-    on <b>{{ $offer->slot_datetime->format('l, F j \a\t g:i A') }}</b>.
+    on <b>{{ tlocal($offer->slot_datetime, 'l, F j \a\t g:i A') }}</b>.
   </p>
   @if($offer->resultingAppointment)
     <p style="color:var(--p-muted);margin-top:16px;font-size:13px">

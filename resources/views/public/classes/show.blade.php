@@ -55,7 +55,7 @@
 <div class="cl-hero">
   <div class="cl-hero-name">{{ $session->template->name }}</div>
   <div class="cl-hero-meta">
-    {{ $session->starts_at->format('l, M j · g:i A') }} – {{ $session->ends_at->format('g:i A') }}
+    {{ tlocal($session->starts_at, 'l, M j · g:i A') }} – {{ tlocal($session->ends_at) }}
     @if($session->instructor_snapshot)
       · {{ $session->instructor_snapshot }}
     @endif
@@ -86,7 +86,7 @@
     <div class="cl-already-sub">
       {{ $existingRegistration->status === 'waitlisted'
         ? "You're #" . $existingRegistration->waitlist_position . " in the queue. We'll notify you if a spot opens."
-        : "See you " . $session->starts_at->format('M j') . " at " . $session->starts_at->format('g:i A') . "." }}
+        : "See you " . tlocal($session->starts_at, 'M j') . " at " . tlocal($session->starts_at) . "." }}
     </div>
     @if(in_array($existingRegistration->status, ['registered', 'waitlisted']))
       <form method="POST" action="{{ route('tenant.customer.classes.cancel', ['id' => $existingRegistration->id]) }}"

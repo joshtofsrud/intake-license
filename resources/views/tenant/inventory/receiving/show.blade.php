@@ -74,7 +74,7 @@
         <div style="font-size:11px;color:var(--ia-text-muted);text-transform:uppercase;letter-spacing:.05em">Committed</div>
         <div style="margin-top:2px">
           @if($shipment->committed_at)
-            {{ $shipment->committed_at->format('M j, Y g:i A') }}
+            {{ tlocal($shipment->committed_at, 'M j, Y g:i A') }}
             @if($shipment->committedBy) <span style="color:var(--ia-text-muted)">· {{ $shipment->committedBy->name }}</span>@endif
           @else
             —
@@ -150,7 +150,7 @@
 </div>
 
 <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--ia-border);font-size:12.5px;color:var(--ia-text-muted)">
-  Started by {{ $shipment->createdBy?->name ?? 'Unknown' }} on {{ $shipment->created_at->format('M j, Y g:i A') }}.
+  Started by {{ $shipment->createdBy?->name ?? 'Unknown' }} on {{ tlocal($shipment->created_at, 'M j, Y g:i A') }}.
   @if($shipment->isCommitted())
     Movements written under reference <code style="font-size:11.5px;color:var(--ia-accent)">receive_shipment / {{ $shipment->id }}</code>.
   @endif

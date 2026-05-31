@@ -150,7 +150,7 @@
         <a href="{{ route('tenant.deliveries.index') }}" class="ia-dash-today-row">
           <div class="ia-dash-today-time">
             @if($delivery->scheduled_at)
-              <div class="ia-dash-today-time-hm">{{ $delivery->scheduled_at->format('g:i') }}</div>
+              <div class="ia-dash-today-time-hm">{{ tlocal($delivery->scheduled_at, 'g:i') }}</div>
               <div class="ia-dash-today-time-ap">{{ $delivery->scheduled_at->format('A') }}</div>
             @else
               <div class="ia-dash-today-time-hm">Any time</div>

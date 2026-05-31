@@ -86,7 +86,7 @@
             <a href="{{ route('tenant.customer.classes.show', ['id' => $session->id]) }}"
                class="ce-card"
                data-template="{{ $session->class_template_id }}">
-              <div class="ce-date">{{ $session->starts_at->format('g:i A') }}</div>
+              <div class="ce-date">{{ tlocal($session->starts_at) }}</div>
               <div class="ce-name">{{ $session->template->name }}</div>
               <div class="ce-meta">
                 {{ $session->instructor_snapshot ?? $session->instructorResource?->name ?? '' }}
