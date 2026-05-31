@@ -89,6 +89,9 @@
   }
   .sd-items tr:last-child td{border-bottom:none}
   .sd-item-name{font-weight:500}
+  .sd-pay-del{background:none;border:none;color:var(--ia-text-dim);font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:4px}
+  .sd-pay-del:hover{color:#F87171;background:rgba(248,113,113,.10)}
+  .sd-pay-del:disabled{opacity:.5;cursor:default}
   .sd-item-desc{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
   .sd-item-type{
     display:inline-block;font-size:10px;text-transform:uppercase;
@@ -189,6 +192,7 @@
   var refundBtn = document.getElementById('sdRefundBtn');
 
   var SHOW_URL_TEMPLATE = @json(route('tenant.register.sales.show', ['id' => '__ID__']));
+  var DELETE_PAYMENT_URL = @json(route('tenant.register.sales.payment.delete')); {{-- MARKER-PATCH-198 --}}
   var REGISTER_URL      = @json(route('tenant.register.index', []));
 
   function fmtMoney(cents) {
@@ -364,12 +368,20 @@
           var meta = [label, kind].filter(Boolean).join(' · ');
           var amtClass = p.is_refund ? ' style="color:#F87171"' : '';
           var amtTxt = (p.is_refund ? '' : '') + fmtMoney(p.amount_cents);
+          // MARKER-PATCH-198 — per-row delete (data correction for bad/duplicate payments).
+          var delBtn = p.id
+            ? '<button type="button" class="sd-pay-del" title="Delete this payment"'
+              + ' data-del-payment="' + escapeHtml(p.id) + '"'
+              + ' data-amount="' + escapeHtml(fmtMoney(p.amount_cents)) + '"'
+              + ' data-meta="' + escapeHtml(meta || 'Payment') + '">&times;</button>'
+            : '';
           html += '<tr>'
             + '<td><div class="sd-item-name">' + escapeHtml(meta || 'Payment') + '</div>'
             + (when ? '<div class="sd-item-desc">' + escapeHtml(when) + '</div>' : '')
             + (p.notes ? '<div class="sd-item-desc">' + escapeHtml(p.notes) + '</div>' : '')
             + '</td>'
             + '<td class="num"' + amtClass + '>' + escapeHtml(amtTxt) + '</td>'
+            + '<td class="num" style="width:28px">' + delBtn + '</td>'
             + '</tr>';
         });
         html += '</tbody></table>';
@@ -469,6 +481,38 @@
       a.addEventListener('click', function(e){
         e.preventDefault();
         window.openSaleModal(a.dataset.openSale);
+      });
+    });
+
+    // MARKER-PATCH-198 — per-payment delete (data correction). Double-confirmed:
+    // a window.confirm, then a typed "DELETE" prompt, before the row is removed.
+    bodyEl.querySelectorAll('[data-del-payment]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var pid = btn.getAttribute('data-del-payment');
+        var amount = btn.getAttribute('data-amount');
+        var meta = btn.getAttribute('data-meta');
+        if (!confirm('Delete this payment?\n\n' + meta + ' · ' + amount + '\n\nThis permanently removes it from the ledger and recomputes the sale total. This cannot be undone.')) return;
+        var typed = prompt('This deletes a real payment record. Type DELETE to confirm.');
+        if (!typed || typed.trim().toUpperCase() !== 'DELETE') return;
+        btn.disabled = true; btn.textContent = '…';
+        var headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        var csrf = document.querySelector('meta[name="csrf-token"]');
+        if (csrf) headers['X-CSRF-TOKEN'] = csrf.getAttribute('content');
+        fetch(DELETE_PAYMENT_URL, {
+          method: 'POST', credentials: 'same-origin', headers: headers,
+          body: JSON.stringify({ sale_id: sale.id, payment_id: pid }),
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.ok) {
+            // Re-render the modal to reflect the new ledger + totals.
+            window.openSaleModal(sale.id);
+          } else {
+            alert((d && d.error) || 'Could not delete the payment.');
+            btn.disabled = false; btn.innerHTML = '&times;';
+          }
+        })
+        .catch(function(){ alert('Network error.'); btn.disabled = false; btn.innerHTML = '&times;'; });
       });
     });
 

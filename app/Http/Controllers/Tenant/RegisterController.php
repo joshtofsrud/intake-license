@@ -967,6 +967,7 @@ class RegisterController extends Controller
             ->orderBy('recorded_at')
             ->get()
             ->map(fn ($p) => [
+                'id'           => $p->id, // MARKER-PATCH-198 — targets delete
                 'amount_cents' => (int) $p->amount_cents,
                 'kind'         => $p->kind,
                 'method'       => $p->method,
@@ -1929,5 +1930,74 @@ class RegisterController extends Controller
         }
 
         return response()->json(['ok' => true, 'amount_cents' => $amountCents, 'sale_number' => $sale->sale_number]);
+    }
+
+    /**
+     * MARKER-PATCH-198 — Hard-delete a single payment row from a sale's ledger.
+     * For correcting bad data (e.g. a duplicate deposit). After deletion the
+     * sale's payment_status + paid_at and the linked appointment's paid_cents
+     * are recomputed so totals stay consistent. Double-confirmed in the UI.
+     */
+    public function deleteSalePayment(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id'    => 'required|uuid',
+            'payment_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        $payment = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('id', $validated['payment_id'])
+            ->where('sale_id', $sale->id)
+            ->first();
+        if (! $payment) {
+            return response()->json(['ok' => false, 'error' => 'Payment not found on this sale.'], 404);
+        }
+
+        $deletedCents = (int) $payment->amount_cents;
+        $payment->delete();
+
+        // Recompute the sale's derived payment state from the remaining ledger.
+        $svc = app(\App\Services\Tenant\SalePaymentService::class);
+        $svc->recalcStatus($sale);
+        $sale->refresh();
+
+        // Recompute the linked appointment's paid cache.
+        if ($sale->appointment_id) {
+            $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
+            if ($appt) {
+                $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                $total = (int) $appt->total_cents;
+                if ($total > 0 && $appt->paid_cents >= $total) {
+                    $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
+                } elseif ($appt->paid_cents > 0) {
+                    $appt->payment_status = 'partial';
+                } else {
+                    $appt->payment_status = 'unpaid';
+                }
+                $appt->save();
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('sale_payment.deleted', [
+            'tenant_id'  => $tenant->id,
+            'sale_id'    => $sale->id,
+            'payment_id' => $validated['payment_id'],
+            'amount'     => $deletedCents,
+            'by'         => auth('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'             => true,
+            'paid_cents'     => $svc->paidCents($sale),
+            'payment_status' => $sale->payment_status,
+        ]);
     }
 }
