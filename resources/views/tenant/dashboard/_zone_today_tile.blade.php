@@ -67,4 +67,33 @@
       </div>
     @endif
   </div>
+
+  {{-- MARKER-PATCH-183B — today's deliveries, parallel to the appointments tile --}}
+  @php $todayDeliveries = $today['today_deliveries'] ?? collect(); @endphp
+  @if($todayDeliveries->isNotEmpty())
+  <div class="ia-dash-today-tile" style="margin-top:12px">
+    <div class="head">
+      <div class="title">Deliveries · {{ $todayDeliveries->count() }} today</div>
+      <a href="{{ route('tenant.deliveries.index') }}" class="open">Open deliveries →</a>
+    </div>
+    <div class="schedule-list">
+      @foreach($todayDeliveries->take(5) as $d)
+        @php
+          $dTime = $d->scheduled_at ? $d->scheduled_at->format('g:i A') : 'Any time';
+          $dWho  = $d->customer ? trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) : 'No customer';
+          $dKind = $d->isPickup() ? 'Pickup' : 'Drop-off';
+          $dStatus = str_replace('_', '-', $d->status);
+        @endphp
+        <a href="{{ route('tenant.deliveries.index') }}" class="schedule-row">
+          <div class="time">{{ $dTime }}</div>
+          <div class="info">
+            <div class="name">{{ $dWho }}</div>
+            <div class="svc">{{ $dKind }}@if($d->address) · {{ $d->address }}@endif</div>
+          </div>
+          <div class="status status--{{ $dStatus }}">{{ ucfirst($d->status) }}</div>
+        </a>
+      @endforeach
+    </div>
+  </div>
+  @endif
 </div>
