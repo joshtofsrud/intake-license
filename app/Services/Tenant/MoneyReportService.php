@@ -29,12 +29,14 @@ class MoneyReportService
      */
     public function revenueSummary(Carbon $from, Carbon $to, bool $aggregatesOnly = false): array
     {
-        // MARKER-PATCH-184E — Revenue = payments received (ledger) in window.
-        // Broken into Service (type=service), Retail (type=product), and
-        // Uncategorized (everything else, e.g. open_item) by apportioning each
-        // sale's payments across its line-item type composition. The three
-        // buckets sum to total. Deposits/balances are cash-flow mechanics, not
-        // a category — the money attributes by what the sale's lines are.
+        // MARKER-PATCH-186 — Revenue = payments received (ledger) in window,
+        // categorized by the ACTUAL ITEMS that created the sum, not by the
+        // payment artifact. Deposit/balance lines are "where it was paid" and
+        // are ignored for categorization. For an appointment-linked sale we read
+        // the appointment's real items (service items + addons = service; parts =
+        // retail). For a standalone sale we read its own line items by type.
+        // Each sale's payments are apportioned by that service/retail ratio;
+        // anything not classifiable falls to uncategorized. The three sum to total.
         $tz = $this->tenant->timezone();
         $winStart = $from->copy()->setTimezone($tz)->startOfDay()->utc();
         $winEnd   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
@@ -47,37 +49,66 @@ class MoneyReportService
             ->pluck('cents', 'sale_id');
 
         $totalRevenue = (int) $paidPerSale->sum();
+        $serviceRevenue = 0; $retailRevenue = 0; $uncategorizedRevenue = 0;
 
-        $serviceRevenue = 0;
-        $retailRevenue  = 0;
-        $uncategorizedRevenue = 0;
         if ($paidPerSale->isNotEmpty()) {
-            $composition = DB::table('tenant_sale_items')
-                ->where('tenant_id', $this->tenant->id)
-                ->whereIn('sale_id', $paidPerSale->keys()->all())
-                ->selectRaw("sale_id,
-                    SUM(CASE WHEN type = 'service' THEN line_total_cents ELSE 0 END) as service_cents,
-                    SUM(CASE WHEN type = 'product' THEN line_total_cents ELSE 0 END) as retail_cents,
-                    SUM(line_total_cents) as all_cents")
-                ->groupBy('sale_id')
-                ->get()
-                ->keyBy('sale_id');
+            $saleIds = $paidPerSale->keys()->all();
+
+            $saleAppt = DB::table('tenant_sales')
+                ->whereIn('id', $saleIds)
+                ->pluck('appointment_id', 'id');
+
+            $apptIds = collect($saleAppt)->filter()->unique()->values()->all();
+
+            $apptSvc = []; $apptRet = [];
+            if (!empty($apptIds)) {
+                foreach (DB::table('tenant_appointment_items')->whereIn('appointment_id', $apptIds)
+                    ->selectRaw('appointment_id, SUM(price_cents) c')->groupBy('appointment_id')->get() as $r) {
+                    $apptSvc[$r->appointment_id] = ($apptSvc[$r->appointment_id] ?? 0) + (int) $r->c;
+                }
+                foreach (DB::table('tenant_appointment_addons')->whereIn('appointment_id', $apptIds)
+                    ->selectRaw('appointment_id, SUM(price_cents) c')->groupBy('appointment_id')->get() as $r) {
+                    $apptSvc[$r->appointment_id] = ($apptSvc[$r->appointment_id] ?? 0) + (int) $r->c;
+                }
+                foreach (DB::table('tenant_appointment_parts')->whereIn('appointment_id', $apptIds)
+                    ->selectRaw('appointment_id, SUM(COALESCE(unit_price_cents_override, unit_price_cents) * quantity) c')
+                    ->groupBy('appointment_id')->get() as $r) {
+                    $apptRet[$r->appointment_id] = ($apptRet[$r->appointment_id] ?? 0) + (int) $r->c;
+                }
+            }
+
+            $standaloneIds = collect($saleIds)->filter(fn($id) => empty($saleAppt[$id]))->values()->all();
+            $saleSvc = []; $saleRet = [];
+            if (!empty($standaloneIds)) {
+                foreach (DB::table('tenant_sale_items')->whereIn('sale_id', $standaloneIds)
+                    ->selectRaw("sale_id,
+                        SUM(CASE WHEN type='service' THEN line_total_cents ELSE 0 END) svc,
+                        SUM(CASE WHEN type='product' THEN line_total_cents ELSE 0 END) ret")
+                    ->groupBy('sale_id')->get() as $r) {
+                    $saleSvc[$r->sale_id] = (int) $r->svc;
+                    $saleRet[$r->sale_id] = (int) $r->ret;
+                }
+            }
 
             foreach ($paidPerSale as $saleId => $paidCents) {
-                $comp = $composition->get($saleId);
-                $all  = (int) ($comp->all_cents ?? 0);
-                if ($all > 0) {
-                    $svc = (int) round($paidCents * ((int) $comp->service_cents / $all));
-                    $ret = (int) round($paidCents * ((int) $comp->retail_cents / $all));
-                    // Remainder (rounding + non-service/non-product lines) -> uncategorized.
-                    $unc = $paidCents - $svc - $ret;
+                $apptId = $saleAppt[$saleId] ?? null;
+                if ($apptId) {
+                    $svc = $apptSvc[$apptId] ?? 0;
+                    $ret = $apptRet[$apptId] ?? 0;
                 } else {
-                    // No line items at all -> uncategorized.
-                    $svc = 0; $ret = 0; $unc = $paidCents;
+                    $svc = $saleSvc[$saleId] ?? 0;
+                    $ret = $saleRet[$saleId] ?? 0;
                 }
-                $serviceRevenue       += $svc;
-                $retailRevenue        += $ret;
-                $uncategorizedRevenue += $unc;
+                $all = $svc + $ret;
+                if ($all > 0) {
+                    $s = (int) round($paidCents * ($svc / $all));
+                    $rr = (int) round($paidCents * ($ret / $all));
+                    $serviceRevenue       += $s;
+                    $retailRevenue        += $rr;
+                    $uncategorizedRevenue += ($paidCents - $s - $rr);
+                } else {
+                    $uncategorizedRevenue += $paidCents;
+                }
             }
         }
 
@@ -87,6 +118,7 @@ class MoneyReportService
             'uncategorized_revenue_cents' => $uncategorizedRevenue,
             'total_revenue_cents'         => $totalRevenue,
         ];
+
     }
 
     /**
