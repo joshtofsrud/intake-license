@@ -83,22 +83,29 @@ class CustomerTimelineService
     public function groupByMonth(Collection $events): Collection
     {
         $now = now();
+        // MARKER-PATCH-200 — expand the current month, last month, AND any
+        // future month. Upcoming appointments are future-dated (e.g. a June
+        // booking made in May); the old logic only expanded this/last month, so
+        // scheduled-ahead appointments loaded but rendered collapsed (the month
+        // header showed "2 events" with no visible rows). Compare by month key.
         $thisMonthKey = $now->format('Y-m');
         $lastMonthKey = $now->copy()->subMonth()->format('Y-m');
-        $expandKeys   = [$thisMonthKey, $lastMonthKey];
 
         return $events
             ->groupBy(fn ($e) => $e['date']->format('Y-m'))
-            ->map(function (Collection $monthEvents, string $key) use ($expandKeys) {
+            ->map(function (Collection $monthEvents, string $key) use ($thisMonthKey, $lastMonthKey) {
                 $total = $monthEvents->sum(function ($e) {
                     if (empty($e['amount_cents'])) return 0;
                     return $e['is_refunded'] ? 0 : $e['amount_cents'];
                 });
 
+                // Expand current month, last month, or anything in the future.
+                $expanded = ($key >= $thisMonthKey) || ($key === $lastMonthKey);
+
                 return [
                     'label'       => Carbon::parse($key . '-01')->format('F Y'),
                     'total_cents' => (int) $total,
-                    'expanded'    => in_array($key, $expandKeys),
+                    'expanded'    => $expanded,
                     'events'      => $monthEvents->values(),
                 ];
             });
