@@ -33,8 +33,13 @@ class TenantDeliveryService
     public function forDay(Carbon $date)
     {
         $tz    = $this->tenant->timezone ?? config('app.timezone', 'UTC');
-        $start = $date->copy()->setTimezone($tz)->startOfDay();
-        $end   = $start->copy()->endOfDay();
+        // MARKER-PATCH-203 — build the day window in tenant-local wall time, then
+        // convert the BOUNDS to UTC for the query. scheduled_at is stored UTC (the
+        // write path converts on save, patch-158); the read window must match or
+        // the day boundary is offset by the tz offset — late-yesterday deliveries
+        // leaked into "today" and early-today ones fell out.
+        $start = $date->copy()->setTimezone($tz)->startOfDay()->utc();
+        $end   = $date->copy()->setTimezone($tz)->endOfDay()->utc();
 
         return TenantDelivery::query()
             ->with(['customer', 'deliveryResource'])
@@ -52,8 +57,11 @@ class TenantDeliveryService
     public function forWeek(Carbon $date): array
     {
         $tz    = $this->tenant->timezone ?? config('app.timezone', 'UTC');
-        $start = $date->copy()->setTimezone($tz)->startOfWeek(Carbon::MONDAY);
-        $end   = $start->copy()->addDays(7)->subSecond();
+        // MARKER-PATCH-203 — local week window, bounds converted to UTC for the
+        // query (scheduled_at is stored UTC). Result bucketing below re-localizes.
+        $localStart = $date->copy()->setTimezone($tz)->startOfWeek(Carbon::MONDAY);
+        $start = $localStart->copy()->utc();
+        $end   = $localStart->copy()->addDays(7)->subSecond()->utc();
 
         $rows = TenantDelivery::query()
             ->with(['customer', 'deliveryResource'])
@@ -65,7 +73,7 @@ class TenantDeliveryService
 
         $byDay = [];
         for ($i = 0; $i < 7; $i++) {
-            $d = $start->copy()->addDays($i)->toDateString();
+            $d = $localStart->copy()->addDays($i)->toDateString(); // MARKER-PATCH-203
             $byDay[$d] = collect();
         }
         foreach ($rows as $row) {
