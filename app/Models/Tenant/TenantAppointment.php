@@ -21,6 +21,7 @@ class TenantAppointment extends Model
         'status','payment_status','payment_method',
         'stripe_payment_intent_id','paypal_order_id',
         'subtotal_cents','tax_cents','total_cents','paid_cents','staff_notes',
+        'invoice_note','invoice_terms', // MARKER-PATCH-204
         'needs_time_review',
         'reminded_at', // MARKER-PATCH-154
     ];

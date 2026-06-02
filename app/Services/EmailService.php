@@ -123,6 +123,55 @@ class EmailService
     }
 
     // ----------------------------------------------------------------
+    // MARKER-PATCH-204 — send a rendered HTML email WITH a PDF attachment.
+    // Mirrors sendRendered(): suppression check, tenant from/reply-to,
+    // Postmark metadata header for bounce-to-tenant mapping.
+    // ----------------------------------------------------------------
+    public function sendRenderedWithPdf(
+        string $templateKey,
+        string $toEmail,
+        string $subject,
+        string $html,
+        string $pdfBytes,
+        string $filename
+    ): bool {
+        $fromName  = $this->tenant->emailFromName();
+        $fromEmail = $this->tenant->emailFromAddress();
+        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+
+        if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
+            logger()->info("EmailService::sendRenderedWithPdf skipped (suppressed) [{$templateKey}]", [
+                'tenant_id' => $this->tenant->id,
+                'to'        => $toEmail,
+            ]);
+            return false;
+        }
+
+        try {
+            $tenantId = $this->tenant->id;
+            Mail::send([], [], function ($message) use (
+                $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId, $templateKey, $pdfBytes, $filename
+            ) {
+                $message
+                    ->to($toEmail)
+                    ->from($fromEmail, $fromName)
+                    ->replyTo($replyTo)
+                    ->subject($subject)
+                    ->html($html);
+                $message->attachData($pdfBytes, $filename, ['mime' => 'application/pdf']);
+                $headers = $message->getHeaders();
+                $headers->addTextHeader('X-Tenant-Id', $tenantId);
+                $headers->addTextHeader('X-Mail-Template', $templateKey);
+                $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
+            });
+            return true;
+        } catch (\Throwable $e) {
+            logger()->error("EmailService::sendRenderedWithPdf failed [{$templateKey}]: {$e->getMessage()}");
+            return false;
+        }
+    }
+
+    // ----------------------------------------------------------------
     // Interpolate {{variable}} placeholders
     // ----------------------------------------------------------------
     public function interpolate(string $template, array $vars): string

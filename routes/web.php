@@ -393,6 +393,10 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
             Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
             Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');
             Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
+            // MARKER-PATCH-204 — work-order invoice export (PDF print + email)
+            Route::match(['get','post'], '/appointments/{id}/invoice/preview',  [TenantControllers\InvoiceExportController::class, 'preview'])->name('appointments.invoice.preview');
+            Route::match(['get','post'], '/appointments/{id}/invoice/download', [TenantControllers\InvoiceExportController::class, 'download'])->name('appointments.invoice.download');
+            Route::post('/appointments/{id}/invoice/email',                     [TenantControllers\InvoiceExportController::class, 'email'])->name('appointments.invoice.email');
             Route::get('/appointments-inventory-search', [TenantControllers\AppointmentController::class, 'searchInventoryItems'])->name('appointments.inventory-search');
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
