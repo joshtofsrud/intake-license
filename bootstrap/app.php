@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/stripe/*',
             'webhooks/cloudflare', // MARKER-PATCH-118
             'webhooks/ses-bounce',  // MARKER-PATCH-146
+            'webhooks/postmark',    // MARKER-PATCH-201
             'webhooks/stripe-connect', // MARKER-PATCH-172D (Stripe Connect, patch 168)
             'webhooks/stripe-direct/*', // MARKER-PATCH-172D (Direct Payments, patch 170)
             'api/plan-quiz/*',

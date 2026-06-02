@@ -176,6 +176,10 @@ Route::post('webhooks/stripe-direct/{tenantId}',
 Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
     ->name('webhooks.ses-bounce');
 
+// MARKER-PATCH-201 — Postmark bounce / spam-complaint webhook (replaces SES path).
+Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhookController::class, 'handle'])
+    ->name('webhooks.postmark');
+
     Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 

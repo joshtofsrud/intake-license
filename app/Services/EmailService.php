@@ -61,9 +61,14 @@ class EmailService
                     ->from($fromEmail, $fromName)
                     ->replyTo($replyTo)
                     ->subject($subject)
-                    ->html($body)
-                    // MARKER-PATCH-146 — header lets the bounce webhook map events back to tenants
-                    ->getHeaders()->addTextHeader('X-Tenant-Id', $tenantId);
+                    ->html($body);
+                // MARKER-PATCH-146 — header lets the bounce webhook map events back to tenants.
+                // MARKER-PATCH-201 — also set Postmark Metadata (X-PM-Metadata-*) so the
+                // Postmark bounce/complaint webhook can map events back to the tenant
+                // (Postmark surfaces Metadata, not arbitrary custom headers, in webhooks).
+                $h = $message->getHeaders();
+                $h->addTextHeader('X-Tenant-Id', $tenantId);
+                $h->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
         } catch (\Throwable $e) {
             logger()->error("EmailService send failed [{$templateKey}]: {$e->getMessage()}");
@@ -107,6 +112,8 @@ class EmailService
                 $headers = $message->getHeaders();
                 $headers->addTextHeader('X-Tenant-Id', $tenantId);
                 $headers->addTextHeader('X-Mail-Template', $templateKey);
+                // MARKER-PATCH-201 — Postmark Metadata for webhook tenant mapping.
+                $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
             return true;
         } catch (\Throwable $e) {
