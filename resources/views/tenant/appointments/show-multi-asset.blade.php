@@ -1271,7 +1271,13 @@ input.ma-asset-name-edit:focus {
         <span>{{ $appointmentAssets->count() }} {{ \Illuminate\Support\Str::plural('asset', $appointmentAssets->count()) }} · {{ $serviceCount + $addonCount }} {{ \Illuminate\Support\Str::plural('service', $serviceCount + $addonCount) }}</span>
       </div>
     </div>
+    {{-- MARKER-PATCH-205 — invoice export trigger --}}
+    <div class="ma-page-actions">
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('invoiceModal').showModal()">&#9113; Invoice</button>
+    </div>
   </div>
+
+  @include('tenant.appointments._invoice-modal', ['appointment' => $appointment])
 
   {{-- MARKER-PATCH-158-G1 — Sale callout banners (mirrors legacy bannerSale) --}}
   @php
