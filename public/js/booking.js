@@ -680,6 +680,33 @@
     if (d.multiAsset && state.activeAsset) { state.assetSel[state.activeAsset] = cloneSel(state.selections); renderAssetTabs(); } // MARKER-PATCH-214b/d
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
+    if (d.multiAsset) {
+      // MARKER-PATCH-214f — cart lists every bike + combined total
+      var mHtml = '', mTotal = 0, anySvc = false;
+      (window.BkAssets || []).forEach(function (a) {
+        var sels = state.assetSel[a.clientKey] || {};
+        var ks = Object.keys(sels);
+        if (!ks.length) return;
+        anySvc = true;
+        mHtml += '<div class="bk-sidebar-asset">' + esc(a.name) + '</div>';
+        ks.forEach(function (k) {
+          var sel = sels[k];
+          mHtml += '<div class="bk-sidebar-line"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
+          mTotal += sel.priceCents;
+          sel.addonIds.forEach(function (addonId) {
+            var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
+            if (!cb) return;
+            var ap = parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+            mHtml += '<div class="bk-sidebar-line" style="padding-left:16px;opacity:.85"><span>+ ' + esc(cb.getAttribute('data-addon-name') || '') + '</span><span>' + fmtMoney(ap) + '</span></div>';
+            mTotal += ap;
+          });
+        });
+      });
+      if (!anySvc) { container.innerHTML = '<p class="bk-sidebar-empty">No items selected yet.</p>'; return; }
+      mHtml += '<div class="bk-sidebar-total"><span>Total</span><span>' + fmtMoney(mTotal) + '</span></div>';
+      container.innerHTML = mHtml;
+      return;
+    }
     var services = Object.values(state.selections);
     if (services.length === 0) {
       container.innerHTML = '<p class="bk-sidebar-empty">No items selected yet.</p>';
