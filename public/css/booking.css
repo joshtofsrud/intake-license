@@ -643,3 +643,15 @@
 .bk-pre-add-ic { width: 28px; height: 28px; border-radius: 7px; background: var(--p-accent); color: var(--p-accent-text); display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
 .bk-pre-add-txt strong { display: block; font-size: 14px; font-weight: 500; }
 .bk-pre-add-txt small { display: block; font-size: 12px; opacity: .55; margin-top: 1px; }
+
+
+/* ===== MARKER-PATCH-214b — per-asset service tabs + grouped review ===== */
+.bk-asset-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 4px 0 10px; }
+.bk-asset-tab { flex: 0 0 auto; min-width: 124px; text-align: left; padding: 9px 13px; border: 1px solid var(--p-border, rgba(0,0,0,.12)); border-radius: var(--p-r, 10px); background: none; color: var(--p-text); cursor: pointer; font-family: inherit; }
+.bk-asset-tab.on { border-color: var(--p-accent); background: var(--p-accent); color: var(--p-accent-text); }
+.bk-asset-tab-n { display: block; font-size: 13px; font-weight: 600; }
+.bk-asset-tab-m { display: block; font-size: 11px; opacity: .7; margin-top: 2px; }
+.bk-asset-tab.on .bk-asset-tab-m { opacity: .85; }
+.bk-asset-choosing { font-size: 13px; opacity: .75; margin-bottom: 16px; }
+.bk-review-asset { margin-bottom: 14px; }
+.bk-review-asset-name { font-size: 13px; font-weight: 600; margin-bottom: 5px; }

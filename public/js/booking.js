@@ -14,7 +14,9 @@
   var state = {
     step:       1,
     // Services
-    selections: {},   // { serviceId: { serviceId, serviceName, priceCents, durationMinutes, addonIds: [] } }
+    selections: {},   // { serviceId: {...} } — multi-asset: the ACTIVE bike's set
+    assetSel: {},     // MARKER-PATCH-214b — multi-asset: { assetKey: { serviceId: {...} } }
+    activeAsset: null,// MARKER-PATCH-214b — multi-asset: active bike clientKey
     // Schedule
     date:       null,
     appointmentTime: null,
@@ -51,6 +53,7 @@
     bindCalNav();
     bindReceiving();
     initCalendar();
+    if (d.multiAsset) initAssetServices(); // MARKER-PATCH-214b
     if (d.stripeEnabled && d.stripePk) initStripe();
     if (d.paypalEnabled && window.paypal) initPayPal();
   });
@@ -186,6 +189,11 @@
   }
 
   function canProceedStep1() {
+    if (d.multiAsset) {
+      var any = false;
+      Object.keys(state.assetSel).forEach(function (k) { if (Object.keys(state.assetSel[k]).length) any = true; });
+      return any;
+    }
     return Object.keys(state.selections).length > 0;
   }
 
@@ -659,6 +667,7 @@
   // Sidebar
   // =========================================================================
   function updateSidebar() {
+    if (d.multiAsset && state.activeAsset) state.assetSel[state.activeAsset] = cloneSel(state.selections); // MARKER-PATCH-214b
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
     var services = Object.values(state.selections);
@@ -693,16 +702,35 @@
     var svc = document.getElementById('bk-review-services');
     if (svc) {
       var html = '';
-      Object.values(state.selections).forEach(function (sel) {
-        html += '<div class="bk-review-row"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
-        sel.addonIds.forEach(function (addonId) {
-          var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
-          if (!cb) return;
-          var name  = cb.getAttribute('data-addon-name') || '';
-          var price = parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
-          html += '<div class="bk-review-row"><span class="bk-review-row-label">+ ' + esc(name) + '</span><span>' + fmtMoney(price) + '</span></div>';
+      if (d.multiAsset) {
+        (window.BkAssets || []).forEach(function (a) {
+          var sels = state.assetSel[a.clientKey] || {};
+          var ks = Object.keys(sels);
+          html += '<div class="bk-review-asset"><div class="bk-review-asset-name">' + esc(a.name) + '</div>';
+          if (!ks.length) html += '<div class="bk-review-row" style="opacity:.45"><span>No services</span><span></span></div>';
+          ks.forEach(function (k) {
+            var sel = sels[k];
+            html += '<div class="bk-review-row"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
+            sel.addonIds.forEach(function (addonId) {
+              var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
+              if (!cb) return;
+              html += '<div class="bk-review-row"><span class="bk-review-row-label">+ ' + esc(cb.getAttribute('data-addon-name') || '') + '</span><span>' + fmtMoney(parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0) + '</span></div>';
+            });
+          });
+          html += '</div>';
         });
-      });
+      } else {
+        Object.values(state.selections).forEach(function (sel) {
+          html += '<div class="bk-review-row"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
+          sel.addonIds.forEach(function (addonId) {
+            var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
+            if (!cb) return;
+            var name  = cb.getAttribute('data-addon-name') || '';
+            var price = parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+            html += '<div class="bk-review-row"><span class="bk-review-row-label">+ ' + esc(name) + '</span><span>' + fmtMoney(price) + '</span></div>';
+          });
+        });
+      }
       var total = calcTotal();
       html += '<div class="bk-review-row" style="font-weight:700;border-top:1px solid rgba(0,0,0,.08);margin-top:8px;padding-top:8px"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
       svc.innerHTML = html || '<p style="opacity:.4;font-size:13px">None selected.</p>';
@@ -849,12 +877,106 @@
     return promise;
   };
 
+  // ===== MARKER-PATCH-214b — per-asset service machinery =====
+  function cloneSel(map) {
+    var o = {};
+    Object.keys(map || {}).forEach(function (k) {
+      var s = map[k];
+      o[k] = { serviceId: s.serviceId, serviceName: s.serviceName, priceCents: s.priceCents, durationMinutes: s.durationMinutes, addonIds: (s.addonIds || []).slice() };
+    });
+    return o;
+  }
+  function syncRowsToSelections() {
+    document.querySelectorAll('.bk-service-row').forEach(function (row) {
+      var sid = row.getAttribute('data-service-id');
+      var sel = state.selections[sid];
+      var btn = row.querySelector('.bk-service-add-btn');
+      if (sel) { row.classList.add('is-selected'); if (btn) btn.textContent = '\u2713 Added'; }
+      else { row.classList.remove('is-selected'); if (btn) btn.textContent = 'Add to booking'; }
+      row.querySelectorAll('.bk-service-addon-check').forEach(function (cb) {
+        cb.checked = !!(sel && sel.addonIds.indexOf(cb.getAttribute('data-addon-id')) !== -1);
+      });
+    });
+  }
+  function assetSubtotal(key) {
+    var m = state.assetSel[key] || {}, t = 0;
+    Object.keys(m).forEach(function (k) {
+      var sel = m[k]; t += sel.priceCents;
+      sel.addonIds.forEach(function (id) {
+        var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + id + '"]');
+        if (cb) t += parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+      });
+    });
+    return t;
+  }
+  function renderAssetTabs() {
+    var strip = document.getElementById('bk-asset-tabs');
+    if (!strip) return;
+    var html = '';
+    (window.BkAssets || []).forEach(function (a) {
+      var n = Object.keys(state.assetSel[a.clientKey] || {}).length;
+      var on = a.clientKey === state.activeAsset;
+      html += '<button type="button" class="bk-asset-tab' + (on ? ' on' : '') + '" data-k="' + a.clientKey + '">'
+            + '<span class="bk-asset-tab-n">' + esc(a.name) + '</span>'
+            + '<span class="bk-asset-tab-m">' + (n ? (n + ' service' + (n > 1 ? 's' : '') + ' \u00b7 ' + fmtMoney(assetSubtotal(a.clientKey))) : 'No services yet') + '</span>'
+            + '</button>';
+    });
+    strip.innerHTML = html;
+    strip.querySelectorAll('.bk-asset-tab').forEach(function (b) {
+      b.addEventListener('click', function () { switchAsset(b.getAttribute('data-k')); });
+    });
+    var active = (window.BkAssets || []).filter(function (a) { return a.clientKey === state.activeAsset; })[0];
+    var lbl = document.getElementById('bk-asset-choosing');
+    if (lbl && active) lbl.innerHTML = 'Choosing services for <strong>' + esc(active.name) + '</strong>';
+  }
+  function switchAsset(key) {
+    if (key === state.activeAsset) return;
+    if (state.activeAsset) state.assetSel[state.activeAsset] = cloneSel(state.selections);
+    state.activeAsset = key;
+    state.selections = cloneSel(state.assetSel[key] || {});
+    syncRowsToSelections();
+    renderAssetTabs();
+    updateSidebar();
+  }
+  function initAssetServices() {
+    var assets = window.BkAssets || [];
+    if (!assets.length) return;
+    assets.forEach(function (a) { if (!state.assetSel[a.clientKey]) state.assetSel[a.clientKey] = {}; });
+    state.activeAsset = assets[0].clientKey;
+    state.selections = cloneSel(state.assetSel[state.activeAsset]);
+    var step1 = document.getElementById('bk-step-1');
+    if (step1 && !document.getElementById('bk-asset-tabs')) {
+      var wrap = document.createElement('div');
+      wrap.innerHTML = '<div class="bk-asset-tabs" id="bk-asset-tabs"></div><div class="bk-asset-choosing" id="bk-asset-choosing"></div>';
+      var toolbar = step1.querySelector('.bk-toolbar');
+      if (toolbar) step1.insertBefore(wrap, toolbar);
+      else step1.insertBefore(wrap, step1.children[2] || null);
+    }
+    renderAssetTabs();
+    syncRowsToSelections();
+  }
+
   function buildPayload(paymentMethod) {
     collectDetails();
-    var items = Object.values(state.selections).map(function (s) {
-      return { service_item_id: s.serviceId, addon_ids: s.addonIds.slice() };
-    });
-    return {
+    var items, assetsPayload = null, bkCustomerId = null;
+    if (d.multiAsset) {
+      items = [];
+      assetsPayload = [];
+      (window.BkAssets || []).forEach(function (a) {
+        assetsPayload.push({ client_key: a.clientKey, name_snapshot: a.name, customer_asset_id: a.customerAssetId || null });
+        var sels = state.assetSel[a.clientKey] || {};
+        Object.keys(sels).forEach(function (k) {
+          var s = sels[k];
+          items.push({ service_item_id: s.serviceId, addon_ids: s.addonIds.slice(), asset_client_key: a.clientKey });
+        });
+      });
+      bkCustomerId = (window.BkCustomer && window.BkCustomer.id) || null;
+    } else {
+      items = Object.values(state.selections).map(function (s) {
+        return { service_item_id: s.serviceId, addon_ids: s.addonIds.slice() };
+      });
+    }
+    var payload = {
       first_name: state.firstName, last_name: state.lastName,
       email: state.email, phone: state.phone,
       date: state.date, appointment_time: state.appointmentTime || null,
@@ -864,6 +986,9 @@
       responses: state.responses, response_labels: state.responseLabels,
       payment_method: paymentMethod,
     };
+    if (assetsPayload) payload.assets = assetsPayload;
+    if (bkCustomerId) payload.customer_id = bkCustomerId;
+    return payload;
   }
 
   // =========================================================================
@@ -871,6 +996,18 @@
   // =========================================================================
   function calcTotal() {
     var t = 0;
+    if (d.multiAsset) {
+      Object.keys(state.assetSel).forEach(function (ak) {
+        Object.keys(state.assetSel[ak]).forEach(function (k) {
+          var sel = state.assetSel[ak][k]; t += sel.priceCents;
+          sel.addonIds.forEach(function (id) {
+            var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + id + '"]');
+            if (cb) t += parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
+          });
+        });
+      });
+      return t;
+    }
     Object.values(state.selections).forEach(function (sel) {
       t += sel.priceCents;
       sel.addonIds.forEach(function (addonId) {
