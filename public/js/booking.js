@@ -252,12 +252,21 @@
     // Meta line: receiving method (drop-off) and/or selected service summary.
     var metaParts = [];
     if (state.receivingMethod) metaParts.push(state.receivingMethod);
-    var sels = Object.values(state.selections || {});
-    if (sels.length) {
-      var firstName = sels[0].serviceName || '';
-      if (firstName) {
-        if (sels.length === 1) metaParts.push(firstName);
-        else                    metaParts.push(firstName + ' + ' + (sels.length - 1) + ' more');
+    if (d.multiAsset) {
+      // MARKER-PATCH-214e — aggregate across all bikes, not just the active one
+      var bikeCount = (window.BkAssets || []).length;
+      var svcCount = 0;
+      Object.keys(state.assetSel).forEach(function (k) { svcCount += Object.keys(state.assetSel[k]).length; });
+      if (bikeCount) metaParts.push(bikeCount + ' bike' + (bikeCount > 1 ? 's' : ''));
+      if (svcCount)  metaParts.push(svcCount + ' service' + (svcCount > 1 ? 's' : ''));
+    } else {
+      var sels = Object.values(state.selections || {});
+      if (sels.length) {
+        var firstName = sels[0].serviceName || '';
+        if (firstName) {
+          if (sels.length === 1) metaParts.push(firstName);
+          else                    metaParts.push(firstName + ' + ' + (sels.length - 1) + ' more');
+        }
       }
     }
     metaEl.textContent = metaParts.join(' · ') || ' ';
