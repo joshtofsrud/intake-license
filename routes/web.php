@@ -397,6 +397,8 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
             Route::match(['get','post'], '/appointments/{id}/invoice/preview',  [TenantControllers\InvoiceExportController::class, 'preview'])->name('appointments.invoice.preview');
             Route::match(['get','post'], '/appointments/{id}/invoice/download', [TenantControllers\InvoiceExportController::class, 'download'])->name('appointments.invoice.download');
             Route::post('/appointments/{id}/invoice/email',                     [TenantControllers\InvoiceExportController::class, 'email'])->name('appointments.invoice.email');
+            // MARKER-PATCH-206 — live HTML preview for the composer pane (no PDF, no DB write)
+            Route::match(['get','post'], '/appointments/{id}/invoice/preview-html', [TenantControllers\InvoiceExportController::class, 'previewHtml'])->name('appointments.invoice.preview-html');
             Route::get('/appointments-inventory-search', [TenantControllers\AppointmentController::class, 'searchInventoryItems'])->name('appointments.inventory-search');
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');

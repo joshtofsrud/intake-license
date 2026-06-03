@@ -10,11 +10,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
 /**
- * MARKER-PATCH-204 — work-order invoice export (Print style, dompdf).
+ * MARKER-PATCH-204 / 206 — work-order invoice export.
  *
- * Endpoints accept the composer's selections (style / terms / note) and
- * persist the customer-facing ones (note + terms) before rendering, so the
- * stored invoice and the sent PDF always match.
+ * preview / download / email  -> real dompdf PDF (Print style).
+ * previewHtml                 -> lightweight HTML for the live composer pane
+ *                                (no PDF, no DB write).
  */
 class InvoiceExportController extends Controller
 {
@@ -95,5 +95,25 @@ class InvoiceExportController extends Controller
             $ok ? 'Invoice emailed to ' . $to . '.'
                 : 'Could not send — the address may be suppressed.'
         );
+    }
+
+    /**
+     * MARKER-PATCH-206 — live preview pane. Returns rendered HTML (NOT a PDF)
+     * for the composer iframe. Never writes to the DB — keystroke-safe.
+     */
+    public function previewHtml(Request $r, string $id)
+    {
+        $appt  = $this->find($id);
+        $style = $r->input('style') === 'branded' ? 'branded' : 'print';
+        $data  = $this->builder->forAppointment($appt, [
+            'style' => $style,
+            'terms' => $r->input('terms'),
+            'note'  => $r->input('note', $appt->invoice_note),
+        ]);
+        $view = $style === 'branded' ? 'tenant.invoices.web-branded' : 'tenant.invoices.pdf-print';
+
+        return response(view($view, $data)->render())
+            ->header('Content-Type', 'text/html; charset=utf-8')
+            ->header('X-Frame-Options', 'SAMEORIGIN');
     }
 }
