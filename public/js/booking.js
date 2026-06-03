@@ -668,7 +668,7 @@
   // Sidebar
   // =========================================================================
   function updateSidebar() {
-    if (d.multiAsset && state.activeAsset) state.assetSel[state.activeAsset] = cloneSel(state.selections); // MARKER-PATCH-214b
+    if (d.multiAsset && state.activeAsset) { state.assetSel[state.activeAsset] = cloneSel(state.selections); renderAssetTabs(); } // MARKER-PATCH-214b/d
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
     var services = Object.values(state.selections);
