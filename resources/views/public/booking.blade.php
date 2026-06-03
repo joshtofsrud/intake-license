@@ -19,6 +19,8 @@
     $bk['step3_label'] ?? 'Details',
     $bk['step4_label'] ?? 'Review',
   ];
+  // MARKER-PATCH-214 — multi-asset pre-flow shows only in drop-off mode when enabled
+  $multiAsset = (bool) ($currentTenant->multi_asset_enabled ?? false) && (($bookingMode ?? 'drop_off') === 'drop_off');
   $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
 
@@ -127,9 +129,15 @@
 </div>
 
 <div class="bk-progress" id="bk-progress">
+  @if($multiAsset)
+    <div class="bk-step bk-step--pre active" data-pre="intro"><div class="bk-step-dot">1</div><span class="bk-step-label">You</span></div>
+    <div class="bk-step-line"></div>
+    <div class="bk-step bk-step--pre" data-pre="bikes"><div class="bk-step-dot">2</div><span class="bk-step-label">Bikes</span></div>
+    <div class="bk-step-line"></div>
+  @endif
   @foreach($stepLabels as $i => $label)
-    <div class="bk-step {{ $i === 0 ? 'active' : '' }}" data-step="{{ $i + 1 }}">
-      <div class="bk-step-dot">{{ $i + 1 }}</div>
+    <div class="bk-step {{ (!$multiAsset && $i === 0) ? 'active' : '' }}" data-step="{{ $i + 1 }}">
+      <div class="bk-step-dot">{{ $multiAsset ? $i + 3 : $i + 1 }}</div>
       <span class="bk-step-label">{{ $label }}</span>
     </div>
     @if(!$loop->last)<div class="bk-step-line"></div>@endif
@@ -138,8 +146,57 @@
 
 <div class="bk-body">
 
+@if($multiAsset)
+{{-- MARKER-PATCH-214 — multi-asset pre-flow: You + Bikes (before the numbered stepper) --}}
+<div id="bk-preflow" class="active">
+
+  {{-- Intro --}}
+  <div class="bk-pre-panel active" id="bk-pre-intro">
+    <h1 class="bk-section-title">Let's start.</h1>
+    <p class="bk-section-sub">Have you booked with us before?</p>
+
+    <div class="bk-pre-toggle" id="bk-pre-toggle" data-pos="left">
+      <span class="bk-pre-thumb"></span>
+      <button type="button" class="on" data-path="new">New customer</button>
+      <button type="button" data-path="returning">Returning</button>
+    </div>
+
+    <div id="bk-pre-new">
+      <p class="bk-section-sub" style="margin-top:0">No problem — we'll grab your details near the end. Next, tell us what you're bringing in.</p>
+      <div class="bk-pre-actions"><button type="button" class="bk-next" id="bk-pre-new-continue">Continue →</button></div>
+    </div>
+
+    <div id="bk-pre-returning" style="display:none">
+      <label class="bk-label" for="bk-pre-email">Your email</label>
+      <input type="email" class="bk-input" id="bk-pre-email" placeholder="you@example.com" autocomplete="email">
+      <div class="bk-pre-status" id="bk-pre-status"></div>
+      <div class="bk-pre-actions"><button type="button" class="bk-next" id="bk-pre-lookup">Look me up</button></div>
+    </div>
+  </div>
+
+  {{-- Bikes --}}
+  <div class="bk-pre-panel" id="bk-pre-bikes">
+    <h1 class="bk-section-title">What are you bringing in?</h1>
+    <p class="bk-section-sub" id="bk-pre-bikes-sub">Name each bike or item you want serviced.</p>
+
+    <div id="bk-pre-bike-list"></div>
+
+    <button type="button" class="bk-pre-add" id="bk-pre-add">
+      <span class="bk-pre-add-ic">+</span>
+      <span class="bk-pre-add-txt"><strong>Add another bike</strong><small>Kid's bike, gravel, anything else</small></span>
+    </button>
+
+    <div class="bk-pre-actions bk-pre-actions--split">
+      <button type="button" class="bk-back" id="bk-pre-bikes-back">← Back</button>
+      <button type="button" class="bk-next" id="bk-pre-bikes-continue" disabled>Continue → {{ $stepLabels[0] }}</button>
+    </div>
+  </div>
+
+</div>
+@endif
+
 {{-- Step 1: Services --}}
-<div class="bk-section active" id="bk-step-1">
+<div class="bk-section {{ $multiAsset ? '' : 'active' }}" id="bk-step-1">
   <h1 class="bk-section-title">{{ $bk['step1_heading'] ?? 'What do you need serviced?' }}</h1>
   <p class="bk-section-sub">{{ $bk['step1_sub'] ?? 'Select one or more services.' }}</p>
   <div class="bk-toolbar">
@@ -400,6 +457,8 @@ window.BkData = {
   hasReceiving:   {{ $receivingMethods->isNotEmpty() ? 'true' : 'false' }},
   bookingMode:    '{{ $bookingMode ?? "drop_off" }}',
   resources:      @json($resources ?? []),
+  multiAsset:     {{ $multiAsset ? 'true' : 'false' }},
+  lookupUrl:      '{{ route("tenant.booking.customer-lookup") }}',
 };
 </script>
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif

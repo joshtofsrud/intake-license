@@ -594,3 +594,52 @@
 @media (max-width: 380px) {
   .bk-item-grid { grid-template-columns: 1fr; }
 }
+
+
+/* ===== MARKER-PATCH-214 — multi-asset pre-flow (You + Bikes) ===== */
+#bk-preflow { display: none; }
+#bk-preflow.active { display: block; }
+.bk-pre-panel { display: none; }
+.bk-pre-panel.active { display: block; }
+
+.bk-pre-toggle {
+  display: flex; position: relative;
+  border: 1px solid var(--p-border, rgba(0,0,0,.12));
+  border-radius: var(--p-r, 10px);
+  padding: 4px; margin: 24px 0 20px;
+}
+.bk-pre-toggle button {
+  flex: 1; padding: 11px; border: none; background: none;
+  color: var(--p-text); opacity: .55; font-size: 14px; font-weight: 500;
+  cursor: pointer; font-family: inherit; z-index: 1;
+  border-radius: calc(var(--p-r, 10px) - 2px); transition: opacity .15s, color .15s;
+}
+.bk-pre-toggle button.on { opacity: 1; color: var(--p-accent-text); font-weight: 600; }
+.bk-pre-thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px;
+  width: calc(50% - 4px); background: var(--p-accent);
+  border-radius: calc(var(--p-r, 10px) - 2px); transition: transform .2s ease;
+}
+.bk-pre-toggle[data-pos="right"] .bk-pre-thumb { transform: translateX(100%); }
+
+.bk-label { display: block; font-size: 13px; font-weight: 500; opacity: .7; margin-bottom: 7px; }
+.bk-pre-actions { display: flex; justify-content: flex-end; margin-top: 24px; }
+.bk-pre-actions--split { justify-content: space-between; gap: 10px; }
+
+.bk-pre-status { margin-top: 14px; padding: 11px 14px; border-radius: var(--p-r, 10px); font-size: 13.5px; display: none; line-height: 1.5; }
+.bk-pre-status.show { display: block; }
+.bk-pre-status.found { background: var(--p-accent); color: var(--p-accent-text); font-weight: 500; }
+.bk-pre-status.err { border: 1px solid var(--p-border, rgba(0,0,0,.15)); opacity: .9; }
+
+.bk-pre-bike { border: 1px solid var(--p-border, rgba(0,0,0,.12)); border-radius: var(--p-r-lg, 14px); padding: 14px 16px; margin-bottom: 12px; }
+.bk-pre-bike-h { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+.bk-pre-bike-idx { width: 24px; height: 24px; border-radius: 6px; background: var(--p-accent); color: var(--p-accent-text); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.bk-pre-bike-tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--p-accent-text); background: var(--p-accent); padding: 2px 8px; border-radius: 5px; }
+.bk-pre-bike-rm { margin-left: auto; background: none; border: none; color: var(--p-text); opacity: .5; font-size: 13px; cursor: pointer; font-family: inherit; }
+.bk-pre-bike-rm:hover { opacity: 1; }
+
+.bk-pre-add { width: 100%; display: flex; align-items: center; gap: 13px; padding: 14px 16px; border: 1px dashed var(--p-border, rgba(0,0,0,.22)); border-radius: var(--p-r-lg, 14px); background: none; color: var(--p-text); cursor: pointer; font-family: inherit; text-align: left; opacity: .85; }
+.bk-pre-add:hover { opacity: 1; border-color: var(--p-accent); }
+.bk-pre-add-ic { width: 28px; height: 28px; border-radius: 7px; background: var(--p-accent); color: var(--p-accent-text); display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+.bk-pre-add-txt strong { display: block; font-size: 14px; font-weight: 500; }
+.bk-pre-add-txt small { display: block; font-size: 12px; opacity: .55; margin-top: 1px; }

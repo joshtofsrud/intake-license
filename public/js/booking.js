@@ -918,3 +918,135 @@
   }
 
 }());
+
+
+/* ===== MARKER-PATCH-214 — multi-asset pre-flow (You + Bikes) ===== */
+(function () {
+  var d = window.BkData || {};
+  if (!d.multiAsset) return;
+  var pre = document.getElementById('bk-preflow');
+  if (!pre) return;
+
+  var path = 'new', customerId = null, firstName = '', custEmail = '';
+  var assets = [];
+  var kn = 0;
+  function nk() { return 'a' + (++kn); }
+  function el(id) { return document.getElementById(id); }
+  function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  var panelIntro = el('bk-pre-intro');
+  var panelBikes = el('bk-pre-bikes');
+
+  function showPanel(which) {
+    panelIntro.classList.toggle('active', which === 'intro');
+    panelBikes.classList.toggle('active', which === 'bikes');
+    var youDot = document.querySelector('.bk-step--pre[data-pre="intro"]');
+    var bikeDot = document.querySelector('.bk-step--pre[data-pre="bikes"]');
+    if (youDot && bikeDot) {
+      youDot.classList.toggle('active', which === 'intro');
+      youDot.classList.toggle('done', which === 'bikes');
+      bikeDot.classList.toggle('active', which === 'bikes');
+      bikeDot.classList.remove('done');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // intro toggle
+  var toggle = el('bk-pre-toggle');
+  toggle.querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      path = b.getAttribute('data-path');
+      toggle.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      toggle.setAttribute('data-pos', path === 'returning' ? 'right' : 'left');
+      el('bk-pre-new').style.display = path === 'new' ? '' : 'none';
+      el('bk-pre-returning').style.display = path === 'returning' ? '' : 'none';
+    });
+  });
+
+  // new customer -> bikes (one empty card)
+  el('bk-pre-new-continue').addEventListener('click', function () {
+    if (!assets.length) assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false }];
+    renderBikes(); showPanel('bikes');
+  });
+
+  // returning customer -> lookup
+  el('bk-pre-lookup').addEventListener('click', function () {
+    var email = (el('bk-pre-email').value || '').trim();
+    var st = el('bk-pre-status');
+    if (!email) { st.className = 'bk-pre-status show err'; st.textContent = 'Enter your email first.'; return; }
+    st.className = 'bk-pre-status show'; st.textContent = 'Looking you up…';
+    fetch(d.lookupUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': d.csrf },
+      body: JSON.stringify({ email: email })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.found) {
+          customerId = res.customer_id; firstName = res.first_name || ''; custEmail = email;
+          st.className = 'bk-pre-status show found';
+          st.textContent = 'Welcome back' + (firstName ? (', ' + firstName) : '') + '! We pulled your bikes below.';
+          assets = (res.assets || []).map(function (a) {
+            return { clientKey: nk(), name: a.name, customerAssetId: a.id, fromAccount: true };
+          });
+          if (!assets.length) assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false }];
+          el('bk-pre-bikes-sub').textContent = "We pulled these from your account — edit, remove, or add another.";
+          setTimeout(function () { renderBikes(); showPanel('bikes'); }, 600);
+        } else {
+          custEmail = email;
+          st.className = 'bk-pre-status show err';
+          st.innerHTML = "We didn't find that email. <button type='button' id='bk-pre-asnew' style='text-decoration:underline;background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:0'>Continue as new →</button>";
+          var asNew = el('bk-pre-asnew');
+          if (asNew) asNew.addEventListener('click', function () {
+            assets = [{ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false }];
+            renderBikes(); showPanel('bikes');
+          });
+        }
+      })
+      .catch(function () { st.className = 'bk-pre-status show err'; st.textContent = 'Something went wrong — please try again.'; });
+  });
+
+  // bikes
+  function findAsset(k) { for (var i = 0; i < assets.length; i++) if (assets[i].clientKey === k) return assets[i]; return null; }
+  function namedCount() { return assets.filter(function (b) { return (b.name || '').trim() !== ''; }).length; }
+  function updateContinue() { el('bk-pre-bikes-continue').disabled = namedCount() === 0; }
+
+  function renderBikes() {
+    var wrap = el('bk-pre-bike-list');
+    var html = '';
+    assets.forEach(function (b, i) {
+      html += '<div class="bk-pre-bike"><div class="bk-pre-bike-h"><span class="bk-pre-bike-idx">' + (i + 1) + '</span>';
+      if (b.fromAccount) html += '<span class="bk-pre-bike-tag">From your account</span>';
+      if (assets.length > 1) html += '<button type="button" class="bk-pre-bike-rm" data-k="' + b.clientKey + '">Remove</button>';
+      html += '</div><input type="text" class="bk-input bk-pre-bike-name" data-k="' + b.clientKey + '" placeholder="Name it — e.g. Red Cannondale" value="' + escAttr(b.name) + '"></div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.bk-pre-bike-name').forEach(function (inp) {
+      inp.addEventListener('input', function () { var b = findAsset(inp.getAttribute('data-k')); if (b) b.name = inp.value; updateContinue(); });
+    });
+    wrap.querySelectorAll('.bk-pre-bike-rm').forEach(function (btn) {
+      btn.addEventListener('click', function () { assets = assets.filter(function (x) { return x.clientKey !== btn.getAttribute('data-k'); }); renderBikes(); });
+    });
+    updateContinue();
+  }
+
+  el('bk-pre-add').addEventListener('click', function () {
+    assets.push({ clientKey: nk(), name: '', customerAssetId: null, fromAccount: false }); renderBikes();
+  });
+  el('bk-pre-bikes-back').addEventListener('click', function () { showPanel('intro'); });
+
+  el('bk-pre-bikes-continue').addEventListener('click', function () {
+    var picked = assets
+      .filter(function (b) { return (b.name || '').trim() !== ''; })
+      .map(function (b) { return { clientKey: b.clientKey, name: b.name.trim(), customerAssetId: b.customerAssetId || null }; });
+    if (!picked.length) return;
+
+    // Hand off to the rest of booking.js (214b consumes these).
+    window.BkAssets = picked;
+    window.BkCustomer = { id: customerId, firstName: firstName, email: custEmail };
+
+    pre.classList.remove('active');
+    document.querySelectorAll('.bk-step--pre').forEach(function (dot) { dot.classList.remove('active'); dot.classList.add('done'); });
+    if (typeof window.goTo === 'function') window.goTo(1);
+  });
+})();
