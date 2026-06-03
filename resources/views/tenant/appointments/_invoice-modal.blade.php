@@ -5,7 +5,7 @@
 @endphp
 
 <style>
-  .inv-dialog{border:0.5px solid var(--ia-border-strong,rgba(255,255,255,.22));border-radius:16px;background:var(--ia-surface,#1c1c1c);color:var(--ia-text,#f0f0f0);padding:0;width:min(1040px,96vw);max-width:96vw;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .inv-dialog{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);margin:0;border:0.5px solid var(--ia-border-strong,rgba(255,255,255,.22));border-radius:16px;background:var(--ia-surface,#1c1c1c);color:var(--ia-text,#f0f0f0);padding:0;width:min(1040px,96vw);max-width:96vw;max-height:92vh;box-shadow:0 30px 80px rgba(0,0,0,.6)}
   .inv-dialog::backdrop{background:rgba(0,0,0,.6)}
   .inv-h{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 22px;border-bottom:0.5px solid var(--ia-border,rgba(255,255,255,.13))}
   .inv-h .t{font-size:15px;font-weight:600}.inv-h .s{font-size:12px;color:var(--ia-text-dim,rgba(255,255,255,.55));margin-top:2px}
