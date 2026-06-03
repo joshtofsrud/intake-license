@@ -725,18 +725,84 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'workOrderResponses'])
+            ->with(['items', 'addons', 'workOrderResponses.field', 'notes', 'customer'])
             ->firstOrFail();
 
         $identifierField = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
             ->where('is_identifier', true)
             ->first();
+        $identifierFieldId = $identifierField?->id;
 
         $identifierValue = null;
         if ($identifierField) {
             $resp = $appointment->workOrderResponses->firstWhere('field_id', $identifierField->id);
             $identifierValue = $resp?->response_value;
         }
+
+        // ── MARKER-PATCH-212 — enriched drawer data ──
+
+        // Assets (multi-asset). Empty collection for single-asset appointments.
+        $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
+            ->where('appointment_id', $appointment->id)
+            ->with(['items', 'addons'])
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function ($a) {
+                $lines = [];
+                foreach ($a->items as $it) {
+                    $lines[] = ['name' => $it->item_name_snapshot, 'price' => format_money($it->price_cents), 'addon' => false];
+                }
+                foreach ($a->addons as $ad) {
+                    $lines[] = ['name' => $ad->addon_name_snapshot, 'price' => format_money($ad->price_cents), 'addon' => true];
+                }
+                return [
+                    'name'     => $a->asset_name_snapshot ?: 'Asset',
+                    'subtotal' => format_money($a->subtotal_cents),
+                    'lines'    => $lines,
+                ];
+            })->values()->toArray();
+
+        // Customer visit count — single COUNT, no row load.
+        $visits = $appointment->customer_id
+            ? \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+                ->where('customer_id', $appointment->customer_id)->count()
+            : null;
+        $customerSince = $appointment->customer?->created_at?->format('M Y');
+
+        // Intake answers (exclude the identifier field; only answered ones).
+        $workOrder = $appointment->workOrderResponses
+            ->filter(fn($r) => $r->field_id !== $identifierFieldId
+                && $r->field
+                && trim((string) $r->response_value) !== '')
+            ->map(fn($r) => ['label' => $r->field->label, 'value' => $r->response_value])
+            ->values()->toArray();
+
+        // Shop notes (skip audit/system/status entries).
+        $notes = $appointment->notes
+            ->reject(fn($n) => in_array($n->note_type, ['audit', 'system', 'status_change', 'status'], true))
+            ->filter(fn($n) => trim((string) $n->note_content) !== '')
+            ->sortByDesc('created_at')->take(3)
+            ->map(fn($n) => [
+                'content' => $n->note_content,
+                'type'    => ucwords(str_replace('_', ' ', (string) $n->note_type)),
+                'date'    => optional($n->created_at)->format('M j'),
+            ])->values()->toArray();
+
+        // Activity — this appointment's notification log, newest first.
+        $activity = \App\Models\Tenant\TenantNotificationLog::where('tenant_id', $tenant->id)
+            ->where('related_id', $appointment->id)
+            ->orderByDesc('created_at')
+            ->limit(6)->get()
+            ->map(fn($l) => [
+                'event'   => ucwords(str_replace(['_', '.'], ' ', (string) $l->event_type)),
+                'channel' => $l->channel,
+                'status'  => $l->status,
+                'date'    => optional($l->created_at)->format('M j · g:i A'),
+            ])->values()->toArray();
+
+        $paid    = (int) $appointment->paid_cents;
+        $total   = (int) $appointment->total_cents;
+        $balance = max(0, $total - $paid);
 
         return response()->json([
             'ok' => true,
@@ -750,15 +816,29 @@ class AppointmentController extends Controller
                 'customer_name'         => trim(($appointment->customer_first_name ?? '') . ' ' . ($appointment->customer_last_name ?? '')),
                 'customer_email'        => $appointment->customer_email,
                 'customer_phone'        => $appointment->customer_phone,
+                'customer_visits'       => $visits,
+                'customer_since'        => $customerSince,
                 'appointment_date'      => $appointment->appointment_date?->format('Y-m-d'),
                 'appointment_date_long' => $appointment->appointment_date?->format('l, F j, Y'),
                 'appointment_time'      => $appointment->appointment_time,
-                'total_cents'           => (int) $appointment->total_cents,
-                'total_formatted'       => format_money($appointment->total_cents),
-                'paid_cents'            => (int) $appointment->paid_cents,
+                'total_cents'           => $total,
+                'total_formatted'       => format_money($total),
+                'paid_cents'            => $paid,
                 'duration_minutes'      => (int) ($appointment->total_duration_minutes ?? 0),
                 'identifier_label'      => $identifierField?->label,
                 'identifier_value'      => $identifierValue,
+                'payment'               => [
+                    'subtotal'      => format_money($appointment->subtotal_cents),
+                    'tax'           => format_money($appointment->tax_cents),
+                    'total'         => format_money($total),
+                    'paid'          => format_money($paid),
+                    'balance'       => format_money($balance),
+                    'balance_cents' => $balance,
+                ],
+                'assets'                => $assets,
+                'work_order'            => $workOrder,
+                'notes'                 => $notes,
+                'activity'              => $activity,
                 'items'                 => $appointment->items->map(fn($i) => [
                     'name'     => $i->item_name_snapshot,
                     'price'    => format_money($i->price_cents),

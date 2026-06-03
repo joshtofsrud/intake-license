@@ -59,6 +59,10 @@
 @media (max-width: 900px) {
   .ma-top-row { grid-template-columns: 1fr; }
 }
+/* MARKER-PATCH-211 — subtle card separation: stronger edges + a small lift */
+.ma-layout { --ia-border: rgba(255,255,255,0.17); }
+.ma-layout .ma-top-tile,
+.ma-layout .ma-asset { box-shadow: 0 1px 2px rgba(0,0,0,0.5); }
 .ma-top-tile {
   background: var(--ia-surface, rgba(255,255,255,0.02));
   border: 1px solid var(--ia-border);
