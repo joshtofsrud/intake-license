@@ -53,7 +53,7 @@
     bindCalNav();
     bindReceiving();
     initCalendar();
-    if (d.multiAsset) initAssetServices(); // MARKER-PATCH-214b
+    if (d.multiAsset) window.__bkInitAssetServices = initAssetServices; // MARKER-PATCH-214c (run at pre-flow handoff, not boot)
     if (d.stripeEnabled && d.stripePk) initStripe();
     if (d.paypalEnabled && window.paypal) initPayPal();
   });
@@ -190,6 +190,7 @@
 
   function canProceedStep1() {
     if (d.multiAsset) {
+      if (Object.keys(state.selections).length) return true; // active bike's live picks (pre-sync)
       var any = false;
       Object.keys(state.assetSel).forEach(function (k) { if (Object.keys(state.assetSel[k]).length) any = true; });
       return any;
@@ -942,7 +943,10 @@
     var assets = window.BkAssets || [];
     if (!assets.length) return;
     assets.forEach(function (a) { if (!state.assetSel[a.clientKey]) state.assetSel[a.clientKey] = {}; });
-    state.activeAsset = assets[0].clientKey;
+    var live = {}; assets.forEach(function (a) { live[a.clientKey] = true; });
+    Object.keys(state.assetSel).forEach(function (k) { if (!live[k]) delete state.assetSel[k]; }); // MARKER-PATCH-214c prune removed bikes
+    if (!live[state.activeAsset]) state.activeAsset = assets[0].clientKey;
+    state.activeAsset = state.activeAsset || assets[0].clientKey;
     state.selections = cloneSel(state.assetSel[state.activeAsset]);
     var step1 = document.getElementById('bk-step-1');
     if (step1 && !document.getElementById('bk-asset-tabs')) {
@@ -1185,5 +1189,6 @@
     pre.classList.remove('active');
     document.querySelectorAll('.bk-step--pre').forEach(function (dot) { dot.classList.remove('active'); dot.classList.add('done'); });
     if (typeof window.goTo === 'function') window.goTo(1);
+    if (typeof window.__bkInitAssetServices === 'function') window.__bkInitAssetServices(); // MARKER-PATCH-214c
   });
 })();
