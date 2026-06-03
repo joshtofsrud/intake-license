@@ -155,7 +155,9 @@
     </tr>
   </table>
 
-  <div class="terms">{{ $tenant->name }} · Service warrantied 30 days against defects; parts carry manufacturer warranty only. Items left over 30 days after completion may incur storage fees.</div>
+  @if(trim((string) ($tenant->invoice_footer_terms ?? '')) !== '')
+    <div class="terms">{!! nl2br(e($tenant->invoice_footer_terms)) !!}</div>
+  @endif
 </div>
 </body>
 </html>

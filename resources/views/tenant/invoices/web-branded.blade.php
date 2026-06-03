@@ -126,6 +126,6 @@
     </div>
   </div>
 
-  <div class="terms"><div class="tx">Service warrantied 30 days against defects; parts carry manufacturer warranty only.</div><div class="bl">{{ $tenant->name }}<small>{{ $tenant->phone }}</small></div></div>
+  <div class="terms"><div class="tx">@if(trim((string) ($tenant->invoice_footer_terms ?? '')) !== ''){!! nl2br(e($tenant->invoice_footer_terms)) !!}@endif</div><div class="bl">{{ $tenant->name }}<small>{{ $tenant->phone }}</small></div></div>
 </body>
 </html>
