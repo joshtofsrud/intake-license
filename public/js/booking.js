@@ -1245,8 +1245,9 @@
         note.id = 'bk-returning-note';
         note.className = 'bk-returning-note';
         note.innerHTML = '<strong>Welcome back, ' + escAttr(firstName) + '!</strong> Your contact details are filled in from your account.';
-        var row = fn.closest('.bk-field') || fn.parentElement;
-        if (row && row.parentElement) row.parentElement.insertBefore(note, row);
+        var grid = fn.closest('.bk-field-grid-2'); // MARKER-PATCH-214j — note above the grid, not inside it
+        if (grid && grid.parentElement) grid.parentElement.insertBefore(note, grid);
+        else if (fn.parentElement && fn.parentElement.parentElement) fn.parentElement.parentElement.insertBefore(note, fn.parentElement);
       }
     }
 
