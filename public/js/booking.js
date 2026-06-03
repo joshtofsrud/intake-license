@@ -1111,7 +1111,7 @@
   var pre = document.getElementById('bk-preflow');
   if (!pre) return;
 
-  var path = 'new', customerId = null, firstName = '', custEmail = '';
+  var path = 'new', customerId = null, firstName = '', lastName = '', custEmail = '', custPhone = '';
   var assets = [];
   var kn = 0;
   function nk() { return 'a' + (++kn); }
@@ -1168,6 +1168,7 @@
       .then(function (res) {
         if (res && res.found) {
           customerId = res.customer_id; firstName = res.first_name || ''; custEmail = email;
+          lastName = res.last_name || ''; custPhone = res.phone || '';
           st.className = 'bk-pre-status show found';
           st.textContent = 'Welcome back' + (firstName ? (', ' + firstName) : '') + '! We pulled your bikes below.';
           assets = (res.assets || []).map(function (a) {
@@ -1227,7 +1228,27 @@
 
     // Hand off to the rest of booking.js (214b consumes these).
     window.BkAssets = picked;
-    window.BkCustomer = { id: customerId, firstName: firstName, email: custEmail };
+    window.BkCustomer = { id: customerId, firstName: firstName, lastName: lastName, email: custEmail, phone: custPhone };
+    if (customerId) {
+      // MARKER-PATCH-214i — prefill + lock the Details fields for returning customers
+      var lock = function (id, val) {
+        var inp = document.getElementById(id);
+        if (inp && val) { inp.value = val; inp.readOnly = true; inp.classList.add('bk-locked'); }
+      };
+      lock('bk-first-name', firstName);
+      lock('bk-last-name', lastName);
+      lock('bk-email', custEmail);
+      lock('bk-phone', custPhone);
+      var fn = document.getElementById('bk-first-name');
+      if (fn && !document.getElementById('bk-returning-note')) {
+        var note = document.createElement('div');
+        note.id = 'bk-returning-note';
+        note.className = 'bk-returning-note';
+        note.innerHTML = '<strong>Welcome back, ' + escAttr(firstName) + '!</strong> Your contact details are filled in from your account.';
+        var row = fn.closest('.bk-field') || fn.parentElement;
+        if (row && row.parentElement) row.parentElement.insertBefore(note, row);
+      }
+    }
 
     pre.classList.remove('active');
     document.querySelectorAll('.bk-step--pre').forEach(function (dot) { dot.classList.remove('active'); dot.classList.add('done'); });

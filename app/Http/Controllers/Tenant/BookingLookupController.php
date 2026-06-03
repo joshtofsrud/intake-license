@@ -50,6 +50,9 @@ class BookingLookupController extends Controller
             'found'       => true,
             'customer_id' => $customer->id,
             'first_name'  => $customer->first_name,
+            'last_name'   => $customer->last_name,
+            'email'       => $customer->email,
+            'phone'       => $customer->phone,
             'assets'      => $assets,
         ]);
     }

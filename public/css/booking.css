@@ -678,3 +678,9 @@
 .bk-cart-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 2px solid var(--p-border, rgba(0,0,0,.14)); margin-top: 12px; padding-top: 12px; }
 .bk-cart-total span:first-child { font-size: 14px; font-weight: 600; }
 .bk-cart-total span:last-child { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+
+/* MARKER-PATCH-214i — locked Details fields + returning-customer note */
+.bk-input.bk-locked { background: rgba(0,0,0,.045); cursor: not-allowed; opacity: .9; }
+.bk-input.bk-locked:focus { outline: none; box-shadow: none; }
+.bk-returning-note { background: var(--p-accent); color: var(--p-accent-text); border-radius: var(--p-r, 10px); padding: 11px 14px; font-size: 13.5px; line-height: 1.5; margin-bottom: 18px; }
