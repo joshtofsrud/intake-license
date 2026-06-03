@@ -1200,10 +1200,17 @@
     var wrap = el('bk-pre-bike-list');
     var html = '';
     assets.forEach(function (b, i) {
+      // MARKER-PATCH-214k — account assets are fixed (read-only); only new ones are editable
       html += '<div class="bk-pre-bike"><div class="bk-pre-bike-h"><span class="bk-pre-bike-idx">' + (i + 1) + '</span>';
       if (b.fromAccount) html += '<span class="bk-pre-bike-tag">From your account</span>';
       if (assets.length > 1) html += '<button type="button" class="bk-pre-bike-rm" data-k="' + b.clientKey + '">Remove</button>';
-      html += '</div><input type="text" class="bk-input bk-pre-bike-name" data-k="' + b.clientKey + '" placeholder="Name it — e.g. Red Cannondale" value="' + escAttr(b.name) + '"></div>';
+      html += '</div>';
+      if (b.fromAccount) {
+        html += '<div class="bk-pre-bike-fixed">' + escAttr(b.name) + '</div>';
+      } else {
+        html += '<input type="text" class="bk-input bk-pre-bike-name" data-k="' + b.clientKey + '" placeholder="Name it — e.g. Red Cannondale" value="' + escAttr(b.name) + '">';
+      }
+      html += '</div>';
     });
     wrap.innerHTML = html;
     wrap.querySelectorAll('.bk-pre-bike-name').forEach(function (inp) {

@@ -684,3 +684,7 @@
 .bk-input.bk-locked { background: rgba(0,0,0,.045); cursor: not-allowed; opacity: .9; }
 .bk-input.bk-locked:focus { outline: none; box-shadow: none; }
 .bk-returning-note { background: var(--p-accent); color: var(--p-accent-text); border-radius: var(--p-r, 10px); padding: 11px 14px; font-size: 13.5px; line-height: 1.5; margin-bottom: 18px; }
+
+
+/* MARKER-PATCH-214k — fixed (account) asset display in the Bikes step */
+.bk-pre-bike-fixed { font-size: 15px; font-weight: 600; padding: 5px 2px; }
