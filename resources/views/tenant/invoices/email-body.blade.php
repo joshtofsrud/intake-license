@@ -1,4 +1,4 @@
-{{-- MARKER-PATCH-204 — short email body; the invoice itself is the PDF attachment. --}}
+{{-- MARKER-PATCH-204 / 207 — short email body; the invoice itself is the PDF attachment. --}}
 @php $isPaid = $terms === 'paid'; @endphp
 <div style="font-family:Inter,-apple-system,sans-serif;font-size:14px;line-height:1.7;color:#333">
   <p style="font-size:18px;font-weight:700;margin:0 0 14px;letter-spacing:-.2px">
@@ -14,7 +14,7 @@
     </td></tr>
     <tr><td style="font-size:22px;font-weight:700">{{ format_money($isPaid ? $total : $balance) }}</td></tr>
     @if(!$isPaid)
-    <tr><td style="font-size:12px;color:#666;padding-top:4px">{{ $terms === 'due_now' ? 'Due now.' : 'Due on completion.' }}</td></tr>
+      <tr><td style="font-size:12px;color:#666;padding-top:4px">{{ $terms === 'due_now' ? 'Due now.' : 'Due on completion.' }}</td></tr>
     @endif
   </table>
   <p style="margin:0;color:#555;font-size:13px">Questions? Just reply to this email@if($tenant->phone) or call {{ $tenant->phone }}@endif.</p>
