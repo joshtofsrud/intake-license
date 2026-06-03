@@ -681,29 +681,36 @@
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
     if (d.multiAsset) {
-      // MARKER-PATCH-214f — cart lists every bike + combined total
-      var mHtml = '', mTotal = 0, anySvc = false;
+      // MARKER-PATCH-214g — numbered per-bike groups (treatment C), prominent grand total
+      var mHtml = '', mTotal = 0, anySvc = false, bikeNum = 0;
       (window.BkAssets || []).forEach(function (a) {
         var sels = state.assetSel[a.clientKey] || {};
         var ks = Object.keys(sels);
         if (!ks.length) return;
-        anySvc = true;
-        mHtml += '<div class="bk-sidebar-asset">' + esc(a.name) + '</div>';
+        anySvc = true; bikeNum++;
+        var bikeSub = 0, lines = '';
         ks.forEach(function (k) {
           var sel = sels[k];
-          mHtml += '<div class="bk-sidebar-line"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
-          mTotal += sel.priceCents;
+          lines += '<div class="bk-cart-line"><span>' + esc(sel.serviceName) + '</span><span>' + fmtMoney(sel.priceCents) + '</span></div>';
+          bikeSub += sel.priceCents;
           sel.addonIds.forEach(function (addonId) {
             var cb = document.querySelector('.bk-service-addon-check[data-service-id="' + sel.serviceId + '"][data-addon-id="' + addonId + '"]');
             if (!cb) return;
             var ap = parseInt(cb.getAttribute('data-addon-price-cents'), 10) || 0;
-            mHtml += '<div class="bk-sidebar-line" style="padding-left:16px;opacity:.85"><span>+ ' + esc(cb.getAttribute('data-addon-name') || '') + '</span><span>' + fmtMoney(ap) + '</span></div>';
-            mTotal += ap;
+            lines += '<div class="bk-cart-line bk-cart-line--addon"><span>+ ' + esc(cb.getAttribute('data-addon-name') || '') + '</span><span>' + fmtMoney(ap) + '</span></div>';
+            bikeSub += ap;
           });
         });
+        mTotal += bikeSub;
+        mHtml += '<div class="bk-cart-bike">'
+              +    '<div class="bk-cart-head"><span class="bk-cart-idx">' + bikeNum + '</span>'
+              +      '<span class="bk-cart-name">' + esc(a.name) + '</span>'
+              +      '<span class="bk-cart-sub">' + fmtMoney(bikeSub) + '</span></div>'
+              +    lines
+              +  '</div>';
       });
       if (!anySvc) { container.innerHTML = '<p class="bk-sidebar-empty">No items selected yet.</p>'; return; }
-      mHtml += '<div class="bk-sidebar-total"><span>Total</span><span>' + fmtMoney(mTotal) + '</span></div>';
+      mHtml += '<div class="bk-cart-total"><span>Total</span><span>' + fmtMoney(mTotal) + '</span></div>';
       container.innerHTML = mHtml;
       return;
     }

@@ -660,3 +660,18 @@
 /* MARKER-PATCH-214f — per-bike label in the cart */
 .bk-sidebar-asset { font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; opacity: .55; margin: 12px 0 4px; }
 .bk-sidebar-asset:first-child { margin-top: 0; }
+
+
+/* ===== MARKER-PATCH-214g — numbered per-bike cart (treatment C) ===== */
+.bk-cart-bike { padding: 13px 0; border-top: 1px solid var(--p-border, rgba(0,0,0,.1)); }
+.bk-cart-bike:first-child { border-top: none; padding-top: 0; }
+.bk-cart-head { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.bk-cart-idx { width: 22px; height: 22px; border-radius: 6px; background: var(--p-accent); color: var(--p-accent-text); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.bk-cart-name { font-size: 13.5px; font-weight: 700; }
+.bk-cart-sub { margin-left: auto; font-size: 12.5px; color: var(--p-text); opacity: .5; font-variant-numeric: tabular-nums; }
+.bk-cart-line { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; padding: 3px 0 3px 31px; }
+.bk-cart-line span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bk-cart-line--addon { opacity: .8; font-size: 12.5px; }
+.bk-cart-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 2px solid var(--p-border, rgba(0,0,0,.14)); margin-top: 12px; padding-top: 12px; }
+.bk-cart-total span:first-child { font-size: 14px; font-weight: 600; }
+.bk-cart-total span:last-child { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
