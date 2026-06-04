@@ -21,6 +21,8 @@
   ];
   // MARKER-PATCH-214 — multi-asset pre-flow shows only in drop-off mode when enabled
   $multiAsset = (bool) ($currentTenant->multi_asset_enabled ?? false) && (($bookingMode ?? 'drop_off') === 'drop_off');
+  $assetSingular = $currentTenant->asset_label_singular ?: 'item'; // MARKER-PATCH-215
+  $assetPlural   = $currentTenant->asset_label_plural ?: 'items';
   $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
 
@@ -132,7 +134,7 @@
   @if($multiAsset)
     <div class="bk-step bk-step--pre active" data-pre="intro"><div class="bk-step-dot">1</div><span class="bk-step-label">You</span></div>
     <div class="bk-step-line"></div>
-    <div class="bk-step bk-step--pre" data-pre="bikes"><div class="bk-step-dot">2</div><span class="bk-step-label">Bikes</span></div>
+    <div class="bk-step bk-step--pre" data-pre="bikes"><div class="bk-step-dot">2</div><span class="bk-step-label">{{ ucfirst($assetPlural) }}</span></div>
     <div class="bk-step-line"></div>
   @endif
   @foreach($stepLabels as $i => $label)
@@ -177,13 +179,13 @@
   {{-- Bikes --}}
   <div class="bk-pre-panel" id="bk-pre-bikes">
     <h1 class="bk-section-title">What are you bringing in?</h1>
-    <p class="bk-section-sub" id="bk-pre-bikes-sub">Name each bike or item you want serviced.</p>
+    <p class="bk-section-sub" id="bk-pre-bikes-sub">Name each {{ $assetSingular }} you want serviced.</p>
 
     <div id="bk-pre-bike-list"></div>
 
     <button type="button" class="bk-pre-add" id="bk-pre-add">
       <span class="bk-pre-add-ic">+</span>
-      <span class="bk-pre-add-txt"><strong>Add another bike</strong><small>Kid's bike, gravel, anything else</small></span>
+      <span class="bk-pre-add-txt"><strong>Add another {{ $assetSingular }}</strong><small>Another {{ $assetSingular }} you'd like serviced</small></span>
     </button>
 
     <div class="bk-pre-actions bk-pre-actions--split">
@@ -459,6 +461,8 @@ window.BkData = {
   resources:      @json($resources ?? []),
   multiAsset:     {{ $multiAsset ? 'true' : 'false' }},
   lookupUrl:      '{{ route("tenant.booking.customer-lookup") }}',
+  assetSingular:  @json($assetSingular),
+  assetPlural:    @json($assetPlural),
 };
 </script>
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif

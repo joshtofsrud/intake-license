@@ -1170,7 +1170,7 @@
           customerId = res.customer_id; firstName = res.first_name || ''; custEmail = email;
           lastName = res.last_name || ''; custPhone = res.phone || '';
           st.className = 'bk-pre-status show found';
-          st.textContent = 'Welcome back' + (firstName ? (', ' + firstName) : '') + '! We pulled your bikes below.';
+          st.textContent = 'Welcome back' + (firstName ? (', ' + firstName) : '') + '! We pulled your ' + (d.assetPlural || 'items') + ' below.';
           assets = (res.assets || []).map(function (a) {
             return { clientKey: nk(), name: a.name, customerAssetId: a.id, fromAccount: true };
           });
@@ -1208,7 +1208,7 @@
       if (b.fromAccount) {
         html += '<div class="bk-pre-bike-fixed">' + escAttr(b.name) + '</div>';
       } else {
-        html += '<input type="text" class="bk-input bk-pre-bike-name" data-k="' + b.clientKey + '" placeholder="Name it — e.g. Red Cannondale" value="' + escAttr(b.name) + '">';
+        html += '<input type="text" class="bk-input bk-pre-bike-name" data-k="' + b.clientKey + '" placeholder="Name this ' + escAttr(d.assetSingular || 'item') + '" value="' + escAttr(b.name) + '">';
       }
       html += '</div>';
     });

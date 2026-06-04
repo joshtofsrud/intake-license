@@ -491,6 +491,20 @@
           <span class="ia-toggle-sr">{{ $currentTenant->multi_asset_enabled ? 'Enabled' : 'Disabled' }}</span>
         </button>
       </div>
+      {{-- MARKER-PATCH-215 — what this tenant calls its assets (drives customer booking copy) --}}
+      <div class="ia-input-grid-2" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ia-border,rgba(255,255,255,.08))">
+        <div class="ia-form-group">
+          <label class="ia-form-label">What you call one (singular)</label>
+          <input type="text" name="asset_label_singular" class="ia-input" maxlength="30"
+            placeholder="item" value="{{ old('asset_label_singular', $currentTenant->asset_label_singular) }}">
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Plural</label>
+          <input type="text" name="asset_label_plural" class="ia-input" maxlength="30"
+            placeholder="items" value="{{ old('asset_label_plural', $currentTenant->asset_label_plural) }}">
+        </div>
+      </div>
+      <div style="font-size:12px;opacity:.5;margin-top:8px">Shown on your customer booking page — e.g. “bike”, “vehicle”, “pet”. Leave blank for “item”.</div>
     </div>
 
     {{-- Tax --}}

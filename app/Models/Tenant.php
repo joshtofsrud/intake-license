@@ -29,6 +29,7 @@ class Tenant extends Model
         'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
         'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
+        'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'stripe_customer_id', 'stripe_subscription_id', 'stripe_subscription_cadence',
         'trial_ends_at', 'subscription_status',
         // Tax (Path B onboarding)
