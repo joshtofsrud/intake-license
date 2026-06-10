@@ -6,6 +6,7 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantClassRegistration;
 use App\Models\Tenant\TenantCustomerMembership;
 use App\Models\Tenant\TenantCustomerPack;
+use App\Models\Tenant\TenantRental;
 use App\Models\Tenant\TenantSale;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -63,7 +64,8 @@ class CustomerTimelineService
             ->concat($this->loadSales($tenantId, $customerId))
             ->concat($this->loadClassRegistrations($tenantId, $customerId))
             ->concat($this->loadPackGrants($tenantId, $customerId))
-            ->concat($this->loadMembershipGrants($tenantId, $customerId));
+            ->concat($this->loadMembershipGrants($tenantId, $customerId))
+            ->concat($this->loadRentals($tenantId, $customerId)); // MARKER-PATCH-219
 
         // Single sort after merge — newest first.
         return $events->sortByDesc(fn ($e) => $e['date']->timestamp)->values();
@@ -114,6 +116,46 @@ class CustomerTimelineService
     // ------------------------------------------------------------------
     // Loaders — one per source. Each returns a Collection of timeline rows.
     // ------------------------------------------------------------------
+
+    /**
+     * MARKER-PATCH-219 — Rail 3: rentals in the customer timeline.
+     * amount_cents is the LEDGER sum (paid_cents mirror), not the rental
+     * total — unpaid rentals show as activity without inflating revenue.
+     */
+    private function loadRentals(string $tenantId, string $customerId): Collection
+    {
+        return TenantRental::where('tenant_id', $tenantId)
+            ->where('customer_id', $customerId)
+            ->with('lines:id,rental_id,name_snapshot,kind')
+            ->get()
+            ->map(function ($r) {
+                $overdue = $r->isOverdue();
+                $tone = match (true) {
+                    $r->status === 'cancelled' => 'danger',
+                    $overdue                   => 'danger',
+                    $r->status === 'out'       => 'warning',
+                    $r->status === 'returned'  => 'success',
+                    default                    => 'neutral',
+                };
+                $label = $overdue ? 'Out · Overdue' : ucfirst($r->status);
+
+                $unitNames = $r->lines->where('kind', 'unit')->pluck('name_snapshot')
+                    ->take(3)->filter()->implode(', ');
+
+                return [
+                    'kind'         => 'rental',
+                    'date'         => $r->starts_at,
+                    'title'        => 'Rental',
+                    'identifier'   => $r->rental_number,
+                    'subtitle'     => $unitNames !== '' ? $unitNames : 'Rental booking',
+                    'status'       => $label,
+                    'status_tone'  => $tone,
+                    'amount_cents' => $r->paid_cents > 0 ? $r->paid_cents : null,
+                    'is_refunded'  => false,
+                    'href'         => route('tenant.rentals.bookings.show', ['id' => $r->id]),
+                ];
+            });
+    }
 
     private function loadAppointments(string $tenantId, string $customerId): Collection
     {

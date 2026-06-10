@@ -324,6 +324,18 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
                 Route::post('/rentals/fleet/condition-templates',       [TenantControllers\RentalFleetController::class, 'storeConditionTemplate'])->name('rentals.fleet.ct.store');
                 Route::patch('/rentals/fleet/condition-templates/{id}', [TenantControllers\RentalFleetController::class, 'updateConditionTemplate'])->name('rentals.fleet.ct.update');
                 Route::delete('/rentals/fleet/condition-templates/{id}',[TenantControllers\RentalFleetController::class, 'destroyConditionTemplate'])->name('rentals.fleet.ct.destroy');
+
+                // MARKER-PATCH-219 — rental bookings. store/check-out/
+                // check-in/cancel mutate under the tenant rental write lock.
+                Route::get('/rentals/bookings',                  [TenantControllers\RentalBookingController::class, 'index'])->name('rentals.bookings.index');
+                Route::get('/rentals/bookings/new',              [TenantControllers\RentalBookingController::class, 'create'])->name('rentals.bookings.create');
+                Route::post('/rentals/bookings',                 [TenantControllers\RentalBookingController::class, 'store'])->name('rentals.bookings.store');
+                Route::get('/rentals/availability-check',        [TenantControllers\RentalBookingController::class, 'availability'])->name('rentals.availability');
+                Route::get('/rentals/bookings/{id}',             [TenantControllers\RentalBookingController::class, 'show'])->name('rentals.bookings.show');
+                Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
+                Route::post('/rentals/bookings/{id}/check-in',   [TenantControllers\RentalBookingController::class, 'checkIn'])->name('rentals.bookings.checkin');
+                Route::post('/rentals/bookings/{id}/cancel',     [TenantControllers\RentalBookingController::class, 'cancel'])->name('rentals.bookings.cancel');
+                Route::post('/rentals/bookings/{id}/payments',   [TenantControllers\RentalBookingController::class, 'recordPayment'])->name('rentals.bookings.payments.store');
             }); // close RequireRentalCapability group
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');

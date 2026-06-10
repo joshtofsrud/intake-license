@@ -46,12 +46,30 @@ class RentalDeskController extends Controller
             ->where('recorded_at', '>=', now()->startOfMonth())
             ->sum('amount_cents');
 
+        // MARKER-PATCH-219 — live desk tables.
+        $dueBack = TenantRental::where('tenant_id', $tenant->id)
+            ->where('status', 'out')
+            ->with(['customer:id,first_name,last_name', 'lines:id,rental_id,name_snapshot,kind'])
+            ->orderBy('due_at')
+            ->limit(15)
+            ->get();
+
+        $upcoming = TenantRental::where('tenant_id', $tenant->id)
+            ->where('status', 'reserved')
+            ->where('starts_at', '<', now()->addDays(7))
+            ->with(['customer:id,first_name,last_name', 'lines:id,rental_id,name_snapshot,kind'])
+            ->orderBy('starts_at')
+            ->limit(15)
+            ->get();
+
         return view('tenant.rentals.desk', [
             'unitsTotal'      => $unitsTotal,
             'outNow'          => $outNow,
             'overdue'         => $overdue,
             'reserved'        => $reserved,
             'mtdRevenueCents' => max(0, $mtdRevenueCents),
+            'dueBack'         => $dueBack,
+            'upcoming'        => $upcoming,
         ]);
     }
 }

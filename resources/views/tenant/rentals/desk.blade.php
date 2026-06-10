@@ -25,7 +25,11 @@
     <div class="rd-h1">Rental Desk</div>
     <div class="rd-sub">Live view of your rental fleet — what's out, what's due, what's free.</div>
   </div>
-  <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn ia-btn--primary" style="white-space:nowrap">Manage fleet</a>
+  <div style="display:flex;gap:8px">
+    <a href="{{ route('tenant.rentals.bookings.index') }}" class="ia-btn" style="white-space:nowrap">Bookings</a>
+    <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn" style="white-space:nowrap">Manage fleet</a>
+    <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--primary" style="white-space:nowrap">New rental</a>
+  </div>
 </div>
 
 <div class="rd-stats">
@@ -50,6 +54,47 @@
     <div class="rd-stat-note">from the payment ledger</div>
   </div>
 </div>
+
+{{-- MARKER-PATCH-219 — live desk tables --}}
+@if($unitsTotal > 0)
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+  <div class="ia-card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Due back</span></div>
+    @if($dueBack->isEmpty())
+      <div style="padding:22px 16px;font-size:12.5px;opacity:.55">Nothing out right now.</div>
+    @else
+      @foreach($dueBack as $r)
+        @php $late = $r->isOverdue(); @endphp
+        <a href="{{ route('tenant.rentals.bookings.show', $r->id) }}" style="display:flex;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);text-decoration:none;color:inherit">
+          <span style="font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            {{ $r->customer?->first_name }} {{ $r->customer?->last_name }}
+            <span style="opacity:.55">· {{ $r->lines->where('kind','unit')->pluck('name_snapshot')->take(2)->implode(', ') }}</span>
+          </span>
+          <span style="font-size:12px;white-space:nowrap;{{ $late ? 'color:#ef4444;font-weight:700' : 'opacity:.65' }}">
+            {{ $late ? 'Overdue · ' : '' }}{{ tlocal_datetime($r->due_at, 'M j, g:i A') }}
+          </span>
+        </a>
+      @endforeach
+    @endif
+  </div>
+  <div class="ia-card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Upcoming pickups (7 days)</span></div>
+    @if($upcoming->isEmpty())
+      <div style="padding:22px 16px;font-size:12.5px;opacity:.55">No reservations starting this week.</div>
+    @else
+      @foreach($upcoming as $r)
+        <a href="{{ route('tenant.rentals.bookings.show', $r->id) }}" style="display:flex;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);text-decoration:none;color:inherit">
+          <span style="font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            {{ $r->customer?->first_name }} {{ $r->customer?->last_name }}
+            <span style="opacity:.55">· {{ $r->lines->where('kind','unit')->pluck('name_snapshot')->take(2)->implode(', ') }}</span>
+          </span>
+          <span style="font-size:12px;white-space:nowrap;opacity:.65">{{ tlocal_datetime($r->starts_at, 'M j, g:i A') }}</span>
+        </a>
+      @endforeach
+    @endif
+  </div>
+</div>
+@endif
 
 @if($unitsTotal === 0)
 <div class="rd-empty">
