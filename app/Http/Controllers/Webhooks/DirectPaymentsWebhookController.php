@@ -330,19 +330,8 @@ class DirectPaymentsWebhookController extends Controller
                     externalReference:  $piId,
                     notes:              'Paid via payment link',
                 );
-                if ($sale->appointment_id) {
-                    $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
-                    if ($appt) {
-                        $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
-                        $total = (int) $appt->total_cents;
-                        if ($appt->paid_cents >= $total && $total > 0) {
-                            $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
-                        } elseif ($appt->paid_cents > 0) {
-                            $appt->payment_status = 'partial';
-                        }
-                        $appt->save();
-                    }
-                }
+                // MARKER-PATCH-219C — appointment paid cache cascades
+                // centrally in SalePaymentService::recalcStatus().
             }
         } catch (\Throwable $e) {
             Log::error('direct_payments_webhook.ledger_write_failed', [

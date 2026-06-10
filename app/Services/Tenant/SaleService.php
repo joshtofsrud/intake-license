@@ -152,13 +152,8 @@ class SaleService
                         notes:              "Paid via sale {$finalSale->sale_number}",
                     );
 
-                    if ($finalSale->appointment_id) {
-                        $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
-                        if ($appointment) {
-                            $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
-                            $appointment->save();
-                        }
-                    }
+                    // MARKER-PATCH-219C — appointment paid cache cascades
+                    // centrally in SalePaymentService::recalcStatus().
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed (createSale)', [
                         'sale_id'        => $finalSale->id,
@@ -419,14 +414,8 @@ class SaleService
                         notes:              "Paid via sale {$finalSale->sale_number}",
                     );
 
-                    // Refresh appointment paid_cents cache from the sale ledger.
-                    if ($finalSale->appointment_id) {
-                        $appointment = \App\Models\Tenant\TenantAppointment::find($finalSale->appointment_id);
-                        if ($appointment) {
-                            $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
-                            $appointment->save();
-                        }
-                    }
+                    // MARKER-PATCH-219C — appointment paid cache cascades
+                    // centrally in SalePaymentService::recalcStatus().
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed', [
                         'sale_id'        => $finalSale->id,
@@ -802,13 +791,8 @@ class SaleService
                             notes:              "Refund via sale {$finalRefund->sale_number}",
                         );
 
-                        if ($original->appointment_id) {
-                            $appointment = \App\Models\Tenant\TenantAppointment::find($original->appointment_id);
-                            if ($appointment) {
-                                $appointment->paid_cents = (int) $appointment->payments()->sum('tenant_sale_payments.amount_cents');
-                                $appointment->save();
-                            }
-                        }
+                        // MARKER-PATCH-219C — appointment paid cache cascades
+                        // centrally in SalePaymentService::recalcStatus().
                     }
                 }
             } catch (\Throwable $e) {

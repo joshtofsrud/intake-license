@@ -167,6 +167,28 @@ class SalePaymentService
                 ->update(['paid_cents' => max(0, $rentalPaid), 'updated_at' => now()]);
         }
 
+        // MARKER-PATCH-219C — appointment cascade, centralized. Replaces
+        // the recomputes that lived at 6 call sites with 3 logic variants;
+        // this is the complete superset (full up/down payment_status,
+        // including the 'unpaid' downgrade from the patch-198 tool). The
+        // ONE site that must keep a manual recompute is deleteSale — the
+        // sale row is gone there, so this method can never run for it.
+        if (!empty($sale->appointment_id)) {
+            $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
+            if ($appt) {
+                $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                $apptTotal = (int) $appt->total_cents;
+                if ($apptTotal > 0 && $appt->paid_cents >= $apptTotal) {
+                    $appt->payment_status = ($appt->paid_cents > $apptTotal) ? 'overage' : 'paid';
+                } elseif ($appt->paid_cents > 0) {
+                    $appt->payment_status = 'partial';
+                } else {
+                    $appt->payment_status = 'unpaid';
+                }
+                $appt->save();
+            }
+        }
+
         if (in_array($sale->payment_status, ['draft', 'quote'], true)) {
             return;
         }

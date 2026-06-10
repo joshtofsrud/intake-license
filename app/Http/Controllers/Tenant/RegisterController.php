@@ -1911,20 +1911,8 @@ class RegisterController extends Controller
             if ($sale->status === 'cancelled') $sale->status = 'completed';
             $sale->save();
 
-            // Refresh the linked appointment's paid cache.
-            if ($sale->appointment_id) {
-                $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
-                if ($appt) {
-                    $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
-                    $total = (int) $appt->total_cents;
-                    if ($appt->paid_cents >= $total && $total > 0) {
-                        $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
-                    } elseif ($appt->paid_cents > 0) {
-                        $appt->payment_status = 'partial';
-                    }
-                    $appt->save();
-                }
-            }
+            // MARKER-PATCH-219C — appointment paid cache cascades
+            // centrally in SalePaymentService::recalcStatus().
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'error' => 'Could not record the payment: ' . $e->getMessage()], 500);
         }
@@ -1969,22 +1957,8 @@ class RegisterController extends Controller
         $svc->recalcStatus($sale);
         $sale->refresh();
 
-        // Recompute the linked appointment's paid cache.
-        if ($sale->appointment_id) {
-            $appt = \App\Models\Tenant\TenantAppointment::find($sale->appointment_id);
-            if ($appt) {
-                $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
-                $total = (int) $appt->total_cents;
-                if ($total > 0 && $appt->paid_cents >= $total) {
-                    $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
-                } elseif ($appt->paid_cents > 0) {
-                    $appt->payment_status = 'partial';
-                } else {
-                    $appt->payment_status = 'unpaid';
-                }
-                $appt->save();
-            }
-        }
+        // MARKER-PATCH-219C — appointment paid cache cascades centrally in
+        // SalePaymentService::recalcStatus() (called via recalcStatus above).
 
         \Illuminate\Support\Facades\Log::info('sale_payment.deleted', [
             'tenant_id'  => $tenant->id,
@@ -2050,6 +2024,9 @@ class RegisterController extends Controller
         });
 
         // Recompute the linked appointment's paid cache from the remaining ledger.
+        // MARKER-PATCH-219C — this block stays MANUAL by necessity: the sale
+        // row was just deleted, so SalePaymentService::recalcStatus() can
+        // never run for it. Every other site cascades centrally.
         if ($apptId) {
             $appt = \App\Models\Tenant\TenantAppointment::find($apptId);
             if ($appt) {
