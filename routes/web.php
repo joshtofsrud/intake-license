@@ -336,6 +336,11 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
                 Route::post('/rentals/bookings/{id}/check-in',   [TenantControllers\RentalBookingController::class, 'checkIn'])->name('rentals.bookings.checkin');
                 Route::post('/rentals/bookings/{id}/cancel',     [TenantControllers\RentalBookingController::class, 'cancel'])->name('rentals.bookings.cancel');
                 Route::post('/rentals/bookings/{id}/collect-payment', [TenantControllers\RentalBookingController::class, 'collectPayment'])->name('rentals.bookings.collect');
+                // MARKER-PATCH-220 — deposit holds (manual-capture intents).
+                Route::post('/rentals/bookings/{id}/deposit/intent',  [TenantControllers\RentalBookingController::class, 'createDepositIntent'])->name('rentals.bookings.deposit.intent');
+                Route::post('/rentals/bookings/{id}/deposit/confirm', [TenantControllers\RentalBookingController::class, 'confirmDepositIntent'])->name('rentals.bookings.deposit.confirm');
+                Route::post('/rentals/bookings/{id}/deposit/release', [TenantControllers\RentalBookingController::class, 'releaseDeposit'])->name('rentals.bookings.deposit.release');
+                Route::post('/rentals/bookings/{id}/deposit/capture', [TenantControllers\RentalBookingController::class, 'captureDeposit'])->name('rentals.bookings.deposit.capture');
             }); // close RequireRentalCapability group
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');

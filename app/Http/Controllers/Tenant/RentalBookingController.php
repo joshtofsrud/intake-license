@@ -242,8 +242,27 @@ class RentalBookingController extends Controller
     public function checkIn(Request $request, string $id)
     {
         return $this->transition($id, 'out', function (TenantRental $rental) {
-            $rental->update(['status' => 'returned', 'returned_at' => now()]);
-            return 'Returned. Unit is available again.';
+            // MARKER-PATCH-220 — clean return auto-releases a live hold.
+            // Stripe failure does NOT block the return: holds self-expire,
+            // and the panel keeps a Release button while status=authorized.
+            $message = 'Returned. Unit is available again.';
+            if ($rental->deposit_status === 'authorized' && $rental->stripe_deposit_intent_id) {
+                try {
+                    (new \App\Services\Tenant\DirectPaymentsService(tenant()))
+                        ->cancelDepositHold($rental->stripe_deposit_intent_id);
+                    $rental->deposit_status = 'released';
+                    $message = 'Returned. Deposit hold released.';
+                } catch (\Throwable $e) {
+                    \Log::error('rental_deposit.release_on_checkin_failed', [
+                        'rental_id' => $rental->id, 'error' => $e->getMessage(),
+                    ]);
+                    $message = 'Returned. Deposit hold could NOT be released — use the Release button or the Stripe dashboard.';
+                }
+            }
+            $rental->status = 'returned';
+            $rental->returned_at = now();
+            $rental->save();
+            return $message;
         });
     }
 
@@ -347,6 +366,227 @@ class RentalBookingController extends Controller
 
         return redirect(route('tenant.register.index') . '?resume=' . $sale->id)
             ->with('flash', "Sale {$sale->sale_number} created — take payment in the register.");
+    }
+
+    // ------------------------------------------------- deposits (PATCH-220)
+    /**
+     * Create a manual-capture PaymentIntent for the deposit hold.
+     * AN AUTHORIZATION IS NOT MONEY — nothing is written to the ledger
+     * here or at confirm/release. Only capture (damage) creates money.
+     */
+    public function createDepositIntent(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+            ->with('lines.unit')
+            ->firstOrFail();
+
+        if (!in_array($rental->status, ['reserved', 'out'], true)) {
+            return response()->json(['ok' => false, 'error' => 'Deposits only apply to reserved or out rentals.'], 422);
+        }
+        if ($rental->deposit_status === 'authorized') {
+            return response()->json(['ok' => false, 'error' => 'A hold is already authorized on this rental.'], 422);
+        }
+
+        $request->validate(['amount_cents' => ['nullable', 'integer', 'min:50', 'max:9999900']]);
+        $amountCents = (int) ($request->input('amount_cents') ?: $this->defaultDepositCents($rental));
+        if ($amountCents < 50) {
+            return response()->json(['ok' => false, 'error' => 'No deposit amount configured for these units.'], 422);
+        }
+
+        $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+        if (!$direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments are not enabled for this tenant.'], 422);
+        }
+
+        try {
+            $pi = $direct->createDepositHold($amountCents, [
+                'intake_rental_id'     => $rental->id,
+                'intake_rental_number' => $rental->rental_number,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('rental_deposit.create_hold_failed', ['rental_id' => $rental->id, 'error' => $e->getMessage()]);
+            return response()->json(['ok' => false, 'error' => 'Could not start the deposit hold.'], 500);
+        }
+
+        return response()->json([
+            'ok'              => true,
+            'client_secret'   => $pi->client_secret,
+            'payment_intent'  => $pi->id,
+            'publishable_key' => $direct->publishableKey(),
+            'amount_cents'    => $amountCents,
+        ]);
+    }
+
+    /**
+     * Verify the confirmed intent with Stripe (never trust the client) and
+     * stamp the rental. requires_capture = a live authorization.
+     */
+    public function confirmDepositIntent(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $request->validate(['payment_intent' => ['required', 'string', 'max:64']]);
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+
+        try {
+            $pi = $direct->retrievePaymentIntent($request->input('payment_intent'));
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not verify the hold with Stripe.'], 500);
+        }
+
+        if (($pi->metadata['intake_rental_id'] ?? null) !== $rental->id) {
+            return response()->json(['ok' => false, 'error' => 'That payment does not belong to this rental.'], 422);
+        }
+        if ($pi->status !== 'requires_capture') {
+            return response()->json(['ok' => false, 'error' => "Hold is not authorized yet (status: {$pi->status})."], 422);
+        }
+
+        $rental->update([
+            'deposit_status'           => 'authorized',
+            'deposit_hold_cents'       => (int) $pi->amount,
+            'stripe_deposit_intent_id' => $pi->id,
+        ]);
+
+        return response()->json(['ok' => true, 'amount_cents' => (int) $pi->amount]);
+    }
+
+    /** Clean return path: cancel the hold. NO ledger row — an auth is not money. */
+    public function releaseDeposit(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        if ($rental->deposit_status !== 'authorized' || !$rental->stripe_deposit_intent_id) {
+            return back()->withErrors(['deposit' => 'No authorized hold to release.']);
+        }
+
+        try {
+            (new \App\Services\Tenant\DirectPaymentsService($tenant))
+                ->cancelDepositHold($rental->stripe_deposit_intent_id);
+        } catch (\Throwable $e) {
+            \Log::error('rental_deposit.release_failed', ['rental_id' => $rental->id, 'error' => $e->getMessage()]);
+            return back()->withErrors(['deposit' => 'Stripe could not release the hold — try again or release it from the Stripe dashboard.']);
+        }
+
+        $rental->update(['deposit_status' => 'released']);
+
+        return back()->with('flash', 'Deposit hold released.');
+    }
+
+    /**
+     * Damage path: capture part or all of the hold. Captured money flows
+     * through the sales-as-money model — a damage line is added to the
+     * rental (totals stay truthful) and a completed RD- sale carries the
+     * payment row; recalcStatus cascades the rental paid cache.
+     */
+    public function captureDeposit(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.50'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        if ($rental->deposit_status !== 'authorized' || !$rental->stripe_deposit_intent_id) {
+            return back()->withErrors(['deposit' => 'No authorized hold to capture.']);
+        }
+
+        $amountCents = (int) round(((float) $request->input('amount')) * 100);
+        if ($amountCents > (int) $rental->deposit_hold_cents) {
+            return back()->withErrors(['deposit' => 'Capture exceeds the held amount of ' . format_money($rental->deposit_hold_cents) . '.']);
+        }
+
+        $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+
+        try {
+            $pi = $direct->captureDepositHold($rental->stripe_deposit_intent_id, $amountCents);
+        } catch (\Throwable $e) {
+            \Log::error('rental_deposit.capture_failed', ['rental_id' => $rental->id, 'error' => $e->getMessage()]);
+            return back()->withErrors(['deposit' => 'Stripe could not capture the hold.']);
+        }
+
+        $captured = (int) ($pi->amount_received ?? $amountCents);
+        $reason   = trim((string) $request->input('reason')) ?: 'Damage — deposit capture';
+
+        DB::transaction(function () use ($tenant, $rental, $captured, $reason, $pi) {
+            // Damage line on the rental: totals stay truthful (paid == total
+            // nets out once the sale payment lands).
+            TenantRentalLine::create([
+                'rental_id'           => $rental->id,
+                'kind'                => 'addon',
+                'name_snapshot'       => $reason,
+                'rate_mode_snapshot'  => 'flat',
+                'rate_cents_snapshot' => $captured,
+                'quantity'            => 1,
+                'duration_units'      => 1,
+                'line_total_cents'    => $captured,
+                'sort_order'          => 900,
+            ]);
+            $rental->update([
+                'subtotal_cents' => (int) $rental->subtotal_cents + $captured,
+                'total_cents'    => (int) $rental->total_cents + $captured,
+                'deposit_status' => $captured >= (int) $rental->deposit_hold_cents
+                    ? 'captured' : 'partially_captured',
+            ]);
+
+            // Sales-as-money: completed sale + ledger row carry the capture.
+            $sale = TenantSale::create([
+                'id'                 => (string) Str::uuid(),
+                'tenant_id'          => $tenant->id,
+                'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
+                'sale_date'          => now()->toDateString(),
+                'status'             => 'completed',
+                'payment_status'     => 'unpaid', // record() flips it via recalcStatus
+                'customer_id'        => $rental->customer_id,
+                'rental_id'          => $rental->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'subtotal_cents'     => $captured,
+                'tax_cents'          => 0,
+                'total_cents'        => $captured,
+                'notes'              => 'Deposit capture for rental ' . $rental->rental_number,
+            ]);
+
+            TenantSaleItem::create([
+                'id'               => (string) Str::uuid(),
+                'tenant_id'        => $tenant->id,
+                'sale_id'          => $sale->id,
+                'type'             => 'open_item',
+                'name_snapshot'    => $reason . ' (' . $rental->rental_number . ')',
+                'quantity'         => 1,
+                'unit_price_cents' => $captured,
+                'line_total_cents' => $captured,
+                'is_taxable'       => false,
+                'position'         => 0,
+            ]);
+
+            app(\App\Services\Tenant\SalePaymentService::class)->record(
+                sale:              $sale,
+                amountCents:       $captured,
+                kind:              \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT,
+                source:            \App\Models\Tenant\TenantSalePayment::SOURCE_DIRECT_PAYMENT_LINK,
+                method:            'card',
+                externalReference: $pi->id,
+                notes:             'Captured from deposit hold',
+            );
+        });
+
+        return back()->with('flash', 'Captured ' . format_money($captured) . ' from the deposit hold.');
+    }
+
+    /** Default hold = sum of deposit_cents across the rental's units. */
+    private function defaultDepositCents(TenantRental $rental): int
+    {
+        return (int) $rental->lines
+            ->where('kind', 'unit')
+            ->sum(fn ($line) => (int) ($line->unit?->deposit_cents ?? 0));
     }
 
     /** RD-YYYYMMDD-NNN — same shape as the appointment DP- generator. */

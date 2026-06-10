@@ -88,6 +88,47 @@ class DirectPaymentsService
      * before we commit the sale. We don\'t trust client claims that
      * the charge succeeded — we always check Stripe.
      */
+    /**
+     * MARKER-PATCH-220 — rental deposit holds. capture_method=manual: the
+     * card is authorized but NOT charged. Confirmed intents land in
+     * requires_capture; we then either capture (damage) or cancel (clean
+     * return). Holds Stripe-expire on their own (~7 days for most cards)
+     * if neither happens.
+     */
+    public function createDepositHold(int $amountCents, array $metadata = []): \Stripe\PaymentIntent
+    {
+        $client = $this->client();
+
+        return $client->paymentIntents->create([
+            'amount'                    => $amountCents,
+            'currency'                  => 'usd',
+            'capture_method'            => 'manual',
+            'automatic_payment_methods' => ['enabled' => true],
+            'metadata' => array_merge([
+                'intake_tenant_id'   => $this->tenant->id,
+                'intake_tenant_name' => $this->tenant->name,
+                'intake_environment' => app()->environment(),
+                'intake_kind'        => 'rental_deposit_hold',
+            ], $metadata),
+        ]);
+    }
+
+    /** Capture part or all of a manual-capture hold. Null = full amount. */
+    public function captureDepositHold(string $piId, ?int $amountCents = null): \Stripe\PaymentIntent
+    {
+        $params = [];
+        if ($amountCents !== null) {
+            $params['amount_to_capture'] = $amountCents;
+        }
+        return $this->client()->paymentIntents->capture($piId, $params);
+    }
+
+    /** Cancel a hold (clean return). Releases the authorization. */
+    public function cancelDepositHold(string $piId): \Stripe\PaymentIntent
+    {
+        return $this->client()->paymentIntents->cancel($piId);
+    }
+
     public function retrievePaymentIntent(string $piId): \Stripe\PaymentIntent
     {
         return $this->client()->paymentIntents->retrieve($piId, [

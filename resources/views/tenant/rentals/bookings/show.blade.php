@@ -97,6 +97,50 @@
       </div>
     </div>
 
+    {{-- MARKER-PATCH-220 — deposit hold panel --}}
+    <div class="ia-card" style="padding:16px;margin-bottom:16px">
+      <span class="ia-label">Deposit</span>
+      <div style="margin-top:10px;font-size:12.5px">
+        @if($rental->deposit_status === 'authorized')
+          <div style="font-weight:700;margin-bottom:8px">{{ format_money($rental->deposit_hold_cents) }} on hold</div>
+          <form method="POST" action="{{ route('tenant.rentals.bookings.deposit.release', $rental->id) }}" style="margin-bottom:8px">@csrf
+            <button type="submit" class="ia-btn" style="width:100%">Release hold</button>
+          </form>
+          <form method="POST" action="{{ route('tenant.rentals.bookings.deposit.capture', $rental->id) }}" onsubmit="return confirm('Capture from the customer\'s card?')">@csrf
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input type="number" name="amount" min="0.50" step="0.01" max="{{ number_format($rental->deposit_hold_cents / 100, 2, '.', '') }}" placeholder="Amount $" required class="ia-input" style="flex:1;text-align:right">
+              <button type="submit" class="ia-btn ia-btn--primary">Capture</button>
+            </div>
+            <input type="text" name="reason" maxlength="500" placeholder="Reason (shows on the sale)" class="ia-input" style="width:100%">
+          </form>
+          <p style="font-size:11px;opacity:.45;margin-top:8px">Release = no charge, no ledger entry. Capture = damage charge through the register ledger.</p>
+        @elseif($rental->deposit_status === 'released')
+          <div style="opacity:.65">Hold released — no charge.</div>
+        @elseif(in_array($rental->deposit_status, ['captured', 'partially_captured'], true))
+          <div style="opacity:.85">{{ $rental->deposit_status === 'captured' ? 'Hold fully captured' : 'Hold partially captured' }} — see the linked sale above.</div>
+        @elseif(in_array($rental->status, ['reserved', 'out'], true))
+          @if(tenant()->direct_payments_enabled)
+            <div id="dep-start">
+              <div style="display:flex;gap:6px">
+                <input type="number" id="dep-amount" min="0.50" step="0.01" value="{{ number_format(max(0, $rental->lines->where('kind','unit')->sum(fn ($l) => (int) ($l->unit?->deposit_cents ?? 0))) / 100, 2, '.', '') }}" class="ia-input" style="flex:1;text-align:right">
+                <button type="button" class="ia-btn ia-btn--primary" id="dep-authorize">Authorize hold</button>
+              </div>
+              <p style="font-size:11px;opacity:.45;margin-top:6px">Authorizes the customer's card without charging it.</p>
+            </div>
+            <div id="dep-element-wrap" style="display:none;margin-top:10px">
+              <div id="dep-element"></div>
+              <button type="button" class="ia-btn ia-btn--primary" id="dep-confirm" style="width:100%;margin-top:8px">Place hold</button>
+              <div id="dep-error" style="font-size:12px;color:#ef4444;margin-top:6px"></div>
+            </div>
+          @else
+            <div style="opacity:.55">Enable card payments in Settings → Payments to take deposit holds.</div>
+          @endif
+        @else
+          <div style="opacity:.55">No deposit was held on this rental.</div>
+        @endif
+      </div>
+    </div>
+
     <div class="ia-card" style="padding:16px;margin-bottom:16px">
       <span class="ia-label">Actions</span>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
@@ -129,5 +173,64 @@
   </div>
 
 </div>
+
+@if($rental->deposit_status === 'none' && in_array($rental->status, ['reserved', 'out'], true) && tenant()->direct_payments_enabled)
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+(function () {
+  var btn = document.getElementById('dep-authorize');
+  if (!btn) return;
+  var intentUrl  = '{{ route('tenant.rentals.bookings.deposit.intent', $rental->id) }}';
+  var confirmUrl = '{{ route('tenant.rentals.bookings.deposit.confirm', $rental->id) }}';
+  var csrf = '{{ csrf_token() }}';
+  var stripe = null, elements = null, piId = null;
+
+  function post(url, payload) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+      body: JSON.stringify(payload || {})
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); });
+  }
+
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    var dollars = parseFloat(document.getElementById('dep-amount').value || '0');
+    post(intentUrl, { amount_cents: Math.round(dollars * 100) }).then(function (res) {
+      if (!res.ok || !res.json.ok) {
+        alert(res.json.error || 'Could not start the hold.');
+        btn.disabled = false;
+        return;
+      }
+      piId = res.json.payment_intent;
+      stripe = Stripe(res.json.publishable_key);
+      elements = stripe.elements({ clientSecret: res.json.client_secret });
+      elements.create('payment').mount('#dep-element');
+      document.getElementById('dep-element-wrap').style.display = 'block';
+    }).catch(function () { alert('Could not start the hold.'); btn.disabled = false; });
+  });
+
+  document.getElementById('dep-confirm').addEventListener('click', function () {
+    var confirmBtn = this;
+    confirmBtn.disabled = true;
+    document.getElementById('dep-error').textContent = '';
+    stripe.confirmPayment({ elements: elements, redirect: 'if_required' }).then(function (result) {
+      if (result.error) {
+        document.getElementById('dep-error').textContent = result.error.message || 'Card was not authorized.';
+        confirmBtn.disabled = false;
+        return;
+      }
+      post(confirmUrl, { payment_intent: piId }).then(function (res) {
+        if (res.ok && res.json.ok) { window.location.reload(); }
+        else {
+          document.getElementById('dep-error').textContent = (res.json && res.json.error) || 'Could not verify the hold.';
+          confirmBtn.disabled = false;
+        }
+      });
+    });
+  });
+})();
+</script>
+@endif
 
 @endsection
