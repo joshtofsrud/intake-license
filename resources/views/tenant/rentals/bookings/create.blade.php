@@ -125,6 +125,15 @@
   }
   var startsEl = document.getElementById('nr-starts');
   var dueEl    = document.getElementById('nr-due');
+
+  // MARKER-PATCH-223 — availability-timeline handoff: ?starts=&due=&unit=
+  // prefills the window, auto-runs the availability check, and pre-checks
+  // the dragged unit.
+  var params = new URLSearchParams(window.location.search);
+  var qsStarts = params.get('starts'), qsDue = params.get('due'), qsUnit = params.get('unit');
+  if (qsStarts) startsEl.value = qsStarts;
+  if (qsDue) dueEl.value = qsDue;
+
   if (!startsEl.value) {
     var s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1);
     startsEl.value = toLocalValue(s);
@@ -203,6 +212,19 @@
   });
 
   unitsEl.addEventListener('change', refreshSummary);
+
+  // MARKER-PATCH-223 — finish the timeline handoff after wiring is in place.
+  if (qsStarts && qsDue) {
+    document.getElementById('nr-find').click();
+    if (qsUnit) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        var cb = unitsEl.querySelector('.nr-unit-cb[value="' + qsUnit + '"]');
+        if (cb) { cb.checked = true; refreshSummary(); clearInterval(timer); }
+        if (++tries > 40) clearInterval(timer); // ~10s, then give up quietly
+      }, 250);
+    }
+  }
   startsEl.addEventListener('change', function () { unitsEl.innerHTML = '<p style="font-size:12.5px;opacity:.55">Window changed — find units again.</p>'; submitEl.disabled = true; summaryEl.style.display = 'none'; });
   dueEl.addEventListener('change', function () { unitsEl.innerHTML = '<p style="font-size:12.5px;opacity:.55">Window changed — find units again.</p>'; submitEl.disabled = true; summaryEl.style.display = 'none'; });
 })();

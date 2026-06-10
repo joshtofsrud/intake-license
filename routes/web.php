@@ -327,6 +327,8 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
 
                 // MARKER-PATCH-219 — rental bookings. store/check-out/
                 // check-in/cancel mutate under the tenant rental write lock.
+                // MARKER-PATCH-223 — fleet-wide availability timeline.
+                Route::get('/rentals/availability-timeline',     [TenantControllers\RentalAvailabilityTimelineController::class, 'index'])->name('rentals.availability.timeline');
                 Route::get('/rentals/bookings',                  [TenantControllers\RentalBookingController::class, 'index'])->name('rentals.bookings.index');
                 Route::get('/rentals/bookings/new',              [TenantControllers\RentalBookingController::class, 'create'])->name('rentals.bookings.create');
                 Route::post('/rentals/bookings',                 [TenantControllers\RentalBookingController::class, 'store'])->name('rentals.bookings.store');

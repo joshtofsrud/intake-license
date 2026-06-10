@@ -31,6 +31,7 @@
     <p class="ia-page-subtitle">Live view of your rental fleet — what's out, what's due, what's free.</p>
   </div>
   <div style="display:flex;gap:8px">
+    <a href="{{ route('tenant.rentals.availability.timeline') }}" class="ia-btn">Availability</a>
     <a href="{{ route('tenant.rentals.bookings.index') }}" class="ia-btn">Bookings</a>
     <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn">Manage fleet</a>
     <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--primary">New rental</a>
@@ -131,7 +132,7 @@
   <div class="ia-card" style="padding:0;overflow:hidden">
     <div class="rd-flex-between" style="padding:16px 20px 12px;border-bottom:.5px solid var(--ia-border)">
       <span class="ia-card-title">Upcoming pickups</span>
-      <a class="ia-card-action" href="{{ route('tenant.rentals.bookings.index', ['tab' => 'upcoming']) }}" style="text-decoration:none">All upcoming →</a>
+      <a class="ia-card-action" href="{{ route('tenant.rentals.availability.timeline') }}" style="text-decoration:none">Availability →</a>
     </div>
     @if($pickups->isEmpty())
       <div style="padding:22px 20px;font-size:12.5px;opacity:.55">No reservations starting this week.</div>
