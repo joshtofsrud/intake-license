@@ -26,8 +26,8 @@ class TenantRentalUnit extends Model
         'name', 'identifier', 'size', 'status',
         'available_for_rent', 'online_booking', 'buffer_minutes',
         'condition_template_id',
-        'hourly_rate_cents_override', 'daily_rate_cents_override',
-        'weekend_rate_cents_override', 'deposit_cents_override',
+        'hourly_rate_cents', 'daily_rate_cents',
+        'weekend_rate_cents', 'deposit_cents',
         'acquired_at', 'metadata', 'notes', 'archived_at',
     ];
 
@@ -35,10 +35,10 @@ class TenantRentalUnit extends Model
         'available_for_rent'           => 'boolean',
         'online_booking'               => 'boolean',
         'buffer_minutes'               => 'integer',
-        'hourly_rate_cents_override'   => 'integer',
-        'daily_rate_cents_override'    => 'integer',
-        'weekend_rate_cents_override'  => 'integer',
-        'deposit_cents_override'       => 'integer',
+        'hourly_rate_cents'            => 'integer',
+        'daily_rate_cents'             => 'integer',
+        'weekend_rate_cents'           => 'integer',
+        'deposit_cents'                => 'integer',
         'acquired_at'                  => 'date',
         'metadata'                     => 'array',
         'archived_at'                  => 'datetime',
@@ -74,24 +74,28 @@ class TenantRentalUnit extends Model
         return $q->whereNull('archived_at')->where('status', '!=', 'retired');
     }
 
-    /** Effective rate helpers — unit override wins, else category card. */
+    /**
+     * MARKER-PATCH-218B — rates live on the unit (no category fallback).
+     * Method names kept stable for future call sites (pricing, public
+     * site, extensions). Null rate = not offered at that duration.
+     */
     public function effectiveHourlyCents(): ?int
     {
-        return $this->hourly_rate_cents_override ?? $this->category?->hourly_rate_cents;
+        return $this->hourly_rate_cents;
     }
 
     public function effectiveDailyCents(): ?int
     {
-        return $this->daily_rate_cents_override ?? $this->category?->daily_rate_cents;
+        return $this->daily_rate_cents;
     }
 
     public function effectiveWeekendCents(): ?int
     {
-        return $this->weekend_rate_cents_override ?? $this->category?->weekend_rate_cents;
+        return $this->weekend_rate_cents;
     }
 
     public function effectiveDepositCents(): int
     {
-        return (int) ($this->deposit_cents_override ?? $this->category?->deposit_cents ?? 0);
+        return (int) ($this->deposit_cents ?? 0);
     }
 }

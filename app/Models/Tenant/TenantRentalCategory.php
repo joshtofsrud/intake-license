@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A rental category (Mountain, E-bike, Kids…) carrying the rate card and
- * the default deposit. Units may override per-column.
+ * A rental category (Mountain, E-bike, Kids…) — pure grouping for
+ * browsing and filters. MARKER-PATCH-218B: rates live on the UNIT.
  */
 class TenantRentalCategory extends Model
 {
@@ -20,18 +20,12 @@ class TenantRentalCategory extends Model
     protected $table = 'tenant_rental_categories';
 
     protected $fillable = [
-        'tenant_id', 'name',
-        'hourly_rate_cents', 'daily_rate_cents', 'weekend_rate_cents',
-        'deposit_cents', 'sort_order', 'archived_at',
+        'tenant_id', 'name', 'sort_order', 'archived_at',
     ];
 
     protected $casts = [
-        'hourly_rate_cents'  => 'integer',
-        'daily_rate_cents'   => 'integer',
-        'weekend_rate_cents' => 'integer',
-        'deposit_cents'      => 'integer',
-        'sort_order'         => 'integer',
-        'archived_at'        => 'datetime',
+        'sort_order'  => 'integer',
+        'archived_at' => 'datetime',
     ];
 
     public function tenant(): BelongsTo

@@ -22,26 +22,11 @@
   <h2 class="ia-h3" style="margin-bottom:12px">Add a category</h2>
   <form method="POST" action="{{ route('tenant.rentals.fleet.categories.store') }}">
     @csrf
-    <div style="display:grid;grid-template-columns:1.6fr repeat(4, 1fr) auto;gap:10px;align-items:end">
+    {{-- MARKER-PATCH-218B — categories are grouping only --}}
+    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;max-width:520px">
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
         <input type="text" name="name" required maxlength="120" placeholder="e.g. Mountain bikes" class="ia-input" style="width:100%">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Hourly $</label>
-        <input type="number" name="hourly_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Daily $</label>
-        <input type="number" name="daily_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Weekend $</label>
-        <input type="number" name="weekend_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Deposit $</label>
-        <input type="number" name="deposit" min="0" step="0.01" placeholder="0" class="ia-input" style="width:100%;text-align:right">
       </div>
       <div><button type="submit" class="ia-btn ia-btn--primary">Add</button></div>
     </div>
@@ -51,7 +36,7 @@
 <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:28px">
   <div style="padding:14px 20px;border-bottom:0.5px solid var(--ia-border);display:flex;justify-content:space-between;align-items:center">
     <span class="ia-label">{{ $categories->count() }} categor{{ $categories->count() === 1 ? 'y' : 'ies' }}</span>
-    <span style="font-size:11px;opacity:.5">Rates blank = not offered at that duration · Edits save on blur</span>
+    <span style="font-size:11px;opacity:.5">Categories group your fleet for browsing and filters · Rates are set per unit below</span>
   </div>
 
   @if($categories->isEmpty())
@@ -62,16 +47,8 @@
   @else
     @foreach($categories as $cat)
       <div data-kind="category" data-url="{{ route('tenant.rentals.fleet.categories.update', $cat->id) }}" data-destroy="{{ route('tenant.rentals.fleet.categories.destroy', $cat->id) }}"
-           style="display:grid;grid-template-columns:1.6fr repeat(4, 1fr) auto auto;gap:10px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border)">
+           style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border);max-width:680px">
         <input type="text" class="ia-input fl-edit" data-field="name" value="{{ $cat->name }}" maxlength="120" style="width:100%">
-        <input type="number" class="ia-input fl-edit" data-field="hourly_rate" min="0" step="0.01" placeholder="—"
-               value="{{ $cat->hourly_rate_cents !== null ? number_format($cat->hourly_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
-        <input type="number" class="ia-input fl-edit" data-field="daily_rate" min="0" step="0.01" placeholder="—"
-               value="{{ $cat->daily_rate_cents !== null ? number_format($cat->daily_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
-        <input type="number" class="ia-input fl-edit" data-field="weekend_rate" min="0" step="0.01" placeholder="—"
-               value="{{ $cat->weekend_rate_cents !== null ? number_format($cat->weekend_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
-        <input type="number" class="ia-input fl-edit" data-field="deposit" min="0" step="0.01" placeholder="0"
-               value="{{ number_format(($cat->deposit_cents ?? 0) / 100, 2, '.', '') }}" style="width:100%;text-align:right">
         <span style="font-size:11.5px;opacity:.55;white-space:nowrap">{{ $cat->units_count }} unit{{ $cat->units_count === 1 ? '' : 's' }}</span>
         <button type="button" class="ia-btn fl-archive" title="Archive category">Archive</button>
       </div>
@@ -87,7 +64,7 @@
   @else
   <form method="POST" action="{{ route('tenant.rentals.fleet.units.store') }}">
     @csrf
-    <div style="display:grid;grid-template-columns:1.6fr 1.2fr 1fr 0.8fr auto;gap:10px;align-items:end">
+    <div style="display:grid;grid-template-columns:1.6fr 1.2fr 1fr 0.8fr;gap:10px;align-items:end">
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
         <input type="text" name="name" required maxlength="160" placeholder="e.g. Trek Roscoe 8" class="ia-input" style="width:100%">
@@ -107,6 +84,25 @@
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Size</label>
         <input type="text" name="size" maxlength="40" placeholder="M / 17.5&quot;" class="ia-input" style="width:100%">
+      </div>
+    </div>
+    {{-- MARKER-PATCH-218B — the unit is the rate card --}}
+    <div style="display:grid;grid-template-columns:repeat(4, 1fr) auto;gap:10px;align-items:end;margin-top:10px">
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Hourly $</label>
+        <input type="number" name="hourly_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Daily $</label>
+        <input type="number" name="daily_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Weekend $</label>
+        <input type="number" name="weekend_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Deposit $</label>
+        <input type="number" name="deposit" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
       </div>
       <div><button type="submit" class="ia-btn ia-btn--primary">Add</button></div>
     </div>
@@ -149,27 +145,27 @@
           <button type="button" class="ia-btn fl-archive" title="Archive unit">Archive</button>
         </div>
         <details style="margin-top:8px">
-          <summary style="font-size:11.5px;opacity:.55;cursor:pointer">Rate &amp; deposit overrides ({{ $u->category->name ?? '—' }} card applies when blank)</summary>
+          <summary style="font-size:11.5px;opacity:.55;cursor:pointer">Rates &amp; deposit — blank = not offered at that duration</summary>
           <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-top:8px;max-width:560px">
             <div>
               <label class="ia-label" style="display:block;margin-bottom:4px">Hourly $</label>
-              <input type="number" class="ia-input fl-edit" data-field="hourly_rate_override" min="0" step="0.01" placeholder="inherit"
-                     value="{{ $u->hourly_rate_cents_override !== null ? number_format($u->hourly_rate_cents_override / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
+              <input type="number" class="ia-input fl-edit" data-field="hourly_rate" min="0" step="0.01" placeholder="—"
+                     value="{{ $u->hourly_rate_cents !== null ? number_format($u->hourly_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
             </div>
             <div>
               <label class="ia-label" style="display:block;margin-bottom:4px">Daily $</label>
-              <input type="number" class="ia-input fl-edit" data-field="daily_rate_override" min="0" step="0.01" placeholder="inherit"
-                     value="{{ $u->daily_rate_cents_override !== null ? number_format($u->daily_rate_cents_override / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
+              <input type="number" class="ia-input fl-edit" data-field="daily_rate" min="0" step="0.01" placeholder="—"
+                     value="{{ $u->daily_rate_cents !== null ? number_format($u->daily_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
             </div>
             <div>
               <label class="ia-label" style="display:block;margin-bottom:4px">Weekend $</label>
-              <input type="number" class="ia-input fl-edit" data-field="weekend_rate_override" min="0" step="0.01" placeholder="inherit"
-                     value="{{ $u->weekend_rate_cents_override !== null ? number_format($u->weekend_rate_cents_override / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
+              <input type="number" class="ia-input fl-edit" data-field="weekend_rate" min="0" step="0.01" placeholder="—"
+                     value="{{ $u->weekend_rate_cents !== null ? number_format($u->weekend_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
             </div>
             <div>
               <label class="ia-label" style="display:block;margin-bottom:4px">Deposit $</label>
-              <input type="number" class="ia-input fl-edit" data-field="deposit_override" min="0" step="0.01" placeholder="inherit"
-                     value="{{ $u->deposit_cents_override !== null ? number_format($u->deposit_cents_override / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
+              <input type="number" class="ia-input fl-edit" data-field="deposit" min="0" step="0.01" placeholder="—"
+                     value="{{ $u->deposit_cents !== null ? number_format($u->deposit_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
             </div>
           </div>
         </details>

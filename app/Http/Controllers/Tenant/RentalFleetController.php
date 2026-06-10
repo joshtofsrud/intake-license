@@ -49,24 +49,18 @@ class RentalFleetController extends Controller
     {
         $tenant = tenant();
 
+        // MARKER-PATCH-218B — categories are grouping only; rates live
+        // on the unit.
         $request->validate([
-            'name'         => ['required', 'string', 'max:120'],
-            'hourly_rate'  => ['nullable', 'numeric', 'min:0', 'max:99999'],
-            'daily_rate'   => ['nullable', 'numeric', 'min:0', 'max:99999'],
-            'weekend_rate' => ['nullable', 'numeric', 'min:0', 'max:99999'],
-            'deposit'      => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'name' => ['required', 'string', 'max:120'],
         ]);
 
         $maxSort = TenantRentalCategory::where('tenant_id', $tenant->id)->max('sort_order') ?? 90;
 
         TenantRentalCategory::create([
-            'tenant_id'          => $tenant->id,
-            'name'               => $request->input('name'),
-            'hourly_rate_cents'  => $this->dollarsToCents($request->input('hourly_rate')),
-            'daily_rate_cents'   => $this->dollarsToCents($request->input('daily_rate')),
-            'weekend_rate_cents' => $this->dollarsToCents($request->input('weekend_rate')),
-            'deposit_cents'      => $this->dollarsToCents($request->input('deposit')) ?? 0,
-            'sort_order'         => $maxSort + 10,
+            'tenant_id'  => $tenant->id,
+            'name'       => $request->input('name'),
+            'sort_order' => $maxSort + 10,
         ]);
 
         return redirect()->route('tenant.rentals.fleet')->with('flash', 'Category added.');
@@ -83,16 +77,6 @@ class RentalFleetController extends Controller
             case 'name':
                 $request->validate(['value' => ['required', 'string', 'max:120']]);
                 $category->update(['name' => $value]);
-                break;
-            case 'hourly_rate':
-            case 'daily_rate':
-            case 'weekend_rate':
-                $request->validate(['value' => ['nullable', 'numeric', 'min:0', 'max:99999']]);
-                $category->update([str_replace('_rate', '_rate_cents', $field) => $this->dollarsToCents($value)]);
-                break;
-            case 'deposit':
-                $request->validate(['value' => ['nullable', 'numeric', 'min:0', 'max:99999']]);
-                $category->update(['deposit_cents' => $this->dollarsToCents($value) ?? 0]);
                 break;
             default:
                 return response()->json(['success' => false, 'message' => 'Unknown field.'], 422);
@@ -130,10 +114,15 @@ class RentalFleetController extends Controller
         $tenant = tenant();
 
         $request->validate([
-            'name'        => ['required', 'string', 'max:160'],
-            'category_id' => ['required', 'string', 'uuid'],
-            'identifier'  => ['nullable', 'string', 'max:60'],
-            'size'        => ['nullable', 'string', 'max:40'],
+            'name'         => ['required', 'string', 'max:160'],
+            'category_id'  => ['required', 'string', 'uuid'],
+            'identifier'   => ['nullable', 'string', 'max:60'],
+            'size'         => ['nullable', 'string', 'max:40'],
+            // MARKER-PATCH-218B — the unit IS the rate card.
+            'hourly_rate'  => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'daily_rate'   => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'weekend_rate' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'deposit'      => ['nullable', 'numeric', 'min:0', 'max:99999'],
         ]);
 
         // Ownership-verify the category (never trust a raw id).
@@ -153,6 +142,10 @@ class RentalFleetController extends Controller
             'available_for_rent' => true,
             'online_booking'     => true,
             'buffer_minutes'     => 0,
+            'hourly_rate_cents'  => $this->dollarsToCents($request->input('hourly_rate')),
+            'daily_rate_cents'   => $this->dollarsToCents($request->input('daily_rate')),
+            'weekend_rate_cents' => $this->dollarsToCents($request->input('weekend_rate')),
+            'deposit_cents'      => $this->dollarsToCents($request->input('deposit')),
         ]);
 
         return redirect()->route('tenant.rentals.fleet')->with('flash', 'Unit added.');
@@ -196,17 +189,15 @@ class RentalFleetController extends Controller
                 $request->validate(['value' => ['nullable', 'integer', 'min:0', 'max:1440']]);
                 $unit->update(['buffer_minutes' => (int) ($value ?: 0)]);
                 break;
-            case 'hourly_rate_override':
-            case 'daily_rate_override':
-            case 'weekend_rate_override':
-            case 'deposit_override':
+            case 'hourly_rate':
+            case 'daily_rate':
+            case 'weekend_rate':
                 $request->validate(['value' => ['nullable', 'numeric', 'min:0', 'max:99999']]);
-                // hourly_rate_override -> hourly_rate_cents_override, etc.;
-                // deposit_override -> deposit_cents_override
-                $col = $field === 'deposit_override'
-                    ? 'deposit_cents_override'
-                    : str_replace('_rate_override', '_rate_cents_override', $field);
-                $unit->update([$col => $this->dollarsToCents($value)]);
+                $unit->update([str_replace('_rate', '_rate_cents', $field) => $this->dollarsToCents($value)]);
+                break;
+            case 'deposit':
+                $request->validate(['value' => ['nullable', 'numeric', 'min:0', 'max:99999']]);
+                $unit->update(['deposit_cents' => $this->dollarsToCents($value)]);
                 break;
             case 'condition_template_id':
                 if ($value === '' || $value === null) {
