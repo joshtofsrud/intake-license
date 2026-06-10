@@ -19,8 +19,14 @@
 @endpush
 
 @section('content')
-<div class="rd-h1">Rental Desk</div>
-<div class="rd-sub">Live view of your rental fleet — what's out, what's due, what's free.</div>
+{{-- MARKER-PATCH-218 — fleet link in the page head --}}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+  <div>
+    <div class="rd-h1">Rental Desk</div>
+    <div class="rd-sub">Live view of your rental fleet — what's out, what's due, what's free.</div>
+  </div>
+  <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn ia-btn--primary" style="white-space:nowrap">Manage fleet</a>
+</div>
 
 <div class="rd-stats">
   <div class="rd-stat">
@@ -48,7 +54,8 @@
 @if($unitsTotal === 0)
 <div class="rd-empty">
   <h2>Your fleet starts here</h2>
-  <p>Rental categories, units, rate cards, and the availability timeline arrive in the next update. Once your fleet is in, reservations from the desk and your public rental site will land on this screen.</p>
+  <p>Add rental categories with rate cards, then add your units. Reservations from the desk and your public rental site will land on this screen.</p>
+  <p style="margin-top:14px"><a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn ia-btn--primary">Set up your fleet</a></p>
 </div>
 @endif
 @endsection

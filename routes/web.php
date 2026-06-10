@@ -310,6 +310,20 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
             // route added inside inherits it by construction.
             Route::middleware([\App\Http\Middleware\RequireRentalCapability::class])->group(function () {
                 Route::get('/rentals', [TenantControllers\RentalDeskController::class, 'index'])->name('rentals.desk');
+
+                // MARKER-PATCH-218 — Fleet admin (categories, units,
+                // condition templates). Inline-edit protocol: PATCH with
+                // JSON {field, value}; archives, never hard-deletes.
+                Route::get('/rentals/fleet',                            [TenantControllers\RentalFleetController::class, 'index'])->name('rentals.fleet');
+                Route::post('/rentals/fleet/categories',                [TenantControllers\RentalFleetController::class, 'storeCategory'])->name('rentals.fleet.categories.store');
+                Route::patch('/rentals/fleet/categories/{id}',          [TenantControllers\RentalFleetController::class, 'updateCategory'])->name('rentals.fleet.categories.update');
+                Route::delete('/rentals/fleet/categories/{id}',         [TenantControllers\RentalFleetController::class, 'destroyCategory'])->name('rentals.fleet.categories.destroy');
+                Route::post('/rentals/fleet/units',                     [TenantControllers\RentalFleetController::class, 'storeUnit'])->name('rentals.fleet.units.store');
+                Route::patch('/rentals/fleet/units/{id}',               [TenantControllers\RentalFleetController::class, 'updateUnit'])->name('rentals.fleet.units.update');
+                Route::delete('/rentals/fleet/units/{id}',              [TenantControllers\RentalFleetController::class, 'destroyUnit'])->name('rentals.fleet.units.destroy');
+                Route::post('/rentals/fleet/condition-templates',       [TenantControllers\RentalFleetController::class, 'storeConditionTemplate'])->name('rentals.fleet.ct.store');
+                Route::patch('/rentals/fleet/condition-templates/{id}', [TenantControllers\RentalFleetController::class, 'updateConditionTemplate'])->name('rentals.fleet.ct.update');
+                Route::delete('/rentals/fleet/condition-templates/{id}',[TenantControllers\RentalFleetController::class, 'destroyConditionTemplate'])->name('rentals.fleet.ct.destroy');
             }); // close RequireRentalCapability group
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
