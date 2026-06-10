@@ -335,7 +335,7 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
                 Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
                 Route::post('/rentals/bookings/{id}/check-in',   [TenantControllers\RentalBookingController::class, 'checkIn'])->name('rentals.bookings.checkin');
                 Route::post('/rentals/bookings/{id}/cancel',     [TenantControllers\RentalBookingController::class, 'cancel'])->name('rentals.bookings.cancel');
-                Route::post('/rentals/bookings/{id}/payments',   [TenantControllers\RentalBookingController::class, 'recordPayment'])->name('rentals.bookings.payments.store');
+                Route::post('/rentals/bookings/{id}/collect-payment', [TenantControllers\RentalBookingController::class, 'collectPayment'])->name('rentals.bookings.collect');
             }); // close RequireRentalCapability group
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');

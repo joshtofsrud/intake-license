@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantRental;
-use App\Models\Tenant\TenantRentalPayment;
 use App\Models\Tenant\TenantRentalUnit;
 use Illuminate\Http\Request;
 
@@ -39,12 +38,16 @@ class RentalDeskController extends Controller
             ->where('status', 'reserved')
             ->count();
 
-        // MTD revenue from the ledger (Rail 2) — the ledger is canon, not
-        // rental status columns. Month boundary is UTC for this stub; the
-        // reports patch does tenant-local boundaries properly.
-        $mtdRevenueCents = (int) TenantRentalPayment::where('tenant_id', $tenant->id)
-            ->where('recorded_at', '>=', now()->startOfMonth())
-            ->sum('amount_cents');
+        // MTD revenue from the ledger (Rail 2): tenant_sale_payments through
+        // rental-linked sales — the sales-as-money model (MARKER-PATCH-219B).
+        // Month boundary is UTC for this stub; the reports patch does
+        // tenant-local boundaries properly.
+        $mtdRevenueCents = (int) \DB::table('tenant_sale_payments')
+            ->join('tenant_sales', 'tenant_sales.id', '=', 'tenant_sale_payments.sale_id')
+            ->whereNotNull('tenant_sales.rental_id')
+            ->where('tenant_sale_payments.tenant_id', $tenant->id)
+            ->where('tenant_sale_payments.recorded_at', '>=', now()->startOfMonth())
+            ->sum('tenant_sale_payments.amount_cents');
 
         // MARKER-PATCH-219 — live desk tables.
         $dueBack = TenantRental::where('tenant_id', $tenant->id)

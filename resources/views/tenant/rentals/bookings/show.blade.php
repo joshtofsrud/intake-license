@@ -50,42 +50,39 @@
       </div>
     </div>
 
+    {{-- MARKER-PATCH-219B — sales-as-money: payments flow through the register. --}}
     <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Payments</span></div>
-      @if($rental->payments->isEmpty())
-        <div style="padding:18px 16px;font-size:12.5px;opacity:.55">No payments recorded yet.</div>
+      <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Payments — via register</span></div>
+      @if($rental->sales->isEmpty())
+        <div style="padding:18px 16px;font-size:12.5px;opacity:.55">No register sales linked yet. Use Collect payment below.</div>
       @else
-        @foreach($rental->payments as $p)
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;padding:9px 16px;border-bottom:0.5px solid var(--ia-border);font-size:12.5px">
-            <span>{{ tlocal_datetime($p->recorded_at, 'M j, g:i A') }}</span>
-            <span style="opacity:.7">{{ ucfirst($p->kind) }} · {{ $p->method ?? '—' }}</span>
-            <span style="opacity:.55">{{ $p->notes }}</span>
-            <span style="font-weight:700;text-align:right;{{ $p->amount_cents < 0 ? 'color:#ef4444' : '' }}">{{ format_money(abs($p->amount_cents)) }}{{ $p->amount_cents < 0 ? ' refund' : '' }}</span>
+        @foreach($rental->sales as $sale)
+          <div style="padding:10px 16px;border-bottom:0.5px solid var(--ia-border)">
+            <div style="display:flex;justify-content:space-between;gap:10px;font-size:13px">
+              <span style="font-weight:600">{{ $sale->sale_number }}
+                <span style="font-size:11px;font-weight:700;margin-left:6px;{{ $sale->payment_status === 'paid' ? 'color:#34d399' : ($sale->payment_status === 'refunded' ? 'color:#ef4444' : 'opacity:.55') }}">{{ strtoupper($sale->payment_status) }}</span>
+              </span>
+              <span style="font-weight:700">{{ format_money($sale->total_cents) }}</span>
+            </div>
+            @foreach($sale->payments as $p)
+              <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;opacity:.75;margin-top:4px">
+                <span>{{ tlocal_datetime($p->recorded_at, 'M j, g:i A') }} · {{ ucfirst($p->kind) }} · {{ $p->method ?? '—' }}</span>
+                <span style="{{ $p->amount_cents < 0 ? 'color:#ef4444' : '' }}">{{ format_money(abs($p->amount_cents)) }}{{ $p->amount_cents < 0 ? ' refund' : '' }}</span>
+              </div>
+            @endforeach
           </div>
         @endforeach
       @endif
-      @if($rental->status !== 'cancelled')
-      <form method="POST" action="{{ route('tenant.rentals.bookings.payments.store', $rental->id) }}" style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr auto;gap:8px;padding:12px 16px;align-items:end">
+      @if($rental->status !== 'cancelled' && $balance > 0)
+      <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" style="display:flex;gap:8px;padding:12px 16px;align-items:end">
         @csrf
         <div>
           <label class="ia-label" style="display:block;margin-bottom:4px">Amount $</label>
-          <input type="number" name="amount" min="0.01" step="0.01" required class="ia-input" style="width:100%;text-align:right">
+          <input type="number" name="amount" min="0.01" step="0.01" required value="{{ number_format($balance / 100, 2, '.', '') }}" class="ia-input" style="width:140px;text-align:right">
         </div>
-        <div>
-          <label class="ia-label" style="display:block;margin-bottom:4px">Type</label>
-          <select name="direction" class="ia-input" style="width:100%"><option value="charge">Charge</option><option value="refund">Refund</option></select>
-        </div>
-        <div>
-          <label class="ia-label" style="display:block;margin-bottom:4px">Method</label>
-          <select name="method" class="ia-input" style="width:100%"><option value="cash">Cash</option><option value="card">Card</option><option value="other">Other</option></select>
-        </div>
-        <div>
-          <label class="ia-label" style="display:block;margin-bottom:4px">Note</label>
-          <input type="text" name="notes" maxlength="500" class="ia-input" style="width:100%">
-        </div>
-        <button type="submit" class="ia-btn ia-btn--primary">Record</button>
+        <button type="submit" class="ia-btn ia-btn--primary">Collect payment</button>
+        <span style="font-size:11px;opacity:.45;align-self:center">Creates a register sale — take cash, card, or send a payment link there. Refunds: open the sale in register history.</span>
       </form>
-      <p style="padding:0 16px 12px;font-size:11px;opacity:.45">Card here means taken outside Intake (terminal). In-app card payments and deposits arrive with the next update.</p>
       @endif
     </div>
   </div>

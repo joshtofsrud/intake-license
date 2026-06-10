@@ -150,7 +150,11 @@ class CustomerTimelineService
                     'subtitle'     => $unitNames !== '' ? $unitNames : 'Rental booking',
                     'status'       => $label,
                     'status_tone'  => $tone,
-                    'amount_cents' => $r->paid_cents > 0 ? $r->paid_cents : null,
+                    // MARKER-PATCH-219B — sales-as-money: the rental is a
+                    // service record; its money is carried by the linked
+                    // sales, which appear in this timeline themselves.
+                    // Anything else double-counts month rollups (174B rule).
+                    'amount_cents' => null,
                     'is_refunded'  => false,
                     'href'         => route('tenant.rentals.bookings.show', ['id' => $r->id]),
                 ];

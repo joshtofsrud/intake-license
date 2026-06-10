@@ -7,7 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantRental;
 use App\Models\Tenant\TenantRentalLine;
-use App\Models\Tenant\TenantRentalPayment;
+use App\Models\Tenant\TenantSale;
+use App\Models\Tenant\TenantSaleItem;
 use App\Models\Tenant\TenantRentalUnit;
 use App\Services\RentalAvailabilityService;
 use App\Support\MySQLLock;
@@ -216,7 +217,14 @@ class RentalBookingController extends Controller
 
         $rental = TenantRental::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['customer', 'lines', 'payments' => fn ($q) => $q->orderBy('recorded_at')])
+            ->with([
+                'customer',
+                'lines',
+                // MARKER-PATCH-219B — money = linked register sales.
+                'sales' => fn ($q) => $q->orderBy('created_at')->with([
+                    'payments' => fn ($p) => $p->orderBy('recorded_at'),
+                ]),
+            ])
             ->firstOrFail();
 
         return view('tenant.rentals.bookings.show', compact('rental'));
@@ -272,41 +280,92 @@ class RentalBookingController extends Controller
     }
 
     // ---------------------------------------------------- payments (Rail 2)
-    public function recordPayment(Request $request, string $id)
+    /**
+     * MARKER-PATCH-219B — the sales-as-money bridge. Mirrors the
+     * appointment record_deposit flow byte-for-byte in spirit: creates a
+     * one-line draft sale linked to this rental and sends staff to the
+     * register to actually take the money (cash, card, Stripe link — every
+     * register channel works). On payment, SalePaymentService::recalcStatus
+     * cascades the rental's paid cache. Refunds happen through the
+     * register's existing refund flows against the linked sale.
+     */
+    public function collectPayment(Request $request, string $id)
     {
         $tenant = tenant();
 
         $request->validate([
-            'amount'    => ['required', 'numeric', 'min:0.01', 'max:99999'],
-            'direction' => ['required', 'in:charge,refund'],
-            'method'    => ['required', 'in:cash,card,other'],
-            'notes'     => ['nullable', 'string', 'max:500'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999'],
         ]);
 
         $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
 
-        $amountCents = (int) round(((float) $request->input('amount')) * 100);
-        $isRefund    = $request->input('direction') === 'refund';
-
-        if ($isRefund && $amountCents > $rental->paid_cents) {
-            return back()->withErrors(['amount' => 'Refund exceeds the amount paid on this rental.']);
+        if ($rental->status === 'cancelled') {
+            return back()->withErrors(['amount' => 'This rental is cancelled.']);
         }
 
-        TenantRentalPayment::create([
-            'tenant_id'           => $tenant->id,
-            'rental_id'           => $rental->id,
-            'amount_cents'        => $isRefund ? -$amountCents : $amountCents,
-            'kind'                => $isRefund ? 'refund' : 'charge',
-            'source'              => 'desk',
-            'method'              => $request->input('method'),
-            'recorded_by_user_id' => auth('tenant')->id(),
-            'recorded_at'         => now(),
-            'notes'               => $request->input('notes'),
-        ]);
+        $amountCents = (int) round(((float) $request->input('amount')) * 100);
+        $balanceDue  = max(0, (int) $rental->total_cents - (int) $rental->paid_cents);
+        if ($balanceDue > 0 && $amountCents > $balanceDue) {
+            return back()->withErrors([
+                'amount' => "Amount can't exceed the remaining balance of " . format_money($balanceDue) . '.',
+            ]);
+        }
 
-        $rental->refreshPaidCents();
+        $sale = DB::transaction(function () use ($tenant, $rental, $amountCents) {
+            $sale = TenantSale::create([
+                'id'                 => (string) Str::uuid(),
+                'tenant_id'          => $tenant->id,
+                'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
+                'sale_date'          => now()->toDateString(),
+                'status'             => 'pending',
+                'payment_status'     => 'draft',
+                'customer_id'        => $rental->customer_id,
+                'rental_id'          => $rental->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'subtotal_cents'     => $amountCents,
+                'tax_cents'          => 0,
+                'total_cents'        => $amountCents,
+                'notes'              => 'Payment collection for rental ' . $rental->rental_number,
+            ]);
 
-        return back()->with('flash', ($isRefund ? 'Refund' : 'Payment') . ' recorded.');
+            TenantSaleItem::create([
+                'id'               => (string) Str::uuid(),
+                'tenant_id'        => $tenant->id,
+                'sale_id'          => $sale->id,
+                'type'             => 'open_item',
+                'name_snapshot'    => 'Rental ' . $rental->rental_number,
+                'quantity'         => 1,
+                'unit_price_cents' => $amountCents,
+                'line_total_cents' => $amountCents,
+                'is_taxable'       => false, // rental tax already lives on the rental totals
+                'position'         => 0,
+                'notes'            => 'Auto-created rental collection line; payment cascades to the rental ledger cache.',
+            ]);
+
+            return $sale;
+        });
+
+        return redirect(route('tenant.register.index') . '?resume=' . $sale->id)
+            ->with('flash', "Sale {$sale->sale_number} created — take payment in the register.");
+    }
+
+    /** RD-YYYYMMDD-NNN — same shape as the appointment DP- generator. */
+    private function generateRentalSaleNumber(string $tenantId): string
+    {
+        $prefix = 'RD-' . now()->format('Ymd') . '-';
+        $maxNumber = DB::table('tenant_sales')
+            ->where('tenant_id', $tenantId)
+            ->where('sale_number', 'like', $prefix . '%')
+            ->orderByDesc('sale_number')
+            ->value('sale_number');
+
+        $next = 1;
+        if ($maxNumber) {
+            $parts = explode('-', $maxNumber);
+            $next = ((int) end($parts)) + 1;
+        }
+
+        return $prefix . str_pad((string) $next, 3, '0', STR_PAD_LEFT);
     }
 
     // ------------------------------------------------------------ internals

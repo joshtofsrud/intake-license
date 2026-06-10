@@ -81,9 +81,25 @@ class TenantRental extends Model
         return $this->hasMany(TenantRentalConditionCheck::class, 'rental_id');
     }
 
-    public function payments(): HasMany
+    /**
+     * MARKER-PATCH-219B — sales-as-money: the rental's money is carried by
+     * linked register sales. Exact mirror of TenantAppointment::payments().
+     */
+    public function sales(): HasMany
     {
-        return $this->hasMany(TenantRentalPayment::class, 'rental_id');
+        return $this->hasMany(TenantSale::class, 'rental_id');
+    }
+
+    public function payments(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            TenantSalePayment::class,
+            TenantSale::class,
+            'rental_id', // FK on tenant_sales -> rentals
+            'sale_id',   // FK on tenant_sale_payments -> sales
+            'id',
+            'id'
+        );
     }
 
     // ----------------------------------------------------------------
@@ -99,11 +115,14 @@ class TenantRental extends Model
             && $this->due_at->isPast();
     }
 
-    /** Recompute paid_cents from the ledger (ledger is canon). */
+    /**
+     * Recompute paid_cents from the ledger (tenant_sale_payments through
+     * linked sales — the ledger is canon). MARKER-PATCH-219B.
+     */
     public function refreshPaidCents(): void
     {
         $this->update([
-            'paid_cents' => max(0, (int) $this->payments()->sum('amount_cents')),
+            'paid_cents' => max(0, (int) $this->payments()->sum('tenant_sale_payments.amount_cents')),
         ]);
     }
 

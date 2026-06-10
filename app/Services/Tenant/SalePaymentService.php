@@ -153,6 +153,20 @@ class SalePaymentService
         $paid  = $this->paidCents($sale);
         $total = (int) $sale->total_cents;
 
+        // MARKER-PATCH-219B — sales-as-money cascade for rentals. Runs on
+        // every payment write AND the delete-payment correction tool, before
+        // the draft early-return, so a linked rental's paid cache can never
+        // go stale. (Appointments do this at call sites for legacy reasons;
+        // rentals get it centrally.)
+        if (!empty($sale->rental_id)) {
+            $rentalPaid = (int) TenantSalePayment::query()
+                ->whereIn('sale_id', TenantSale::where('rental_id', $sale->rental_id)->select('id'))
+                ->sum('amount_cents');
+            DB::table('tenant_rentals')
+                ->where('id', $sale->rental_id)
+                ->update(['paid_cents' => max(0, $rentalPaid), 'updated_at' => now()]);
+        }
+
         if (in_array($sale->payment_status, ['draft', 'quote'], true)) {
             return;
         }
