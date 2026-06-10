@@ -236,9 +236,27 @@ class BookingService
                     'paid_cents'               => 0,
                 ]);
 
+                // MARKER-PATCH-216 — multi-asset persistence. Create the
+                // appointment-asset rows first so each item/addon can be
+                // tagged with appointment_asset_id at insert time. Empty map
+                // in single-asset mode -> $rowAssetId stays null and the
+                // write path is identical to pre-216.
+                $assetMap     = $this->persistAppointmentAssets($appointment, $customer, $data, $tenantId);
+                $firstAssetId = !empty($assetMap) ? array_values($assetMap)[0]->id : null;
+
                 foreach ($plan as $row) {
                     $service = $row['service'];
+
+                    $rowAssetId = null;
+                    if (!empty($assetMap)) {
+                        $key        = $row['asset_client_key'] ?? null;
+                        $rowAssetId = ($key !== null && isset($assetMap[$key]))
+                            ? $assetMap[$key]->id   // tagged + known key
+                            : $firstAssetId;        // untagged / orphan key -> first asset (WP parity)
+                    }
+
                     TenantAppointmentItem::create([
+                        'appointment_asset_id'           => $rowAssetId, // MARKER-PATCH-216
                         'id'                             => (string) Str::uuid(),
                         'appointment_id'                 => $appointment->id,
                         'service_item_id'                => $service->id,
@@ -253,12 +271,19 @@ class BookingService
                         TenantAppointmentAddon::create([
                             'id'                        => (string) Str::uuid(),
                             'appointment_id'            => $appointment->id,
+                            'appointment_asset_id'      => $rowAssetId, // MARKER-PATCH-216
                             'addon_id'                  => $addonRow['addon']->id,
                             'addon_name_snapshot'       => $addonRow['addon']->name,
                             'price_cents'               => $addonRow['effective_price_cents'],
                             'duration_minutes_snapshot' => $addonRow['effective_duration'],
                         ]);
                     }
+                }
+
+                // MARKER-PATCH-216 — denormalized per-asset rollups for the
+                // admin right-rail. Small N (bikes on one booking), in-txn.
+                foreach ($assetMap as $aa) {
+                    $aa->refreshSubtotal();
                 }
 
                 $this->persistResponses($appointment, $data);
@@ -1127,6 +1152,9 @@ class BookingService
             $effectivePrice = $override ?? (int) $service->price_cents;
 
             $plan[] = [
+                // MARKER-PATCH-216 — which bike/asset this item belongs to.
+                'asset_client_key'       => isset($sel['asset_client_key']) && $sel['asset_client_key'] !== ''
+                                                ? (string) $sel['asset_client_key'] : null,
                 'service'                => $service,
                 'addons'                 => $addonRows,
                 'price_override_cents'   => $override,
@@ -1136,10 +1164,118 @@ class BookingService
         return $plan;
     }
 
+    /**
+     * MARKER-PATCH-216 — persist the multi-asset payload for a public booking.
+     *
+     * For each entry in assets[]:
+     *   - customer_asset_id present -> verify ownership (this tenant + this
+     *     customer + not archived). Failed verification is treated as a NEW
+     *     asset rather than an error (mirrors the WP REST handler).
+     *   - otherwise -> create a persistent TenantCustomerAsset.
+     *
+     * Creates one TenantAppointmentAsset per entry (name/identifier snapshot,
+     * sort_order 10/20/30...) and returns clientKey -> model so the caller can
+     * tag items/addons. Entries without a client_key are skipped — nothing in
+     * items[] could reference them. Returns [] in single-asset mode.
+     */
+    protected function persistAppointmentAssets(
+        TenantAppointment $appointment,
+        TenantCustomer $customer,
+        array $data,
+        string $tenantId
+    ): array {
+        $assets = $data['assets'] ?? null;
+        if (!is_array($assets) || empty($assets)) {
+            return [];
+        }
+
+        $map  = [];
+        $sort = 10;
+
+        foreach ($assets as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $clientKey = isset($entry['client_key']) ? trim((string) $entry['client_key']) : '';
+            if ($clientKey === '' || isset($map[$clientKey])) {
+                continue;
+            }
+
+            $name = trim((string) ($entry['name_snapshot'] ?? ''));
+
+            $customerAsset = null;
+            $claimed = $entry['customer_asset_id'] ?? null;
+            if (!empty($claimed)) {
+                $customerAsset = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenantId)
+                    ->where('customer_id', $customer->id)
+                    ->where('id', $claimed)
+                    ->whereNull('archived_at')
+                    ->first();
+            }
+
+            if ($customerAsset) {
+                // Existing asset: the account name is canon (the booking UI
+                // renders it read-only). Keep last-seen fresh.
+                $customerAsset->update([
+                    'last_seen_at'        => now(),
+                    'last_appointment_id' => $appointment->id,
+                ]);
+                $snapshotName = $customerAsset->name;
+            } else {
+                if ($name === '') {
+                    $name = 'Item ' . (count($map) + 1);
+                }
+                $customerAsset = \App\Models\Tenant\TenantCustomerAsset::create([
+                    'tenant_id'           => $tenantId,
+                    'customer_id'         => $customer->id,
+                    'name'                => $name,
+                    'last_seen_at'        => now(),
+                    'last_appointment_id' => $appointment->id,
+                ]);
+                $snapshotName = $name;
+            }
+
+            $map[$clientKey] = \App\Models\Tenant\TenantAppointmentAsset::create([
+                'tenant_id'           => $tenantId,
+                'appointment_id'      => $appointment->id,
+                'customer_asset_id'   => $customerAsset->id,
+                'asset_name_snapshot' => $snapshotName,
+                'identifier_snapshot' => $customerAsset->identifier,
+                'sort_order'          => $sort,
+                'subtotal_cents'      => 0,
+            ]);
+            $sort += 10;
+        }
+
+        return $map;
+    }
+
     protected function upsertCustomer(array $data, string $tenantId): TenantCustomer
     {
         $email = strtolower(trim($data['email'] ?? ''));
         if ($email === '') throw new RuntimeException('Customer email is required.');
+
+        // MARKER-PATCH-216 — returning-customer path. The pre-flow lookup
+        // hands the client a customer_id; verify it belongs to this tenant
+        // before trusting it. Failed verification falls through to the email
+        // canon below — the claimed id alone proves nothing.
+        $claimedId = $data['customer_id'] ?? null;
+        if (!empty($claimedId)) {
+            $verified = TenantCustomer::where('tenant_id', $tenantId)
+                ->where('id', $claimedId)
+                ->first();
+            if ($verified) {
+                // Details fields are locked client-side for returning
+                // customers, so name/email arrive unchanged. Phone stays
+                // editable when the account has none — capture it.
+                if (empty($verified->phone) && !empty($data['phone'])) {
+                    $verified->phone = $data['phone'];
+                    $verified->save();
+                }
+                return $verified;
+            }
+        }
 
         $customer = TenantCustomer::where('tenant_id', $tenantId)->where('email', $email)->first();
         if ($customer) {

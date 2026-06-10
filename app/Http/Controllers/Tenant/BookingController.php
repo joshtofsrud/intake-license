@@ -213,6 +213,13 @@ class BookingController extends Controller
             'responses'               => ['nullable', 'array'],
             'response_labels'         => ['nullable', 'array'],
             'payment_method'          => ['required', 'in:stripe,paypal,none'],
+            // MARKER-PATCH-216 — multi-asset booking persistence
+            'customer_id'                => ['nullable', 'string', 'uuid'],
+            'items.*.asset_client_key'   => ['nullable', 'string', 'max:64'],
+            'assets'                     => ['nullable', 'array', 'max:25'],
+            'assets.*.client_key'        => ['required_with:assets', 'string', 'max:64'],
+            'assets.*.name_snapshot'     => ['nullable', 'string', 'max:200'],
+            'assets.*.customer_asset_id' => ['nullable', 'string', 'uuid'],
         ]);
 
         $tenant = tenant();

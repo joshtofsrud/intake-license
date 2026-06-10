@@ -65,6 +65,10 @@ class SettingsController extends Controller
             'multi_asset_enabled'  => ['nullable', 'boolean'], // MARKER-PATCH-158-B
             'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
             'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
             'default_tax_rate'     => ['nullable', 'numeric', 'min:0', 'max:25'],
             'tax_services_default' => ['nullable', 'boolean'],
             'tax_supports_exempt'  => ['nullable', 'boolean'],
@@ -79,6 +83,10 @@ class SettingsController extends Controller
             'classes_enabled'      => (bool) $request->input('classes_enabled'),
             'deliveries_enabled'   => (bool) $request->input('deliveries_enabled'), // MARKER-PATCH-156
             'multi_asset_enabled'  => (bool) $request->input('multi_asset_enabled'), // MARKER-PATCH-158-B
+            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
+            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
+            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
+            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
             'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
             'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
             'default_tax_rate'     => $request->filled('default_tax_rate')
