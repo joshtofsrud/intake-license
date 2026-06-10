@@ -417,6 +417,54 @@ class AddonCatalogSeeder extends Seeder
                 'sort_order' => 530,
                 'is_self_serve' => false,
             ],
+            // MARKER-PATCH-217 — RENTALS STACK. Always a la carte:
+            // included_in_plans stays null on all three, forever, per
+            // decision 2026-06-09. rentals + rental_extensions carry a
+            // min_plan_tier floor of 'branded' — not available on Starter,
+            // even via master-admin grant (FeatureAccessService enforces).
+            // price_cents here is illustrative; final numbers live in the
+            // Stripe price config, same as every other addon.
+            [
+                'code' => 'rentals',
+                'name' => 'Rental system',
+                'category' => 'operations',
+                'description' => 'Fleet, availability, contactless checkout, deposits & signed agreements. Desk + public rental site.',
+                'tooltip' => 'Rent out units by the hour, day or week — fleet management, deposits, agreements, and online reservations.',
+                'price_cents' => 4900,
+                'billing_cadence' => 'monthly',
+                'included_in_plans' => null,
+                'min_plan_tier' => 'branded',
+                'sort_order' => 150,
+                'is_self_serve' => true,
+                'is_new' => true,
+            ],
+            [
+                'code' => 'rental_extensions',
+                'name' => 'Last-minute extension offers',
+                'category' => 'operations',
+                'description' => 'Auto-offer renters a discounted extension when no one has booked their unit next. SMS magic link, one-tap pay.',
+                'tooltip' => 'Turn empty post-return hours into revenue — automatic discounted extension offers by text.',
+                'price_cents' => 1900,
+                'billing_cadence' => 'monthly',
+                'included_in_plans' => null,
+                'min_plan_tier' => 'branded',
+                'sort_order' => 155,
+                'is_self_serve' => true,
+                'is_new' => true,
+            ],
+            [
+                'code' => 'staff_alerts',
+                'name' => 'Staff alerts',
+                'category' => 'communication',
+                'description' => 'In-app alert bell for staff: online bookings, overdue rentals, failed payments, inbox replies. Per-user channel preferences.',
+                'tooltip' => 'Real-time staff notifications for the events that need eyes — bookings, overdues, failed payments.',
+                'price_cents' => 900,
+                'billing_cadence' => 'monthly',
+                'included_in_plans' => null,
+                'sort_order' => 160,
+                'is_self_serve' => true,
+                'is_new' => true,
+            ],
         ];
 
         foreach ($addons as $row) {
@@ -426,6 +474,7 @@ class AddonCatalogSeeder extends Seeder
             $row['status'] = $row['status'] ?? 'active';
             $row['is_self_serve'] = $row['is_self_serve'] ?? true;
             $row['is_new'] = $row['is_new'] ?? false;
+            $row['min_plan_tier'] = $row['min_plan_tier'] ?? null; // MARKER-PATCH-217
             $row['included_in_plans'] = isset($row['included_in_plans']) && $row['included_in_plans'] !== null
                 ? json_encode($row['included_in_plans'])
                 : null;

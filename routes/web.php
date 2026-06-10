@@ -305,6 +305,13 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
                 Route::post('/transfer-requests/{id}/cancel',       [TenantControllers\TransferRequestController::class, 'cancel'])->name('transfer-requests.cancel');
             }); // close RequireRetailCapability group
 
+            // MARKER-PATCH-217 — Rentals. Always a la carte (never tier-
+            // included), tier floor branded. Group-level gate: every rental
+            // route added inside inherits it by construction.
+            Route::middleware([\App\Http\Middleware\RequireRentalCapability::class])->group(function () {
+                Route::get('/rentals', [TenantControllers\RentalDeskController::class, 'index'])->name('rentals.desk');
+            }); // close RequireRentalCapability group
+
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
             Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');
             Route::post('/onboarding/hours',    [TenantControllers\OnboardingModalController::class, 'saveHours'])->name('onboarding.hours');

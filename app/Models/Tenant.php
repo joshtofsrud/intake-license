@@ -316,6 +316,28 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'extended_reports');
     }
 
+    // MARKER-PATCH-217 — rentals-stack capability accessors. Same delegation
+    // pattern; FeatureAccessService memoizes per request.
+    public function getRentalsEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'rentals');
+    }
+
+    public function getRentalExtensionsEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'rental_extensions');
+    }
+
+    public function getStaffAlertsEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'staff_alerts');
+    }
+
+    public function getUnifiedInboxEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'unified_inbox');
+    }
+
     /**
      * additional_users — does this tenant have the capability to add more
      * than one user? Drives the "Add staff member" button on the staff

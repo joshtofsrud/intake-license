@@ -22,6 +22,16 @@
       'match_alt' => 'tenant.appointments',
     ],
     [
+      // MARKER-PATCH-217 — Rentals desk. Gated on the rentals addon
+      // (a la carte, tier floor branded). match covers future
+      // tenant.rentals.* surfaces automatically via route-name prefix.
+      'route'  => 'tenant.rentals.desk',
+      'label'  => 'Rentals',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="3.4" cy="9.8" r="2.1" stroke="currentColor" stroke-width="1.2"/><circle cx="10.6" cy="9.8" r="2.1" stroke="currentColor" stroke-width="1.2"/><path d="M3.4 9.8L5.6 5.2h3.2M10.6 9.8L8.6 4.4M5 3.2h2.4M8.6 4.4l-.4-1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'group'  => null,
+      'gate'   => 'rentals_enabled',
+    ],
+    [
       'route'  => 'tenant.classes.sessions',
       'label'  => 'Classes',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5.5l3 1.5-3 1.5V5.5z" fill="currentColor"/></svg>',

@@ -81,10 +81,15 @@ class FeatureAccessService
             $tenantAddon = $tenantAddons->get($addon->code);
             $suppression = $suppressions->get($addon->code);
 
+            // MARKER-PATCH-217 — tier floor mirrors resolveAccessMap so the
+            // master-admin breakdown shows the truth.
+            $tierLocked = !empty($addon->min_plan_tier)
+                && self::tierRank($planTier) < self::tierRank($addon->min_plan_tier);
+
             $source = null;
             $hasAccess = false;
 
-            if ($suppression) {
+            if ($suppression || $tierLocked) {
                 $hasAccess = false;
                 $source = null;
             } elseif ($tenantAddon) {
@@ -108,6 +113,8 @@ class FeatureAccessService
                 'sort_order' => $addon->sort_order,
                 'is_self_serve' => (bool) $addon->is_self_serve,
                 'is_new' => (bool) $addon->is_new,
+                'min_plan_tier' => $addon->min_plan_tier ?? null, // MARKER-PATCH-217
+                'tier_locked' => $tierLocked,                     // MARKER-PATCH-217
                 'status' => $addon->status,
 
                 'has_access' => $hasAccess,
@@ -136,6 +143,20 @@ class FeatureAccessService
         static::$requestCache = [];
     }
 
+    /**
+     * MARKER-PATCH-217 — plan-tier ordering for min_plan_tier floors.
+     * Unknown tiers rank as starter (most restrictive read).
+     */
+    protected static function tierRank(?string $tier): int
+    {
+        return match ($tier) {
+            'branded' => 1,
+            'scale'   => 2,
+            'custom'  => 3,
+            default   => 0, // starter / null / unknown
+        };
+    }
+
     protected function resolveAccessMap(Tenant $tenant): array
     {
         if (isset(static::$requestCache[$tenant->id])) {
@@ -144,7 +165,7 @@ class FeatureAccessService
 
         $addons = DB::table('addons')
             ->where('status', 'active')
-            ->select('code', 'included_in_plans')
+            ->select('code', 'included_in_plans', 'min_plan_tier')
             ->get();
 
         $planTier = $tenant->plan_tier ?? 'starter';
@@ -175,6 +196,16 @@ class FeatureAccessService
 
         foreach ($suppressed as $code) {
             $map[$code] = false;
+        }
+
+        // MARKER-PATCH-217 — hard tier floor. min_plan_tier denies access on
+        // lower tiers even when an active grant row exists ("not available on
+        // Starter" is absolute — upgrade the plan to unlock, don't grant).
+        foreach ($addons as $addon) {
+            if (!empty($addon->min_plan_tier)
+                && self::tierRank($planTier) < self::tierRank($addon->min_plan_tier)) {
+                $map[$addon->code] = false;
+            }
         }
 
         static::$requestCache[$tenant->id] = $map;
