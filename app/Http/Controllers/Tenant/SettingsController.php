@@ -158,10 +158,7 @@ class SettingsController extends Controller
             'email_reply_to'     => ['nullable', 'email', 'max:255'],
             'notification_email' => ['nullable', 'email', 'max:255'],
             // SMS
-            'sms_enabled'        => ['nullable', 'boolean'],
-            'sms_from_number'    => ['nullable', 'string', 'max:32'],
-            'twilio_account_sid' => ['nullable', 'string', 'max:64'],
-            'twilio_auth_token'  => ['nullable', 'string', 'max:128'],
+            // MARKER-PATCH-224 — sms_* moved to Settings\MessagingController.
             // Notifications (only the wired ones validate)
             'notify_booking_confirmation_email' => ['nullable', 'boolean'],
             'notify_booking_confirmation_sms'   => ['nullable', 'boolean'],
@@ -177,22 +174,14 @@ class SettingsController extends Controller
         ]);
 
         // Don't overwrite an existing token with empty input — the form posts
-        // an empty value when the user didn't touch the field (since it's a
-        // password field, we don't render the existing value).
-        $newToken = $request->input('twilio_auth_token');
-        $tokenToSave = $newToken !== null && $newToken !== ''
-            ? $newToken
-            : $tenant->twilio_auth_token;
-
+        // MARKER-PATCH-224 — sms_*/twilio_* are owned by
+        // Settings\MessagingController now. Writing them here would null
+        // the messaging config on every unrelated settings save.
         $tenant->update([
             'email_from_name'    => $request->input('email_from_name'),
             'email_from_address' => $request->input('email_from_address'),
             'email_reply_to'     => $request->input('email_reply_to'),
             'notification_email' => $request->input('notification_email'),
-            'sms_enabled'        => (bool) $request->input('sms_enabled'),
-            'sms_from_number'    => $request->input('sms_from_number') ?: null,
-            'twilio_account_sid' => $request->input('twilio_account_sid') ?: null,
-            'twilio_auth_token'  => $tokenToSave,
         ]);
 
         // Notification toggles live in settings JSON. Defaults are "on" via
@@ -298,7 +287,11 @@ class SettingsController extends Controller
 
         $tenant = tenant();
 
-        if (! $tenant->sms_enabled || ! $tenant->twilio_account_sid || ! $tenant->twilio_auth_token) {
+        // MARKER-PATCH-224 — managed numbers send on platform creds; only
+        // require tenant creds when no platform fallback exists.
+        $hasCreds = ($tenant->twilio_account_sid && $tenant->twilio_auth_token)
+            || (env('TWILIO_SID') && env('TWILIO_TOKEN'));
+        if (! $tenant->sms_enabled || ! $tenant->sms_from_number || ! $hasCreds) {
             return response()->json([
                 'ok'    => false,
                 'error' => 'SMS is not enabled or credentials are missing. Save your settings first, then try again.',

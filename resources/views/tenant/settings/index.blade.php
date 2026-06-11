@@ -928,62 +928,18 @@
       </div>
     </div>
 
-    {{-- SMS provider --}}
+    {{-- MARKER-PATCH-224 — SMS config moved to Settings -> Messaging --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
-        <span class="ia-card-title">SMS provider (Twilio)</span>
-        <input type="hidden" name="sms_enabled" id="sms_enabled_input" value="{{ $currentTenant->sms_enabled ? '1' : '0' }}">
-        <button type="button"
-          class="ia-toggle {{ $currentTenant->sms_enabled ? 'on' : '' }}"
-          id="sms-enabled-toggle-btn"
-          aria-label="Enable SMS sending">
-          <span class="ia-toggle-sr">{{ $currentTenant->sms_enabled ? 'Enabled' : 'Disabled' }}</span>
-        </button>
+        <span class="ia-card-title">Text messaging</span>
+        <span class="ia-badge {{ $currentTenant->sms_enabled && $currentTenant->sms_from_number ? 'ia-badge--paid' : 'ia-badge--unpaid' }}">
+          {{ $currentTenant->sms_enabled && $currentTenant->sms_from_number ? 'Active · ' . $currentTenant->sms_from_number : 'Not set up' }}
+        </span>
       </div>
-      <p style="font-size:13px;opacity:.5;margin-bottom:16px;line-height:1.55">
-        Connect your Twilio account to send SMS notifications. You'll need a Twilio account, a phone number,
-        and the Account SID + Auth Token from your Twilio dashboard. Without this, SMS notifications won't send
-        regardless of the toggles below.
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        Your business text number, two-way Inbox routing, and SMS sending live on the Messaging page.
       </p>
-      <div class="ia-input-grid-2">
-        <div class="ia-form-group">
-          <label class="ia-form-label">From phone number</label>
-          <input type="text" name="sms_from_number" class="ia-input ia-mono"
-            value="{{ old('sms_from_number', $currentTenant->sms_from_number) }}"
-            placeholder="+15555551234">
-          <p style="font-size:11px;opacity:.4;margin-top:4px">E.164 format (with country code)</p>
-        </div>
-        <div class="ia-form-group">
-          <label class="ia-form-label">Twilio Account SID</label>
-          <input type="text" name="twilio_account_sid" class="ia-input ia-mono"
-            value="{{ old('twilio_account_sid', $currentTenant->twilio_account_sid) }}"
-            placeholder="AC...">
-        </div>
-        <div class="ia-form-group" style="grid-column:1 / -1">
-          <label class="ia-form-label">Twilio Auth Token</label>
-          <input type="password" name="twilio_auth_token" class="ia-input ia-mono"
-            value=""
-            placeholder="{{ $hasTwilioToken ? '•••••••• (saved — leave blank to keep)' : 'Enter your auth token' }}">
-          <p style="font-size:11px;opacity:.4;margin-top:4px">
-            Stored encrypted at rest. Leave blank when editing other fields to keep the existing token.
-          </p>
-        </div>
-      </div>
-
-      {{-- Test SMS --}}
-      <div style="margin-top:16px;padding-top:16px;border-top:0.5px solid var(--ia-border)">
-        <div style="font-size:13px;font-weight:500;margin-bottom:8px">Send a test message</div>
-        <p style="font-size:12px;opacity:.5;margin-bottom:10px;line-height:1.5">
-          Save your settings first, then send a test to confirm everything works.
-        </p>
-        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
-          <div style="flex:1;min-width:200px">
-            <input type="tel" id="sms_test_to" class="ia-input ia-mono" placeholder="+15555551234" style="width:100%">
-          </div>
-          <button type="button" id="sms-test-btn" class="ia-btn ia-btn--ghost">Send test</button>
-        </div>
-        <div id="sms-test-status" class="sms-test-status"></div>
-      </div>
+      <a href="{{ route('tenant.settings.messaging') }}" class="ia-btn ia-btn--primary">Open Messaging settings</a>
     </div>
 
     {{-- Notifications --}}
@@ -1567,7 +1523,6 @@
   bindToggle('multi-asset-toggle-btn',      'multi_asset_enabled_input');
   bindToggle('tax-services-toggle-btn',     'tax_services_default_input');
   bindToggle('tax-exempt-toggle-btn',       'tax_supports_exempt_input');
-  bindToggle('sms-enabled-toggle-btn',      'sms_enabled_input');
   bindToggle('notify-booking-email-btn',    'notify_booking_email_input');
   bindToggle('notify-booking-sms-btn',      'notify_booking_sms_input');
   // MARKER-PATCH-152C
