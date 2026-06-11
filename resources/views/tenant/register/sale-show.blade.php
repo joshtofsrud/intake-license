@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Sale ' . $sale->sale_number; @endphp
 
-{{-- MARKER-PATCH-231A — sale detail page (stub; expand with actions next). --}}
+{{-- MARKER-PATCH-231 — full sale detail page. --}}
 
 @section('content')
 
@@ -15,11 +15,10 @@
 
 @php
   $statusCls = match($sale->payment_status) {
-    'paid'    => 'ia-badge--paid',
-    'overage' => 'ia-badge--paid',
+    'paid','overage' => 'ia-badge--paid',
     'refunded','partial_refund' => 'ia-badge--unpaid',
     'draft','quote' => 'ia-badge--confirmed',
-    default   => 'ia-badge--unpaid',
+    default => 'ia-badge--unpaid',
   };
 @endphp
 
@@ -46,6 +45,11 @@
           <span style="font-variant-numeric:tabular-nums;{{ ($p->amount_cents ?? 0) < 0 ? 'color:#E0573E' : '' }}">{{ format_money($p->amount_cents ?? 0) }}</span>
         </div>
       @endforeach
+      @if($sale->payment_method || $sale->card_last4)
+        <p style="font-size:11.5px;opacity:.5;margin-top:8px">
+          {{ $sale->payment_method ? ucfirst($sale->payment_method) : '' }}@if($sale->card_brand) · {{ ucfirst($sale->card_brand) }}@endif@if($sale->card_last4) ····{{ $sale->card_last4 }}@endif
+        </p>
+      @endif
     @endif
 
     @if($refunds->count())
@@ -71,6 +75,22 @@
         </div>
       @endif
       @if($sale->rangUpBy)<div style="display:flex;justify-content:space-between"><span style="opacity:.55">Rung up by</span><span>{{ $sale->rangUpBy->name }}</span></div>@endif
+      @if($sale->paid_at)<div style="display:flex;justify-content:space-between"><span style="opacity:.55">Paid</span><span>{{ tlocal_date($sale->paid_at) }}</span></div>@endif
+
+      {{-- linked context --}}
+      @if($sale->appointment)
+        <div style="display:flex;justify-content:space-between"><span style="opacity:.55">Appointment</span>
+          <a href="{{ route('tenant.appointments.show', $sale->appointment->id) }}">{{ $sale->appointment->ra_number }}</a></div>
+      @endif
+      @if($linkedRental)
+        <div style="display:flex;justify-content:space-between"><span style="opacity:.55">Rental</span>
+          <a href="{{ route('tenant.rentals.bookings.show', $linkedRental->id) }}">{{ $linkedRental->rental_number }}</a></div>
+      @endif
+      @if($linkedLease)
+        <div style="display:flex;justify-content:space-between"><span style="opacity:.55">Lease</span>
+          <a href="{{ route('tenant.rentals.leases.show', $linkedLease->id) }}">{{ $linkedLease->lease_number }}</a></div>
+      @endif
+
       <div style="border-top:.5px solid var(--ia-border);margin-top:6px;padding-top:10px;display:flex;justify-content:space-between"><span style="opacity:.55">Subtotal</span><span>{{ format_money($sale->subtotal_cents) }}</span></div>
       @if($sale->tax_cents)<div style="display:flex;justify-content:space-between"><span style="opacity:.55">Tax</span><span>{{ format_money($sale->tax_cents) }}</span></div>@endif
       <div style="display:flex;justify-content:space-between;font-weight:600;font-size:14px"><span>Total</span><span>{{ format_money($sale->total_cents) }}</span></div>

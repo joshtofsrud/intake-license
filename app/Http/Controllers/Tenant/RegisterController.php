@@ -928,7 +928,7 @@ class RegisterController extends Controller
 
         $sale = TenantSale::where('id', $id)
             ->where('tenant_id', $tenant->id)
-            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number'])
+            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number', 'appointment:id,ra_number'])
             ->firstOrFail();
 
         $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
@@ -936,33 +936,19 @@ class RegisterController extends Controller
             ->orderBy('created_at')
             ->get(['id', 'sale_number', 'total_cents', 'created_at']);
 
-        return view('tenant.register.sale-show', [
-            'sale'    => $sale,
-            'refunds' => $refunds,
-        ]);
-    }
-
-    /**
-     * MARKER-PATCH-231A — sale detail PAGE (the JSON sibling feeds the
-     * register modal; this is a linkable page for search + history).
-     */
-    public function showSalePage(Request $request, string $id)
-    {
-        $tenant = tenant();
-
-        $sale = TenantSale::where('id', $id)
-            ->where('tenant_id', $tenant->id)
-            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number'])
-            ->firstOrFail();
-
-        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
-            ->where('tenant_id', $tenant->id)
-            ->orderBy('created_at')
-            ->get(['id', 'sale_number', 'total_cents', 'created_at']);
+        // MARKER-PATCH-231 — linked context (rental/lease the sale belongs to).
+        $linkedRental = $sale->rental_id
+            ? \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->find($sale->rental_id, ['id', 'rental_number'])
+            : null;
+        $linkedLease = $sale->lease_id
+            ? \App\Models\Tenant\Lease::where('tenant_id', $tenant->id)->find($sale->lease_id, ['id', 'lease_number'])
+            : null;
 
         return view('tenant.register.sale-show', [
-            'sale'    => $sale,
-            'refunds' => $refunds,
+            'sale'         => $sale,
+            'refunds'      => $refunds,
+            'linkedRental' => $linkedRental,
+            'linkedLease'  => $linkedLease,
         ]);
     }
 

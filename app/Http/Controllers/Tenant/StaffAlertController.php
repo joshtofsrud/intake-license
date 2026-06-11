@@ -20,6 +20,19 @@ class StaffAlertController extends Controller
         'inbox.needs_reply'     => 'Inbox needs a reply',
     ];
 
+    /** MARKER-PATCH-231 — full notifications page (grouped, paginated). */
+    public function page(Request $request)
+    {
+        $userId = auth('tenant')->id();
+
+        $alerts = TenantStaffAlert::where('tenant_id', tenant()->id)
+            ->where('user_id', $userId)
+            ->orderByDesc('created_at')
+            ->paginate(40);
+
+        return view('tenant.notifications', ['alerts' => $alerts]);
+    }
+
     /** Bell dropdown feed (JSON). */
     public function feed(Request $request)
     {

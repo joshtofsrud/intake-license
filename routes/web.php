@@ -281,7 +281,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
                 Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
-                Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
                 // MARKER-PATCH-197 — Stripe-vs-ledger reconciliation.
                 Route::get('/register/reconciliation',   [TenantControllers\RegisterController::class, 'reconciliation'])->name('register.reconciliation');
                 Route::post('/register/reconciliation/record', [TenantControllers\RegisterController::class, 'reconcilePayment'])->name('register.reconciliation.record');
@@ -375,6 +374,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/bookings/{id}/deposit/release', [TenantControllers\RentalBookingController::class, 'releaseDeposit'])->name('rentals.bookings.deposit.release');
                 Route::post('/rentals/bookings/{id}/deposit/capture', [TenantControllers\RentalBookingController::class, 'captureDeposit'])->name('rentals.bookings.deposit.capture');
             }); // close RequireRentalCapability group
+
+            // MARKER-PATCH-231 — global search.
+            Route::get('/search', [TenantControllers\GlobalSearchController::class, 'search'])->name('search');
+
+            // MARKER-PATCH-231 — notifications full page.
+            Route::get('/notifications', [TenantControllers\StaffAlertController::class, 'page'])->name('notifications');
 
             // MARKER-PATCH-225 — staff alerts: bell feed + per-user prefs.
             Route::get('/alerts/feed',           [TenantControllers\StaffAlertController::class, 'feed'])->name('alerts.feed');

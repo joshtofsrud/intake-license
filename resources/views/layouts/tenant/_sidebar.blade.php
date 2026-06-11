@@ -24,7 +24,7 @@
        User row (always visible) + location row (only when 2+ locations).
        ================================================================ --}}
   <div class="ia-sidebar-identity" data-identity-block>
-    @include('layouts.tenant._staff-alerts-bell')
+    @include('layouts.tenant._attention-row')
     {{-- User row: click opens a menu with Sign out (and later Switch staff). --}}
     <details class="ia-sb-user-details" data-loc-switcher="root">
       <summary class="ia-sb-user-row" aria-haspopup="menu" aria-label="Account menu">

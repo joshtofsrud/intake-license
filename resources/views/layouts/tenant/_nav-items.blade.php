@@ -31,14 +31,7 @@
       'group'  => null,
       'gate'   => 'rentals_visible', // MARKER-PATCH-228B — visibility toggle
     ],
-    [
-      // MARKER-PATCH-221 — unified inbox (SMS two-way, phase 1).
-      'route'  => 'tenant.inbox.index',
-      'label'  => 'Inbox',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10v6.2H7.6L5 12V9.7H2V3.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.4 6h5.2M4.4 7.8h3.4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
-      'group'  => null,
-      'gate'   => 'unified_inbox_enabled',
-    ],
+    {{-- MARKER-PATCH-231 — Inbox moved to the top attention row (icon). --}}
     [
       'route'  => 'tenant.classes.sessions',
       'label'  => 'Classes',

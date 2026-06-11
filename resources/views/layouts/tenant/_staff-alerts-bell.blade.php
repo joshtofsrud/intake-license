@@ -14,9 +14,9 @@
       <button type="button" class="sa-mark-all" data-sa-mark-all>Mark all read</button>
     </div>
     <div class="sa-panel-list" data-sa-list>
-      <div class="sa-empty">No notifications yet.</div>
+      <div class="sa-empty">You're all caught up.</div>
     </div>
-    <a href="{{ route('tenant.alerts.prefs') }}" class="sa-panel-foot">Notification settings</a>
+    <a href="{{ route('tenant.notifications') }}" class="sa-panel-foot">See all notifications</a>
   </div>
 </div>
 
