@@ -167,6 +167,16 @@ class SalePaymentService
                 ->update(['paid_cents' => max(0, $rentalPaid), 'updated_at' => now()]);
         }
 
+        // MARKER-PATCH-230 — same cascade for leases.
+        if (!empty($sale->lease_id)) {
+            $leasePaid = (int) TenantSalePayment::query()
+                ->whereIn('sale_id', TenantSale::where('lease_id', $sale->lease_id)->select('id'))
+                ->sum('amount_cents');
+            DB::table('leases')
+                ->where('id', $sale->lease_id)
+                ->update(['paid_cents' => max(0, $leasePaid), 'updated_at' => now()]);
+        }
+
         // MARKER-PATCH-219C — appointment cascade, centralized. Replaces
         // the recomputes that lived at 6 call sites with 3 logic variants;
         // this is the complete superset (full up/down payment_status,

@@ -19,6 +19,7 @@ class TenantSale extends Model
         'status', 'payment_status',
         'customer_id', 'assigned_staff_id', 'appointment_id',
         'rental_id', // MARKER-PATCH-219B — sales-as-money for rentals
+        'lease_id',  // MARKER-PATCH-230 — sales-as-money for leases
         'rang_up_by_user_id', 'refund_of_sale_id',
         'transaction_id',
         'was_quote',

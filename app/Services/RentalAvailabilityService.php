@@ -86,6 +86,50 @@ class RentalAvailabilityService
             }
         }
 
+        // MARKER-PATCH-230 — lease assignments share the fleet. An active
+        // lease whose season overlaps [start, end) blocks this unit exactly
+        // like an out rental. Returned/cancelled leases (or returned
+        // assignments) don't block.
+        if ($this->unitHasLeaseConflict($unit->id, $start, $end, $buffer)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * MARKER-PATCH-230 — does an active lease assignment for this unit
+     * overlap [start, end)? Overdue active leases (season_end past, not
+     * returned) block forward to now, mirroring overdue rentals.
+     */
+    protected function unitHasLeaseConflict(string $unitId, Carbon $start, Carbon $end, int $buffer): bool
+    {
+        $assignments = \App\Models\Tenant\LeaseAssignment::query()
+            ->where('unit_id', $unitId)
+            ->whereNull('returned_at')
+            ->whereHas('lease', fn ($q) => $q->where('status', 'active'))
+            ->with('lease:id,season_start,season_end,returned_at,status')
+            ->get();
+
+        foreach ($assignments as $a) {
+            $lease = $a->lease;
+            if (!$lease) {
+                continue;
+            }
+            $seasonStart = $lease->season_start?->copy() ?? now();
+            $effectiveEnd = $lease->season_end?->copy() ?? $seasonStart->copy();
+
+            if ($lease->returned_at === null && $effectiveEnd->isPast()) {
+                $effectiveEnd = now();
+            }
+
+            // Overlap test: season starts before our end AND season (padded)
+            // ends after our start.
+            if ($seasonStart->lt($end) && $effectiveEnd->addMinutes($buffer)->gt($start)) {
+                return true;
+            }
+        }
+
         return false;
     }
 

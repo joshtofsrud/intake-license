@@ -67,6 +67,7 @@ class CustomerTimelineService
             ->concat($this->loadPackGrants($tenantId, $customerId))
             ->concat($this->loadMembershipGrants($tenantId, $customerId))
             ->concat($this->loadRentals($tenantId, $customerId)) // MARKER-PATCH-219
+            ->concat($this->loadLeases($tenantId, $customerId)) // MARKER-PATCH-230
             ->concat($this->loadThreads($tenantId, $customerId)); // MARKER-PATCH-221
 
         // Single sort after merge — newest first.
@@ -155,6 +156,35 @@ class CustomerTimelineService
      * amount_cents is the LEDGER sum (paid_cents mirror), not the rental
      * total — unpaid rentals show as activity without inflating revenue.
      */
+    private function loadLeases(string $tenantId, string $customerId): Collection
+    {
+        return \App\Models\Tenant\Lease::where('tenant_id', $tenantId)
+            ->where('customer_id', $customerId)
+            ->with('assignments:id,lease_id,unit_name_snapshot')
+            ->get()
+            ->map(function ($l) {
+                $overdue = $l->isOverdue();
+                $tone = match (true) {
+                    $l->status === 'cancelled' => 'danger',
+                    $overdue                   => 'danger',
+                    $l->status === 'returned'  => 'success',
+                    default                    => 'neutral',
+                };
+                $label = $overdue ? 'Lease · Overdue' : 'Lease · ' . ucfirst($l->status);
+                $units = $l->assignments->pluck('unit_name_snapshot')->take(3)->filter()->implode(', ');
+
+                return [
+                    'type'     => 'lease',
+                    'date'     => $l->created_at ?? $l->season_start,
+                    'title'    => $l->package_name_snapshot,
+                    'subtitle' => trim($units . ($units ? ' · ' : '') . $label),
+                    'tone'     => $tone,
+                    'amount'   => $l->total_cents,
+                    'link'     => route('tenant.rentals.leases.show', $l->id),
+                ];
+            });
+    }
+
     private function loadRentals(string $tenantId, string $customerId): Collection
     {
         return TenantRental::where('tenant_id', $tenantId)

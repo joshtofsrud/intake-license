@@ -350,6 +350,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/leases/packages/{id}/slots',      [TenantControllers\LeasePackageController::class, 'addSlot'])->name('rentals.leases.packages.slots.add');
                 Route::delete('/rentals/leases/packages/{id}/slots/{slotId}', [TenantControllers\LeasePackageController::class, 'removeSlot'])->name('rentals.leases.packages.slots.remove');
 
+                // MARKER-PATCH-230 — lease transactions + fulfillment.
+                Route::get( '/rentals/leases',            [TenantControllers\LeaseController::class, 'index'])->name('rentals.leases.index');
+                Route::get( '/rentals/leases/new',        [TenantControllers\LeaseController::class, 'create'])->name('rentals.leases.create');
+                Route::post('/rentals/leases',            [TenantControllers\LeaseController::class, 'store'])->name('rentals.leases.store');
+                Route::get( '/rentals/leases/{id}',       [TenantControllers\LeaseController::class, 'show'])->name('rentals.leases.show');
+
                 // MARKER-PATCH-223 — fleet-wide availability timeline.
                 Route::get('/rentals/availability-timeline',     [TenantControllers\RentalAvailabilityTimelineController::class, 'index'])->name('rentals.availability.timeline');
                 Route::get('/rentals/bookings',                  [TenantControllers\RentalBookingController::class, 'index'])->name('rentals.bookings.index');
