@@ -34,11 +34,12 @@ class TenantMetricsService
      */
     public function planPriceCents(string $tier): int
     {
+        // MARKER-PATCH-224B — config:cache-safe.
         return match ($tier) {
-            'starter' => (int) env('PLAN_PRICE_STARTER', 2900),
-            'branded' => (int) env('PLAN_PRICE_BRANDED', 7900),
-            'scale'   => (int) env('PLAN_PRICE_SCALE', 19900),
-            'custom'  => (int) env('PLAN_PRICE_CUSTOM', 0), // quoted individually
+            'starter' => (int) config('intake.plan_prices.starter', 2900),
+            'branded' => (int) config('intake.plan_prices.branded', 7900),
+            'scale'   => (int) config('intake.plan_prices.scale', 19900),
+            'custom'  => (int) config('intake.plan_prices.custom', 0), // quoted individually
             default   => 0,
         };
     }

@@ -8,6 +8,11 @@ return [
         'from'   => env('TWILIO_FROM'),
     ],
 
+    // MARKER-PATCH-224B
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+    ],
+
     // MARKER-PATCH-117 - Cloudflare for SaaS custom hostnames
     'cloudflare' => [
         // API token scoped to (SSL and Certificates: Edit, Zone: Read) on

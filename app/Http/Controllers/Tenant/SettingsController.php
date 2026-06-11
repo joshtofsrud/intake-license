@@ -290,7 +290,7 @@ class SettingsController extends Controller
         // MARKER-PATCH-224 — managed numbers send on platform creds; only
         // require tenant creds when no platform fallback exists.
         $hasCreds = ($tenant->twilio_account_sid && $tenant->twilio_auth_token)
-            || (env('TWILIO_SID') && env('TWILIO_TOKEN'));
+            || (config('services.twilio.sid') && config('services.twilio.token')); // MARKER-PATCH-224B
         if (! $tenant->sms_enabled || ! $tenant->sms_from_number || ! $hasCreds) {
             return response()->json([
                 'ok'    => false,

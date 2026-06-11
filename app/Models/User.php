@@ -33,7 +33,7 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         // Bootstrap admin from env is always allowed
-        $bootstrap = strtolower((string) env('ADMIN_EMAIL', ''));
+        $bootstrap = strtolower((string) config('intake.admin_email', '')); // MARKER-PATCH-224B
         if ($bootstrap !== '' && strtolower((string) $this->email) === $bootstrap) {
             return true;
         }

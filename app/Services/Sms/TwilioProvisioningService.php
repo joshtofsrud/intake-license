@@ -19,7 +19,8 @@ class TwilioProvisioningService
 {
     public function platformConfigured(): bool
     {
-        return (bool) (env('TWILIO_SID') && env('TWILIO_TOKEN'));
+        // MARKER-PATCH-224B — config(), never env(): survives config:cache.
+        return (bool) (config('services.twilio.sid') && config('services.twilio.token'));
     }
 
     public function inboundUrl(): string
@@ -134,6 +135,6 @@ class TwilioProvisioningService
             throw new \RuntimeException('Twilio SDK not installed.');
         }
 
-        return new \Twilio\Rest\Client(env('TWILIO_SID'), env('TWILIO_TOKEN'));
+        return new \Twilio\Rest\Client(config('services.twilio.sid'), config('services.twilio.token')); // MARKER-PATCH-224B
     }
 }

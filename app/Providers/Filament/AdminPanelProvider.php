@@ -46,7 +46,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->domain(env('APP_DOMAIN', 'intake.works'))
+            ->domain(config('intake.domain', 'intake.works')) // MARKER-PATCH-224B
             ->login()
             ->colors(['primary' => Color::Violet])
             ->brandName('Intake')

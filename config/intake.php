@@ -25,6 +25,20 @@ return [
     */
     'domain' => env('APP_DOMAIN', 'intake.works'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | MARKER-PATCH-224B — config:cache-safe homes for runtime values
+    |--------------------------------------------------------------------------
+    */
+    'admin_email' => env('ADMIN_EMAIL', ''),
+
+    'plan_prices' => [
+        'starter' => (int) env('PLAN_PRICE_STARTER', 2900),
+        'branded' => (int) env('PLAN_PRICE_BRANDED', 7900),
+        'scale'   => (int) env('PLAN_PRICE_SCALE', 19900),
+        'custom'  => (int) env('PLAN_PRICE_CUSTOM', 0),
+    ],
+
     'reserved_subdomains' => [
         'www',
         'app',

@@ -136,7 +136,7 @@ class TwilioInboundController extends Controller
      */
     private function signatureOk(Request $request, Tenant $tenant): bool
     {
-        $token = $tenant->twilio_auth_token ?: env('TWILIO_TOKEN');
+        $token = $tenant->twilio_auth_token ?: config('services.twilio.token'); // MARKER-PATCH-224B
         if (!$token) {
             return true;
         }
