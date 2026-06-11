@@ -219,7 +219,7 @@
   {{-- add category --}}
   <details class="ia-card fl-section" style="padding:16px">
     <summary>+ Add a category</summary>
-    <form method="POST" action="{{ route('tenant.rentals.fleet.cat.store') }}" style="margin-top:12px">
+    <form method="POST" action="{{ route('tenant.rentals.fleet.categories.store') }}" style="margin-top:12px">
       @csrf
       <div class="fl-fieldgrid" style="grid-template-columns:1fr 1fr">
         <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Skis" required></div>
