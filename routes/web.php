@@ -329,6 +329,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/fleet/condition-templates',       [TenantControllers\RentalFleetController::class, 'storeConditionTemplate'])->name('rentals.fleet.ct.store');
                 Route::patch('/rentals/fleet/condition-templates/{id}', [TenantControllers\RentalFleetController::class, 'updateConditionTemplate'])->name('rentals.fleet.ct.update');
                 Route::delete('/rentals/fleet/condition-templates/{id}',[TenantControllers\RentalFleetController::class, 'destroyConditionTemplate'])->name('rentals.fleet.ct.destroy');
+                // MARKER-PATCH-227 — model layer + bulk add.
+                Route::post('/rentals/fleet/models',           [TenantControllers\RentalFleetController::class, 'storeModel'])->name('rentals.fleet.models.store');
+                Route::patch('/rentals/fleet/models/{id}',     [TenantControllers\RentalFleetController::class, 'updateModel'])->name('rentals.fleet.models.update');
+                Route::delete('/rentals/fleet/models/{id}',    [TenantControllers\RentalFleetController::class, 'destroyModel'])->name('rentals.fleet.models.destroy');
+                Route::post('/rentals/fleet/units/bulk',       [TenantControllers\RentalFleetController::class, 'bulkAddUnits'])->name('rentals.fleet.units.bulk');
 
                 // MARKER-PATCH-219 — rental bookings. store/check-out/
                 // check-in/cancel mutate under the tenant rental write lock.

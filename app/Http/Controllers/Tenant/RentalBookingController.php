@@ -85,16 +85,18 @@ class RentalBookingController extends Controller
 
         $units = $this->availability
             ->availableUnits($tenant->id, null, $start, $due)
+            ->load('model') // MARKER-PATCH-227 — effective*() reads through model
             ->map(fn (TenantRentalUnit $u) => [
                 'id'                 => $u->id,
                 'name'               => $u->name,
                 'identifier'         => $u->identifier,
                 'size'               => $u->size,
                 'category'           => $u->category?->name,
-                'hourly_rate_cents'  => $u->hourly_rate_cents,
-                'daily_rate_cents'   => $u->daily_rate_cents,
-                'weekend_rate_cents' => $u->weekend_rate_cents,
-                'deposit_cents'      => $u->deposit_cents,
+                // MARKER-PATCH-227 — read through the model (rates moved up).
+                'hourly_rate_cents'  => $u->effectiveHourlyCents(),
+                'daily_rate_cents'   => $u->effectiveDailyCents(),
+                'weekend_rate_cents' => $u->effectiveWeekendCents(),
+                'deposit_cents'      => $u->effectiveDepositCents(),
             ])->values();
 
         return response()->json(['success' => true, 'units' => $units]);
@@ -141,6 +143,7 @@ class RentalBookingController extends Controller
                     foreach ($request->input('units') as $sel) {
                         $unit = TenantRentalUnit::where('tenant_id', $tenant->id)
                             ->where('id', $sel['unit_id'])
+                            ->with('model') // MARKER-PATCH-227
                             ->first();
 
                         if (!$unit || !$this->availability->isUnitAvailable($unit, $start, $due)) {
@@ -592,9 +595,10 @@ class RentalBookingController extends Controller
     /** Default hold = sum of deposit_cents across the rental's units. */
     private function defaultDepositCents(TenantRental $rental): int
     {
+        // MARKER-PATCH-227 — deposit lives on the model now.
         return (int) $rental->lines
             ->where('kind', 'unit')
-            ->sum(fn ($line) => (int) ($line->unit?->deposit_cents ?? 0));
+            ->sum(fn ($line) => (int) ($line->unit?->effectiveDepositCents() ?? 0));
     }
 
     /** RD-YYYYMMDD-NNN — same shape as the appointment DP- generator. */
@@ -671,10 +675,11 @@ class RentalBookingController extends Controller
      */
     private function priceUnit(TenantRentalUnit $unit, string $mode, Carbon $start, Carbon $due): array
     {
+        // MARKER-PATCH-227 — model-backed rates.
         $rateCents = match ($mode) {
-            'hourly'  => $unit->hourly_rate_cents,
-            'daily'   => $unit->daily_rate_cents,
-            'weekend' => $unit->weekend_rate_cents,
+            'hourly'  => $unit->effectiveHourlyCents(),
+            'daily'   => $unit->effectiveDailyCents(),
+            'weekend' => $unit->effectiveWeekendCents(),
         };
 
         if ($rateCents === null) {

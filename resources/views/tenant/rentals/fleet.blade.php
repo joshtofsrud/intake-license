@@ -1,290 +1,302 @@
 @extends('layouts.tenant.app')
 @php $pageTitle = 'Fleet'; @endphp
 
-{{-- MARKER-PATCH-218 — Fleet admin: categories & rates, units, condition checklists. --}}
+{{-- MARKER-PATCH-227 — scaled fleet: category -> model -> unit, rollups,
+     search/filter/paginate, bulk add. Inline-edit reuses the fleet PATCH
+     protocol ({field,value}). --}}
+
+@push('styles')
+<style>
+  .fl-ctl{display:flex;gap:10px;align-items:center;margin:18px 0 16px;flex-wrap:wrap}
+  .fl-search{flex:1;min-width:220px;position:relative}
+  .fl-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ia-text-dim,#888)}
+  .fl-search input{width:100%;background:var(--ia-input-bg,rgba(255,255,255,.07));border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:9px 12px 9px 36px;color:inherit;font:inherit;font-size:13.5px;outline:none}
+  .fl-count{font-size:12.5px;opacity:.55;margin-left:auto;white-space:nowrap}
+  .fl-cat{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:var(--ia-r-lg);margin-bottom:12px;overflow:hidden}
+  .fl-cat-head{display:grid;grid-template-columns:auto 1fr auto auto;gap:16px;align-items:center;padding:15px 18px;cursor:pointer}
+  .fl-disc{width:20px;height:20px;display:flex;align-items:center;justify-content:center;opacity:.5;transition:transform var(--ia-t)}
+  .fl-cat.open .fl-disc,.fl-model.open .fl-disc{transform:rotate(90deg);opacity:1}
+  .fl-cat-name{font-size:16px;font-weight:640}
+  .fl-cat-axis{font-size:11.5px;opacity:.5;margin-top:2px}
+  .fl-roll{display:flex;align-items:center;gap:14px}
+  .fl-roll-stat{text-align:right}
+  .fl-roll-num{font-size:16px;font-weight:680}
+  .fl-roll-lbl{font-size:10px;opacity:.5;text-transform:uppercase;letter-spacing:.05em}
+  .fl-bar{width:120px;height:7px;border-radius:999px;background:var(--ia-surface-2,#262626);overflow:hidden;display:flex}
+  .fl-seg{height:100%}
+  .fl-seg.av{background:#7BC96F}.fl-seg.out{background:#5BA3D0}.fl-seg.res{background:#E0A82E}.fl-seg.mt{background:#E0573E}
+  .fl-cat-body{display:none;border-top:.5px solid var(--ia-border);padding:6px}
+  .fl-cat.open .fl-cat-body{display:block}
+  .fl-model{border-radius:var(--ia-r-md);margin:6px;background:var(--ia-bg);border:.5px solid var(--ia-border);overflow:hidden}
+  .fl-model-head{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:14px;align-items:center;padding:11px 14px;cursor:pointer}
+  .fl-model-head:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
+  .fl-model-name{font-size:13.5px;font-weight:600}
+  .fl-model-sub{font-size:11.5px;opacity:.5;margin-top:1px}
+  .fl-rates{display:flex;gap:6px;flex-wrap:wrap}
+  .fl-chip{font-size:11.5px;background:var(--ia-surface-2,#262626);border-radius:var(--ia-r-sm);padding:3px 8px;white-space:nowrap}
+  .fl-chip b{font-weight:600}
+  .fl-chip.season{background:rgba(224,168,46,.13);color:#E0A82E}
+  .fl-mins{font-size:11.5px;opacity:.6;white-space:nowrap}
+  .fl-model-body{display:none;border-top:.5px solid var(--ia-border);padding:14px;background:rgba(255,255,255,.012)}
+  .fl-model.open .fl-model-body{display:block}
+  .fl-units{display:none;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.012);padding:4px}
+  .fl-model.open .fl-units{display:block}
+  .fl-uhead{display:grid;grid-template-columns:140px 1fr 120px 110px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
+  .fl-uline{display:grid;grid-template-columns:140px 1fr 120px 110px;gap:10px;align-items:center;padding:7px 12px;border-radius:var(--ia-r-sm);font-size:12.5px}
+  .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
+  .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
+  .fl-uline input:hover,.fl-uline select:hover{border-color:var(--ia-border)}
+  .fl-uline input:focus,.fl-uline select:focus{border-color:var(--ia-accent,#BEF264);outline:none;background:var(--ia-input-bg,rgba(255,255,255,.07))}
+  .fl-mono{font-family:var(--ia-font-mono,monospace)}
+  .pill{font-size:10px;font-weight:600;border-radius:999px;padding:2px 9px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .pill::before{content:"";width:5px;height:5px;border-radius:50%}
+  .pill.av{background:rgba(123,201,111,.13);color:#7BC96F}.pill.av::before{background:#7BC96F}
+  .pill.out{background:rgba(91,163,208,.13);color:#5BA3D0}.pill.out::before{background:#5BA3D0}
+  .pill.res{background:rgba(224,168,46,.13);color:#E0A82E}.pill.res::before{background:#E0A82E}
+  .pill.mt{background:rgba(224,87,62,.13);color:#E0573E}.pill.mt::before{background:#E0573E}
+  .fl-fieldgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px}
+  .fl-fg{display:flex;flex-direction:column;gap:5px}
+  .fl-lbl{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;opacity:.55}
+  .fl-inp{background:var(--ia-input-bg,rgba(255,255,255,.07));border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:8px 10px;color:inherit;font:inherit;font-size:13px;outline:none}
+  .fl-inp:focus{border-color:var(--ia-accent,#BEF264)}
+  .fl-money{position:relative}.fl-money::before{content:"$";position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5;font-size:12px}
+  .fl-money input{padding-left:20px}
+  .fl-pager{display:flex;gap:6px;justify-content:center;margin-top:22px}
+  .fl-pager a{padding:6px 11px;border-radius:var(--ia-r-md);border:.5px solid var(--ia-border);text-decoration:none;color:inherit;font-size:12.5px}
+  .fl-pager a.cur{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent;font-weight:650}
+  .fl-add-line{display:flex;gap:8px;align-items:center;padding:8px 12px}
+  details.fl-section{margin-top:10px}
+  details.fl-section summary{cursor:pointer;font-size:12.5px;opacity:.7;padding:6px 0}
+</style>
+@endpush
 
 @section('content')
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Fleet</h1>
-    <p class="ia-page-subtitle">Categories set the rate card and deposit. Units are the individual things customers take out the door.</p>
+    <p class="ia-page-subtitle">Models define what a thing is and what it costs. Units are the serial-tracked items customers take out.</p>
   </div>
-  <a href="{{ route('tenant.rentals.desk') }}" class="ia-btn">Rental Desk</a>
+  <div style="display:flex;gap:8px">
+    <a href="{{ route('tenant.rentals.desk') }}" class="ia-btn">Rental Desk</a>
+    <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('fl-add-model').scrollIntoView({behavior:'smooth'});document.getElementById('fl-add-model-d').open=true">+ Add model</button>
+  </div>
 </div>
 
-@if(session('flash'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>
-@endif
+@if(session('flash'))<div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('flash') }}</div>@endif
+@if($errors->any())<div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>@endif
 
-{{-- ============================================== categories & rates --}}
-<div class="ia-card" style="padding:18px 20px;margin-bottom:20px">
-  <h2 class="ia-h3" style="margin-bottom:12px">Add a category</h2>
-  <form method="POST" action="{{ route('tenant.rentals.fleet.categories.store') }}">
-    @csrf
-    {{-- MARKER-PATCH-218B — categories are grouping only --}}
-    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;max-width:520px">
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
-        <input type="text" name="name" required maxlength="120" placeholder="e.g. Mountain bikes" class="ia-input" style="width:100%">
-      </div>
-      <div><button type="submit" class="ia-btn ia-btn--primary">Add</button></div>
-    </div>
-  </form>
-</div>
-
-<div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:28px">
-  <div style="padding:14px 20px;border-bottom:0.5px solid var(--ia-border);display:flex;justify-content:space-between;align-items:center">
-    <span class="ia-label">{{ $categories->count() }} categor{{ $categories->count() === 1 ? 'y' : 'ies' }}</span>
-    <span style="font-size:11px;opacity:.5">Categories group your fleet for browsing and filters · Rates are set per unit below</span>
+{{-- control bar --}}
+<form method="GET" action="{{ route('tenant.rentals.fleet') }}" class="fl-ctl" id="fl-filter">
+  <div class="fl-search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" name="q" value="{{ $search }}" placeholder="Search models, serials, sizes…" onchange="this.form.submit()">
   </div>
-
-  @if($categories->isEmpty())
-    <div class="ia-empty" style="padding:36px;text-align:center">
-      <div class="ia-empty-title">No categories yet</div>
-      <div class="ia-empty-body" style="margin-top:6px">Categories carry the rate card — add one above, then add units into it.</div>
-    </div>
-  @else
-    @foreach($categories as $cat)
-      <div data-kind="category" data-url="{{ route('tenant.rentals.fleet.categories.update', $cat->id) }}" data-destroy="{{ route('tenant.rentals.fleet.categories.destroy', $cat->id) }}"
-           style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--ia-border);max-width:680px">
-        <input type="text" class="ia-input fl-edit" data-field="name" value="{{ $cat->name }}" maxlength="120" style="width:100%">
-        <span style="font-size:11.5px;opacity:.55;white-space:nowrap">{{ $cat->units_count }} unit{{ $cat->units_count === 1 ? '' : 's' }}</span>
-        <button type="button" class="ia-btn fl-archive" title="Archive category">Archive</button>
-      </div>
+  <select name="category" class="fl-inp" onchange="this.form.submit()">
+    <option value="">All categories</option>
+    @foreach($allCategories as $c)<option value="{{ $c->id }}" {{ $filterCategory === $c->id ? 'selected' : '' }}>{{ $c->name }}</option>@endforeach
+  </select>
+  <select name="status" class="fl-inp" onchange="this.form.submit()">
+    <option value="">Any status</option>
+    @foreach(['available'=>'Available','out'=>'Out','reserved'=>'Reserved','maintenance'=>'Maintenance'] as $k=>$v)
+      <option value="{{ $k }}" {{ $filterStatus === $k ? 'selected' : '' }}>{{ $v }}</option>
     @endforeach
-  @endif
-</div>
+  </select>
+  <span class="fl-count"><b>{{ $unitTotal }}</b> units · <b>{{ $modelTotal }}</b> models</span>
+</form>
 
-{{-- ============================================== units --}}
-<div class="ia-card" style="padding:18px 20px;margin-bottom:20px">
-  <h2 class="ia-h3" style="margin-bottom:12px">Add a unit</h2>
-  @if($categories->isEmpty())
-    <p style="font-size:13px;opacity:.6">Add a category first — every unit belongs to one.</p>
-  @else
-  <form method="POST" action="{{ route('tenant.rentals.fleet.units.store') }}">
-    @csrf
-    <div style="display:grid;grid-template-columns:1.6fr 1.2fr 1fr 0.8fr;gap:10px;align-items:end">
+{{-- categories --}}
+@forelse($categories as $cat)
+  @php $r = $rollups[$cat->id] ?? ['total'=>0,'available'=>0,'out'=>0,'reserved'=>0,'maintenance'=>0,'models'=>0]; $t = max(1,$r['total']); @endphp
+  <div class="fl-cat {{ $loop->first ? 'open' : '' }}">
+    <div class="fl-cat-head" onclick="this.parentElement.classList.toggle('open')">
+      <div class="fl-disc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
       <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
-        <input type="text" name="name" required maxlength="160" placeholder="e.g. Trek Roscoe 8" class="ia-input" style="width:100%">
+        <div class="fl-cat-name">{{ $cat->name }}</div>
+        <div class="fl-cat-axis">{{ $cat->size_axis ? 'Size axis: ' . $cat->size_axis . ' · ' : '' }}{{ $r['models'] }} model{{ $r['models'] === 1 ? '' : 's' }}</div>
       </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Category</label>
-        <select name="category_id" required class="ia-input" style="width:100%">
-          @foreach($categories as $cat)
-            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-          @endforeach
-        </select>
+      <div class="fl-roll">
+        <div class="fl-roll-stat"><div class="fl-roll-num">{{ $r['total'] }}</div><div class="fl-roll-lbl">units</div></div>
+        <div class="fl-roll-stat"><div class="fl-roll-num" style="color:#7BC96F">{{ $r['available'] }}</div><div class="fl-roll-lbl">free</div></div>
       </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Tag (optional)</label>
-        <input type="text" name="identifier" maxlength="60" placeholder="#BH-088" class="ia-input" style="width:100%">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Size</label>
-        <input type="text" name="size" maxlength="40" placeholder="M / 17.5&quot;" class="ia-input" style="width:100%">
+      <div class="fl-bar">
+        <div class="fl-seg av" style="width:{{ $r['available']/$t*100 }}%"></div>
+        <div class="fl-seg res" style="width:{{ $r['reserved']/$t*100 }}%"></div>
+        <div class="fl-seg out" style="width:{{ $r['out']/$t*100 }}%"></div>
+        <div class="fl-seg mt" style="width:{{ $r['maintenance']/$t*100 }}%"></div>
       </div>
     </div>
-    {{-- MARKER-PATCH-218B — the unit is the rate card --}}
-    <div style="display:grid;grid-template-columns:repeat(4, 1fr) auto;gap:10px;align-items:end;margin-top:10px">
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Hourly $</label>
-        <input type="number" name="hourly_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Daily $</label>
-        <input type="number" name="daily_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Weekend $</label>
-        <input type="number" name="weekend_rate" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Deposit $</label>
-        <input type="number" name="deposit" min="0" step="0.01" placeholder="—" class="ia-input" style="width:100%;text-align:right">
-      </div>
-      <div><button type="submit" class="ia-btn ia-btn--primary">Add</button></div>
-    </div>
-  </form>
-  @endif
-</div>
+    <div class="fl-cat-body">
+      @forelse($modelsByCat[$cat->id] ?? [] as $model)
+        <div class="fl-model">
+          <div class="fl-model-head" onclick="this.parentElement.classList.toggle('open')">
+            <div class="fl-disc"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+            <div><div class="fl-model-name">{{ $model->name }}</div><div class="fl-model-sub">{{ $model->subtitle ?: $cat->name }}{{ $model->conditionTemplate ? ' · ' . $model->conditionTemplate->name : '' }}</div></div>
+            <div class="fl-rates">
+              @if($model->daily_rate_cents)<span class="fl-chip"><b>{{ format_money($model->daily_rate_cents) }}</b>/day</span>@endif
+              @if($model->hourly_rate_cents)<span class="fl-chip"><b>{{ format_money($model->hourly_rate_cents) }}</b>/hr</span>@endif
+              @if($model->seasonal_rate_cents)<span class="fl-chip season"><b>{{ format_money($model->seasonal_rate_cents) }}</b>/season</span>@endif
+              <span class="fl-chip"><b>{{ format_money($model->deposit_cents) }}</b> dep</span>
+            </div>
+            <div class="fl-mins">{{ $model->view_units->count() }} unit{{ $model->view_units->count() === 1 ? '' : 's' }}</div>
+            <span class="pill av">{{ $model->avail_count }} free</span>
+          </div>
 
-<div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:28px">
-  <div style="padding:14px 20px;border-bottom:0.5px solid var(--ia-border);display:flex;justify-content:space-between;align-items:center">
-    <span class="ia-label">{{ $units->count() }} unit{{ $units->count() === 1 ? '' : 's' }}</span>
-    <span style="font-size:11px;opacity:.5">Rentable = can be booked at all · Online = bookable on your public site · Buffer pads turnaround after each return</span>
-  </div>
-
-  @if($units->isEmpty())
-    <div class="ia-empty" style="padding:36px;text-align:center">
-      <div class="ia-empty-title">No units yet</div>
-      <div class="ia-empty-body" style="margin-top:6px">Each unit is its own bookable resource with its own history.</div>
-    </div>
-  @else
-    @foreach($units as $u)
-      <div data-kind="unit" data-url="{{ route('tenant.rentals.fleet.units.update', $u->id) }}" data-destroy="{{ route('tenant.rentals.fleet.units.destroy', $u->id) }}"
-           style="padding:12px 20px;border-bottom:0.5px solid var(--ia-border);{{ $u->status === 'retired' ? 'opacity:.45' : '' }}">
-        <div style="display:grid;grid-template-columns:1.6fr 0.9fr 1.2fr 0.8fr 1fr auto auto 0.7fr auto;gap:10px;align-items:center">
-          <input type="text" class="ia-input fl-edit" data-field="name" value="{{ $u->name }}" maxlength="160" style="width:100%">
-          <input type="text" class="ia-input fl-edit" data-field="identifier" value="{{ $u->identifier }}" maxlength="60" placeholder="—" style="width:100%">
-          <select class="ia-input fl-edit" data-field="category_id" style="width:100%">
-            @foreach($categories as $cat)
-              <option value="{{ $cat->id }}" {{ $u->category_id === $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
-            @endforeach
-          </select>
-          <input type="text" class="ia-input fl-edit" data-field="size" value="{{ $u->size }}" maxlength="40" placeholder="—" style="width:100%">
-          <select class="ia-input fl-edit" data-field="status" style="width:100%">
-            <option value="available"   {{ $u->status === 'available' ? 'selected' : '' }}>Available</option>
-            <option value="maintenance" {{ $u->status === 'maintenance' ? 'selected' : '' }}>Maintenance</option>
-            <option value="retired"     {{ $u->status === 'retired' ? 'selected' : '' }}>Retired</option>
-          </select>
-          <button type="button" class="ia-toggle fl-toggle {{ $u->available_for_rent ? 'on' : '' }}" data-field="available_for_rent" title="Rentable at all"></button>
-          <button type="button" class="ia-toggle fl-toggle {{ $u->online_booking ? 'on' : '' }}" data-field="online_booking" title="Bookable on the public site"></button>
-          <input type="number" class="ia-input fl-edit" data-field="buffer_minutes" min="0" max="1440" value="{{ $u->buffer_minutes }}" title="Buffer minutes after each return" style="width:100%;text-align:right">
-          <button type="button" class="ia-btn fl-archive" title="Archive unit">Archive</button>
-        </div>
-        <details style="margin-top:8px">
-          <summary style="font-size:11.5px;opacity:.55;cursor:pointer">Rates &amp; deposit — blank = not offered at that duration</summary>
-          <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-top:8px;max-width:560px">
-            <div>
-              <label class="ia-label" style="display:block;margin-bottom:4px">Hourly $</label>
-              <input type="number" class="ia-input fl-edit" data-field="hourly_rate" min="0" step="0.01" placeholder="—"
-                     value="{{ $u->hourly_rate_cents !== null ? number_format($u->hourly_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
-            </div>
-            <div>
-              <label class="ia-label" style="display:block;margin-bottom:4px">Daily $</label>
-              <input type="number" class="ia-input fl-edit" data-field="daily_rate" min="0" step="0.01" placeholder="—"
-                     value="{{ $u->daily_rate_cents !== null ? number_format($u->daily_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
-            </div>
-            <div>
-              <label class="ia-label" style="display:block;margin-bottom:4px">Weekend $</label>
-              <input type="number" class="ia-input fl-edit" data-field="weekend_rate" min="0" step="0.01" placeholder="—"
-                     value="{{ $u->weekend_rate_cents !== null ? number_format($u->weekend_rate_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
-            </div>
-            <div>
-              <label class="ia-label" style="display:block;margin-bottom:4px">Deposit $</label>
-              <input type="number" class="ia-input fl-edit" data-field="deposit" min="0" step="0.01" placeholder="—"
-                     value="{{ $u->deposit_cents !== null ? number_format($u->deposit_cents / 100, 2, '.', '') : '' }}" style="width:100%;text-align:right">
+          {{-- model edit drawer --}}
+          <div class="fl-model-body" data-model="{{ $model->id }}">
+            <div class="fl-fieldgrid">
+              <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" value="{{ $model->name }}" data-mf="name"></div>
+              <div class="fl-fg" style="grid-column:3/5"><span class="fl-lbl">Subtitle</span><input class="fl-inp" value="{{ $model->subtitle }}" data-mf="subtitle" placeholder="all-mountain, junior…"></div>
+              <div class="fl-fg"><span class="fl-lbl">Hourly</span><div class="fl-money"><input class="fl-inp" value="{{ $model->hourly_rate_cents ? number_format($model->hourly_rate_cents/100,2,'.','') : '' }}" data-mf="hourly_rate" placeholder="—"></div></div>
+              <div class="fl-fg"><span class="fl-lbl">Daily</span><div class="fl-money"><input class="fl-inp" value="{{ $model->daily_rate_cents ? number_format($model->daily_rate_cents/100,2,'.','') : '' }}" data-mf="daily_rate" placeholder="—"></div></div>
+              <div class="fl-fg"><span class="fl-lbl">Weekend</span><div class="fl-money"><input class="fl-inp" value="{{ $model->weekend_rate_cents ? number_format($model->weekend_rate_cents/100,2,'.','') : '' }}" data-mf="weekend_rate" placeholder="—"></div></div>
+              <div class="fl-fg"><span class="fl-lbl">Season @if(!tenant()->leasing_available)<span style="opacity:.5">(Scale)</span>@endif</span><div class="fl-money"><input class="fl-inp" value="{{ $model->seasonal_rate_cents ? number_format($model->seasonal_rate_cents/100,2,'.','') : '' }}" data-mf="seasonal_rate" placeholder="—" {{ tenant()->leasing_available ? '' : 'disabled' }}></div></div>
+              <div class="fl-fg"><span class="fl-lbl">Deposit</span><div class="fl-money"><input class="fl-inp" value="{{ number_format($model->deposit_cents/100,2,'.','') }}" data-mf="deposit"></div></div>
+              <div class="fl-fg" style="grid-column:2/4"><span class="fl-lbl">Checklist</span>
+                <select class="fl-inp" data-mf="condition_template_id">
+                  <option value="">— none —</option>
+                  @foreach($conditionTemplates as $ct)<option value="{{ $ct->id }}" {{ $model->condition_template_id === $ct->id ? 'selected' : '' }}>{{ $ct->name }}</option>@endforeach
+                </select>
+              </div>
+              <div class="fl-fg" style="justify-content:end"><button type="button" class="ia-btn" onclick="flArchiveModel('{{ $model->id }}')">Archive model</button></div>
             </div>
           </div>
-        </details>
-      </div>
-    @endforeach
-  @endif
-</div>
 
-{{-- ============================================== condition checklists --}}
-<div class="ia-card" style="padding:18px 20px;margin-bottom:20px">
-  <h2 class="ia-h3" style="margin-bottom:4px">Condition checklists</h2>
-  <p style="font-size:12.5px;opacity:.6;margin-bottom:12px">Run at check-out and check-in. Differences between the two flag damage and authorize a deposit capture. One item per line.</p>
-  <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}">
-    @csrf
-    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:end">
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
-        <input type="text" name="name" required maxlength="120" placeholder="e.g. Bike checklist" class="ia-input" style="width:100%">
-      </div>
-      <div>
-        <label class="ia-label" style="display:block;margin-bottom:5px">Items (one per line)</label>
-        <textarea name="items" required rows="3" maxlength="4000" placeholder="Frame — no new damage&#10;Tires — tread + pressure&#10;Brakes — pads + levers" class="ia-input" style="width:100%;resize:vertical"></textarea>
-      </div>
-      <div><button type="submit" class="ia-btn ia-btn--primary">Add</button></div>
+          {{-- units --}}
+          <div class="fl-units">
+            <div class="fl-uhead"><span>Serial / tag</span><span>Size</span><span>Booking</span><span>Status</span></div>
+            @foreach($model->view_units as $u)
+              <div class="fl-uline" data-unit="{{ $u->id }}">
+                <input class="fl-mono" value="{{ $u->identifier }}" data-uf="identifier" placeholder="#tag">
+                <input value="{{ $u->size }}" data-uf="size" placeholder="{{ $cat->size_axis ?: 'size' }}">
+                <select data-uf="available_for_rent"><option value="1" {{ $u->available_for_rent ? 'selected':'' }}>Rentable</option><option value="0" {{ $u->available_for_rent ? '':'selected' }}>Off</option></select>
+                <select data-uf="status">
+                  @foreach(['available'=>'Available','maintenance'=>'Maintenance','retired'=>'Retired'] as $sk=>$sv)
+                    <option value="{{ $sk }}" {{ $u->status === $sk ? 'selected':'' }}>{{ $sv }}</option>
+                  @endforeach
+                </select>
+                @if($u->derived_status === 'out')<span class="pill out" style="grid-column:4;justify-self:end">Out</span>
+                @elseif($u->derived_status === 'reserved')<span class="pill res" style="grid-column:4;justify-self:end">Reserved</span>@endif
+              </div>
+            @endforeach
+            <div class="fl-add-line">
+              <button type="button" class="ia-btn ia-btn--sm" onclick="document.getElementById('bulk-{{ $model->id }}').style.display='flex'">+ Add units</button>
+              <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+                @csrf
+                <input type="hidden" name="model_id" value="{{ $model->id }}">
+                <input type="number" name="count" value="1" min="1" max="200" class="fl-inp" style="width:70px" title="How many">
+                <input type="text" name="tag_prefix" placeholder="#SK-" class="fl-inp fl-mono" style="width:90px">
+                <input type="number" name="start_number" value="1" min="0" class="fl-inp" style="width:70px" title="Start #">
+                <input type="text" name="size" placeholder="size (optional)" class="fl-inp" style="width:120px">
+                <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      @empty
+        <div style="padding:18px;font-size:12.5px;opacity:.55">No models in this category yet.</div>
+      @endforelse
     </div>
-  </form>
-</div>
-
-<div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:28px">
-  <div style="padding:14px 20px;border-bottom:0.5px solid var(--ia-border)">
-    <span class="ia-label">{{ $conditionTemplates->count() }} checklist{{ $conditionTemplates->count() === 1 ? '' : 's' }}</span>
   </div>
-  @if($conditionTemplates->isEmpty())
-    <div class="ia-empty" style="padding:30px;text-align:center">
-      <div class="ia-empty-body">No checklists yet — optional, but they make damage claims defensible.</div>
-    </div>
-  @else
-    @foreach($conditionTemplates as $ct)
-      <div data-kind="ct" data-url="{{ route('tenant.rentals.fleet.ct.update', $ct->id) }}" data-destroy="{{ route('tenant.rentals.fleet.ct.destroy', $ct->id) }}"
-           style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:start;padding:12px 20px;border-bottom:0.5px solid var(--ia-border)">
-        <input type="text" class="ia-input fl-edit" data-field="name" value="{{ $ct->name }}" maxlength="120" style="width:100%">
-        <textarea class="ia-input fl-edit" data-field="items" rows="3" maxlength="4000" style="width:100%;resize:vertical">{{ collect($ct->items)->pluck('label')->implode("\n") }}</textarea>
-        <button type="button" class="ia-btn fl-archive" title="Delete checklist">Delete</button>
-      </div>
-    @endforeach
-  @endif
+@empty
+  <div class="ia-card" style="padding:40px;text-align:center">
+    <div class="ia-empty-title">Your fleet starts here</div>
+    <div class="ia-empty-body" style="margin-top:6px">Add a category, then a model, then units. A simple shop just adds one model per item.</div>
+  </div>
+@endforelse
+
+{{-- pagination --}}
+@if($pageCount > 1)
+<div class="fl-pager">
+  @for($p = 1; $p <= $pageCount; $p++)
+    <a href="{{ route('tenant.rentals.fleet', array_filter(['q'=>$search ?: null,'category'=>$filterCategory,'status'=>$filterStatus,'page'=>$p])) }}" class="{{ $p === $page ? 'cur' : '' }}">{{ $p }}</a>
+  @endfor
 </div>
+@endif
+
+{{-- ============ add category / model / checklist (collapsed) ============ --}}
+<div style="margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  {{-- add category --}}
+  <details class="ia-card fl-section" style="padding:16px">
+    <summary>+ Add a category</summary>
+    <form method="POST" action="{{ route('tenant.rentals.fleet.cat.store') }}" style="margin-top:12px">
+      @csrf
+      <div class="fl-fieldgrid" style="grid-template-columns:1fr 1fr">
+        <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Skis" required></div>
+        <div class="fl-fg"><span class="fl-lbl">Size axis (optional)</span><input class="fl-inp" name="size_axis" placeholder="length (cm), Mondopoint…"></div>
+      </div>
+      <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:12px">Add category</button>
+    </form>
+  </details>
+
+  {{-- add checklist --}}
+  <details class="ia-card fl-section" style="padding:16px">
+    <summary>+ Add a condition checklist</summary>
+    <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}" style="margin-top:12px">
+      @csrf
+      <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Ski checklist" required></div>
+      <div class="fl-fg" style="margin-top:10px"><span class="fl-lbl">Items (one per line)</span><textarea class="fl-inp" name="items" rows="3" required placeholder="Edges — no major gouges&#10;Bindings — DIN intact&#10;Bases — no core shots"></textarea></div>
+      <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:12px">Add checklist</button>
+    </form>
+  </details>
+</div>
+
+{{-- add model --}}
+<details class="ia-card fl-section" style="padding:16px;margin-top:16px" id="fl-add-model-d">
+  <summary id="fl-add-model">+ Add a model</summary>
+  <form method="POST" action="{{ route('tenant.rentals.fleet.models.store') }}" style="margin-top:12px">
+    @csrf
+    <div class="fl-fieldgrid">
+      <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" name="name" placeholder="e.g. Rossignol Experience 80" required></div>
+      <div class="fl-fg"><span class="fl-lbl">Category</span>
+        <select class="fl-inp" name="category_id" required>
+          <option value="">Choose…</option>
+          @foreach($allCategories as $c)<option value="{{ $c->id }}">{{ $c->name }}</option>@endforeach
+        </select>
+      </div>
+      <div class="fl-fg"><span class="fl-lbl">Subtitle</span><input class="fl-inp" name="subtitle" placeholder="all-mountain"></div>
+      <div class="fl-fg"><span class="fl-lbl">Hourly</span><div class="fl-money"><input class="fl-inp" name="hourly_rate" placeholder="—"></div></div>
+      <div class="fl-fg"><span class="fl-lbl">Daily</span><div class="fl-money"><input class="fl-inp" name="daily_rate" placeholder="—"></div></div>
+      <div class="fl-fg"><span class="fl-lbl">Weekend</span><div class="fl-money"><input class="fl-inp" name="weekend_rate" placeholder="—"></div></div>
+      <div class="fl-fg"><span class="fl-lbl">Deposit</span><div class="fl-money"><input class="fl-inp" name="deposit" placeholder="0.00"></div></div>
+      @if(tenant()->leasing_available)
+      <div class="fl-fg"><span class="fl-lbl">Season rate</span><div class="fl-money"><input class="fl-inp" name="seasonal_rate" placeholder="—"></div></div>
+      @endif
+      <div class="fl-fg"><span class="fl-lbl">First unit tag (optional)</span><input class="fl-inp fl-mono" name="first_unit_identifier" placeholder="#BH-001"></div>
+      <div class="fl-fg"><span class="fl-lbl">First unit size</span><input class="fl-inp" name="first_unit_size" placeholder="optional"></div>
+    </div>
+    <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:14px">Add model</button>
+    <span style="font-size:11px;opacity:.5;margin-left:8px">Fill a tag/size to also create the first unit. Add more with "Add units" on the model.</span>
+  </form>
+</details>
 
 <script>
-(function () {
+(function(){
   var csrf = '{{ csrf_token() }}';
-
-  function send(url, method, payload) {
-    return fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-CSRF-TOKEN': csrf,
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      body: payload ? JSON.stringify(payload) : null
-    }).then(function (r) {
-      return r.json().then(function (j) { return { ok: r.ok, json: j }; });
+  function patch(url, field, value, ok){
+    fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'PATCH'},
+      body: JSON.stringify({field:field, value:value})})
+      .then(function(r){return r.json();}).then(function(j){ if(j && j.success===false && j.message) alert(j.message); else if(ok) ok(); }).catch(function(){});
+  }
+  // model field edits
+  document.querySelectorAll('.fl-model-body').forEach(function(body){
+    var url = '{{ url('admin/rentals/fleet/models') }}/' + body.getAttribute('data-model');
+    body.querySelectorAll('[data-mf]').forEach(function(el){
+      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-mf'), el.value); });
     });
-  }
-
-  function rowOf(el) {
-    while (el && !el.getAttribute('data-url')) el = el.parentElement;
-    return el;
-  }
-
-  // Inline edits: save on change (blur for text/number, immediate for select).
-  document.addEventListener('change', function (e) {
-    var el = e.target;
-    if (!el.classList || !el.classList.contains('fl-edit')) return;
-    var row = rowOf(el);
-    if (!row) return;
-    send(row.getAttribute('data-url'), 'PATCH', { field: el.getAttribute('data-field'), value: el.value })
-      .then(function (res) {
-        if (!res.ok) {
-          alert(res.json && res.json.message ? res.json.message : 'Could not save.');
-        } else {
-          el.style.borderColor = 'var(--ia-accent, #BEF264)';
-          setTimeout(function () { el.style.borderColor = ''; }, 600);
-        }
-      })
-      .catch(function () { alert('Could not save.'); });
   });
-
-  // Toggles.
-  document.addEventListener('click', function (e) {
-    var el = e.target;
-
-    if (el.classList && el.classList.contains('fl-toggle')) {
-      var row = rowOf(el);
-      if (!row) return;
-      var next = el.classList.contains('on') ? 0 : 1;
-      send(row.getAttribute('data-url'), 'PATCH', { field: el.getAttribute('data-field'), value: next })
-        .then(function (res) {
-          if (res.ok) { el.classList.toggle('on', next === 1); }
-          else { alert(res.json && res.json.message ? res.json.message : 'Could not save.'); }
-        })
-        .catch(function () { alert('Could not save.'); });
-      return;
-    }
-
-    if (el.classList && el.classList.contains('fl-archive')) {
-      var row2 = rowOf(el);
-      if (!row2) return;
-      if (!confirm('Remove this from your fleet? History is kept.')) return;
-      send(row2.getAttribute('data-destroy'), 'DELETE', null)
-        .then(function (res) {
-          if (res.ok) { row2.remove(); }
-          else { alert(res.json && res.json.message ? res.json.message : 'Could not remove.'); }
-        })
-        .catch(function () { alert('Could not remove.'); });
-    }
+  // unit field edits
+  document.querySelectorAll('.fl-uline').forEach(function(line){
+    var url = '{{ url('admin/rentals/fleet/units') }}/' + line.getAttribute('data-unit');
+    line.querySelectorAll('[data-uf]').forEach(function(el){
+      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-uf'), el.value); });
+    });
   });
+  window.flArchiveModel = function(id){
+    if(!confirm('Archive this model? Its units must already be archived.')) return;
+    fetch('{{ url('admin/rentals/fleet/models') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
+      .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else alert(j.message||'Could not archive.'); });
+  };
 })();
 </script>
 

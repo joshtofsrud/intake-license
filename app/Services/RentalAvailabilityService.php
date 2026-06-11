@@ -109,6 +109,7 @@ class RentalAvailabilityService
             ->where('available_for_rent', true)
             ->when($categoryId, fn ($q) => $q->where('category_id', $categoryId))
             ->when($onlineOnly, fn ($q) => $q->where('online_booking', true))
+            ->with('model') // MARKER-PATCH-227 — avoid N+1 on effective*() rate reads
             ->orderBy('name')
             ->get();
 
