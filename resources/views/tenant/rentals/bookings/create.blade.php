@@ -151,7 +151,7 @@
     var minutes = Math.max(0, ms / 60000);
     if (mode === 'hourly')  return Math.max(1, Math.ceil(minutes / 60));
     if (mode === 'daily')   return Math.max(1, Math.ceil(minutes / 1440));
-    return 1; // weekend = flat
+    return 1; // weekend & seasonal = flat
   }
 
   function refreshSummary() {
@@ -195,6 +195,9 @@
           if (u.hourly_rate_cents !== null)  modes.push(['hourly',  'Hourly · '  + fmt(u.hourly_rate_cents),  u.hourly_rate_cents]);
           if (u.daily_rate_cents !== null)   modes.push(['daily',   'Daily · '   + fmt(u.daily_rate_cents),   u.daily_rate_cents]);
           if (u.weekend_rate_cents !== null) modes.push(['weekend', 'Weekend · ' + fmt(u.weekend_rate_cents), u.weekend_rate_cents]);
+          @if(tenant()->leases_enabled)
+          if (u.seasonal_rate_cents !== null) modes.push(['seasonal', 'Season · ' + fmt(u.seasonal_rate_cents), u.seasonal_rate_cents]);
+          @endif
           if (!modes.length) return ''; // no rates configured -> not bookable
           var opts = modes.map(function (m) { return '<option value="' + m[0] + '" data-rate="' + m[2] + '">' + m[1] + '</option>'; }).join('');
           var meta = [u.identifier, u.category, u.size].filter(Boolean).join(' · ');

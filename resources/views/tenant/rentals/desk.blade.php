@@ -34,6 +34,7 @@
     <a href="{{ route('tenant.rentals.availability.timeline') }}" class="ia-btn">Availability</a>
     <a href="{{ route('tenant.rentals.bookings.index') }}" class="ia-btn">Bookings</a>
     <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn">Manage fleet</a>
+    <a href="{{ route('tenant.rentals.settings') }}" class="ia-btn">Settings</a>
     <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--primary">New rental</a>
   </div>
 </div>

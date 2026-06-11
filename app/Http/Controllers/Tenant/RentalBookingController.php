@@ -93,10 +93,11 @@ class RentalBookingController extends Controller
                 'size'               => $u->size,
                 'category'           => $u->category?->name,
                 // MARKER-PATCH-227 — read through the model (rates moved up).
-                'hourly_rate_cents'  => $u->effectiveHourlyCents(),
-                'daily_rate_cents'   => $u->effectiveDailyCents(),
-                'weekend_rate_cents' => $u->effectiveWeekendCents(),
-                'deposit_cents'      => $u->effectiveDepositCents(),
+                'hourly_rate_cents'   => $u->effectiveHourlyCents(),
+                'daily_rate_cents'    => $u->effectiveDailyCents(),
+                'weekend_rate_cents'  => $u->effectiveWeekendCents(),
+                'seasonal_rate_cents' => $u->effectiveSeasonalCents(), // MARKER-PATCH-228
+                'deposit_cents'       => $u->effectiveDepositCents(),
             ])->values();
 
         return response()->json(['success' => true, 'units' => $units]);
@@ -117,7 +118,7 @@ class RentalBookingController extends Controller
             'due_at'            => ['required', 'string'],
             'units'             => ['required', 'array', 'min:1', 'max:20'],
             'units.*.unit_id'   => ['required', 'string', 'uuid'],
-            'units.*.rate_mode' => ['required', 'in:hourly,daily,weekend'],
+            'units.*.rate_mode' => ['required', 'in:hourly,daily,weekend,seasonal'], // MARKER-PATCH-228
             'notes'             => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -675,11 +676,13 @@ class RentalBookingController extends Controller
      */
     private function priceUnit(TenantRentalUnit $unit, string $mode, Carbon $start, Carbon $due): array
     {
-        // MARKER-PATCH-227 — model-backed rates.
+        // MARKER-PATCH-227 — model-backed rates. PATCH-228 adds seasonal
+        // (flat for the whole window, like weekend).
         $rateCents = match ($mode) {
-            'hourly'  => $unit->effectiveHourlyCents(),
-            'daily'   => $unit->effectiveDailyCents(),
-            'weekend' => $unit->effectiveWeekendCents(),
+            'hourly'   => $unit->effectiveHourlyCents(),
+            'daily'    => $unit->effectiveDailyCents(),
+            'weekend'  => $unit->effectiveWeekendCents(),
+            'seasonal' => $unit->effectiveSeasonalCents(),
         };
 
         if ($rateCents === null) {
@@ -689,9 +692,10 @@ class RentalBookingController extends Controller
         $minutes = $start->diffInMinutes($due);
 
         $durationUnits = match ($mode) {
-            'hourly'  => max(1, (int) ceil($minutes / 60)),
-            'daily'   => max(1, (int) ceil($minutes / 1440)),
-            'weekend' => 1,
+            'hourly'   => max(1, (int) ceil($minutes / 60)),
+            'daily'    => max(1, (int) ceil($minutes / 1440)),
+            'weekend'  => 1,
+            'seasonal' => 1,
         };
 
         return [$mode, (int) $rateCents, $durationUnits, (int) $rateCents * $durationUnits];
