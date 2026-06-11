@@ -7,6 +7,7 @@ use App\Models\Tenant\TenantClassRegistration;
 use App\Models\Tenant\TenantCustomerMembership;
 use App\Models\Tenant\TenantCustomerPack;
 use App\Models\Tenant\TenantRental;
+use App\Models\Tenant\TenantThread;
 use App\Models\Tenant\TenantSale;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -65,7 +66,8 @@ class CustomerTimelineService
             ->concat($this->loadClassRegistrations($tenantId, $customerId))
             ->concat($this->loadPackGrants($tenantId, $customerId))
             ->concat($this->loadMembershipGrants($tenantId, $customerId))
-            ->concat($this->loadRentals($tenantId, $customerId)); // MARKER-PATCH-219
+            ->concat($this->loadRentals($tenantId, $customerId)) // MARKER-PATCH-219
+            ->concat($this->loadThreads($tenantId, $customerId)); // MARKER-PATCH-221
 
         // Single sort after merge — newest first.
         return $events->sortByDesc(fn ($e) => $e['date']->timestamp)->values();
@@ -116,6 +118,37 @@ class CustomerTimelineService
     // ------------------------------------------------------------------
     // Loaders — one per source. Each returns a Collection of timeline rows.
     // ------------------------------------------------------------------
+
+    /**
+     * MARKER-PATCH-221 — Rail 3: one summary event per conversation. The
+     * inbox is the conversational record; the timeline just points at it.
+     */
+    private function loadThreads(string $tenantId, string $customerId): Collection
+    {
+        return TenantThread::where('tenant_id', $tenantId)
+            ->where('customer_id', $customerId)
+            ->whereNotNull('last_message_at')
+            ->get()
+            ->map(function ($t) {
+                $tone = match ($t->status) {
+                    'needs_reply' => 'warning',
+                    'closed'      => 'neutral',
+                    default       => 'success',
+                };
+                return [
+                    'kind'         => 'message_thread',
+                    'date'         => $t->last_message_at,
+                    'title'        => 'Conversation',
+                    'identifier'   => strtoupper($t->channel),
+                    'subtitle'     => $t->status === 'needs_reply' ? 'Waiting on a reply from you' : 'Text conversation',
+                    'status'       => str_replace('_', ' ', ucfirst($t->status)),
+                    'status_tone'  => $tone,
+                    'amount_cents' => null,
+                    'is_refunded'  => false,
+                    'href'         => route('tenant.inbox.index', ['thread' => $t->id]),
+                ];
+            });
+    }
 
     /**
      * MARKER-PATCH-219 — Rail 3: rentals in the customer timeline.

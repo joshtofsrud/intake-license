@@ -14,6 +14,7 @@ class TenantCustomer extends Authenticatable
     protected $table    = 'tenant_customers';
     protected $fillable = [
         'tenant_id','first_name','last_name','email','phone',
+        'sms_opt_out_at','sms_consent_source', // MARKER-PATCH-221
         'address_line1','address_line2','city','state','postcode','country',
         'notes','stripe_customer_id','wp_source_url',
         'password','remember_token','email_verified_at',

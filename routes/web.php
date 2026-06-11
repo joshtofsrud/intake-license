@@ -182,6 +182,11 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
 Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhookController::class, 'handle'])
     ->name('webhooks.postmark');
 
+// MARKER-PATCH-221 — Twilio inbound SMS (unified inbox). Signature-validated,
+// always answers 2xx (fail-open posture; unprocessable requests are skipped).
+Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInboundController::class, 'handle'])
+    ->name('webhooks.twilio.inbound');
+
     Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
@@ -344,6 +349,13 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
                 Route::post('/rentals/bookings/{id}/deposit/release', [TenantControllers\RentalBookingController::class, 'releaseDeposit'])->name('rentals.bookings.deposit.release');
                 Route::post('/rentals/bookings/{id}/deposit/capture', [TenantControllers\RentalBookingController::class, 'captureDeposit'])->name('rentals.bookings.deposit.capture');
             }); // close RequireRentalCapability group
+
+            // MARKER-PATCH-221 — unified inbox. Gated in the controller on
+            // the unified_inbox addon (403 + nav hidden when absent).
+            Route::get('/inbox',                        [TenantControllers\InboxController::class, 'index'])->name('inbox.index');
+            Route::post('/inbox/start',                 [TenantControllers\InboxController::class, 'start'])->name('inbox.start');
+            Route::post('/inbox/threads/{id}/messages', [TenantControllers\InboxController::class, 'send'])->name('inbox.send');
+            Route::post('/inbox/threads/{id}/status',   [TenantControllers\InboxController::class, 'toggleStatus'])->name('inbox.status');
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
             Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');
