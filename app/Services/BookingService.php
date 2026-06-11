@@ -294,6 +294,23 @@ class BookingService
                 // appointment that got rolled back by a later error in the chain.
                 SendBookingConfirmationJob::dispatch($appointment->id)->afterCommit();
 
+                // MARKER-PATCH-225 — staff alert. emit() defers its own work
+                // to afterCommit, so a rolled-back booking emits nothing.
+                $tenantModel = \App\Models\Tenant::find($tenantId);
+                if ($tenantModel) {
+                    $custName = trim(($appointment->customer->first_name ?? '') . ' ' . ($appointment->customer->last_name ?? '')) ?: 'A customer';
+                    $whenLabel = $appointment->appointment_date
+                        ? \Illuminate\Support\Carbon::parse($appointment->appointment_date)->format('M j')
+                            . ($appointment->appointment_time ? ' at ' . \Illuminate\Support\Carbon::parse($appointment->appointment_time)->format('g:i A') : '')
+                        : 'soon';
+                    app(\App\Services\Tenant\StaffAlertService::class)->emit($tenantModel, 'booking.created', [
+                        'title' => 'New booking',
+                        'body'  => $custName . ' booked ' . $whenLabel,
+                        'link'  => route('tenant.appointments.show', $appointment->id),
+                        'meta'  => ['appointment_id' => $appointment->id],
+                    ]);
+                }
+
                 return $appointment->fresh(['items', 'addons', 'customer', 'responses']);
             });
         });

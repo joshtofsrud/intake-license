@@ -578,6 +578,14 @@ class RentalBookingController extends Controller
             );
         });
 
+        // MARKER-PATCH-225 — critical staff alert (bypasses the addon gate).
+        app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'rental.damage_flagged', [
+            'title' => 'Deposit captured — ' . $rental->rental_number,
+            'body'  => format_money($captured) . ' captured: ' . $reason,
+            'link'  => route('tenant.rentals.bookings.show', $rental->id),
+            'meta'  => ['rental_id' => $rental->id, 'amount_cents' => $captured],
+        ]);
+
         return back()->with('flash', 'Captured ' . format_money($captured) . ' from the deposit hold.');
     }
 

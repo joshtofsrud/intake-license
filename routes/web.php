@@ -350,6 +350,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/bookings/{id}/deposit/capture', [TenantControllers\RentalBookingController::class, 'captureDeposit'])->name('rentals.bookings.deposit.capture');
             }); // close RequireRentalCapability group
 
+            // MARKER-PATCH-225 — staff alerts: bell feed + per-user prefs.
+            Route::get('/alerts/feed',           [TenantControllers\StaffAlertController::class, 'feed'])->name('alerts.feed');
+            Route::post('/alerts/{id}/read',     [TenantControllers\StaffAlertController::class, 'markRead'])->name('alerts.read');
+            Route::post('/alerts/read-all',      [TenantControllers\StaffAlertController::class, 'markAllRead'])->name('alerts.read-all');
+            Route::get('/settings/alerts',       [TenantControllers\StaffAlertController::class, 'prefs'])->name('alerts.prefs');
+            Route::post('/settings/alerts',      [TenantControllers\StaffAlertController::class, 'savePrefs'])->name('alerts.prefs.save');
+
             // MARKER-PATCH-221 — unified inbox. Gated in the controller on
             // the unified_inbox addon (403 + nav hidden when absent).
             Route::get('/inbox',                        [TenantControllers\InboxController::class, 'index'])->name('inbox.index');
