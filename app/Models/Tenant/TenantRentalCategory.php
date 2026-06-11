@@ -20,7 +20,7 @@ class TenantRentalCategory extends Model
     protected $table = 'tenant_rental_categories';
 
     protected $fillable = [
-        'tenant_id', 'name', 'sort_order', 'archived_at',
+        'tenant_id', 'name', 'size_axis', 'sort_order', 'archived_at', // MARKER-PATCH-226
     ];
 
     protected $casts = [
@@ -36,6 +36,11 @@ class TenantRentalCategory extends Model
     public function units(): HasMany
     {
         return $this->hasMany(TenantRentalUnit::class, 'category_id');
+    }
+
+    public function models(): HasMany // MARKER-PATCH-226
+    {
+        return $this->hasMany(TenantRentalModel::class, 'category_id');
     }
 
     public function scopeActive($q)

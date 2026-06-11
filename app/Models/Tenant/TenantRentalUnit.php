@@ -23,6 +23,7 @@ class TenantRentalUnit extends Model
 
     protected $fillable = [
         'tenant_id', 'location_id', 'category_id',
+        'model_id', // MARKER-PATCH-226
         'name', 'identifier', 'size', 'status',
         'available_for_rent', 'online_booking', 'buffer_minutes',
         'condition_template_id',
@@ -54,6 +55,11 @@ class TenantRentalUnit extends Model
         return $this->belongsTo(TenantRentalCategory::class, 'category_id');
     }
 
+    public function model(): BelongsTo // MARKER-PATCH-226
+    {
+        return $this->belongsTo(TenantRentalModel::class, 'model_id');
+    }
+
     public function location(): BelongsTo
     {
         return $this->belongsTo(TenantLocation::class, 'location_id');
@@ -75,27 +81,40 @@ class TenantRentalUnit extends Model
     }
 
     /**
-     * MARKER-PATCH-218B — rates live on the unit (no category fallback).
-     * Method names kept stable for future call sites (pricing, public
-     * site, extensions). Null rate = not offered at that duration.
+     * MARKER-PATCH-226 — rates live on the MODEL now. These methods stay
+     * the seam every caller (pricing, availability, public site,
+     * extensions) reads through, so moving rates up required no caller
+     * changes. Read through the loaded model; fall back to the unit's own
+     * legacy columns only if the model relation isn't loaded/available
+     * (defensive during the one-release column overlap).
      */
     public function effectiveHourlyCents(): ?int
     {
-        return $this->hourly_rate_cents;
+        return $this->model?->hourly_rate_cents ?? $this->hourly_rate_cents;
     }
 
     public function effectiveDailyCents(): ?int
     {
-        return $this->daily_rate_cents;
+        return $this->model?->daily_rate_cents ?? $this->daily_rate_cents;
     }
 
     public function effectiveWeekendCents(): ?int
     {
-        return $this->weekend_rate_cents;
+        return $this->model?->weekend_rate_cents ?? $this->weekend_rate_cents;
+    }
+
+    public function effectiveSeasonalCents(): ?int // MARKER-PATCH-226
+    {
+        return $this->model?->seasonal_rate_cents;
     }
 
     public function effectiveDepositCents(): int
     {
-        return (int) ($this->deposit_cents ?? 0);
+        return (int) ($this->model?->deposit_cents ?? $this->deposit_cents ?? 0);
+    }
+
+    public function effectiveConditionTemplateId(): ?string
+    {
+        return $this->model?->condition_template_id ?? $this->condition_template_id;
     }
 }

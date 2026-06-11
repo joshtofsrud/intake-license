@@ -334,6 +334,26 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'staff_alerts');
     }
 
+    /**
+     * MARKER-PATCH-226 — leasing is a PLAN-TIER capability (floor: Scale),
+     * not an addon, and it depends on rentals being active. "Available"
+     * means the shop *could* turn it on; "enabled" means they have.
+     */
+    public function getLeasingAvailableAttribute(): bool
+    {
+        $rank = ['starter' => 0, 'branded' => 1, 'scale' => 2, 'custom' => 3];
+        $tier = $rank[$this->plan_tier ?? 'starter'] ?? 0;
+        return $tier >= 2 && $this->rentals_enabled;
+    }
+
+    public function getLeasesEnabledAttribute(): bool
+    {
+        if (!$this->leasing_available) {
+            return false;
+        }
+        return (bool) ($this->settings['leases_enabled'] ?? false);
+    }
+
     public function getUnifiedInboxEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'unified_inbox');
