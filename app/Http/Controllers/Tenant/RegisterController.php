@@ -942,6 +942,30 @@ class RegisterController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-PATCH-231A — sale detail PAGE (the JSON sibling feeds the
+     * register modal; this is a linkable page for search + history).
+     */
+    public function showSalePage(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number'])
+            ->firstOrFail();
+
+        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('created_at')
+            ->get(['id', 'sale_number', 'total_cents', 'created_at']);
+
+        return view('tenant.register.sale-show', [
+            'sale'    => $sale,
+            'refunds' => $refunds,
+        ]);
+    }
+
     public function showSaleJson(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();

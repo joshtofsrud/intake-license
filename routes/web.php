@@ -281,6 +281,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
                 Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
+                Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
                 // MARKER-PATCH-197 — Stripe-vs-ledger reconciliation.
                 Route::get('/register/reconciliation',   [TenantControllers\RegisterController::class, 'reconciliation'])->name('register.reconciliation');
                 Route::post('/register/reconciliation/record', [TenantControllers\RegisterController::class, 'reconcilePayment'])->name('register.reconciliation.record');
