@@ -341,6 +341,15 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/rentals/settings',  [TenantControllers\RentalSettingsController::class, 'index'])->name('rentals.settings');
                 Route::post('/rentals/settings', [TenantControllers\RentalSettingsController::class, 'save'])->name('rentals.settings.save');
 
+                // MARKER-PATCH-229 — lease packages (the tier builder). Gated
+                // in-controller on leases_enabled.
+                Route::get( '/rentals/leases/packages',                 [TenantControllers\LeasePackageController::class, 'index'])->name('rentals.leases.packages');
+                Route::post('/rentals/leases/packages',                 [TenantControllers\LeasePackageController::class, 'store'])->name('rentals.leases.packages.store');
+                Route::patch('/rentals/leases/packages/{id}',           [TenantControllers\LeasePackageController::class, 'update'])->name('rentals.leases.packages.update');
+                Route::delete('/rentals/leases/packages/{id}',          [TenantControllers\LeasePackageController::class, 'destroy'])->name('rentals.leases.packages.destroy');
+                Route::post('/rentals/leases/packages/{id}/slots',      [TenantControllers\LeasePackageController::class, 'addSlot'])->name('rentals.leases.packages.slots.add');
+                Route::delete('/rentals/leases/packages/{id}/slots/{slotId}', [TenantControllers\LeasePackageController::class, 'removeSlot'])->name('rentals.leases.packages.slots.remove');
+
                 // MARKER-PATCH-223 — fleet-wide availability timeline.
                 Route::get('/rentals/availability-timeline',     [TenantControllers\RentalAvailabilityTimelineController::class, 'index'])->name('rentals.availability.timeline');
                 Route::get('/rentals/bookings',                  [TenantControllers\RentalBookingController::class, 'index'])->name('rentals.bookings.index');

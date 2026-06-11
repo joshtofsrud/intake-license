@@ -10,7 +10,7 @@
     ['key' => 'availability', 'label' => 'Availability', 'route' => 'tenant.rentals.availability.timeline'],
   ];
   if (tenant()->leases_enabled) {
-    $rnTabs[] = ['key' => 'leases', 'label' => 'Leases', 'route' => 'tenant.rentals.desk']; // 229 retargets
+    $rnTabs[] = ['key' => 'leases', 'label' => 'Leases', 'route' => 'tenant.rentals.leases.packages']; // MARKER-PATCH-229
   }
   $rnTabs[] = ['key' => 'settings', 'label' => 'Settings', 'route' => 'tenant.rentals.settings'];
 @endphp
