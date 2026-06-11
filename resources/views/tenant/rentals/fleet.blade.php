@@ -72,13 +72,14 @@
 
 @section('content')
 
+@include('layouts.tenant._rental-nav', ['active' => 'fleet'])
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Fleet</h1>
     <p class="ia-page-subtitle">Models define what a thing is and what it costs. Units are the serial-tracked items customers take out.</p>
   </div>
   <div style="display:flex;gap:8px">
-    <a href="{{ route('tenant.rentals.desk') }}" class="ia-btn">Rental Desk</a>
     <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('fl-add-model').scrollIntoView({behavior:'smooth'});document.getElementById('fl-add-model-d').open=true">+ Add model</button>
   </div>
 </div>

@@ -29,7 +29,7 @@
       'label'  => 'Rentals',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="3.4" cy="9.8" r="2.1" stroke="currentColor" stroke-width="1.2"/><circle cx="10.6" cy="9.8" r="2.1" stroke="currentColor" stroke-width="1.2"/><path d="M3.4 9.8L5.6 5.2h3.2M10.6 9.8L8.6 4.4M5 3.2h2.4M8.6 4.4l-.4-1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
       'group'  => null,
-      'gate'   => 'rentals_enabled',
+      'gate'   => 'rentals_visible', // MARKER-PATCH-228B — visibility toggle
     ],
     [
       // MARKER-PATCH-221 — unified inbox (SMS two-way, phase 1).

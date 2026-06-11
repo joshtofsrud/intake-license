@@ -5,13 +5,14 @@
 
 @section('content')
 
+@include('layouts.tenant._rental-nav', ['active' => 'bookings'])
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Rental Bookings</h1>
     <p class="ia-page-subtitle">Reservations, what's out the door, and what's come back.</p>
   </div>
   <div style="display:flex;gap:8px">
-    <a href="{{ route('tenant.rentals.desk') }}" class="ia-btn">Rental Desk</a>
     <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--primary">New rental</a>
   </div>
 </div>

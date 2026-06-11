@@ -5,6 +5,8 @@
 
 @section('content')
 
+@include('layouts.tenant._rental-nav', ['active' => 'bookings'])
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">New Rental</h1>

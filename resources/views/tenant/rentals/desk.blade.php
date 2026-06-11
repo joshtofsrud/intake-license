@@ -25,16 +25,14 @@
 
 @section('content')
 
+@include('layouts.tenant._rental-nav', ['active' => 'desk'])
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Rental Desk</h1>
     <p class="ia-page-subtitle">Live view of your rental fleet — what's out, what's due, what's free.</p>
   </div>
   <div style="display:flex;gap:8px">
-    <a href="{{ route('tenant.rentals.availability.timeline') }}" class="ia-btn">Availability</a>
-    <a href="{{ route('tenant.rentals.bookings.index') }}" class="ia-btn">Bookings</a>
-    <a href="{{ route('tenant.rentals.fleet') }}" class="ia-btn">Manage fleet</a>
-    <a href="{{ route('tenant.rentals.settings') }}" class="ia-btn">Settings</a>
     <a href="{{ route('tenant.rentals.bookings.create') }}" class="ia-btn ia-btn--primary">New rental</a>
   </div>
 </div>

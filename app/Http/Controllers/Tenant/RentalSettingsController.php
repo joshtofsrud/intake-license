@@ -24,6 +24,7 @@ class RentalSettingsController extends Controller
             'seasonEnd'        => $s['season_end'] ?? '04-15',
             'leasesEnabled'    => (bool) ($s['leases_enabled'] ?? false),
             'leasingAvailable' => $tenant->leasing_available,
+            'rentalsVisible'   => (bool) ($s['rentals_visible'] ?? true), // MARKER-PATCH-228B
         ]);
     }
 
@@ -34,12 +35,14 @@ class RentalSettingsController extends Controller
         $request->validate([
             'season_start'  => ['required', 'regex:/^\d{2}-\d{2}$/'],
             'season_end'    => ['required', 'regex:/^\d{2}-\d{2}$/'],
-            'leases_enabled' => ['nullable', 'boolean'],
+            'leases_enabled'  => ['nullable', 'boolean'],
+            'rentals_visible' => ['nullable', 'boolean'], // MARKER-PATCH-228B
         ]);
 
         $settings = $tenant->settings ?? [];
         $settings['season_start'] = $request->input('season_start');
         $settings['season_end']   = $request->input('season_end');
+        $settings['rentals_visible'] = (bool) $request->input('rentals_visible'); // MARKER-PATCH-228B
 
         // The leasing toggle only takes effect when the plan tier makes
         // leasing available; otherwise it's forced off regardless of input.

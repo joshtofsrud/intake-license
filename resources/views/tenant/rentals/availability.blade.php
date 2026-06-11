@@ -36,6 +36,8 @@
 
 @section('content')
 
+@include('layouts.tenant._rental-nav', ['active' => 'availability'])
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Availability</h1>

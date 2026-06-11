@@ -354,6 +354,19 @@ class Tenant extends Model
         return (bool) ($this->settings['leases_enabled'] ?? false);
     }
 
+    /**
+     * MARKER-PATCH-228B — rentals visibility toggle. Entitlement (rentals
+     * addon) is the hard gate; this is the shop's on/off preference on top.
+     * Defaults ON so existing shops are unaffected.
+     */
+    public function getRentalsVisibleAttribute(): bool
+    {
+        if (!$this->rentals_enabled) {
+            return false;
+        }
+        return (bool) ($this->settings['rentals_visible'] ?? true);
+    }
+
     public function getUnifiedInboxEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'unified_inbox');

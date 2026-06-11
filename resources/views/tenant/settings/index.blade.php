@@ -928,6 +928,31 @@
       </div>
     </div>
 
+    {{-- MARKER-PATCH-228B — Rentals pointer card --}}
+    @if($currentTenant->rentals_enabled)
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="ia-card-title">Rentals &amp; leasing</span>
+        <span class="ia-badge {{ $currentTenant->rentals_visible ? 'ia-badge--paid' : 'ia-badge--unpaid' }}">
+          {{ $currentTenant->rentals_visible ? 'On' : 'Hidden' }}{{ $currentTenant->leases_enabled ? ' · leasing' : '' }}
+        </span>
+      </div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        Turn rentals on or off, configure your season window, and enable season-long leasing.
+      </p>
+      <a href="{{ route('tenant.rentals.settings') }}" class="ia-btn ia-btn--primary">Open Rental settings</a>
+    </div>
+    @endif
+
+    {{-- MARKER-PATCH-228B — Notifications/Alerts pointer card --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Notifications</span></div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        Choose how you hear about new bookings, overdue rentals, payments, and more — in-app and by text.
+      </p>
+      <a href="{{ route('tenant.alerts.prefs') }}" class="ia-btn ia-btn--primary">Open Notification settings</a>
+    </div>
+
     {{-- MARKER-PATCH-224 — SMS config moved to Settings -> Messaging --}}
     <div class="ia-card" style="margin-bottom:20px">
       <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
