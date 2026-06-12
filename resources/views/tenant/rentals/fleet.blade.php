@@ -75,8 +75,17 @@
   .fl-pager a{padding:6px 11px;border-radius:var(--ia-r-md);border:.5px solid var(--ia-border);text-decoration:none;color:inherit;font-size:12.5px}
   .fl-pager a.cur{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent;font-weight:650}
   .fl-add-line{display:flex;gap:8px;align-items:center;padding:8px 12px}
-  details.fl-section{margin-top:10px}
-  details.fl-section summary{cursor:pointer;font-size:12.5px;opacity:.7;padding:6px 0}
+  /* MARKER-PATCH-242 — slim ghost add-forms, no native triangle. The +
+     is the affordance and rotates to x when open. */
+  details.fl-section{border-style:dashed;background:transparent;transition:background var(--ia-t,.12s)}
+  details.fl-section:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
+  details.fl-section[open]{border-style:solid;background:var(--ia-surface,#1c1c1c)}
+  details.fl-section summary{cursor:pointer;font-size:12.5px;font-weight:550;color:var(--ia-text-dim,rgba(255,255,255,.55));padding:2px 0;display:flex;align-items:center;gap:9px;list-style:none}
+  details.fl-section summary::-webkit-details-marker{display:none}
+  details.fl-section summary::before{content:'+';font-size:15px;font-weight:600;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;transition:transform .14s ease;flex-shrink:0}
+  details.fl-section[open] summary::before{transform:rotate(45deg)}
+  details.fl-section[open] summary{color:var(--ia-text,#f0f0f0)}
+  details.fl-section summary:hover{color:var(--ia-text,#f0f0f0)}
 </style>
 @endpush
 
@@ -245,10 +254,10 @@
 @endif
 
 {{-- ============ add category / model / checklist (collapsed) ============ --}}
-<div style="margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+<div style="margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:start">
   {{-- add category --}}
-  <details class="ia-card fl-section" style="padding:16px">
-    <summary>+ Add a category</summary>
+  <details class="ia-card fl-section" style="padding:11px 16px">
+    <summary>Add a category</summary>
     <form method="POST" action="{{ route('tenant.rentals.fleet.categories.store') }}" style="margin-top:12px">
       @csrf
       <div class="fl-fieldgrid" style="grid-template-columns:1fr 1fr">
@@ -260,8 +269,8 @@
   </details>
 
   {{-- add checklist --}}
-  <details class="ia-card fl-section" style="padding:16px">
-    <summary>+ Add a condition checklist</summary>
+  <details class="ia-card fl-section" style="padding:11px 16px">
+    <summary>Add a condition checklist</summary>
     <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}" style="margin-top:12px">
       @csrf
       <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Ski checklist" required></div>
@@ -269,11 +278,10 @@
       <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:12px">Add checklist</button>
     </form>
   </details>
-</div>
 
-{{-- add model --}}
-<details class="ia-card fl-section" style="padding:16px;margin-top:16px" id="fl-add-model-d">
-  <summary id="fl-add-model">+ Add a model</summary>
+  {{-- add model — MARKER-PATCH-242: lives in the same row now --}}
+  <details class="ia-card fl-section" style="padding:11px 16px" id="fl-add-model-d">
+    <summary id="fl-add-model">Add a model</summary>
   <form method="POST" action="{{ route('tenant.rentals.fleet.models.store') }}" style="margin-top:12px">
     @csrf
     <div class="fl-fieldgrid">
@@ -298,7 +306,8 @@
     <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:14px">Add model</button>
     <span style="font-size:11px;opacity:.5;margin-left:8px">Fill a tag/size to also create the first unit. Add more with "Add units" on the model.</span>
   </form>
-</details>
+  </details>
+</div>
 
 <script>
 (function(){
