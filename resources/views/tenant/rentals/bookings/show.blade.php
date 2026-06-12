@@ -156,8 +156,10 @@
             <button type="submit" class="ia-btn" style="width:100%">Cancel reservation</button>
           </form>
         @elseif($rental->status === 'out')
-          <form method="POST" action="{{ route('tenant.rentals.bookings.checkin', $rental->id) }}">@csrf
-            <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Check in (return)</button>
+          {{-- MARKER-PATCH-233 — guided return is the front door; one-click stays as the escape hatch. --}}
+          <a href="{{ route('tenant.rentals.bookings.return.flow', $rental->id) }}" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center;text-decoration:none">Start return →</a>
+          <form method="POST" action="{{ route('tenant.rentals.bookings.checkin', $rental->id) }}" onsubmit="return confirm('Skip inspection and charges? A clean check-in auto-releases any deposit hold.')">@csrf
+            <button type="submit" class="ia-btn" style="width:100%">Quick check in (skip flow)</button>
           </form>
         @else
           <p style="font-size:12.5px;opacity:.55;margin:0">
@@ -165,7 +167,7 @@
           </p>
         @endif
       </div>
-      <p style="font-size:11px;opacity:.45;margin-top:10px">Guided return flow (condition compare, late fees, deposit decisions) arrives in the next update.</p>
+
     </div>
 
     @if($rental->notes)

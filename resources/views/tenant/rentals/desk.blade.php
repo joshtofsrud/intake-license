@@ -95,7 +95,7 @@
       <div style="padding:22px 20px;font-size:12.5px;opacity:.55">Nothing due back today — all clear.</div>
     @else
     <table class="ia-table">
-      <thead><tr><th>Customer</th><th>Unit</th><th>Due</th><th>Status</th></tr></thead>
+      <thead><tr><th>Customer</th><th>Unit</th><th>Due</th><th>Status</th><th></th></tr></thead>
       <tbody>
         @foreach($dueBack as $r)
           @php
@@ -120,6 +120,10 @@
               @else
                 <span class="ia-badge ia-badge--out">Out</span>
               @endif
+            </td>
+            <td style="text-align:right">
+              {{-- MARKER-PATCH-233 — desk returns open the guided flow. --}}
+              <a href="{{ route('tenant.rentals.bookings.return.flow', $r->id) }}" onclick="event.stopPropagation()" class="ia-btn {{ $late ? 'ia-btn--primary' : '' }}" style="font-size:11.5px;padding:4px 10px;text-decoration:none">Start return</a>
             </td>
           </tr>
         @endforeach

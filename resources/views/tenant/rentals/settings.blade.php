@@ -74,6 +74,33 @@
     @endif
   </div>
 
+  {{-- MARKER-PATCH-233 — late & overdue policy. Suggested automatically
+       in the return flow; always editable per return. --}}
+  <div class="ia-card" style="padding:18px 20px;margin-bottom:16px">
+    <div class="ia-card-head"><span class="ia-card-title">Late &amp; overdue policy</span></div>
+    <p style="font-size:12.5px;opacity:.55;margin:6px 0 14px;line-height:1.5">
+      The return flow suggests a late fee from these rules. Staff can edit or waive it on every return — this sets the default, not a mandate.
+    </p>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:end">
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Grace period (minutes)</label>
+        <input type="number" name="late_grace_minutes" value="{{ $lateGraceMinutes }}" min="0" max="1440" class="ia-input" style="width:120px">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Late fee ($ / hour)</label>
+        <input type="number" name="late_fee_per_hour" value="{{ $lateFeePerHour }}" min="0" step="0.01" class="ia-input" style="width:120px;text-align:right">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Cap the fee at</label>
+        <select name="late_fee_cap" class="ia-input">
+          <option value="day_rate" {{ $lateFeeCap === 'day_rate' ? 'selected' : '' }}>One day's rate</option>
+          <option value="none" {{ $lateFeeCap === 'none' ? 'selected' : '' }}>No cap</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:11.5px;opacity:.45;margin-top:10px">Within the grace period nothing is suggested. Past it, full hours from the due time are billed. Set $0/hour to turn suggestions off.</p>
+  </div>
+
   <button type="submit" class="ia-btn ia-btn--primary">Save settings</button>
 </form>
 

@@ -438,6 +438,263 @@ class RentalBookingController extends Controller
         });
     }
 
+    // -------------------------------------------- return flow (PATCH-233)
+    /**
+     * MARKER-PATCH-233 — guided out → returned. Inspect (in-checks beside
+     * the 232 out-checks) → Charges (policy-suggested late fee + damage,
+     * collected through the register) → Close (deposit decision + per-unit
+     * routing + the locked status flip).
+     */
+    public function returnFlow(string $id)
+    {
+        $tenant = tenant();
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+            ->with([
+                'customer',
+                'lines' => fn ($q) => $q->orderBy('sort_order'),
+                'lines.unit.conditionTemplate',
+                'conditionChecks',
+            ])
+            ->firstOrFail();
+
+        if ($rental->status !== 'out') {
+            return redirect()->route('tenant.rentals.bookings.show', $rental->id)
+                ->withErrors(['status' => 'Only out rentals can start a return.']);
+        }
+
+        $unitLines    = $rental->lines->where('kind', 'unit')->values();
+        $outChecks    = $rental->conditionChecks->where('phase', 'check_out')->keyBy('unit_id');
+        $inChecks     = $rental->conditionChecks->where('phase', 'check_in')->keyBy('unit_id');
+        $balanceCents = max(0, (int) $rental->total_cents - (int) $rental->paid_cents);
+
+        [$lateMinutes, $suggestedLateFeeCents, $policy] = $this->lateFeeSuggestion($rental);
+
+        return view('tenant.rentals.bookings.return', [
+            'rental'        => $rental,
+            'unitLines'     => $unitLines,
+            'outChecks'     => $outChecks,
+            'inChecks'      => $inChecks,
+            'balanceCents'  => $balanceCents,
+            'lateMinutes'   => $lateMinutes,
+            'suggestedLateFeeCents' => $suggestedLateFeeCents,
+            'latePolicy'    => $policy,
+        ]);
+    }
+
+    /**
+     * Policy lives in tenant settings (editable on the Rental Settings
+     * page, this patch). Grace forgives entirely; past grace, full hours
+     * from the due time are billed; cap-at-day-rate uses the largest
+     * effective daily rate among the rental's units.
+     */
+    private function lateFeeSuggestion(TenantRental $rental): array
+    {
+        $s = tenant()->settings ?? [];
+        $policy = [
+            'grace_minutes' => (int) ($s['rental_late_grace_minutes'] ?? 30),
+            'per_hour_cents' => (int) ($s['rental_late_fee_cents_per_hour'] ?? 0),
+            'cap'           => (string) ($s['rental_late_fee_cap'] ?? 'day_rate'), // day_rate | none
+        ];
+
+        $lateMinutes = $rental->due_at && now()->greaterThan($rental->due_at)
+            ? (int) $rental->due_at->diffInMinutes(now())
+            : 0;
+
+        $suggested = 0;
+        if ($lateMinutes > $policy['grace_minutes'] && $policy['per_hour_cents'] > 0) {
+            $suggested = (int) ceil($lateMinutes / 60) * $policy['per_hour_cents'];
+            if ($policy['cap'] === 'day_rate') {
+                $dayCap = (int) $rental->lines->where('kind', 'unit')
+                    ->max(fn ($l) => (int) ($l->unit?->effectiveDailyCents() ?? 0));
+                if ($dayCap > 0) {
+                    $suggested = min($suggested, $dayCap);
+                }
+            }
+        }
+
+        return [$lateMinutes, $suggested, $policy];
+    }
+
+    /**
+     * Counter-collection path: late fee + damage become rental lines (the
+     * totals stay truthful), then one linked draft sale opens in the
+     * register with a return_to back to this flow (PATCH-232B). The OTHER
+     * path — taking charges from the deposit — is captureDeposit (PATCH-220),
+     * which writes its own line + sale. One or the other, never both.
+     */
+    public function addReturnCharges(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $request->validate([
+            'late_fee'         => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'damage_labels'    => ['nullable', 'array', 'max:10'],
+            'damage_labels.*'  => ['nullable', 'string', 'max:200'],
+            'damage_amounts'   => ['nullable', 'array', 'max:10'],
+            'damage_amounts.*' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+        ]);
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+        if ($rental->status !== 'out') {
+            return back()->withErrors(['charges' => 'Charges are added during an active return.']);
+        }
+
+        $charges = [];
+        $lateFeeCents = (int) round(((float) $request->input('late_fee', 0)) * 100);
+        if ($lateFeeCents > 0) {
+            $charges[] = ['label' => 'Late return fee', 'cents' => $lateFeeCents];
+        }
+        $labels  = (array) $request->input('damage_labels', []);
+        $amounts = (array) $request->input('damage_amounts', []);
+        foreach ($labels as $i => $label) {
+            $cents = (int) round(((float) ($amounts[$i] ?? 0)) * 100);
+            $label = trim((string) $label);
+            if ($label !== '' && $cents > 0) {
+                $charges[] = ['label' => $label, 'cents' => $cents];
+            }
+        }
+
+        if (!count($charges)) {
+            return back()->withErrors(['charges' => 'Nothing to charge — enter an amount or skip this step.']);
+        }
+
+        $chargeTotal = array_sum(array_column($charges, 'cents'));
+
+        $sale = DB::transaction(function () use ($tenant, $rental, $charges, $chargeTotal) {
+            $sort = 900;
+            foreach ($charges as $c) {
+                TenantRentalLine::create([
+                    'rental_id'           => $rental->id,
+                    'kind'                => 'addon',
+                    'name_snapshot'       => $c['label'],
+                    'rate_mode_snapshot'  => 'flat',
+                    'rate_cents_snapshot' => $c['cents'],
+                    'quantity'            => 1,
+                    'duration_units'      => 1,
+                    'line_total_cents'    => $c['cents'],
+                    'sort_order'          => $sort++,
+                ]);
+            }
+            $rental->update([
+                'subtotal_cents' => (int) $rental->subtotal_cents + $chargeTotal,
+                'total_cents'    => (int) $rental->total_cents + $chargeTotal,
+            ]);
+
+            $sale = TenantSale::create([
+                'id'                 => (string) Str::uuid(),
+                'tenant_id'          => $tenant->id,
+                'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
+                'sale_date'          => now()->toDateString(),
+                'status'             => 'pending',
+                'payment_status'     => 'draft',
+                'customer_id'        => $rental->customer_id,
+                'rental_id'          => $rental->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'subtotal_cents'     => $chargeTotal,
+                'tax_cents'          => 0,
+                'total_cents'        => $chargeTotal,
+                'notes'              => 'Return charges for rental ' . $rental->rental_number,
+            ]);
+            $pos = 0;
+            foreach ($charges as $c) {
+                TenantSaleItem::create([
+                    'id'               => (string) Str::uuid(),
+                    'tenant_id'        => $tenant->id,
+                    'sale_id'          => $sale->id,
+                    'type'             => 'open_item',
+                    'name_snapshot'    => $c['label'] . ' — ' . $rental->rental_number,
+                    'quantity'         => 1,
+                    'unit_price_cents' => $c['cents'],
+                    'line_total_cents' => $c['cents'],
+                    'is_taxable'       => false,
+                    'position'         => $pos++,
+                    'notes'            => 'Return-flow charge; payment cascades to the rental ledger cache.',
+                ]);
+            }
+
+            return $sale;
+        });
+
+        $returnTo = '/admin/rentals/bookings/' . $rental->id . '/return-flow';
+
+        return redirect(route('tenant.register.index') . '?resume=' . $sale->id . '&return_to=' . urlencode($returnTo))
+            ->with('flash', "Sale {$sale->sale_number} created — take payment in the register.");
+    }
+
+    /**
+     * The flow's finalizer: deposit decision + per-unit routing + the same
+     * locked out→returned flip. Unlike quick check-in, NOTHING is automatic
+     * here — release only happens when staff chose it.
+     */
+    public function completeReturn(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $request->validate([
+            'deposit_action'  => ['nullable', 'in:release,hold'],
+            'routing'         => ['nullable', 'array'],
+            'routing.*'       => ['in:available,maintenance'],
+            'routing_note'    => ['nullable', 'array'],
+            'routing_note.*'  => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $routing      = (array) $request->input('routing', []);
+        $routingNotes = (array) $request->input('routing_note', []);
+        $depositAction = $request->input('deposit_action');
+
+        return $this->transition($id, 'out', function (TenantRental $rental) use ($tenant, $routing, $routingNotes, $depositAction) {
+            $message = 'Returned.';
+
+            // Deposit: explicit decision only.
+            if ($rental->deposit_status === 'authorized' && $rental->stripe_deposit_intent_id) {
+                if ($depositAction === 'release') {
+                    try {
+                        (new \App\Services\Tenant\DirectPaymentsService($tenant))
+                            ->cancelDepositHold($rental->stripe_deposit_intent_id);
+                        $rental->deposit_status = 'released';
+                        $message = 'Returned. Deposit hold released.';
+                    } catch (\Throwable $e) {
+                        \Log::error('rental_deposit.release_on_return_failed', [
+                            'rental_id' => $rental->id, 'error' => $e->getMessage(),
+                        ]);
+                        $message = 'Returned. Deposit hold could NOT be released — use the booking page or the Stripe dashboard.';
+                    }
+                } else {
+                    $message = 'Returned. Deposit still on hold — release or capture from the booking page.';
+                }
+            }
+
+            // Unit routing: available (default, derived anyway) or maintenance.
+            foreach ($rental->lines->where('kind', 'unit') as $line) {
+                $unit = $line->unit;
+                if (!$unit) {
+                    continue;
+                }
+                $route = $routing[$unit->id] ?? 'available';
+                $note  = trim((string) ($routingNotes[$unit->id] ?? ''));
+                if ($route === 'maintenance') {
+                    $unit->status = 'maintenance';
+                    if ($note !== '') {
+                        $unit->notes = trim(($unit->notes ? $unit->notes . "\n" : '')
+                            . '[' . now()->format('Y-m-d') . '] Return routing: ' . $note);
+                    }
+                    $unit->save();
+                } elseif ($unit->status === 'maintenance' && $route === 'available') {
+                    // Returning a unit that was somehow flagged: leave
+                    // maintenance alone — clearing it is a deliberate fleet
+                    // action, not a return side-effect.
+                }
+            }
+
+            $rental->status = 'returned';
+            $rental->returned_at = now();
+            $rental->save();
+
+            return $message;
+        });
+    }
+
     // --------------------------------------------------------- transitions
     public function checkOut(Request $request, string $id)
     {

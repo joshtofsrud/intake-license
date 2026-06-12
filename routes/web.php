@@ -370,6 +370,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/bookings/{id}/agreement/sign',   [TenantControllers\RentalBookingController::class, 'signAgreement'])->name('rentals.bookings.agreement.sign');
                 Route::post('/rentals/bookings/{id}/condition-check',  [TenantControllers\RentalBookingController::class, 'storeConditionCheck'])->name('rentals.bookings.condition.store');
                 Route::post('/rentals/bookings/{id}/check-out-complete', [TenantControllers\RentalBookingController::class, 'completeCheckOut'])->name('rentals.bookings.checkout.complete');
+                // MARKER-PATCH-233 — guided return flow.
+                Route::get( '/rentals/bookings/{id}/return-flow',     [TenantControllers\RentalBookingController::class, 'returnFlow'])->name('rentals.bookings.return.flow');
+                Route::post('/rentals/bookings/{id}/return-charges',  [TenantControllers\RentalBookingController::class, 'addReturnCharges'])->name('rentals.bookings.return.charges');
+                Route::post('/rentals/bookings/{id}/return-complete', [TenantControllers\RentalBookingController::class, 'completeReturn'])->name('rentals.bookings.return.complete');
                 Route::post('/rentals/bookings/{id}/check-in',   [TenantControllers\RentalBookingController::class, 'checkIn'])->name('rentals.bookings.checkin');
                 Route::post('/rentals/bookings/{id}/cancel',     [TenantControllers\RentalBookingController::class, 'cancel'])->name('rentals.bookings.cancel');
                 Route::post('/rentals/bookings/{id}/collect-payment', [TenantControllers\RentalBookingController::class, 'collectPayment'])->name('rentals.bookings.collect');
