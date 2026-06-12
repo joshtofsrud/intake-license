@@ -349,11 +349,42 @@
 <script>
 (function(){
   var csrf = '{{ csrf_token() }}';
+  // MARKER-PATCH-244 — every auto-save reports through one toast; errors
+  // are no longer swallowed. Saving… → Saved ✓ / message.
+  var toast = document.createElement('div');
+  toast.id = 'fl-toast';
+  toast.style.cssText = 'position:fixed;bottom:22px;right:22px;z-index:400;font-size:12.5px;font-weight:600;padding:9px 16px;border-radius:9px;background:var(--ia-surface,#1c1c1c);border:.5px solid var(--ia-border,rgba(255,255,255,.13));color:var(--ia-text,#f0f0f0);box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(6px);transition:all .15s ease;pointer-events:none';
+  document.body.appendChild(toast);
+  var toastTimer = null;
+  function showToast(msg, tone){
+    toast.textContent = msg;
+    toast.style.color = tone === 'err' ? '#ff8b8b' : (tone === 'ok' ? 'var(--ia-accent,#BEF264)' : 'var(--ia-text,#f0f0f0)');
+    toast.style.opacity = '1';
+    toast.style.transform = 'none';
+    clearTimeout(toastTimer);
+    if (tone !== 'busy') toastTimer = setTimeout(function(){ toast.style.opacity = '0'; toast.style.transform = 'translateY(6px)'; }, tone === 'err' ? 3500 : 1400);
+  }
   function patch(url, field, value, ok){
+    showToast('Saving…', 'busy');
     fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'PATCH'},
       body: JSON.stringify({field:field, value:value})})
-      .then(function(r){return r.json();}).then(function(j){ if(j && j.success===false && j.message) alert(j.message); else if(ok) ok(); }).catch(function(){});
+      .then(function(r){
+        if (!r.ok && r.status !== 422) throw new Error('http ' + r.status);
+        return r.json();
+      })
+      .then(function(j){
+        if (j && j.success === false) { showToast(j.message || 'Could not save.', 'err'); return; }
+        showToast('Saved ✓', 'ok');
+        if (ok) ok();
+      })
+      .catch(function(){ showToast("Couldn't save — check your connection and retry.", 'err'); });
   }
+  // Enter commits a text field (blur fires change fires save).
+  document.querySelectorAll('[data-mf],[data-uf],[data-cf],[data-ctf]').forEach(function(el){
+    if (el.tagName === 'INPUT') {
+      el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+    }
+  });
   // model field edits
   document.querySelectorAll('.fl-model-body').forEach(function(body){
     var url = '{{ url('admin/rentals/fleet/models') }}/' + body.getAttribute('data-model');
