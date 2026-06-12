@@ -19,6 +19,13 @@
   $overlayOpacity = max(0, min(100, (int)($c['bg_overlay_opacity'] ?? 50)));
   $overlayColor   = $c['bg_overlay_color'] ?? '#000000';
 
+  // MARKER-PATCH-250 — parallax + blur (image mode only, ?? everywhere).
+  $hasImage   = $bgMode === 'image' && $imgUrl;
+  $parallaxOn = $hasImage && (($c['bg_parallax'] ?? '0') === '1');
+  $pDepth     = max(0, min(70, (int)($c['bg_parallax_depth'] ?? 35))) / 100;
+  $blurPx     = max(0, min(14, (int)($c['bg_blur'] ?? 0)));
+  $useVeil    = $hasImage && ($parallaxOn || $blurPx > 0);
+
   // Colors
   $textColor     = ($c['text_color']      ?? '') ?: '#ffffff';
   $textColorBody = ($c['text_color_body'] ?? '') ?: 'rgba(255,255,255,0.7)';
@@ -59,23 +66,53 @@
   padding-top: {{ $padTop }};
   padding-bottom: {{ $padBot }};
   overflow: hidden;
-  @if($bgMode === 'image' && $imgUrl)
+  @if($bgMode === 'image' && $imgUrl && !$parallaxOn)
   background-color: {{ $bgColor }};
   background-image: url('{{ $imgUrl }}');
   background-size: cover;
   background-position: center;
+  @elseif($parallaxOn)
+  background-color: {{ $bgColor }}; {{-- MARKER-PATCH-250 — image moves to .p-cta-bg --}}
   @elseif($bgMode === 'gradient')
   background: linear-gradient(135deg, {{ $gradF }} 0%, {{ $gradT }} 100%);
   @else
   background: {{ $bgColor }};
   @endif
 }
-@if($bgMode === 'image' && $imgUrl && $overlayOpacity > 0)
+@if($bgMode === 'image' && $imgUrl && $overlayOpacity > 0 && !$useVeil)
 .{{ $instId }}::before {
   content: '';
   position: absolute; inset: 0;
   background: {{ $overlayColor }};
   opacity: {{ $overlayOpacity / 100 }};
+  pointer-events: none;
+}
+@endif
+@if($parallaxOn)
+.{{ $instId }} .p-cta-bg { {{-- MARKER-PATCH-250 --}}
+  position: absolute;
+  left: 0; right: 0; top: -18%; bottom: -18%;
+  background-color: {{ $bgColor }};
+  background-image: url('{{ $imgUrl }}');
+  background-size: cover;
+  background-position: center;
+  will-change: transform;
+  z-index: 0;
+  pointer-events: none;
+}
+@endif
+@if($useVeil)
+.{{ $instId }} .p-cta-veil { {{-- MARKER-PATCH-250 --}}
+  position: absolute; inset: 0;
+  @if($overlayOpacity > 0)
+  background: {{ $overlayColor }};
+  opacity: {{ $overlayOpacity / 100 }};
+  @endif
+  @if($blurPx > 0)
+  backdrop-filter: blur({{ $blurPx }}px);
+  -webkit-backdrop-filter: blur({{ $blurPx }}px);
+  @endif
+  z-index: 0;
   pointer-events: none;
 }
 @endif
@@ -162,6 +199,9 @@
 </style>
 
 <section class="{{ $instId }} p-cta-banner {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+  {{-- MARKER-PATCH-250 — layered background: bg (moves) under veil under content. --}}
+  @if($parallaxOn)<div class="p-cta-bg" data-ia-parallax="{{ $pDepth }}"></div>@endif
+  @if($useVeil)<div class="p-cta-veil"></div>@endif
   <div class="p-cta-inner">
     @if(!empty($c['eyebrow']))
       <div class="p-cta-eyebrow">{{ $c['eyebrow'] }}</div>
@@ -187,3 +227,33 @@
     @endif
   </div>
 </section>
+
+@if($parallaxOn)
+{{-- MARKER-PATCH-250 — same shared driver as the hero; the window guard
+     ensures exactly one scroll listener no matter which partial loads first. --}}
+<script>
+(function () {
+  if (window.__iaParallaxBound) return;
+  window.__iaParallaxBound = true;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var ticking = false;
+  function frame() {
+    var els = document.querySelectorAll('[data-ia-parallax]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var host = el.parentElement;
+      if (!host) continue;
+      var r = host.getBoundingClientRect();
+      if (r.bottom < -200 || r.top > window.innerHeight + 200) continue;
+      var d = parseFloat(el.getAttribute('data-ia-parallax')) || 0.35;
+      el.style.transform = 'translate3d(0,' + (-r.top * d).toFixed(1) + 'px,0)';
+    }
+    ticking = false;
+  }
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+  frame();
+})();
+</script>
+@endif

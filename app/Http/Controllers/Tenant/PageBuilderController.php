@@ -198,6 +198,10 @@ class PageBuilderController extends Controller
             // Legacy
             'cta_label'       => 'Book Now',
             'cta_url'         => '/book',
+            // MARKER-PATCH-250 — Design series: motion + blur (image mode).
+            'bg_parallax'     => '0',
+            'bg_parallax_depth' => 35,
+            'bg_blur'         => 0,
             // Layout
             'text_align'      => 'center',
             'content_max_width' => 640,
