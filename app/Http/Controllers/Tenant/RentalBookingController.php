@@ -43,27 +43,79 @@ class RentalBookingController extends Controller
     // ------------------------------------------------------------------ list
     public function index(Request $request)
     {
+        // MARKER-PATCH-234 — triage-first list. "Needs attention" = overdue,
+        // or balance due on a reservation starting today. Search spans
+        // rental #, customer name, and unit/line names; filters layer on
+        // every tab.
         $tenant = tenant();
-        $tab = in_array($request->query('tab'), ['out', 'upcoming', 'past'], true)
-            ? $request->query('tab') : 'out';
+        $tab = in_array($request->query('tab'), ['attention', 'out', 'upcoming', 'done', 'all'], true)
+            ? $request->query('tab') : 'attention';
+        $q        = trim((string) $request->query('q', ''));
+        $category = (string) $request->query('category', '');
+        $when     = in_array($request->query('when'), ['today', 'week'], true) ? $request->query('when') : '';
+
+        $todayStartUtc = tnow()->startOfDay()->clone()->utc();
+        $todayEndUtc   = tnow()->endOfDay()->clone()->utc();
 
         $base = TenantRental::where('tenant_id', $tenant->id)
             ->with(['customer:id,first_name,last_name', 'lines:id,rental_id,name_snapshot,kind']);
 
-        $rentals = match ($tab) {
-            'out'      => (clone $base)->where('status', 'out')->orderBy('due_at')->limit(100)->get(),
-            'upcoming' => (clone $base)->where('status', 'reserved')->orderBy('starts_at')->limit(100)->get(),
-            'past'     => (clone $base)->whereIn('status', ['returned', 'cancelled'])
-                              ->orderByDesc('returned_at')->orderByDesc('updated_at')->limit(100)->get(),
+        if ($q !== '') {
+            $base->where(function ($w) use ($q) {
+                $w->where('rental_number', 'like', '%' . $q . '%')
+                    ->orWhereHas('customer', function ($c) use ($q) {
+                        $c->where('first_name', 'like', '%' . $q . '%')
+                          ->orWhere('last_name', 'like', '%' . $q . '%');
+                    })
+                    ->orWhereHas('lines', fn ($l) => $l->where('name_snapshot', 'like', '%' . $q . '%'));
+            });
+        }
+        if ($category !== '') {
+            $base->whereHas('lines.unit', fn ($u) => $u->where('category_id', $category));
+        }
+        if ($when === 'today') {
+            $base->where(function ($w) use ($todayStartUtc, $todayEndUtc) {
+                $w->whereBetween('starts_at', [$todayStartUtc, $todayEndUtc])
+                  ->orWhereBetween('due_at', [$todayStartUtc, $todayEndUtc]);
+            });
+        } elseif ($when === 'week') {
+            $weekEndUtc = tnow()->addDays(7)->endOfDay()->clone()->utc();
+            $base->where(function ($w) use ($todayStartUtc, $weekEndUtc) {
+                $w->whereBetween('starts_at', [$todayStartUtc, $weekEndUtc])
+                  ->orWhereBetween('due_at', [$todayStartUtc, $weekEndUtc]);
+            });
+        }
+
+        $attention = function ($query) use ($todayStartUtc, $todayEndUtc) {
+            return $query->where(function ($w) use ($todayStartUtc, $todayEndUtc) {
+                $w->where(fn ($o) => $o->where('status', 'out')->where('due_at', '<', now()))
+                  ->orWhere(fn ($r) => $r->where('status', 'reserved')
+                      ->whereBetween('starts_at', [$todayStartUtc, $todayEndUtc])
+                      ->whereColumn('total_cents', '>', 'paid_cents'));
+            });
         };
 
+        $rentals = match ($tab) {
+            'attention' => $attention(clone $base)->orderBy('due_at')->orderBy('starts_at')->limit(200)->get(),
+            'out'       => (clone $base)->where('status', 'out')->orderBy('due_at')->limit(200)->get(),
+            'upcoming'  => (clone $base)->where('status', 'reserved')->orderBy('starts_at')->limit(200)->get(),
+            'done'      => (clone $base)->whereIn('status', ['returned', 'cancelled'])
+                               ->orderByDesc('returned_at')->orderByDesc('updated_at')->limit(200)->get(),
+            'all'       => (clone $base)->orderByDesc('created_at')->limit(200)->get(),
+        };
+
+        $countBase = TenantRental::where('tenant_id', $tenant->id);
         $counts = [
-            'out'      => TenantRental::where('tenant_id', $tenant->id)->where('status', 'out')->count(),
-            'upcoming' => TenantRental::where('tenant_id', $tenant->id)->where('status', 'reserved')->count(),
-            'past'     => TenantRental::where('tenant_id', $tenant->id)->whereIn('status', ['returned', 'cancelled'])->count(),
+            'attention' => $attention(clone $countBase)->count(),
+            'out'       => (clone $countBase)->where('status', 'out')->count(),
+            'upcoming'  => (clone $countBase)->where('status', 'reserved')->count(),
+            'done'      => (clone $countBase)->whereIn('status', ['returned', 'cancelled'])->count(),
         ];
 
-        return view('tenant.rentals.bookings.index', compact('rentals', 'tab', 'counts'));
+        $categories = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')->get(['id', 'name']);
+
+        return view('tenant.rentals.bookings.index', compact('rentals', 'tab', 'counts', 'q', 'category', 'when', 'categories'));
     }
 
     public function create()
@@ -231,10 +283,52 @@ class RentalBookingController extends Controller
                 'sales' => fn ($q) => $q->orderBy('created_at')->with([
                     'payments' => fn ($p) => $p->orderBy('recorded_at'),
                 ]),
+                'conditionChecks' => fn ($q) => $q->with('unit')->orderBy('performed_at'), // MARKER-PATCH-234
             ])
             ->firstOrFail();
 
-        return view('tenant.rentals.bookings.show', compact('rental'));
+        // MARKER-PATCH-234 — derived activity feed. No events table: every
+        // line is rebuilt from timestamps, checks, and ledger payments, so
+        // it can never drift from the record.
+        $feed = collect();
+        $feed->push(['at' => $rental->created_at, 'dot' => 'dim',
+            'text' => 'Reserved — ' . $rental->lines->where('kind', 'unit')->count() . ' unit(s)']);
+        if ($rental->agreement_signed_at) {
+            $feed->push(['at' => $rental->agreement_signed_at, 'dot' => 'lime',
+                'text' => 'Agreement v' . $rental->agreement_template_version . ' signed at the desk']);
+        }
+        foreach ($rental->conditionChecks as $check) {
+            $unitLabel = $check->unit?->identifier ?: 'unit';
+            $feed->push([
+                'at'   => $check->performed_at,
+                'dot'  => $check->flagged ? 'red' : 'blue',
+                'text' => ($check->phase === 'check_out' ? 'Out-check — ' : 'In-check — ') . $unitLabel
+                    . ($check->flagged ? ' (flagged)' : '')
+                    . ($check->notes ? ' · "' . \Illuminate\Support\Str::limit($check->notes, 80) . '"' : ''),
+            ]);
+        }
+        if ($rental->checked_out_at) {
+            $feed->push(['at' => $rental->checked_out_at, 'dot' => 'blue', 'text' => 'Checked out']);
+        }
+        foreach ($rental->sales as $sale) {
+            foreach ($sale->payments as $p) {
+                $feed->push([
+                    'at'   => $p->recorded_at,
+                    'dot'  => $p->amount_cents < 0 ? 'red' : 'lime',
+                    'text' => ($p->amount_cents < 0 ? 'Refund ' : 'Payment ') . format_money(abs($p->amount_cents))
+                        . ' — ' . $sale->sale_number . ($p->method ? ' · ' . $p->method : ''),
+                ]);
+            }
+        }
+        if ($rental->returned_at) {
+            $feed->push(['at' => $rental->returned_at, 'dot' => 'lime', 'text' => 'Returned']);
+        }
+        if ($rental->cancelled_at) {
+            $feed->push(['at' => $rental->cancelled_at, 'dot' => 'red', 'text' => 'Cancelled']);
+        }
+        $feed = $feed->filter(fn ($e) => $e['at'])->sortByDesc('at')->values();
+
+        return view('tenant.rentals.bookings.show', compact('rental', 'feed'));
     }
 
     // ------------------------------------------ check-out flow (PATCH-232)
@@ -433,7 +527,7 @@ class RentalBookingController extends Controller
         }
 
         return $this->transition($id, 'reserved', function (TenantRental $rental) {
-            $rental->update(['status' => 'out']);
+            $rental->update(['status' => 'out', 'checked_out_at' => now()]); // MARKER-PATCH-234
             return 'Checked out — ' . $rental->rental_number . ' is on its way.';
         });
     }
@@ -699,7 +793,7 @@ class RentalBookingController extends Controller
     public function checkOut(Request $request, string $id)
     {
         return $this->transition($id, 'reserved', function (TenantRental $rental) {
-            $rental->update(['status' => 'out']);
+            $rental->update(['status' => 'out', 'checked_out_at' => now()]); // MARKER-PATCH-234
             return 'Checked out.';
         });
     }
@@ -734,7 +828,7 @@ class RentalBookingController extends Controller
     public function cancel(Request $request, string $id)
     {
         return $this->transition($id, 'reserved', function (TenantRental $rental) {
-            $rental->update(['status' => 'cancelled']);
+            $rental->update(['status' => 'cancelled', 'cancelled_at' => now()]); // MARKER-PATCH-234
             return 'Reservation cancelled.';
         });
     }

@@ -46,6 +46,8 @@ class TenantRental extends Model
         'due_at'                     => 'datetime',
         'original_due_at'            => 'datetime',
         'returned_at'                => 'datetime',
+        'checked_out_at'             => 'datetime', // MARKER-PATCH-234
+        'cancelled_at'               => 'datetime', // MARKER-PATCH-234
         'agreement_signed_at'        => 'datetime',
         'subtotal_cents'             => 'integer',
         'tax_cents'                  => 'integer',

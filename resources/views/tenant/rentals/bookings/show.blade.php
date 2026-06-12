@@ -13,8 +13,9 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">{{ $rental->rental_number }}
-      <span style="font-size:13px;font-weight:800;color:{{ $statusColor }};margin-left:8px">{{ $late ? 'OVERDUE' : strtoupper($rental->status) }}</span>
+    <h1 class="ia-page-title" style="display:flex;align-items:center;gap:10px">{{ $rental->rental_number }}
+      {{-- MARKER-PATCH-234 — shared pill vocabulary. --}}
+      @include('tenant.rentals._status-pill', ['rental' => $rental])
     </h1>
     <p class="ia-page-subtitle">{{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
   </div>
@@ -27,6 +28,43 @@
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif
+
+{{-- MARKER-PATCH-234 — pipeline stepper: real timestamps per stage, red
+     missed-due, cancelled short-circuits. --}}
+@php
+  $missedDue = $rental->due_at && $rental->due_at->isPast() && in_array($rental->status, ['out'], true);
+  $stages = $rental->status === 'cancelled'
+    ? [
+        ['t' => 'Reserved',  'at' => $rental->created_at,   'state' => 'hit'],
+        ['t' => 'Cancelled', 'at' => $rental->cancelled_at, 'state' => 'bad'],
+      ]
+    : [
+        ['t' => 'Reserved',    'at' => $rental->created_at,     'state' => 'hit'],
+        ['t' => 'Checked out', 'at' => $rental->checked_out_at, 'state' => in_array($rental->status, ['out', 'returned'], true) ? 'hit' : 'next'],
+        ['t' => 'Due back',    'at' => $rental->due_at,         'state' => $rental->status === 'returned' ? 'hit' : ($missedDue ? 'bad' : ($rental->status === 'out' ? 'now' : 'next'))],
+        ['t' => 'Returned',    'at' => $rental->returned_at,    'state' => $rental->status === 'returned' ? 'hit' : 'next'],
+      ];
+@endphp
+<div class="ia-card" style="margin-bottom:16px;padding:14px 18px;display:flex;align-items:center;flex-wrap:wrap">
+  @foreach($stages as $i => $st)
+    @php
+      [$dotStyle, $txtColor] = match ($st['state']) {
+        'hit' => ['background:var(--ia-accent,#BEF264)', 'inherit'],
+        'now' => ['background:#5BA3D0;box-shadow:0 0 0 4px rgba(91,163,208,.18)', 'inherit'],
+        'bad' => ['background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.16)', '#ef4444'],
+        default => ['background:var(--ia-border-strong,rgba(255,255,255,.22))', 'rgba(255,255,255,.55)'],
+      };
+    @endphp
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="width:9px;height:9px;border-radius:50%;{{ $dotStyle }}"></span>
+      <div>
+        <div style="font-size:11.5px;font-weight:550;color:{{ $txtColor }}">{{ $st['t'] }}</div>
+        <div style="font-size:10px;opacity:.5;{{ $st['state'] === 'bad' ? 'color:#ef4444;opacity:1' : '' }}">{{ $st['at'] ? tlocal_datetime($st['at'], 'M j, g:i a') . ($st['state'] === 'bad' ? ' — missed' : '') : '—' }}</div>
+      </div>
+    </div>
+    @if(!$loop->last)<span style="flex:1;min-width:18px;height:1.5px;background:{{ $st['state'] === 'hit' ? 'rgba(190,242,100,.5)' : 'var(--ia-border)' }};margin:0 10px"></span>@endif
+  @endforeach
+</div>
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start">
 
@@ -85,6 +123,33 @@
         <button type="submit" class="ia-btn ia-btn--primary">Collect payment</button>
         <span style="font-size:11px;opacity:.45;align-self:center">Creates a register sale — take cash, card, or send a payment link there. Refunds: open the sale in register history.</span>
       </form>
+      @endif
+    </div>
+
+    {{-- MARKER-PATCH-234 — derived activity feed. --}}
+    <div class="ia-card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="padding:12px 16px;border-bottom:0.5px solid var(--ia-border)"><span class="ia-label">Activity</span></div>
+      @if($feed->isEmpty())
+        <div style="padding:18px 16px;font-size:12.5px;opacity:.55">Nothing yet.</div>
+      @else
+        @foreach($feed as $i => $ev)
+          @php
+            $dotColor = match ($ev['dot']) {
+              'lime' => 'var(--ia-accent,#BEF264)',
+              'blue' => '#5BA3D0',
+              'red'  => '#ef4444',
+              default => 'var(--ia-border-strong,rgba(255,255,255,.3))',
+            };
+          @endphp
+          <div style="display:grid;grid-template-columns:20px 1fr;gap:12px;padding:9px 18px;position:relative">
+            @if(!$loop->last)<span style="position:absolute;left:27px;top:30px;bottom:-4px;width:1px;background:var(--ia-border)"></span>@endif
+            <span style="width:9px;height:9px;border-radius:50%;background:{{ $dotColor }};margin-top:6px;justify-self:center"></span>
+            <div>
+              <div style="font-size:12.5px">{{ $ev['text'] }}</div>
+              <div style="font-size:11px;opacity:.5;font-family:var(--ia-font-mono,monospace)">{{ tlocal_datetime($ev['at'], 'M j, g:i a') }}</div>
+            </div>
+          </div>
+        @endforeach
       @endif
     </div>
   </div>
@@ -169,6 +234,34 @@
       </div>
 
     </div>
+
+    {{-- MARKER-PATCH-234 — documents: signed agreement + check photos. --}}
+    @php
+      $docChecks = $rental->conditionChecks->filter(fn ($c) => is_array($c->photos) && count($c->photos));
+    @endphp
+    @if($rental->agreement_pdf_path || $docChecks->isNotEmpty())
+    <div class="ia-card" style="padding:16px;margin-bottom:16px">
+      <span class="ia-label">Documents</span>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+        @if($rental->agreement_pdf_path)
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <span>Agreement v{{ $rental->agreement_template_version }} — signed</span>
+            <a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">PDF →</a>
+          </div>
+        @endif
+        @foreach($docChecks as $check)
+          <div style="display:flex;justify-content:space-between;gap:10px">
+            <span>{{ $check->phase === 'check_out' ? 'Out-check' : 'In-check' }} — {{ $check->unit?->identifier ?: 'unit' }} ({{ count($check->photos) }} photo{{ count($check->photos) === 1 ? '' : 's' }})</span>
+            <span>
+              @foreach($check->photos as $pi => $p)
+                <a href="{{ Storage::disk('public')->url($p) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">{{ $pi + 1 }}</a>{{ !$loop->last ? ' ' : '' }}
+              @endforeach
+            </span>
+          </div>
+        @endforeach
+      </div>
+    </div>
+    @endif
 
     @if($rental->notes)
     <div class="ia-card" style="padding:16px">
