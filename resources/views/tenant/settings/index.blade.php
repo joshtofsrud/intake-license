@@ -1610,7 +1610,11 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
           body: JSON.stringify({ order: ids }),
-        });
+        }).then(function(r) {
+          // MARKER-PATCH-248
+          if (r.ok) { if (window.IntakeToast) IntakeToast.success('Order saved'); }
+          else { if (window.IntakeToast) IntakeToast.error('Could not save the new order'); }
+        }).catch(function() { if (window.IntakeToast) IntakeToast.error('Could not save the new order — check your connection'); });
       }
     });
   }
@@ -1630,11 +1634,14 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
         body: JSON.stringify(body),
       }).then(function(r) {
-        if (!r.ok) {
+        // MARKER-PATCH-248 — saves speak.
+        if (r.ok) { if (window.IntakeToast) IntakeToast.success('Saved'); }
+        else {
           row.style.outline = '1px solid #d04444';
           setTimeout(function() { row.style.outline = ''; }, 1500);
+          if (window.IntakeToast) IntakeToast.error('Could not save — try again');
         }
-      });
+      }).catch(function() { if (window.IntakeToast) IntakeToast.error('Could not save — check your connection'); });
     });
   });
 
@@ -1663,9 +1670,11 @@
         } else {
           row.style.outline = '1px solid #d04444';
           setTimeout(function() { row.style.outline = ''; }, 1500);
+          if (window.IntakeToast) IntakeToast.error('Could not update — try again'); // MARKER-PATCH-248
         }
       }).catch(function() {
         btn.classList.remove('is-busy');
+        if (window.IntakeToast) IntakeToast.error('Could not update — check your connection'); // MARKER-PATCH-248
       });
     });
   });
