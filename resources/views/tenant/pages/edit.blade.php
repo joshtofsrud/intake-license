@@ -1388,6 +1388,38 @@
 /* --- sliders + checkboxes: lime ------------------------------------ */
 .pb2-insp-body input[type="range"] { accent-color: var(--pb2-accent); }
 .pb2-insp-body input[type="checkbox"] { accent-color: var(--pb2-accent); }
+/* MARKER-PATCH-253 — checkbox rows render as mockup toggle switches. */
+.pb2-insp-body .pb2-checkbox-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 32px; height: 18px;
+  border-radius: 999px;
+  background: var(--pb2-surface-3);
+  border: .5px solid var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background .15s;
+  flex-shrink: 0;
+  margin: 0;
+}
+.pb2-insp-body .pb2-checkbox-row input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #8a8a8a;
+  top: 2px; left: 2px;
+  transition: all .15s;
+}
+.pb2-insp-body .pb2-checkbox-row input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+  border-color: transparent;
+}
+.pb2-insp-body .pb2-checkbox-row input[type="checkbox"]:checked::after {
+  left: 17px;
+  background: #0a0a0a;
+}
+.pb2-insp-body .pb2-checkbox-row { display: flex; align-items: center; gap: 9px; justify-content: space-between; flex-direction: row-reverse; cursor: pointer; }
 .pb2-insp-body .pb2-slider-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10.5px;
@@ -1598,7 +1630,7 @@
         <div class="pb2-insp-tabs">
           <button class="pb2-insp-tab active" data-tab="content">Content</button>
           <button class="pb2-insp-tab" data-tab="layout">Layout</button>
-          <button class="pb2-insp-tab" data-tab="style">Style</button>
+          <button class="pb2-insp-tab" data-tab="style">Design</button>{{-- MARKER-PATCH-253 — label only; data-tab unchanged --}}
           <button class="pb2-insp-tab" data-tab="advanced">Advanced</button>
         </div>
 
@@ -1828,6 +1860,61 @@
   // Wire on initial load (first section's fields are already rendered)
   let selectedId = document.querySelector('.pb2-section-item.selected')?.dataset.sectionId;
   if (selectedId) attachAutosaveListeners(selectedId);
+
+  // MARKER-PATCH-253 — live preview bridge. Same-origin iframe + the
+  // deterministic instance class (p-hero-{id} / p-cta-{id}) lets design
+  // fields apply INSTANTLY on input; autosave persistence is untouched and
+  // the post-save reload converges preview to truth. Cross-origin (custom
+  // domain) previews silently no-op.
+  function pb2LiveNode() {
+    try {
+      const doc = PREVIEW_IFRAME ? PREVIEW_IFRAME.contentDocument : null;
+      if (!doc || !selectedId) return null;
+      return doc.querySelector('[class*="-' + selectedId + '"]');
+    } catch (err) { return null; }
+  }
+  const PB2_LIVE = {
+    content_max_width: (n, v) => {
+      const c = n.querySelector('.p-hero-content, .p-cta-inner');
+      if (c) c.style.maxWidth = (parseInt(v) || 0) ? v + 'px' : '';
+    },
+    text_align: (n, v) => {
+      const c = n.querySelector('.p-hero-content, .p-cta-inner');
+      if (!c) return;
+      c.style.textAlign = v;
+      c.style.marginLeft  = (v === 'left') ? '0' : 'auto';
+      c.style.marginRight = (v === 'right') ? '0' : 'auto';
+    },
+    vertical_align: (n, v) => {
+      n.style.alignItems = ({ top: 'flex-start', center: 'center', bottom: 'flex-end' })[v] || 'center';
+    },
+    bg_overlay_opacity: (n, v) => {
+      const o = n.querySelector('.p-hero-veil, .p-cta-veil');
+      if (o) o.style.opacity = (parseInt(v) || 0) / 100;
+    },
+    bg_blur: (n, v) => {
+      const o = n.querySelector('.p-hero-veil, .p-cta-veil');
+      if (!o) return;
+      o.style.backdropFilter = 'blur(' + v + 'px)';
+      o.style.webkitBackdropFilter = 'blur(' + v + 'px)';
+    },
+    bg_parallax_depth: (n, v) => {
+      const b = n.querySelector('[data-ia-parallax]');
+      if (b) b.setAttribute('data-ia-parallax', ((parseInt(v) || 0) / 100).toFixed(2));
+    },
+  };
+  function pb2LiveApply(e) {
+    const f = e.target && e.target.dataset ? e.target.dataset.field : null;
+    if (!f || !(f in PB2_LIVE)) return;
+    const node = pb2LiveNode();
+    if (!node) return;
+    try { PB2_LIVE[f](node, e.target.value); } catch (err) { /* live-only, never blocks save */ }
+  }
+  const pb2Inspector = document.getElementById('pb2-inspector');
+  if (pb2Inspector) {
+    pb2Inspector.addEventListener('input', pb2LiveApply);
+    pb2Inspector.addEventListener('change', pb2LiveApply); // hidden inputs (anchor dots) dispatch change
+  }
 
   // ─── Section selection (swap inspector body, re-attach autosave) ──────
   function selectSection(sectionId, type, idx) {

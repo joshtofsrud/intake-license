@@ -176,9 +176,14 @@
       <input type="hidden" data-field="vertical_align" value="{{ $get('vertical_align', 'center') }}">
     </div>
 
+    {{-- MARKER-PATCH-253 — slider like the mockup; range fires input
+         continuously so the live bridge moves the hero under your cursor. --}}
     <div class="pb2-field">
-      <label class="pb2-field-label">Content max-width <span class="pb2-field-hint">px, blank = no limit</span></label>
-      <input type="number" class="pb2-input" data-field="content_max_width" value="{{ $get('content_max_width', 680) }}" min="320" max="1600" step="20">
+      <div class="pb2-slider-row">
+        <label class="pb2-field-label" style="margin:0">Content max-width</label>
+        <span class="pb2-slider-value" id="pb2-mw-val">{{ $get('content_max_width', 680) }}px</span>
+      </div>
+      <input type="range" min="320" max="1600" step="20" value="{{ $get('content_max_width', 680) }}" data-field="content_max_width" oninput="document.getElementById('pb2-mw-val').textContent=this.value+'px'">
     </div>
   </div>
 
