@@ -63,6 +63,11 @@
   var modal = document.querySelector('[data-ar-modal]');
   if (!modal || modal.dataset.arInit) return;
   modal.dataset.arInit = '1';
+  // MARKER-PATCH-231C — move the modal to <body> (escape sidebar stacking)
+  // and hide it via inline display, because the modal's display:flex rule
+  // overrides the [hidden] attribute. DOM/behavior changes, not stylesheet CSS.
+  if (modal.parentNode !== document.body) { document.body.appendChild(modal); }
+  modal.style.display = 'none';
   // MARKER-PATCH-231C — move the modal out of the sidebar subtree to <body>,
   // so position:fixed escapes the sidebar's stacking/transform context and
   // the modal paints above the dashboard tiles. DOM move, not a style change.
@@ -72,13 +77,14 @@
   var searchUrl = '{{ route('tenant.search') }}';
   var t, lastReq = 0;
 
-  function open(){ modal.hidden = false; setTimeout(function(){ input.focus(); }, 30); }
-  function close(){ modal.hidden = true; input.value=''; results.innerHTML='<div class="ar-hint">Type at least 2 characters.</div>'; }
+  function isOpen(){ return modal.style.display !== 'none'; }
+  function open(){ modal.style.display = 'flex'; setTimeout(function(){ input.focus(); }, 30); }
+  function close(){ modal.style.display = 'none'; input.value=''; results.innerHTML='<div class="ar-hint">Type at least 2 characters.</div>'; }
 
   document.querySelectorAll('[data-ar-search]').forEach(function(b){ b.addEventListener('click', open); });
   document.addEventListener('keydown', function(e){
-    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); modal.hidden ? open() : close(); }
-    if (e.key === 'Escape' && !modal.hidden) close();
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); isOpen() ? close() : open(); }
+    if (e.key === 'Escape' && isOpen()) close();
   });
   modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
 
