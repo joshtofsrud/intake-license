@@ -29,6 +29,7 @@
     'feature_grid'           => 'Feature grid',
     'step_timeline'          => 'Step timeline',
     'pricing_table'          => 'Pricing table',
+    'rentals_showcase'       => 'Rentals showcase', {{-- MARKER-PATCH-239 --}}
     'faq_accordion'          => 'FAQ accordion',
     'testimonial_carousel'   => 'Testimonials',
     'logo_bar'               => 'Logo bar',
@@ -55,6 +56,7 @@
     'feature_grid'   => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
     'step_timeline'  => '<line x1="3" y1="6" x2="3" y2="6.01"/><line x1="3" y1="12" x2="3" y2="12.01"/><line x1="3" y1="18" x2="3" y2="18.01"/><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
     'pricing_table'  => '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    'rentals_showcase' => '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/>',
     'faq_accordion'  => '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1-1 1.5-2.5 2.5"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
     'testimonial_carousel' => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>',
     'logo_bar'       => '<rect x="2" y="9" width="4" height="6" rx="1"/><rect x="10" y="9" width="4" height="6" rx="1"/><rect x="18" y="9" width="4" height="6" rx="1"/>',
@@ -80,6 +82,7 @@
     'step_timeline' => 'Numbered process steps',
     'faq_accordion' => 'Collapsible Q&A list',
     'pricing_table' => 'Side-by-side pricing tiers',
+    'rentals_showcase' => 'Live rental fleet with rates', {{-- MARKER-PATCH-239 --}}
     'testimonial_carousel' => 'Customer quotes carousel',
     'logo_bar'      => 'Trust bar with partner logos',
     'comparison_table'=>'Feature vs competitor matrix',
@@ -91,7 +94,7 @@
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
     'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','faq_accordion','stats_row'],
-    'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table'],
+    'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table','rentals_showcase'],
     'Social'     => ['testimonial_carousel','logo_bar'],
   ];
 @endphp
@@ -1398,7 +1401,7 @@
           @php
             $allowed = $isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase']
-              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table'];
+              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase'];
           @endphp
 
           <div class="pb2-gallery">

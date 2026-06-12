@@ -259,6 +259,8 @@ class PageBuilderController extends Controller
             'hide_on_desktop' => false,
         ],
         'booking_embed'  => ['heading'=>'Book online'],
+        // MARKER-PATCH-239 — live fleet showcase with rates + browse CTA.
+        'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>''],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
         'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
         'changelog_list'=> ['intro_text'=>'Everything we shipped lately, reverse-chronological.'],
@@ -625,6 +627,14 @@ class PageBuilderController extends Controller
                 // to populate its category filter. Other types pass through
                 // with no extras (keeps the contract minimal).
                 $extras = [];
+                // MARKER-PATCH-239 — rentals showcase editor needs the
+                // rental categories for its filter select.
+                if ($section->section_type === 'rentals_showcase') {
+                    $extras['rentalCategories'] = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
+                        ->whereNull('archived_at')
+                        ->orderBy('sort_order')->orderBy('name')
+                        ->get(['id', 'name']);
+                }
                 if ($section->section_type === 'services') {
                     $extras['categories'] = \App\Models\Tenant\TenantServiceCategory::where('tenant_id', $tenant->id)
                         ->where('is_active', true)

@@ -128,6 +128,8 @@ $tenantRoutes = function () {
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
     // MARKER-PATCH-213 — returning-customer lookup (pre-fills the Bikes step)
     Route::post('/book/customer-lookup', [TenantControllers\BookingLookupController::class, 'lookup'])->name('tenant.booking.customer-lookup');
+    // MARKER-PATCH-239 — public rental availability browse.
+    Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
 
     Route::get('/waitlist/join',               [TenantControllers\WaitlistPublicController::class, 'join'])->name('tenant.waitlist.join');
     Route::post('/waitlist/join',              [TenantControllers\WaitlistPublicController::class, 'submitJoin'])->name('tenant.waitlist.submit');
