@@ -49,8 +49,9 @@
   /* MARKER-PATCH-236 — roster grid: condition + last rented + utilization, whole row links to unit detail. */
   .fl-uhead{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
   .fl-uline{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;align-items:center;padding:8px 12px;border-radius:var(--ia-r-sm);font-size:12.5px;text-decoration:none;color:inherit;cursor:pointer}
-  .fl-ulink{opacity:0;color:var(--ia-accent,#BEF264);font-size:12px;font-weight:600;justify-self:end;white-space:nowrap;transition:opacity .1s}
-  .fl-uline:hover .fl-ulink{opacity:1}
+  /* MARKER-PATCH-236B — constant button, not a hover reveal. */
+  .fl-ulink{font-size:11.5px;font-weight:550;padding:4px 11px;border:.5px solid var(--ia-border);border-radius:6px;color:var(--ia-text-dim,rgba(255,255,255,.55));justify-self:end;white-space:nowrap;transition:all .1s}
+  .fl-uline:hover .fl-ulink{color:#0a0a0a;background:var(--ia-accent,#BEF264);border-color:transparent}
   .fl-cond{display:flex;gap:8px;font-size:11.5px;align-items:center}
   .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
   .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
@@ -205,7 +206,7 @@
                 </span>
                 <span style="opacity:.55;font-size:11.5px">{{ $m['last'] ? tlocal_date($m['last'], 'M j') : 'never' }}</span>
                 <span style="font-size:11.5px;{{ ($m['util'] ?? 0) >= 60 ? 'color:#7BC96F' : 'opacity:.55' }}">{{ $m['util'] !== null ? $m['util'] . '%' : '—' }}</span>
-                <span class="fl-ulink">Open ↗</span>
+                <span class="fl-ulink">History</span>
               </a>
             @endforeach
             <div class="fl-add-line">
