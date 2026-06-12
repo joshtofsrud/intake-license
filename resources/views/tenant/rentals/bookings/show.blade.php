@@ -145,8 +145,10 @@
       <span class="ia-label">Actions</span>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
         @if($rental->status === 'reserved')
-          <form method="POST" action="{{ route('tenant.rentals.bookings.checkout', $rental->id) }}">@csrf
-            <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Check out</button>
+          {{-- MARKER-PATCH-232 — guided flow is the front door; one-click stays as the escape hatch. --}}
+          <a href="{{ route('tenant.rentals.bookings.checkout.flow', $rental->id) }}" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center;text-decoration:none">Check out →</a>
+          <form method="POST" action="{{ route('tenant.rentals.bookings.checkout', $rental->id) }}" onsubmit="return confirm('Skip the agreement, condition check, and deposit steps?')">@csrf
+            <button type="submit" class="ia-btn" style="width:100%">Quick check out (skip flow)</button>
           </form>
           <form method="POST" action="{{ route('tenant.rentals.bookings.cancel', $rental->id) }}" onsubmit="return confirm('Cancel this reservation?')">@csrf
             <button type="submit" class="ia-btn" style="width:100%">Cancel reservation</button>
@@ -161,7 +163,7 @@
           </p>
         @endif
       </div>
-      <p style="font-size:11px;opacity:.45;margin-top:10px">Condition checks, deposits, and signed agreements arrive with the next update.</p>
+      <p style="font-size:11px;opacity:.45;margin-top:10px">Guided return flow (condition compare, late fees, deposit decisions) arrives in the next update.</p>
     </div>
 
     @if($rental->notes)

@@ -10,6 +10,9 @@ use App\Models\Tenant\TenantRentalLine;
 use App\Models\Tenant\TenantSale;
 use App\Models\Tenant\TenantSaleItem;
 use App\Models\Tenant\TenantRentalUnit;
+use App\Models\Tenant\TenantRentalAgreementTemplate;
+use App\Models\Tenant\TenantRentalConditionCheck;
+use Illuminate\Support\Facades\Storage;
 use App\Services\RentalAvailabilityService;
 use App\Support\MySQLLock;
 use Carbon\Carbon;
@@ -232,6 +235,207 @@ class RentalBookingController extends Controller
             ->firstOrFail();
 
         return view('tenant.rentals.bookings.show', compact('rental'));
+    }
+
+    // ------------------------------------------ check-out flow (PATCH-232)
+    /**
+     * MARKER-PATCH-232 — the guided counter flow for reserved → out.
+     * Verify → Agreement → Condition → Deposit & go. Each write step is its
+     * own POST so the flow is resumable: reload the page and done steps
+     * stay done. The quick one-click checkOut() above remains untouched as
+     * the skip-the-ceremony path.
+     */
+    public function checkOutFlow(string $id)
+    {
+        $tenant = tenant();
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+            ->with([
+                'customer',
+                'lines' => fn ($q) => $q->orderBy('sort_order'),
+                'lines.unit.conditionTemplate',
+                'conditionChecks' => fn ($q) => $q->where('phase', 'check_out'),
+            ])
+            ->firstOrFail();
+
+        if ($rental->status !== 'reserved') {
+            return redirect()->route('tenant.rentals.bookings.show', $rental->id)
+                ->withErrors(['status' => 'Only reserved rentals can be checked out.']);
+        }
+
+        $agreementTemplate = TenantRentalAgreementTemplate::where('tenant_id', $tenant->id)
+            ->orderByDesc('version')->first();
+
+        // Units on the rental, each paired with its out-check (if done).
+        $unitLines = $rental->lines->where('kind', 'unit')->values();
+        $checksByUnit = $rental->conditionChecks->keyBy('unit_id');
+
+        $balanceCents = max(0, (int) $rental->total_cents - (int) $rental->paid_cents);
+
+        return view('tenant.rentals.bookings.check-out', [
+            'rental'            => $rental,
+            'agreementTemplate' => $agreementTemplate,
+            'unitLines'         => $unitLines,
+            'checksByUnit'      => $checksByUnit,
+            'balanceCents'      => $balanceCents,
+            'agreementSigned'   => (bool) $rental->agreement_signed_at,
+        ]);
+    }
+
+    /**
+     * Counter signature: customer signs on the staff screen by typed name +
+     * confirm. Snapshots the template version AND a rendered PDF — editing
+     * the template later never changes what was signed (PATCH-217 intent).
+     */
+    public function signAgreement(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $request->validate([
+            'signer_name' => ['required', 'string', 'max:160'],
+            'agreed'      => ['required', 'accepted'],
+        ]);
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+            ->with('customer')->firstOrFail();
+
+        if ($rental->status !== 'reserved') {
+            return back()->withErrors(['agreement' => 'Only reserved rentals can sign.']);
+        }
+        if ($rental->agreement_signed_at) {
+            return back()->with('flash', 'Agreement was already signed.');
+        }
+
+        $template = TenantRentalAgreementTemplate::where('tenant_id', $tenant->id)
+            ->orderByDesc('version')->first();
+        if (!$template) {
+            return back()->withErrors(['agreement' => 'No agreement template is configured.']);
+        }
+
+        $pdfPath = null;
+        try {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('tenant.rentals.agreement-pdf', [
+                'tenant'     => $tenant,
+                'rental'     => $rental,
+                'template'   => $template,
+                'signerName' => $request->input('signer_name'),
+                'signedAt'   => now(),
+            ])->setPaper('letter');
+            $pdfPath = 'tenants/' . $tenant->id . '/rental-agreements/'
+                . $rental->rental_number . '-v' . $template->version . '.pdf';
+            Storage::disk('public')->put($pdfPath, $pdf->output());
+        } catch (\Throwable $e) {
+            // PDF is a nicety; the signature stamp is the record. Never let
+            // a renderer hiccup block the counter.
+            \Log::error('rental_agreement.pdf_failed', ['rental_id' => $rental->id, 'error' => $e->getMessage()]);
+            $pdfPath = null;
+        }
+
+        $rental->update([
+            'agreement_template_version' => $template->version,
+            'agreement_signed_at'        => now(),
+            'agreement_method'           => 'desk',
+            'agreement_pdf_path'         => $pdfPath,
+            'notes'                      => trim(($rental->notes ? $rental->notes . "\n" : '')
+                . 'Agreement v' . $template->version . ' signed at desk by ' . $request->input('signer_name') . '.'),
+        ]);
+
+        return back()->with('flash', 'Agreement signed.');
+    }
+
+    /**
+     * One condition check per unit per phase. results = {item_key: ok|flag},
+     * flagged rolls up any flag. Photos (≤4, images only) land on the public
+     * disk under the tenant directory — the check-in flow (PATCH-233)
+     * replays them side-by-side.
+     */
+    public function storeConditionCheck(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $request->validate([
+            'unit_id'   => ['required', 'uuid'],
+            'phase'     => ['required', 'in:check_out,check_in'],
+            'results'   => ['nullable', 'array'],
+            'results.*' => ['in:ok,flag'],
+            'notes'     => ['nullable', 'string', 'max:2000'],
+            'photos'    => ['nullable', 'array', 'max:4'],
+            'photos.*'  => ['image', 'max:5120'],
+        ]);
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+            ->with('lines')->firstOrFail();
+
+        $phase = $request->input('phase');
+        if ($phase === 'check_out' && $rental->status !== 'reserved') {
+            return back()->withErrors(['condition' => 'Out-checks happen before check-out.']);
+        }
+        if ($phase === 'check_in' && $rental->status !== 'out') {
+            return back()->withErrors(['condition' => 'In-checks happen while the rental is out.']);
+        }
+
+        $unitId = $request->input('unit_id');
+        if (!$rental->lines->where('kind', 'unit')->pluck('unit_id')->contains($unitId)) {
+            return back()->withErrors(['condition' => 'That unit is not on this rental.']);
+        }
+
+        $existing = TenantRentalConditionCheck::where('rental_id', $rental->id)
+            ->where('unit_id', $unitId)->where('phase', $phase)->first();
+        if ($existing) {
+            return back()->with('flash', 'Condition check already recorded for that unit.');
+        }
+
+        $photoPaths = [];
+        foreach ((array) $request->file('photos', []) as $photo) {
+            try {
+                $photoPaths[] = Storage::disk('public')->putFile(
+                    'tenants/' . $tenant->id . '/rental-checks', $photo
+                );
+            } catch (\Throwable $e) {
+                \Log::error('rental_check.photo_failed', ['rental_id' => $rental->id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        $results = (array) $request->input('results', []);
+
+        TenantRentalConditionCheck::create([
+            'rental_id'            => $rental->id,
+            'unit_id'              => $unitId,
+            'phase'                => $phase,
+            'results'              => $results,
+            'flagged'              => in_array('flag', $results, true),
+            'notes'                => $request->input('notes'),
+            'photos'               => $photoPaths ?: null,
+            'performed_by_user_id' => auth('tenant')->id(),
+            'performed_at'         => now(),
+        ]);
+
+        return back()->with('flash', 'Condition check saved.');
+    }
+
+    /**
+     * The flow's finalizer. Same locked reserved→out flip as checkOut(),
+     * plus one server-side gate: when an agreement template exists, an
+     * unsigned rental cannot go out through the flow. (The quick path stays
+     * gate-free on purpose — it IS the escape hatch.)
+     */
+    public function completeCheckOut(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $hasTemplate = TenantRentalAgreementTemplate::where('tenant_id', $tenant->id)->exists();
+        if ($hasTemplate) {
+            $unsigned = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+                ->whereNull('agreement_signed_at')->exists();
+            if ($unsigned) {
+                return back()->withErrors(['agreement' => 'Sign the agreement before completing check-out.']);
+            }
+        }
+
+        return $this->transition($id, 'reserved', function (TenantRental $rental) {
+            $rental->update(['status' => 'out']);
+            return 'Checked out — ' . $rental->rental_number . ' is on its way.';
+        });
     }
 
     // --------------------------------------------------------- transitions

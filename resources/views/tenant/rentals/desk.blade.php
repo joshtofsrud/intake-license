@@ -161,10 +161,8 @@
             <td>{{ $r->customer?->first_name }} {{ $r->customer?->last_name }}</td>
             <td>{{ $resLabel }}</td>
             <td style="text-align:right">
-              <form method="POST" action="{{ route('tenant.rentals.bookings.checkout', $r->id) }}" onclick="event.stopPropagation()" style="display:inline">
-                @csrf
-                <button type="submit" class="ia-btn" style="font-size:11.5px;padding:4px 10px">Check out</button>
-              </form>
+              {{-- MARKER-PATCH-232 — desk pickups open the guided flow. --}}
+              <a href="{{ route('tenant.rentals.bookings.checkout.flow', $r->id) }}" onclick="event.stopPropagation()" class="ia-btn ia-btn--primary" style="font-size:11.5px;padding:4px 10px;text-decoration:none">Check out</a>
             </td>
           </tr>
         @endforeach
