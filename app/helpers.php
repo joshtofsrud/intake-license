@@ -74,6 +74,22 @@ if (! function_exists('tlocal')) {
     }
 }
 
+if (! function_exists('tnow')) {
+    /**
+     * MARKER-PATCH-234C — "now" as a tenant-local Carbon. Use for
+     * date-of-day boundaries the tenant will see (today's pickups, week
+     * windows). For storage timestamps and created_at comparisons use plain
+     * now() — those are UTC. Mirrors DashboardDataService::tnow().
+     *
+     * @return \Carbon\Carbon
+     */
+    function tnow(): \Carbon\Carbon
+    {
+        $tz = tenant()?->timezone() ?? config('app.timezone', 'UTC');
+        return \Carbon\Carbon::now($tz);
+    }
+}
+
 if (! function_exists('tlocal_date')) {
     /** Tenant-local date, e.g. "May 31, 2026". @see tlocal() */
     function tlocal_date($instant, string $format = 'M j, Y'): string
