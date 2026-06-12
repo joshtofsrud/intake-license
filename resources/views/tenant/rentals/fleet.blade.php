@@ -92,7 +92,10 @@
   .fl-cat-edit{display:none;gap:10px;align-items:end;padding:12px 18px;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.02);flex-wrap:wrap}
   .fl-cat-edit.open{display:flex}
   .fl-ct-row{border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);padding:10px 12px;margin-bottom:10px}
-  .fl-ct-row textarea.fl-inp{min-height:74px;resize:vertical;font-size:12px;line-height:1.5}
+  .fl-ct-row textarea.fl-inp{min-height:74px;resize:vertical;font-size:12px;line-height:1.5;width:100%}
+  /* MARKER-PATCH-245 — edit rows fill their card; content stays readable. */
+  .fl-ct-row input[data-ctf=name]{flex:1;min-width:0}
+  .fl-ct-wrap{max-width:660px}
 </style>
 @endpush
 
@@ -139,11 +142,11 @@
     <div class="fl-cat-head" onclick="this.parentElement.classList.toggle('open')">
       <div class="fl-disc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
       <div>
-        <div class="fl-cat-name">{{ $cat->name }}
+        <div class="fl-cat-name"><span class="fl-cat-name-txt">{{ $cat->name }}</span>
           {{-- MARKER-PATCH-243 — inline category edit. --}}
           <button type="button" class="fl-cat-editbtn" onclick="event.stopPropagation();this.closest('.fl-cat').querySelector('.fl-cat-edit').classList.toggle('open');this.closest('.fl-cat').classList.add('open')">✎</button>
         </div>
-        <div class="fl-cat-axis">{{ $cat->size_axis ? 'Size axis: ' . $cat->size_axis . ' · ' : '' }}{{ $r['models'] }} model{{ $r['models'] === 1 ? '' : 's' }}</div>
+        <div class="fl-cat-axis"><span class="fl-cat-axis-txt">{{ $cat->size_axis ? 'Size axis: ' . $cat->size_axis . ' · ' : '' }}</span>{{ $r['models'] }} model{{ $r['models'] === 1 ? '' : 's' }}</div>
       </div>
       <div class="fl-roll">
         <div class="fl-roll-stat"><div class="fl-roll-num">{{ $r['total'] }}</div><div class="fl-roll-lbl">units</div></div>
@@ -294,7 +297,7 @@
          in place (one item per line, same shape as creation), delete with
          confirm. Endpoints shipped in PATCH-218; this is their UI. --}}
     @if($conditionTemplates->isNotEmpty())
-      <div style="margin-top:12px">
+      <div class="fl-ct-wrap" style="margin-top:12px">
         @foreach($conditionTemplates as $ct)
           <div class="fl-ct-row" data-ct="{{ $ct->id }}">
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
@@ -306,9 +309,9 @@
           </div>
         @endforeach
       </div>
-      <div style="font-size:11.5px;opacity:.5;margin:4px 0 10px">Add another:</div>
+      <div class="fl-ct-wrap" style="font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;opacity:.45;margin-top:16px;padding-top:14px;border-top:.5px solid var(--ia-border)">Add another</div>
     @endif
-    <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}" style="margin-top:12px">
+    <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}" class="fl-ct-wrap" style="margin-top:12px">
       @csrf
       <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Ski checklist" required></div>
       <div class="fl-fg" style="margin-top:10px"><span class="fl-lbl">Items (one per line)</span><textarea class="fl-inp" name="items" rows="3" required placeholder="Edges — no major gouges&#10;Bindings — DIN intact&#10;Bases — no core shots"></textarea></div>
@@ -389,7 +392,17 @@
   document.querySelectorAll('.fl-model-body').forEach(function(body){
     var url = '{{ url('admin/rentals/fleet/models') }}/' + body.getAttribute('data-model');
     body.querySelectorAll('[data-mf]').forEach(function(el){
-      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-mf'), el.value); });
+      el.addEventListener('change', function(){
+        var f = el.getAttribute('data-mf');
+        patch(url, f, el.value, function(){
+          // MARKER-PATCH-246 — model head name follows the drawer edit.
+          if (f === 'name') {
+            var head = body.closest('.fl-model');
+            var t = head ? head.querySelector('.fl-model-name') : null;
+            if (t) t.textContent = el.value;
+          }
+        });
+      });
     });
   });
   // unit field edits
@@ -404,7 +417,22 @@
   document.querySelectorAll('.fl-cat-edit').forEach(function(strip){
     var url = '{{ url('admin/rentals/fleet/categories') }}/' + strip.getAttribute('data-cat');
     strip.querySelectorAll('[data-cf]').forEach(function(el){
-      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-cf'), el.value); });
+      el.addEventListener('change', function(){
+        var f = el.getAttribute('data-cf');
+        patch(url, f, el.value, function(){
+          // MARKER-PATCH-246 — the header shows what just saved.
+          var cat = strip.closest('.fl-cat');
+          if (!cat) return;
+          if (f === 'name') {
+            var t = cat.querySelector('.fl-cat-name-txt');
+            if (t) t.textContent = el.value;
+          }
+          if (f === 'size_axis') {
+            var a = cat.querySelector('.fl-cat-axis-txt');
+            if (a) a.textContent = el.value ? 'Size axis: ' + el.value + ' \u00b7 ' : '';
+          }
+        });
+      });
     });
   });
   document.querySelectorAll('.fl-ct-row').forEach(function(row){
