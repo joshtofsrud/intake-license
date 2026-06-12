@@ -124,7 +124,81 @@ class RentalFleetController extends Controller
             ->whereNull('archived_at')->where('status', '!=', 'retired')->count();
         $modelTotal = TenantRentalModel::where('tenant_id', $tenant->id)->whereNull('archived_at')->count();
 
+        // MARKER-PATCH-236 — per-unit roster meta in four grouped
+        // queries: last rented, 30d utilization overlap, in-check flags,
+        // photo'd checks. Keyed by unit_id; blade falls back gracefully.
+        $unitMeta = [];
+
+        $lastRented = DB::table('tenant_rental_lines')
+            ->join('tenant_rentals', 'tenant_rentals.id', '=', 'tenant_rental_lines.rental_id')
+            ->where('tenant_rentals.tenant_id', $tenant->id)
+            ->where('tenant_rentals.status', '!=', 'cancelled')
+            ->where('tenant_rental_lines.kind', 'unit')
+            ->whereNotNull('tenant_rental_lines.unit_id')
+            ->groupBy('tenant_rental_lines.unit_id')
+            ->selectRaw('tenant_rental_lines.unit_id, MAX(tenant_rentals.starts_at) as last_at')
+            ->pluck('last_at', 'unit_id');
+
+        $windowStart = now()->subDays(30);
+        $windowRows = DB::table('tenant_rental_lines')
+            ->join('tenant_rentals', 'tenant_rentals.id', '=', 'tenant_rental_lines.rental_id')
+            ->where('tenant_rentals.tenant_id', $tenant->id)
+            ->where('tenant_rentals.status', '!=', 'cancelled')
+            ->where('tenant_rental_lines.kind', 'unit')
+            ->whereNotNull('tenant_rental_lines.unit_id')
+            ->where('tenant_rentals.starts_at', '<=', now())
+            ->where(function ($w) use ($windowStart) {
+                $w->whereNull('tenant_rentals.returned_at')
+                  ->orWhere('tenant_rentals.returned_at', '>=', $windowStart);
+            })
+            ->get(['tenant_rental_lines.unit_id', 'tenant_rentals.starts_at', 'tenant_rentals.returned_at']);
+        $utilHours = [];
+        foreach ($windowRows as $row) {
+            $from = \Carbon\Carbon::parse($row->starts_at, 'UTC');
+            if ($from->lessThan($windowStart)) {
+                $from = $windowStart->copy();
+            }
+            $to = $row->returned_at ? \Carbon\Carbon::parse($row->returned_at, 'UTC') : now();
+            if ($to->greaterThan(now())) {
+                $to = now();
+            }
+            if ($to->greaterThan($from)) {
+                $utilHours[$row->unit_id] = ($utilHours[$row->unit_id] ?? 0) + $from->floatDiffInHours($to);
+            }
+        }
+
+        $flagCounts = DB::table('tenant_rental_condition_checks')
+            ->join('tenant_rentals', 'tenant_rentals.id', '=', 'tenant_rental_condition_checks.rental_id')
+            ->where('tenant_rentals.tenant_id', $tenant->id)
+            ->where('tenant_rental_condition_checks.phase', 'check_in')
+            ->where('tenant_rental_condition_checks.flagged', true)
+            ->groupBy('tenant_rental_condition_checks.unit_id')
+            ->selectRaw('tenant_rental_condition_checks.unit_id, COUNT(*) as n')
+            ->pluck('n', 'unit_id');
+
+        $photoCounts = DB::table('tenant_rental_condition_checks')
+            ->join('tenant_rentals', 'tenant_rentals.id', '=', 'tenant_rental_condition_checks.rental_id')
+            ->where('tenant_rentals.tenant_id', $tenant->id)
+            ->whereNotNull('tenant_rental_condition_checks.photos')
+            ->groupBy('tenant_rental_condition_checks.unit_id')
+            ->selectRaw('tenant_rental_condition_checks.unit_id, COUNT(*) as n')
+            ->pluck('n', 'unit_id');
+
+        foreach ($models as $model) {
+            foreach ($model->units as $u) {
+                $unitMeta[$u->id] = [
+                    'last'   => $lastRented[$u->id] ?? null,
+                    'util'   => isset($utilHours[$u->id])
+                        ? (int) round(min(100, ($utilHours[$u->id] / 24 / 30) * 100))
+                        : null,
+                    'flags'  => (int) ($flagCounts[$u->id] ?? 0),
+                    'photos' => (int) ($photoCounts[$u->id] ?? 0),
+                ];
+            }
+        }
+
         return view('tenant.rentals.fleet', [
+            'unitMeta'           => $unitMeta, // MARKER-PATCH-236
             'categories'         => $categories,
             'modelsByCat'        => $modelsByCat,
             'rollups'            => $rollups,

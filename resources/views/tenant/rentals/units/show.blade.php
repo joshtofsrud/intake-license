@@ -80,6 +80,31 @@
   </div>
 
   <div>
+    {{-- MARKER-PATCH-236 — per-instance fields edit here now (roster rows
+         are read-first). Saves field-by-field via the fleet updateUnit
+         endpoint. --}}
+    <div class="ia-card" style="padding:16px;margin-bottom:16px">
+      <span class="ia-label">Edit unit</span>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px" id="unit-edit" data-unit="{{ $unit->id }}">
+        <div><div style="font-size:11px;opacity:.5;margin-bottom:4px">Serial / tag</div><input class="ia-input" style="width:100%;font-family:var(--ia-font-mono,monospace)" value="{{ $unit->identifier }}" data-uf="identifier" placeholder="#tag"></div>
+        <div><div style="font-size:11px;opacity:.5;margin-bottom:4px">Size</div><input class="ia-input" style="width:100%" value="{{ $unit->size }}" data-uf="size" placeholder="size"></div>
+        <div><div style="font-size:11px;opacity:.5;margin-bottom:4px">Status</div>
+          <select class="ia-input" style="width:100%" data-uf="status">
+            @foreach(['available'=>'Available','maintenance'=>'Maintenance','retired'=>'Retired'] as $sk=>$sv)
+              <option value="{{ $sk }}" {{ $unit->status === $sk ? 'selected':'' }}>{{ $sv }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div><div style="font-size:11px;opacity:.5;margin-bottom:4px">Booking</div>
+          <select class="ia-input" style="width:100%" data-uf="available_for_rent">
+            <option value="1" {{ $unit->available_for_rent ? 'selected':'' }}>Rentable</option>
+            <option value="0" {{ $unit->available_for_rent ? '':'selected' }}>Off — hidden from booking</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;opacity:.45;margin-top:8px" id="unit-edit-status">Changes save as you go.</div>
+    </div>
+
     <div class="ia-card" style="padding:16px;margin-bottom:16px">
       <span class="ia-label">Notes &amp; maintenance log</span>
       @if($unit->notes)
@@ -87,7 +112,7 @@
       @else
         <p style="font-size:12.5px;opacity:.5;margin-top:10px">Nothing logged. Return-flow maintenance routing writes dated lines here automatically.</p>
       @endif
-      <p style="font-size:11px;opacity:.45;margin-top:10px">Status changes (clear maintenance, retire) happen inline on the <a href="{{ route('tenant.rentals.fleet') }}" style="color:var(--ia-accent);text-decoration:none">Fleet page</a>.</p>
+      <p style="font-size:11px;opacity:.45;margin-top:10px">Maintenance routing notes from the return flow land here automatically; clear the status in the Edit card above when work is done.</p>
     </div>
 
     @if($photoChecks->isNotEmpty())
@@ -111,5 +136,29 @@
 </div>
 
 <style>@media(max-width:980px){.unit-cols{grid-template-columns:1fr !important}}</style>
+
+{{-- MARKER-PATCH-236 — field-by-field save to the fleet updateUnit endpoint. --}}
+<script>
+(function () {
+  var wrap = document.getElementById('unit-edit');
+  if (!wrap) return;
+  var url = '{{ url('admin/rentals/fleet/units') }}/' + wrap.getAttribute('data-unit');
+  var csrf = '{{ csrf_token() }}';
+  var statusEl = document.getElementById('unit-edit-status');
+  wrap.querySelectorAll('[data-uf]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      statusEl.textContent = 'Saving…';
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-HTTP-Method-Override': 'PATCH' },
+        body: JSON.stringify({ field: el.getAttribute('data-uf'), value: el.value })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.success === false) { statusEl.textContent = j.message || 'Could not save.'; statusEl.style.color = '#ef4444'; }
+        else { statusEl.textContent = 'Saved.'; statusEl.style.color = ''; setTimeout(function () { statusEl.textContent = 'Changes save as you go.'; }, 1800); }
+      }).catch(function () { statusEl.textContent = 'Could not save.'; statusEl.style.color = '#ef4444'; });
+    });
+  });
+})();
+</script>
 
 @endsection

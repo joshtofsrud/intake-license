@@ -37,15 +37,21 @@
   .fl-chip b{font-weight:600}
   .fl-chip.season{background:rgba(224,168,46,.13);color:#E0A82E}
   .fl-mins{font-size:11.5px;opacity:.6;white-space:nowrap}
-  .fl-model-body{display:none;border-top:.5px solid var(--ia-border);padding:14px;background:rgba(255,255,255,.012)}
-  .fl-model.open .fl-model-body{display:block}
+  /* MARKER-PATCH-236 — pricing form is a drawer behind ✎ Edit, not the default view. */
+  .fl-model-body{display:none;border-top:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));padding:14px;background:rgba(255,255,255,.03)}
+  .fl-model.editing .fl-model-body{display:block;animation:fl-slide .14s ease}
+  @keyframes fl-slide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .fl-editbtn{font-size:11.5px;padding:4px 10px;border:.5px solid var(--ia-border);border-radius:6px;background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));font-weight:550;white-space:nowrap}
+  .fl-editbtn:hover{color:var(--ia-text,#f0f0f0);background:var(--ia-hover,rgba(255,255,255,.07))}
+  .fl-model.editing .fl-editbtn{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent}
   .fl-units{display:none;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.012);padding:4px}
   .fl-model.open .fl-units{display:block}
-  .fl-uhead{display:grid;grid-template-columns:140px 1fr 120px 110px 26px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
-  .fl-uline{display:grid;grid-template-columns:140px 1fr 120px 110px 26px;gap:10px;align-items:center;padding:7px 12px;border-radius:var(--ia-r-sm);font-size:12.5px}
-  /* MARKER-PATCH-235 — unit detail link */
-  .fl-ulink{opacity:.4;text-decoration:none;color:inherit;font-size:13px;justify-self:center}
-  .fl-uline:hover .fl-ulink{opacity:.9;color:var(--ia-accent,#BEF264)}
+  /* MARKER-PATCH-236 — roster grid: condition + last rented + utilization, whole row links to unit detail. */
+  .fl-uhead{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
+  .fl-uline{display:grid;grid-template-columns:120px 80px 1fr 130px 90px 70px 64px;gap:10px;align-items:center;padding:8px 12px;border-radius:var(--ia-r-sm);font-size:12.5px;text-decoration:none;color:inherit;cursor:pointer}
+  .fl-ulink{opacity:0;color:var(--ia-accent,#BEF264);font-size:12px;font-weight:600;justify-self:end;white-space:nowrap;transition:opacity .1s}
+  .fl-uline:hover .fl-ulink{opacity:1}
+  .fl-cond{display:flex;gap:8px;font-size:11.5px;align-items:center}
   .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
   .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
   .fl-uline input:hover,.fl-uline select:hover{border-color:var(--ia-border)}
@@ -143,7 +149,11 @@
               <span class="fl-chip"><b>{{ format_money($model->deposit_cents) }}</b> dep</span>
             </div>
             <div class="fl-mins">{{ $model->view_units->count() }} unit{{ $model->view_units->count() === 1 ? '' : 's' }}</div>
-            <span class="pill av">{{ $model->avail_count }} free</span>
+            <span style="display:flex;gap:8px;align-items:center">
+              <span class="pill av">{{ $model->avail_count }} free</span>
+              {{-- MARKER-PATCH-236 — pricing form opens on demand. --}}
+              <button type="button" class="fl-editbtn" onclick="event.stopPropagation();this.closest('.fl-model').classList.toggle('editing');this.closest('.fl-model').classList.add('open')">✎ Edit</button>
+            </span>
           </div>
 
           {{-- model edit drawer --}}
@@ -168,22 +178,35 @@
 
           {{-- units --}}
           <div class="fl-units">
-            <div class="fl-uhead"><span>Serial / tag</span><span>Size</span><span>Booking</span><span>Status</span><span></span></div>
+            {{-- MARKER-PATCH-236 — roster rows: condition and history are the
+                 content; the whole row opens the unit detail page where
+                 damage, photos, and per-unit edits live. --}}
+            <div class="fl-uhead"><span>Serial / tag</span><span>Size</span><span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
             @foreach($model->view_units as $u)
-              <div class="fl-uline" data-unit="{{ $u->id }}">
-                <input class="fl-mono" value="{{ $u->identifier }}" data-uf="identifier" placeholder="#tag">
-                <input value="{{ $u->size }}" data-uf="size" placeholder="{{ $cat->size_axis ?: 'size' }}">
-                <select data-uf="available_for_rent"><option value="1" {{ $u->available_for_rent ? 'selected':'' }}>Rentable</option><option value="0" {{ $u->available_for_rent ? '':'selected' }}>Off</option></select>
-                <select data-uf="status">
-                  @foreach(['available'=>'Available','maintenance'=>'Maintenance','retired'=>'Retired'] as $sk=>$sv)
-                    <option value="{{ $sk }}" {{ $u->status === $sk ? 'selected':'' }}>{{ $sv }}</option>
-                  @endforeach
-                </select>
-                @if($u->derived_status === 'out')<span class="pill out" style="grid-column:4;justify-self:end">Out</span>
-                @elseif($u->derived_status === 'reserved')<span class="pill res" style="grid-column:4;justify-self:end">Reserved</span>@endif
-                {{-- MARKER-PATCH-235 — unit detail page. --}}
-                <a href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}" class="fl-ulink" style="grid-column:5" title="Unit detail">↗</a>
-              </div>
+              @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
+              <a class="fl-uline" data-unit="{{ $u->id }}" href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
+                <span class="fl-mono">{{ $u->identifier ?: '—' }}</span>
+                <span>{{ $u->size ?: '—' }}{{ !$u->available_for_rent ? ' ·off' : '' }}</span>
+                <span class="fl-cond">
+                  @if($m['flags'] > 0)<span style="color:#E0A82E;font-weight:600">⚑ {{ $m['flags'] }} flag{{ $m['flags'] === 1 ? '' : 's' }}</span>@endif
+                  @if($m['photos'] > 0)<span style="opacity:.55">{{ $m['photos'] }} photo{{ $m['photos'] === 1 ? '' : 's' }}</span>@endif
+                  @if($m['flags'] === 0 && $m['photos'] === 0)<span style="opacity:.3">no incidents</span>@endif
+                </span>
+                <span onclick="event.preventDefault();event.stopPropagation()">
+                  @if($u->derived_status === 'out')<span class="pill out">Out</span>
+                  @elseif($u->derived_status === 'reserved')<span class="pill res">Reserved</span>
+                  @else
+                    <select data-uf="status">
+                      @foreach(['available'=>'Available','maintenance'=>'Maintenance','retired'=>'Retired'] as $sk=>$sv)
+                        <option value="{{ $sk }}" {{ $u->status === $sk ? 'selected':'' }}>{{ $sv }}</option>
+                      @endforeach
+                    </select>
+                  @endif
+                </span>
+                <span style="opacity:.55;font-size:11.5px">{{ $m['last'] ? tlocal_date($m['last'], 'M j') : 'never' }}</span>
+                <span style="font-size:11.5px;{{ ($m['util'] ?? 0) >= 60 ? 'color:#7BC96F' : 'opacity:.55' }}">{{ $m['util'] !== null ? $m['util'] . '%' : '—' }}</span>
+                <span class="fl-ulink">Open ↗</span>
+              </a>
             @endforeach
             <div class="fl-add-line">
               <button type="button" class="ia-btn ia-btn--sm" onclick="document.getElementById('bulk-{{ $model->id }}').style.display='flex'">+ Add units</button>
