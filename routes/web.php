@@ -327,6 +327,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/fleet/units',                     [TenantControllers\RentalFleetController::class, 'storeUnit'])->name('rentals.fleet.units.store');
                 Route::patch('/rentals/fleet/units/{id}',               [TenantControllers\RentalFleetController::class, 'updateUnit'])->name('rentals.fleet.units.update');
                 Route::delete('/rentals/fleet/units/{id}',              [TenantControllers\RentalFleetController::class, 'destroyUnit'])->name('rentals.fleet.units.destroy');
+                // MARKER-PATCH-235 — unit detail page ('/detail' keeps clear of the inline-edit PATCH/DELETE URLs).
+                Route::get('/rentals/fleet/units/{id}/detail',          [TenantControllers\RentalFleetController::class, 'showUnit'])->name('rentals.fleet.units.show');
                 Route::post('/rentals/fleet/condition-templates',       [TenantControllers\RentalFleetController::class, 'storeConditionTemplate'])->name('rentals.fleet.ct.store');
                 Route::patch('/rentals/fleet/condition-templates/{id}', [TenantControllers\RentalFleetController::class, 'updateConditionTemplate'])->name('rentals.fleet.ct.update');
                 Route::delete('/rentals/fleet/condition-templates/{id}',[TenantControllers\RentalFleetController::class, 'destroyConditionTemplate'])->name('rentals.fleet.ct.destroy');

@@ -41,8 +41,11 @@
   .fl-model.open .fl-model-body{display:block}
   .fl-units{display:none;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.012);padding:4px}
   .fl-model.open .fl-units{display:block}
-  .fl-uhead{display:grid;grid-template-columns:140px 1fr 120px 110px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
-  .fl-uline{display:grid;grid-template-columns:140px 1fr 120px 110px;gap:10px;align-items:center;padding:7px 12px;border-radius:var(--ia-r-sm);font-size:12.5px}
+  .fl-uhead{display:grid;grid-template-columns:140px 1fr 120px 110px 26px;gap:10px;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}
+  .fl-uline{display:grid;grid-template-columns:140px 1fr 120px 110px 26px;gap:10px;align-items:center;padding:7px 12px;border-radius:var(--ia-r-sm);font-size:12.5px}
+  /* MARKER-PATCH-235 — unit detail link */
+  .fl-ulink{opacity:.4;text-decoration:none;color:inherit;font-size:13px;justify-self:center}
+  .fl-uline:hover .fl-ulink{opacity:.9;color:var(--ia-accent,#BEF264)}
   .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
   .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
   .fl-uline input:hover,.fl-uline select:hover{border-color:var(--ia-border)}
@@ -165,7 +168,7 @@
 
           {{-- units --}}
           <div class="fl-units">
-            <div class="fl-uhead"><span>Serial / tag</span><span>Size</span><span>Booking</span><span>Status</span></div>
+            <div class="fl-uhead"><span>Serial / tag</span><span>Size</span><span>Booking</span><span>Status</span><span></span></div>
             @foreach($model->view_units as $u)
               <div class="fl-uline" data-unit="{{ $u->id }}">
                 <input class="fl-mono" value="{{ $u->identifier }}" data-uf="identifier" placeholder="#tag">
@@ -178,6 +181,8 @@
                 </select>
                 @if($u->derived_status === 'out')<span class="pill out" style="grid-column:4;justify-self:end">Out</span>
                 @elseif($u->derived_status === 'reserved')<span class="pill res" style="grid-column:4;justify-self:end">Reserved</span>@endif
+                {{-- MARKER-PATCH-235 — unit detail page. --}}
+                <a href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}" class="fl-ulink" style="grid-column:5" title="Unit detail">↗</a>
               </div>
             @endforeach
             <div class="fl-add-line">

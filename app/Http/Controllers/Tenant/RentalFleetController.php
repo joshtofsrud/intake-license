@@ -141,6 +141,89 @@ class RentalFleetController extends Controller
     }
 
     // ------------------------------------------------------------ categories
+
+    // ---------------------------------------------- unit detail (PATCH-235)
+    /**
+     * MARKER-PATCH-235 — the serial's whole story: utilization, revenue,
+     * rental history, maintenance notes, recent check photos. Everything is
+     * derived — no new tables.
+     */
+    public function showUnit(string $id)
+    {
+        $tenant = tenant();
+
+        $unit = \App\Models\Tenant\TenantRentalUnit::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->with(['model', 'category', 'conditionTemplate'])
+            ->firstOrFail();
+
+        // Rental history: every rental this unit appeared on.
+        $rentals = \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)
+            ->whereHas('lines', fn ($l) => $l->where('unit_id', $unit->id))
+            ->with([
+                'customer:id,first_name,last_name',
+                'lines' => fn ($l) => $l->where('unit_id', $unit->id),
+                'conditionChecks' => fn ($c) => $c->where('unit_id', $unit->id),
+            ])
+            ->orderByDesc('starts_at')
+            ->limit(25)
+            ->get();
+
+        // Derived live state: out / reserved trumps the stored status.
+        $derived = $unit->status;
+        if ($rentals->firstWhere('status', 'out')?->lines->isNotEmpty()) {
+            $derived = 'out';
+        } elseif ($unit->status === 'available'
+            && $rentals->firstWhere('status', 'reserved')?->lines->isNotEmpty()) {
+            $derived = 'reserved';
+        }
+
+        // Utilization, trailing 30 days: overlap-days of non-cancelled
+        // rentals within the window / 30.
+        $windowStart = now()->subDays(30);
+        $windowEnd   = now();
+        $overlapHours = 0.0;
+        $windowRentals = \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)
+            ->whereHas('lines', fn ($l) => $l->where('unit_id', $unit->id))
+            ->where('status', '!=', 'cancelled')
+            ->where('starts_at', '<=', $windowEnd)
+            ->where(function ($w) use ($windowStart) {
+                $w->whereNull('returned_at')->orWhere('returned_at', '>=', $windowStart);
+            })
+            ->get(['id', 'starts_at', 'returned_at', 'status']);
+        foreach ($windowRentals as $r) {
+            $from = $r->starts_at->greaterThan($windowStart) ? $r->starts_at : $windowStart;
+            $to   = $r->returned_at ?? $windowEnd;
+            if ($to->greaterThan($windowEnd)) {
+                $to = $windowEnd;
+            }
+            if ($to->greaterThan($from)) {
+                $overlapHours += $from->floatDiffInHours($to);
+            }
+        }
+        $utilizationPct = (int) round(min(100, ($overlapHours / 24 / 30) * 100));
+
+        // Lifetime revenue: this unit's line totals on non-cancelled rentals.
+        $lifetimeCents = (int) \App\Models\Tenant\TenantRentalLine::where('unit_id', $unit->id)
+            ->whereHas('rental', fn ($r) => $r->where('tenant_id', $tenant->id)->where('status', '!=', 'cancelled'))
+            ->sum('line_total_cents');
+
+        $flaggedReturns = \App\Models\Tenant\TenantRentalConditionCheck::where('unit_id', $unit->id)
+            ->where('phase', 'check_in')->where('flagged', true)->count();
+
+        // Recent check photos (both phases), newest first.
+        $photoChecks = \App\Models\Tenant\TenantRentalConditionCheck::where('unit_id', $unit->id)
+            ->whereNotNull('photos')
+            ->orderByDesc('performed_at')
+            ->limit(6)
+            ->get();
+
+        return view('tenant.rentals.units.show', compact(
+            'unit', 'derived', 'rentals', 'utilizationPct', 'lifetimeCents',
+            'flaggedReturns', 'photoChecks'
+        ));
+    }
+
     public function storeCategory(Request $request)
     {
         $tenant = tenant();
