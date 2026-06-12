@@ -294,6 +294,29 @@
           <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-field="bg_overlay_color_text" value="{{ $get('bg_overlay_color', '#000000') }}">
         </div>
       </div>
+
+      {{-- MARKER-PATCH-249 — motion + blur (apply when background is an image). --}}
+      <div class="pb2-field">
+        <label class="pb2-checkbox-row">
+          <input type="checkbox" data-field="bg_parallax" value="1" {{ $get('bg_parallax', '0') === '1' ? 'checked' : '' }}>
+          <span>Parallax scroll</span>
+        </label>
+        <div class="pb2-field-hint">Background drifts slower than the page. Image backgrounds only; visitors with reduced-motion enabled see it static.</div>
+      </div>
+      <div class="pb2-field">
+        <div class="pb2-slider-row">
+          <label class="pb2-field-label" style="margin:0">Parallax depth</label>
+          <span class="pb2-slider-value" id="pb2-pdepth-val">{{ $get('bg_parallax_depth', 35) }}</span>
+        </div>
+        <input type="range" min="0" max="70" value="{{ $get('bg_parallax_depth', 35) }}" data-field="bg_parallax_depth" oninput="document.getElementById('pb2-pdepth-val').textContent=this.value">
+      </div>
+      <div class="pb2-field">
+        <div class="pb2-slider-row">
+          <label class="pb2-field-label" style="margin:0">Background blur</label>
+          <span class="pb2-slider-value" id="pb2-blur-val">{{ $get('bg_blur', 0) }}px</span>
+        </div>
+        <input type="range" min="0" max="14" value="{{ $get('bg_blur', 0) }}" data-field="bg_blur" oninput="document.getElementById('pb2-blur-val').textContent=this.value+'px'">
+      </div>
     </div>
 
     {{-- Gradient mode --}}

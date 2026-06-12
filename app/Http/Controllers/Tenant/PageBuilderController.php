@@ -78,6 +78,10 @@ class PageBuilderController extends Controller
             // Legacy CTAs (kept for v1 content; new edits use buttons[])
             'cta_primary_label'   => 'Book Now',
             'cta_primary_url'     => '/book',
+            // MARKER-PATCH-249 — Design series: motion + blur (image mode).
+            'bg_parallax'         => '0',
+            'bg_parallax_depth'   => 35,
+            'bg_blur'             => 0,
             'cta_secondary_label' => '',
             'cta_secondary_url'   => '',
             // Layout

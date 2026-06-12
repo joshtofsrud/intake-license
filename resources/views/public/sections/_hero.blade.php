@@ -32,6 +32,15 @@
   $overlayOpacity = max(0, min(100, (int)($c['bg_overlay_opacity'] ?? 45)));
   $overlayColor   = $c['bg_overlay_color'] ?? '#000000';
 
+  // MARKER-PATCH-249 — parallax + blur (image mode only; ?? everywhere,
+  // pre-249 rows lack these keys).
+  $hasImage   = $bgMode === 'image' && $imgUrl;
+  $parallaxOn = $hasImage && (($c['bg_parallax'] ?? '0') === '1');
+  $pDepth     = max(0, min(70, (int)($c['bg_parallax_depth'] ?? 35))) / 100;
+  $blurPx     = max(0, min(14, (int)($c['bg_blur'] ?? 0)));
+  // Veil replaces the ::before overlay whenever a separate layer is needed.
+  $useVeil    = $hasImage && ($parallaxOn || $blurPx > 0);
+
   // Colors
   $textColor     = $c['text_color']      ?? '#ffffff';
   // MARKER-PATCH-158-G19B — Use ?? (null-coalesce) not ?: (truthy-or). Older
@@ -101,23 +110,53 @@
   overflow: hidden;
   padding-top: {{ $padTop }};
   padding-bottom: {{ $padBot }};
-  @if($bgMode === 'image' && $imgUrl)
+  @if($bgMode === 'image' && $imgUrl && !$parallaxOn)
   background-color: {{ $bgColor }};
   background-image: url('{{ $imgUrl }}');
   background-size: {{ $imgSize }};
   background-position: {{ $imgPos }};
+  @elseif($parallaxOn)
+  background-color: {{ $bgColor }}; {{-- MARKER-PATCH-249 — image moves to .p-hero-bg --}}
   @elseif($bgMode === 'gradient')
   background: linear-gradient({{ $gradDeg }}deg, {{ $gradFrom }} 0%, {{ $gradTo }} 100%);
   @else
   background-color: {{ $bgColor }};
   @endif
 }
-@if($bgMode === 'image' && $imgUrl && $overlayOpacity > 0)
+@if($bgMode === 'image' && $imgUrl && $overlayOpacity > 0 && !$useVeil)
 .{{ $instId }}::before {
   content: '';
   position: absolute; inset: 0;
   background: {{ $overlayColor }};
   opacity: {{ $overlayOpacity / 100 }};
+  pointer-events: none;
+}
+@endif
+@if($parallaxOn)
+.{{ $instId }} .p-hero-bg { {{-- MARKER-PATCH-249 --}}
+  position: absolute;
+  left: 0; right: 0; top: -18%; bottom: -18%;
+  background-color: {{ $bgColor }};
+  background-image: url('{{ $imgUrl }}');
+  background-size: {{ $imgSize }};
+  background-position: {{ $imgPos }};
+  will-change: transform;
+  z-index: 0;
+  pointer-events: none;
+}
+@endif
+@if($useVeil)
+.{{ $instId }} .p-hero-veil { {{-- MARKER-PATCH-249 --}}
+  position: absolute; inset: 0;
+  @if($overlayOpacity > 0)
+  background: {{ $overlayColor }};
+  opacity: {{ $overlayOpacity / 100 }};
+  @endif
+  @if($blurPx > 0)
+  backdrop-filter: blur({{ $blurPx }}px);
+  -webkit-backdrop-filter: blur({{ $blurPx }}px);
+  @endif
+  z-index: 0;
   pointer-events: none;
 }
 @endif
@@ -229,6 +268,9 @@
 </style>
 
 <section class="{{ $instId }} p-hero {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+  {{-- MARKER-PATCH-249 — layered background: bg (moves) under veil (overlay+blur) under content. --}}
+  @if($parallaxOn)<div class="p-hero-bg" data-ia-parallax="{{ $pDepth }}"></div>@endif
+  @if($useVeil)<div class="p-hero-veil"></div>@endif
   <div class="p-hero-content">
     @if(!empty($c['eyebrow']))
       <div class="p-hero-eyebrow">{{ $c['eyebrow'] }}</div>
@@ -260,3 +302,34 @@
     @endif
   </div>
 </section>
+
+@if($parallaxOn)
+{{-- MARKER-PATCH-249 — one shared rAF-throttled driver per page, bound once
+     no matter how many parallax heroes render. transform-based (never
+     background-attachment:fixed). prefers-reduced-motion disables entirely. --}}
+<script>
+(function () {
+  if (window.__iaParallaxBound) return;
+  window.__iaParallaxBound = true;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var ticking = false;
+  function frame() {
+    var els = document.querySelectorAll('[data-ia-parallax]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var host = el.parentElement;
+      if (!host) continue;
+      var r = host.getBoundingClientRect();
+      if (r.bottom < -200 || r.top > window.innerHeight + 200) continue;
+      var d = parseFloat(el.getAttribute('data-ia-parallax')) || 0.35;
+      el.style.transform = 'translate3d(0,' + (-r.top * d).toFixed(1) + 'px,0)';
+    }
+    ticking = false;
+  }
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(frame); } }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+  frame();
+})();
+</script>
+@endif
