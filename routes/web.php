@@ -343,6 +343,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-PATCH-228 — rentals settings (season window + leasing toggle).
                 Route::get('/rentals/settings',  [TenantControllers\RentalSettingsController::class, 'index'])->name('rentals.settings');
                 Route::post('/rentals/settings', [TenantControllers\RentalSettingsController::class, 'save'])->name('rentals.settings.save');
+                // MARKER-PATCH-237 — versioned agreement templates (publish-only).
+                Route::post('/rentals/settings/agreement-templates', [TenantControllers\RentalSettingsController::class, 'storeAgreementTemplate'])->name('rentals.settings.agreements.store');
 
                 // MARKER-PATCH-229 — lease packages (the tier builder). Gated
                 // in-controller on leases_enabled.

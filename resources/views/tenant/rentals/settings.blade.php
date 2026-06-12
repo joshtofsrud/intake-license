@@ -101,7 +101,61 @@
     <p style="font-size:11.5px;opacity:.45;margin-top:10px">Within the grace period nothing is suggested. Past it, full hours from the due time are billed. Set $0/hour to turn suggestions off.</p>
   </div>
 
+  {{-- MARKER-PATCH-237 — deposit behavior. --}}
+  <div class="ia-card" style="padding:18px 20px;margin-bottom:16px">
+    <div class="ia-card-head"><span class="ia-card-title">Deposits</span></div>
+    <label style="display:flex;gap:10px;align-items:flex-start;margin-top:10px;cursor:pointer">
+      <input type="checkbox" name="deposit_autorelease_quick" value="1" {{ $depositAutoRelease ? 'checked' : '' }} style="margin-top:3px">
+      <span style="font-size:13px">Auto-release deposit holds on <b>quick</b> check-in
+        <span style="display:block;font-size:11.5px;opacity:.5;margin-top:2px">The guided return flow always asks explicitly — this only controls the one-click escape hatch. Turn off if you'd rather every hold be a deliberate decision.</span>
+      </span>
+    </label>
+  </div>
+
   <button type="submit" class="ia-btn ia-btn--primary">Save settings</button>
 </form>
+
+{{-- MARKER-PATCH-237 — versioned agreement templates. Own form: publishing
+     is separate from saving settings. --}}
+<div class="ia-card" style="padding:18px 20px;margin-top:16px">
+  <div class="ia-card-head"><span class="ia-card-title">Rental agreement</span></div>
+  @if($agreementTemplates->isEmpty())
+    <p style="font-size:12.5px;opacity:.55;margin:6px 0 14px;line-height:1.5">
+      No agreement yet — the check-out flow currently skips the signature step. Publish v1 below and every guided check-out from then on requires a signed agreement (PDF snapshotted to the rental record).
+    </p>
+  @else
+    <div style="margin:10px 0 16px">
+      @foreach($agreementTemplates as $tpl)
+        <details style="border:.5px solid var(--ia-border);border-radius:8px;padding:10px 14px;margin-bottom:8px;{{ $loop->first ? 'background:rgba(190,242,100,.05)' : '' }}">
+          <summary style="cursor:pointer;font-size:13px;display:flex;gap:10px;align-items:center;list-style:none">
+            <b>{{ $tpl->title }}</b>
+            <span style="font-size:11px;opacity:.5;font-family:var(--ia-font-mono,monospace)">v{{ $tpl->version }}</span>
+            @if($loop->first)<span style="font-size:10.5px;font-weight:600;color:var(--ia-accent);background:rgba(190,242,100,.12);border-radius:999px;padding:2px 9px">current</span>@endif
+            <span style="font-size:11px;opacity:.45;margin-left:auto">{{ tlocal_date($tpl->created_at) }}</span>
+          </summary>
+          <pre style="font-size:12px;white-space:pre-wrap;font-family:inherit;opacity:.75;margin-top:10px;line-height:1.6">{{ $tpl->body }}</pre>
+        </details>
+      @endforeach
+    </div>
+  @endif
+
+  <form method="POST" action="{{ route('tenant.rentals.settings.agreements.store') }}">
+    @csrf
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Title</label>
+        <input type="text" name="title" maxlength="160" required class="ia-input" style="width:100%;max-width:480px" value="{{ $agreementTemplates->first()?->title ?? 'Rental agreement' }}">
+      </div>
+      <div>
+        <label class="ia-label" style="display:block;margin-bottom:5px">Terms</label>
+        <textarea name="body" rows="10" required maxlength="50000" class="ia-input" style="width:100%;font-size:12.5px;line-height:1.6" placeholder="The customer agrees to…">{{ $agreementTemplates->first()?->body }}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button type="submit" class="ia-btn ia-btn--primary">Publish {{ $agreementTemplates->isEmpty() ? 'v1' : 'v' . ($agreementTemplates->first()->version + 1) }}</button>
+        <span style="font-size:11.5px;opacity:.45">Publish-only — past rentals keep the version they signed.</span>
+      </div>
+    </div>
+  </form>
+</div>
 
 @endsection

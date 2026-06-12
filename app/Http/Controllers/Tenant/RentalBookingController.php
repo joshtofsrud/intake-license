@@ -804,8 +804,13 @@ class RentalBookingController extends Controller
             // MARKER-PATCH-220 — clean return auto-releases a live hold.
             // Stripe failure does NOT block the return: holds self-expire,
             // and the panel keeps a Release button while status=authorized.
+            // MARKER-PATCH-237 — unless the tenant turned auto-release off.
+            $autoRelease = (bool) ((tenant()->settings['rental_deposit_autorelease_quick'] ?? true));
             $message = 'Returned. Unit is available again.';
-            if ($rental->deposit_status === 'authorized' && $rental->stripe_deposit_intent_id) {
+            if (!$autoRelease && $rental->deposit_status === 'authorized') {
+                $message = 'Returned. Deposit still on hold — release or capture from the booking page.';
+            }
+            if ($autoRelease && $rental->deposit_status === 'authorized' && $rental->stripe_deposit_intent_id) {
                 try {
                     (new \App\Services\Tenant\DirectPaymentsService(tenant()))
                         ->cancelDepositHold($rental->stripe_deposit_intent_id);
