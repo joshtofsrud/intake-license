@@ -114,6 +114,44 @@ class RentalAvailabilityTimelineController extends Controller
             }
         }
 
+        // MARKER-PATCH-238 — active lease assignments as season-long bars.
+        // Same world view the conflict check (PATCH-230) already enforces;
+        // zero rows when the tenant has no leases.
+        $leaseAssignments = \App\Models\Tenant\LeaseAssignment::where('tenant_id', $tenant->id)
+            ->whereNull('returned_at')
+            ->whereNotNull('unit_id')
+            ->whereHas('lease', function ($q) use ($winStartUtc, $winEndUtc) {
+                $q->where('status', 'active')
+                  ->where('season_start', '<', $winEndUtc)
+                  ->where('season_end', '>', $winStartUtc);
+            })
+            ->with(['lease' => fn ($q) => $q->with('customer:id,first_name,last_name')])
+            ->get();
+
+        foreach ($leaseAssignments as $assignment) {
+            $lease = $assignment->lease;
+            if (!$lease) {
+                continue;
+            }
+            $barStartUtc = $lease->season_start->greaterThan($winStartUtc) ? $lease->season_start->copy() : $winStartUtc->copy();
+            $barEndUtc   = $lease->season_end->lessThan($winEndUtc) ? $lease->season_end->copy() : $winEndUtc->copy();
+            if ($barEndUtc->lessThanOrEqualTo($barStartUtc)) {
+                continue;
+            }
+
+            $leftMin  = $winStartUtc->diffInMinutes($barStartUtc);
+            $widthMin = $barStartUtc->diffInMinutes($barEndUtc);
+
+            $who = trim(($lease->customer?->first_name ?? '') . ' ' . mb_substr((string) $lease->customer?->last_name, 0, 1));
+            $barsByUnit[$assignment->unit_id][] = [
+                'left'  => round($leftMin / $totalMin * 100, 3),
+                'width' => max(0.8, round($widthMin / $totalMin * 100, 3)),
+                'type'  => 'lease',
+                'label' => $lease->lease_number . ($who !== '' ? ' · ' . $who : '') . ' — leased to ' . $lease->season_end->setTimezone(tenant()->timezone())->format('M j'),
+                'href'  => route('tenant.rentals.leases.show', $lease->id),
+            ];
+        }
+
         $rows = $units->map(function (TenantRentalUnit $u) use ($barsByUnit) {
             $bars = $barsByUnit[$u->id] ?? [];
             if ($u->status === 'maintenance') {

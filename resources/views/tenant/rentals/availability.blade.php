@@ -27,6 +27,7 @@
   .avail-bar.reserved { background:#B8801A; }
   .avail-bar.overdue  { background:#A32D2D; }
   .avail-bar.maint    { background:#534AB7; }
+  .avail-bar.lease    { background:#3d6b2f; } /* MARKER-PATCH-238 */
   .avail-pills { display:flex; gap:6px; flex-wrap:wrap; }
   .avail-pill { font-size:11.5px; padding:4px 10px; border-radius:999px; box-shadow:inset 0 0 0 .5px var(--ia-border);
                 cursor:pointer; text-decoration:none; color:inherit; opacity:.7; }
@@ -57,6 +58,7 @@
   <span><span class="avail-chip" style="background:#B8801A"></span> Reserved</span>
   <span><span class="avail-chip" style="background:#A32D2D"></span> Overdue</span>
   <span><span class="avail-chip" style="background:#534AB7"></span> Maintenance</span>
+  @if(tenant()->leases_enabled)<span><span class="avail-chip" style="background:#3d6b2f"></span> Lease</span>@endif
   <span style="margin-left:auto" class="avail-pills">
     <a class="avail-pill {{ $categoryId ? '' : 'is-active' }}" href="{{ route('tenant.rentals.availability.timeline', array_filter(['start' => request('start')])) }}">All</a>
     @foreach($categories as $cat)
