@@ -40,9 +40,9 @@
 </div>
 
 <style>
-  .ar-row{display:flex;align-items:center;gap:4px;margin-bottom:10px}
-  .ar-btn{position:relative;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;cursor:pointer;color:var(--ia-text);box-shadow:inset 0 0 0 .5px var(--ia-border);text-decoration:none}
-  .ar-btn:hover{background:rgba(127,127,127,.08)}
+  .ar-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:2px 2px 16px}
+  .ar-btn{position:relative;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;cursor:pointer;color:var(--ia-text);opacity:.55;text-decoration:none;transition:opacity .15s ease,background .15s ease}
+  .ar-btn:hover{opacity:1;background:rgba(127,127,127,.09)}
   .ar-badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#5BA3D0;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
   .ar-modal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
   .ar-modal-card{width:92%;max-width:560px;background:var(--ia-surface,#1c1c1c);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.45),inset 0 0 0 .5px var(--ia-border);overflow:hidden}

@@ -21,13 +21,14 @@
 </div>
 
 <style>
-  .sa-bell { position:relative; margin-bottom:10px; }
-  .sa-bell-btn { position:relative; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
-                 background:transparent; border:none; cursor:pointer; color:var(--ia-text); box-shadow:inset 0 0 0 .5px var(--ia-border); }
-  .sa-bell-btn:hover { background:rgba(127,127,127,.08); }
+  .sa-bell { position:relative; }
+  .sa-bell-btn { position:relative; width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+                 background:transparent; border:none; cursor:pointer; color:var(--ia-text); opacity:.55;
+                 transition:opacity .15s ease, background .15s ease; }
+  .sa-bell-btn:hover { opacity:1; background:rgba(127,127,127,.09); }
   .sa-bell-badge { position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
                    background:#A32D2D; color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
-  .sa-panel { position:absolute; top:40px; left:0; width:300px; z-index:60; background:var(--ia-surface, #fff); border-radius:12px;
+  .sa-panel { position:absolute; top:44px; right:0; width:300px; z-index:9000; background:var(--ia-surface, #fff); border-radius:12px;
               box-shadow:0 8px 30px rgba(0,0,0,.18), inset 0 0 0 .5px var(--ia-border); overflow:hidden; }
   .sa-panel-head { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:.5px solid var(--ia-border); font-size:12px; font-weight:600; }
   .sa-mark-all { background:none; border:none; cursor:pointer; font-size:11px; opacity:.6; color:inherit; }
