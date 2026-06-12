@@ -63,6 +63,10 @@
   var modal = document.querySelector('[data-ar-modal]');
   if (!modal || modal.dataset.arInit) return;
   modal.dataset.arInit = '1';
+  // MARKER-PATCH-231C — move the modal out of the sidebar subtree to <body>,
+  // so position:fixed escapes the sidebar's stacking/transform context and
+  // the modal paints above the dashboard tiles. DOM move, not a style change.
+  if (modal.parentNode !== document.body) { document.body.appendChild(modal); }
   var input = modal.querySelector('[data-ar-input]');
   var results = modal.querySelector('[data-ar-results]');
   var searchUrl = '{{ route('tenant.search') }}';
