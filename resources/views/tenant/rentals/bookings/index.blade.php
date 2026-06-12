@@ -24,14 +24,14 @@
 
 <form method="GET" action="{{ route('tenant.rentals.bookings.index') }}" style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
   <input type="hidden" name="tab" value="{{ $tab }}">
-  <input type="text" name="q" value="{{ $q }}" placeholder="Search customer, rental #, unit…" class="ia-input" style="flex:1;min-width:200px">
-  <select name="category" class="ia-input" onchange="this.form.submit()">
+  <input type="text" name="q" value="{{ $q }}" placeholder="Search customer, rental #, unit…" class="ia-input" style="flex:1 1 240px;width:auto;min-width:200px">
+  <select name="category" class="ia-input" style="width:auto;flex:0 0 auto" onchange="this.form.submit()">
     <option value="">All categories</option>
     @foreach($categories as $cat)
       <option value="{{ $cat->id }}" {{ $category === (string) $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
     @endforeach
   </select>
-  <select name="when" class="ia-input" onchange="this.form.submit()">
+  <select name="when" class="ia-input" style="width:auto;flex:0 0 auto" onchange="this.form.submit()">
     <option value="">Any date</option>
     <option value="today" {{ $when === 'today' ? 'selected' : '' }}>Today</option>
     <option value="week" {{ $when === 'week' ? 'selected' : '' }}>Next 7 days</option>
