@@ -156,23 +156,25 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Alignment</div>
 
+    {{-- MARKER-PATCH-252 — 9-point content anchor: one picker, same two
+         fields (text_align x vertical_align), same save contract. --}}
     <div class="pb2-field">
-      <label class="pb2-field-label">Horizontal alignment</label>
-      <div class="pb2-seg" data-field-seg="text_align">
-        @foreach(['left'=>'Left','center'=>'Center','right'=>'Right'] as $val => $name)
-          <button type="button" class="pb2-seg-btn {{ $get('text_align', 'left') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
-        @endforeach
+      <label class="pb2-field-label">Content position</label>
+      <div style="display:flex;gap:14px;align-items:center">
+        @php
+          $curH = $get('text_align', 'left');
+          $curV = $get('vertical_align', 'center');
+        @endphp
+        <div class="pb2-anchor" data-anchor-fields="text_align vertical_align">
+          @foreach(['top','center','bottom'] as $row)
+            @foreach(['left','center','right'] as $col)
+              <button type="button" class="pb2-anchor-dot {{ $curH === $col && $curV === $row ? 'on' : '' }}" data-anchor="{{ $col }} {{ $row }}" title="{{ ucfirst($row) }} {{ $col }}"></button>
+            @endforeach
+          @endforeach
+        </div>
+        <div class="pb2-field-hint" style="flex:1">Anchor the text block to any of 9 positions. Mobile stacks it safely regardless.</div>
       </div>
       <input type="hidden" data-field="text_align" value="{{ $get('text_align', 'left') }}">
-    </div>
-
-    <div class="pb2-field">
-      <label class="pb2-field-label">Vertical alignment</label>
-      <div class="pb2-seg" data-field-seg="vertical_align">
-        @foreach(['top'=>'Top','center'=>'Middle','bottom'=>'Bottom'] as $val => $name)
-          <button type="button" class="pb2-seg-btn {{ $get('vertical_align', 'center') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
-        @endforeach
-      </div>
       <input type="hidden" data-field="vertical_align" value="{{ $get('vertical_align', 'center') }}">
     </div>
 

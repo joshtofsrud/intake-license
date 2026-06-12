@@ -1434,6 +1434,32 @@
   outline: .5px solid rgba(190,242,100,.3);
 }
 
+/* --- 9-point anchor picker (MARKER-PATCH-252) ----------------------- */
+.pb2-anchor {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  width: 84px;
+}
+.pb2-anchor-dot {
+  aspect-ratio: 1;
+  border: .5px solid var(--pb2-border);
+  border-radius: 5px;
+  background: var(--pb2-surface-3);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+}
+.pb2-anchor-dot:hover { border-color: var(--pb2-border-2); }
+.pb2-anchor-dot.on { border-color: var(--pb2-accent); }
+.pb2-anchor-dot.on::after {
+  content: '';
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  background: var(--pb2-accent);
+}
+
 /* --- preview: framed canvas ----------------------------------------- */
 .pb2-preview-frame-wrap { padding: 14px; background: #0d0d0d; }
 .pb2-preview-frame {
@@ -2162,6 +2188,28 @@
     if (hasPanels) showTab(activeTab);
 
     // Segmented controls — clicking a button updates the hidden input it
+    // MARKER-PATCH-252 — 9-point anchor picker (.pb2-anchor). Each dot
+    // carries data-anchor="<text_align> <vertical_align>"; clicking writes
+    // both hidden inputs and dispatches change so autosave fires — the
+    // exact contract the seg binder uses below.
+    body.querySelectorAll('.pb2-anchor').forEach(grid => {
+      const fields = (grid.dataset.anchorFields || 'text_align vertical_align').split(' ');
+      grid.querySelectorAll('.pb2-anchor-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          grid.querySelectorAll('.pb2-anchor-dot').forEach(d => d.classList.remove('on'));
+          dot.classList.add('on');
+          const vals = (dot.dataset.anchor || '').split(' ');
+          fields.forEach((f, i) => {
+            const target = body.querySelector(`input[type="hidden"][data-field="${f}"]`);
+            if (target && vals[i] !== undefined) {
+              target.value = vals[i];
+              target.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+        });
+      });
+    });
+
     // controls (via data-field-seg) and dispatches a change event so
     // autosave fires.
     body.querySelectorAll('.pb2-seg').forEach(seg => {
