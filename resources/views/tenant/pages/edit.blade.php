@@ -29,7 +29,7 @@
     'feature_grid'           => 'Feature grid',
     'step_timeline'          => 'Step timeline',
     'pricing_table'          => 'Pricing table',
-    'rentals_showcase'       => 'Rentals showcase', {{-- MARKER-PATCH-239 --}}
+    'rentals_showcase'       => 'Rentals showcase', // MARKER-PATCH-239
     'faq_accordion'          => 'FAQ accordion',
     'testimonial_carousel'   => 'Testimonials',
     'logo_bar'               => 'Logo bar',
@@ -82,7 +82,7 @@
     'step_timeline' => 'Numbered process steps',
     'faq_accordion' => 'Collapsible Q&A list',
     'pricing_table' => 'Side-by-side pricing tiers',
-    'rentals_showcase' => 'Live rental fleet with rates', {{-- MARKER-PATCH-239 --}}
+    'rentals_showcase' => 'Live rental fleet with rates', // MARKER-PATCH-239
     'testimonial_carousel' => 'Customer quotes carousel',
     'logo_bar'      => 'Trust bar with partner logos',
     'comparison_table'=>'Feature vs competitor matrix',
