@@ -130,6 +130,11 @@ $tenantRoutes = function () {
     Route::post('/book/customer-lookup', [TenantControllers\BookingLookupController::class, 'lookup'])->name('tenant.booking.customer-lookup');
     // MARKER-PATCH-239 — public rental availability browse.
     Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
+    // MARKER-PATCH-240 — public reservation checkout.
+    Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');
+    Route::post('/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'store'])->name('tenant.rentals.reserve.store');
+    Route::post('/rentals/reserve/confirm',  [TenantControllers\RentalReserveController::class, 'confirm'])->name('tenant.rentals.reserve.confirm');
+    Route::get( '/rentals/reserved',         [TenantControllers\RentalReserveController::class, 'confirmation'])->name('tenant.rentals.reserved');
 
     Route::get('/waitlist/join',               [TenantControllers\WaitlistPublicController::class, 'join'])->name('tenant.waitlist.join');
     Route::post('/waitlist/join',              [TenantControllers\WaitlistPublicController::class, 'submitJoin'])->name('tenant.waitlist.submit');

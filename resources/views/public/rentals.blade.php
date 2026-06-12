@@ -81,13 +81,14 @@
                 @if($m->weekend_rate_cents)<span class="chip"><b>{{ format_money($m->weekend_rate_cents) }}</b>/weekend</span>@endif
               </div>
               <div class="meta">{{ $entry['count'] }} available{{ count($entry['sizes']) ? ' · sizes ' . implode(', ', $entry['sizes']) : '' }}</div>
-              <a class="cta" href="/contact">Reserve — get in touch</a>
+              {{-- MARKER-PATCH-240 — real online reservation. --}}
+              <a class="cta" href="{{ route('tenant.rentals.reserve', ['model' => $m->id, 'starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]) }}">Reserve</a>
             </div>
           @endforeach
         </div>
       </div>
     @endforeach
-    <p style="font-size:12px;opacity:.4;text-align:center;margin-top:10px">{{ $unitCount }} unit{{ $unitCount === 1 ? '' : 's' }} free for this window. Online reservation is coming soon — for now, reach out and we'll hold it for you.</p>
+    <p style="font-size:12px;opacity:.4;text-align:center;margin-top:10px">{{ $unitCount }} unit{{ $unitCount === 1 ? '' : 's' }} free for this window.</p>
   @endif
 </div>
 </body>
