@@ -79,13 +79,20 @@
      is the affordance and rotates to x when open. */
   details.fl-section{border-style:dashed;background:transparent;transition:background var(--ia-t,.12s)}
   details.fl-section:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
-  details.fl-section[open]{border-style:solid;background:var(--ia-surface,#1c1c1c)}
+  details.fl-section[open]{border-style:solid;background:var(--ia-surface,#1c1c1c);grid-column:1/-1} /* MARKER-PATCH-243 — open form gets the whole row */
   details.fl-section summary{cursor:pointer;font-size:12.5px;font-weight:550;color:var(--ia-text-dim,rgba(255,255,255,.55));padding:2px 0;display:flex;align-items:center;gap:9px;list-style:none}
   details.fl-section summary::-webkit-details-marker{display:none}
   details.fl-section summary::before{content:'+';font-size:15px;font-weight:600;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;transition:transform .14s ease;flex-shrink:0}
   details.fl-section[open] summary::before{transform:rotate(45deg)}
   details.fl-section[open] summary{color:var(--ia-text,#f0f0f0)}
   details.fl-section summary:hover{color:var(--ia-text,#f0f0f0)}
+  /* MARKER-PATCH-243 — category inline edit + checklist manager rows. */
+  .fl-cat-editbtn{font-size:11px;padding:2px 8px;border:.5px solid var(--ia-border);border-radius:5px;background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));margin-left:10px;vertical-align:2px}
+  .fl-cat-editbtn:hover{color:var(--ia-text,#f0f0f0);background:var(--ia-hover,rgba(255,255,255,.05))}
+  .fl-cat-edit{display:none;gap:10px;align-items:end;padding:12px 18px;border-top:.5px solid var(--ia-border);background:rgba(255,255,255,.02);flex-wrap:wrap}
+  .fl-cat-edit.open{display:flex}
+  .fl-ct-row{border:.5px solid var(--ia-border);border-radius:var(--ia-r-md,8px);padding:10px 12px;margin-bottom:10px}
+  .fl-ct-row textarea.fl-inp{min-height:74px;resize:vertical;font-size:12px;line-height:1.5}
 </style>
 @endpush
 
@@ -132,7 +139,10 @@
     <div class="fl-cat-head" onclick="this.parentElement.classList.toggle('open')">
       <div class="fl-disc"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
       <div>
-        <div class="fl-cat-name">{{ $cat->name }}</div>
+        <div class="fl-cat-name">{{ $cat->name }}
+          {{-- MARKER-PATCH-243 — inline category edit. --}}
+          <button type="button" class="fl-cat-editbtn" onclick="event.stopPropagation();this.closest('.fl-cat').querySelector('.fl-cat-edit').classList.toggle('open');this.closest('.fl-cat').classList.add('open')">✎</button>
+        </div>
         <div class="fl-cat-axis">{{ $cat->size_axis ? 'Size axis: ' . $cat->size_axis . ' · ' : '' }}{{ $r['models'] }} model{{ $r['models'] === 1 ? '' : 's' }}</div>
       </div>
       <div class="fl-roll">
@@ -145,6 +155,14 @@
         <div class="fl-seg out" style="width:{{ $r['out']/$t*100 }}%"></div>
         <div class="fl-seg mt" style="width:{{ $r['maintenance']/$t*100 }}%"></div>
       </div>
+    </div>
+    {{-- MARKER-PATCH-243 — category edit strip: same {field,value} auto-save
+         contract as everything else on this page. --}}
+    <div class="fl-cat-edit" data-cat="{{ $cat->id }}">
+      <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Category name</span><input class="fl-inp" value="{{ $cat->name }}" data-cf="name"></div>
+      <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Size axis (optional)</span><input class="fl-inp" value="{{ $cat->size_axis }}" data-cf="size_axis" placeholder="length (cm), Mondopoint…"></div>
+      <button type="button" class="ia-btn ia-btn--sm" style="color:#ff8b8b;border-color:rgba(239,68,68,.35)" onclick="flDeleteCategory('{{ $cat->id }}')">Delete category</button>
+      <span style="font-size:11px;opacity:.4;flex-basis:100%">Name and axis save as you type. Delete only works once the category is empty.</span>
     </div>
     <div class="fl-cat-body">
       @forelse($modelsByCat[$cat->id] ?? [] as $model)
@@ -270,7 +288,26 @@
 
   {{-- add checklist --}}
   <details class="ia-card fl-section" style="padding:11px 16px">
-    <summary>Add a condition checklist</summary>
+    <summary>Condition checklists{{ $conditionTemplates->isNotEmpty() ? ' (' . $conditionTemplates->count() . ')' : '' }}</summary>
+
+    {{-- MARKER-PATCH-243 — manage existing checklists: name + items edit
+         in place (one item per line, same shape as creation), delete with
+         confirm. Endpoints shipped in PATCH-218; this is their UI. --}}
+    @if($conditionTemplates->isNotEmpty())
+      <div style="margin-top:12px">
+        @foreach($conditionTemplates as $ct)
+          <div class="fl-ct-row" data-ct="{{ $ct->id }}">
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+              <input class="fl-inp" style="font-weight:600" value="{{ $ct->name }}" data-ctf="name">
+              <button type="button" class="ia-btn ia-btn--sm" style="color:#ff8b8b;border-color:rgba(239,68,68,.35);flex-shrink:0" onclick="flDeleteChecklist('{{ $ct->id }}')">Delete</button>
+            </div>
+            <textarea class="fl-inp" data-ctf="items" spellcheck="false">{{ collect($ct->items)->pluck('label')->implode("\n") }}</textarea>
+            <div style="font-size:10.5px;opacity:.4;margin-top:4px">One item per line — saves on blur. In-flight rentals keep the checklist they started with.</div>
+          </div>
+        @endforeach
+      </div>
+      <div style="font-size:11.5px;opacity:.5;margin:4px 0 10px">Add another:</div>
+    @endif
     <form method="POST" action="{{ route('tenant.rentals.fleet.ct.store') }}" style="margin-top:12px">
       @csrf
       <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Ski checklist" required></div>
@@ -331,6 +368,30 @@
       el.addEventListener('change', function(){ patch(url, el.getAttribute('data-uf'), el.value); });
     });
   });
+  // MARKER-PATCH-243 — category + checklist edit bindings (same patch()
+  // contract) and confirmed deletes.
+  document.querySelectorAll('.fl-cat-edit').forEach(function(strip){
+    var url = '{{ url('admin/rentals/fleet/categories') }}/' + strip.getAttribute('data-cat');
+    strip.querySelectorAll('[data-cf]').forEach(function(el){
+      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-cf'), el.value); });
+    });
+  });
+  document.querySelectorAll('.fl-ct-row').forEach(function(row){
+    var url = '{{ url('admin/rentals/fleet/condition-templates') }}/' + row.getAttribute('data-ct');
+    row.querySelectorAll('[data-ctf]').forEach(function(el){
+      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-ctf'), el.value); });
+    });
+  });
+  window.flDeleteCategory = function(id){
+    if(!confirm('Delete this category? It must be empty (no models) first.')) return;
+    fetch('{{ url('admin/rentals/fleet/categories') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
+      .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else alert(j.message||'Could not delete.'); });
+  };
+  window.flDeleteChecklist = function(id){
+    if(!confirm('Delete this checklist? Models using it fall back to no checklist; past condition checks are unaffected.')) return;
+    fetch('{{ url('admin/rentals/fleet/condition-templates') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
+      .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else alert(j.message||'Could not delete.'); });
+  };
   window.flArchiveModel = function(id){
     if(!confirm('Archive this model? Its units must already be archived.')) return;
     fetch('{{ url('admin/rentals/fleet/models') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
