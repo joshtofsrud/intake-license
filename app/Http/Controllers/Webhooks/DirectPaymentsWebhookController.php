@@ -223,6 +223,16 @@ class DirectPaymentsWebhookController extends Controller
             'refunded_amount' => $refundedAmount,
             'total_amount'    => $totalAmount,
         ]);
+
+        // MARKER-PATCH-247 — money left via the Stripe dashboard with no
+        // Intake action. Critical: staff must reconcile.
+        app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.refund_external', [
+            'title' => 'Refund issued outside Intake — ' . $original->sale_number,
+            'body'  => format_money($refundedAmount) . ' refunded from the Stripe dashboard. The sale is marked '
+                . $original->payment_status . '; check the ledger.',
+            'link'  => '/admin/register/reconciliation',
+            'meta'  => ['sale_id' => $original->id, 'refunded_cents' => $refundedAmount],
+        ]);
     }
 
     /**
@@ -346,6 +356,15 @@ class DirectPaymentsWebhookController extends Controller
             'sale_id'    => $sale->id,
             'session_id' => $sessionId,
         ]);
+
+        // MARKER-PATCH-247 — the register has long since moved on; the bell
+        // is how staff find out the money landed and fulfillment can happen.
+        app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.link_completed', [
+            'title' => 'Payment link completed — ' . $sale->sale_number,
+            'body'  => format_money((int) $sale->total_cents) . ' paid by card via link.',
+            'link'  => '/admin/register/history',
+            'meta'  => ['sale_id' => $sale->id, 'amount_cents' => (int) $sale->total_cents],
+        ]);
     }
 
     /**
@@ -385,6 +404,14 @@ class DirectPaymentsWebhookController extends Controller
             'tenant_id'  => $tenant->id,
             'sale_id'    => $sale->id,
             'session_id' => $sessionId,
+        ]);
+
+        // MARKER-PATCH-247 — the customer never paid; staff should follow up.
+        app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'payment.link_expired', [
+            'title' => 'Payment link expired — ' . $sale->sale_number,
+            'body'  => format_money((int) $sale->total_cents) . ' was never paid; the sale auto-cancelled.',
+            'link'  => '/admin/register/history',
+            'meta'  => ['sale_id' => $sale->id],
         ]);
     }
 }

@@ -11,6 +11,15 @@ Artisan::command('inspire', function () {
 // ----------------------------------------------------------------
 // Debug log retention — prune old rows nightly per config/debug.php.
 // ----------------------------------------------------------------
+// ----------------------------------------------------------------
+// MARKER-PATCH-247 — overdue rentals sweep: emits the rental.overdue
+// staff alert (derived state, so it must be polled). Idempotent.
+// ----------------------------------------------------------------
+Schedule::command('rentals:overdue-sweep')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('debug-log:prune')
     ->dailyAt('03:30')
     ->withoutOverlapping()

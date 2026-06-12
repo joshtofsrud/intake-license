@@ -305,6 +305,16 @@ class RentalReserveController extends Controller
         [$rental, $sale, $pi] = $result;
         $request->session()->put('public_rental_id', $rental->id);
 
+        // MARKER-PATCH-247 — online reservations ping the staff bell.
+        app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'rental.reserved_online', [
+            'title' => 'Online reservation — ' . $rental->rental_number,
+            'body'  => trim(($request->input('first_name') . ' ' . $request->input('last_name')))
+                . ' · pickup ' . tlocal_datetime($rental->starts_at, 'D M j, g:i A')
+                . ($pi ? ' · paying by card now' : ' · pays at pickup'),
+            'link'  => route('tenant.rentals.bookings.show', $rental->id),
+            'meta'  => ['rental_id' => $rental->id],
+        ]);
+
         if ($pi) {
             $payments = new DirectPaymentsService($tenant);
             return response()->json([

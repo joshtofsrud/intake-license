@@ -25,7 +25,9 @@ use Illuminate\Support\Facades\Log;
 class StaffAlertService
 {
     /** Events that reach staff even without the staff_alerts addon. */
-    private const CRITICAL = ['payment.failed', 'rental.overdue', 'rental.damage_flagged'];
+    // MARKER-PATCH-247 — link completions and external refunds are money
+    // events staff must never miss; same class as payment.failed.
+    private const CRITICAL = ['payment.failed', 'rental.overdue', 'rental.damage_flagged', 'payment.link_completed', 'payment.refund_external'];
 
     /** Default channels per event for users who haven't set prefs. */
     private const DEFAULTS = [
@@ -35,6 +37,12 @@ class StaffAlertService
         'payment.failed'        => ['in_app' => true,  'sms' => false],
         'offer.accepted'        => ['in_app' => true,  'sms' => false],
         'inbox.needs_reply'     => ['in_app' => true,  'sms' => false],
+        // MARKER-PATCH-247 — coverage sweep.
+        'payment.link_completed' => ['in_app' => true,  'sms' => false],
+        'payment.link_expired'   => ['in_app' => true,  'sms' => false],
+        'payment.refund_external'=> ['in_app' => true,  'sms' => false],
+        'rental.reserved_online' => ['in_app' => true,  'sms' => false],
+        'lease.created'          => ['in_app' => true,  'sms' => false],
     ];
 
     public function __construct(

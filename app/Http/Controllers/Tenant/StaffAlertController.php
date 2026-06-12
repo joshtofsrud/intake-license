@@ -18,6 +18,12 @@ class StaffAlertController extends Controller
         'payment.failed'        => 'Payment failed',
         'offer.accepted'        => 'Extension offer accepted',
         'inbox.needs_reply'     => 'Inbox needs a reply',
+        // MARKER-PATCH-247
+        'payment.link_completed' => 'Payment link completed',
+        'payment.link_expired'   => 'Payment link expired unpaid',
+        'payment.refund_external'=> 'Refund issued outside Intake',
+        'rental.reserved_online' => 'New online rental reservation',
+        'lease.created'          => 'New lease',
     ];
 
     /** MARKER-PATCH-231 — full notifications page (grouped, paginated). */
