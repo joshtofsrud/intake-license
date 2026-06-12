@@ -1460,6 +1460,15 @@
   background: var(--pb2-accent);
 }
 
+/* MARKER-PATCH-255 — hints read like the mockup */
+.pb2-insp-body .pb2-field-hint {
+  font-family: 'Inter', -apple-system, sans-serif;
+  text-align: left;
+  font-size: 10.5px;
+  opacity: .45;
+  line-height: 1.5;
+}
+
 /* --- preview: framed canvas ----------------------------------------- */
 .pb2-preview-frame-wrap { padding: 14px; background: #0d0d0d; }
 .pb2-preview-frame {
@@ -1655,7 +1664,7 @@
 
         <div class="pb2-insp-tabs">
           <button class="pb2-insp-tab active" data-tab="content">Content</button>
-          <button class="pb2-insp-tab" data-tab="layout">Layout</button>
+          {{-- MARKER-PATCH-255 — Layout merged into Content. --}}
           <button class="pb2-insp-tab" data-tab="style">Design</button>{{-- MARKER-PATCH-253 — label only; data-tab unchanged --}}
           <button class="pb2-insp-tab" data-tab="advanced">Advanced</button>
         </div>

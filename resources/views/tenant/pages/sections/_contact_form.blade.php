@@ -65,7 +65,7 @@
 </div>
 
 {{--=================== LAYOUT ===================--}}
-<div class="pb2-tab-panel" data-tab="layout" hidden>
+<div class="pb2-tab-panel" data-tab="content">
 
   <div class="pb2-group">
     <div class="pb2-group-title">Width & alignment</div>
