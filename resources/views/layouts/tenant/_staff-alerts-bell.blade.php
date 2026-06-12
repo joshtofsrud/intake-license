@@ -30,7 +30,7 @@
   .sa-bell-btn:focus-visible { outline:none; opacity:1; background:rgba(127,127,127,.12); }
   .sa-bell-badge { position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
                    background:#A32D2D; color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
-  .sa-panel { position:absolute; top:44px; left:0; width:300px; z-index:9000; background:var(--ia-surface, #fff); border-radius:12px;
+  .sa-panel { position:fixed; width:300px; z-index:9000; background:var(--ia-surface, #fff); border-radius:12px;
               box-shadow:0 8px 30px rgba(0,0,0,.18), inset 0 0 0 .5px var(--ia-border); overflow:hidden; }
   .sa-panel-head { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:.5px solid var(--ia-border); font-size:12px; font-weight:600; }
   .sa-mark-all { background:none; border:none; cursor:pointer; font-size:11px; opacity:.6; color:inherit; }
@@ -91,13 +91,28 @@
       .then(function (r) { return r.json(); }).then(render).catch(function () {});
   }
 
+  // MARKER-PATCH-231F — portal the panel to <body> so position:fixed escapes
+  // the sidebar's stacking/overflow trap, then place it next to the bell.
+  function positionPanel() {
+    var r = toggle.getBoundingClientRect();
+    if (panel.parentNode !== document.body) document.body.appendChild(panel);
+    panel.style.top  = (r.top) + 'px';
+    panel.style.left = (r.right + 8) + 'px';
+    // keep it on-screen if the viewport is narrow
+    var pw = 300;
+    if (r.right + 8 + pw > window.innerWidth) {
+      panel.style.left = Math.max(8, window.innerWidth - pw - 8) + 'px';
+    }
+  }
+
   toggle.addEventListener('click', function (e) {
     e.stopPropagation();
     panel.hidden = !panel.hidden;
-    if (!panel.hidden) load();
+    if (!panel.hidden) { positionPanel(); load(); }
   });
+  window.addEventListener('resize', function () { if (!panel.hidden) positionPanel(); });
   document.addEventListener('click', function (e) {
-    if (!root.contains(e.target)) panel.hidden = true;
+    if (!root.contains(e.target) && !panel.contains(e.target)) panel.hidden = true;
   });
 
   list.addEventListener('click', function (e) {
