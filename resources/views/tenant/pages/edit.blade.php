@@ -158,7 +158,9 @@
   height: 48px;
   border-bottom: 0.5px solid var(--pb2-border);
   display: grid;
-  grid-template-columns: 280px 1fr 360px;
+  /* MARKER-PATCH-251 — matches the two-pane layout; right column stays
+     aligned over the inspector. */
+  grid-template-columns: auto 1fr 360px;
   align-items: center;
   background: var(--pb2-surface);
   flex-shrink: 0;
@@ -255,9 +257,12 @@
 /* MAIN LAYOUT */
 .pb2-layout {
   display: grid;
-  grid-template-columns: 280px 1fr 360px;
+  /* MARKER-PATCH-251 — single sidebar: preview + inspector. The section
+     list lives in a slide-in panel now. */
+  grid-template-columns: 1fr 360px;
   flex: 1;
   min-height: 0;
+  position: relative;
 }
 
 /* PANES (left + right) */
@@ -1307,6 +1312,103 @@
   .pb2-pane, .pb2-pane-right { display: none; }
   .pb2-preview-col { display: flex; }
 }
+
+/* =====================================================================
+   MARKER-PATCH-251 — mockup reskin. Cascade-layer overrides on the
+   existing pb2-* vocabulary; no selector renamed, no partial touched.
+   ===================================================================== */
+:root {
+  --pb2-surface:   #1c1c1c;
+  --pb2-surface-2: #222222;
+  --pb2-surface-3: #262626;
+  --pb2-border:    rgba(255,255,255,.13);
+  --pb2-border-2:  rgba(255,255,255,.22);
+}
+
+/* --- slide-in sections panel ------------------------------------- */
+.pb2-sections-panel {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 300px;
+  z-index: 60;
+  transform: translateX(-105%);
+  transition: transform .16s ease;
+  border-right: .5px solid var(--pb2-border-2);
+  box-shadow: 18px 0 50px rgba(0,0,0,.45);
+}
+.pb2-sections-panel.open { transform: none; }
+.pb2-sections-btn { display: inline-flex; align-items: center; gap: 7px; margin-right: 10px; }
+.pb2-sections-count {
+  font-size: 10px; font-weight: 700; font-family: ui-monospace, monospace;
+  background: var(--pb2-accent); color: #0a0a0a;
+  border-radius: 999px; padding: 1px 7px;
+}
+
+/* --- inspector tabs: lime underline ------------------------------- */
+.pb2-insp-tab {
+  background: none !important;
+  border: none;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.pb2-insp-tab.active {
+  color: var(--pb2-text) !important;
+  border-bottom-color: var(--pb2-accent) !important;
+}
+
+/* --- groups + fields: mockup micro-labels -------------------------- */
+.pb2-insp-body .pb2-group { border-bottom: .5px solid var(--pb2-border); padding: 13px 16px; }
+.pb2-insp-body .pb2-group-title,
+.pb2-insp-body .pb2-field-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-weight: 650;
+  color: var(--pb2-text-dim, rgba(255,255,255,.55));
+}
+.pb2-insp-body .pb2-field-label { font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.pb2-insp-body .pb2-field-hint { font-size: 10.5px; opacity: .45; line-height: 1.5; }
+
+/* --- inputs: soft fill, 8px radius --------------------------------- */
+.pb2-insp-body .pb2-input,
+.pb2-insp-body .pb2-textarea,
+.pb2-insp-body select.pb2-input {
+  background: rgba(255,255,255,.07);
+  border: .5px solid var(--pb2-border);
+  border-radius: 8px;
+}
+.pb2-insp-body .pb2-input:focus,
+.pb2-insp-body .pb2-textarea:focus {
+  border-color: var(--pb2-accent);
+  outline: none;
+}
+
+/* --- sliders + checkboxes: lime ------------------------------------ */
+.pb2-insp-body input[type="range"] { accent-color: var(--pb2-accent); }
+.pb2-insp-body input[type="checkbox"] { accent-color: var(--pb2-accent); }
+.pb2-insp-body .pb2-slider-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--pb2-accent);
+}
+
+/* --- section list rows: mockup feel -------------------------------- */
+.pb2-section-list .pb2-section-item { border-radius: 7px; }
+.pb2-section-list .pb2-section-item:hover { background: rgba(255,255,255,.06); }
+.pb2-section-list .pb2-section-item.selected {
+  background: rgba(190,242,100,.09);
+  outline: .5px solid rgba(190,242,100,.3);
+}
+
+/* --- preview: framed canvas ----------------------------------------- */
+.pb2-preview-frame-wrap { padding: 14px; background: #0d0d0d; }
+.pb2-preview-frame {
+  border-radius: 12px;
+  border: .5px solid var(--pb2-border-2);
+  background: #fff;
+}
 </style>
 @endpush
 
@@ -1364,8 +1466,11 @@
   {{-- ============ MAIN LAYOUT ============ --}}
   <div class="pb2-layout">
 
-    {{-- LEFT: section list --}}
-    <aside class="pb2-pane">
+    {{-- LEFT: section list — MARKER-PATCH-251: now a slide-in panel
+         (same DOM, same Sortable/visibility/selection bindings). Clicking
+         a section item closes it. --}}
+    <aside class="pb2-pane pb2-sections-panel" id="pb2-sections-pane"
+           onclick="if(event.target.closest('.pb2-section-item')){this.classList.remove('open')}">
       <div class="pb2-pane-header">
         <div class="pb2-pane-header-title">Sections</div>
         <div class="pb2-pane-header-meta">{{ $sections->count() }}</div>
@@ -1440,6 +1545,12 @@
     {{-- CENTER: live preview --}}
     <div class="pb2-preview-col">
       <div class="pb2-preview-bar">
+        {{-- MARKER-PATCH-251 — section navigation lives here now. --}}
+        <button type="button" class="pb2-btn pb2-sections-btn"
+                onclick="document.getElementById('pb2-sections-pane').classList.toggle('open')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="15" y2="18"/></svg>
+          Sections <span class="pb2-sections-count">{{ $sections->count() }}</span>
+        </button>
         <div class="pb2-url-bar">
           <div class="pb2-url-dot"></div>
           <span>{{ parse_url($previewUrl, PHP_URL_HOST) }}{{ $page->is_home ? '/' : '/' . $page->slug }}</span>
