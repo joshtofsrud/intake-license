@@ -740,6 +740,8 @@
     <div class="num" id="receiptNum"></div>
     <div class="total" id="receiptTotal"></div>
     <div class="reg-modal-actions">
+      {{-- MARKER-PATCH-232B — shown only when the register was opened with a return_to. --}}
+      <a id="receiptBackTo" class="reg-btn-primary" style="display:none;text-decoration:none" href="#">Back</a>
       <button type="button" class="reg-btn-primary" id="receiptNewSale">New sale</button>
     </div>
     {{-- MARKER-PATCH-187 — auto-reset countdown --}}
@@ -2360,6 +2362,22 @@ function showReceipt(data) {
   document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
   openModal('receiptModal');
 
+  // MARKER-PATCH-232B — round-trip receipts: when the register was opened
+  // with a return_to, the receipt offers (and the countdown takes) the way
+  // back instead of resetting to a fresh register.
+  const backBtn = document.getElementById('receiptBackTo');
+  if (backBtn) {
+    if (window.registerReturnTo) {
+      backBtn.href = window.registerReturnTo;
+      backBtn.style.display = '';
+      backBtn.textContent = 'Back to where you were →';
+      const autoEl = document.getElementById('receiptAutoReset');
+      if (autoEl) autoEl.innerHTML = 'Heading back in <span id="receiptCountdown">45</span>s';
+    } else {
+      backBtn.style.display = 'none';
+    }
+  }
+
   // Start the auto-reset countdown.
   clearReceiptTimers();
   let remaining = RECEIPT_AUTO_RESET_SECONDS;
@@ -2370,7 +2388,10 @@ function showReceipt(data) {
     if (countdownEl) countdownEl.textContent = Math.max(0, remaining);
     if (remaining <= 0) clearInterval(receiptCountdownTimer);
   }, 1000);
-  receiptResetTimer = setTimeout(() => { resetRegisterToFresh(); }, RECEIPT_AUTO_RESET_SECONDS * 1000);
+  receiptResetTimer = setTimeout(() => {
+    if (window.registerReturnTo) { window.location.href = window.registerReturnTo; return; }
+    resetRegisterToFresh();
+  }, RECEIPT_AUTO_RESET_SECONDS * 1000);
 }
 
 document.getElementById('receiptNewSale').addEventListener('click', () => { resetRegisterToFresh(); });
@@ -2816,6 +2837,10 @@ loadDrafts().then(refreshDraftsBanner);
 // load that quote into the cart automatically.
 (function () {
   const params = new URLSearchParams(window.location.search);
+  // MARKER-PATCH-232B — capture return_to BEFORE replaceState wipes the
+  // query string. Local paths only; anything else is ignored.
+  const rawReturnTo = params.get('return_to') || '';
+  window.registerReturnTo = (rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')) ? rawReturnTo : null;
   const resumeId = params.get('resume');
   if (!resumeId) return;
   // Strip the param from the URL so a refresh doesn't re-trigger.

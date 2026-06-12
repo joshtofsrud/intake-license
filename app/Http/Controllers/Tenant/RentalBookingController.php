@@ -572,7 +572,15 @@ class RentalBookingController extends Controller
             return $sale;
         });
 
-        return redirect(route('tenant.register.index') . '?resume=' . $sale->id)
+        // MARKER-PATCH-232B — round-trip: callers pass return_to so the
+        // register hands staff back after payment. Local paths only.
+        $returnTo = (string) $request->input('return_to', '');
+        $suffix = '';
+        if ($returnTo !== '' && str_starts_with($returnTo, '/') && !str_starts_with($returnTo, '//') && strlen($returnTo) <= 500) {
+            $suffix = '&return_to=' . urlencode($returnTo);
+        }
+
+        return redirect(route('tenant.register.index') . '?resume=' . $sale->id . $suffix)
             ->with('flash', "Sale {$sale->sale_number} created — take payment in the register.");
     }
 

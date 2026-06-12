@@ -206,6 +206,8 @@
         <h2 class="ia-h3" style="margin-bottom:8px">Balance due — {{ format_money($balanceCents) }}</h2>
         <form method="POST" action="{{ route('tenant.rentals.bookings.collect', $rental->id) }}" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
           @csrf
+          {{-- MARKER-PATCH-232B — come back to this flow after payment. --}}
+          <input type="hidden" name="return_to" value="{{ parse_url(route('tenant.rentals.bookings.checkout.flow', $rental->id), PHP_URL_PATH) }}">
           <div>
             <label class="ia-label" style="display:block;margin-bottom:4px">Amount $</label>
             <input type="number" name="amount" min="0.01" step="0.01" required value="{{ number_format($balanceCents / 100, 2, '.', '') }}" class="ia-input" style="width:140px;text-align:right">
