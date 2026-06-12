@@ -126,29 +126,35 @@
 
     <div class="pb2-field">
       <label class="pb2-field-label">Section height</label>
-      <select class="pb2-input" data-field="height">
-        @foreach(['small'=>'Small (~380px)','medium'=>'Medium (~520px)','large'=>'Large (~680px)','fullscreen'=>'Fullscreen (100vh)'] as $val => $name)
-          <option value="{{ $val }}" {{ $get('height', 'large') === $val ? 'selected' : '' }}>{{ $name }}</option>
+      {{-- MARKER-PATCH-254 — mockup seg; same values, same save contract. --}}
+      <div class="pb2-seg" data-field-seg="height">
+        @foreach(['small'=>'S','medium'=>'M','large'=>'L','fullscreen'=>'Full'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('height', 'large') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}" title="{{ ['small'=>'~380px','medium'=>'~520px','large'=>'~680px','fullscreen'=>'100vh'][$val] }}">{{ $name }}</button>
         @endforeach
-      </select>
+      </div>
+      <input type="hidden" data-field="height" value="{{ $get('height', 'large') }}">
     </div>
 
     <div class="pb2-field-row">
       <div class="pb2-field">
         <label class="pb2-field-label">Padding top</label>
-        <select class="pb2-input" data-field="padding_top">
-          @foreach(['none'=>'None','compact'=>'Compact','normal'=>'Normal','spacious'=>'Spacious'] as $v => $n)
-            <option value="{{ $v }}" {{ $get('padding_top', 'normal') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        {{-- MARKER-PATCH-254 --}}
+        <div class="pb2-seg" data-field-seg="padding_top">
+          @foreach(['none'=>'None','compact'=>'Tight','normal'=>'Normal','spacious'=>'Airy'] as $v => $n)
+            <button type="button" class="pb2-seg-btn {{ $get('padding_top', 'normal') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
           @endforeach
-        </select>
+        </div>
+        <input type="hidden" data-field="padding_top" value="{{ $get('padding_top', 'normal') }}">
       </div>
       <div class="pb2-field">
         <label class="pb2-field-label">Padding bottom</label>
-        <select class="pb2-input" data-field="padding_bottom">
-          @foreach(['none'=>'None','compact'=>'Compact','normal'=>'Normal','spacious'=>'Spacious'] as $v => $n)
-            <option value="{{ $v }}" {{ $get('padding_bottom', 'normal') === $v ? 'selected' : '' }}>{{ $n }}</option>
+        {{-- MARKER-PATCH-254 --}}
+        <div class="pb2-seg" data-field-seg="padding_bottom">
+          @foreach(['none'=>'None','compact'=>'Tight','normal'=>'Normal','spacious'=>'Airy'] as $v => $n)
+            <button type="button" class="pb2-seg-btn {{ $get('padding_bottom', 'normal') === $v ? 'active' : '' }}" data-seg-value="{{ $v }}">{{ $n }}</button>
           @endforeach
-        </select>
+        </div>
+        <input type="hidden" data-field="padding_bottom" value="{{ $get('padding_bottom', 'normal') }}">
       </div>
     </div>
   </div>
