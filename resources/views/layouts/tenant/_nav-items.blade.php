@@ -31,7 +31,6 @@
       'group'  => null,
       'gate'   => 'rentals_visible', // MARKER-PATCH-228B — visibility toggle
     ],
-    {{-- MARKER-PATCH-231 — Inbox moved to the top attention row (icon). --}}
     [
       'route'  => 'tenant.classes.sessions',
       'label'  => 'Classes',
