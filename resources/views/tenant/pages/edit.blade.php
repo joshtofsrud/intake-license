@@ -277,6 +277,17 @@
   display: flex; flex-direction: column;
   overflow: hidden;
 }
+/* MARKER-PATCH-276 — sections list docked atop the inspector column */
+.pb2-sections-docked {
+  flex: 0 0 auto;
+  max-height: 40%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: 0.5px solid var(--pb2-border);
+}
+.pb2-sections-docked .pb2-section-list { flex: 1 1 auto; overflow-y: auto; }
+.pb2-sections-docked .pb2-pane-footer { flex: 0 0 auto; }
 .pb2-pane-right { border-right: 0; border-left: 0.5px solid var(--pb2-border); }
 .pb2-pane-header {
   padding: 14px 18px 10px;
@@ -1559,8 +1570,29 @@
     {{-- LEFT: section list — MARKER-PATCH-251: now a slide-in panel
          (same DOM, same Sortable/visibility/selection bindings). Clicking
          a section item closes it. --}}
-    <aside class="pb2-pane pb2-sections-panel" id="pb2-sections-pane"
-           onclick="if(event.target.closest('.pb2-section-item')){this.classList.remove('open')}">
+
+    {{-- CENTER: live preview --}}
+    <div class="pb2-preview-col">
+      <div class="pb2-preview-bar">
+        {{-- MARKER-PATCH-276 — sections moved into the inspector column --}}
+        <div class="pb2-url-bar">
+          <div class="pb2-url-dot"></div>
+          <span>{{ parse_url($previewUrl, PHP_URL_HOST) }}{{ $page->is_home ? '/' : '/' . $page->slug }}</span>
+          <span class="pb2-url-meta">
+            @if($page->is_published) Live @else Draft · unpublished @endif
+          </span>
+        </div>
+      </div>
+
+      <div class="pb2-preview-frame-wrap">
+        <iframe id="pb2-preview" class="pb2-preview-frame" src="{{ $previewSrc }}"></iframe>
+      </div>
+    </div>
+
+    {{-- RIGHT: inspector --}}
+    <aside class="pb2-pane pb2-pane-right" id="pb2-inspector">
+    {{-- MARKER-PATCH-276 — sections docked above the inspector --}}
+    <div class="pb2-sections-docked" id="pb2-sections-pane">
       <div class="pb2-pane-header">
         <div class="pb2-pane-header-title">Sections</div>
         <div class="pb2-pane-header-meta">{{ $sections->count() }}</div>
@@ -1630,33 +1662,8 @@
         <div>{{ $page->is_published ? 'Published' : 'Draft' }}</div>
         <div class="pb2-save-time" id="pb2-save-time">Saved</div>
       </div>
-    </aside>
-
-    {{-- CENTER: live preview --}}
-    <div class="pb2-preview-col">
-      <div class="pb2-preview-bar">
-        {{-- MARKER-PATCH-251 — section navigation lives here now. --}}
-        <button type="button" class="pb2-btn pb2-sections-btn"
-                onclick="document.getElementById('pb2-sections-pane').classList.toggle('open')">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="15" y2="18"/></svg>
-          Sections <span class="pb2-sections-count">{{ $sections->count() }}</span>
-        </button>
-        <div class="pb2-url-bar">
-          <div class="pb2-url-dot"></div>
-          <span>{{ parse_url($previewUrl, PHP_URL_HOST) }}{{ $page->is_home ? '/' : '/' . $page->slug }}</span>
-          <span class="pb2-url-meta">
-            @if($page->is_published) Live @else Draft · unpublished @endif
-          </span>
-        </div>
-      </div>
-
-      <div class="pb2-preview-frame-wrap">
-        <iframe id="pb2-preview" class="pb2-preview-frame" src="{{ $previewSrc }}"></iframe>
-      </div>
     </div>
 
-    {{-- RIGHT: inspector --}}
-    <aside class="pb2-pane pb2-pane-right" id="pb2-inspector">
       {{-- Header + tabs + body get injected here when a section is selected. --}}
       @php $firstSection = $sections->first(); @endphp
 
