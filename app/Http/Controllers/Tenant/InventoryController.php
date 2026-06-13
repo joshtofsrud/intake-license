@@ -88,10 +88,24 @@ class InventoryController extends Controller
         // when multi-location, falls back to item-level total otherwise.
         if ($stock === 'low') {
             if ($hereLocId) {
-                $q->whereHas('locations', function ($w) use ($hereLocId) {
-                    $w->where('location_id', $hereLocId)
-                      ->whereNotNull('shop_reorder_threshold')
-                      ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+                // MARKER-PATCH-277 — match the dashboard low-stock count. An item is
+                // low at this location if its location row's stock is <= the EFFECTIVE
+                // threshold (location override, else item-level), OR — when it has no
+                // row at this location yet — it qualifies at the item level. The old
+                // check required a location-level threshold, so item-level-only items
+                // were counted on the dashboard but missing here (empty page).
+                $q->where(function ($outer) use ($hereLocId) {
+                    $outer->whereHas('locations', function ($w) use ($hereLocId) {
+                        $w->where('location_id', $hereLocId)
+                          ->whereRaw('COALESCE(tenant_inventory_item_locations.shop_reorder_threshold, tenant_inventory_items.shop_reorder_threshold) IS NOT NULL')
+                          ->whereRaw('tenant_inventory_item_locations.computed_stock_count <= COALESCE(tenant_inventory_item_locations.shop_reorder_threshold, tenant_inventory_items.shop_reorder_threshold)');
+                    })->orWhere(function ($q2) use ($hereLocId) {
+                        $q2->whereDoesntHave('locations', function ($w) use ($hereLocId) {
+                                $w->where('location_id', $hereLocId);
+                            })
+                           ->whereNotNull('shop_reorder_threshold')
+                           ->whereColumn('computed_stock_count', '<=', 'shop_reorder_threshold');
+                    });
                 });
             } else {
                 $q->whereNotNull('shop_reorder_threshold')
