@@ -10,6 +10,11 @@
   $previewUrl  = $isMarketing
       ? 'https://' . config('intake.domain', 'intake.works') . '/' . ($page->is_home ? '' : $page->slug)
       : tenant_url($page->is_home ? '' : $page->slug);
+  // MARKER-PATCH-267 — iframe/live-reload use an authenticated same-origin
+  // route that renders drafts too; "Open live" keeps the public $previewUrl.
+  $previewSrc  = $isMarketing
+      ? $previewUrl
+      : route('tenant.pages.preview', $page->id);
   $storeUrl    = $isMarketing
       ? url('/admin/marketing-pages/store')
       : route('tenant.pages.store');
@@ -1646,7 +1651,7 @@
       </div>
 
       <div class="pb2-preview-frame-wrap">
-        <iframe id="pb2-preview" class="pb2-preview-frame" src="{{ $previewUrl }}"></iframe>
+        <iframe id="pb2-preview" class="pb2-preview-frame" src="{{ $previewSrc }}"></iframe>
       </div>
     </div>
 
@@ -1741,7 +1746,7 @@
   // MARKER-PATCH-158-G16 — STORE_URL is the endpoint that v1 used for section_op=update.
   // Same handler accepts the same payload here.
   const STORE_URL  = @json($storeUrl);
-  const PREVIEW_URL = @json($previewUrl);
+  const PREVIEW_URL = @json($previewSrc);
   // MARKER-PATCH-158-G19 — upload endpoint  (revised by MARKER-PATCH-158-G19A). Built as a raw URL string
   // instead of route() to avoid RouteNotFoundException if the route cache
   // is stale post-deploy. The endpoint path is stable and tenant-scoped.

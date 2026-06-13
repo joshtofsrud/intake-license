@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantPage;
 use App\Models\Tenant\TenantPageSection;
 use App\Models\Tenant\TenantNavItem;
+use App\Models\Tenant\TenantServiceCategory; // MARKER-PATCH-267
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -155,9 +156,9 @@ class PageBuilderController extends Controller
         // MARKER-PATCH-158-G20 — text_image v2 fields (Phase 2)
         'text_image'    => [
             'eyebrow'         => '',
-            'heading'         => '',
+            'heading'         => 'About us',
             'accent_words'    => '',
-            'body'            => 'Your content here.',
+            'body'            => 'Tell visitors who you are and why they should choose you. Replace this with your story.',
             'image_url'       => '',
             'image_alt'       => '',
             'image_position'  => 'right',
@@ -323,7 +324,7 @@ class PageBuilderController extends Controller
         'pricing_table' => [
             // Content
             'eyebrow'          => '',
-            'heading'          => '',
+            'heading'          => 'Simple, honest pricing',
             'accent_words'     => '',
             'subheading'       => '',
             'footnote'         => '',
@@ -359,7 +360,7 @@ class PageBuilderController extends Controller
         'feature_grid' => [
             // Content
             'eyebrow'          => '',
-            'heading'          => '',
+            'heading'          => 'Why choose us',
             'accent_words'     => '',
             'subheading'       => '',
             'features'         => [
@@ -502,7 +503,7 @@ class PageBuilderController extends Controller
         'stats_row'        => [
             // Content
             'eyebrow'         => '',
-            'heading'         => '',
+            'heading'         => 'By the numbers',
             'accent_words'    => '',
             'subheading'      => '',
             'stats'           => [
@@ -569,6 +570,38 @@ class PageBuilderController extends Controller
         return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes'));
     }
 
+    /**
+     * MARKER-PATCH-267 — Render the page being edited inside the builder's
+     * preview iframe. Authenticated + same-origin (lives in the admin group),
+     * and it does NOT filter is_published, so DRAFT pages preview correctly.
+     * Mirrors PublicController::renderPage()'s data so public.page renders
+     * exactly as the live site will.
+     */
+    public function preview(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $page = TenantPage::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $sections = $page->sections()->where('is_visible', true)->get();
+
+        $navItems = TenantNavItem::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')->get();
+
+        $catalog = TenantServiceCategory::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->with(['items' => function ($q) {
+                $q->where('is_active', true)->orderBy('sort_order')
+                  ->with(['serviceAddons' => function ($sa) { $sa->orderBy('sort_order')->with('addon'); }]);
+            }])
+            ->get();
+
+        return view('public.page', compact('page', 'sections', 'navItems', 'catalog'));
+    }
+
     public function store(Request $request)
     {
         $tenant = tenant();
@@ -604,8 +637,11 @@ class PageBuilderController extends Controller
             'nav_order' => TenantPage::where('tenant_id', $tenant->id)->max('nav_order') + 1,
         ]);
 
+        // MARKER-PATCH-268 — open new pages with an editable starter layout.
+        $this->seedStarterSections($page);
+
         return redirect()->route('tenant.pages.index', ['edit' => $page->id])
-            ->with('success', 'Page created. Start adding sections.');
+            ->with('success', 'Page created with a starter layout — edit each section, then publish.');
     }
 
     // MARKER-PATCH-158-G15 — edit() renders the v2 chrome directly.
@@ -816,6 +852,23 @@ class PageBuilderController extends Controller
         }
 
         return response()->json(['error' => 'Unknown section operation.'], 422);
+    }
+
+    /**
+     * MARKER-PATCH-268 — Seed a universal starter layout for a brand-new page
+     * so it opens editable instead of blank. Content comes from DEFAULTS, so
+     * every seeded section already shows example copy the tenant can replace.
+     */
+    private function seedStarterSections(TenantPage $page): void
+    {
+        $types = ['nav', 'hero', 'text_image', 'cta_banner', 'footer'];
+        foreach ($types as $i => $type) {
+            TenantPageSection::create([
+                'page_id' => $page->id, 'tenant_id' => $page->tenant_id,
+                'section_type' => $type, 'content' => self::DEFAULTS[$type] ?? [],
+                'padding' => 'normal', 'is_visible' => true, 'sort_order' => $i,
+            ]);
+        }
     }
 
     private function seedDefaultSections(TenantPage $page): void

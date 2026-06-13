@@ -673,6 +673,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
             Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');
+            Route::get('/pages/{id}/preview',   [TenantControllers\PageBuilderController::class, 'preview'])->name('pages.preview'); // MARKER-PATCH-267
             Route::post('/pages',               [TenantControllers\PageBuilderController::class, 'store'])->name('pages.store');
             Route::patch('/pages/{id}',         [TenantControllers\PageBuilderController::class, 'update'])->name('pages.update');
             Route::delete('/pages/{id}',        [TenantControllers\PageBuilderController::class, 'destroy'])->name('pages.destroy');
