@@ -1476,6 +1476,24 @@
   border: .5px solid var(--pb2-border-2);
   background: #fff;
 }
+
+/* MARKER-PATCH-259 — media picker modal */
+#pb2-media-modal { display:none; position:fixed; inset:0; z-index:200; }
+.pb2-media-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.6); }
+.pb2-media-dialog {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:min(760px,92vw); max-height:82vh; display:flex; flex-direction:column;
+  background:var(--pb2-surface,#1c1c1c); border:.5px solid var(--pb2-border-2,rgba(255,255,255,.22));
+  border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.5);
+}
+.pb2-media-head { display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:.5px solid var(--pb2-border,rgba(255,255,255,.13)); font-size:13.5px; font-weight:650; }
+.pb2-media-close { background:none; border:none; color:var(--pb2-text-dim,rgba(255,255,255,.55)); font-size:22px; line-height:1; cursor:pointer; }
+.pb2-media-body { padding:16px 18px; overflow-y:auto; }
+.pb2-media-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; }
+.pb2-media-cell { aspect-ratio:1; padding:0; border:.5px solid var(--pb2-border,rgba(255,255,255,.13)); border-radius:9px; overflow:hidden; cursor:pointer; background:#111; }
+.pb2-media-cell:hover { border-color:var(--pb2-accent,#BEF264); }
+.pb2-media-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+.pb2-media-empty { color:var(--pb2-text-dim,rgba(255,255,255,.5)); font-size:13px; text-align:center; padding:30px; }
 </style>
 @endpush
 
@@ -2266,6 +2284,28 @@
     body.querySelectorAll('[data-image-replace]').forEach(btn => {
       const fieldName = btn.dataset.imageReplace;
       btn.addEventListener('click', () => triggerImageUpload(fieldName));
+    });
+    // MARKER-PATCH-259 — inject a "Choose from library" control next to
+    // every upload/replace trigger (once), wired to the picker modal.
+    body.querySelectorAll('[data-image-upload],[data-image-replace]').forEach(btn => {
+      const fieldName = btn.dataset.imageUpload || btn.dataset.imageReplace;
+      const host = btn.closest('.pb2-image-tile-actions') || btn.parentElement;
+      if (!host || host.querySelector('[data-image-pick]')) return;
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.dataset.imagePick = fieldName;
+      if (btn.classList.contains('pb2-image-empty')) {
+        // empty-state: a slim secondary line under the big upload button
+        pick.className = 'pb2-textlink';
+        pick.textContent = 'or choose from library';
+        pick.style.cssText = 'display:block;margin-top:8px;font-size:12px';
+        btn.insertAdjacentElement('afterend', pick);
+      } else {
+        pick.className = 'pb2-textlink';
+        pick.textContent = 'Library';
+        host.appendChild(pick);
+      }
+      pick.addEventListener('click', () => openMediaPicker(fieldName));
     });
     body.querySelectorAll('[data-image-remove]').forEach(btn => {
       const fieldName = btn.dataset.imageRemove;
@@ -3070,6 +3110,80 @@
 
   // Image upload: opens a file picker, posts to /admin/uploads, injects URL
   // into the hidden input + triggers a section save + reloads the inspector.
+  // MARKER-PATCH-259 — single place that applies a chosen/uploaded URL to
+  // an image field: set value, fire change (autosave + live bridge), reload
+  // the inspector so the tile reflects it. Shared by upload AND picker.
+  function applyImageToField(fieldName, url) {
+    const body = document.getElementById('pb2-insp-body');
+    if (!body) return;
+    const hidden = body.querySelector(`input[data-field="${fieldName}"]`);
+    if (!hidden) return;
+    hidden.value = url;
+    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    setStatus('Saved ✓', 1500);
+    if (selectedId) {
+      const item = document.querySelector(`.pb2-section-item[data-section-id="${selectedId}"]`);
+      if (item) {
+        const idx = Array.from(document.querySelectorAll('.pb2-section-item')).indexOf(item) + 1;
+        setTimeout(() => selectSection(selectedId, item.dataset.sectionType, idx), 350);
+      }
+    }
+  }
+
+  // MARKER-PATCH-259 — library picker modal. Lazy-loads media.feed once.
+  let __mediaCache = null;
+  function openMediaPicker(fieldName) {
+    let modal = document.getElementById('pb2-media-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'pb2-media-modal';
+      modal.innerHTML =
+        '<div class="pb2-media-backdrop"></div>' +
+        '<div class="pb2-media-dialog">' +
+          '<div class="pb2-media-head"><span>Choose from library</span>' +
+          '<button type="button" class="pb2-media-close">&times;</button></div>' +
+          '<div class="pb2-media-body" id="pb2-media-body">Loading…</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      modal.querySelector('.pb2-media-backdrop').addEventListener('click', closeMediaPicker);
+      modal.querySelector('.pb2-media-close').addEventListener('click', closeMediaPicker);
+    }
+    modal.dataset.field = fieldName;
+    modal.style.display = 'block';
+    renderMediaGrid();
+    if (__mediaCache === null) {
+      fetch('{{ route('tenant.media.feed') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => { __mediaCache = (d && d.media) || []; renderMediaGrid(); })
+        .catch(() => { __mediaCache = []; renderMediaGrid(); });
+    }
+  }
+  function closeMediaPicker() {
+    const m = document.getElementById('pb2-media-modal');
+    if (m) m.style.display = 'none';
+  }
+  function renderMediaGrid() {
+    const body = document.getElementById('pb2-media-body');
+    const modal = document.getElementById('pb2-media-modal');
+    if (!body || !modal) return;
+    if (__mediaCache === null) { body.textContent = 'Loading…'; return; }
+    if (!__mediaCache.length) {
+      body.innerHTML = '<div class="pb2-media-empty">No images in your library yet. Upload one on the Media page, or use the upload button.</div>';
+      return;
+    }
+    const field = modal.dataset.field;
+    body.innerHTML = '<div class="pb2-media-grid">' + __mediaCache.map(m =>
+      '<button type="button" class="pb2-media-cell" data-url="' + m.url + '" title="' + (m.original_name || '') + '">' +
+        '<img src="' + m.url + '" loading="lazy" alt="">' +
+      '</button>').join('') + '</div>';
+    body.querySelectorAll('.pb2-media-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        applyImageToField(field, cell.dataset.url);
+        closeMediaPicker();
+      });
+    });
+  }
+
   function triggerImageUpload(fieldName) {
     const body = document.getElementById('pb2-insp-body');
     if (!body) return;

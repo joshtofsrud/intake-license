@@ -17,6 +17,7 @@
     ['route' => 'tenant.work-order-fields.index',  'label' => 'Work Order Fields'],
     ['route' => 'tenant.booking-editor.index',     'label' => 'Intake Form Editor'],
     ['route' => 'tenant.capacity.index',           'label' => 'Capacity'],
+    ['route' => 'tenant.media.index',              'label' => 'Media'],
     ['route' => 'tenant.pages.index',              'label' => 'Pages'],
     ['route' => 'tenant.emails.index',             'label' => 'Email'],
     ['route' => 'tenant.waitlist.index',           'label' => 'Waitlist'],

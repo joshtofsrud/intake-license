@@ -661,6 +661,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
+            // MARKER-PATCH-258 — media library
+            Route::get('/media',            [TenantControllers\MediaLibraryController::class, 'index'])->name('media.index');
+            Route::get('/media/feed',       [TenantControllers\MediaLibraryController::class, 'feed'])->name('media.feed');
+            Route::post('/media/{id}/archive', [TenantControllers\MediaLibraryController::class, 'archive'])->name('media.archive');
+
             Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
 
             Route::get('/whats-new', [TenantControllers\WhatsNewController::class, 'changelog'])->name('whats_new.changelog');

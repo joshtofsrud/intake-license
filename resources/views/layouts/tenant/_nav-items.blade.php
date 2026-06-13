@@ -128,6 +128,12 @@
       'group'  => 'manage',
     ],
     [
+      'route'  => 'tenant.media.index',
+      'label'  => 'Media',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="4.5" cy="5.5" r="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 10l3-2.5 2.5 2 2-1.5L12 10" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => 'engage',
+    ],
+    [
       'route'  => 'tenant.pages.index',
       'label'  => 'Pages',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 6h6M4 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',

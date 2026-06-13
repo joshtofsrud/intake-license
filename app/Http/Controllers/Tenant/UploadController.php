@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Tenant\TenantMedia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -37,6 +38,29 @@ class UploadController extends Controller
 
         $url = asset('storage/' . $stored);
 
+        // MARKER-PATCH-257 — record the upload so it's browsable/reusable.
+        // Dimensions for raster images only (svg/ico have no meaningful px).
+        $width = $height = null;
+        if (!in_array($ext, ['svg', 'ico'], true)) {
+            try {
+                $dims = @getimagesize($file->getRealPath());
+                if ($dims) { $width = $dims[0] ?: null; $height = $dims[1] ?: null; }
+            } catch (\Throwable $e) { /* dims are a nicety, never block the upload */ }
+        }
+        $media = TenantMedia::create([
+            'tenant_id'     => $tenant->id,
+            'filename'      => $filename,
+            'original_name' => $file->getClientOriginalName(),
+            'path'          => $stored,
+            'url'           => $url,
+            'folder'        => $type,
+            'mime_type'     => $file->getClientMimeType(),
+            'bytes'         => $file->getSize() ?: 0,
+            'width'         => $width,
+            'height'        => $height,
+            'uploaded_by'   => auth('tenant')->id(),
+        ]);
+
         // If this is a logo or favicon, update the tenant record directly
         if ($type === 'logo') {
             $tenant->update(['logo_url' => $url]);
@@ -49,6 +73,7 @@ class UploadController extends Controller
             'url'      => $url,
             'filename' => $filename,
             'path'     => $stored,
+            'media_id' => $media->id, // MARKER-PATCH-257 — picker reference
         ]);
     }
 }
