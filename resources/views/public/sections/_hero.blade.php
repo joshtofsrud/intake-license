@@ -168,11 +168,11 @@
   max-width: {{ $maxW }}px;
   padding: 0 clamp(20px, 5vw, 48px);
   text-align: {{ $hAlign }};
-  @if($hAlign === 'center')
+  {{-- MARKER-PATCH-270 — always center the content area so it keeps its side
+       gutter at any alignment; text_align controls text only (matches
+       cta_banner + the grid sections, instead of pinning left-aligned heroes
+       to the viewport edge). --}}
   margin-left: auto; margin-right: auto;
-  @elseif($hAlign === 'right')
-  margin-left: auto;
-  @endif
 }
 .{{ $instId }} .p-hero-eyebrow {
   display: inline-block;

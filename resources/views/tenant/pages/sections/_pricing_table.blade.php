@@ -183,6 +183,14 @@
           @endforeach
         </select>
       </div>
+      {{-- MARKER-PATCH-271 — content width (max content area; container stays centered with a side gutter) --}}
+      <div class="pb2-field">
+        <div class="pb2-slider-row">
+          <label class="pb2-field-label" style="margin:0">Content width</label>
+          <span class="pb2-slider-value pb2-cw-val">{{ $get('content_max_width', 1200) }}px</span>
+        </div>
+        <input type="range" min="480" max="1600" step="20" value="{{ $get('content_max_width', 1200) }}" data-field="content_max_width" oninput="this.parentNode.querySelector('.pb2-cw-val').textContent=this.value+'px'">
+      </div>
     </div>
   </div>
 
