@@ -10,7 +10,12 @@
     <h1 class="ia-page-title">Alerts</h1>
     <p class="ia-page-subtitle">Everything that's needed your attention.</p>
   </div>
+  @php $canBroadcast = tenant()->staff_alerts_enabled && optional(auth('tenant')->user())->isManager(); @endphp
+  {{-- MARKER-PATCH-280 — compose entry point --}}
   <div style="display:flex;gap:8px;align-items:center">
+    @if($canBroadcast)
+      <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('bc-overlay').classList.add('open')">📣 New announcement</button>
+    @endif
     <button type="button" class="ia-btn" id="sa-ack-all">Acknowledge all</button>
     @if(tenant()->staff_alerts_enabled)
       <a href="{{ route('tenant.alerts.prefs') }}" class="ia-btn">Settings</a>
@@ -158,5 +163,55 @@
   }
 })();
 </script>
+
+@if(!empty($canBroadcast) && $canBroadcast)
+{{-- MARKER-PATCH-280 — shop-wide announcement compose modal --}}
+<div id="bc-overlay" class="bc-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="bc-modal">
+    <div class="bc-head">
+      <div class="bc-title">📣 Shop-wide announcement</div>
+      <button type="button" class="bc-x" onclick="document.getElementById('bc-overlay').classList.remove('open')">&times;</button>
+    </div>
+    <form method="POST" action="{{ route('tenant.alerts.broadcasts.store') }}">
+      @csrf
+      <label class="bc-l">Title</label>
+      <input name="title" maxlength="160" required class="bc-in" placeholder="e.g. Closing early Friday for inventory">
+      <label class="bc-l">Message</label>
+      <textarea name="body" maxlength="2000" rows="3" class="bc-in" placeholder="Add details for your staff…"></textarea>
+      <label class="bc-l">Priority</label>
+      <div class="bc-row">
+        <label class="bc-opt"><input type="radio" name="priority" value="low" checked> Low · quiet</label>
+        <label class="bc-opt"><input type="radio" name="priority" value="high"> High · banner + sound</label>
+      </div>
+      <label class="bc-l">Channels</label>
+      <div class="bc-row">
+        <label class="bc-opt"><input type="checkbox" name="show_banner" value="1" checked> Banner</label>
+        <label class="bc-opt"><input type="checkbox" name="send_email" value="1"> Email</label>
+      </div>
+      <div class="bc-aud">To: <strong>All staff</strong></div>
+      <div class="bc-actions">
+        <button type="button" class="ia-btn" onclick="document.getElementById('bc-overlay').classList.remove('open')">Cancel</button>
+        <button type="submit" class="ia-btn ia-btn--primary">Send alert →</button>
+      </div>
+    </form>
+  </div>
+</div>
+<style>
+  .bc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;z-index:400;padding:8vh 16px}
+  .bc-overlay.open{display:flex}
+  .bc-modal{background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:14px;width:100%;max-width:460px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+  .bc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .bc-title{font-size:15px;font-weight:700;color:var(--ia-text)}
+  .bc-x{background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--ia-text-3)}
+  .bc-l{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ia-text-3);font-weight:700;margin:14px 0 5px}
+  .bc-in{width:100%;padding:9px 11px;border:1px solid var(--ia-border);border-radius:8px;background:rgba(255,255,255,.02);color:var(--ia-text);font:inherit;font-size:13.5px;box-sizing:border-box}
+  .bc-in:focus{outline:none;border-color:rgba(190,242,100,.4)}
+  .bc-row{display:flex;gap:16px;font-size:13px}
+  .bc-opt{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ia-text-2)}
+  .bc-aud{margin-top:14px;font-size:12.5px;color:var(--ia-text-3)}
+  .bc-aud strong{color:var(--ia-text-2)}
+  .bc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+</style>
+@endif
 
 @endsection

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantStaffAlert;
 use App\Models\Tenant\TenantStaffAlertPref;
+use App\Services\Tenant\StaffAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -142,5 +143,33 @@ class StaffAlertController extends Controller
         });
 
         return redirect()->route('tenant.alerts.prefs')->with('flash', 'Notification preferences saved.');
+    }
+
+    /** MARKER-PATCH-280 — send a shop-wide announcement (managers + addon only). */
+    public function storeBroadcast(Request $request, StaffAlertService $alerts)
+    {
+        $user = auth('tenant')->user();
+        abort_unless($user && $user->isManager(), 403);
+
+        $data = $request->validate([
+            'title'    => 'required|string|max:160',
+            'body'     => 'nullable|string|max:2000',
+            'priority' => 'nullable|in:high,low',
+        ]);
+
+        $bc = $alerts->broadcast(tenant(), [
+            'title'       => $data['title'],
+            'body'        => $data['body'] ?? null,
+            'priority'    => $data['priority'] ?? 'low',
+            'show_banner' => $request->boolean('show_banner'),
+            'send_email'  => $request->boolean('send_email'),
+            'audience'    => null,
+        ], $user->id);
+
+        if (!$bc) {
+            return back()->with('error', 'Announcements require the Staff Alerts add-on.');
+        }
+
+        return redirect()->route('tenant.notifications')->with('success', 'Announcement sent to your staff.');
     }
 }
