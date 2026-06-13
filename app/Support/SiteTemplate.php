@@ -23,10 +23,15 @@ class SiteTemplate
     public static function all(): array
     {
         return [
-            'trail' => [
+            'biscuit' => [
                 'name'  => 'Biscuit',
                 'desc'  => 'High-contrast and bold — a dark hero with one bright accent. Reads energetic and confident for any service business.',
-                'tags'  => ['Dark hero', 'MTB', 'High contrast'],
+                'tags'  => ['Dark hero', 'Bold', 'High contrast'],
+                'layout' => [
+                    ['type' => 'hero', 'variant' => 'fullbleed', 'h' => 'Great service, made simple.', 'sub' => 'Book your next visit in under two minutes.', 'cta' => 'Book now'],
+                    ['type' => 'cta', 'h' => 'Ready when you are.', 'cta' => 'Get started'],
+                    ['type' => 'footer'],
+                ],
                 'tokens' => [
                     'accent'           => '#BEF264',
                     'text'             => '#0f1c12',
@@ -43,10 +48,17 @@ class SiteTemplate
                     'heading_transform'=> 'none',
                 ],
             ],
-            'velo' => [
+            'maple' => [
                 'name'  => 'Maple',
                 'desc'  => 'Calm and editorial. Warm paper tones, light type and generous whitespace — leans premium and boutique.',
                 'tags'  => ['Light', 'Editorial', 'Boutique'],
+                'layout' => [
+                    ['type' => 'hero', 'variant' => 'split', 'h' => 'Considered, calm, and done right.', 'sub' => 'A studio that obsesses over the details.', 'cta' => 'Explore'],
+                    ['type' => 'text_image', 'h' => 'Our approach', 'sub' => 'Thoughtful work, every time.'],
+                    ['type' => 'gallery'],
+                    ['type' => 'testimonial', 'sub' => '“Easily the best experience in town.”'],
+                    ['type' => 'footer'],
+                ],
                 'tokens' => [
                     'accent'           => '#b5783f',
                     'text'             => '#1c1a17',
@@ -63,10 +75,19 @@ class SiteTemplate
                     'heading_transform'=> 'none',
                 ],
             ],
-            'spoke' => [
+            'pepper' => [
                 'name'  => 'Pepper',
                 'desc'  => 'Loud and athletic. Near-black canvas, heavy uppercase headings and an electric accent — high energy and modern.',
-                'tags'  => ['Dark', 'Bold type', 'Sport'],
+                'tags'  => ['Dark', 'Bold type', 'Athletic'],
+                'layout' => [
+                    ['type' => 'hero', 'variant' => 'centered', 'h' => 'Go further.', 'sub' => 'High-energy service, built for momentum.', 'cta' => 'Start now'],
+                    ['type' => 'feature', 'h' => 'Everything you need'],
+                    ['type' => 'services', 'h' => 'The lineup'],
+                    ['type' => 'testimonial', 'sub' => '“Fast, friendly, and pro.”'],
+                    ['type' => 'faq', 'h' => 'Good to know'],
+                    ['type' => 'cta', 'h' => 'Let’s get going.', 'cta' => 'Book now'],
+                    ['type' => 'footer'],
+                ],
                 'tokens' => [
                     'accent'           => '#FF5C38',
                     'text'             => '#f5f5f5',
@@ -83,10 +104,18 @@ class SiteTemplate
                     'heading_transform'=> 'uppercase',
                 ],
             ],
-            'summit' => [
+            'juniper' => [
                 'name'  => 'Juniper',
                 'desc'  => 'Clean and trustworthy. Soft neutrals, rounded buttons and centered layouts — service-first and approachable.',
                 'tags'  => ['Light', 'Service-led', 'Minimal'],
+                'layout' => [
+                    ['type' => 'hero', 'variant' => 'compact', 'h' => 'Expert care, the easy way.', 'sub' => 'Trusted by the neighborhood.', 'cta' => 'See services'],
+                    ['type' => 'services', 'h' => 'What we offer'],
+                    ['type' => 'stats'],
+                    ['type' => 'steps', 'h' => 'How it works'],
+                    ['type' => 'cta', 'h' => 'Book your visit', 'cta' => 'Get started'],
+                    ['type' => 'footer'],
+                ],
                 'tokens' => [
                     'accent'           => '#3b7ea1',
                     'text'             => '#1f2a30',
@@ -103,10 +132,18 @@ class SiteTemplate
                     'heading_transform'=> 'none',
                 ],
             ],
-            'cadence' => [
+            'cooper' => [
                 'name'  => 'Cooper',
                 'desc'  => 'Friendly and warm. Cream backgrounds and soft accents — a welcoming, community feel.',
-                'tags'  => ['Warm', 'Family', 'Approachable'],
+                'tags'  => ['Warm', 'Welcoming', 'Approachable'],
+                'layout' => [
+                    ['type' => 'hero', 'variant' => 'split', 'h' => 'Bring the whole family.', 'sub' => 'A warm welcome, every visit.', 'cta' => 'Plan a visit'],
+                    ['type' => 'text_image', 'h' => 'Made for everyone', 'sub' => 'Friendly faces and easy booking.'],
+                    ['type' => 'feature', 'h' => 'Popular this season'],
+                    ['type' => 'gallery'],
+                    ['type' => 'contact', 'h' => 'Come say hi'],
+                    ['type' => 'footer'],
+                ],
                 'tokens' => [
                     'accent'           => '#E8A33D',
                     'text'             => '#3a2f1c',

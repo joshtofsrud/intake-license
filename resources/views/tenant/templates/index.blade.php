@@ -38,7 +38,7 @@
     <div class="tpl-card">
       <div class="tpl-preview" onclick="tplPreview('{{ $key }}')">
         <div class="tpl-preview-inner">
-          @include('tenant.templates._thumb', ['tokens' => $tpl['tokens']])
+          @include('tenant.templates._thumb', ['tokens' => $tpl['tokens'], 'layout' => $tpl['layout']])
         </div>
         @if($isCurrent)<div class="tpl-badge">● Current</div>@endif
       </div>
@@ -96,7 +96,7 @@
 @php
   $previews = [];
   foreach ($templates as $k => $tpl) {
-      $previews[$k] = ['name' => $tpl['name'], 'html' => view('tenant.templates._thumb', ['tokens' => $tpl['tokens']])->render()];
+      $previews[$k] = ['name' => $tpl['name'], 'html' => view('tenant.templates._thumb', ['tokens' => $tpl['tokens'], 'layout' => $tpl['layout']])->render()];
   }
 @endphp
 <script>
@@ -154,6 +154,41 @@
   .fs-sec-h { font-size:18px; margin-bottom:12px; }
   .fs-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   .fs-cards > div { aspect-ratio:4/3; border-radius:8px; }
+
+  /* MARKER-PATCH-263 — blueprint block shapes */
+  .fs-hero--split { display:flex; gap:18px; align-items:center; }
+  .fs-hero--split .fs-hero-copy { flex:1; }
+  .fs-hero-img { flex:1; align-self:stretch; min-height:120px; border-radius:10px; }
+  .fs-hero--centered { text-align:center; }
+  .fs-hero--centered p { margin-left:auto; margin-right:auto; }
+  .fs-hero--compact { padding-top:24px; padding-bottom:22px; }
+  .fs-hero--compact h1 { font-size:24px; }
+  .fs-cta { padding:26px 18px; text-align:center; }
+  .fs-cta .fs-sec-h { margin-bottom:12px; }
+  .fs-ti { display:flex; gap:16px; align-items:center; padding:20px 18px; }
+  .fs-ti-copy { flex:1; }
+  .fs-ti-img { flex:1; align-self:stretch; min-height:90px; border-radius:10px; }
+  .fs-gallery { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:16px 18px; }
+  .fs-gallery > div { aspect-ratio:1; border-radius:8px; }
+  .fs-quote { margin:16px 18px; padding:18px; border-radius:10px; text-align:center; font-size:13px; font-style:italic; }
+  .fs-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:18px; }
+  .fs-stat { text-align:center; }
+  .fs-stat-n { font-size:22px; line-height:1.1; }
+  .fs-stat-l { font-size:10px; }
+  .fs-steps { display:flex; gap:18px; }
+  .fs-step { flex:1; display:flex; align-items:center; gap:8px; }
+  .fs-step span { width:22px; height:22px; border-radius:99px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex:none; }
+  .fs-step i { height:4px; flex:1; border-radius:2px; }
+  .fs-list { display:flex; flex-direction:column; }
+  .fs-list-row { display:flex; align-items:center; gap:10px; padding:9px 0; }
+  .fs-list-row span { width:18px; height:18px; border-radius:5px; flex:none; }
+  .fs-list-row b { height:9px; border-radius:3px; flex:1; max-width:60%; }
+  .fs-faq { display:flex; flex-direction:column; }
+  .fs-faq-row { padding:11px 0; }
+  .fs-faq-row span { display:block; height:9px; width:70%; border-radius:3px; }
+  .fs-contact { display:flex; flex-direction:column; gap:8px; max-width:280px; }
+  .fs-input { height:26px; border-radius:6px; }
+  .fs-footer { padding:16px 18px; font-size:11px; }
 
   /* modals */
   .tpl-modal { display:none; position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.55); align-items:center; justify-content:center; padding:24px; }
