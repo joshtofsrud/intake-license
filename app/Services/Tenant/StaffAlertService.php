@@ -5,6 +5,7 @@ namespace App\Services\Tenant;
 
 use App\Models\Tenant;
 use App\Models\Tenant\TenantStaffAlert;
+use App\Models\Tenant\TenantStaffAlertBroadcast;
 use App\Models\Tenant\TenantStaffAlertPref;
 use App\Models\Tenant\TenantUser;
 use App\Services\FeatureAccessService;
@@ -43,6 +44,7 @@ class StaffAlertService
         'payment.refund_external'=> ['in_app' => true,  'sms' => false],
         'rental.reserved_online' => ['in_app' => true,  'sms' => false],
         'lease.created'          => ['in_app' => true,  'sms' => false],
+        'announcement'           => ['in_app' => true,  'sms' => false],
     ];
 
     public function __construct(
@@ -122,5 +124,43 @@ class StaffAlertService
                 ]);
             }
         });
+    }
+
+    /**
+     * MARKER-PATCH-279 — Shop-wide announcement (Layer B). Persists the
+     * broadcast, then fans it out to the in-app inbox via emit() so per-user
+     * prefs and the addon gate are reused. Email + banner are handled by the
+     * broadcast UI layer (patches 280/281).
+     *
+     * @param array{title:string, body?:string, link?:string, priority?:string, audience?:array, show_banner?:bool, send_email?:bool, expires_at?:mixed} $data
+     */
+    public function broadcast(Tenant $tenant, array $data, ?string $createdBy = null): ?TenantStaffAlertBroadcast
+    {
+        // Announcements are an addon feature, not a critical safety event.
+        if (!$tenant->staff_alerts_enabled) {
+            return null;
+        }
+
+        $bc = TenantStaffAlertBroadcast::create([
+            'tenant_id'   => $tenant->id,
+            'created_by'  => $createdBy,
+            'title'       => $data['title'],
+            'body'        => $data['body'] ?? null,
+            'priority'    => ($data['priority'] ?? 'low') === 'high' ? 'high' : 'low',
+            'audience'    => $data['audience'] ?? null,
+            'show_banner' => (bool) ($data['show_banner'] ?? true),
+            'send_email'  => (bool) ($data['send_email'] ?? false),
+            'expires_at'  => $data['expires_at'] ?? null,
+            'is_active'   => true,
+        ]);
+
+        $this->emit($tenant, 'announcement', [
+            'title' => $data['title'],
+            'body'  => $data['body'] ?? null,
+            'link'  => $data['link'] ?? null,
+            'meta'  => ['broadcast_id' => $bc->id, 'priority' => $bc->priority],
+        ]);
+
+        return $bc;
     }
 }
