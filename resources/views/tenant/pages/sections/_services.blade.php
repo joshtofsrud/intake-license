@@ -199,6 +199,14 @@
     </div>
 
     <div class="pb2-bg-pane" data-bg-mode="gradient">
+        {{-- MARKER-PATCH-269 — gradient angle --}}
+        <div class="pb2-field">
+          <div class="pb2-slider-row">
+            <label class="pb2-field-label" style="margin:0">Angle</label>
+            <span class="pb2-slider-value pb2-grad-deg">{{ $get('bg_gradient_angle', 135) }}°</span>
+          </div>
+          <input type="range" min="0" max="360" value="{{ $get('bg_gradient_angle', 135) }}" data-field="bg_gradient_angle" oninput="this.parentNode.querySelector('.pb2-grad-deg').textContent=this.value+'°'">
+        </div>
       <div class="pb2-field-row">
         <div class="pb2-field">
           <label class="pb2-field-label">From</label>

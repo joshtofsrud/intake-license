@@ -117,7 +117,7 @@
   padding-top: {{ $padTop }};
   padding-bottom: {{ $padBot }};
   @if($bgMode === 'gradient')
-  background: linear-gradient(135deg, {{ $gradF }} 0%, {{ $gradT }} 100%);
+  background: linear-gradient({{ (int)($c['bg_gradient_angle'] ?? 135) }}deg, {{ $gradF }} 0%, {{ $gradT }} 100%);
   @else
   background: {{ $bgColor }};
   @endif
