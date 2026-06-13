@@ -80,16 +80,20 @@
       <strong>Apply this template?</strong>
       <button class="tpl-modal-x" onclick="tplClose('tpl-confirm-modal')">×</button>
     </div>
-    <div class="tpl-modal-body" style="padding:18px 20px;font-size:13.5px;line-height:1.6">
-      Switching to <strong id="tpl-confirm-name"></strong> restyles your <strong>published</strong> public site right away. Your pages and their content stay exactly as they are — only colours, fonts and button styling change. You can step back to your previous design afterwards.
-    </div>
-    <div class="tpl-modal-foot">
-      <button class="ia-btn ia-btn--ghost" onclick="tplClose('tpl-confirm-modal')">Cancel</button>
-      <form method="POST" id="tpl-confirm-form" action="">
-        @csrf
+    <form method="POST" id="tpl-confirm-form" action="">
+      @csrf
+      <div class="tpl-modal-body" style="padding:18px 20px;font-size:13.5px;line-height:1.6">
+        Switching to <strong id="tpl-confirm-name"></strong> restyles your <strong>published</strong> public site right away — colours, fonts and button styling. By default your pages and content stay exactly as they are.
+        <label class="tpl-seed-opt">
+          <input type="checkbox" name="seed_layout" value="1">
+          <span><strong>Also rebuild my homepage with this template’s layout.</strong> Replaces your current homepage sections with this template’s structure. Other pages and customer data are untouched.</span>
+        </label>
+      </div>
+      <div class="tpl-modal-foot">
+        <button type="button" class="ia-btn ia-btn--ghost" onclick="tplClose('tpl-confirm-modal')">Cancel</button>
         <button type="submit" class="ia-btn ia-btn--primary">Apply template</button>
-      </form>
-    </div>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -201,6 +205,9 @@
   .tpl-modal-body { max-height:62vh; overflow:auto; }
   .tpl-modal-panel--wide .tpl-modal-body { padding:18px; background:#0000000a; }
   .tpl-modal-foot { display:flex; justify-content:flex-end; gap:10px; padding:14px 18px; border-top:.5px solid var(--ia-border); }
+  .tpl-seed-opt { display:flex; gap:9px; align-items:flex-start; margin-top:14px; padding:12px; border-radius:9px; box-shadow:inset 0 0 0 .5px var(--ia-border); cursor:pointer; font-size:12px; line-height:1.5; }
+  .tpl-seed-opt input { margin-top:2px; flex:none; }
+  .tpl-seed-opt span { opacity:.85; }
 </style>
 
 @endsection

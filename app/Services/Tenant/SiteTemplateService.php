@@ -5,6 +5,8 @@ namespace App\Services\Tenant;
 
 use App\Models\Tenant;
 use App\Support\SiteTemplate;
+use App\Models\Tenant\TenantPage;
+use App\Models\Tenant\TenantPageSection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -92,5 +94,104 @@ class SiteTemplateService
 
             return true;
         });
+    }
+
+    /**
+     * Seed the template's blueprint into the tenant's HOME page. Opt-in and
+     * destructive to that one page's layout only — never other pages, never
+     * customer data. Each section is based on the builder's own DEFAULTS
+     * (valid placeholder content) with the blueprint's copy overlaid.
+     */
+    public function seedLayout(Tenant $tenant, string $key): bool
+    {
+        $tpl    = SiteTemplate::find($key);
+        $blocks = $tpl['layout'] ?? null;
+        if (!is_array($blocks)) {
+            return false;
+        }
+
+        $defaults = \App\Http\Controllers\Tenant\PageBuilderController::defaults();
+
+        // blueprint block type -> PUBLIC section partial type. Types without a
+        // public partial (testimonial) are intentionally absent and skipped.
+        $map = [
+            'hero' => 'hero', 'cta' => 'cta_banner', 'text_image' => 'text_image',
+            'gallery' => 'image_gallery', 'stats' => 'stats_row', 'steps' => 'step_timeline',
+            'services' => 'services', 'feature' => 'feature_grid', 'faq' => 'faq_accordion',
+            'contact' => 'contact_form', 'footer' => 'footer',
+        ];
+
+        return DB::transaction(function () use ($tenant, $blocks, $defaults, $map) {
+            $home = TenantPage::where('tenant_id', $tenant->id)
+                ->where('is_home', true)->first();
+
+            if (!$home) {
+                $home = TenantPage::create([
+                    'tenant_id' => $tenant->id, 'title' => 'Home', 'slug' => 'home',
+                    'is_home' => true, 'is_published' => false, 'is_in_nav' => false, 'nav_order' => 0,
+                ]);
+            }
+
+            TenantPageSection::where('page_id', $home->id)->delete();
+
+            $sort = 0;
+            $make = function (string $type, array $content) use ($home, &$sort) {
+                TenantPageSection::create([
+                    'page_id' => $home->id, 'tenant_id' => $home->tenant_id,
+                    'section_type' => $type, 'content' => $content,
+                    'padding' => 'normal', 'is_visible' => true, 'sort_order' => $sort++,
+                ]);
+            };
+
+            // Nav is implicit (not in the blueprint) — always first.
+            $make('nav', $defaults['nav'] ?? []);
+
+            foreach ($blocks as $b) {
+                $type = $map[$b['type'] ?? ''] ?? null;
+                if ($type === null || !isset($defaults[$type])) {
+                    continue; // unsupported on the public renderer — skip
+                }
+                $make($type, array_merge($defaults[$type], $this->overlayCopy($type, $b)));
+            }
+
+            return true;
+        });
+    }
+
+    /** Overlay a blueprint block's copy onto the right content keys per type. */
+    private function overlayCopy(string $type, array $b): array
+    {
+        $h   = trim((string) ($b['h'] ?? ''));
+        $sub = trim((string) ($b['sub'] ?? ''));
+        $cta = trim((string) ($b['cta'] ?? ''));
+        $out = [];
+
+        switch ($type) {
+            case 'hero':
+                if ($h !== '')   $out['headline'] = $h;
+                if ($sub !== '') $out['subheading'] = $sub;
+                if ($cta !== '') $out['cta_primary_label'] = $cta;
+                break;
+            case 'cta_banner':
+                if ($h !== '')   $out['headline'] = $h;
+                if ($cta !== '') $out['cta_label'] = $cta;
+                break;
+            case 'text_image':
+                if ($h !== '')   $out['heading'] = $h;
+                if ($sub !== '') $out['body'] = $sub;
+                break;
+            case 'services':
+            case 'feature_grid':
+            case 'step_timeline':
+            case 'stats_row':
+            case 'faq_accordion':
+            case 'image_gallery':
+            case 'contact_form':
+                if ($h !== '')   $out['heading'] = $h;
+                if ($sub !== '') $out['subheading'] = $sub;
+                break;
+        }
+
+        return $out;
     }
 }

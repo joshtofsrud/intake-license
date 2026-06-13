@@ -35,9 +35,15 @@ class SiteTemplateController extends Controller
             return back()->with('flash_error', 'That template no longer exists.');
         }
 
-        return redirect()
-            ->route('tenant.templates.index')
-            ->with('flash', SiteTemplate::name($key) . ' applied. Your site has been restyled — page content is unchanged.');
+        $name = SiteTemplate::name($key);
+        $msg  = $name . ' applied. Your site has been restyled — page content is unchanged.';
+
+        // MARKER-PATCH-264 — opt-in: also rebuild the home page from the blueprint.
+        if ($request->boolean('seed_layout') && $this->templates->seedLayout(tenant(), $key)) {
+            $msg = $name . ' applied. Your homepage was rebuilt with this template’s layout and restyled to match. Other pages are untouched.';
+        }
+
+        return redirect()->route('tenant.templates.index')->with('flash', $msg);
     }
 
     public function revert(Request $request)
