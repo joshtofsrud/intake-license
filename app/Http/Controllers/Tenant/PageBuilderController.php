@@ -33,6 +33,7 @@ class PageBuilderController extends Controller
         'nav'           => [
             // Logo
             'show_logo'       => true,
+            'logo_variant'    => 'auto',     // auto (contrast) | light | dark — MARKER-PATCH-274
             'logo_alignment'  => 'left',     // left | center
             'logo_size'       => 'medium',   // small | medium | large | xl
             // CTA

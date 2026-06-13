@@ -27,6 +27,17 @@
       <span>Show logo</span>
     </label>
 
+    {{-- MARKER-PATCH-274 — tenant picks which logo shows; no background guessing --}}
+    <div class="pb2-field" style="margin-top:10px">
+      <label class="pb2-field-label">Logo <span class="pb2-field-hint">which version to show</span></label>
+      <div class="pb2-seg" data-field-seg="logo_variant">
+        @foreach(['auto'=>'Auto','light'=>'Light','dark'=>'Dark'] as $val => $name)
+          <button type="button" class="pb2-seg-btn {{ $get('logo_variant', 'auto') === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $name }}</button>
+        @endforeach
+      </div>
+      <input type="hidden" data-field="logo_variant" value="{{ $get('logo_variant', 'auto') }}">
+    </div>
+
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label">Logo position <span class="pb2-field-hint">only with standard layout</span></label>
       <div class="pb2-seg" data-field-seg="logo_alignment">

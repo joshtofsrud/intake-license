@@ -35,7 +35,19 @@
   // Logo
   $showLogo = (bool)($c['show_logo'] ?? true);
   $navBg    = $bgMode === 'transparent' ? 'transparent' : $bgColor;
-  $logoUrl  = $showLogo && isset($tenant) ? \App\Support\ColorHelper::pickLogo($tenant, $navBg) : null;
+  // MARKER-PATCH-274 — tenant picks the logo version explicitly. 'auto' keeps
+  // the legacy contrast-based pick for back-compat; light = logo_light_url
+  // (falls back to the primary logo), dark = the primary logo_url.
+  $logoVariant = $c['logo_variant'] ?? 'auto';
+  if (!$showLogo || !isset($tenant)) {
+      $logoUrl = null;
+  } elseif ($logoVariant === 'light') {
+      $logoUrl = $tenant->logo_light_url ?: $tenant->logo_url;
+  } elseif ($logoVariant === 'dark') {
+      $logoUrl = $tenant->logo_url;
+  } else {
+      $logoUrl = \App\Support\ColorHelper::pickLogo($tenant, $navBg);
+  }
 
   // MARKER-PATCH-158-G28 — independent logo size, no longer tied to nav height
   $logoSizeMap = [
