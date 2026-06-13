@@ -681,6 +681,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::delete('/pages/{id}/sections/{sid}',   [TenantControllers\PageBuilderController::class, 'deleteSection'])->name('pages.sections.delete');
             Route::post('/pages/{id}/sections/reorder',   [TenantControllers\PageBuilderController::class, 'reorderSections'])->name('pages.sections.reorder');
 
+            // MARKER-PATCH-261 — site template gallery
+            Route::get('/website/templates',               [TenantControllers\SiteTemplateController::class, 'index'])->name('templates.index');
+            Route::post('/website/templates/revert',       [TenantControllers\SiteTemplateController::class, 'revert'])->name('templates.revert');
+            Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
+
             Route::get('/emails',               [TenantControllers\EmailController::class, 'index'])->name('emails.index');
             Route::patch('/emails/{type}',      [TenantControllers\EmailController::class, 'update'])->name('emails.update');
             // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
