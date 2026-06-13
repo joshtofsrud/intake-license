@@ -20,6 +20,7 @@ class Tenant extends Model
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'logo_size_admin', 'logo_size_booking',
         'font_heading', 'font_body', 'tagline',
+        'site_template', 'design_tokens', // MARKER-PATCH-260
         'email_from_name', 'email_from_address', 'email_reply_to',
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
         'twilio_number_sid', // MARKER-PATCH-224
@@ -50,6 +51,7 @@ class Tenant extends Model
         'is_active'           => 'boolean',
         'sms_enabled'         => 'boolean',
         'settings'            => 'array',
+        'design_tokens'       => 'array', // MARKER-PATCH-260
         'onboarded_at'        => 'datetime',
         'booking_window_days' => 'integer',
         'min_notice_hours'    => 'integer',
