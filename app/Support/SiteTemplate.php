@@ -24,8 +24,8 @@ class SiteTemplate
     {
         return [
             'trail' => [
-                'name'  => 'Trailhead',
-                'desc'  => 'Bold, outdoorsy and high-contrast. Deep forest greens with a lime CTA — built for shops that lean adventure & MTB.',
+                'name'  => 'Biscuit',
+                'desc'  => 'High-contrast and bold — a dark hero with one bright accent. Reads energetic and confident for any service business.',
                 'tags'  => ['Dark hero', 'MTB', 'High contrast'],
                 'tokens' => [
                     'accent'           => '#BEF264',
@@ -44,8 +44,8 @@ class SiteTemplate
                 ],
             ],
             'velo' => [
-                'name'  => 'Velo Studio',
-                'desc'  => 'Calm, editorial and premium. Warm paper tones, light type, lots of whitespace — suits boutique road & fitting studios.',
+                'name'  => 'Maple',
+                'desc'  => 'Calm and editorial. Warm paper tones, light type and generous whitespace — leans premium and boutique.',
                 'tags'  => ['Light', 'Editorial', 'Boutique'],
                 'tokens' => [
                     'accent'           => '#b5783f',
@@ -64,8 +64,8 @@ class SiteTemplate
                 ],
             ],
             'spoke' => [
-                'name'  => 'Spoke',
-                'desc'  => 'Loud and athletic. Near-black canvas, heavy uppercase display, electric orange. Great for race shops and e-bike dealers.',
+                'name'  => 'Pepper',
+                'desc'  => 'Loud and athletic. Near-black canvas, heavy uppercase headings and an electric accent — high energy and modern.',
                 'tags'  => ['Dark', 'Bold type', 'Sport'],
                 'tokens' => [
                     'accent'           => '#FF5C38',
@@ -84,8 +84,8 @@ class SiteTemplate
                 ],
             ],
             'summit' => [
-                'name'  => 'Summit',
-                'desc'  => 'Clean, trustworthy and service-first. Soft neutrals, centered layouts, rounded buttons — leads with repairs & tune-ups.',
+                'name'  => 'Juniper',
+                'desc'  => 'Clean and trustworthy. Soft neutrals, rounded buttons and centered layouts — service-first and approachable.',
                 'tags'  => ['Light', 'Service-led', 'Minimal'],
                 'tokens' => [
                     'accent'           => '#3b7ea1',
@@ -104,8 +104,8 @@ class SiteTemplate
                 ],
             ],
             'cadence' => [
-                'name'  => 'Cadence',
-                'desc'  => 'Friendly and warm. Cream backgrounds, italic display, amber accents — a welcoming family-shop and rental feel.',
+                'name'  => 'Cooper',
+                'desc'  => 'Friendly and warm. Cream backgrounds and soft accents — a welcoming, community feel.',
                 'tags'  => ['Warm', 'Family', 'Approachable'],
                 'tokens' => [
                     'accent'           => '#E8A33D',

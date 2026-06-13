@@ -26,16 +26,16 @@
 <div class="fs" style="background:{{ $bg }};color:{{ $text }};font-family:'{{ $fBody }}',sans-serif">
   <div class="fs-nav" style="border-bottom:.5px solid {{ $surface }}">
     <span class="fs-logo" style="font-family:'{{ $fHead }}',sans-serif;font-weight:{{ $hWeight }};color:{{ $accent }};text-transform:{{ $hCase }}">{{ $currentTenant->name ?? 'Your Shop' }}</span>
-    <span style="color:{{ $muted }}">Shop</span>
-    <span style="color:{{ $muted }}">Service</span>
-    <span style="color:{{ $muted }}">Rentals</span>
+    <span style="color:{{ $muted }}">Services</span>
+    <span style="color:{{ $muted }}">About</span>
+    <span style="color:{{ $muted }}">Contact</span>
     <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">Book</span>
   </div>
   <div class="fs-hero" style="background:{{ $heroBg }};color:{{ $heroText }}">
-    <div class="fs-eyebrow" style="color:{{ $accent }}">Made for the ride</div>
-    <h1 style="font-family:'{{ $fHead }}',sans-serif;font-weight:{{ $hWeight }};text-transform:{{ $hCase }}">Ride the whole valley.</h1>
-    <p style="color:{{ $heroText }};opacity:.7">Sales, expert service, and a rental fleet that's ready when you are.</p>
-    <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">Reserve a bike →</span>
+    <div class="fs-eyebrow" style="color:{{ $accent }}">Now booking</div>
+    <h1 style="font-family:'{{ $fHead }}',sans-serif;font-weight:{{ $hWeight }};text-transform:{{ $hCase }}">Great service, made simple.</h1>
+    <p style="color:{{ $heroText }};opacity:.7">Friendly service and easy online booking — see you soon.</p>
+    <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">Book now →</span>
   </div>
   <div class="fs-sec">
     <div class="fs-sec-h" style="font-family:'{{ $fHead }}',sans-serif;font-weight:{{ $hWeight }};text-transform:{{ $hCase }}">What we do</div>
