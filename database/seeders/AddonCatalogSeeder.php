@@ -461,6 +461,7 @@ class AddonCatalogSeeder extends Seeder
                 'price_cents' => 900,
                 'billing_cadence' => 'monthly',
                 'included_in_plans' => null,
+                'min_plan_tier' => 'branded', // MARKER-PATCH-272 — Starter never; Branded+ only
                 'sort_order' => 160,
                 'is_self_serve' => true,
                 'is_new' => true,

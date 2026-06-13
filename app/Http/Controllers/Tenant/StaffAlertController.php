@@ -92,6 +92,11 @@ class StaffAlertController extends Controller
 
     public function prefs()
     {
+        // MARKER-PATCH-272 prefs gate — config requires the Branded+ addon.
+        if (!tenant()->staff_alerts_enabled) {
+            return redirect()->route('tenant.notifications')
+                ->with('flash', 'Staff alert preferences are available on the Branded plan and above.');
+        }
         $userId = auth('tenant')->id();
 
         $existing = TenantStaffAlertPref::where('tenant_id', tenant()->id)
@@ -118,6 +123,10 @@ class StaffAlertController extends Controller
 
     public function savePrefs(Request $request)
     {
+        // MARKER-PATCH-272 savePrefs gate.
+        if (!tenant()->staff_alerts_enabled) {
+            abort(403, 'Staff alerts is not available on your plan.');
+        }
         $userId = auth('tenant')->id();
         $tenantId = tenant()->id;
         $selected = $request->input('prefs', []);
