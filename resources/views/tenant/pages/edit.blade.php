@@ -288,6 +288,14 @@
 }
 .pb2-sections-docked .pb2-section-list { flex: 1 1 auto; overflow-y: auto; }
 .pb2-sections-docked .pb2-pane-footer { flex: 0 0 auto; }
+/* MARKER-PATCH-278 — collapsible docked sections */
+.pb2-sections-toggle { cursor: pointer; user-select: none; }
+.pb2-sections-head-right { display: flex; align-items: center; gap: 8px; }
+.pb2-sections-chevron { opacity: .55; transition: transform .15s ease; flex: 0 0 auto; }
+.pb2-sections-docked.collapsed { max-height: none; }
+.pb2-sections-docked.collapsed .pb2-section-list,
+.pb2-sections-docked.collapsed .pb2-pane-footer { display: none; }
+.pb2-sections-docked.collapsed .pb2-sections-chevron { transform: rotate(-90deg); }
 .pb2-pane-right { border-right: 0; border-left: 0.5px solid var(--pb2-border); }
 .pb2-pane-header {
   padding: 14px 18px 10px;
@@ -1593,9 +1601,13 @@
     <aside class="pb2-pane pb2-pane-right" id="pb2-inspector">
     {{-- MARKER-PATCH-276 — sections docked above the inspector --}}
     <div class="pb2-sections-docked" id="pb2-sections-pane">
-      <div class="pb2-pane-header">
+      {{-- MARKER-PATCH-278 — collapsible header --}}
+      <div class="pb2-pane-header pb2-sections-toggle" onclick="toggleSectionsDock()" title="Collapse / expand the section list">
         <div class="pb2-pane-header-title">Sections</div>
-        <div class="pb2-pane-header-meta">{{ $sections->count() }}</div>
+        <div class="pb2-sections-head-right">
+          <span class="pb2-pane-header-meta">{{ $sections->count() }}</span>
+          <svg class="pb2-sections-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
       </div>
 
       <div class="pb2-section-list" id="pb2-canvas">
@@ -3337,6 +3349,20 @@
 
   // Initial wire-up — the first section's fields are already rendered
   initInspectorControls();
+
+  // MARKER-PATCH-278 — collapsible docked sections list (state persisted)
+  window.toggleSectionsDock = function() {
+    const el = document.getElementById('pb2-sections-pane');
+    if (!el) return;
+    const collapsed = el.classList.toggle('collapsed');
+    try { localStorage.setItem('pb2_sections_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+  };
+  try {
+    if (localStorage.getItem('pb2_sections_collapsed') === '1') {
+      const el = document.getElementById('pb2-sections-pane');
+      if (el) el.classList.add('collapsed');
+    }
+  } catch (e) {}
 
   // ─── Add section panel ────────────────────────────────────────────────
   window.toggleAddPanel = function() {
