@@ -8,6 +8,7 @@ use App\Models\Tenant\TenantStaffAlert;
 use App\Models\Tenant\TenantStaffAlertBroadcast;
 use App\Models\Tenant\TenantStaffAlertPref;
 use App\Models\Tenant\TenantUser;
+use App\Services\EmailService;
 use App\Services\FeatureAccessService;
 use App\Services\Sms\SmsService;
 use Illuminate\Support\Facades\DB;
@@ -161,6 +162,50 @@ class StaffAlertService
             'meta'  => ['broadcast_id' => $bc->id, 'priority' => $bc->priority],
         ]);
 
+        if ($bc->send_email) {
+            $this->emailBroadcast($tenant, $bc);
+        }
+
         return $bc;
+    }
+
+    /**
+     * MARKER-PATCH-282 — email an announcement to every active staff member.
+     * Best-effort: reuses EmailService (suppression gate, tenant from-address,
+     * Postmark metadata) and its branded shell; failures are logged only.
+     */
+    private function emailBroadcast(Tenant $tenant, TenantStaffAlertBroadcast $bc): void
+    {
+        try {
+            $recipients = TenantUser::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->whereNotNull('email')
+                ->pluck('email')
+                ->filter()
+                ->unique();
+
+            if ($recipients->isEmpty()) {
+                return;
+            }
+
+            $mailer  = new EmailService($tenant);
+            $subject = '📣 ' . $bc->title;
+
+            $inner = '<h1 style="font-size:18px;margin:0 0 12px;color:#111">' . e($bc->title) . '</h1>';
+            if ($bc->body) {
+                $inner .= '<p style="font-size:14px;line-height:1.6;color:#333;white-space:pre-line;margin:0">'
+                        . e($bc->body) . '</p>';
+            }
+            $inner .= '<p style="font-size:12px;color:#999;margin-top:20px">Staff announcement from '
+                    . e($tenant->name) . '</p>';
+
+            $html = $mailer->renderHtml($inner);
+
+            foreach ($recipients as $email) {
+                $mailer->sendRendered('announcement', $email, $subject, $html);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast email failed: ' . $e->getMessage());
+        }
     }
 }
