@@ -31,6 +31,20 @@
 .sv-mode-banner-label .muted{color:var(--ia-text-muted);margin-left:4px}
 .sv-mode-banner-link{color:var(--ia-accent);font-weight:500;font-size:12px;text-decoration:none}
 .sv-mode-banner-link:hover{text-decoration:underline}
+.sv-cat-rail{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.sv-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:99px;border:0.5px solid var(--ia-border);background:transparent;color:var(--ia-text-2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:background var(--ia-t),border-color var(--ia-t),color var(--ia-t)}
+.sv-pill:hover{border-color:rgba(255,255,255,.18);color:var(--ia-text)}
+.sv-pill.is-active{background:var(--ia-accent-soft);border-color:var(--ia-accent);color:var(--ia-accent)}
+.sv-pill-ct{font-size:11px;opacity:.65}
+.sv-pill--add{border-style:dashed;color:var(--ia-text-muted)}
+.sv-cat-grouphead{display:flex;align-items:center;gap:10px;padding:13px 14px 9px;border-bottom:0.5px solid var(--ia-border);background:rgba(255,255,255,.012)}
+.sv-cat-grouphead.is-warn{background:rgba(232,163,61,.05)}
+.sv-cat-groupname{font-weight:700;font-size:13px}
+.sv-cat-groupcount{font-size:10.5px;color:var(--ia-text-muted);background:rgba(255,255,255,.05);padding:2px 8px;border-radius:99px}
+.sv-cat-groupwarn{font-size:10px;color:var(--ia-accent);background:rgba(232,163,61,.12);padding:2px 8px;border-radius:99px;font-weight:600}
+.sv-cat-groupspacer{margin-left:auto}
+.sv-cat-groupadd{background:transparent;border:none;color:var(--ia-text-muted);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:6px}
+.sv-cat-groupadd:hover{background:rgba(255,255,255,.05);color:var(--ia-text)}
 .sv-list-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);overflow:hidden}
 .sv-list-head-row{display:grid;grid-template-columns:28px 1fr 130px 100px 150px 60px 32px;gap:14px;padding:10px 14px;border-bottom:0.5px solid var(--ia-border);background:var(--ia-surface-2);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-muted);font-weight:500}
 .sv-list-row{display:grid;grid-template-columns:28px 1fr 130px 100px 150px 60px 32px;gap:14px;align-items:center;padding:12px 14px;border-bottom:0.5px solid var(--ia-border);font-size:13.5px;transition:background var(--ia-t)}
@@ -378,6 +392,8 @@ body.sv-sheet-open{overflow:hidden !important}
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M4 8h8M6 12h4"/></svg>
     </button>
   </div>
+
+  <div class="sv-cat-rail" id="sv-cat-pills"></div>
 
   <div class="sv-mode-banner" id="sv-mode-banner">
     <span class="sv-mode-banner-icon">

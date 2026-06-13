@@ -204,6 +204,31 @@
   <div class="bk-toolbar">
     <input type="search" class="bk-search" id="bk-search" placeholder="Search services…">
   </div>
+  {{-- MARKER-PATCH-265 — category pill rail (filters the catalog below) --}}
+  @php
+    $catsWithItems = collect($catalog)->filter(fn($c) => $c->items->count());
+    $totalSvc = $catsWithItems->sum(fn($c) => $c->items->count());
+  @endphp
+  @if($catsWithItems->count() > 1)
+  <style>
+    .bk-cat-rail{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;margin:0 -2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .bk-cat-rail::-webkit-scrollbar{display:none}
+    .bk-cat-pill{flex:none;padding:8px 15px;border-radius:99px;border:1px solid var(--bk-border,rgba(0,0,0,.14));
+      background:transparent;color:inherit;opacity:.78;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit;transition:all .12s}
+    .bk-cat-pill:hover{opacity:1;border-color:var(--bk-border-strong,rgba(0,0,0,.3))}
+    .bk-cat-pill.is-active{background:var(--p-accent,#BEF264);color:#0a0a0a;border-color:var(--p-accent,#BEF264);opacity:1}
+    .bk-cat-pill-ct{opacity:.55;font-size:11.5px;margin-left:5px}
+    .bk-cat-pill.is-active .bk-cat-pill-ct{opacity:.7}
+  </style>
+  <div class="bk-cat-rail" id="bk-cat-rail">
+    <button type="button" class="bk-cat-pill is-active" data-cat="all">All <span class="bk-cat-pill-ct">{{ $totalSvc }}</span></button>
+    @foreach($catalog as $cat)
+      @if($cat->items->count())
+        <button type="button" class="bk-cat-pill" data-cat="{{ strtolower($cat->name) }}">{{ $cat->name }} <span class="bk-cat-pill-ct">{{ $cat->items->count() }}</span></button>
+      @endif
+    @endforeach
+  </div>
+  @endif
   <div id="bk-catalog">
     @forelse($catalog as $cat)
       <div class="bk-cat-group" data-cat="{{ strtolower($cat->name) }}">

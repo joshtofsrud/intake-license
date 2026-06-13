@@ -50,6 +50,7 @@
     bindAddButtons();
     bindServiceAddonCheckboxes();
     bindSearch();
+    bindCatPills();
     bindCalNav();
     bindReceiving();
     initCalendar();
@@ -171,19 +172,44 @@
     updateSidebar();
   }
 
+  // MARKER-PATCH-265 — category pills + search share one filter.
+  var bkActiveCat = 'all';
+
+  function applyCatalogFilter() {
+    var input = document.getElementById('bk-search');
+    var q = input ? input.value.toLowerCase().trim() : '';
+    document.querySelectorAll('.bk-cat-group').forEach(function (group) {
+      var gcat = group.getAttribute('data-cat') || '';
+      if (bkActiveCat !== 'all' && gcat !== bkActiveCat) {
+        group.style.display = 'none';
+        return;
+      }
+      var anyVisible = false;
+      group.querySelectorAll('.bk-service-row').forEach(function (row) {
+        var name = (row.getAttribute('data-service-name') || '').toLowerCase();
+        var show = (!q || name.includes(q));
+        row.style.display = show ? '' : 'none';
+        if (show) anyVisible = true;
+      });
+      group.style.display = anyVisible ? '' : 'none';
+    });
+  }
+
   function bindSearch() {
     var input = document.getElementById('bk-search');
     if (!input) return;
-    input.addEventListener('input', function () {
-      var q = input.value.toLowerCase().trim();
-      document.querySelectorAll('.bk-service-row').forEach(function (row) {
-        var name = (row.getAttribute('data-service-name') || '').toLowerCase();
-        row.style.display = (!q || name.includes(q)) ? '' : 'none';
-      });
-      document.querySelectorAll('.bk-cat-group').forEach(function (group) {
-        var visible = Array.from(group.querySelectorAll('.bk-service-row'))
-          .some(function (c) { return c.style.display !== 'none'; });
-        group.style.display = visible ? '' : 'none';
+    input.addEventListener('input', applyCatalogFilter);
+  }
+
+  function bindCatPills() {
+    var rail = document.getElementById('bk-cat-rail');
+    if (!rail) return;
+    rail.querySelectorAll('.bk-cat-pill').forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        bkActiveCat = pill.getAttribute('data-cat') || 'all';
+        rail.querySelectorAll('.bk-cat-pill').forEach(function (p) { p.classList.remove('is-active'); });
+        pill.classList.add('is-active');
+        applyCatalogFilter();
       });
     });
   }

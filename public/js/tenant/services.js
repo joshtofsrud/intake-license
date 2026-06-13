@@ -126,7 +126,8 @@
     var q = state.search.toLowerCase();
     return flatServices().filter(function (s) {
       if (q && s.name.toLowerCase().indexOf(q) === -1) return false;
-      if (state.filterCategory && s.category_id !== state.filterCategory) return false;
+      if (state.filterCategory === '__uncat') { if (s.category_id) return false; }
+      else if (state.filterCategory && s.category_id !== state.filterCategory) return false;
       if (state.filterActive === 'true' && !s.is_active) return false;
       if (state.filterActive === 'false' && s.is_active) return false;
       return true;
@@ -176,6 +177,7 @@
     document.getElementById('sv-count-services').textContent = flatServices().length;
     document.getElementById('sv-count-addons').textContent = state.library.length;
     renderFilterCategories();
+    renderCatPills();
     renderModeBanner();
     if (state.tab === 'services') {
       if (state.view === 'list') renderList();
@@ -213,16 +215,7 @@
     if (tblHead) tblHead.textContent = state.mode === 'time_slots' ? 'Duration' : 'Slot weight';
   }
 
-  function renderList() {
-    var body = document.getElementById('sv-list-body');
-    if (!body) return;
-    var services = filteredServices();
-    if (services.length === 0) {
-      body.innerHTML = '<div class="sv-empty">' + (flatServices().length === 0 ? 'No services yet. Click "+ Add service" to create your first one.' : 'No services match your filters.') + '</div>';
-      return;
-    }
-
-    body.innerHTML = services.map(function (s) {
+  function rowHtml(s) {
       var isExpanded = state.expanded === s.id;
       var timeCell;
       if (state.mode === 'time_slots') {
@@ -254,7 +247,61 @@
         + '<div><button type="button" class="sv-expand-btn" data-expand="' + s.id + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
         + '</div>'
         + (isExpanded ? renderDrawer(s) : '');
-    }).join('');
+  }
+
+  function svGroupHead(name, count, catId, warn) {
+    return '<div class="sv-cat-grouphead' + (warn ? ' is-warn' : '') + '">'
+      + '<span class="sv-cat-groupname">' + esc(name) + '</span>'
+      + '<span class="sv-cat-groupcount">' + count + '</span>'
+      + (warn ? '<span class="sv-cat-groupwarn">Won\'t group on booking page</span>' : '')
+      + '<span class="sv-cat-groupspacer"></span>'
+      + (catId ? '<button type="button" class="sv-cat-groupadd" data-add-to-cat="' + esc(catId) + '">+ Add service</button>' : '')
+      + '</div>';
+  }
+
+  function renderList() {
+    var body = document.getElementById('sv-list-body');
+    if (!body) return;
+    if (flatServices().length === 0) {
+      body.innerHTML = '<div class="sv-empty">No services yet. Click "+ Add service" to create your first one.</div>';
+      return;
+    }
+    var visible = filteredServices();
+    if (visible.length === 0) {
+      body.innerHTML = '<div class="sv-empty">No services match your filters.</div>';
+      return;
+    }
+    var html = '';
+    state.categories.forEach(function (cat) {
+      var rows = visible.filter(function (s) { return s.category_id === cat.id; });
+      if (!rows.length) return;
+      html += svGroupHead(cat.name, rows.length, cat.id, false) + rows.map(rowHtml).join('');
+    });
+    var uncat = visible.filter(function (s) { return !s.category_id; });
+    if (uncat.length) {
+      html += svGroupHead('Uncategorized', uncat.length, '', true) + uncat.map(rowHtml).join('');
+    }
+    body.innerHTML = html;
+  }
+
+  function renderCatPills() {
+    var rail = document.getElementById('sv-cat-pills');
+    if (!rail) return;
+    var counts = {}, uncat = 0, total = 0;
+    flatServices().forEach(function (s) {
+      total++;
+      if (s.category_id) counts[s.category_id] = (counts[s.category_id] || 0) + 1;
+      else uncat++;
+    });
+    var html = '<button type="button" class="sv-pill' + (!state.filterCategory ? ' is-active' : '') + '" data-pill-cat="">All <span class="sv-pill-ct">' + total + '</span></button>';
+    state.categories.forEach(function (cat) {
+      html += '<button type="button" class="sv-pill' + (state.filterCategory === cat.id ? ' is-active' : '') + '" data-pill-cat="' + esc(cat.id) + '">' + esc(cat.name) + ' <span class="sv-pill-ct">' + (counts[cat.id] || 0) + '</span></button>';
+    });
+    if (uncat) {
+      html += '<button type="button" class="sv-pill is-warn' + (state.filterCategory === '__uncat' ? ' is-active' : '') + '" data-pill-cat="__uncat">Uncategorized <span class="sv-pill-ct">' + uncat + '</span></button>';
+    }
+    html += '<button type="button" class="sv-pill sv-pill--add" id="sv-pill-add-cat">+ Category</button>';
+    rail.innerHTML = html;
   }
 
   function renderDrawer(s) {
@@ -857,6 +904,14 @@
 
     var search = document.getElementById('sv-search');
     if (search) search.addEventListener('input', function () { state.search = search.value; renderAll(); });
+
+    document.addEventListener('click', function (e) {
+      var pill = e.target.closest('[data-pill-cat]');
+      if (pill) { state.filterCategory = pill.getAttribute('data-pill-cat'); renderAll(); return; }
+      if (e.target.closest('#sv-pill-add-cat')) { var ac = document.getElementById('sv-add-category-btn'); if (ac) ac.click(); return; }
+      var addTo = e.target.closest('[data-add-to-cat]');
+      if (addTo) { var ab = document.getElementById('sv-add-btn'); if (ab) ab.click(); return; }
+    });
 
     var filterCat = document.getElementById('sv-filter-category');
     if (filterCat) filterCat.addEventListener('change', function () {
