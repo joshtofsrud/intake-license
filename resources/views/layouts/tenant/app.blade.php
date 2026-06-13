@@ -119,6 +119,7 @@
         @endpush
       @endif
 
+      @include('layouts.tenant._staff-broadcast-banner')
       @yield('content')
 
     </main>

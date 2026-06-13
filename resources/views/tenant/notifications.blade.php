@@ -36,6 +36,7 @@
     'payment.refund_external' => ['Payment', '💳'],
     'offer.accepted'          => ['Offer', '🏷'],
     'inbox.needs_reply'       => ['Inbox', '💬'],
+    'announcement'            => ['Announcement', '📣'],
   ];
 @endphp
 

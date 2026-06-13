@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantStaffAlert;
 use App\Models\Tenant\TenantStaffAlertPref;
+use App\Models\Tenant\TenantStaffAlertBroadcast;
+use App\Models\Tenant\TenantStaffBroadcastDismissal;
 use App\Services\Tenant\StaffAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -171,5 +173,22 @@ class StaffAlertController extends Controller
         }
 
         return redirect()->route('tenant.notifications')->with('success', 'Announcement sent to your staff.');
+    }
+
+    /** MARKER-PATCH-281 — dismiss an announcement banner for the current user. */
+    public function dismissBroadcast(Request $request, string $id)
+    {
+        $user = auth('tenant')->user();
+        abort_unless($user, 403);
+
+        $bc = TenantStaffAlertBroadcast::where('tenant_id', tenant()->id)->find($id);
+        if ($bc) {
+            TenantStaffBroadcastDismissal::firstOrCreate(
+                ['broadcast_id' => $bc->id, 'user_id' => $user->id],
+                ['tenant_id' => tenant()->id, 'dismissed_at' => now()]
+            );
+        }
+
+        return response()->json(['ok' => true]);
     }
 }

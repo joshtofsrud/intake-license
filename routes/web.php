@@ -407,6 +407,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/alerts/read-all',      [TenantControllers\StaffAlertController::class, 'markAllRead'])->name('alerts.read-all');
             // MARKER-PATCH-280 — shop-wide announcement send.
             Route::post('/alerts/broadcasts',    [TenantControllers\StaffAlertController::class, 'storeBroadcast'])->name('alerts.broadcasts.store');
+            Route::post('/alerts/broadcasts/{id}/dismiss', [TenantControllers\StaffAlertController::class, 'dismissBroadcast'])->name('alerts.broadcasts.dismiss');
             Route::get('/settings/alerts',       [TenantControllers\StaffAlertController::class, 'prefs'])->name('alerts.prefs');
             Route::post('/settings/alerts',      [TenantControllers\StaffAlertController::class, 'savePrefs'])->name('alerts.prefs.save');
 
