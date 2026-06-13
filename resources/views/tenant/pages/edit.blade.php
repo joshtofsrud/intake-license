@@ -1693,7 +1693,15 @@
         </div>
 
         <div class="pb2-insp-body" id="pb2-insp-body">
-          @include('tenant.pages._section', ['section' => $firstSection])
+          {{-- MARKER-PATCH-275 — render the per-type editor on initial load
+               (with tab panels + full fields), mirroring the ?_inspector=
+               click path; legacy _section is the fallback for un-migrated types. --}}
+          @php $firstPerType = 'tenant.pages.sections._' . $firstSection->section_type; @endphp
+          @if(view()->exists($firstPerType))
+            @include($firstPerType, ['section' => $firstSection, 'c' => $firstSection->content ?? [], 'navItems' => $navItems ?? collect(), 'availablePages' => $availablePages ?? collect()])
+          @else
+            @include('tenant.pages._section', ['section' => $firstSection])
+          @endif
         </div>
 
         <div class="pb2-insp-footer">

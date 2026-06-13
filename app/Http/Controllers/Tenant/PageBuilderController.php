@@ -568,7 +568,14 @@ class PageBuilderController extends Controller
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)->orderBy('sort_order')->get();
         $sectionTypes = array_keys(self::DEFAULTS);
 
-        return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes'));
+        // MARKER-PATCH-275 — published pages for the nav editor's
+        // "Add from existing pages" picker on the initial server render.
+        $availablePages = TenantPage::where('tenant_id', $tenant->id)
+            ->where('is_published', true)
+            ->orderBy('nav_order')
+            ->get(['id', 'title', 'slug', 'is_home']);
+
+        return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes', 'availablePages'));
     }
 
     /**
