@@ -48,6 +48,41 @@
 {{--=================== CONTENT ===================--}}
 <div class="pb2-tab-panel" data-tab="content">
 
+  {{-- MARKER-PATCH-303 — pre-footer call-to-action band --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Call-to-action band</div>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="cta_band" value="1" {{ $get('cta_band') ? 'checked' : '' }}>
+      <span>Show a call-to-action band above the footer</span>
+    </label>
+    <div class="pb2-field" style="margin-top:10px">
+      <label class="pb2-field-label">Eyebrow <span class="pb2-field-hint">small line above the heading</span></label>
+      <input type="text" class="pb2-input" data-field="cta_eyebrow" value="{{ $get('cta_eyebrow') }}" placeholder="Ready when you are">
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Heading</label>
+      <input type="text" class="pb2-input" data-field="cta_heading" value="{{ $get('cta_heading') }}" placeholder="Ride smoother by the weekend.">
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Highlight phrase <span class="pb2-field-hint">part of the heading to accent</span></label>
+      <input type="text" class="pb2-input" data-field="cta_highlight" value="{{ $get('cta_highlight') }}" placeholder="the weekend.">
+    </div>
+    <div class="pb2-field-row">
+      <div class="pb2-field">
+        <label class="pb2-field-label">Button label</label>
+        <input type="text" class="pb2-input" data-field="cta_button_label" value="{{ $get('cta_button_label') }}" placeholder="Book a service">
+      </div>
+      <div class="pb2-field">
+        <label class="pb2-field-label">Button link</label>
+        <input type="text" class="pb2-input" data-field="cta_button_url" value="{{ $get('cta_button_url') }}" placeholder="/book">
+      </div>
+    </div>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Note <span class="pb2-field-hint">optional, next to the button</span></label>
+      <input type="text" class="pb2-input" data-field="cta_note" value="{{ $get('cta_note') }}" placeholder="(509) 555-0142">
+    </div>
+  </div>
+
   <div class="pb2-group">
     <div class="pb2-group-title">Brand</div>
 

@@ -350,9 +350,51 @@
 @if($hideDesktop)
 @media (min-width: 769px) { .{{ $instId }} { display: none; } }
 @endif
+/* MARKER-PATCH-303 — pre-footer call-to-action band */
+.{{ $instId }} .p-ftr-cta { border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 36px; margin-bottom: 44px; }
+.{{ $instId }} .p-ftr-cta-inner { max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+.{{ $instId }} .p-ftr-cta-eyebrow { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: {{ $ctaAccent }}; margin-bottom: 10px; font-weight: 600; }
+.{{ $instId }} .p-ftr-cta-h { font-size: clamp(22px, 3vw, 32px); line-height: 1.08; margin: 0; font-weight: 700; letter-spacing: -0.01em; color: {{ $textColor }}; }
+.{{ $instId }} .p-ftr-cta-hl { color: {{ $ctaAccent }}; }
+.{{ $instId }} .p-ftr-cta-actions { display: flex; align-items: center; gap: 16px; }
+.{{ $instId }} .p-ftr-cta-btn { background: {{ $ctaAccent }}; color: {{ $ctaBtnText }}; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 10px; text-decoration: none; transition: filter .15s, transform .15s; white-space: nowrap; }
+.{{ $instId }} .p-ftr-cta-btn:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.{{ $instId }} .p-ftr-cta-note { font-size: 13px; color: {{ $mutedColor }}; }
+@media (max-width: 600px) { .{{ $instId }} .p-ftr-cta-inner { flex-direction: column; align-items: flex-start; gap: 18px; } }
 </style>
 
 <footer class="{{ $instId }} p-footer {{ $customClass }}" @if($anchorId) id="{{ $anchorId }}" @endif>
+  @php
+    $ctaOn      = (bool) ($c['cta_band'] ?? false);
+    $ctaEyebrow = trim($c['cta_eyebrow'] ?? '');
+    $ctaHeading = trim($c['cta_heading'] ?? '');
+    $ctaHl      = trim($c['cta_highlight'] ?? '');
+    $ctaBtn     = trim($c['cta_button_label'] ?? '');
+    $ctaUrl     = trim($c['cta_button_url'] ?? '');
+    $ctaNote    = trim($c['cta_note'] ?? '');
+    $ctaAccent  = ($tenant->accent_color ?? '') ?: '#3FD16B';
+    $ctaBtnText = \App\Support\ColorHelper::accentTextColor($ctaAccent);
+    $ctaHeadingHtml = e($ctaHeading);
+    if ($ctaHl !== '' && mb_stripos($ctaHeading, $ctaHl) !== false) {
+        $ctaHeadingHtml = str_ireplace(e($ctaHl), '<span class="p-ftr-cta-hl">'.e($ctaHl).'</span>', e($ctaHeading));
+    }
+  @endphp
+  @if($ctaOn && ($ctaHeading !== '' || $ctaBtn !== ''))
+  <div class="p-ftr-cta">
+    <div class="p-ftr-cta-inner">
+      <div class="p-ftr-cta-text">
+        @if($ctaEyebrow !== '')<div class="p-ftr-cta-eyebrow">{{ $ctaEyebrow }}</div>@endif
+        @if($ctaHeading !== '')<h2 class="p-ftr-cta-h">{!! $ctaHeadingHtml !!}</h2>@endif
+      </div>
+      @if($ctaBtn !== '')
+      <div class="p-ftr-cta-actions">
+        <a href="{{ $ctaUrl ?: '#' }}" class="p-ftr-cta-btn">{{ $ctaBtn }}</a>
+        @if($ctaNote !== '')<span class="p-ftr-cta-note">{{ $ctaNote }}</span>@endif
+      </div>
+      @endif
+    </div>
+  </div>
+  @endif
   <div class="p-ftr-wrap">
 
     <div class="p-ftr-top">
