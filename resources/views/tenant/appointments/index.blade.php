@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Appointments';
-  $statusLabels = \App\Support\AppointmentStatus::LABELS; {{-- MARKER-PATCH-287 single source --}}
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; // MARKER-PATCH-287 single source
   $paymentLabels = [
     'unpaid'   => 'Unpaid',
     'partial'  => 'Partial',
@@ -10,7 +10,7 @@
   ];
   // Status transitions — must match AppointmentController::TRANSITIONS exactly.
   // Used to populate the inline-edit dropdown with only valid next states.
-  $statusTransitions = \App\Support\AppointmentStatus::TRANSITIONS; {{-- MARKER-PATCH-287 single source --}}
+  $statusTransitions = \App\Support\AppointmentStatus::TRANSITIONS; // MARKER-PATCH-287 single source
   $sortLabels = [
     'date_desc'  => 'Newest first',
     'date_asc'   => 'Oldest first',

@@ -1,7 +1,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $appointment->ra_number;
-  $statusLabels = \App\Support\AppointmentStatus::LABELS; {{-- MARKER-PATCH-287 single source --}}
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; // MARKER-PATCH-287 single source
   $transitionLabels = [
     'confirmed'   => 'Confirm',
     'in_progress' => 'Start work',

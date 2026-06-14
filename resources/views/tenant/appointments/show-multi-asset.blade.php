@@ -2,7 +2,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $appointment->ra_number;
-  $statusLabels = \App\Support\AppointmentStatus::LABELS; {{-- MARKER-PATCH-287 single source --}}
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; // MARKER-PATCH-287 single source
 
   // Totals computed from the asset rollups + any loose (unpinned) items.
   $assetsSubtotal = $appointmentAssets->sum('subtotal_cents');
