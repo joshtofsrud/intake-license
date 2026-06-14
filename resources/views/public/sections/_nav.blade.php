@@ -46,7 +46,7 @@
   } elseif ($logoVariant === 'dark') {
       $logoUrl = $tenant->logo_url;
   } else {
-      $logoUrl = \App\Support\ColorHelper::pickLogo($tenant, $navBg);
+      $logoUrl = $bgMode === 'transparent' ? $tenant->logo_url : \App\Support\ColorHelper::pickLogo($tenant, $bgColor);
   }
 
   // MARKER-PATCH-158-G28 — independent logo size, no longer tied to nav height
