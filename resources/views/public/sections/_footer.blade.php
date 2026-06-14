@@ -93,6 +93,9 @@
   $hideDesktop = !empty($c['hide_on_desktop']);
 
   $instId = 'p-ftr-' . ($section->id ?? uniqid());
+  // MARKER-PATCH-303B — define CTA accent vars BEFORE the <style> that uses them
+  $ctaAccent  = ($tenant->accent_color ?? '') ?: '#3FD16B';
+  $ctaBtnText = \App\Support\ColorHelper::accentTextColor($ctaAccent);
 
   // Social platform icons (simple SVG, single file)
   $iconFor = function($platform) {
