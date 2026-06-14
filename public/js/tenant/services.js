@@ -403,8 +403,10 @@
       + '<div class="sv-drawer-actions">'
         + '<button type="button" class="ia-btn ia-btn--sm" style="color:var(--ia-red,#EF4444);border-color:rgba(239,68,68,.3)" data-delete-service="' + esc(s.id) + '">Delete service</button>'
         + '<div class="sv-drawer-actions-right">'
-          + '<button type="button" class="ia-btn ia-btn--sm" data-drawer-close="' + esc(s.id) + '">Close</button>'
+          + '<span data-save-status="' + esc(s.id) + '" style="font-size:11.5px;color:var(--ia-text-muted);margin-right:4px;white-space:nowrap"></span>'
           + '<button type="button" class="ia-btn ia-btn--sm" data-duplicate-service="' + esc(s.id) + '">Duplicate</button>'
+          + '<button type="button" class="ia-btn ia-btn--sm" data-drawer-close="' + esc(s.id) + '">Close</button>'
+          + '<button type="button" class="ia-btn ia-btn--sm ia-btn--primary" data-save-service="' + esc(s.id) + '">Save</button>'
         + '</div>'
       + '</div>'
       + '</div>';
@@ -508,10 +510,71 @@
   // H4: Drawer field bindings (blur-to-save for inputs, change for selects/textarea)
   // ====================================================================
 
+  // MARKER-PATCH-300 — explicit drawer Save + status pill.
+  function setDrawerStatus(serviceId, text, cls) {
+    var el = document.querySelector('[data-save-status="' + serviceId + '"]');
+    if (!el) return;
+    el.textContent = text || '';
+    var colors = {
+      dirty:  'var(--ia-amber,#F59E0B)',
+      saving: 'var(--ia-text-muted)',
+      saved:  'var(--ia-accent)',
+      error:  'var(--ia-red,#EF4444)',
+    };
+    el.style.color = colors[cls] || 'var(--ia-text-muted)';
+    if (el.__svClr) clearTimeout(el.__svClr);
+    if (cls === 'saved') {
+      el.__svClr = setTimeout(function () { if (el) el.textContent = ''; }, 2200);
+    }
+  }
+
+  function saveDrawer(serviceId) {
+    var s = findService(serviceId);
+    if (!s) return;
+    var fields = document.querySelectorAll('[data-drawer-field][data-service="' + serviceId + '"]');
+    if (!fields.length) return;
+    var curCat = findCategoryByServiceId(serviceId);
+    var payload = { op: 'save_service', name: s.name, slot_weight: s.slot_weight || 1 };
+    fields.forEach(function (el) {
+      var field = el.getAttribute('data-drawer-field');
+      var isMoney = el.getAttribute('data-drawer-money') === '1';
+      var value = el.value;
+      if (isMoney) {
+        var parsed = parseFloat(value);
+        value = isNaN(parsed) ? 0 : Math.round(parsed * 100);
+      } else if (el.type === 'number') {
+        var n = parseInt(value, 10);
+        value = isNaN(n) ? 0 : n;
+      }
+      payload[field] = value;
+    });
+    setDrawerStatus(serviceId, 'Saving\u2026', 'saving');
+    ajax(D.urls.servicesBase + '/' + encodeURIComponent(serviceId), 'PATCH', payload).then(function (r) {
+      if (!serviceResponseOk(r)) {
+        setDrawerStatus(serviceId, 'Save failed', 'error');
+        alert('Save failed: ' + serviceErrorMessage(r));
+        return;
+      }
+      var d = r.json.data || {};
+      var catChanged = d.category_id && (!curCat || d.category_id !== curCat.id);
+      ['name','price_cents','prep_before_minutes','duration_minutes','cleanup_after_minutes','slot_weight','category_id'].forEach(function (k) {
+        if (d[k] !== undefined) s[k] = d[k];
+      });
+      if (payload.description !== undefined) s.description = payload.description;
+      if (catChanged) moveServiceToCategory(serviceId, d.category_id);
+      renderAll();
+      setDrawerStatus(serviceId, 'Saved \u2713', 'saved');
+    });
+  }
+
   function bindDrawerFields() {
     document.querySelectorAll('[data-drawer-field]').forEach(function (el) {
       if (el.__svBound) return;
       el.__svBound = true;
+      // MARKER-PATCH-300 dirty — surface pending edits the moment a field changes.
+      el.addEventListener('input', function () {
+        setDrawerStatus(el.getAttribute('data-service'), 'Unsaved changes', 'dirty');
+      });
       var evt = (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') ? 'change' : 'blur';
       el.addEventListener(evt, function () {
         var field = el.getAttribute('data-drawer-field');
@@ -544,6 +607,7 @@
             moveServiceToCategory(serviceId, r.json.data.value);
           }
           renderAll();
+          setDrawerStatus(serviceId, 'Saved \u2713', 'saved'); // MARKER-PATCH-300
         });
       });
     });
@@ -617,6 +681,14 @@
         });
         return;
       }
+      var saveBtn = e.target.closest('[data-save-service]');
+      if (saveBtn && !saveBtn.__svHandled) {
+        saveBtn.__svHandled = true;
+        setTimeout(function () { saveBtn.__svHandled = false; }, 50);
+        saveDrawer(saveBtn.getAttribute('data-save-service'));
+        return;
+      }
+
       var close = e.target.closest('[data-drawer-close]');
       if (close) {
         state.expanded = null;
