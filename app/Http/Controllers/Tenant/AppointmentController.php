@@ -724,7 +724,7 @@ class AppointmentController extends Controller
         // Assets (multi-asset). Empty collection for single-asset appointments.
         $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
             ->where('appointment_id', $appointment->id)
-            ->with(['items', 'addons'])
+            ->with(['items', 'addons', 'parts'])
             ->orderBy('sort_order')
             ->get()
             ->map(function ($a) {
@@ -734,6 +734,10 @@ class AppointmentController extends Controller
                 }
                 foreach ($a->addons as $ad) {
                     $lines[] = ['name' => $ad->addon_name_snapshot, 'price' => format_money($ad->price_cents), 'addon' => true];
+                }
+                foreach ($a->parts as $pt) {
+                    $qty = $pt->quantity > 1 ? ' ×' . $pt->quantity : '';
+                    $lines[] = ['name' => $pt->item_name_snapshot . $qty, 'price' => format_money($pt->lineTotalCents()), 'addon' => false];
                 }
                 return [
                     'name'     => $a->asset_name_snapshot ?: 'Asset',
