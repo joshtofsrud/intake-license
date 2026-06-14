@@ -100,7 +100,8 @@ class AppointmentController extends Controller
                   ->whereIn('payment_status', ['unpaid', 'partial']);
                 break;
             case 'ready_pickup':
-                $q->whereIn('status', AppointmentStatus::doneStatuses());
+                $q->whereIn('status', AppointmentStatus::doneStatuses())
+                  ->whereIn('payment_status', ['unpaid', 'partial']);
                 break;
             case 'overdue_unstarted':
                 $q->whereIn('status', AppointmentStatus::notStartedStatuses())
@@ -112,6 +113,7 @@ class AppointmentController extends Controller
                 break;
             case 'stale_pickups':
                 $q->whereIn('status', AppointmentStatus::doneStatuses())
+                  ->whereIn('payment_status', ['unpaid', 'partial'])
                   ->where('updated_at', '<', now()->subDays(3));
                 break;
         }

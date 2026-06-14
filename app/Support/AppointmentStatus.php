@@ -69,6 +69,16 @@ class AppointmentStatus
         return self::role($status) === self::ROLE_DONE;
     }
 
+    /**
+     * MARKER-PATCH-286 — "Closed" is not a status; it's a Done job with a zero
+     * balance (fully paid). A finished, paid job is finalized and drops out of
+     * the pickup attention tiles. Used for both tile logic and display.
+     */
+    public static function isClosed(string $status, ?string $paymentStatus): bool
+    {
+        return self::isDone($status) && $paymentStatus === 'paid';
+    }
+
     public static function isTerminal(string $status): bool
     {
         return self::role($status) === self::ROLE_CANCELLED;

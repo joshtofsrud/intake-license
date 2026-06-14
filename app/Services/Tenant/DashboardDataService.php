@@ -144,6 +144,7 @@ class DashboardDataService
 
         $readyPickupCount = TenantAppointment::where('tenant_id', $tenantId)
             ->whereIn('status', AppointmentStatus::doneStatuses())
+            ->whereIn('payment_status', ['unpaid', 'partial'])
             ->count();
 
         $waitlistCount = 0;
@@ -254,6 +255,7 @@ class DashboardDataService
 
         $stalePickupCount = TenantAppointment::where('tenant_id', $tenantId)
             ->whereIn('status', AppointmentStatus::doneStatuses())
+            ->whereIn('payment_status', ['unpaid', 'partial'])
             ->where('updated_at', '<', now()->subDays(3))
             ->count();
 
