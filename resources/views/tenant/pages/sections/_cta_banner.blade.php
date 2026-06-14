@@ -37,6 +37,14 @@
       <label class="pb2-field-label">Highlight phrase</label>
       <input type="text" class="pb2-input" data-field="accent_words" value="{{ $get('accent_words') }}" placeholder="Optional accent">
     </div>
+    {{-- MARKER-PATCH-294 — italic is optional; color always applies --}}
+    <div class="pb2-field">
+      <label class="pb2-checkbox-row">
+        <input type="checkbox" data-field="accent_italic" value="1" {{ $get('accent_italic', true) ? 'checked' : '' }}>
+        <span>Italicize highlight</span>
+      </label>
+      <div class="pb2-field-hint">Off = accent color only, no italics.</div>
+    </div>
 
     <div class="pb2-field">
       <label class="pb2-field-label">Subheading</label>

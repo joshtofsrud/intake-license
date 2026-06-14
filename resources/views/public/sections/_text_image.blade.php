@@ -114,7 +114,7 @@
 }
 .{{ $instId }} .p-ti-accent {
   color: {{ $accentColor ?? '#BEF264' }};
-  font-style: italic;
+  font-style: {{ ($c['accent_italic'] ?? true) ? 'italic' : 'normal' }};
   font-weight: 500;
 }
 .{{ $instId }} .p-ti-body {
