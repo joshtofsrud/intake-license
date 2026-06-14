@@ -2594,6 +2594,7 @@
           body:      featEl.querySelector('[data-feat-field="body"]')?.value || '',
           cta_label: featEl.querySelector('[data-feat-field="cta_label"]')?.value || '',
           cta_url:   featEl.querySelector('[data-feat-field="cta_url"]')?.value || '',
+          service_id: featEl.querySelector('[data-feat-field="service_id"]')?.value || '',
         });
       });
       json.value = JSON.stringify(out);
@@ -2608,6 +2609,17 @@
       });
       const rm = featEl.querySelector('[data-feat-remove]');
       if (rm) rm.addEventListener('click', () => { featEl.remove(); serialize(); });
+      // MARKER-PATCH-293 autofill — pick a service, fill the card from the catalog.
+      const svcSel = featEl.querySelector('[data-feat-field="service_id"]');
+      if (svcSel) svcSel.addEventListener('change', () => {
+        const opt = svcSel.options[svcSel.selectedIndex];
+        if (!opt || !opt.value) return;
+        const set = (f, v) => { const el = featEl.querySelector('[data-feat-field="' + f + '"]'); if (el) el.value = v; };
+        set('title', opt.dataset.name || '');
+        set('price', opt.dataset.price ? opt.dataset.price + ' & up' : '');
+        set('body', opt.dataset.body || '');
+        serialize();
+      });
     }
 
     root.querySelectorAll('.pb2-feat').forEach(wireFeat);
@@ -2615,6 +2627,7 @@
     if (addBtn) {
       addBtn.addEventListener('click', () => {
         if (root.querySelectorAll('.pb2-feat').length >= MAX_FEATS) return;
+        const svcOpts = body.querySelector('#pb2-feat-service-template')?.innerHTML || '<option value=""></option>';
         const featEl = document.createElement('div');
         featEl.className = 'pb2-feat';
         featEl.innerHTML = `
@@ -2625,6 +2638,7 @@
             <button type="button" class="pb2-navlist-remove" data-feat-remove title="Remove">×</button>
           </div>
           <div class="pb2-feat-fields">
+            <select class="pb2-input pb2-input-sm pb2-feat-service" data-feat-field="service_id">${svcOpts}</select>
             <input type="text" class="pb2-input pb2-input-sm" data-feat-field="price" placeholder="Price (optional)">
             <textarea class="pb2-input pb2-input-sm pb2-textarea" data-feat-field="body" rows="2" placeholder="Description"></textarea>
             <div class="pb2-feat-cta-row">

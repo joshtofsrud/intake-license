@@ -64,6 +64,16 @@
             <button type="button" class="pb2-navlist-remove" data-feat-remove title="Remove">×</button>
           </div>
           <div class="pb2-feat-fields">
+            <select class="pb2-input pb2-input-sm pb2-feat-service" data-feat-field="service_id">
+              <option value="">— Link a service (optional) —</option>
+              @foreach(($services ?? []) as $svc)
+                <option value="{{ $svc->id }}"
+                        data-name="{{ $svc->name }}"
+                        data-price="{{ '$' . number_format($svc->price_cents / 100, $svc->price_cents % 100 ? 2 : 0) }}"
+                        data-body="{{ $svc->description }}"
+                        {{ (string)($f['service_id'] ?? '') === (string)$svc->id ? 'selected' : '' }}>{{ $svc->name }}</option>
+              @endforeach
+            </select>
             <input type="text" class="pb2-input pb2-input-sm" data-feat-field="price" value="{{ $f['price'] ?? '' }}" placeholder="Price (optional, e.g. $90 & up)">
             <textarea class="pb2-input pb2-input-sm pb2-textarea" data-feat-field="body" rows="2" placeholder="Description">{{ $f['body'] ?? '' }}</textarea>
             <div class="pb2-feat-cta-row">
@@ -78,6 +88,17 @@
     <button type="button" class="pb2-addrow" id="pb2-feat-add">+ Add feature</button>
 
     <input type="hidden" data-field="features" id="pb2-feat-json" value="{{ json_encode($features) }}">
+
+    {{-- MARKER-PATCH-293 — option source cloned into new cards by the add-JS --}}
+    <select id="pb2-feat-service-template" style="display:none">
+      <option value="">— Link a service (optional) —</option>
+      @foreach(($services ?? []) as $svc)
+        <option value="{{ $svc->id }}"
+                data-name="{{ $svc->name }}"
+                data-price="{{ '$' . number_format($svc->price_cents / 100, $svc->price_cents % 100 ? 2 : 0) }}"
+                data-body="{{ $svc->description }}">{{ $svc->name }}</option>
+      @endforeach
+    </select>
   </div>
 
 </div>

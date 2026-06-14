@@ -693,6 +693,13 @@ class PageBuilderController extends Controller
                         ->orderBy('sort_order')
                         ->get(['id', 'name', 'slug']);
                 }
+                // MARKER-PATCH-293 — feature_grid cards can link to a service.
+                if ($section->section_type === 'feature_grid') {
+                    $extras['services'] = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+                        ->where('is_active', true)
+                        ->orderBy('sort_order')->orderBy('name')
+                        ->get(['id', 'name', 'description', 'price_cents']);
+                }
                 // MARKER-PATCH-158-G25 — nav editor needs the current tenant
                 // nav items (global, not per-page) so the link list editor
                 // can render. Saved via the existing update_nav op.
