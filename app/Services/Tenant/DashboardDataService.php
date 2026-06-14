@@ -4,6 +4,7 @@ namespace App\Services\Tenant;
 
 use App\Models\Tenant;
 use App\Models\Tenant\TenantAppointment;
+use App\Support\AppointmentStatus;
 use App\Models\Tenant\TenantCapacityRule;
 use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantResource;
@@ -57,7 +58,7 @@ class DashboardDataService
 
         $todayAppointments = TenantAppointment::where('tenant_id', $this->tenant->id)
             ->whereDate('appointment_date', $today)
-            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->whereNotIn('status', AppointmentStatus::terminalStatuses())
             ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
             ->orderBy('created_at')
             ->with('items')
@@ -92,7 +93,7 @@ class DashboardDataService
                 $this->tnow()->copy()->setTimezone($tzW)->endOfDay()->utc(),
             ])
             ->sum('amount_cents');
-        $weekCancellations = (clone $weekBase)->whereIn('status', ['cancelled', 'refunded'])->count();
+        $weekCancellations = (clone $weekBase)->whereIn('status', AppointmentStatus::terminalStatuses())->count();
 
         $weekNewCustomers = TenantCustomer::where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $weekStart)
@@ -127,22 +128,22 @@ class DashboardDataService
         $today = $this->tnow()->toDateString();
 
         $unconfirmedCount = TenantAppointment::where('tenant_id', $tenantId)
-            ->where('status', 'pending')
+            ->whereIn('status', AppointmentStatus::awaitingStatuses())
             ->whereDate('appointment_date', '>=', $today)
             ->count();
 
         $unpaidDoneCount = TenantAppointment::where('tenant_id', $tenantId)
-            ->whereIn('status', ['completed', 'shipped', 'closed'])
+            ->whereIn('status', AppointmentStatus::doneStatuses())
             ->whereIn('payment_status', ['unpaid', 'partial'])
             ->count();
 
         $unpaidDoneSumCents = (int) TenantAppointment::where('tenant_id', $tenantId)
-            ->whereIn('status', ['completed', 'shipped', 'closed'])
+            ->whereIn('status', AppointmentStatus::doneStatuses())
             ->whereIn('payment_status', ['unpaid', 'partial'])
             ->sum(DB::raw('total_cents - paid_cents'));
 
         $readyPickupCount = TenantAppointment::where('tenant_id', $tenantId)
-            ->where('status', 'completed')
+            ->whereIn('status', AppointmentStatus::doneStatuses())
             ->count();
 
         $waitlistCount = 0;
@@ -214,7 +215,7 @@ class DashboardDataService
 
         // ---- Overdue categories ----
         $overdueUnstartedCount = TenantAppointment::where('tenant_id', $tenantId)
-            ->whereIn('status', ['pending', 'confirmed'])
+            ->whereIn('status', AppointmentStatus::notStartedStatuses())
             ->whereDate('appointment_date', '<', $today)
             ->count();
 
@@ -233,7 +234,7 @@ class DashboardDataService
         }
 
         $overdueInProgressCount = TenantAppointment::where('tenant_id', $tenantId)
-            ->where('status', 'in_progress')
+            ->whereIn('status', AppointmentStatus::inProgressStatuses())
             ->whereDate('appointment_date', '<', $today)
             ->count();
 
@@ -252,7 +253,7 @@ class DashboardDataService
         }
 
         $stalePickupCount = TenantAppointment::where('tenant_id', $tenantId)
-            ->where('status', 'completed')
+            ->whereIn('status', AppointmentStatus::doneStatuses())
             ->where('updated_at', '<', now()->subDays(3))
             ->count();
 
@@ -723,7 +724,7 @@ class DashboardDataService
 
         $appointments = TenantAppointment::where('tenant_id', $tenantId)
             ->whereDate('appointment_date', $target->toDateString())
-            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->whereNotIn('status', AppointmentStatus::terminalStatuses())
             ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
             ->orderBy('created_at')
             ->with('items')
@@ -766,7 +767,7 @@ class DashboardDataService
             $d = $target->copy()->addDays($i);
             $count = TenantAppointment::where('tenant_id', $tenantId)
                 ->whereDate('appointment_date', $d->toDateString())
-                ->whereNotIn('status', ['cancelled', 'refunded'])
+                ->whereNotIn('status', AppointmentStatus::terminalStatuses())
                 ->count();
 
             $strip[] = [
