@@ -729,6 +729,9 @@ class AppointmentController extends Controller
             ->get()
             ->map(function ($a) {
                 $lines = [];
+                $assetCents = $a->items->sum('price_cents')
+                    + $a->addons->sum('price_cents')
+                    + $a->parts->sum(fn($p) => $p->lineTotalCents());
                 foreach ($a->items as $it) {
                     $lines[] = ['name' => $it->item_name_snapshot, 'price' => format_money($it->price_cents), 'addon' => false];
                 }
@@ -741,7 +744,7 @@ class AppointmentController extends Controller
                 }
                 return [
                     'name'     => $a->asset_name_snapshot ?: 'Asset',
-                    'subtotal' => format_money($a->subtotal_cents),
+                    'subtotal' => format_money($assetCents),
                     'lines'    => $lines,
                 ];
             })->values()->toArray();
