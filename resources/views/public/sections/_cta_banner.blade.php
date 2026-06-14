@@ -18,6 +18,13 @@
   $imgUrl  = $c['bg_image_url'] ?? '';
   $overlayOpacity = max(0, min(100, (int)($c['bg_overlay_opacity'] ?? 50)));
   $overlayColor   = $c['bg_overlay_color'] ?? '#000000';
+  // MARKER-PATCH-299 — bake overlay alpha into rgba so the veil keeps
+  // opacity:1; browsers drop backdrop-filter blur when the element's own
+  // opacity is < 1, which silently disabled the Background blur control.
+  $_ovh = ltrim($overlayColor, '#');
+  if (strlen($_ovh) === 3) { $_ovh = $_ovh[0].$_ovh[0].$_ovh[1].$_ovh[1].$_ovh[2].$_ovh[2]; }
+  if (strlen($_ovh) !== 6) { $_ovh = '000000'; }
+  $overlayRgba = 'rgba('.hexdec(substr($_ovh,0,2)).','.hexdec(substr($_ovh,2,2)).','.hexdec(substr($_ovh,4,2)).','.round($overlayOpacity / 100, 3).')';
 
   // MARKER-PATCH-250 — parallax + blur (image mode only, ?? everywhere).
   $hasImage   = $bgMode === 'image' && $imgUrl;
@@ -105,8 +112,7 @@
 .{{ $instId }} .p-cta-veil { {{-- MARKER-PATCH-250 --}}
   position: absolute; inset: 0;
   @if($overlayOpacity > 0)
-  background: {{ $overlayColor }};
-  opacity: {{ $overlayOpacity / 100 }};
+  background: {{ $overlayRgba }};
   @endif
   @if($blurPx > 0)
   backdrop-filter: blur({{ $blurPx }}px);
