@@ -838,7 +838,7 @@ class AppointmentController extends Controller
         $appointment = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
             ->with([
-                'items', 'addons', 'notes', 'charges', 'customer',
+                'items', 'addons', 'parts', 'notes', 'charges', 'customer',
                 'responses', 'workOrderResponses.field', 'resource',
             ])
             ->firstOrFail();
@@ -849,7 +849,8 @@ class AppointmentController extends Controller
             'ok' => true,
             'appointment' => [
                 'id' => $appointment->id, 'ra_number' => $appointment->ra_number,
-                'status' => $appointment->status, 'status_label' => ucwords(str_replace('_', ' ', $appointment->status)),
+                'status' => $appointment->status, 'status_label' => AppointmentStatus::label($appointment->status),
+                'pipeline' => AppointmentStatus::pipeline(), 'is_done' => AppointmentStatus::isDone($appointment->status),
                 'payment_status' => $appointment->payment_status, 'payment_label' => ucfirst($appointment->payment_status),
                 'customer_name' => $appointment->customerName(), 'customer_email' => $appointment->customer_email,
                 'customer_phone' => $appointment->customer_phone, 'customer_id' => $appointment->customer_id,
@@ -884,6 +885,7 @@ class AppointmentController extends Controller
                     'price' => format_money($i->price_cents),
                 ]),
                 'addons' => $appointment->addons->map(fn($a) => ['name' => $a->addon_name_snapshot, 'price' => format_money($a->price_cents)]),
+                'parts' => $appointment->parts->map(fn($p) => ['name' => $p->item_name_snapshot, 'quantity' => $p->quantity, 'price' => format_money($p->lineTotalCents())]),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
                 'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => \Carbon\Carbon::parse($n->created_at)->format('M j, g:i a')]),
                 'work_order_responses' => $appointment->workOrderResponses

@@ -242,14 +242,16 @@ var DM = {
     var h = '';
 
     // Status bar with progress
-    var statusIdx = this.statusOrder.indexOf(a.status);
+    var pipeline = a.pipeline || this.statusOrder;
+    var statusIdx = pipeline.indexOf(a.status);
+    if (statusIdx < 0) statusIdx = a.is_done ? pipeline.length - 1 : -1;
     var isCancelled = a.status === 'cancelled' || a.status === 'refunded';
     h += '<div class="dm-status-bar">';
     h += '<span class="dm-status-badge dm-badge--' + a.status.replace('_','-') + '"><span class="dm-status-dot"></span>' + a.status_label + '</span>';
     h += '<span class="dm-badge dm-badge--' + a.payment_status + '">' + a.payment_label + '</span>';
     if (!isCancelled) {
       h += '<div class="dm-progress">';
-      for (var i = 0; i < this.statusOrder.length; i++) {
+      for (var i = 0; i < pipeline.length; i++) {
         var cls = i < statusIdx ? 'done' : (i === statusIdx ? 'current' : '');
         h += '<div class="dm-progress-step ' + cls + '"></div>';
       }
@@ -322,6 +324,25 @@ var DM = {
           bookendText = ' <span style="opacity:.4;font-size:11px">+ ' + parts.join(', ') + '</span>';
         }
         h += '<tr><td>' + this.esc(it.name) + '</td><td style="opacity:.6">' + durText + bookendText + '</td><td class="num">' + it.price + '</td></tr>';
+      }
+      h += '</tbody></table></div>';
+    }
+
+    // MARKER-PATCH-289 addons+parts — line items must reconcile to subtotal
+    if (a.addons && a.addons.length > 0) {
+      h += '<div style="margin-top:16px"><div class="dm-section-label">Add-ons</div>';
+      h += '<table class="dm-table"><tbody>';
+      for (var ai = 0; ai < a.addons.length; ai++) {
+        h += '<tr><td>' + this.esc(a.addons[ai].name) + '</td><td class="num">' + a.addons[ai].price + '</td></tr>';
+      }
+      h += '</tbody></table></div>';
+    }
+    if (a.parts && a.parts.length > 0) {
+      h += '<div style="margin-top:16px"><div class="dm-section-label">Parts</div>';
+      h += '<table class="dm-table"><tbody>';
+      for (var pi = 0; pi < a.parts.length; pi++) {
+        var pq = a.parts[pi].quantity > 1 ? ' \u00d7' + a.parts[pi].quantity : '';
+        h += '<tr><td>' + this.esc(a.parts[pi].name) + pq + '</td><td class="num">' + a.parts[pi].price + '</td></tr>';
       }
       h += '</tbody></table></div>';
     }
