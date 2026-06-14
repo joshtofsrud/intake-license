@@ -3,6 +3,7 @@
 namespace App\Services\Tenant;
 
 use App\Models\Tenant\TenantAppointment;
+use App\Support\AppointmentStatus;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -73,7 +74,7 @@ class AppointmentInventoryService
      */
     public static function isCommittedStatus(string $status): bool
     {
-        return in_array($status, ['completed', 'shipped', 'closed'], true);
+        return in_array($status, AppointmentStatus::doneStatuses(), true);
     }
 
     /**

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use App\Models\Tenant;
+use App\Support\AppointmentStatus;
 
 class TenantAppointment extends Model
 {
@@ -75,7 +76,7 @@ class TenantAppointment extends Model
     public function sales(): HasMany       { return $this->hasMany(TenantSale::class, 'appointment_id'); }
     public function specialOrders(): HasMany { return $this->hasMany(TenantSpecialOrder::class, 'appointment_id'); }
 
-    public function scopeActive($q)        { return $q->whereNotIn('status', ['cancelled','refunded']); }
+    public function scopeActive($q)        { return $q->whereNotIn('status', AppointmentStatus::terminalStatuses()); }
     public function customerName(): string { return $this->customer_first_name . ' ' . $this->customer_last_name; }
     public function isPaid(): bool         { return $this->payment_status === 'paid'; }
 
