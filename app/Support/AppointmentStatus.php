@@ -92,6 +92,30 @@ class AppointmentStatus
         return self::statusesForRole(self::ROLE_CANCELLED);
     }
 
+    /** @return string[] booked-but-unconfirmed statuses (default ['pending']) */
+    public static function awaitingStatuses(): array
+    {
+        return self::statusesForRole(self::ROLE_AWAITING);
+    }
+
+    /** @return string[] confirmed-but-not-started statuses (default ['confirmed']) */
+    public static function scheduledStatuses(): array
+    {
+        return self::statusesForRole(self::ROLE_SCHEDULED);
+    }
+
+    /** @return string[] work-in-progress statuses (default ['in_progress']) */
+    public static function inProgressStatuses(): array
+    {
+        return self::statusesForRole(self::ROLE_ACTIVE);
+    }
+
+    /** @return string[] booked but not yet started — awaiting + scheduled */
+    public static function notStartedStatuses(): array
+    {
+        return array_merge(self::awaitingStatuses(), self::scheduledStatuses());
+    }
+
     /** @return string[] every non-terminal status */
     public static function activeStatuses(): array
     {

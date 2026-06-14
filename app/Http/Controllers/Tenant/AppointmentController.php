@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Support\AppointmentStatus;
 use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantAppointmentNote;
 use App\Models\Tenant\TenantAppointmentCharge;
@@ -92,26 +93,26 @@ class AppointmentController extends Controller
         $today = now($tenant->timezone())->toDateString();
         switch ($filter) {
             case 'unconfirmed_bookings':
-                $q->where('status', 'pending')
+                $q->whereIn('status', AppointmentStatus::awaitingStatuses())
                   ->whereDate('appointment_date', '>=', $today);
                 break;
             case 'unpaid_completed':
-                $q->whereIn('status', ['completed', 'shipped', 'closed'])
+                $q->whereIn('status', AppointmentStatus::doneStatuses())
                   ->whereIn('payment_status', ['unpaid', 'partial']);
                 break;
             case 'ready_pickup':
-                $q->where('status', 'completed');
+                $q->whereIn('status', AppointmentStatus::doneStatuses());
                 break;
             case 'overdue_unstarted':
-                $q->whereIn('status', ['pending', 'confirmed'])
+                $q->whereIn('status', AppointmentStatus::notStartedStatuses())
                   ->whereDate('appointment_date', '<', $today);
                 break;
             case 'overdue_in_progress':
-                $q->where('status', 'in_progress')
+                $q->whereIn('status', AppointmentStatus::inProgressStatuses())
                   ->whereDate('appointment_date', '<', $today);
                 break;
             case 'stale_pickups':
-                $q->where('status', 'completed')
+                $q->whereIn('status', AppointmentStatus::doneStatuses())
                   ->where('updated_at', '<', now()->subDays(3));
                 break;
         }
