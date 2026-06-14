@@ -731,8 +731,8 @@
     {{-- Action stack --}}
     @unless($isTerminal)
     <div class="appt-b-actions">
+      {{-- MARKER-PATCH-285 — removed stray "Reschedule shipping tomorrow" cruft --}}
       <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
-      <div class="appt-b-action-coming-soon">Reschedule shipping tomorrow</div>
       <div class="appt-b-actions-divider"></div>
       <button type="button" class="ia-btn ia-btn--danger appt-b-cancel-btn">Cancel appointment</button>
     </div>

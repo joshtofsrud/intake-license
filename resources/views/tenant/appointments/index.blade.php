@@ -222,7 +222,8 @@ td.ia-inline-cell { cursor: default; }
 
   <select name="status" class="ia-input" style="width:auto">
     <option value="">All statuses</option>
-    @foreach($statusLabels as $val => $label)
+    {{-- MARKER-PATCH-285 — only the selectable set; \$statusLabels still resolves legacy rows below --}}
+    @foreach(\App\Support\AppointmentStatus::selectable() as $val => $label)
       <option value="{{ $val }}" @selected($status === $val)>{{ $label }}</option>
     @endforeach
   </select>

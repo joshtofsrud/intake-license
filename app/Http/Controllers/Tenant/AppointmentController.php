@@ -33,27 +33,26 @@ class AppointmentController extends Controller
     private const TERMINAL_STATUSES = ['cancelled', 'refunded'];
 
     private const TRANSITIONS = [
-        'pending'     => ['confirmed', 'in_progress', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
-        'confirmed'   => ['pending', 'in_progress', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
-        'in_progress' => ['pending', 'confirmed', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
-        'completed'   => ['pending', 'confirmed', 'in_progress', 'shipped', 'closed', 'cancelled', 'refunded'],
-        'shipped'     => ['pending', 'confirmed', 'in_progress', 'completed', 'closed', 'cancelled', 'refunded'],
-        'closed'      => ['pending', 'confirmed', 'in_progress', 'completed', 'shipped', 'cancelled', 'refunded'],
+        'pending'     => ['confirmed', 'in_progress', 'completed', 'cancelled'],
+        'confirmed'   => ['pending', 'in_progress', 'completed', 'cancelled'],
+        'in_progress' => ['pending', 'confirmed', 'completed', 'cancelled'],
+        'completed'   => ['pending', 'confirmed', 'in_progress', 'cancelled'],
         'cancelled'   => ['pending'],
-        'refunded'    => ['pending'],
+        // legacy escape hatch — pre-285 rows can still move to a current status,
+        // but nothing transitions INTO shipped/closed/refunded anymore.
+        'shipped'     => ['completed', 'cancelled', 'pending'],
+        'closed'      => ['completed', 'cancelled', 'pending'],
+        'refunded'    => ['pending', 'cancelled'],
     ];
 
     private const TRANSITION_LABELS = [
         'confirmed'   => 'Confirm',
         'in_progress' => 'Start Work',
         'completed'   => 'Mark Completed',
-        'shipped'     => 'Mark Shipped',
-        'closed'      => 'Close Job',
         'cancelled'   => 'Cancel',
-        'refunded'    => 'Refund',
     ];
 
-    private const DESTRUCTIVE = ['cancelled', 'refunded'];
+    private const DESTRUCTIVE = ['cancelled'];
 
     public function index(Request $request)
     {
