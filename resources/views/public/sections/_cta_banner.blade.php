@@ -244,9 +244,19 @@
       var host = el.parentElement;
       if (!host) continue;
       var r = host.getBoundingClientRect();
-      if (r.bottom < -200 || r.top > window.innerHeight + 200) continue;
+      var vh = window.innerHeight || document.documentElement.clientHeight || 1;
+      if (r.bottom < -200 || r.top > vh + 200) continue;
       var d = parseFloat(el.getAttribute('data-ia-parallax')) || 0.35;
-      el.style.transform = 'translate3d(0,' + (-r.top * d).toFixed(1) + 'px,0)';
+      var h = r.height || 1;
+      // progress: 0 as the section enters from the bottom -> 1 as it leaves
+      // past the top. Travel is capped to the bg-layer overhang (CSS 18% each
+      // side) so the image always covers the section, regardless of where the
+      // section sits on the page. depth (0..0.70) scales the travel.
+      var progress = (vh - r.top) / (vh + h);
+      if (progress < 0) progress = 0; else if (progress > 1) progress = 1;
+      var amp = h * 0.18 * (d / 0.70);
+      var shift = (0.5 - progress) * 2 * amp;
+      el.style.transform = 'translate3d(0,' + shift.toFixed(1) + 'px,0)';
     }
     ticking = false;
   }
