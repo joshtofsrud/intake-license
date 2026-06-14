@@ -16,9 +16,12 @@
   $heading      = trim($c['heading'] ?? '');
   $sub          = trim($c['subheading'] ?? '');
   $uid          = 'g' . substr(md5(($section->id ?? '') . ($heading ?: 'gal')), 0, 6);
+  $bgMode       = $c['bg_mode']  ?? 'none';
+  $bgColor      = $c['bg_color'] ?? '#0a0f1a';
 @endphp
 
 <style>
+.{{ $uid }}-sec { @if($bgMode === 'color') background: {{ $bgColor }}; padding-top:48px; padding-bottom:48px; @endif }
 .{{ $uid }}-grid { display:grid; grid-template-columns: repeat({{ $cols }}, 1fr); gap: {{ $gap }}; }
 .{{ $uid }}-item { @if($aspect !== 'auto') aspect-ratio: {{ $aspect }}; @endif overflow:hidden; border-radius: {{ $radius }}; background: rgba(0,0,0,.06); }
 .{{ $uid }}-item img { width:100%; object-fit:cover; display:block; transition: transform .3s; @if($aspect === 'auto') height:auto; @else height:100%; @endif }
@@ -29,7 +32,7 @@
 @media (max-width:480px){ .{{ $uid }}-grid{ grid-template-columns:1fr; } }
 </style>
 
-<section class="p-section--tight"@if(!empty($c['anchor_id'])) id="{{ $c['anchor_id'] }}"@endif>
+<section class="p-section--tight {{ $uid }}-sec"@if(!empty($c['anchor_id'])) id="{{ $c['anchor_id'] }}"@endif>
   <div class="p-container">
     @if($heading !== '' || $sub !== '')
       <div style="margin-bottom:18px">
