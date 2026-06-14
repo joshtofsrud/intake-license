@@ -169,6 +169,7 @@
           var sh = '';
           a.items.forEach(function(it){ sh += '<div class="appt-drawer-row"><span>' + esc(it.name) + '</span><span>' + esc(it.price) + '</span></div>'; });
           if (a.addons) a.addons.forEach(function(ad){ sh += '<div class="appt-drawer-row"><span class="appt-drawer-row-label">+ ' + esc(ad.name) + '</span><span>' + esc(ad.price) + '</span></div>'; });
+          if (a.parts) a.parts.forEach(function(pt){ sh += '<div class="appt-drawer-row"><span class="appt-drawer-row-label">' + esc(pt.name) + (pt.quantity > 1 ? ' \u00d7' + pt.quantity : '') + '</span><span>' + esc(pt.price) + '</span></div>'; });
           html += sec('Services', sh);
         }
 

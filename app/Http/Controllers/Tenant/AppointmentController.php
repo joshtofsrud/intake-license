@@ -705,7 +705,7 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'workOrderResponses.field', 'notes', 'customer'])
+            ->with(['items', 'addons', 'parts', 'workOrderResponses.field', 'notes', 'customer'])
             ->firstOrFail();
 
         $identifierField = \App\Models\Tenant\TenantWorkOrderField::where('tenant_id', $tenant->id)
@@ -790,7 +790,7 @@ class AppointmentController extends Controller
                 'id'                    => $appointment->id,
                 'ra_number'             => $appointment->ra_number,
                 'status'                => $appointment->status,
-                'status_label'          => ucwords(str_replace('_', ' ', $appointment->status)),
+                'status_label'          => AppointmentStatus::label($appointment->status),
                 'payment_status'        => $appointment->payment_status,
                 'payment_status_label'  => ucfirst($appointment->payment_status),
                 'customer_name'         => trim(($appointment->customer_first_name ?? '') . ' ' . ($appointment->customer_last_name ?? '')),
@@ -819,18 +819,38 @@ class AppointmentController extends Controller
                 'work_order'            => $workOrder,
                 'notes'                 => $notes,
                 'activity'              => $activity,
-                'items'                 => $appointment->items->map(fn($i) => [
-                    'name'     => $i->item_name_snapshot,
-                    'price'    => format_money($i->price_cents),
-                    'duration' => (int) ($i->duration_minutes_snapshot ?? 0),
-                ])->values()->toArray(),
-                'addons'                => $appointment->addons->map(fn($a) => [
-                    'name'  => $a->addon_name_snapshot,
-                    'price' => format_money($a->price_cents),
-                ])->values()->toArray(),
+                ...$this->appointmentLineItems($appointment),
                 'full_url'              => route('tenant.appointments.show', ['id' => $appointment->id]),
             ],
         ]);
+    }
+
+    /**
+     * MARKER-PATCH-290 — single line-item serializer shared by the detail modal
+     * and the calendar drawer, so both reconcile to the same subtotal
+     * (services + add-ons + parts). Returns the richer modal shape; the drawer
+     * ignores prep/cleanup.
+     */
+    private function appointmentLineItems(\App\Models\Tenant\TenantAppointment $appointment): array
+    {
+        return [
+            'items' => $appointment->items->map(fn($i) => [
+                'name' => $i->item_name_snapshot,
+                'duration' => $i->duration_minutes_snapshot,
+                'prep_min' => (int) ($i->prep_before_minutes_snapshot ?? 0),
+                'cleanup_min' => (int) ($i->cleanup_after_minutes_snapshot ?? 0),
+                'price' => format_money($i->price_cents),
+            ])->values()->toArray(),
+            'addons' => $appointment->addons->map(fn($a) => [
+                'name' => $a->addon_name_snapshot,
+                'price' => format_money($a->price_cents),
+            ])->values()->toArray(),
+            'parts' => $appointment->parts->map(fn($p) => [
+                'name' => $p->item_name_snapshot,
+                'quantity' => $p->quantity,
+                'price' => format_money($p->lineTotalCents()),
+            ])->values()->toArray(),
+        ];
     }
 
         private function jsonDetail($tenant, string $id)
@@ -877,15 +897,7 @@ class AppointmentController extends Controller
                     ? \Carbon\Carbon::parse($appointment->appointment_end_time)->format('g:i a')
                     : null,
                 'total_duration_minutes' => $appointment->total_duration_minutes,
-                'items' => $appointment->items->map(fn($i) => [
-                    'name' => $i->item_name_snapshot,
-                    'duration' => $i->duration_minutes_snapshot,
-                    'prep_min' => (int) ($i->prep_before_minutes_snapshot ?? 0),
-                    'cleanup_min' => (int) ($i->cleanup_after_minutes_snapshot ?? 0),
-                    'price' => format_money($i->price_cents),
-                ]),
-                'addons' => $appointment->addons->map(fn($a) => ['name' => $a->addon_name_snapshot, 'price' => format_money($a->price_cents)]),
-                'parts' => $appointment->parts->map(fn($p) => ['name' => $p->item_name_snapshot, 'quantity' => $p->quantity, 'price' => format_money($p->lineTotalCents())]),
+                ...$this->appointmentLineItems($appointment),
                 'charges' => $appointment->charges->map(fn($c) => ['id' => $c->id, 'description' => $c->description, 'amount' => format_money($c->amount_cents), 'is_paid' => $c->is_paid, 'date' => \Carbon\Carbon::parse($c->created_at)->format('M j')]),
                 'notes' => $appointment->notes->sortByDesc('created_at')->values()->map(fn($n) => ['id' => $n->id, 'note' => $n->note_content, 'author' => $n->user?->name ?? ($n->note_type === 'system' ? 'System' : 'Staff'), 'type' => $n->note_type, 'created_at' => \Carbon\Carbon::parse($n->created_at)->format('M j, g:i a')]),
                 'work_order_responses' => $appointment->workOrderResponses
