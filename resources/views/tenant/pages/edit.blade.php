@@ -2383,6 +2383,9 @@
     // MARKER-PATCH-158-G31 — feature_grid features list editor
     initFeaturesList(body);
 
+    // MARKER-PATCH-297 — image gallery image-tile repeater
+    initGalleryList(body);
+
     // MARKER-PATCH-158-G32 — logo_bar logos list editor
     initLogosList(body);
 
@@ -2651,6 +2654,130 @@
         wireFeat(featEl);
         serialize();
         featEl.querySelector('[data-feat-field="title"]')?.focus();
+      });
+    }
+  }
+
+  // MARKER-PATCH-297 — image_gallery repeater: serializes tiles to the hidden
+  // [data-field="images"] JSON, adds via the shared uploader, removes, reorders.
+  function initGalleryList(body) {
+    const root   = body.querySelector('#pb2-gimg-list');
+    const addBtn = body.querySelector('#pb2-gimg-add');
+    const json   = body.querySelector('#pb2-gimg-json');
+    const count  = body.querySelector('#pb2-gimg-count');
+    if (!root || !json) return;
+
+    const MAX_IMG = 24;
+    let dragEl = null;
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-gimg').forEach(tile => {
+        const url = tile.querySelector('[data-gimg-field="url"]')?.value || '';
+        if (!url) return;
+        out.push({
+          url,
+          caption: tile.querySelector('[data-gimg-field="caption"]')?.value || '',
+          alt:     tile.querySelector('[data-gimg-field="alt"]')?.value || '',
+        });
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (count) count.textContent = out.length + ' / ' + MAX_IMG;
+      const empty = root.querySelector('#pb2-gimg-empty');
+      if (empty) empty.style.display = out.length ? 'none' : '';
+    }
+
+    function wireTile(tile) {
+      tile.querySelectorAll('[data-gimg-field]').forEach(inp => {
+        inp.addEventListener('input', serialize);
+        inp.addEventListener('change', serialize);
+      });
+      const rm = tile.querySelector('[data-gimg-remove]');
+      if (rm) rm.addEventListener('click', () => { tile.remove(); serialize(); });
+
+      const h = tile.querySelector('.pb2-navlist-handle');
+      if (h) {
+        h.addEventListener('mousedown', () => { tile.draggable = true; });
+        tile.addEventListener('mouseup',    () => { tile.draggable = false; });
+        tile.addEventListener('mouseleave', () => { tile.draggable = false; });
+        tile.addEventListener('dragstart', e => {
+          dragEl = tile; tile.style.opacity = '.4';
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+        });
+        tile.addEventListener('dragend', () => {
+          tile.style.opacity = ''; tile.draggable = false; dragEl = null; serialize();
+        });
+        tile.addEventListener('dragover', e => {
+          e.preventDefault();
+          if (!dragEl || dragEl === tile) return;
+          const r = tile.getBoundingClientRect();
+          const before = e.clientY < r.top + r.height / 2;
+          root.insertBefore(dragEl, before ? tile : tile.nextSibling);
+        });
+      }
+    }
+
+    function makeTile(url) {
+      const tile = document.createElement('div');
+      tile.className = 'pb2-gimg';
+      tile.innerHTML =
+        '<span class="pb2-navlist-handle" title="Drag to reorder">\u22EE\u22EE</span>' +
+        '<div class="pb2-gimg-thumb" style="background-image:url(\'' + url + '\')"></div>' +
+        '<div class="pb2-gimg-fields">' +
+          '<div class="pb2-gimg-head">' +
+            '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="caption" placeholder="Caption (optional)">' +
+            '<button type="button" class="pb2-navlist-remove" data-gimg-remove title="Remove">\u00D7</button>' +
+          '</div>' +
+          '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="alt" placeholder="Alt text (accessibility)">' +
+          '<input type="hidden" data-gimg-field="url" value="' + url + '">' +
+        '</div>';
+      return tile;
+    }
+
+    root.querySelectorAll('.pb2-gimg').forEach(wireTile);
+
+    if (addBtn && !addBtn.dataset.wired) {
+      addBtn.dataset.wired = '1';
+      addBtn.addEventListener('click', () => {
+        if (root.querySelectorAll('.pb2-gimg').length >= MAX_IMG) { setStatus('Max ' + MAX_IMG + ' images', 2000); return; }
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', async () => {
+          const file = input.files?.[0];
+          input.remove();
+          if (!file) return;
+          setStatus('Uploading\u2026');
+          const fd = new FormData();
+          fd.append('_token', getCsrf());
+          fd.append('file', file);
+          fd.append('type', 'gallery');
+          try {
+            const resp = await fetch(UPLOAD_URL, {
+              method: 'POST', body: fd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            });
+            const data = await resp.json();
+            if (data && data.ok && data.url) {
+              const tile = makeTile(data.url);
+              root.appendChild(tile);
+              wireTile(tile);
+              serialize();
+              setStatus('Uploaded \u2713', 1500);
+              tile.querySelector('[data-gimg-field="caption"]')?.focus();
+            } else {
+              setStatus('Upload failed', 3000);
+              alert((data && data.message) || 'Upload failed.');
+            }
+          } catch (e) {
+            setStatus('Upload failed', 3000); console.error(e); alert('Upload failed.');
+          }
+        });
+        input.click();
       });
     }
   }
