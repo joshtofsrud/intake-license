@@ -1564,6 +1564,9 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
       </button>
       <div class="pb2-topbar-divider"></div>
+      @unless($isMarketing ?? false)
+      <button type="button" class="pb2-btn" id="pb2-bk-toggle" title="Brand Kit — copy your saved brand colors">&#9670; Brand Kit</button>
+      @endunless
       <a href="{{ $previewUrl }}" target="_blank" class="pb2-btn" title="Open live in new tab">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         Preview
@@ -1571,6 +1574,101 @@
       <button class="pb2-btn pb2-btn-primary" type="button" onclick="savePageSettings()">Save</button>
     </div>
   </div>
+
+@unless($isMarketing ?? false)
+  {{-- MARKER-PATCH-302 — Brand Kit floating reference card (copy-from palette) --}}
+  <style>
+  #pb2-bk-card{position:fixed;top:64px;right:336px;width:300px;z-index:1200;background:#151515;border:0.5px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:0 26px 64px -22px rgba(0,0,0,.85);color:#f1f1f1;font-size:13px}
+  #pb2-bk-card[hidden]{display:none}
+  #pb2-bk-card .bkh{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:0.5px solid rgba(255,255,255,.09);background:#1d1d1d;border-radius:12px 12px 0 0}
+  #pb2-bk-card .bkh b{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+  #pb2-bk-card .bkh b em{font-style:normal;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-accent,#3FD16B);background:rgba(63,209,107,.13);padding:2px 6px;border-radius:4px;font-weight:600}
+  #pb2-bk-card .bkx{background:0;border:0;color:rgba(255,255,255,.4);font-size:18px;line-height:1;cursor:pointer}
+  #pb2-bk-card .bkx:hover{color:#fff}
+  #pb2-bk-card .bknote{padding:10px 13px;font-size:11px;color:rgba(255,255,255,.62);line-height:1.5;border-bottom:0.5px solid rgba(255,255,255,.09);background:rgba(63,209,107,.10)}
+  #pb2-bk-rows{padding:10px 13px;display:flex;flex-direction:column;gap:7px;max-height:48vh;overflow-y:auto}
+  #pb2-bk-card .bkrow{display:flex;align-items:center;gap:8px}
+  #pb2-bk-card .bksw{width:30px;height:30px;border-radius:7px;border:0.5px solid rgba(255,255,255,.16);flex:0 0 auto;cursor:pointer;position:relative;overflow:hidden}
+  #pb2-bk-card .bksw input{position:absolute;inset:-4px;opacity:0;cursor:pointer;border:0;padding:0;width:140%;height:140%}
+  #pb2-bk-card .bkname{flex:1;min-width:0;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.16);border-radius:6px;color:#f1f1f1;font-size:12px;padding:6px 8px;font-family:inherit}
+  #pb2-bk-card .bkname:focus{outline:0;border-color:var(--ia-accent,#3FD16B)}
+  #pb2-bk-card .bkhex{font-family:ui-monospace,monospace;font-size:11px;color:rgba(255,255,255,.55);flex:0 0 auto;min-width:62px;text-align:right}
+  #pb2-bk-card .bkcopy{font-family:ui-monospace,monospace;font-size:10px;color:rgba(255,255,255,.62);background:#242424;border:0.5px solid rgba(255,255,255,.16);padding:5px 9px;border-radius:6px;cursor:pointer;flex:0 0 auto}
+  #pb2-bk-card .bkcopy:hover{border-color:var(--ia-accent,#3FD16B);color:var(--ia-accent,#3FD16B)}
+  #pb2-bk-card .bkcopy.done{color:var(--ia-accent,#3FD16B);border-color:var(--ia-accent,#3FD16B);background:rgba(63,209,107,.13)}
+  #pb2-bk-card .bkdel{background:0;border:0;color:rgba(255,255,255,.4);font-size:16px;line-height:1;cursor:pointer;flex:0 0 auto;padding:0 2px}
+  #pb2-bk-card .bkdel:hover{color:#EF4444}
+  #pb2-bk-card .bkfoot{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-top:0.5px solid rgba(255,255,255,.09)}
+  #pb2-bk-card .bkadd{background:0;border:0.5px dashed rgba(255,255,255,.16);color:rgba(255,255,255,.62);font-size:11.5px;padding:7px 11px;border-radius:6px;cursor:pointer}
+  #pb2-bk-card .bkadd:hover{border-color:var(--ia-accent,#3FD16B);color:var(--ia-accent,#3FD16B)}
+  #pb2-bk-card .bkstatus{font-family:ui-monospace,monospace;font-size:10px;color:rgba(255,255,255,.4)}
+  #pb2-bk-toggle.on{background:rgba(63,209,107,.13);color:var(--ia-accent,#3FD16B);border-color:var(--ia-accent,#3FD16B)}
+  @media(max-width:1100px){#pb2-bk-card{right:14px;top:60px}}
+  </style>
+  <div id="pb2-bk-card" data-save-url="{{ route('tenant.pages.brand-kit.save') }}" hidden>
+    <div class="bkh"><b>&#9670; Brand Kit <em>reference</em></b><button type="button" class="bkx" id="pb2-bk-close" aria-label="Close">&times;</button></div>
+    <div class="bknote">Copy a value, paste it into any section field. A saved palette &mdash; it doesn&rsquo;t change sections automatically.</div>
+    <div id="pb2-bk-rows">
+      @foreach($brandKit as $c)
+        @php $bkHex = preg_match('/^#[0-9a-fA-F]{6}$/', $c['value']) ? $c['value'] : '#888888'; @endphp
+        <div class="bkrow" data-bk-row data-bk-role="{{ $c['role'] ?? '' }}">
+          <label class="bksw" style="background: {{ $c['value'] }}"><input type="color" value="{{ $bkHex }}" data-bk-color></label>
+          <input type="text" class="bkname" value="{{ $c['name'] }}" data-bk-name placeholder="Name">
+          <code class="bkhex" data-bk-hex>{{ $c['value'] }}</code>
+          <button type="button" class="bkcopy" data-bk-copy title="Copy">Copy</button>
+          <button type="button" class="bkdel" data-bk-del title="Remove">&times;</button>
+        </div>
+      @endforeach
+    </div>
+    <div class="bkfoot"><button type="button" class="bkadd" id="pb2-bk-add">+ Add color</button><span class="bkstatus" id="pb2-bk-status">Saved</span></div>
+  </div>
+  <script>
+  (function(){
+    var card=document.getElementById('pb2-bk-card'), toggle=document.getElementById('pb2-bk-toggle');
+    if(!card||!toggle) return;
+    var rows=document.getElementById('pb2-bk-rows'), statusEl=document.getElementById('pb2-bk-status');
+    var SAVE_URL=card.getAttribute('data-save-url'), saveT=null;
+    function csrf(){var m=document.querySelector('meta[name="csrf-token"]');var i=document.querySelector('input[name="_token"]');return (m&&m.content)||(i&&i.value)||'';}
+    function status(t){if(statusEl)statusEl.textContent=t;}
+    function setOpen(o){card.hidden=!o;toggle.classList.toggle('on',o);}
+    toggle.addEventListener('click',function(){setOpen(card.hidden);});
+    document.getElementById('pb2-bk-close').addEventListener('click',function(){setOpen(false);});
+    function serialize(){
+      return [].slice.call(rows.querySelectorAll('[data-bk-row]')).map(function(r){
+        return {name:((r.querySelector('[data-bk-name]').value||'').trim())||'Color',
+                value:(r.querySelector('[data-bk-hex]').textContent||'').trim(),
+                role:r.getAttribute('data-bk-role')||''};
+      }).filter(function(x){return x.value;});
+    }
+    function save(){
+      clearTimeout(saveT); status('Saving\u2026');
+      saveT=setTimeout(function(){
+        fetch(SAVE_URL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf(),'Accept':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({colors:serialize()})})
+          .then(function(r){return r.json();}).then(function(d){status(d&&d.ok?'Saved':'Save failed');})
+          .catch(function(){status('Save failed');});
+      },350);
+    }
+    function wireRow(r){
+      var color=r.querySelector('[data-bk-color]'), sw=r.querySelector('.bksw'), hex=r.querySelector('[data-bk-hex]'), copy=r.querySelector('[data-bk-copy]'), del=r.querySelector('[data-bk-del]'), name=r.querySelector('[data-bk-name]');
+      color.addEventListener('input',function(){sw.style.background=color.value;hex.textContent=color.value;save();});
+      name.addEventListener('input',save);
+      copy.addEventListener('click',function(){var v=(hex.textContent||'').trim();if(navigator.clipboard)navigator.clipboard.writeText(v).catch(function(){});var o=copy.textContent;copy.textContent='Copied \u2713';copy.classList.add('done');setTimeout(function(){copy.textContent=o;copy.classList.remove('done');},1100);});
+      del.addEventListener('click',function(){r.remove();save();});
+    }
+    [].slice.call(rows.querySelectorAll('[data-bk-row]')).forEach(wireRow);
+    document.getElementById('pb2-bk-add').addEventListener('click',function(){
+      var r=document.createElement('div');
+      r.className='bkrow'; r.setAttribute('data-bk-row',''); r.setAttribute('data-bk-role','');
+      r.innerHTML='<label class="bksw" style="background:#3FD16B"><input type="color" value="#3FD16B" data-bk-color></label>'
+        +'<input type="text" class="bkname" value="" data-bk-name placeholder="Name">'
+        +'<code class="bkhex" data-bk-hex>#3FD16B</code>'
+        +'<button type="button" class="bkcopy" data-bk-copy title="Copy">Copy</button>'
+        +'<button type="button" class="bkdel" data-bk-del title="Remove">\u00D7</button>';
+      rows.appendChild(r); wireRow(r); r.querySelector('[data-bk-name]').focus(); save();
+    });
+  })();
+  </script>
+  @endunless
 
   {{-- ============ MAIN LAYOUT ============ --}}
   <div class="pb2-layout">

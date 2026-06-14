@@ -575,7 +575,9 @@ class PageBuilderController extends Controller
             ->orderBy('nav_order')
             ->get(['id', 'title', 'slug', 'is_home']);
 
-        return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes', 'availablePages'));
+        $brandKit = $this->brandKitFor($tenant);
+
+        return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes', 'availablePages', 'brandKit'));
     }
 
     /**
@@ -884,6 +886,60 @@ class PageBuilderController extends Controller
                 'padding' => 'normal', 'is_visible' => true, 'sort_order' => $i,
             ]);
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // MARKER-PATCH-302 — Brand Kit (storage-only reference palette).
+    // Saved per-tenant in settings['brand_kit']; surfaced as a floating card in
+    // the builder to copy from. Does not theme sections. Seeded from the
+    // tenant's existing brand colors when nothing has been saved yet.
+    // ════════════════════════════════════════════════════════════════════
+    public const BRAND_KIT_MAX = 16;
+
+    private function brandKitFor($tenant): array
+    {
+        $saved = $tenant->settings['brand_kit'] ?? null;
+        if (is_array($saved) && count($saved)) {
+            return array_values(array_map(function ($c) {
+                return [
+                    'name'  => (string) ($c['name'] ?? 'Color'),
+                    'value' => (string) ($c['value'] ?? '#000000'),
+                    'role'  => (string) ($c['role'] ?? ''),
+                ];
+            }, $saved));
+        }
+        return [
+            ['name' => 'Accent',     'value' => $tenant->accent_color ?: '#BEF264', 'role' => 'accent'],
+            ['name' => 'Text',       'value' => $tenant->text_color   ?: '#111111', 'role' => 'text'],
+            ['name' => 'Background', 'value' => $tenant->bg_color     ?: '#FFFFFF', 'role' => 'background'],
+        ];
+    }
+
+    public function saveBrandKit(Request $request)
+    {
+        $tenant = tenant();
+        $colors = $request->input('colors', []);
+        if (!is_array($colors)) $colors = [];
+
+        $clean = [];
+        foreach (array_slice($colors, 0, self::BRAND_KIT_MAX) as $c) {
+            if (!is_array($c)) continue;
+            $value = trim((string) ($c['value'] ?? ''));
+            if ($value === '') continue;
+            $name = trim((string) ($c['name'] ?? ''));
+            $clean[] = [
+                'name'  => $name !== '' ? mb_substr($name, 0, 40) : 'Color',
+                'value' => mb_substr($value, 0, 32),
+                'role'  => mb_substr(trim((string) ($c['role'] ?? '')), 0, 40),
+            ];
+        }
+
+        $settings = $tenant->settings ?? [];
+        $settings['brand_kit'] = $clean;
+        $tenant->settings = $settings;
+        $tenant->save();
+
+        return response()->json(['ok' => true, 'colors' => $clean]);
     }
 
     private function seedDefaultSections(TenantPage $page): void
