@@ -1,16 +1,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Appointments';
-  $statusLabels = [
-    'pending'     => 'Pending',
-    'confirmed'   => 'Confirmed',
-    'in_progress' => 'In progress',
-    'completed'   => 'Completed',
-    'shipped'     => 'Shipped',
-    'closed'      => 'Closed',
-    'cancelled'   => 'Cancelled',
-    'refunded'    => 'Refunded',
-  ];
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; {{-- MARKER-PATCH-287 single source --}}
   $paymentLabels = [
     'unpaid'   => 'Unpaid',
     'partial'  => 'Partial',
@@ -19,16 +10,7 @@
   ];
   // Status transitions — must match AppointmentController::TRANSITIONS exactly.
   // Used to populate the inline-edit dropdown with only valid next states.
-  $statusTransitions = [
-    'pending'     => ['confirmed', 'in_progress', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
-    'confirmed'   => ['pending', 'in_progress', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
-    'in_progress' => ['pending', 'confirmed', 'completed', 'shipped', 'closed', 'cancelled', 'refunded'],
-    'completed'   => ['pending', 'confirmed', 'in_progress', 'shipped', 'closed', 'cancelled', 'refunded'],
-    'shipped'     => ['pending', 'confirmed', 'in_progress', 'completed', 'closed', 'cancelled', 'refunded'],
-    'closed'      => ['pending', 'confirmed', 'in_progress', 'completed', 'shipped', 'cancelled', 'refunded'],
-    'cancelled'   => ['pending'],
-    'refunded'    => ['pending'],
-  ];
+  $statusTransitions = \App\Support\AppointmentStatus::TRANSITIONS; {{-- MARKER-PATCH-287 single source --}}
   $sortLabels = [
     'date_desc'  => 'Newest first',
     'date_asc'   => 'Oldest first',

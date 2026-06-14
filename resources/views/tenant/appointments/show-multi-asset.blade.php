@@ -2,16 +2,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $appointment->ra_number;
-  $statusLabels = [
-    'pending'     => 'Pending',
-    'confirmed'   => 'Confirmed',
-    'in_progress' => 'In progress',
-    'completed'   => 'Completed',
-    'shipped'     => 'Shipped',
-    'closed'      => 'Closed',
-    'cancelled'   => 'Cancelled',
-    'refunded'    => 'Refunded',
-  ];
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; {{-- MARKER-PATCH-287 single source --}}
 
   // Totals computed from the asset rollups + any loose (unpinned) items.
   $assetsSubtotal = $appointmentAssets->sum('subtotal_cents');
@@ -28,8 +19,8 @@
   $updateUrl = route('tenant.appointments.update', $appointment->id);
 
   // MARKER-PATCH-158-E2 — status pipeline (mirrors legacy show.blade.php)
-  $isTerminal    = in_array($appointment->status, ['cancelled', 'refunded']);
-  $pipelineSteps = ['pending', 'confirmed', 'in_progress', 'completed'];
+  $isTerminal    = \App\Support\AppointmentStatus::isTerminal($appointment->status);
+  $pipelineSteps = \App\Support\AppointmentStatus::pipeline();
   if ($appointment->status === 'shipped') $pipelineSteps[] = 'shipped';
   if ($appointment->status === 'closed')  $pipelineSteps[] = 'closed';
   $currentIndex = array_search($appointment->status, $pipelineSteps);

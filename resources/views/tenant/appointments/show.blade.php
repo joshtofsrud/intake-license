@@ -1,16 +1,7 @@
 @extends('layouts.tenant.app')
 @php
   $pageTitle = $appointment->ra_number;
-  $statusLabels = [
-    'pending'     => 'Pending',
-    'confirmed'   => 'Confirmed',
-    'in_progress' => 'In progress',
-    'completed'   => 'Completed',
-    'shipped'     => 'Shipped',
-    'closed'      => 'Closed',
-    'cancelled'   => 'Cancelled',
-    'refunded'    => 'Refunded',
-  ];
+  $statusLabels = \App\Support\AppointmentStatus::LABELS; {{-- MARKER-PATCH-287 single source --}}
   $transitionLabels = [
     'confirmed'   => 'Confirm',
     'in_progress' => 'Start work',
@@ -620,8 +611,8 @@
 
 @php
   // Status progress bar — terminal states (cancelled/refunded) replace the bar with a card.
-  $isTerminal = in_array($appointment->status, ['cancelled', 'refunded']);
-  $pipelineSteps = ['pending', 'confirmed', 'in_progress', 'completed'];
+  $isTerminal = \App\Support\AppointmentStatus::isTerminal($appointment->status);
+  $pipelineSteps = \App\Support\AppointmentStatus::pipeline();
   // TODO: per-tenant extensions for 'shipped' and 'closed' once Workflow settings ship.
   $currentIndex = array_search($appointment->status, $pipelineSteps);
   if ($currentIndex === false) $currentIndex = 0;
@@ -957,7 +948,7 @@
          during the appointment)
          =================================================================== --}}
     @php
-      $isCommittedStatus = in_array($appointment->status, ['completed', 'shipped', 'closed']);
+      $isCommittedStatus = \App\Support\AppointmentStatus::isDone($appointment->status);
     @endphp
     {{-- LAYOUT-B-PROMOTE-ORDER 40 --}}
     <div class="ia-card" id="parts-card" style="order:40">
@@ -1469,7 +1460,7 @@
            class="ia-btn ia-btn--primary ia-btn--sm" style="width:100%;margin-top:14px;text-align:center;display:block">
           Take payment in register
         </a>
-      @elseif($balanceDue > 0 && !in_array($appointment->status, ['cancelled', 'refunded']))
+      @elseif($balanceDue > 0 && !\App\Support\AppointmentStatus::isTerminal($appointment->status))
         <button type="button" id="record-deposit-toggle" class="ia-btn ia-btn--secondary ia-btn--sm" style="width:100%;margin-top:14px">
           + Record deposit
         </button>
@@ -1486,7 +1477,7 @@
     </div>
 
     {{-- Cancel appointment — DOM kept, hidden in B layout; rail Cancel proxies to this --}}
-    @unless(in_array($appointment->status, ['cancelled', 'refunded']))
+    @unless(\App\Support\AppointmentStatus::isTerminal($appointment->status))
       <button type="button" class="ia-btn ia-btn--danger ia-btn--sm appt-cancel-btn appt-cancel-btn-original" style="width:100%;order:9999">
         Cancel appointment
       </button>

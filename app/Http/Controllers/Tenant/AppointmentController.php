@@ -29,30 +29,8 @@ class AppointmentController extends Controller
     // Terminal statuses (cancelled/refunded) can only be reopened to pending.
     // The UI is responsible for confirming destructive or backward moves;
     // this controller only enforces "is the target status valid at all?"
-    private const ACTIVE_STATUSES   = ['pending', 'confirmed', 'in_progress', 'completed', 'shipped', 'closed'];
-    private const TERMINAL_STATUSES = ['cancelled', 'refunded'];
-
-    private const TRANSITIONS = [
-        'pending'     => ['confirmed', 'in_progress', 'completed', 'cancelled'],
-        'confirmed'   => ['pending', 'in_progress', 'completed', 'cancelled'],
-        'in_progress' => ['pending', 'confirmed', 'completed', 'cancelled'],
-        'completed'   => ['pending', 'confirmed', 'in_progress', 'cancelled'],
-        'cancelled'   => ['pending'],
-        // legacy escape hatch — pre-285 rows can still move to a current status,
-        // but nothing transitions INTO shipped/closed/refunded anymore.
-        'shipped'     => ['completed', 'cancelled', 'pending'],
-        'closed'      => ['completed', 'cancelled', 'pending'],
-        'refunded'    => ['pending', 'cancelled'],
-    ];
-
-    private const TRANSITION_LABELS = [
-        'confirmed'   => 'Confirm',
-        'in_progress' => 'Start Work',
-        'completed'   => 'Mark Completed',
-        'cancelled'   => 'Cancel',
-    ];
-
-    private const DESTRUCTIVE = ['cancelled'];
+    // MARKER-PATCH-287 — status transitions/labels/destructive now live in the
+    // single source: App\Support\AppointmentStatus. (Dead ACTIVE/TERMINAL consts removed.)
 
     public function index(Request $request)
     {
@@ -644,8 +622,8 @@ class AppointmentController extends Controller
             ->with(['items', 'addons', 'parts.inventoryItem', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
             ->firstOrFail();
 
-        $transitions = self::TRANSITIONS[$appointment->status] ?? [];
-        $destructive = self::DESTRUCTIVE;
+        $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
+        $destructive = AppointmentStatus::DESTRUCTIVE;
 
         // Active services + addons for the line-item editor.
         // Loaded once at render; the inline editor shows them in select dropdowns.
@@ -865,7 +843,7 @@ class AppointmentController extends Controller
             ])
             ->firstOrFail();
 
-        $transitions = self::TRANSITIONS[$appointment->status] ?? [];
+        $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
 
         return response()->json([
             'ok' => true,
@@ -922,7 +900,7 @@ class AppointmentController extends Controller
                     'value' => $r->response_value,
                 ]),
             ],
-            'transitions' => collect($transitions)->map(fn($t) => ['status' => $t, 'label' => self::TRANSITION_LABELS[$t] ?? ucfirst($t), 'destructive' => in_array($t, self::DESTRUCTIVE)])->values(),
+            'transitions' => collect($transitions)->map(fn($t) => ['status' => $t, 'label' => AppointmentStatus::TRANSITION_LABELS[$t] ?? ucfirst($t), 'destructive' => in_array($t, AppointmentStatus::DESTRUCTIVE)])->values(),
         ]);
     }
 
@@ -933,7 +911,7 @@ class AppointmentController extends Controller
 
         if ($op === 'status') {
             $newStatus = $request->input('status');
-            $allowed = self::TRANSITIONS[$appointment->status] ?? [];
+            $allowed = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
             if (!in_array($newStatus, $allowed, true)) return response()->json(['ok' => false, 'message' => 'Invalid status transition.'], 422);
 
             $oldStatus = $appointment->status;

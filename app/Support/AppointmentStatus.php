@@ -40,6 +40,32 @@ class AppointmentStatus
     /** The trimmed, selectable default set offered to shops (no shipped/closed/refunded). */
     public const DEFAULT_SET = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
 
+    /**
+     * MARKER-PATCH-287 — the ONE transition map. Clean flow over the selectable
+     * set; shipped/closed/refunded kept only as keys (legacy escape hatches),
+     * never as targets. Controller + inline list dropdown both read this.
+     */
+    public const TRANSITIONS = [
+        'pending'     => ['confirmed', 'in_progress', 'completed', 'cancelled'],
+        'confirmed'   => ['pending', 'in_progress', 'completed', 'cancelled'],
+        'in_progress' => ['pending', 'confirmed', 'completed', 'cancelled'],
+        'completed'   => ['pending', 'confirmed', 'in_progress', 'cancelled'],
+        'cancelled'   => ['pending'],
+        'shipped'     => ['completed', 'cancelled', 'pending'],
+        'closed'      => ['completed', 'cancelled', 'pending'],
+        'refunded'    => ['pending', 'cancelled'],
+    ];
+
+    public const TRANSITION_LABELS = [
+        'confirmed'   => 'Confirm',
+        'in_progress' => 'Start Work',
+        'completed'   => 'Mark Completed',
+        'cancelled'   => 'Cancel',
+    ];
+
+    /** Statuses whose transition is destructive (the UI confirms first). */
+    public const DESTRUCTIVE = ['cancelled'];
+
     /** Human labels for the known statuses. */
     public const LABELS = [
         'pending'     => 'Pending',
@@ -139,6 +165,12 @@ class AppointmentStatus
     }
 
     /** @return array<string,string> selectable status => label (the trimmed set) */
+    /** @return string[] ordered open->done pipeline for the timeline (excludes terminal) */
+    public static function pipeline(): array
+    {
+        return array_values(array_filter(self::DEFAULT_SET, fn ($s) => !self::isTerminal($s)));
+    }
+
     public static function selectable(): array
     {
         $out = [];
