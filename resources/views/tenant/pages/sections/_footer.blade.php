@@ -175,26 +175,41 @@
   <div class="pb2-group">
     <div class="pb2-group-title">Contact info</div>
 
-    <div class="pb2-field-hint" style="text-align:left;margin-bottom:8px;display:block">
-      Pulled from your tenant settings — toggle which to display in the footer.
+    <div class="pb2-field-hint" style="text-align:left;margin-bottom:10px;display:block">
+      Enter what you want shown, then toggle it on. Leave email blank to use your account email.
     </div>
 
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="show_phone" value="1" {{ $get('show_phone', false) ? 'checked' : '' }}>
       <span>Show phone number</span>
     </label>
+    <div class="pb2-field" style="margin:6px 0 12px">
+      <input type="text" class="pb2-input pb2-input-sm" data-field="contact_phone" value="{{ $get('contact_phone') }}" placeholder="(555) 123-4567">
+    </div>
+
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="show_email" value="1" {{ $get('show_email', true) ? 'checked' : '' }}>
       <span>Show email</span>
     </label>
+    <div class="pb2-field" style="margin:6px 0 12px">
+      <input type="text" class="pb2-input pb2-input-sm" data-field="contact_email" value="{{ $get('contact_email') }}" placeholder="blank = your account email">
+    </div>
+
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="show_address" value="1" {{ $get('show_address', false) ? 'checked' : '' }}>
       <span>Show address</span>
     </label>
+    <div class="pb2-field" style="margin:6px 0 12px">
+      <input type="text" class="pb2-input pb2-input-sm" data-field="contact_address" value="{{ $get('contact_address') }}" placeholder="123 Main St, City, ST">
+    </div>
+
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="show_hours" value="1" {{ $get('show_hours', false) ? 'checked' : '' }}>
       <span>Show hours</span>
     </label>
+    <div class="pb2-field" style="margin:6px 0 0">
+      <input type="text" class="pb2-input pb2-input-sm" data-field="contact_hours" value="{{ $get('contact_hours') }}" placeholder="Mon-Fri 9-5">
+    </div>
   </div>
 
   {{-- MARKER-PATCH-158-G29 — inline footer contact form --}}

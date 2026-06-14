@@ -53,12 +53,18 @@
   if (is_string($socialLinks)) { $d = json_decode($socialLinks, true); $socialLinks = is_array($d) ? $d : []; }
   if (!is_array($socialLinks)) $socialLinks = [];
 
-  // Contact info — only if tenant has the data + toggle is on
-  $showPhone   = (bool)($c['show_phone']   ?? false) && !empty($tenant->phone ?? null);
-  $showEmail   = (bool)($c['show_email']   ?? true)  && !empty($tenant->email_from_address ?? $tenant->notification_email ?? null);
-  $showAddress = (bool)($c['show_address'] ?? false) && !empty($tenant->address ?? null);
-  $showHours   = (bool)($c['show_hours']   ?? false) && !empty($tenant->hours ?? null);
-  $contactEmail = $tenant->email_from_address ?? $tenant->notification_email ?? null;
+  // MARKER-PATCH-305 — contact info is editable in the footer (email falls back
+  // to the account email). Previously gated on $tenant->phone/address/hours,
+  // which aren't tenant columns, so the toggles never did anything.
+  $cPhone   = trim($c['contact_phone']   ?? '');
+  $cEmail   = trim($c['contact_email']   ?? '') ?: ($tenant->email_from_address ?? $tenant->notification_email ?? '');
+  $cAddress = trim($c['contact_address'] ?? '');
+  $cHours   = trim($c['contact_hours']   ?? '');
+  $showPhone   = (bool)($c['show_phone']   ?? false) && $cPhone   !== '';
+  $showEmail   = (bool)($c['show_email']   ?? true)  && $cEmail   !== '';
+  $showAddress = (bool)($c['show_address'] ?? false) && $cAddress !== '';
+  $showHours   = (bool)($c['show_hours']   ?? false) && $cHours   !== '';
+  $contactEmail = $cEmail;
 
   $hasContactBlock = $showPhone || $showEmail || $showAddress || $showHours;
 
@@ -467,7 +473,7 @@
             @if($showPhone)
               <p class="p-ftr-contact-line">
                 <strong>Phone</strong>
-                <a href="tel:{{ $tenant->phone }}">{{ $tenant->phone }}</a>
+                <a href="tel:{{ $cPhone }}">{{ $cPhone }}</a>
               </p>
             @endif
             @if($showEmail)
@@ -479,13 +485,13 @@
             @if($showAddress)
               <p class="p-ftr-contact-line">
                 <strong>Address</strong>
-                {{ $tenant->address }}
+                {{ $cAddress }}
               </p>
             @endif
             @if($showHours)
               <p class="p-ftr-contact-line">
                 <strong>Hours</strong>
-                {{ $tenant->hours }}
+                {{ $cHours }}
               </p>
             @endif
           </div>
