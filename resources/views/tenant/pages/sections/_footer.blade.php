@@ -61,16 +61,16 @@
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Heading</label>
-      <input type="text" class="pb2-input" data-field="cta_heading" value="{{ $get('cta_heading') }}" placeholder="Ride smoother by the weekend.">
+      <input type="text" class="pb2-input" data-field="cta_heading" value="{{ $get('cta_heading') }}" placeholder="Ready to book your next visit?">
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Highlight phrase <span class="pb2-field-hint">part of the heading to accent</span></label>
-      <input type="text" class="pb2-input" data-field="cta_highlight" value="{{ $get('cta_highlight') }}" placeholder="the weekend.">
+      <input type="text" class="pb2-input" data-field="cta_highlight" value="{{ $get('cta_highlight') }}" placeholder="next visit">
     </div>
     <div class="pb2-field-row">
       <div class="pb2-field">
         <label class="pb2-field-label">Button label</label>
-        <input type="text" class="pb2-input" data-field="cta_button_label" value="{{ $get('cta_button_label') }}" placeholder="Book a service">
+        <input type="text" class="pb2-input" data-field="cta_button_label" value="{{ $get('cta_button_label') }}" placeholder="Book now">
       </div>
       <div class="pb2-field">
         <label class="pb2-field-label">Button link</label>
@@ -79,7 +79,7 @@
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Note <span class="pb2-field-hint">optional, next to the button</span></label>
-      <input type="text" class="pb2-input" data-field="cta_note" value="{{ $get('cta_note') }}" placeholder="(509) 555-0142">
+      <input type="text" class="pb2-input" data-field="cta_note" value="{{ $get('cta_note') }}" placeholder="Or call us anytime">
     </div>
   </div>
 
