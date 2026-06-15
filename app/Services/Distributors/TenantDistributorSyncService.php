@@ -129,29 +129,24 @@ class TenantDistributorSyncService
      */
     private function fetchCosts(DistributorAdapter $adapter, string $code, array $upcs, array $mpns, array $variantNos): array
     {
-        $want = array_flip($variantNos);
+        // HLC's prices() endpoint (Catalog/Products/Prices) honours the SKU
+        // filter — unlike products() — and returns per-variant Prices[]. Run each
+        // row through the same field-map resolver tier-1 uses, so cost (Base /
+        // TypeId 0) is computed identically everywhere. ($upcs/$mpns unused now.)
         $cost = [];
         $errors = [];
 
-        $calls = [];
-        foreach (array_chunk($upcs, 50) as $c) {
-            $calls[] = ['upcs' => $c];
-        }
-        foreach (array_chunk($mpns, 50) as $c) {
-            $calls[] = ['vendorParts' => $c];
-        }
-
-        foreach ($calls as $opts) {
+        foreach (array_chunk($variantNos, 50) as $chunk) {
             try {
-                foreach ($this->productsList($adapter->products($opts)) as $product) {
-                    foreach (($product['Variants'] ?? []) as $variant) {
-                        $vno = $variant['VariantNo'] ?? null;
-                        if ($vno === null || ! isset($want[$vno]) || array_key_exists($vno, $cost)) {
-                            continue;
-                        }
-                        $resolved = $this->resolver->resolve($code, $variant, $product);
-                        $cost[$vno] = $resolved['cost_cents'] ?? null;
+                foreach ($this->productsList($adapter->prices($chunk)) as $row) {
+                    $vno = $row['VariantNo'] ?? null;
+                    if ($vno === null) {
+                        continue;
                     }
+                    // The prices row carries Prices[] directly; pass it as both
+                    // variant and product so the cost map row can read it.
+                    $resolved = $this->resolver->resolve($code, $row, $row);
+                    $cost[$vno] = $resolved['cost_cents'] ?? null;
                 }
             } catch (\Throwable $e) {
                 $errors[] = 'cost fetch: ' . $e->getMessage();
@@ -211,7 +206,7 @@ class TenantDistributorSyncService
                 continue;
             }
             $qty = null;
-            foreach (['Available', 'TotalAvailable', 'Quantity', 'QtyAvailable'] as $k) {
+            foreach (['TotalQtyAvailable', 'Available', 'TotalAvailable', 'Quantity', 'QtyAvailable'] as $k) {
                 if (isset($row[$k]) && is_numeric($row[$k])) {
                     $qty = (int) $row[$k];
                     break;
@@ -223,7 +218,7 @@ class TenantDistributorSyncService
                         $sum = 0;
                         $found = false;
                         foreach ($row[$k] as $w) {
-                            foreach (['Quantity', 'Available', 'Qty'] as $wk) {
+                            foreach (['QtyAvailable', 'Quantity', 'Available', 'Qty'] as $wk) {
                                 if (isset($w[$wk]) && is_numeric($w[$wk])) {
                                     $sum += (int) $w[$wk];
                                     $found = true;
