@@ -174,6 +174,83 @@ class DistributorController extends Controller
         ];
     }
 
+    public function attention(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
+    {
+        $this->guard();
+        $tenant = tenant();
+        $inStockOnly = ! $request->boolean('all');
+
+        $q = \App\Models\Tenant\TenantPricingAttentionFlag::query()
+            ->with('item')
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'open');
+
+        if ($inStockOnly) {
+            $q->whereHas('item', fn ($w) => $w->where('computed_stock_count', '>', 0));
+        }
+
+        $rank = ['below_map' => 0, 'off_msrp' => 1, 'map_vanished' => 2, 'msrp_vanished' => 3, 'cost_vanished' => 4];
+        $flags = $q->orderByDesc('created_at')->get()
+            ->sortBy(fn ($f) => $rank[$f->reason] ?? 9)->values();
+
+        $byReason = $flags->countBy('reason');
+        $counts = [
+            'total'     => $flags->count(),
+            'below_map' => $byReason['below_map'] ?? 0,
+            'off_msrp'  => $byReason['off_msrp'] ?? 0,
+            'vanished'  => ($byReason['cost_vanished'] ?? 0) + ($byReason['map_vanished'] ?? 0) + ($byReason['msrp_vanished'] ?? 0),
+        ];
+
+        return view('tenant.distributors.attention', compact('flags', 'counts', 'inStockOnly'));
+    }
+
+    public function attentionResolve(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'action'     => ['required', 'in:raise_map,match_msrp,acknowledge'],
+            'flag_ids'   => ['required', 'array', 'min:1'],
+            'flag_ids.*' => ['string'],
+        ]);
+
+        $flags = \App\Models\Tenant\TenantPricingAttentionFlag::query()
+            ->with('item')
+            ->where('tenant_id', tenant()->id)
+            ->where('status', 'open')
+            ->whereIn('id', $data['flag_ids'])->get();
+
+        $applied = 0;
+        $skipped = 0;
+        $userId = optional($request->user())->id;
+
+        foreach ($flags as $flag) {
+            if ($data['action'] !== 'acknowledge') {
+                $item = $flag->item;
+                $target = $data['action'] === 'raise_map'
+                    ? ($item?->catalog_map_cents ?? ($flag->detail['prev_map_cents'] ?? null))
+                    : ($item?->catalog_msrp_cents ?? ($flag->detail['prev_msrp_cents'] ?? null));
+
+                if (! $item || ! $target) {
+                    $skipped++;
+                    continue; // can't apply — leave the flag open
+                }
+                $item->shop_sell_price_cents = (int) $target;
+                $item->save();
+            }
+
+            $flag->status = 'resolved';
+            $flag->resolved_at = now();
+            $flag->resolved_by = $userId;
+            $flag->save();
+            $applied++;
+        }
+
+        $verb = ['raise_map' => 'Raised to MAP', 'match_msrp' => 'Matched to MSRP', 'acknowledge' => 'Acknowledged'][$data['action']];
+        $msg = "{$verb}: {$applied} item(s)." . ($skipped ? " {$skipped} skipped — no price available." : '');
+
+        return back()->with('success', $msg);
+    }
+
     private function mask(?string $key): ?string
     {
         if (blank($key)) {

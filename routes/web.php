@@ -717,6 +717,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-PATCH-HLC7A — tenant distributor surface
             Route::prefix('distributors')->name('distributors.')->group(function () {
                 Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
+                Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
+                Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
                 Route::post('/import/run',        [TenantControllers\DistributorController::class, 'importRun'])->name('import.run');
                 Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
                 Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
