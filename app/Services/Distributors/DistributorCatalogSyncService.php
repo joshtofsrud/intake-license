@@ -40,11 +40,20 @@ class DistributorCatalogSyncService
             'skipped_delta' => 0, 'map_vanished' => 0, 'msrp_vanished' => 0, 'errors' => [],
         ];
 
+        // A query is logged per variant otherwise; over ~48k rows that
+        // alone OOM-kills the worker. We don't need the log here.
+        DB::connection()->disableQueryLog();
+
         $this->markProgress($code, 0, true);
 
         $page = 1;
         while ($page <= $maxPages) {
-            $batch = $adapter->products(['pageStartIndex' => $page, 'pageSize' => $pageSize]);
+            try {
+                $batch = $adapter->products(['pageStartIndex' => $page, 'pageSize' => $pageSize]);
+            } catch (\Throwable $e) {
+                $res['errors'][] = "page {$page} fetch: " . $e->getMessage();
+                break; // stop cleanly; recordState marks this run 'partial'
+            }
             $products = $this->extractProducts($batch);
             if (empty($products)) {
                 break;
@@ -72,6 +81,9 @@ class DistributorCatalogSyncService
             if (count($products) < $pageSize) {
                 break; // short page = last page
             }
+
+            unset($batch, $products);
+            gc_collect_cycles();
             $page++;
         }
 

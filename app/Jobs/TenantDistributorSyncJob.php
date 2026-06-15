@@ -6,6 +6,7 @@ namespace App\Jobs;
 use App\Models\Tenant\TenantDistributorCatalogSubscription;
 use App\Services\Distributors\TenantDistributorSyncService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -16,11 +17,19 @@ use Illuminate\Support\Facades\Log;
  * Tier-2 sync for one tenant subscription (their key): cost, availability,
  * sell-price seed, vanish flags. Stamps last_sync_* on the subscription.
  */
-class TenantDistributorSyncJob implements ShouldQueue
+class TenantDistributorSyncJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 900;
+
+    /** Only one refresh per subscription at a time. */
+    public int $uniqueFor = 900;
+
+    public function uniqueId(): string
+    {
+        return 'tenant-distributor-sync-' . $this->subscriptionId;
+    }
 
     public function __construct(public string $subscriptionId) {}
 
