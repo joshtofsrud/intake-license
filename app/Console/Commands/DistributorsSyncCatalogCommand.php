@@ -26,6 +26,7 @@ class DistributorsSyncCatalogCommand extends Command
         $code = strtoupper((string) $this->argument('code'));
 
         $key = (string) ($this->option('key')
+            ?: optional(\App\Models\PlatformDistributorConnection::where('distributor_code', $code)->first())->api_key
             ?: config('distributors.' . strtolower($code) . '.api_key')
             ?: env($code . '_API_KEY', ''));
 
