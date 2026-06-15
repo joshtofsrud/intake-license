@@ -49,7 +49,10 @@ class DistributorCatalogSyncService
         $page = 1;
         while ($page <= $maxPages) {
             try {
-                $batch = $adapter->products(['pageStartIndex' => $page, 'pageSize' => $pageSize]);
+                // HLC pageStartIndex is a 1-based row offset, not a page number,
+                // so step by pageSize: page 1 -> 1, page 2 -> 101, page 3 -> 201 ...
+                $offset = (($page - 1) * $pageSize) + 1;
+                $batch = $adapter->products(['pageStartIndex' => $offset, 'pageSize' => $pageSize]);
             } catch (\Throwable $e) {
                 $res['errors'][] = "page {$page} fetch: " . $e->getMessage();
                 break; // stop cleanly; recordState marks this run 'partial'
