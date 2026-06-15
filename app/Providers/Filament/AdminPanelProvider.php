@@ -12,6 +12,7 @@ use App\Filament\Resources\RoadmapEntryResource;
 use App\Filament\Resources\PlatformNavItemResource;
 use App\Filament\Resources\SectionLibraryResource;
 use App\Filament\Resources\SiteSettingsResource;
+use App\Filament\Resources\DistributorFieldMapResource;
 use App\Filament\Resources\TenantResource;
 use App\Filament\Resources\TenantDomainResource;  // MARKER-PATCH-119
 use App\Filament\Widgets\DebugLogHeaderStats;
@@ -63,6 +64,7 @@ class AdminPanelProvider extends PanelProvider
                 SiteSettingsResource::class, // patch 45 — global site settings
                 SectionLibraryResource::class, // patch 45 — section type catalog
                 DebugLogResource::class,
+                DistributorFieldMapResource::class, // HLC field mapping
             ])
             ->pages([
                 // MARKER-PATCH-135 — custom dashboard replaces Pages\Dashboard
