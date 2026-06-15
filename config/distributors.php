@@ -18,7 +18,7 @@ return [
         'timeout'        => (int) env('HLC_API_TIMEOUT', 120),
         'retries'        => (int) env('HLC_API_RETRIES', 2),
         'retry_sleep_ms' => (int) env('HLC_API_RETRY_SLEEP', 400),
-        'page_size'      => (int) env('HLC_API_PAGE_SIZE', 50000),
+        'page_size'      => (int) env('HLC_API_PAGE_SIZE', 8000),
     ],
 
 ];

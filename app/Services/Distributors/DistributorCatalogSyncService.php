@@ -25,7 +25,7 @@ class DistributorCatalogSyncService
     public function syncIdentity(
         DistributorAdapter $adapter,
         ?Carbon $since = null,
-        int $pageSize = 50000,
+        int $pageSize = 8000,
         int $maxPages = 2000
     ): array {
         $code = strtoupper($adapter->code());
@@ -68,29 +68,47 @@ class DistributorCatalogSyncService
             $res['errors'][] = "catalog returned the full pageSize ({$pageSize}); it may be truncated — raise HLC_API_PAGE_SIZE.";
         }
 
-        $checkpoint = 0;
+        // Group by brand so we can write brand-by-brand and report per-brand
+        // progress (HLC has no server-side brand filter, so we slice here).
+        $byBrand = [];
         foreach ($products as $product) {
-            foreach (($product['Variants'] ?? []) as $variant) {
-                $res['seen']++;
-                if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
-                    $res['skipped_delta']++;
-                    continue;
-                }
-                try {
-                    $this->upsertVariant($code, $adapter->name(), $variant, $product, $res);
-                    $res['written']++;
-                } catch (\Throwable $e) {
-                    $res['errors'][] = ($variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
-                }
-                if (++$checkpoint >= 200) {
-                    $this->markProgress($code, $res['written']);
-                    $checkpoint = 0;
+            $bn = $product['Brand'] ?? 'Unknown';
+            $byBrand[$bn][] = $product;
+        }
+        unset($products);
+        ksort($byBrand);
+        $this->seedBrandStatuses($code, $byBrand);
+
+        foreach ($byBrand as $brandName => $brandProducts) {
+            $this->setBrandStatus($code, $brandName, 'syncing', null);
+            $brandWritten = 0;
+
+            foreach ($brandProducts as $product) {
+                foreach (($product['Variants'] ?? []) as $variant) {
+                    $res['seen']++;
+                    if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
+                        $res['skipped_delta']++;
+                        continue;
+                    }
+                    try {
+                        $this->upsertVariant($code, $adapter->name(), $variant, $product, $res);
+                        $res['written']++;
+                        $brandWritten++;
+                    } catch (\Throwable $e) {
+                        $res['errors'][] = ($variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
+                    }
+                    if ($brandWritten % 100 === 0) {
+                        $this->setBrandStatus($code, $brandName, 'syncing', $brandWritten);
+                        $this->markProgress($code, $res['written']);
+                    }
                 }
             }
-        }
 
-        unset($products);
-        gc_collect_cycles();
+            $this->setBrandStatus($code, $brandName, 'done', $brandWritten);
+            $this->markProgress($code, $res['written']);
+            unset($brandProducts);
+            gc_collect_cycles();
+        }
 
         $this->recordState($code, $res);
         return $res;
@@ -161,6 +179,38 @@ class DistributorCatalogSyncService
             ['distributor_code' => $code, 'distributor_variant_no' => $vno],
             $canonical
         );
+    }
+
+    /** Reset and seed one status row per brand for this run. */
+    private function seedBrandStatuses(string $code, array $byBrand): void
+    {
+        DB::table('distributor_brand_sync_status')->where('distributor_code', $code)->delete();
+        $rows = [];
+        foreach ($byBrand as $bn => $ps) {
+            $total = 0;
+            foreach ($ps as $p) {
+                $total += count($p['Variants'] ?? []);
+            }
+            $rows[] = [
+                'distributor_code' => $code, 'brand_name' => (string) $bn,
+                'total' => $total, 'written' => 0, 'status' => 'pending',
+                'created_at' => now(), 'updated_at' => now(),
+            ];
+        }
+        foreach (array_chunk($rows, 100) as $chunk) {
+            DB::table('distributor_brand_sync_status')->insert($chunk);
+        }
+    }
+
+    private function setBrandStatus(string $code, string $brandName, string $status, ?int $written): void
+    {
+        $vals = ['status' => $status, 'updated_at' => now()];
+        if ($written !== null) {
+            $vals['written'] = $written;
+        }
+        DB::table('distributor_brand_sync_status')
+            ->where('distributor_code', $code)->where('brand_name', $brandName)
+            ->update($vals);
     }
 
     private function recordState(string $code, array $res): void

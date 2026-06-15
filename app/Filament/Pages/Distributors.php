@@ -188,6 +188,8 @@ class Distributors extends Page implements HasForms
             'conn'   => $conn,
             'state'  => $state,
             'sampleOptions' => collect(self::SAMPLES)->map(fn ($s) => $s['label'])->all(),
+            'brandStatuses' => DB::table('distributor_brand_sync_status')
+                ->where('distributor_code', 'HLC')->orderBy('brand_name')->get(),
         ];
     }
 }

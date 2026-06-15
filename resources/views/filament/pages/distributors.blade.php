@@ -50,6 +50,30 @@
                 <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Status</div>
                     <div style="font-size:18px;font-weight:700">{{ $state?->last_status ?? '—' }}</div></div>
             </div>
+
+            @if(!empty($brandStatuses) && count($brandStatuses))
+                <div style="margin-top:18px;font-size:11px;text-transform:uppercase;opacity:.6;margin-bottom:6px">Per-brand progress</div>
+                <div style="max-height:340px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:8px">
+                    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+                        @foreach($brandStatuses as $b)
+                            @php $done = $b->status === 'done'; $sync = $b->status === 'syncing'; @endphp
+                            <tr style="border-bottom:.5px solid rgba(255,255,255,.07)">
+                                <td style="padding:7px 12px;font-weight:600">{{ $b->brand_name }}</td>
+                                <td style="padding:7px 12px;font-family:ui-monospace,monospace;opacity:.85">{{ number_format($b->written) }} / {{ number_format($b->total) }}</td>
+                                <td style="padding:7px 12px;text-align:right">
+                                    @if($done)
+                                        <span style="color:#BEF264">✓ done</span>
+                                    @elseif($sync)
+                                        <span style="color:#BEF264">● syncing</span>
+                                    @else
+                                        <span style="opacity:.5">pending</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </table>
+                </div>
+            @endif
         </div>
         @if($state?->last_error)
             <div style="margin-top:10px;font-size:12px;color:#E24B4A">{{ \Illuminate\Support\Str::limit($state->last_error, 160) }}</div>

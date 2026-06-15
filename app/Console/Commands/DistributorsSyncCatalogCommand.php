@@ -16,7 +16,7 @@ class DistributorsSyncCatalogCommand extends Command
         {--key= : API key (falls back to {CODE}_API_KEY env)}
         {--since= : Only sync variants modified after this date}
         {--delta : Use the stored watermark as --since}
-        {--page-size=50000}
+        {--page-size=8000}
         {--max-pages=2000}';
 
     protected $description = 'Tier-1 identity sync: pull a distributor catalog into platform_distributor_catalogs via the editable field map.';
