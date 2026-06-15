@@ -25,7 +25,7 @@ class DistributorCatalogSyncService
     public function syncIdentity(
         DistributorAdapter $adapter,
         ?Carbon $since = null,
-        int $pageSize = 100,
+        int $pageSize = 50000,
         int $maxPages = 2000
     ): array {
         $code = strtoupper($adapter->code());
@@ -46,49 +46,51 @@ class DistributorCatalogSyncService
 
         $this->markProgress($code, 0, true);
 
-        $page = 1;
-        while ($page <= $maxPages) {
-            try {
-                // HLC pageStartIndex is a 1-based row offset, not a page number,
-                // so step by pageSize: page 1 -> 1, page 2 -> 101, page 3 -> 201 ...
-                $offset = (($page - 1) * $pageSize) + 1;
-                $batch = $adapter->products(['pageStartIndex' => $offset, 'pageSize' => $pageSize]);
-            } catch (\Throwable $e) {
-                $res['errors'][] = "page {$page} fetch: " . $e->getMessage();
-                break; // stop cleanly; recordState marks this run 'partial'
-            }
-            $products = $this->extractProducts($batch);
-            if (empty($products)) {
-                break;
-            }
-            $res['pages']++;
+        // HLC's Catalog/Products ignores pageStartIndex on the public API (every
+        // offset returns the first page), but it honours pageSize: a pageSize at
+        // or above the catalog total returns the whole catalog in one response.
+        // So pull once and process in chunks, checkpointing every 200 rows so the
+        // live counter still climbs. ($maxPages is unused — offset paging is dead.)
+        try {
+            $batch = $adapter->products(['pageStartIndex' => 1, 'pageSize' => $pageSize]);
+        } catch (\Throwable $e) {
+            $res['errors'][] = 'catalog fetch: ' . $e->getMessage();
+            $this->recordState($code, $res);
+            return $res;
+        }
 
-            foreach ($products as $product) {
-                foreach (($product['Variants'] ?? []) as $variant) {
-                    $res['seen']++;
-                    if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
-                        $res['skipped_delta']++;
-                        continue;
-                    }
-                    try {
-                        $this->upsertVariant($code, $adapter->name(), $variant, $product, $res);
-                        $res['written']++;
-                    } catch (\Throwable $e) {
-                        $res['errors'][] = ($variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
-                    }
+        $products = $this->extractProducts($batch);
+        unset($batch);
+        $res['pages'] = 1;
+
+        if (count($products) >= $pageSize) {
+            // Returned exactly the cap — the catalog may be larger than one pull.
+            $res['errors'][] = "catalog returned the full pageSize ({$pageSize}); it may be truncated — raise HLC_API_PAGE_SIZE.";
+        }
+
+        $checkpoint = 0;
+        foreach ($products as $product) {
+            foreach (($product['Variants'] ?? []) as $variant) {
+                $res['seen']++;
+                if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
+                    $res['skipped_delta']++;
+                    continue;
+                }
+                try {
+                    $this->upsertVariant($code, $adapter->name(), $variant, $product, $res);
+                    $res['written']++;
+                } catch (\Throwable $e) {
+                    $res['errors'][] = ($variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
+                }
+                if (++$checkpoint >= 200) {
+                    $this->markProgress($code, $res['written']);
+                    $checkpoint = 0;
                 }
             }
-
-            $this->markProgress($code, $res['written']);
-
-            if (count($products) < $pageSize) {
-                break; // short page = last page
-            }
-
-            unset($batch, $products);
-            gc_collect_cycles();
-            $page++;
         }
+
+        unset($products);
+        gc_collect_cycles();
 
         $this->recordState($code, $res);
         return $res;

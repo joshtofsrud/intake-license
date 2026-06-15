@@ -43,7 +43,7 @@ class HlcClient implements DistributorAdapter
 
         $this->base         = "{$base}/{$this->region}/{$version}";
         $this->language     = (string) ($cfg['language'] ?? 'en');
-        $this->timeout      = (int) ($cfg['timeout'] ?? 20);
+        $this->timeout      = (int) ($cfg['timeout'] ?? 120);
         $this->retries      = (int) ($cfg['retries'] ?? 2);
         $this->retrySleepMs = (int) ($cfg['retry_sleep_ms'] ?? 400);
         $this->pageSize     = (int) ($cfg['page_size'] ?? 100);
