@@ -44,13 +44,27 @@ class HlcTestCommand extends Command
         }
         $this->line('   ok · HTTP ' . ($echo['status'] ?? '?'));
 
-        $this->info('-> Catalog/Brands (catalog probe)...');
-        try {
-            $brands = $client->brands();
-            $this->line('   brands returned: ' . (is_countable($brands) ? count($brands) : 'n/a'));
-        } catch (\Throwable $e) {
-            $this->warn('   brands failed: ' . $e->getMessage());
+        $this->info('-> Probing auth header styles against Catalog/Brands...');
+        $styles = ['authorization_apikey', 'bare_apikey', 'authorization_bearer', 'authorization_raw'];
+        $winner = null;
+        foreach ($styles as $style) {
+            $client->setAuthStyle($style);
+            try {
+                $brands = $client->brands();
+                $n = is_countable($brands) ? count($brands) : 0;
+                $this->line("   [{$style}] OK · brands: {$n}");
+                $winner = $style;
+                break;
+            } catch (\Throwable $e) {
+                $this->warn("   [{$style}] " . $e->getMessage());
+            }
         }
+        if ($winner === null) {
+            $this->error('No auth header style worked. The key reaches HLC (Echo 200) but every catalog call 401s — this usually means the key needs catalog/API scope enabled on your HLC account. Contact your HLC rep.');
+            return self::FAILURE;
+        }
+        $this->info("Working auth style: {$winner}  ->  set HLC_AUTH_STYLE={$winner} in .env (or tell me to bake it into config).");
+        $client->setAuthStyle($winner);
 
         $skus = array_values(array_filter((array) $this->option('sku')));
         if (empty($skus)) {

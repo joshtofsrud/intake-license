@@ -30,6 +30,7 @@ class HlcClient implements DistributorAdapter
     private int $retries;
     private int $retrySleepMs;
     private int $pageSize;
+    private string $authStyle;
 
     public function __construct(
         private readonly string $apiKey,
@@ -46,6 +47,7 @@ class HlcClient implements DistributorAdapter
         $this->retries      = (int) ($cfg['retries'] ?? 2);
         $this->retrySleepMs = (int) ($cfg['retry_sleep_ms'] ?? 400);
         $this->pageSize     = (int) ($cfg['page_size'] ?? 100);
+        $this->authStyle    = (string) ($cfg['auth_style'] ?? 'authorization_apikey');
     }
 
     public function code(): string
@@ -58,17 +60,37 @@ class HlcClient implements DistributorAdapter
         return 'HLC';
     }
 
+    /**
+     * Override the auth header form at runtime (used by the test command
+     * to probe which style HLC's catalog endpoints accept).
+     */
+    public function setAuthStyle(string $style): static
+    {
+        $this->authStyle = $style;
+        return $this;
+    }
+
+    /** @return array<string,string> */
+    private function authHeaders(): array
+    {
+        return match ($this->authStyle) {
+            'bare_apikey'          => ['ApiKey' => $this->apiKey],
+            'authorization_bearer' => ['Authorization' => 'Bearer ' . $this->apiKey],
+            'authorization_raw'    => ['Authorization' => $this->apiKey],
+            default                => ['Authorization' => 'ApiKey ' . $this->apiKey],
+        };
+    }
+
     private function http(): PendingRequest
     {
         return Http::baseUrl($this->base)
             ->timeout($this->timeout)
             ->retry($this->retries, $this->retrySleepMs)
-            ->withHeaders([
-                'Authorization'   => 'ApiKey ' . $this->apiKey,
+            ->withHeaders(array_merge($this->authHeaders(), [
                 'language'         => $this->language,
                 'Accept'           => 'application/json',
                 'Accept-Encoding'  => 'gzip, deflate',
-            ]);
+            ]));
     }
 
     /**

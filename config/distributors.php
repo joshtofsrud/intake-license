@@ -12,6 +12,9 @@ return [
         'version'        => env('HLC_API_VERSION', 'v4.1'),
         'default_region' => env('HLC_API_REGION', 'us'),
         'language'       => env('HLC_API_LANGUAGE', 'en'),
+        // Auth header form. HLC docs show two; the catalog endpoints can
+        // be picky. distributors:hlc-test probes the right one.
+        'auth_style'     => env('HLC_AUTH_STYLE', 'authorization_apikey'),
         'timeout'        => (int) env('HLC_API_TIMEOUT', 20),
         'retries'        => (int) env('HLC_API_RETRIES', 2),
         'retry_sleep_ms' => (int) env('HLC_API_RETRY_SLEEP', 400),
