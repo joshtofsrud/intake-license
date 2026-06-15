@@ -60,6 +60,7 @@ class TenantInventoryItem extends Model
         'computed_stock_count',
         'allow_oversell',
         'is_active',
+        'is_stock_tracked',
         'tax_class_code',
         'default_vendor_id',
     ];
@@ -79,6 +80,7 @@ class TenantInventoryItem extends Model
         'computed_stock_count' => 'integer',
         'allow_oversell' => 'boolean',
         'is_active' => 'boolean',
+        'is_stock_tracked' => 'boolean',
     ];
 
     public function tenant(): BelongsTo

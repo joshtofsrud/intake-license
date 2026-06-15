@@ -88,6 +88,18 @@ class TenantDistributorSyncService
             }
             if ($newAvail !== null) {
                 $res['avail_updated']++;
+                if (! $dryRun) {
+                    \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')->insert([
+                        'tenant_id' => $tenantId,
+                        'distributor_code' => $code,
+                        'distributor_variant_no' => $vno,
+                        'distributor_catalog_id' => $cat->id,
+                        'avail' => $newAvail,
+                        'checked_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
             // First-link seed only: MAP -> MSRP. Never overwrite a set price.
