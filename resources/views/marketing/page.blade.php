@@ -172,7 +172,17 @@
         // render twice. Keep them filterable so older pages don't regress.
         if (in_array($type, ['nav', 'footer'])) continue;
 
-        $partial = 'marketing.sections.' . $type;
+        // MARKER-PATCH-308 — render shared section types through the v2
+        // (tenant) self-contained partials so marketing pages match the
+        // page-builder editor exactly. Marketing-only types keep their
+        // bespoke partials; data-driven types are never routed here.
+        $v2Shared = ['hero','text_image','cta_banner','image_gallery','contact_form',
+                     'feature_grid','step_timeline','faq_accordion','pricing_table',
+                     'logo_bar','stats_row','custom_html'];
+        $v2Partial = 'public.sections._' . $type;
+        $partial = (in_array($type, $v2Shared, true) && view()->exists($v2Partial))
+            ? $v2Partial
+            : 'marketing.sections.' . $type;
 
         // Padding: content override > section column > default ('normal')
         $paddingValue = $c['padding_override'] ?? $section->padding ?? 'normal';
