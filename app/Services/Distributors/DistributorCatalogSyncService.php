@@ -29,6 +29,12 @@ class DistributorCatalogSyncService
         int $maxPages = 2000
     ): array {
         $code = strtoupper($adapter->code());
+
+        // Empty-map guard: refuse rather than silently write broken rows.
+        if (empty($this->resolver->mapsFor($code))) {
+            throw new \RuntimeException("No field map for {$code}. Seed DistributorFieldMapSeeder before syncing.");
+        }
+
         $res = [
             'code' => $code, 'pages' => 0, 'seen' => 0, 'written' => 0,
             'skipped_delta' => 0, 'map_vanished' => 0, 'msrp_vanished' => 0, 'errors' => [],
