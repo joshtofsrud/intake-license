@@ -41,6 +41,7 @@
     'comparison_table'       => 'Comparison table',
     'industry_pack_showcase' => 'Industries',
     'stats_row'              => 'Stats row',
+    'custom_html'            => 'Custom HTML', // MARKER-PATCH-306
   ];
 
   // MARKER-PATCH-158-G18 — Inline SVG icon paths per section type. Paths are
@@ -68,6 +69,7 @@
     'comparison_table'=>'<rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="12" y1="3" x2="12" y2="21"/>',
     'industry_pack_showcase'=>'<path d="M3 6l3-3h12l3 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V6z"/><path d="M5 12v9h14v-9"/>',
     'stats_row'      => '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="17 7 21 7 21 11"/>',
+    'custom_html'    => '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>', // MARKER-PATCH-306
   ];
 
   // Add-section gallery descriptions (one-liners shown under the type label
@@ -93,6 +95,7 @@
     'comparison_table'=>'Feature vs competitor matrix',
     'industry_pack_showcase'=>'Showcase of industries served',
     'stats_row'     => 'Big-number stats row',
+    'custom_html'   => 'Paste raw HTML, rendered as-is', // MARKER-PATCH-306
   ];
 
   // Logical grouping for the gallery. Order matters — common ones first.
@@ -101,6 +104,7 @@
     'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','faq_accordion','stats_row'],
     'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table','rentals_showcase'],
     'Social'     => ['testimonial_carousel','logo_bar'],
+    'Advanced'   => ['custom_html'], // MARKER-PATCH-306
   ];
 @endphp
 

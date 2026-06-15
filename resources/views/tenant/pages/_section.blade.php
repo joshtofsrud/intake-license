@@ -21,6 +21,7 @@
     'comparison_table'       => 'Comparison table',
     'industry_pack_showcase' => 'Industry showcase',
     'stats_row'              => 'Stats row',
+    'custom_html'            => 'Custom HTML',
   ];
   $typeIcons = [
     'nav'=>'🧭','hero'=>'🖼','services'=>'⚙','text_image'=>'📝',
@@ -29,6 +30,7 @@
     'feature_grid'=>'▦','step_timeline'=>'🔢','pricing_table'=>'💲',
     'faq_accordion'=>'❓','testimonial_carousel'=>'💬','logo_bar'=>'⚑',
     'comparison_table'=>'📊','industry_pack_showcase'=>'🏷','stats_row'=>'📈',
+    'custom_html'=>'</>',
   ];
 
   // Defensive decode: some older rows have JSON strings where arrays are

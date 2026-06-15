@@ -536,6 +536,10 @@ class PageBuilderController extends Controller
         ],
         'screen_showcase'  => ['eyebrow'=>'','step_num'=>1,'heading'=>'Step heading','body'=>'Short body for this step.','points'=>[],'desktop_label'=>'Desktop','desktop_lines'=>[],'mobile_label'=>'Mobile','mobile_lines'=>[],'mobile_note'=>'','flip'=>false],
         'legal_doc'        => ['doc_title'=>'Document title','effective_date'=>'','updated_date'=>'','intro_paragraph'=>'','show_toc'=>true,'sections'=>[['heading'=>'Section heading','blocks'=>[['type'=>'paragraph','text'=>'']]]]],
+        // MARKER-PATCH-306 — raw HTML block, rendered as-is on the public page.
+        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal'],
+        // MARKER-PATCH-306 — raw HTML block, rendered as-is on the public page.
+        'custom_html'      => ['html'=>'', 'bg_color'=>'', 'padding_y'=>'normal'],
     ];
 
     public function index(Request $request)
