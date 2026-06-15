@@ -466,6 +466,26 @@ class AddonCatalogSeeder extends Seeder
                 'is_self_serve' => true,
                 'is_new' => true,
             ],
+            // MARKER-PATCH-HLC1 — DISTRIBUTOR SYNC. À la carte (included_in_plans
+            // stays null forever) with a Scale floor enforced by
+            // FeatureAccessService::min_plan_tier — not available on Starter or
+            // Branded, even via a master-admin grant. Each tenant supplies their
+            // own per-distributor API keys, so cost & availability are per-shop.
+            // HLC is the first adapter; QBP / J&B / BTI follow on the same interface.
+            [
+                'code' => 'bike_distributor_sync',
+                'name' => 'Bike distributor sync',
+                'category' => 'operations',
+                'description' => 'Live dealer cost & warehouse availability, nightly catalog sync, one-scan catalog linking and special-order-from-distributor. Connect HLC, QBP, J&B and more with your own distributor accounts.',
+                'tooltip' => 'Live cost & stock from your distributors — keyed to your own accounts. Scale plan required.',
+                'price_cents' => 4900,
+                'billing_cadence' => 'monthly',
+                'included_in_plans' => null,
+                'min_plan_tier' => 'scale',
+                'sort_order' => 170,
+                'is_self_serve' => true,
+                'is_new' => true,
+            ],
         ];
 
         foreach ($addons as $row) {
