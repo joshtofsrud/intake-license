@@ -37,7 +37,7 @@ class TenantDistributorCatalogSubscription extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
-        'credentials_encrypted' => 'array',
+        'credentials_encrypted' => 'encrypted:array',
         'last_sync_at' => 'datetime',
     ];
 

@@ -63,3 +63,4 @@ npm-debug.log
 Tenant::*
 /patch-*.sh
 patch-*.py
+database/database.sqlite

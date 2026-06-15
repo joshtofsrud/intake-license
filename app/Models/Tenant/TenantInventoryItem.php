@@ -45,9 +45,12 @@ class TenantInventoryItem extends Model
         'distributor_catalog_id',
         'catalog_cost_cents',
         'catalog_msrp_cents',
+        'catalog_map_cents',
         'catalog_case_quantity',
         'catalog_upc',
         'catalog_synced_at',
+        'price_ack_at',
+        'price_ack_by',
         'shop_cost_cents',
         'shop_sell_price_cents',
         'shop_case_quantity',
@@ -64,8 +67,10 @@ class TenantInventoryItem extends Model
     protected $casts = [
         'catalog_cost_cents' => 'integer',
         'catalog_msrp_cents' => 'integer',
+        'catalog_map_cents' => 'integer',
         'catalog_case_quantity' => 'integer',
         'catalog_synced_at' => 'datetime',
+        'price_ack_at' => 'datetime',
         'shop_cost_cents' => 'integer',
         'shop_sell_price_cents' => 'integer',
         'shop_case_quantity' => 'integer',
@@ -161,7 +166,7 @@ class TenantInventoryItem extends Model
             'vendor_id'
         )
             ->using(TenantInventoryItemVendor::class)
-            ->withPivot(['vendor_sku', 'unit_cost_cents', 'lead_time_days', 'is_preferred', 'last_ordered_at'])
+            ->withPivot(['vendor_sku', 'unit_cost_cents', 'lead_time_days', 'is_preferred', 'last_ordered_at', 'distributor_code', 'distributor_catalog_id', 'live_cost_cents', 'live_avail', 'live_checked_at'])
             ->withTimestamps();
     }
 
