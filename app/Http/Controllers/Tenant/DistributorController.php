@@ -117,6 +117,63 @@ class DistributorController extends Controller
         return back()->with('success', 'Refreshing your cost & availability in the background.');
     }
 
+    public function import(): \Illuminate\Contracts\View\View
+    {
+        $this->guard();
+
+        return view('tenant.distributors.import', array_merge(
+            $this->importFilterOptions(),
+            ['filters' => []],
+        ));
+    }
+
+    public function importRun(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
+    {
+        $this->guard();
+
+        $data = $request->validate([
+            'mode'               => ['required', 'in:preview,commit'],
+            'brand'              => ['nullable', 'string', 'max:128'],
+            'category'           => ['nullable', 'string', 'max:64'],
+            'include_unsellable' => ['nullable'],
+        ]);
+
+        $filters = array_filter([
+            'brand'              => $data['brand'] ?? null,
+            'category'           => $data['category'] ?? null,
+            'include_unsellable' => ! empty($data['include_unsellable']),
+        ], fn ($v) => $v !== null && $v !== '' && $v !== false);
+
+        $view = $this->importFilterOptions();
+        $view['filters'] = $filters;
+        $view['mode'] = $data['mode'];
+
+        if (blank($filters['brand'] ?? null) && blank($filters['category'] ?? null)) {
+            return view('tenant.distributors.import', $view)
+                ->with('error', 'Choose at least a brand or a category.');
+        }
+
+        $view['result'] = app(\App\Services\Distributors\DistributorCatalogImportService::class)
+            ->import(tenant()->id, self::CODE, $filters, $data['mode'] !== 'commit', 2000);
+
+        return view('tenant.distributors.import', $view);
+    }
+
+    /** Brand / category options + catalog size for the import filter. */
+    private function importFilterOptions(): array
+    {
+        $base = \App\Models\PlatformDistributorCatalog::query()
+            ->where('distributor_code', self::CODE)->where('is_active', true);
+
+        return [
+            'brands' => (clone $base)->whereNotNull('manufacturer')
+                ->distinct()->orderBy('manufacturer')->pluck('manufacturer'),
+            'categories' => (clone $base)->whereNotNull('category')
+                ->distinct()->orderBy('category')->pluck('category'),
+            'catalogTotal' => (clone $base)->count(),
+        ];
+    }
+
     private function mask(?string $key): ?string
     {
         if (blank($key)) {
