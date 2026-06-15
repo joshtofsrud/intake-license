@@ -292,6 +292,15 @@
 {{-- Catalog / Shop fields side-by-side --}}
 <div class="ia-input-grid-2" style="margin-bottom:20px">
 
+  {{-- MARKER-PATCH-HLC15 — tier-2 live cost/availability from the HLC vendor pivot --}}
+  @php
+    $hlcSrc = $item->vendors->first(fn ($v) => ($v->pivot->distributor_code ?? null) === 'HLC');
+    $liveCost = $hlcSrc?->pivot?->live_cost_cents;
+    $liveAvail = $hlcSrc?->pivot?->live_avail;
+    $liveCheckedRaw = $hlcSrc?->pivot?->live_checked_at;
+    $liveChecked = $liveCheckedRaw ? \Illuminate\Support\Carbon::parse($liveCheckedRaw) : null;
+  @endphp
+
   {{-- CATALOG (synced) --}}
   <div class="ia-card" style="opacity:{{ $item->distributor_catalog_id ? '1' : '0.6' }}">
     <div class="ia-card-head">
@@ -311,6 +320,9 @@
         <tr><td>Case quantity</td><td>{{ $item->catalog_case_quantity ?? '—' }}</td></tr>
         <tr><td>UPC</td><td><code>{{ $item->catalog_upc ?? '—' }}</code></td></tr>
         <tr><td>Last synced</td><td>{{ $item->catalog_synced_at?->diffForHumans() ?? 'never' }}</td></tr>
+        <tr><td>Your dealer cost (live)</td><td>{{ $liveCost !== null ? '$' . number_format($liveCost / 100, 2) : '—' }}</td></tr>
+        <tr><td>Available (HLC)</td><td>{{ $liveAvail !== null ? $liveAvail : '—' }}</td></tr>
+        <tr><td>Cost checked</td><td>{{ $liveChecked?->diffForHumans() ?? 'never' }}</td></tr>
       </table>
     </div>
   </div>
@@ -323,7 +335,7 @@
     </div>
     <div class="ia-card-body">
       <table class="ia-key-value">
-        <tr><td>Your cost</td><td>{{ $item->shop_cost_cents !== null ? '$' . number_format($item->shop_cost_cents / 100, 2) : '—' }}</td></tr>
+        <tr><td>Your cost</td><td>{{ ($item->shop_cost_cents ?? $liveCost) !== null ? '$' . number_format(($item->shop_cost_cents ?? $liveCost) / 100, 2) : '—' }}</td></tr>
         <tr><td>Sell price</td><td>{{ $item->shop_sell_price_cents !== null ? '$' . number_format($item->shop_sell_price_cents / 100, 2) : '—' }}</td></tr>
         <tr><td>Case quantity</td><td>{{ $item->shop_case_quantity ?? '—' }}</td></tr>
         <tr><td>Reorder at</td><td>{{ $item->shop_reorder_threshold ?? '—' }}</td></tr>
