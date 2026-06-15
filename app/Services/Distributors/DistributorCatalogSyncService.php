@@ -40,6 +40,8 @@ class DistributorCatalogSyncService
             'skipped_delta' => 0, 'map_vanished' => 0, 'msrp_vanished' => 0, 'errors' => [],
         ];
 
+        $this->markProgress($code, 0, true);
+
         $page = 1;
         while ($page <= $maxPages) {
             $batch = $adapter->products(['pageStartIndex' => $page, 'pageSize' => $pageSize]);
@@ -64,6 +66,8 @@ class DistributorCatalogSyncService
                     }
                 }
             }
+
+            $this->markProgress($code, $res['written']);
 
             if (count($products) < $pageSize) {
                 break; // short page = last page
@@ -155,6 +159,30 @@ class DistributorCatalogSyncService
                 'updated_at'     => now(),
                 'created_at'     => now(),
             ]
+        );
+    }
+
+    /**
+     * Write a running progress checkpoint. Updates the live count + activity
+     * time without touching last_synced_at (the delta watermark, which only
+     * advances on successful completion in recordState).
+     */
+    private function markProgress(string $code, int $written, bool $start = false): void
+    {
+        $vals = [
+            'last_status' => 'running',
+            'last_count'  => $written,
+            'last_run_at' => now(),     // also doubles as "last activity"
+            'updated_at'  => now(),
+            'created_at'  => now(),
+        ];
+        if ($start) {
+            $vals['last_error'] = null;
+        }
+
+        DB::table('distributor_sync_state')->updateOrInsert(
+            ['distributor_code' => $code, 'source_ref' => 'catalog'],
+            $vals
         );
     }
 }

@@ -28,13 +28,28 @@
     {{-- sync status --}}
     <x-filament::section heading="Catalog sync">
         <x-slot name="description">Tier-1: pulls the shared catalog through the field map. Cost is nulled here (per-tenant). Use the header buttons to queue a run.</x-slot>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
-            <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Last run</div>
-                <div style="font-size:18px;font-weight:700">{{ $state?->last_run_at ? \Illuminate\Support\Carbon::parse($state->last_run_at)->diffForHumans() : '—' }}</div></div>
-            <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Written</div>
-                <div style="font-size:18px;font-weight:700">{{ $state?->last_count ?? '—' }}</div></div>
-            <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Status</div>
-                <div style="font-size:18px;font-weight:700">{{ $state?->last_status ?? '—' }}</div></div>
+        @php
+            $running = ($state->last_status ?? '') === 'running'
+                && $state->last_run_at
+                && \Illuminate\Support\Carbon::parse($state->last_run_at)->gt(now()->subMinutes(30));
+        @endphp
+        <div @if($running) wire:poll.2000ms @endif>
+            @if($running)
+                <div style="display:flex;align-items:center;gap:10px;padding:11px 15px;border-radius:8px;margin-bottom:14px;background:rgba(190,242,100,.12);border:1px solid rgba(190,242,100,.3)">
+                    <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#BEF264;animation:dcpulse 1s infinite"></span>
+                    <span style="font-size:14px;font-weight:600">Syncing… {{ number_format($state->last_count ?? 0) }} written</span>
+                    <span style="font-size:12px;opacity:.55">updating live</span>
+                </div>
+                <style>@keyframes dcpulse{0%,100%{opacity:1}50%{opacity:.25}}</style>
+            @endif
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+                <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Last run</div>
+                    <div style="font-size:18px;font-weight:700">{{ $state?->last_run_at ? \Illuminate\Support\Carbon::parse($state->last_run_at)->diffForHumans() : '—' }}</div></div>
+                <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Written</div>
+                    <div style="font-size:18px;font-weight:700">{{ number_format($state?->last_count ?? 0) }}</div></div>
+                <div><div style="font-size:11px;text-transform:uppercase;opacity:.6">Status</div>
+                    <div style="font-size:18px;font-weight:700">{{ $state?->last_status ?? '—' }}</div></div>
+            </div>
         </div>
         @if($state?->last_error)
             <div style="margin-top:10px;font-size:12px;color:#E24B4A">{{ \Illuminate\Support\Str::limit($state->last_error, 160) }}</div>

@@ -155,6 +155,14 @@ class Distributors extends Page implements HasForms
 
     protected function dispatchSync(bool $delta): void
     {
+        // HLC8 running checkpoint — show progress immediately, before the
+        // queued job picks up (closes the dispatch→start gap for the poller).
+        DB::table('distributor_sync_state')->updateOrInsert(
+            ['distributor_code' => 'HLC', 'source_ref' => 'catalog'],
+            ['last_status' => 'running', 'last_count' => 0, 'last_run_at' => now(),
+             'last_error' => null, 'updated_at' => now(), 'created_at' => now()],
+        );
+
         SyncDistributorCatalogJob::dispatch('HLC', $delta);
         Notification::make()->success()
             ->title(($delta ? 'Delta' : 'Full') . ' sync queued')
