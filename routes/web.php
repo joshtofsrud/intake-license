@@ -714,6 +714,14 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/campaign-images',          [TenantControllers\CampaignImageController::class, 'upload'])->name('campaign-images.upload');
             Route::delete('/campaign-images/{id}',   [TenantControllers\CampaignImageController::class, 'destroy'])->name('campaign-images.destroy');
 
+            // MARKER-PATCH-HLC7A — tenant distributor surface
+            Route::prefix('distributors')->name('distributors.')->group(function () {
+                Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
+                Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
+                Route::post('/connection/test',   [TenantControllers\DistributorController::class, 'testConnection'])->name('connection.test');
+                Route::post('/connection/refresh',[TenantControllers\DistributorController::class, 'refreshSync'])->name('connection.refresh');
+            });
+
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
 

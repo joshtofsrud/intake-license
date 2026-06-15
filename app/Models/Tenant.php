@@ -319,6 +319,12 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'extended_reports');
     }
 
+    // MARKER-PATCH-HLC7A — distributor catalog/sync addon gate.
+    public function getDistributorSyncEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'bike_distributor_sync');
+    }
+
     // MARKER-PATCH-217 — rentals-stack capability accessors. Same delegation
     // pattern; FeatureAccessService memoizes per request.
     public function getRentalsEnabledAttribute(): bool

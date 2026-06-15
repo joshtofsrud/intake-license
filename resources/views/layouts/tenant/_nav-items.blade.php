@@ -53,6 +53,14 @@
       'gate'   => 'retail_enabled',
     ],
     [
+      // MARKER-PATCH-HLC7A — distributor catalog (Scale addon).
+      'route'  => 'tenant.distributors.connection',
+      'label'  => 'Distributors',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5l5 2.5v6L7 12.5 2 10V4l5-2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 4l5 2.5L12 4M7 6.5v6" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => null,
+      'gate'   => 'distributor_sync_enabled',
+    ],
+    [
       // patch-94 SO nav entry — added in Stage 9. Retail-gated, top-level.
       // Drawer trigger lives on the index page itself.
       'route'  => 'tenant.special-orders.index',
