@@ -5,6 +5,8 @@
   $pageMm  = ($print['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm';
   $logoMax = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$print['logo_size'] ?? 'medium'] ?? '18mm';
   $logoUrl = $print['logo_path'] ? asset('storage/' . ltrim($print['logo_path'], '/')) : null;
+  $headerText = trim((string) ($print['header_text'] ?? '')); // MARKER-PATCH-330
+  $footerText = trim((string) ($print['footer_text'] ?? '')); // MARKER-PATCH-330
   $feedMm  = (int) ($print['feed_mm'] ?? 0) > 0 ? ((int) $print['feed_mm']) . 'mm' : null;
 @endphp
 <!DOCTYPE html>
@@ -69,6 +71,7 @@
         <div class="shop">{{ strtoupper($tenant->name ?? 'SHOP') }}</div>
       @endif
       @if($tenant->phone ?? null)<div style="font-size:10px;">{{ $tenant->phone }}</div>@endif
+      @if($headerText)<div style="font-size:10px;">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
     </div>
 
     <div class="type">{{ $slip['type'] }}</div>
@@ -104,6 +107,8 @@
     @endif
 
     <div class="sig">Received by / signature</div>
+
+    @if($footerText)<div style="text-align:center;margin-top:6px;font-size:10px;">{!! nl2br(e($footerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
 
     @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
     @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif

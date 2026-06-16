@@ -5,6 +5,8 @@
   $pageMm   = ($print['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm';
   $logoMax  = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$print['logo_size'] ?? 'medium'] ?? '18mm';
   $logoUrl  = $print['logo_path'] ? asset('storage/' . ltrim($print['logo_path'], '/')) : null;
+  $headerText = trim((string) ($print['header_text'] ?? '')); // MARKER-PATCH-330
+  $footerText = trim((string) ($print['footer_text'] ?? '')); // MARKER-PATCH-330
   $feedMm   = (int) ($print['feed_mm'] ?? 0) > 0 ? ((int) $print['feed_mm']) . 'mm' : null; // MARKER-PATCH-320
   $sym      = $tenant->currency_symbol ?: '$';
   $m        = fn($c) => $sym . number_format(((int) $c) / 100, 2);
@@ -72,6 +74,7 @@
       <div class="shop">{{ strtoupper($tenant->name ?? 'SHOP') }}</div>
     @endif
     @if($tenant->phone ?? null)<div class="meta">{{ $tenant->phone }}</div>@endif
+    @if($headerText)<div class="meta">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
   </div>
 
   <div class="ctr lbl">{{ $sale->isRefunded() ? 'REFUND' : 'RECEIPT' }}</div>
@@ -127,7 +130,7 @@
   @endif
 
   <div class="foot">
-    Thank you!<br>{{ $tenant->name }}
+    @if($footerText){!! nl2br(e($footerText)) !!}@else Thank you!<br>{{ $tenant->name }}@endif{{-- MARKER-PATCH-330 --}}
   </div>
 
   @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}

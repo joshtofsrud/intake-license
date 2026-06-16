@@ -16,6 +16,8 @@
   $apptTime  = $appointment->appointment_time ? \Carbon\Carbon::parse($appointment->appointment_time)->format('g:ia') : '';
   $promised  = $appointment->promised_at ? tlocal_date($appointment->promised_at, 'D M j') : null;
   $logoUrl   = $tag['logo_path'] ? asset('storage/' . ltrim($tag['logo_path'], '/')) : null;
+  $headerText = trim((string) ($tag['header_text'] ?? '')); // MARKER-PATCH-330
+  $footerText = trim((string) ($tag['footer_text'] ?? '')); // MARKER-PATCH-330
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -86,6 +88,7 @@
         @if(($tenant->phone ?? null))
           <div>{{ $tenant->phone }}</div>
         @endif
+        @if($headerText)<div style="font-size:11px;">{!! nl2br(e($headerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
       </div>
     @endif
 
@@ -143,6 +146,7 @@
       </div>
     @endif
 
+    @if($footerText)<div class="ctr" style="margin-top:8px;border-top:1px dashed #000;padding-top:6px;font-size:11px;">{!! nl2br(e($footerText)) !!}</div>@endif{{-- MARKER-PATCH-330 --}}
     @php $feedRows = (int) ceil(((int) ($tag['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
     @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
   </div>

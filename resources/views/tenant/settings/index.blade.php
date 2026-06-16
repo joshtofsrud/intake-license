@@ -1442,8 +1442,8 @@
     $wotPaper = ($wot['paper'] ?? '80mm') === '58mm' ? '58mm' : '80mm';
     $wotLogo  = $wot['logo_path'] ?? null;
     $wotFeed  = (int) ($wot['feed_mm'] ?? 0);
-    $wotFeed  = (int) ($wot['feed_mm'] ?? 0);
-    $wotFeed  = (int) ($wot['feed_mm'] ?? 0);
+    $wotHeader = (string) ($wot['header_text'] ?? ''); // MARKER-PATCH-330
+    $wotFooter = (string) ($wot['footer_text'] ?? ''); // MARKER-PATCH-330
   @endphp
   <style>
     .wot-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:0.5px solid var(--ia-border);cursor:pointer}
@@ -1522,6 +1522,21 @@
           </div>
           <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Try 10&ndash;15mm if the last line cuts too close.</div>
         </div>
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-330 --}}
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Header &amp; footer</span></div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Header lines</label>
+        <textarea name="wot_header_text" rows="2" class="ia-input" placeholder="e.g. 509-555-1234&#10;Mon–Fri 9–6" style="resize:vertical">{{ $wotHeader }}</textarea>
+        <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Shown under your logo on tags, receipts &amp; slips. One per line.</div>
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Footer message</label>
+        <textarea name="wot_footer_text" rows="2" class="ia-input" placeholder="e.g. Thanks for riding with us!" style="resize:vertical">{{ $wotFooter }}</textarea>
+        <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Printed at the bottom. Leave blank for the default.</div>
       </div>
     </div>
 
