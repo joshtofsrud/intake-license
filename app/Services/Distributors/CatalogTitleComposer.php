@@ -102,6 +102,93 @@ class CatalogTitleComposer
         ];
     }
 
+    /**
+     * Build the token resolver for a parts array.
+     * @return array{0:callable,1:string,2:string} [resolver, size, color]
+     */
+    private function makeResolver(string $distributorCode, array $parts): array
+    {
+        $setting = $this->setting($distributorCode);
+        $attrs = $parts['attributes'] ?? [];
+
+        $color = $this->pickColor(
+            $attrs,
+            $setting->color_attribute_priority ?: self::FALLBACK_COLOR_PRIORITY
+        );
+        $size = $this->extractSize($distributorCode, (string) ($parts['description'] ?? ''));
+
+        $brand = trim((string) ($parts['brand'] ?? ''));
+        $model = trim((string) ($parts['model'] ?? ''));
+        $mpn   = trim((string) ($parts['mpn'] ?? ''));
+        if ($mpn !== '' && str_ends_with($model, $mpn)) {
+            $model = rtrim(substr($model, 0, -strlen($mpn)), " -,");
+        }
+
+        $type  = trim((string) ($parts['category'] ?? ''));
+        $type0 = '';
+        $cp = trim((string) ($parts['category_path'] ?? ''));
+        if ($cp !== '') {
+            $segs = array_values(array_filter(array_map('trim', preg_split('/>+/', $cp))));
+            $type0 = $segs[0] ?? '';
+            if ($type === '' && $segs) { $type = (string) end($segs); }
+        }
+        $unit = trim((string) ($parts['unit'] ?? ''));
+
+        $tokens = [
+            'brand' => $brand, 'model' => $model, 'size' => $size,
+            'color' => $color, 'mpn' => $mpn,
+            'type'  => $type,  'type0' => $type0, 'unit' => $unit,
+        ];
+
+        $resolve = function (string $name) use ($tokens, $attrs): string {
+            $name = trim($name);
+            if ($name === 'allattr') {
+                $out = [];
+                foreach ($attrs as $a) {
+                    if (is_array($a) && isset($a['Name'], $a['Value']) && trim((string) $a['Value']) !== '') {
+                        $out[] = trim($a['Name'] . ' ' . $a['Value']);
+                    }
+                }
+                return implode(' ', $out);
+            }
+            if (str_starts_with($name, 'attr:')) {
+                $want = trim(substr($name, 5));
+                foreach ($attrs as $a) {
+                    if (is_array($a) && isset($a['Name'], $a['Value'])
+                        && strcasecmp((string) $a['Name'], $want) === 0) {
+                        return trim((string) $a['Value']);
+                    }
+                }
+                return '';
+            }
+            return $tokens[$name] ?? '';
+        };
+
+        return [$resolve, $size, $color];
+    }
+
+    /** Render an ARBITRARY template against parts — used by the live editor preview. */
+    public function renderTemplate(string $distributorCode, string $template, array $parts): string
+    {
+        [$resolve] = $this->makeResolver($distributorCode, $parts);
+        return $this->render($template, $resolve);
+    }
+
+    /** Map a stored catalog row to the parts array compose() expects. */
+    public function partsFromRow(\App\Models\PlatformDistributorCatalog $row): array
+    {
+        return [
+            'brand'         => $row->manufacturer,
+            'model'         => $row->name,
+            'mpn'           => $row->manufacturer_sku,
+            'description'   => $row->description,
+            'attributes'    => $row->attributes ?? [],
+            'category'      => $row->category,
+            'category_path' => $row->category_path,
+            'unit'          => $row->uom,
+        ];
+    }
+
     private function render(string $template, callable $resolve): string
     {
         if ($template === '') { return ''; }
