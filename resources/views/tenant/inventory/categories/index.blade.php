@@ -32,6 +32,13 @@
         <input type="text" name="name" class="ia-input" required value="{{ old('name') }}"
           placeholder="e.g. Drivetrain, Tubes, Lubes, Tools" style="max-width:400px">
       </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Parent category</label>
+        <select name="parent_id" class="ia-input" style="max-width:400px">
+          <option value="">— None (top level) —</option>
+          @foreach($tree as $o)<option value="{{ $o['id'] }}">{{ str_repeat('— ', $o['depth']) }}{{ $o['name'] }}</option>@endforeach
+        </select>
+      </div>
       <button type="submit" class="ia-btn ia-btn--primary">Add category</button>
     </div>
   </form>
@@ -52,18 +59,25 @@
       <thead>
         <tr>
           <th>Name</th>
-          <th>Slug</th>
+          <th>Parent (move)</th>
           <th>Items</th>
-          <th>Source</th>
         </tr>
       </thead>
       <tbody>
-        @foreach($categories as $cat)
+        @foreach($tree as $node)
           <tr>
-            <td><strong>{{ $cat->name }}</strong></td>
-            <td><code style="font-size:13px">{{ $cat->slug }}</code></td>
-            <td>{{ $cat->inventoryItems()->where('is_active', true)->count() }}</td>
-            <td style="color:var(--ia-text-muted)">{{ $cat->source }}</td>
+            <td style="padding-left:{{ 12 + $node['depth'] * 22 }}px">@if($node['depth'] > 0)<span style="color:var(--ia-text-muted)">└&nbsp;</span>@endif<strong>{{ $node['name'] }}</strong></td>
+            <td>
+              <form method="POST" action="{{ route('tenant.inventory.categories.reparent', $node['id']) }}" style="margin:0">
+                @csrf
+                @method('PATCH')
+                <select name="parent_id" onchange="this.form.submit()" class="ia-input" style="max-width:260px;font-size:13px;padding:5px 8px">
+                  <option value="">— top level —</option>
+                  @foreach($tree as $o)@if($o['id'] !== $node['id'])<option value="{{ $o['id'] }}" @selected($node['parent_id'] === $o['id'])>{{ str_repeat('— ', $o['depth']) }}{{ $o['name'] }}</option>@endif @endforeach
+                </select>
+              </form>
+            </td>
+            <td>{{ $node['count'] }}</td>
           </tr>
         @endforeach
       </tbody>

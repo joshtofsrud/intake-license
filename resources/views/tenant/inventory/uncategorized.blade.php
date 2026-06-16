@@ -103,7 +103,7 @@
               </div>
             </div>
           @endif
-          <div style="padding:8px;max-height:250px;overflow:auto">
+          <div id="ucTree" style="padding:8px;max-height:250px;overflow:auto">
             @forelse($tree as $node)
               <div class="uc-node" data-cid="{{ $node['id'] }}" onclick="ucPick(@js($node['id']), {{ $node['count'] }}, @js($node['path']))"
                    style="display:flex;align-items:center;gap:7px;padding:6px 8px;padding-left:{{ 8 + $node['depth'] * 16 }}px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:{{ $node['depth'] === 0 ? '600' : '400' }}">
@@ -122,7 +122,18 @@
             </div>
             <button type="submit" class="ia-btn ia-btn--primary" id="ucAssign" disabled style="width:100%;justify-content:center">Select items to assign</button>
           </div>
-          <div style="padding:11px 15px;border-top:1px solid var(--ia-border)"><a href="{{ route('tenant.inventory.categories.index') }}" style="color:var(--ia-accent);font-size:13px;font-weight:600;text-decoration:none">&#65291; New category&hellip;</a></div>
+          <div style="padding:11px 15px;border-top:1px solid var(--ia-border)">
+            <span onclick="ucToggleNew()" style="color:var(--ia-accent);font-size:13px;font-weight:600;cursor:pointer">&#65291; New category&hellip;</span>
+            <div id="ucNewForm" style="display:none;flex-direction:column;gap:8px;margin-top:10px">
+              <input id="ucNewName" placeholder="Category name" style="padding:8px 10px;border-radius:6px;border:1px solid var(--ia-border-strong);background:var(--ia-bg);color:var(--ia-text);font-size:13px">
+              <select id="ucNewParent" style="padding:8px 10px;border-radius:6px;border:1px solid var(--ia-border-strong);background:var(--ia-bg);color:var(--ia-text);font-size:13px">
+                <option value="">No parent (top level)</option>
+                @foreach($tree as $o)<option value="{{ $o['id'] }}">{{ str_repeat('— ', $o['depth']) }}{{ $o['name'] }}</option>@endforeach
+              </select>
+              <button type="button" onclick="ucCreateCat()" class="ia-btn ia-btn--primary" style="width:100%;justify-content:center">Create &amp; select</button>
+            </div>
+            <a href="{{ route('tenant.inventory.categories.index') }}" style="display:block;margin-top:8px;color:var(--ia-text-dim);font-size:12px;text-decoration:none">Manage all categories &rarr;</a>
+          </div>
         </div>
       </div>
     </form>
@@ -156,6 +167,31 @@
     document.getElementById('ucDelta').style.display = 'flex';
     document.getElementById('ucHave').textContent = have;
     ucUpd();
+  }
+  const UC_QUICK = '{{ route('tenant.inventory.categories.quick') }}';
+  function ucToggleNew(){ const f = document.getElementById('ucNewForm'); f.style.display = (f.style.display === 'none' || !f.style.display) ? 'flex' : 'none'; }
+  async function ucCreateCat(){
+    const name = document.getElementById('ucNewName').value.trim();
+    if (!name){ return; }
+    const parent = document.getElementById('ucNewParent').value || null;
+    const token = document.querySelector('input[name=_token]').value;
+    let c;
+    try {
+      const res = await fetch(UC_QUICK, { method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':token,'Accept':'application/json'}, body: JSON.stringify({ name, parent_id: parent }) });
+      if (!res.ok){ alert('Could not create category.'); return; }
+      c = await res.json();
+    } catch (e){ alert('Could not create category.'); return; }
+    const tree = document.getElementById('ucTree');
+    const div = document.createElement('div');
+    div.className = 'uc-node';
+    div.dataset.cid = c.id;
+    div.style.cssText = 'display:flex;align-items:center;gap:7px;padding:6px 8px;padding-left:' + (8 + (c.depth || 0) * 16) + 'px;border-radius:6px;cursor:pointer;font-size:13px';
+    div.innerHTML = (c.depth > 0 ? '<span style="color:var(--ia-text-mute);font-family:var(--ia-mono);font-size:12px">&#9492;</span> ' : '') + c.name + ' <span style="margin-left:auto;font-size:11px;color:var(--ia-text-mute);font-family:var(--ia-mono)">0</span>';
+    div.onclick = function(){ ucPick(c.id, 0, c.path); };
+    tree.appendChild(div);
+    ucPick(c.id, 0, c.path);
+    ucToggleNew();
+    document.getElementById('ucNewName').value = '';
   }
 </script>
 @endsection
