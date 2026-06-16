@@ -54,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
         // Model observers
         Tenant::observe(TenantObserver::class);
         TenantUser::observe(TenantUserObserver::class);
+        \App\Models\Tenant\TenantAppointment::observe(\App\Observers\TenantAppointmentObserver::class); // MARKER-PATCH-311
         \App\Models\Tenant\TenantLocation::observe(TenantLocationObserver::class);
     }
 }

@@ -2221,6 +2221,8 @@ input.ma-asset-name-edit:focus {
           <span class="lbl">Date</span>
           <span>{{ $appointment->appointment_date->format('D M j, Y') }}</span>
         </div>
+        {{-- MARKER-PATCH-311 --}}
+        @include('tenant.appointments._promised_editor')
         @if($appointment->appointment_time)
           <div class="ma-schedule-row">
             <span class="lbl">Time</span>

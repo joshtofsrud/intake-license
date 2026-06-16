@@ -16,6 +16,7 @@ class TenantAppointment extends Model
         'tenant_id','customer_id','resource_id','location_id','ra_number',
         'customer_first_name','customer_last_name','customer_email','customer_phone',
         'appointment_date','appointment_time','appointment_end_time',
+        'promised_at', // MARKER-PATCH-311
         'total_duration_minutes','prep_before_minutes_snapshot','cleanup_after_minutes_snapshot',
         'slot_weight','slot_weight_auto','slot_weight_overridden',
         'receiving_method_snapshot','receiving_time_snapshot','tracking_number',
@@ -40,6 +41,7 @@ class TenantAppointment extends Model
         'total_cents'              => 'integer',
         'paid_cents'               => 'integer',
         'reminded_at'              => 'datetime', // MARKER-PATCH-154
+        'promised_at'              => 'datetime', // MARKER-PATCH-311
     ];
 
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }

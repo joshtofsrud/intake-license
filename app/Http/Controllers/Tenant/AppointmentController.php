@@ -930,6 +930,22 @@ class AppointmentController extends Controller
         $appointment = TenantAppointment::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         $op = $request->input('op');
 
+        // MARKER-PATCH-311 — set or clear the promised-back datetime.
+        if ($op === 'promised') {
+            $raw = trim((string) $request->input('promised_date', ''));
+            if ($raw === '') {
+                $appointment->update(['promised_at' => null]);
+            } else {
+                $tz    = method_exists($tenant, 'timezone') ? $tenant->timezone() : config('app.timezone', 'UTC');
+                $local = \Carbon\Carbon::parse($raw, $tz)->setTime(17, 0);
+                $appointment->update(['promised_at' => $local->setTimezone('UTC')]);
+            }
+            return response()->json([
+                'ok' => true,
+                'promised_local' => $appointment->promised_at ? tlocal_date($appointment->promised_at) : null,
+            ]);
+        }
+
         if ($op === 'status') {
             $newStatus = $request->input('status');
             $allowed = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
