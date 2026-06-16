@@ -31,7 +31,7 @@
 @section('content')
 <div style="max-width:880px">
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
-  @include('tenant.distributors._tabs')
+  @include('layouts.tenant._inventory-tabs')
 
   @if(session('error'))<div class="im-banner im-err">{{ session('error') }}</div>@endif
 

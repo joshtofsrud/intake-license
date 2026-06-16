@@ -32,7 +32,7 @@
 @section('content')
 <div style="max-width:880px">
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
-  @include('tenant.distributors._tabs')
+  @include('layouts.tenant._inventory-tabs')
   <p class="dc-sub">Connect your own HLC account to unlock your cost and live availability.</p>
 
   @if(session('success'))<div class="dc-banner dc-ok">{{ session('success') }}</div>@endif

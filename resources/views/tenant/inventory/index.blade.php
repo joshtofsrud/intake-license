@@ -150,6 +150,8 @@
   </div>
 </div>
 
+@include('layouts.tenant._inventory-tabs')
+
 @if(session('flash'))
   <div class="ia-flash ia-flash--{{ session('flash')['type'] }}">{{ session('flash')['message'] }}</div>
 @endif

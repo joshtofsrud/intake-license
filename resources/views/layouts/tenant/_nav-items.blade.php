@@ -50,16 +50,11 @@
       'label'  => 'Inventory',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="4" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 6h10" stroke="currentColor" stroke-width="1.2"/><path d="M5 2v3M9 2v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
       'group'  => null,
+      'match_alt' => 'tenant.distributors',
       'gate'   => 'retail_enabled',
     ],
-    [
-      // MARKER-PATCH-HLC7A — distributor catalog (Scale addon).
-      'route'  => 'tenant.distributors.connection',
-      'label'  => 'Distributors',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5l5 2.5v6L7 12.5 2 10V4l5-2.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M2 4l5 2.5L12 4M7 6.5v6" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
-      'group'  => null,
-      'gate'   => 'distributor_sync_enabled',
-    ],
+    // MARKER-PATCH-HLC22 HLC22-REMOVED-DISTRIBUTORS: distributor surfaces now
+    // live as tabs under Inventory (see _inventory-tabs).
     [
       // patch-94 SO nav entry — added in Stage 9. Retail-gated, top-level.
       // Drawer trigger lives on the index page itself.

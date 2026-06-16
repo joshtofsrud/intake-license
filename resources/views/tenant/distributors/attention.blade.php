@@ -52,7 +52,7 @@
 @endphp
 <div style="max-width:980px">
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
-  @include('tenant.distributors._tabs')
+  @include('layouts.tenant._inventory-tabs')
 
   @if(session('success'))<div class="at-banner at-ok">{{ session('success') }}</div>@endif
 
