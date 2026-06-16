@@ -20,6 +20,67 @@ use Illuminate\View\View;
  */
 class DeliveriesController extends Controller
 {
+    // MARKER-PATCH-321 — render the day's pickup/delivery slips (80mm stack).
+    public function printSlips(Request $request): View
+    {
+        $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404);
+
+        $tz      = method_exists($tenant, 'timezone') ? $tenant->timezone() : ($tenant->timezone ?? config('app.timezone', 'UTC'));
+        $dateStr = $request->query('date');
+        $date    = $dateStr ? Carbon::parse($dateStr, $tz) : Carbon::now($tz);
+        $start   = $date->copy()->startOfDay();
+        $startUtc = $start->copy()->utc();
+        $endUtc   = $start->copy()->addDay()->utc();
+
+        $deliveries = TenantDelivery::where('tenant_id', $tenant->id)
+            ->whereBetween('scheduled_at', [$startUtc, $endUtc])
+            ->whereNull('cancelled_at')
+            ->with('customer')
+            ->orderBy('scheduled_at')
+            ->get();
+
+        $slips = [];
+        foreach ($deliveries as $d) {
+            $appt = $d->appointment_id
+                ? \App\Models\Tenant\TenantAppointment::with('items')->find($d->appointment_id)
+                : null;
+            $assets = $d->appointment_id
+                ? \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $d->appointment_id)->orderBy('sort_order')->get()
+                : collect();
+
+            $slips[] = [
+                'type'        => $d->type === \App\Models\Tenant\TenantDelivery::TYPE_DROPOFF ? 'DROP-OFF' : 'PICKUP',
+                'customer'    => $d->customer
+                                   ? (trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: 'Customer')
+                                   : 'Customer',
+                'phone'       => $d->customer->phone ?? null,
+                'address'     => $d->address,
+                'time'        => tlocal($d->scheduled_at, 'g:i A'),
+                'window_end'  => $d->window_minutes
+                                   ? tlocal($d->scheduled_at->copy()->addMinutes($d->window_minutes), 'g:i A')
+                                   : null,
+                'asset_count' => $assets->count(),
+                'assets'      => $assets->map(fn ($a) => trim(($a->asset_name_snapshot ?? '') . ($a->identifier_snapshot ? ' · ' . $a->identifier_snapshot : '')))->filter()->values()->all(),
+                'items'       => $appt ? $appt->items->pluck('item_name_snapshot')->filter()->values()->all() : [],
+                'job'         => $appt?->ra_number,
+                'notes'       => $appt?->staff_notes,
+            ];
+        }
+
+        $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
+        $print = [
+            'paper'     => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
+            'logo_path' => $cfg['logo_path'] ?? null,
+            'logo_size' => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium',
+            'feed_mm'   => (int) ($cfg['feed_mm'] ?? 0),
+        ];
+        $embed     = $request->boolean('embed');
+        $dateLabel = $start->format('D M j, Y');
+
+        return view('tenant.deliveries.slips', compact('tenant', 'slips', 'print', 'embed', 'dateLabel'));
+    }
+
     public function index(Request $request): View
     {
         $tenant = tenant();

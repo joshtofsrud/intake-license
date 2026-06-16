@@ -483,6 +483,10 @@
       <a href="?view=day&date={{ $date->toDateString() }}" class="{{ $view === 'day' ? 'is-active' : '' }}">Day</a>
       <a href="?view=week&date={{ $date->toDateString() }}" class="{{ $view === 'week' ? 'is-active' : '' }}">Week</a>
     </div>
+    {{-- MARKER-PATCH-321 --}}
+    @if($view === 'day')
+      <a class="del-btn del-btn--ghost" href="{{ route('tenant.deliveries.slips') }}?date={{ $date->toDateString() }}" target="_blank" rel="noopener">&#9113; Print slips</a>
+    @endif
     <button type="button" class="del-btn del-btn--ghost" onclick="delOpenCreate('pickup')">+ Pickup</button>
     <button type="button" class="del-btn del-btn--primary" onclick="delOpenCreate('dropoff')">+ Dropoff</button>
   </div>

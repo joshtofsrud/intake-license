@@ -291,6 +291,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/register/sales/{id}/receipt', [TenantControllers\RegisterController::class, 'printReceipt'])->name('register.sales.receipt');
                 // MARKER-PATCH-319 — printable 80mm sales receipt
                 Route::get('/register/sales/{id}/receipt', [TenantControllers\RegisterController::class, 'printReceipt'])->name('register.sales.receipt');
+                // MARKER-PATCH-319 — printable 80mm sales receipt
+                Route::get('/register/sales/{id}/receipt', [TenantControllers\RegisterController::class, 'printReceipt'])->name('register.sales.receipt');
                 Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
                 // MARKER-PATCH-197 — Stripe-vs-ledger reconciliation.
                 Route::get('/register/reconciliation',   [TenantControllers\RegisterController::class, 'reconciliation'])->name('register.reconciliation');
@@ -462,6 +464,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             // MARKER-PATCH-152A — Deliveries (internal pickup/dropoff schedule)
             Route::get('/deliveries',                           [TenantControllers\DeliveriesController::class, 'index'])->name('deliveries.index');
+            // MARKER-PATCH-321 — printable 80mm pickup/delivery slips for a day
+            Route::get('/deliveries/slips',                     [TenantControllers\DeliveriesController::class, 'printSlips'])->name('deliveries.slips');
             // MARKER-PATCH-152B — create + edit + complete + cancel
             Route::post('/deliveries',                           [TenantControllers\DeliveriesController::class, 'store'])->name('deliveries.store');
             Route::patch('/deliveries/{id}',                     [TenantControllers\DeliveriesController::class, 'update'])->name('deliveries.update');

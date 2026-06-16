@@ -1441,6 +1441,7 @@
     $wotLead  = $wot['lead_days'] ?? 3;
     $wotPaper = ($wot['paper'] ?? '80mm') === '58mm' ? '58mm' : '80mm';
     $wotLogo  = $wot['logo_path'] ?? null;
+    $wotFeed  = (int) ($wot['feed_mm'] ?? 0);
   @endphp
   <style>
     .wot-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:0.5px solid var(--ia-border);cursor:pointer}
@@ -1509,6 +1510,15 @@
             <label><input type="radio" name="wot_paper" value="80mm" {{ $wotPaper === '80mm' ? 'checked' : '' }}><span>80mm</span></label>
             <label><input type="radio" name="wot_paper" value="58mm" {{ $wotPaper === '58mm' ? 'checked' : '' }}><span>58mm</span></label>
           </div>
+        </div>
+        {{-- MARKER-PATCH-320 --}}
+        <div class="ia-form-group">
+          <label class="ia-form-label">Extra paper after cut</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" name="wot_feed_mm" value="{{ $wotFeed }}" min="0" max="40" class="ia-input" style="width:84px">
+            <span style="font-size:13px;color:var(--ia-muted)">mm of feed so it clears the cutter</span>
+          </div>
+          <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Try 10&ndash;15mm if the last line cuts too close.</div>
         </div>
       </div>
     </div>
