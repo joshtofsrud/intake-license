@@ -174,6 +174,8 @@
     </div>
     <div class="sd-actions" id="sdActions" style="display:none">
       <button type="button" class="sd-btn" id="sdCloseBtn">Close</button>
+      {{-- MARKER-PATCH-319 --}}
+      <button type="button" class="sd-btn" id="sdPrintReceiptBtn" style="display:none">Print receipt</button>
       <button type="button" class="sd-btn sd-btn--primary" id="sdRefundBtn" style="display:none">
         Refund this sale
       </button>
@@ -196,10 +198,12 @@
   var actionsEl = document.getElementById('sdActions');
   var closeBtn  = document.getElementById('sdClose');
   var closeBtn2 = document.getElementById('sdCloseBtn');
+  var printReceiptBtn = document.getElementById('sdPrintReceiptBtn'); // MARKER-PATCH-319
   var refundBtn = document.getElementById('sdRefundBtn');
   var deleteSaleBtn = document.getElementById('sdDeleteSaleBtn'); // MARKER-PATCH-199
 
   var SHOW_URL_TEMPLATE = @json(route('tenant.register.sales.show', ['id' => '__ID__']));
+  var RECEIPT_URL_TEMPLATE = @json(route('tenant.register.sales.receipt', ['id' => '__ID__'])); // MARKER-PATCH-319
   var DELETE_PAYMENT_URL = @json(route('tenant.register.sales.payment.delete')); {{-- MARKER-PATCH-198 --}}
   var DELETE_SALE_URL    = @json(route('tenant.register.sales.delete')); {{-- MARKER-PATCH-199 --}}
   var REGISTER_URL      = @json(route('tenant.register.index', []));
@@ -634,6 +638,18 @@
       deleteSaleBtn.style.display = 'none';
       deleteSaleBtn.dataset.saleId = '';
     }
+
+    // MARKER-PATCH-319 — receipt available for committed sales (not drafts/quotes).
+    if (printReceiptBtn) {
+      var ps = sale.payment_status;
+      if (ps && ps !== 'draft' && ps !== 'quote') {
+        printReceiptBtn.style.display = '';
+        printReceiptBtn.dataset.saleId = sale.id;
+      } else {
+        printReceiptBtn.style.display = 'none';
+        printReceiptBtn.dataset.saleId = '';
+      }
+    }
   }
 
   // Public API
@@ -667,6 +683,24 @@
   });
 
   // Refund handoff: close modal, redirect to register with ?refund=NUM
+  // MARKER-PATCH-319 — print receipt via a hidden iframe (no tab, no nested dialog).
+  if (printReceiptBtn) {
+    printReceiptBtn.addEventListener('click', function () {
+      var sid = printReceiptBtn.dataset.saleId;
+      if (!sid) return;
+      var url = RECEIPT_URL_TEMPLATE.replace('__ID__', encodeURIComponent(sid)) + '?embed=1';
+      var f = document.createElement('iframe');
+      f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+      f.src = url;
+      f.onload = function () {
+        try { f.contentWindow.focus(); f.contentWindow.print(); }
+        catch (e) { window.open(url.replace('?embed=1', ''), '_blank'); }
+        setTimeout(function () { f.remove(); }, 2000);
+      };
+      document.body.appendChild(f);
+    });
+  }
+
   refundBtn.addEventListener('click', function(){
     var num = refundBtn.dataset.saleNumber;
     if (!num) return;
