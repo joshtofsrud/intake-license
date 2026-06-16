@@ -965,14 +965,7 @@ class RegisterController extends Controller
             ->firstOrFail();
 
         $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
-        $print = [
-            'paper'     => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
-            'logo_path' => $cfg['logo_path'] ?? null,
-            'logo_size' => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium',
-            'header_text' => (string) ($cfg['header_text'] ?? ''), // MARKER-PATCH-330
-            'footer_text' => (string) ($cfg['footer_text'] ?? ''), // MARKER-PATCH-330
-            'feed_mm'   => (int) ($cfg['feed_mm'] ?? 0), // MARKER-PATCH-320
-        ];
+        $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
         $embed = $request->boolean('embed');
 
         return view('tenant.register.receipt', compact('tenant', 'sale', 'print', 'embed'));

@@ -707,7 +707,7 @@ class AppointmentController extends Controller
 
         $cfg  = (array) (($tenant->settings['work_order_tag'] ?? []));
         $show = fn($k) => ($cfg[$k] ?? true) ? true : false;
-        $tag  = [
+        $tag  = array_merge([
             'show_header'   => $show('show_header'),
             'show_phone'    => $show('show_phone'),
             'show_bike'     => $show('show_bike'),
@@ -715,13 +715,7 @@ class AppointmentController extends Controller
             'show_note'     => $show('show_note'),
             'show_qr'       => $show('show_qr'),
             'show_stub'     => $show('show_stub'),
-            'paper'         => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
-            'logo_path'     => $cfg['logo_path'] ?? null,
-            'logo_size'     => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium', // MARKER-PATCH-317
-            'header_text' => (string) ($cfg['header_text'] ?? ''), // MARKER-PATCH-330
-            'footer_text' => (string) ($cfg['footer_text'] ?? ''), // MARKER-PATCH-330
-            'feed_mm'       => (int) ($cfg['feed_mm'] ?? 0), // MARKER-PATCH-320
-        ];
+        ], \App\Services\PrintIdentityService::forTenant($tenant)); // MARKER-PATCH-332
 
         // One slip per attached asset; otherwise a single slip for the job.
         $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
