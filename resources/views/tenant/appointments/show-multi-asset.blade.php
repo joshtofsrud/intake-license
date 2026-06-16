@@ -1268,6 +1268,8 @@ input.ma-asset-name-edit:focus {
     </div>
     {{-- MARKER-PATCH-205 — invoice export trigger --}}
     <div class="ma-page-actions">
+      {{-- MARKER-PATCH-313 --}}
+      <a href="{{ route('tenant.appointments.tag', $appointment->id) }}" target="_blank" rel="noopener" class="ia-btn ia-btn--secondary">&#9113; Print tag</a>
       <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('invoiceModal').showModal()">&#9113; Invoice</button>
     </div>
   </div>

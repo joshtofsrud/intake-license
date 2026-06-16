@@ -695,6 +695,56 @@ class AppointmentController extends Controller
             'availableServices', 'availableAddons', 'availableResources', 'specialOrdersForAppt', 'soVendors'));
     }
 
+    // MARKER-PATCH-313 — render the printable 80mm service tag(s) for a job.
+    public function printTag(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->with(['items', 'customer'])
+            ->firstOrFail();
+
+        $cfg  = (array) (($tenant->settings['work_order_tag'] ?? []));
+        $show = fn($k) => ($cfg[$k] ?? true) ? true : false;
+        $tag  = [
+            'show_header'   => $show('show_header'),
+            'show_phone'    => $show('show_phone'),
+            'show_bike'     => $show('show_bike'),
+            'show_services' => $show('show_services'),
+            'show_note'     => $show('show_note'),
+            'show_qr'       => $show('show_qr'),
+            'show_stub'     => $show('show_stub'),
+            'paper'         => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
+            'logo_path'     => $cfg['logo_path'] ?? null,
+        ];
+
+        // One slip per attached asset; otherwise a single slip for the job.
+        $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
+            ->where('appointment_id', $appointment->id)
+            ->orderBy('sort_order')
+            ->get();
+
+        $slips = [];
+        if ($assets->isNotEmpty()) {
+            foreach ($assets as $asset) {
+                $slips[] = [
+                    'bike'     => trim(($asset->asset_name_snapshot ?? '') . ($asset->identifier_snapshot ? ' · ' . $asset->identifier_snapshot : '')),
+                    'services' => $appointment->items->where('appointment_asset_id', $asset->id)->pluck('item_name_snapshot')->filter()->values()->all(),
+                ];
+            }
+        } else {
+            $slips[] = [
+                'bike'     => '',
+                'services' => $appointment->items->pluck('item_name_snapshot')->filter()->values()->all(),
+            ];
+        }
+
+        $jobUrl = route('tenant.appointments.show', $appointment->id);
+
+        return view('tenant.appointments.tag', compact('tenant', 'appointment', 'tag', 'slips', 'jobUrl'));
+    }
+
     public function update(Request $request, string $id)
     {
         return $this->handleUpdate(tenant(), $id, $request);

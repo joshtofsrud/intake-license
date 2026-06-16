@@ -724,6 +724,9 @@
     {{-- Action stack --}}
     @unless($isTerminal)
     <div class="appt-b-actions">
+      {{-- MARKER-PATCH-313 --}}
+      <a href="{{ route('tenant.appointments.tag', $appointment->id) }}" target="_blank" rel="noopener" class="ia-btn ia-btn--secondary">&#9113; Print tag</a>
+      <div class="appt-b-actions-divider"></div>
       {{-- MARKER-PATCH-285 — removed stray "Reschedule shipping tomorrow" cruft --}}
       <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
       <div class="appt-b-actions-divider"></div>
