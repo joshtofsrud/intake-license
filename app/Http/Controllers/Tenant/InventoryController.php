@@ -76,6 +76,7 @@ class InventoryController extends Controller
             $q->where(function ($q2) use ($search) {
                 $q2->where('name', 'like', "%{$search}%")
                    ->orWhere('sku',  'like', "%{$search}%")
+                   ->orWhere('display_subtitle', 'like', "%{$search}%")
                    ->orWhere('catalog_upc', 'like', "%{$search}%");
             });
         }

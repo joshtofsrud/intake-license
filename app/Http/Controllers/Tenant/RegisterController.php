@@ -177,7 +177,8 @@ class RegisterController extends Controller
                 ->where('is_active', true)
                 ->where(function ($w) use ($q) {
                     $w->where('name', 'like', "%{$q}%")
-                      ->orWhere('sku', 'like', "%{$q}%");
+                      ->orWhere('sku', 'like', "%{$q}%")
+                      ->orWhere('display_subtitle', 'like', "%{$q}%");
                 })
                 ->limit(15)
                 ->get();
@@ -196,6 +197,7 @@ class RegisterController extends Controller
             $products = $productItems->map(fn ($p) => [
                 'id'                     => $p->id,
                 'name'                   => $p->name ?? '',
+                'subtitle'               => $p->display_subtitle ?? '',
                 'sku'                    => $p->sku ?? '',
                 'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
                 'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),

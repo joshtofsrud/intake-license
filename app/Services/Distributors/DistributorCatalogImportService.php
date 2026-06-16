@@ -167,6 +167,7 @@ class DistributorCatalogImportService
             'tenant_id'              => $tenantId,
             'sku'                    => $cat->product_key ?: $cat->distributor_variant_no,
             'name'                   => $cat->display_name ?: ($cat->name ?: $cat->distributor_variant_no),
+            'display_subtitle'       => $cat->display_subtitle,
             'distributor_catalog_id' => $cat->id,
             'catalog_cost_cents'     => null, // per-tenant cost arrives via tier-2 on the pivot
             'catalog_msrp_cents'     => $cat->msrp_cents,

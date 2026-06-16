@@ -1025,7 +1025,7 @@ function renderResults(data, refundResult) {
       visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name});
       const idx = visibleResults.length - 1;
       html += `<div class="reg-row" data-i="${idx}">
-        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.sku || '')}</div></div>
+        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.subtitle || p.sku || '')}</div></div>
         <div class="price">${fmt(p.price_cents)}</div>
       </div>`;
     });
