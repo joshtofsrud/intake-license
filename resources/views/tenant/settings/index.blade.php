@@ -334,6 +334,7 @@
   <button type="button" class="set-tab"        data-tab="communication" role="tab">Communication</button>
   <button type="button" class="set-tab"        data-tab="account"       role="tab">Account</button>
   <button type="button" class="set-tab"        data-tab="payments"      role="tab">Payments</button>
+  <button type="button" class="set-tab"        data-tab="tags"          role="tab">Work-order tags</button>{{-- MARKER-PATCH-315 --}}
 </div>
 
 {{-- =====================================================================
@@ -1429,6 +1430,101 @@
         </div>
       </div>
     </div>
+  </form>
+</div>
+
+{{-- MARKER-PATCH-315 — Work-order tag settings --}}
+<div class="set-pane" id="pane-tags" role="tabpanel">
+  @php
+    $wot      = $s['work_order_tag'] ?? [];
+    $wotOn    = fn($k) => array_key_exists($k, $wot) ? (bool) $wot[$k] : true;
+    $wotLead  = $wot['lead_days'] ?? 3;
+    $wotPaper = ($wot['paper'] ?? '80mm') === '58mm' ? '58mm' : '80mm';
+    $wotLogo  = $wot['logo_path'] ?? null;
+  @endphp
+  <style>
+    .wot-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:0.5px solid var(--ia-border);cursor:pointer}
+    .wot-row:last-child{border-bottom:none}
+    .wot-row-l .t{font-size:13px;color:var(--ia-text)}
+    .wot-row-l .d{font-size:11.5px;color:var(--ia-muted);margin-top:2px}
+    .wot-switch{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:99px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);position:relative;cursor:pointer;flex-shrink:0;transition:background .15s;margin:0}
+    .wot-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--ia-muted);transition:all .15s}
+    .wot-switch:checked{background:var(--ia-accent);border-color:var(--ia-accent)}
+    .wot-switch:checked::after{left:18px;background:#0a0a0a}
+    .wot-seg{display:flex;gap:6px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:8px;padding:4px;max-width:240px}
+    .wot-seg label{flex:1;text-align:center;padding:8px;border-radius:5px;font-size:13px;cursor:pointer;color:var(--ia-muted);position:relative}
+    .wot-seg input{position:absolute;opacity:0;pointer-events:none}
+    .wot-seg label:has(input:checked){background:var(--ia-accent);color:#0a0a0a;font-weight:600}
+    .wot-logo-preview{background:#fff;padding:10px 12px;border-radius:8px;display:inline-block;margin-bottom:10px}
+    .wot-logo-preview img{max-height:42px;max-width:200px;display:block}
+  </style>
+
+  <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section set-section--grid" data-dirty-form>
+    @csrf
+    <input type="hidden" name="tab" value="tags">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span>
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save tag settings</button>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <label class="wot-row" style="border:none;padding:2px 0">
+        <span class="wot-row-l">
+          <span class="t">Print service tags</span>
+          <span class="d">Hang a tag on each item at drop-off. Prints to your 80mm receipt printer.</span>
+        </span>
+        <input type="checkbox" name="wot_enabled" value="1" {{ $wotOn('enabled') ? 'checked' : '' }} class="wot-switch">
+      </label>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">What prints on the tag</span></div>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Shop name / logo header</span></span><input type="checkbox" name="wot_show_header" value="1" {{ $wotOn('show_header') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Customer phone</span></span><input type="checkbox" name="wot_show_phone" value="1" {{ $wotOn('show_phone') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Item / asset description</span></span><input type="checkbox" name="wot_show_bike" value="1" {{ $wotOn('show_bike') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Requested services</span></span><input type="checkbox" name="wot_show_services" value="1" {{ $wotOn('show_services') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Intake note</span></span><input type="checkbox" name="wot_show_note" value="1" {{ $wotOn('show_note') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">QR code (links to the job)</span></span><input type="checkbox" name="wot_show_qr" value="1" {{ $wotOn('show_qr') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Tear-off customer claim stub</span></span><input type="checkbox" name="wot_show_stub" value="1" {{ $wotOn('show_stub') ? 'checked' : '' }} class="wot-switch"></label>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Defaults</span></div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Default &ldquo;promised by&rdquo;</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" name="wot_lead_days" value="{{ $wotLead }}" min="0" max="30" class="ia-input" style="width:84px">
+            <span style="font-size:13px;color:var(--ia-muted)">business days after drop-off</span>
+          </div>
+          <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Prefilled on new jobs; editable per work order.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Paper width</label>
+          <div class="wot-seg">
+            <label><input type="radio" name="wot_paper" value="80mm" {{ $wotPaper === '80mm' ? 'checked' : '' }}><span>80mm</span></label>
+            <label><input type="radio" name="wot_paper" value="58mm" {{ $wotPaper === '58mm' ? 'checked' : '' }}><span>58mm</span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Logo</span></div>
+      @if($wotLogo)
+        <div class="wot-logo-preview"><img src="{{ asset('storage/' . ltrim($wotLogo, '/')) }}" alt="Tag logo"></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ia-muted);margin-bottom:12px;cursor:pointer">
+          <input type="checkbox" name="wot_logo_remove" value="1"> Remove current logo
+        </label>
+      @endif
+      <input type="file" name="wot_logo" accept="image/png,image/jpeg,image/webp" class="ia-input">
+      <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">High-contrast black-on-white prints best on thermal. Shown at the top of each tag in place of the shop name.</div>
+    </div>
+
   </form>
 </div>
 

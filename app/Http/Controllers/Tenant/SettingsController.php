@@ -45,8 +45,47 @@ class SettingsController extends Controller
             'account'       => $this->updateAccount($request, $tenant),
             'appearance'    => $this->updateAppearance($request, $tenant),
             'payments'      => $this->updatePayments($request, $tenant),
+            'tags'          => $this->updateTags($request, $tenant), // MARKER-PATCH-315
             default         => back()->with('error', 'Unknown tab.'),
         };
+    }
+
+    // -------------------------------------------------------------------
+    // MARKER-PATCH-315 — Work-order tag settings (toggles, lead time,
+    // paper width, thermal logo). Stored in the tenant settings JSON.
+    // -------------------------------------------------------------------
+    private function updateTags(Request $request, $tenant)
+    {
+        $request->validate([
+            'wot_lead_days' => ['nullable', 'integer', 'min:0', 'max:30'],
+            'wot_paper'     => ['nullable', 'in:80mm,58mm'],
+            'wot_logo'      => ['nullable', 'image', 'max:2048'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $wot = (array) ($settings['work_order_tag'] ?? []);
+
+        $wot['enabled']       = (bool) $request->input('wot_enabled');
+        $wot['show_header']   = (bool) $request->input('wot_show_header');
+        $wot['show_phone']    = (bool) $request->input('wot_show_phone');
+        $wot['show_bike']     = (bool) $request->input('wot_show_bike');
+        $wot['show_services'] = (bool) $request->input('wot_show_services');
+        $wot['show_note']     = (bool) $request->input('wot_show_note');
+        $wot['show_qr']       = (bool) $request->input('wot_show_qr');
+        $wot['show_stub']     = (bool) $request->input('wot_show_stub');
+        $wot['lead_days']     = $request->filled('wot_lead_days') ? (int) $request->input('wot_lead_days') : 3;
+        $wot['paper']         = $request->input('wot_paper', '80mm');
+
+        if ($request->hasFile('wot_logo')) {
+            $wot['logo_path'] = $request->file('wot_logo')->store("tenants/{$tenant->id}/work-order-tag", 'public');
+        } elseif ($request->input('wot_logo_remove') === '1') {
+            $wot['logo_path'] = null;
+        }
+
+        $settings['work_order_tag'] = $wot;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Work-order tag settings saved.');
     }
 
     // -------------------------------------------------------------------
