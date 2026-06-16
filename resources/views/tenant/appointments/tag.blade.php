@@ -3,8 +3,10 @@
      Auto-fires the print dialog. Reads appointment_date and promised_at off
      the record — nothing computed here. --}}
 @php
-  $paperMm   = $tag['paper'] === '58mm' ? '58mm' : '80mm';
-  $contentMm = $tag['paper'] === '58mm' ? '54mm' : '72mm';
+  // MARKER-PATCH-317 — lay out at the PRINTABLE width, not the roll width,
+  // so nothing reaches the printer's unprintable right edge.
+  $pageMm    = ($tag['paper'] ?? '80mm') === '58mm' ? '48mm' : '72mm';
+  $logoMax   = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$tag['logo_size'] ?? 'medium'] ?? '18mm';
   $name      = method_exists($appointment, 'customerName')
                  ? $appointment->customerName()
                  : trim(($appointment->customer_first_name ?? '') . ' ' . ($appointment->customer_last_name ?? ''));
@@ -21,16 +23,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tag {{ $job }}</title>
 <style>
-  @page { size: {{ $paperMm }} auto; margin: 0; }
+  @page { size: {{ $pageMm }} auto; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; }
-  body { width: {{ $paperMm }}; color: #000; font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
-  .slip { width: {{ $contentMm }}; margin: 0 auto; padding: 4mm 0 2mm; font-size: 11px; line-height: 1.45; }
+  body { width: {{ $pageMm }}; color: #000; font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+  .slip { width: 100%; margin: 0; padding: 4mm 3mm 2mm; font-size: 11px; line-height: 1.45; }
   .slip + .slip { page-break-before: always; }
   .ctr { text-align: center; }
   .hr  { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
   .shop { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
-  .logo { max-width: {{ $tag['paper'] === '58mm' ? '46mm' : '60mm' }}; max-height: 16mm; display: block; margin: 0 auto 4px; }
+  .logo { max-width: 100%; max-height: {{ $logoMax }}; display: block; margin: 0 auto 4px; }
   .lbl { font-size: 10px; letter-spacing: .16em; }
   .jobrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
   .jobnum { font-size: 24px; font-weight: 700; line-height: 1; }
@@ -46,7 +48,7 @@
   .qr img, .qr canvas { width: 100% !important; height: 100% !important; }
   .qrfallback { font-size: 8px; word-break: break-all; }
   @media screen {
-    body { width: {{ $paperMm }}; margin: 24px auto; box-shadow: 0 0 0 1px #ddd; }
+    body { width: {{ $pageMm }}; margin: 24px auto; box-shadow: 0 0 0 1px #ddd; }
     .printbar { position: fixed; top: 0; left: 0; right: 0; background: #111; color: #fff;
       font-family: system-ui, sans-serif; font-size: 13px; padding: 10px 16px; display: flex;
       gap: 12px; align-items: center; justify-content: center; }

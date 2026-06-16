@@ -717,6 +717,7 @@ class AppointmentController extends Controller
             'show_stub'     => $show('show_stub'),
             'paper'         => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
             'logo_path'     => $cfg['logo_path'] ?? null,
+            'logo_size'     => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium', // MARKER-PATCH-317
         ];
 
         // One slip per attached asset; otherwise a single slip for the job.

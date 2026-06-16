@@ -1521,6 +1521,17 @@
           <input type="checkbox" name="wot_logo_remove" value="1"> Remove current logo
         </label>
       @endif
+      {{-- MARKER-PATCH-317 --}}
+      <div class="ia-form-group" style="margin-bottom:12px;max-width:240px">
+        <label class="ia-form-label">Logo size on tag</label>
+        @php $wls = $wot['logo_size'] ?? 'medium'; @endphp
+        <select name="wot_logo_size" class="ia-input">
+          <option value="small"  {{ $wls === 'small'  ? 'selected' : '' }}>Small</option>
+          <option value="medium" {{ $wls === 'medium' ? 'selected' : '' }}>Medium</option>
+          <option value="large"  {{ $wls === 'large'  ? 'selected' : '' }}>Large</option>
+          <option value="xl"     {{ $wls === 'xl'     ? 'selected' : '' }}>Extra large</option>
+        </select>
+      </div>
       <input type="file" name="wot_logo" accept="image/png,image/jpeg,image/webp" class="ia-input">
       <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">High-contrast black-on-white prints best on thermal. Shown at the top of each tag in place of the shop name.</div>
     </div>

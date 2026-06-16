@@ -75,6 +75,7 @@ class SettingsController extends Controller
         $wot['show_stub']     = (bool) $request->input('wot_show_stub');
         $wot['lead_days']     = $request->filled('wot_lead_days') ? (int) $request->input('wot_lead_days') : 3;
         $wot['paper']         = $request->input('wot_paper', '80mm');
+        $wot['logo_size']     = in_array($request->input('wot_logo_size'), ['small', 'medium', 'large', 'xl'], true) ? $request->input('wot_logo_size') : 'medium'; // MARKER-PATCH-317
 
         if ($request->hasFile('wot_logo')) {
             $wot['logo_path'] = $request->file('wot_logo')->store("tenants/{$tenant->id}/work-order-tag", 'public');
