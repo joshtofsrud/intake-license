@@ -91,7 +91,7 @@ class CatalogTitleComposer
     }
 
     /** First size-shaped token in the description, by configured pattern order. */
-    private function extractSize(string $distributorCode, string $description): string
+    public function extractSize(string $distributorCode, string $description): string
     {
         if ($description === '') {
             return '';

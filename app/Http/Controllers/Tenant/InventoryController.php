@@ -178,49 +178,110 @@ class InventoryController extends Controller
     /**
      * MARKER-PATCH-HLC23 — items with no category, for bulk assignment.
      */
+    /**
+     * MARKER-PATCH-HLC24 — bucket worklist + size sub-groups + destination tree.
+     */
     public function uncategorized(Request $request): View
     {
         $tenant = tenant();
+        $catTable = 'platform_distributor_catalogs';
 
-        $fBrand  = trim((string) $request->query('brand', '')) ?: null;
-        $fCatCat = trim((string) $request->query('cat', '')) ?: null;
-        $search  = trim((string) $request->query('q', '')) ?: null;
+        $bucket = trim((string) $request->query('bucket', ''));
+        $size   = trim((string) $request->query('size', '')) ?: null;
 
-        $q = TenantInventoryItem::query()
-            ->with('distributorCatalog')
-            ->where('tenant_id', $tenant->id)
-            ->whereNull('category_id');
+        // Buckets: group uncategorized items by catalog category.
+        $bucketRows = TenantInventoryItem::query()
+            ->where('tenant_inventory_items.tenant_id', $tenant->id)
+            ->whereNull('tenant_inventory_items.category_id')
+            ->leftJoin($catTable . ' as c', 'tenant_inventory_items.distributor_catalog_id', '=', 'c.id')
+            ->selectRaw('c.category as cat, count(*) as n')
+            ->groupBy('c.category')
+            ->get();
 
-        if ($fBrand) {
-            $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $fBrand));
+        $buckets = [];
+        $noneCount = 0;
+        foreach ($bucketRows as $r) {
+            if ($r->cat === null || $r->cat === '') { $noneCount += (int) $r->n; }
+            else { $buckets[] = ['key' => $r->cat, 'label' => $r->cat, 'count' => (int) $r->n]; }
         }
-        if ($fCatCat) {
-            $q->whereHas('distributorCatalog', fn ($w) => $w->where('category', $fCatCat));
-        }
-        if ($search) {
-            $q->where(function ($w) use ($search) {
-                $w->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%");
+        usort($buckets, fn ($a, $b) => $b['count'] <=> $a['count']);
+        $total = array_sum(array_column($buckets, 'count')) + $noneCount;
+
+        if ($bucket === '') { $bucket = $buckets[0]['key'] ?? '__none__'; }
+
+        // Active bucket worklist (bounded).
+        $wq = TenantInventoryItem::query()->with('distributorCatalog')
+            ->where('tenant_id', $tenant->id)->whereNull('category_id');
+        if ($bucket === '__none__') {
+            $wq->where(function ($w) {
+                $w->whereNull('distributor_catalog_id')
+                  ->orWhereHas('distributorCatalog', fn ($x) => $x->whereNull('category')->orWhere('category', ''));
             });
+        } else {
+            $wq->whereHas('distributorCatalog', fn ($x) => $x->where('category', $bucket));
         }
+        $all = $wq->orderBy('name')->limit(500)->get();
+        $bucketTotal = $all->count();
 
-        $items = $q->orderBy('name')->limit(500)->get();
-        $total = TenantInventoryItem::where('tenant_id', $tenant->id)->whereNull('category_id')->count();
+        // Size sub-groups (touch of A) — reuse the composer's data-driven patterns.
+        $composer = app(\App\Services\Distributors\CatalogTitleComposer::class);
+        $sizeCounts = [];
+        foreach ($all as $it) {
+            $cat  = $it->distributorCatalog;
+            $code = $cat->distributor_code ?? '*';
+            $desc = $cat->description ?? $it->name ?? '';
+            $tok  = $cat ? $composer->extractSize($code, (string) $desc) : '';
+            $dia  = '';
+            if ($tok !== '') {
+                $parts = preg_split('/[\x{00d7}xX]/u', $tok);
+                $dia = trim($parts[0] ?? '');
+            }
+            $it->_size = $tok;
+            $it->_dia  = $dia;
+            if ($dia !== '') { $sizeCounts[$dia] = ($sizeCounts[$dia] ?? 0) + 1; }
+        }
+        uksort($sizeCounts, fn ($a, $b) => (float) $b <=> (float) $a);
 
-        $catIds = TenantInventoryItem::where('tenant_id', $tenant->id)->whereNull('category_id')
-            ->whereNotNull('distributor_catalog_id')->pluck('distributor_catalog_id')->unique();
-        $brandOptions = \App\Models\PlatformDistributorCatalog::whereIn('id', $catIds)
-            ->whereNotNull('manufacturer')->distinct()->orderBy('manufacturer')->pluck('manufacturer');
-        $catCategoryOptions = \App\Models\PlatformDistributorCatalog::whereIn('id', $catIds)
-            ->whereNotNull('category')->distinct()->orderBy('category')->pluck('category');
+        $items = $size ? $all->filter(fn ($it) => $it->_dia === $size)->values() : $all;
 
-        $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
-            ->orderBy('name')->get();
+        // Category tree (nested by parent_id) with item counts.
+        $cats = TenantInventoryCategory::where('tenant_id', $tenant->id)->orderBy('name')->get();
+        $countsByCat = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->whereNotNull('category_id')->selectRaw('category_id, count(*) as n')
+            ->groupBy('category_id')->pluck('n', 'category_id');
+        $tree = $this->buildCategoryTree($cats, $countsByCat);
+        $pathMap = collect($tree)->keyBy('id');
 
-        $filters = ['brand' => $fBrand, 'cat' => $fCatCat, 'q' => $search];
+        // Recently used destinations (session).
+        $recentIds = collect(session('inv_recent_categories', []))->take(5)->values();
+        $recent = $recentIds->map(fn ($id) => $cats->firstWhere('id', $id))->filter()->values();
+        $recent->each(function ($c) use ($pathMap, $countsByCat) {
+            $c->_path  = $pathMap[$c->id]['path'] ?? $c->name;
+            $c->_count = (int) ($countsByCat[$c->id] ?? 0);
+        });
 
-        return view('tenant.inventory.uncategorized', compact(
-            'items', 'total', 'categories', 'brandOptions', 'catCategoryOptions', 'filters'
-        ));
+        return view('tenant.inventory.uncategorized', [
+            'buckets' => $buckets, 'noneCount' => $noneCount, 'total' => $total,
+            'activeBucket' => $bucket, 'items' => $items, 'sizeCounts' => $sizeCounts,
+            'activeSize' => $size, 'bucketTotal' => $bucketTotal,
+            'tree' => $tree, 'recent' => $recent,
+        ]);
+    }
+
+    /** Flatten tenant categories into a pre-ordered tree with depth + path + count. */
+    private function buildCategoryTree($cats, $counts, $parentId = null, int $depth = 0, string $parentPath = ''): array
+    {
+        $out = [];
+        $children = $parentId === null
+            ? $cats->whereNull('parent_id')
+            : $cats->where('parent_id', $parentId);
+        foreach ($children as $c) {
+            $path = $parentPath === '' ? $c->name : ($parentPath . ' › ' . $c->name);
+            $out[] = ['id' => $c->id, 'name' => $c->name, 'depth' => $depth,
+                      'path' => $path, 'count' => (int) ($counts[$c->id] ?? 0)];
+            $out = array_merge($out, $this->buildCategoryTree($cats, $counts, $c->id, $depth + 1, $path));
+        }
+        return $out;
     }
 
     public function uncategorizedAssign(Request $request): RedirectResponse
@@ -265,6 +326,12 @@ class InventoryController extends Controller
         }
 
         $count = $q->update(['category_id' => $category->id]);
+
+        // Remember this destination for quick re-pick (most-recent first, capped).
+        $recent = collect(session('inv_recent_categories', []))
+            ->reject(fn ($id) => $id === $category->id)
+            ->prepend($category->id)->take(8)->values()->all();
+        session(['inv_recent_categories' => $recent]);
 
         return back()->with('flash', [
             'type' => 'success',
