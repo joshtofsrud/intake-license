@@ -189,12 +189,10 @@ class DistributorController extends Controller
             ->where('tenant_id', $tenant->id)
             ->where('status', 'open');
 
-        if ($inStockOnly) {
-            // Title changes matter regardless of stock; only gate the pricing flags.
-            $q->where(function ($w) {
-                $w->where('reason', \App\Models\Tenant\TenantPricingAttentionFlag::REASON_TITLE_CHANGED)
-                    ->orWhereHas('item', fn ($i) => $i->where('computed_stock_count', '>', 0));
-            });
+        if ($stock === 'in') {
+            $q->whereHas('item', fn ($i) => $i->where('computed_stock_count', '>', 0));
+        } elseif ($stock === 'out') {
+            $q->whereHas('item', fn ($i) => $i->where('computed_stock_count', '<=', 0));
         }
         if ($fBrand) {
             $q->whereHas('item.distributorCatalog', fn ($w) => $w->where('manufacturer', $fBrand));
@@ -212,10 +210,14 @@ class DistributorController extends Controller
 
         // Chip counts reflect ALL open flags (not the current filter).
         $allOpen = \App\Models\Tenant\TenantPricingAttentionFlag::query()
-            ->where('tenant_id', $tenant->id)->where('status', 'open')->get(['reason']);
+            ->where('tenant_id', $tenant->id)->where('status', 'open')
+            ->with('item:id,computed_stock_count')->get();
         $allBy = $allOpen->countBy('reason');
+        $inCount = $allOpen->filter(fn ($f) => (int) ($f->item->computed_stock_count ?? 0) > 0)->count();
         $counts = [
             'total'     => $allOpen->count(),
+            'in'        => $inCount,
+            'out'       => $allOpen->count() - $inCount,
             'title'     => $allBy['title_changed'] ?? 0,
             'below_map' => $allBy['below_map'] ?? 0,
             'off_msrp'  => $allBy['off_msrp'] ?? 0,
@@ -237,7 +239,7 @@ class DistributorController extends Controller
         $filters = ['brand' => $fBrand, 'category' => $fCategory, 'reason' => $fReason];
 
         return view('tenant.distributors.attention', compact(
-            'flags', 'counts', 'inStockOnly', 'filters', 'brandOptions', 'categoryOptions'
+            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions'
         ));
     }
 
@@ -252,6 +254,7 @@ class DistributorController extends Controller
             'f_brand'    => ['nullable', 'string', 'max:128'],
             'f_category' => ['nullable', 'string', 'max:64'],
             'f_reason'   => ['nullable', 'string', 'max:32'],
+            'f_stock'    => ['nullable', 'string', 'in:all,in,out'],
         ]);
 
         $action = $data['action'];
@@ -271,6 +274,11 @@ class DistributorController extends Controller
             }
             if (filled($data['f_reason'] ?? null)) {
                 $q->where('reason', $data['f_reason']);
+            }
+            if (($data['f_stock'] ?? 'all') === 'in') {
+                $q->whereHas('item', fn ($w) => $w->where('computed_stock_count', '>', 0));
+            } elseif (($data['f_stock'] ?? 'all') === 'out') {
+                $q->whereHas('item', fn ($w) => $w->where('computed_stock_count', '<=', 0));
             }
         } else {
             $q->whereIn('id', $data['flag_ids'] ?? []);

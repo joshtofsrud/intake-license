@@ -21,6 +21,10 @@
 .at-b-title{background:rgba(190,242,100,.15);color:#cde98a}
 .at-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .at-sel{padding:7px 10px;border-radius:var(--ia-r-md);font-size:13px;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
+.at-seg{display:inline-flex;border:1px solid var(--ia-border-strong);border-radius:var(--ia-r-md);overflow:hidden;margin-bottom:14px}
+.at-segbtn{padding:8px 16px;font-size:13px;font-weight:600;color:var(--ia-text-dim);text-decoration:none;border-right:1px solid var(--ia-border-strong)}
+.at-segbtn:last-child{border-right:0}
+.at-segbtn.active{background:var(--ia-accent);color:var(--ia-accent-text)}
 .at-bar{position:sticky;bottom:0;background:var(--ia-surface);border-top:1px solid var(--ia-border);padding:14px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .at-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
 .at-btn.primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
@@ -61,7 +65,7 @@
   </div>
 
   <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter">
-    @unless($inStockOnly)<input type="hidden" name="all" value="1">@endunless
+    @if($stock !== 'all')<input type="hidden" name="stock" value="{{ $stock }}">@endif
     <select name="brand" class="at-sel">
       <option value="">All brands</option>
       @foreach(($brandOptions ?? []) as $b)<option value="{{ $b }}" @selected(($filters['brand'] ?? null)===$b)>{{ $b }}</option>@endforeach
@@ -78,16 +82,22 @@
     </select>
     <button class="at-btn primary" type="submit">Filter</button>
     @if(($filters['brand'] ?? null) || ($filters['category'] ?? null) || ($filters['reason'] ?? null))
-      <a class="at-btn" href="{{ route('tenant.distributors.attention', $inStockOnly ? [] : ['all' => 1]) }}">Clear</a>
+      <a class="at-btn" href="{{ route('tenant.distributors.attention', $stock !== 'all' ? ['stock' => $stock] : []) }}">Clear</a>
     @endif
   </form>
 
-  <div class="at-toggle" style="margin-bottom:12px">
-    @if($inStockOnly)
-      Showing in-stock items only · <a href="{{ route('tenant.distributors.attention', ['all' => 1]) }}">show all</a>
-    @else
-      Showing all flagged items · <a href="{{ route('tenant.distributors.attention') }}">in-stock only</a>
-    @endif
+  @php
+    $segLink = fn ($s) => route('tenant.distributors.attention', array_filter([
+        'stock'    => $s === 'all' ? null : $s,
+        'brand'    => $filters['brand'] ?? null,
+        'category' => $filters['category'] ?? null,
+        'reason'   => $filters['reason'] ?? null,
+    ]));
+  @endphp
+  <div class="at-seg">
+    <a class="at-segbtn {{ $stock === 'all' ? 'active' : '' }}" href="{{ $segLink('all') }}">All ({{ $counts['total'] }})</a>
+    <a class="at-segbtn {{ $stock === 'in' ? 'active' : '' }}" href="{{ $segLink('in') }}">In stock ({{ $counts['in'] ?? 0 }})</a>
+    <a class="at-segbtn {{ $stock === 'out' ? 'active' : '' }}" href="{{ $segLink('out') }}">Out of stock ({{ $counts['out'] ?? 0 }})</a>
   </div>
 
   @if($flags->isEmpty())
@@ -99,6 +109,7 @@
       <input type="hidden" name="f_brand" value="{{ $filters['brand'] ?? '' }}">
       <input type="hidden" name="f_category" value="{{ $filters['category'] ?? '' }}">
       <input type="hidden" name="f_reason" value="{{ $filters['reason'] ?? '' }}">
+      <input type="hidden" name="f_stock" value="{{ $stock }}">
       <script>function setAct(a){document.getElementById('at-action').value=a;}</script>
       <div class="at-card" style="padding:6px 14px">
         <table class="at-tbl">
