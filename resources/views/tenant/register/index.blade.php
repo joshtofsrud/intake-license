@@ -739,6 +739,17 @@
     <h2>Sale complete</h2>
     <div class="num" id="receiptNum"></div>
     <div class="total" id="receiptTotal"></div>
+    {{-- MARKER-PATCH-322 — print + email the receipt for this sale --}}
+    <div class="reg-receipt-actions" style="display:flex;gap:8px;justify-content:center;margin:6px 0 2px">
+      <button type="button" class="reg-btn-secondary" id="receiptPrintBtn">Print receipt</button>
+      <button type="button" class="reg-btn-secondary" id="receiptEmailBtn">Email receipt</button>
+    </div>
+    <div id="receiptEmailPrompt" style="display:none;gap:6px;justify-content:center;align-items:center;margin:8px 0 2px">
+      <input type="email" id="receiptEmailInput" placeholder="customer@email.com"
+        style="background:var(--ia-input-bg,#0a0a0a);border:0.5px solid var(--ia-border,rgba(255,255,255,.13));border-radius:8px;color:var(--ia-text,#f0f0f0);font-size:13px;padding:8px 11px;font-family:inherit;width:210px">
+      <button type="button" class="reg-btn-primary" id="receiptEmailSend">Send</button>
+    </div>
+    <div id="receiptEmailMsg" style="display:none;text-align:center;font-size:12px;margin-top:6px;color:var(--ia-text-dim)"></div>
     <div class="reg-modal-actions">
       {{-- MARKER-PATCH-232B — shown only when the register was opened with a return_to. --}}
       <a id="receiptBackTo" class="reg-btn-primary" style="display:none;text-decoration:none" href="#">Back</a>
@@ -794,6 +805,8 @@ const ROUTES = {
   checkoutSessionCreate: @json(url('/admin/register/checkout-session')),
   checkoutSessionCheck:  @json(url('/admin/register/checkout-session/check')),
   saleShow:              @json(route('tenant.register.sales.show', ['id' => '__ID__'])), {{-- MARKER-PATCH-195 --}}
+  saleReceipt:           @json(route('tenant.register.sales.receipt', ['id' => '__ID__'])), {{-- MARKER-PATCH-322 --}}
+  resendReceipt:         @json(route('tenant.sales.resend_receipt', ['id' => '__ID__'])), {{-- MARKER-PATCH-322 --}}
   checkoutSessionCancel: @json(url('/admin/register/checkout-session/cancel')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
@@ -2060,7 +2073,7 @@ async function checkPaymentLinkStatus() {
       stopPaymentLinkPolling();
       closeModal('paymentLinkModal');
       // Show the receipt screen using the existing flow
-      showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents });
+      showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents, sale_id: data.sale_id }); // MARKER-PATCH-322
       // Clear cart since the sale completed
       cart.draft_id = null;
       cart.customer = null;
@@ -2335,6 +2348,8 @@ function openPreflightModal(blocker) {
 const RECEIPT_AUTO_RESET_SECONDS = 45;
 let receiptResetTimer = null;
 let receiptCountdownTimer = null;
+let receiptSaleId = null;        // MARKER-PATCH-322
+let receiptCustomerEmail = null; // MARKER-PATCH-322
 
 function clearReceiptTimers() {
   if (receiptResetTimer) { clearTimeout(receiptResetTimer); receiptResetTimer = null; }
@@ -2361,6 +2376,18 @@ function showReceipt(data) {
   document.getElementById('receiptNum').textContent = data.sale_number;
   document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
   openModal('receiptModal');
+
+  // MARKER-PATCH-322 — capture the sale for print/email before the cart clears.
+  receiptSaleId = data.sale_id || null;
+  receiptCustomerEmail = (typeof cart !== 'undefined' && cart && cart.customer && cart.customer.email) ? cart.customer.email : null;
+  var _rPrint = document.getElementById('receiptPrintBtn');
+  var _rEmail = document.getElementById('receiptEmailBtn');
+  var _rPrompt = document.getElementById('receiptEmailPrompt');
+  var _rMsg = document.getElementById('receiptEmailMsg');
+  if (_rPrint) _rPrint.style.display = receiptSaleId ? '' : 'none';
+  if (_rEmail) _rEmail.style.display = receiptSaleId ? '' : 'none';
+  if (_rPrompt) _rPrompt.style.display = 'none';
+  if (_rMsg) { _rMsg.style.display = 'none'; _rMsg.textContent = ''; }
 
   // MARKER-PATCH-232B — round-trip receipts: when the register was opened
   // with a return_to, the receipt offers (and the countdown takes) the way
@@ -2395,6 +2422,75 @@ function showReceipt(data) {
 }
 
 document.getElementById('receiptNewSale').addEventListener('click', () => { resetRegisterToFresh(); });
+
+// MARKER-PATCH-322 — print + email the just-completed receipt.
+(function () {
+  var printBtn = document.getElementById('receiptPrintBtn');
+  var emailBtn = document.getElementById('receiptEmailBtn');
+  var promptEl = document.getElementById('receiptEmailPrompt');
+  var inputEl  = document.getElementById('receiptEmailInput');
+  var sendEl   = document.getElementById('receiptEmailSend');
+  var msgEl    = document.getElementById('receiptEmailMsg');
+
+  // Stop the auto-reset countdown once the cashier interacts here.
+  function holdReset() {
+    try { clearReceiptTimers(); } catch (e) {}
+    var a = document.getElementById('receiptAutoReset');
+    if (a) a.style.display = 'none';
+  }
+
+  if (printBtn) printBtn.addEventListener('click', function () {
+    if (!receiptSaleId || !ROUTES.saleReceipt) return;
+    holdReset();
+    var url = ROUTES.saleReceipt.replace('__ID__', encodeURIComponent(receiptSaleId)) + '?embed=1';
+    var f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    f.src = url;
+    f.onload = function () {
+      try { f.contentWindow.focus(); f.contentWindow.print(); }
+      catch (e) { window.open(url.replace('?embed=1', ''), '_blank'); }
+      setTimeout(function () { f.remove(); }, 2000);
+    };
+    document.body.appendChild(f);
+  });
+
+  function sendReceipt(email) {
+    if (!receiptSaleId || !ROUTES.resendReceipt) return;
+    var url = ROUTES.resendReceipt.replace('__ID__', encodeURIComponent(receiptSaleId));
+    var token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (sendEl) sendEl.disabled = true;
+    fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+      body: email ? ('email=' + encodeURIComponent(email)) : ''
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (sendEl) sendEl.disabled = false;
+      if (d && d.ok) {
+        var to = email || receiptCustomerEmail;
+        if (msgEl) { msgEl.style.display = ''; msgEl.textContent = 'Receipt sent' + (to ? ' to ' + to : '') + '.'; }
+        if (promptEl) promptEl.style.display = 'none';
+      } else if (msgEl) {
+        msgEl.style.display = ''; msgEl.textContent = (d && d.error) || 'Could not send receipt.';
+      }
+    })
+    .catch(function () { if (sendEl) sendEl.disabled = false; if (msgEl) { msgEl.style.display = ''; msgEl.textContent = 'Could not send receipt.'; } });
+  }
+
+  if (emailBtn) emailBtn.addEventListener('click', function () {
+    if (!receiptSaleId) return;
+    holdReset();
+    if (receiptCustomerEmail) { sendReceipt(null); }
+    else { if (promptEl) promptEl.style.display = 'flex'; if (inputEl) inputEl.focus(); }
+  });
+  if (sendEl) sendEl.addEventListener('click', function () {
+    var v = ((inputEl && inputEl.value) || '').trim();
+    if (!v || v.indexOf('@') < 0) { if (inputEl) inputEl.focus(); return; }
+    sendReceipt(v);
+  });
+  if (inputEl) inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (sendEl) sendEl.click(); } });
+})();
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
