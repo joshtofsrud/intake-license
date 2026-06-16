@@ -5,7 +5,7 @@
 @php
   // MARKER-PATCH-317 — lay out at the PRINTABLE width, not the roll width,
   // so nothing reaches the printer's unprintable right edge.
-  $pageMm    = ($tag['paper'] ?? '80mm') === '58mm' ? '48mm' : '72mm';
+  $pageMm    = ($tag['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm'; // MARKER-PATCH-318 — safety margin vs clip
   $logoMax   = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$tag['logo_size'] ?? 'medium'] ?? '18mm';
   $name      = method_exists($appointment, 'customerName')
                  ? $appointment->customerName()
@@ -27,7 +27,9 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #fff; }
   body { width: {{ $pageMm }}; color: #000; font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
-  .slip { width: 100%; margin: 0; padding: 4mm 3mm 2mm; font-size: 11px; line-height: 1.45; }
+  .slip { width: 100%; margin: 0; padding: 4mm 3mm 2mm; font-size: 11px; line-height: 1.45; overflow: hidden; }
+  .slip * { max-width: 100%; }
+  .slip img { max-width: 100%; height: auto; }
   .slip + .slip { page-break-before: always; }
   .ctr { text-align: center; }
   .hr  { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
@@ -35,16 +37,17 @@
   .logo { max-width: 100%; max-height: {{ $logoMax }}; display: block; margin: 0 auto 4px; }
   .lbl { font-size: 10px; letter-spacing: .16em; }
   .jobrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .jobrow > div:first-child { min-width: 0; flex: 1; }
   .jobnum { font-size: 24px; font-weight: 700; line-height: 1; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 2px 0; font-size: 11px; vertical-align: top; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  td { padding: 2px 0; font-size: 11px; vertical-align: top; word-break: break-word; overflow-wrap: anywhere; }
   td.r { text-align: right; font-weight: 700; }
   .svc { font-size: 11px; }
   .note { font-size: 10px; }
   .stub { border: 1.5px solid #000; padding: 6px 8px; margin-top: 2px; }
   .stub .sj { font-size: 19px; font-weight: 700; }
   .scissors { text-align: center; font-size: 10px; letter-spacing: .14em; margin: 8px 0 4px; }
-  .qr { width: 20mm; height: 20mm; }
+  .qr { width: 18mm; height: 18mm; flex-shrink: 0; }
   .qr img, .qr canvas { width: 100% !important; height: 100% !important; }
   .qrfallback { font-size: 8px; word-break: break-all; }
   @media screen {
