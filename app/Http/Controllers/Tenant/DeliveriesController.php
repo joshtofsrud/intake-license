@@ -61,6 +61,8 @@ class DeliveriesController extends Controller
             'paper'     => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
             'logo_path' => $cfg['logo_path'] ?? null,
             'logo_size' => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium',
+            'header_text' => (string) ($cfg['header_text'] ?? ''), // MARKER-PATCH-330
+            'footer_text' => (string) ($cfg['footer_text'] ?? ''), // MARKER-PATCH-330
             'feed_mm'   => (int) ($cfg['feed_mm'] ?? 0),
         ];
         $embed     = $request->boolean('embed');
@@ -122,6 +124,8 @@ class DeliveriesController extends Controller
             'paper'     => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
             'logo_path' => $cfg['logo_path'] ?? null,
             'logo_size' => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium',
+            'header_text' => (string) ($cfg['header_text'] ?? ''), // MARKER-PATCH-330
+            'footer_text' => (string) ($cfg['footer_text'] ?? ''), // MARKER-PATCH-330
             'feed_mm'   => (int) ($cfg['feed_mm'] ?? 0),
         ];
         $embed     = $request->boolean('embed');

@@ -59,6 +59,8 @@ class SettingsController extends Controller
         $request->validate([
             'wot_lead_days' => ['nullable', 'integer', 'min:0', 'max:30'],
             'wot_paper'     => ['nullable', 'in:80mm,58mm'],
+            'wot_header_text' => ['nullable', 'string', 'max:500'], // MARKER-PATCH-330
+            'wot_footer_text' => ['nullable', 'string', 'max:500'], // MARKER-PATCH-330
             'wot_logo'      => ['nullable', 'image', 'max:2048'],
         ]);
 
@@ -77,6 +79,8 @@ class SettingsController extends Controller
         $wot['paper']         = $request->input('wot_paper', '80mm');
         $wot['logo_size']     = in_array($request->input('wot_logo_size'), ['small', 'medium', 'large', 'xl'], true) ? $request->input('wot_logo_size') : 'medium'; // MARKER-PATCH-317
         $wot['feed_mm']       = max(0, min(40, (int) $request->input('wot_feed_mm', 0))); // MARKER-PATCH-320
+        $wot['header_text']   = trim((string) $request->input('wot_header_text', '')); // MARKER-PATCH-330
+        $wot['footer_text']   = trim((string) $request->input('wot_footer_text', '')); // MARKER-PATCH-330
 
         if ($request->hasFile('wot_logo')) {
             $wot['logo_path'] = $request->file('wot_logo')->store("tenants/{$tenant->id}/work-order-tag", 'public');
