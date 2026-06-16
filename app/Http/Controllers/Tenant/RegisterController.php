@@ -970,7 +970,6 @@ class RegisterController extends Controller
             'logo_path' => $cfg['logo_path'] ?? null,
             'logo_size' => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium',
             'feed_mm'   => (int) ($cfg['feed_mm'] ?? 0), // MARKER-PATCH-320
-            'feed_mm'   => (int) ($cfg['feed_mm'] ?? 0), // MARKER-PATCH-320
         ];
         $embed = $request->boolean('embed');
 

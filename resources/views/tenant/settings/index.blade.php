@@ -1522,24 +1522,6 @@
           </div>
           <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Try 10&ndash;15mm if the last line cuts too close.</div>
         </div>
-        {{-- MARKER-PATCH-320 --}}
-        <div class="ia-form-group">
-          <label class="ia-form-label">Extra paper after cut</label>
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="number" name="wot_feed_mm" value="{{ $wotFeed }}" min="0" max="40" class="ia-input" style="width:84px">
-            <span style="font-size:13px;color:var(--ia-muted)">mm of feed so it clears the cutter</span>
-          </div>
-          <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Try 10&ndash;15mm if the last line cuts too close.</div>
-        </div>
-        {{-- MARKER-PATCH-320 --}}
-        <div class="ia-form-group">
-          <label class="ia-form-label">Extra paper after cut</label>
-          <div style="display:flex;align-items:center;gap:8px">
-            <input type="number" name="wot_feed_mm" value="{{ $wotFeed }}" min="0" max="40" class="ia-input" style="width:84px">
-            <span style="font-size:13px;color:var(--ia-muted)">mm of feed so it clears the cutter</span>
-          </div>
-          <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Try 10&ndash;15mm if the last line cuts too close.</div>
-        </div>
       </div>
     </div>
 
