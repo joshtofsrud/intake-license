@@ -47,6 +47,11 @@
       @if($item->category)
         &nbsp;·&nbsp; {{ $item->category->name }}
       @endif
+      {{-- MARKER-PATCH-HLC18 --}}
+      @php $mpn = $item->distributorCatalog?->display_subtitle ?: $item->distributorCatalog?->manufacturer_sku; @endphp
+      @if($mpn)
+        &nbsp;·&nbsp; MPN <code>{{ $mpn }}</code>
+      @endif
     </p>
   </div>
   <div class="ia-page-actions">

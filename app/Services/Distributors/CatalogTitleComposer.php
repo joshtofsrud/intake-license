@@ -40,12 +40,21 @@ class CatalogTitleComposer
         );
         $size = $this->extractSize($distributorCode, (string) ($parts['description'] ?? ''));
 
+        $brand = trim((string) ($parts['brand'] ?? ''));
+        $model = trim((string) ($parts['model'] ?? ''));
+        $mpn   = trim((string) ($parts['mpn'] ?? ''));
+        // HLC sometimes bakes the MPN into the product name; strip a trailing
+        // copy so it doesn't duplicate the subtitle.
+        if ($mpn !== '' && str_ends_with($model, $mpn)) {
+            $model = rtrim(substr($model, 0, -strlen($mpn)), " -,");
+        }
+
         $tokens = [
-            'brand' => trim((string) ($parts['brand'] ?? '')),
-            'model' => trim((string) ($parts['model'] ?? '')),
+            'brand' => $brand,
+            'model' => $model,
             'size'  => $size,
             'color' => $color,
-            'mpn'   => trim((string) ($parts['mpn'] ?? '')),
+            'mpn'   => $mpn,
         ];
 
         return [
