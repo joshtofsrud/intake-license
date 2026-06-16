@@ -975,6 +975,27 @@ class RegisterController extends Controller
         return view('tenant.register.receipt', compact('tenant', 'sale', 'print', 'embed'));
     }
 
+    // MARKER-PATCH-319 — render the printable 80mm sales receipt.
+    public function printReceipt(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'items', 'payments'])
+            ->firstOrFail();
+
+        $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
+        $print = [
+            'paper'     => in_array(($cfg['paper'] ?? '80mm'), ['80mm', '58mm'], true) ? ($cfg['paper'] ?? '80mm') : '80mm',
+            'logo_path' => $cfg['logo_path'] ?? null,
+            'logo_size' => in_array(($cfg['logo_size'] ?? 'medium'), ['small', 'medium', 'large', 'xl'], true) ? ($cfg['logo_size'] ?? 'medium') : 'medium',
+        ];
+        $embed = $request->boolean('embed');
+
+        return view('tenant.register.receipt', compact('tenant', 'sale', 'print', 'embed'));
+    }
+
     public function showSaleJson(Request $request, string $id): JsonResponse
     {
         $tenant = tenant();
