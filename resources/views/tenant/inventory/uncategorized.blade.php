@@ -188,7 +188,8 @@
     div.style.cssText = 'display:flex;align-items:center;gap:7px;padding:6px 8px;padding-left:' + (8 + (c.depth || 0) * 16) + 'px;border-radius:6px;cursor:pointer;font-size:13px';
     div.innerHTML = (c.depth > 0 ? '<span style="color:var(--ia-text-mute);font-family:var(--ia-mono);font-size:12px">&#9492;</span> ' : '') + c.name + ' <span style="margin-left:auto;font-size:11px;color:var(--ia-text-mute);font-family:var(--ia-mono)">0</span>';
     div.onclick = function(){ ucPick(c.id, 0, c.path); };
-    tree.appendChild(div);
+    const parentEl = parent ? document.querySelector('.uc-node[data-cid="' + parent + '"]') : null;
+    if (parentEl) { parentEl.insertAdjacentElement('afterend', div); } else { tree.appendChild(div); }
     // Make the new category immediately available as a parent for the next create.
     const psel = document.getElementById('ucNewParent');
     if (psel && !psel.querySelector('option[value="' + c.id + '"]')) {

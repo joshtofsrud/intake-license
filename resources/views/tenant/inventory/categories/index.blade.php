@@ -5,12 +5,12 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Categories</h1>
-    <p class="ia-page-subtitle">
-      <a href="{{ route('tenant.inventory.index') }}">← Back to inventory</a>
-    </p>
+    <h1 class="ia-page-title">Inventory</h1>
+    <p class="ia-page-subtitle">{{ $categories->count() }} {{ \Illuminate\Support\Str::plural('category', $categories->count()) }}</p>
   </div>
 </div>
+
+@include('layouts.tenant._inventory-tabs')
 
 @if(session('flash'))
   <div class="ia-flash ia-flash--{{ session('flash')['type'] }}">{{ session('flash')['message'] }}</div>

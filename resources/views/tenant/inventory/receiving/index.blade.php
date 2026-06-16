@@ -58,11 +58,11 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Receiving</h1>
+    <h1 class="ia-page-title">Inventory</h1>{{-- MARKER-PATCH-HLC27-RECV-H1 --}}
     <p class="ia-page-subtitle">Shipments and stock receipts</p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.inventory.index') }}" class="ia-btn ia-btn--ghost">← Inventory</a>
+{{-- MARKER-PATCH-HLC27-RECV-BACK: back link replaced by inventory tabs --}}
     <form method="POST" action="{{ route('tenant.inventory.receiving.create') }}" style="display:inline">
       @csrf
       <button type="submit" class="ia-btn ia-btn--primary">+ New shipment</button>
@@ -76,6 +76,8 @@
     </form>
   </div>
 </div>
+
+@include('layouts.tenant._inventory-tabs')
 
 @if(session('flash'))
   <div class="ia-flash ia-flash--{{ session('flash')['type'] }}">{{ session('flash')['message'] }}</div>
