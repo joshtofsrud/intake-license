@@ -178,7 +178,7 @@ class DistributorController extends Controller
     {
         $this->guard();
         $tenant = tenant();
-        $inStockOnly = ! $request->boolean('all');
+        $stock = in_array($request->query('stock'), ['in', 'out'], true) ? $request->query('stock') : 'all';
 
         $q = \App\Models\Tenant\TenantPricingAttentionFlag::query()
             ->with('item')
