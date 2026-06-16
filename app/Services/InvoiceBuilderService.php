@@ -51,6 +51,7 @@ class InvoiceBuilderService
                 $lines[] = ['name' => $ad->addon_name_snapshot, 'add' => true, 'cents' => (int) $ad->price_cents];
             }
             $assetGroups[] = [
+                'id'       => $a->id, // MARKER-PATCH-333
                 'name'     => $a->asset_name_snapshot ?: 'Asset',
                 'lines'    => $lines,
                 'subtotal' => (int) $a->subtotal_cents,
