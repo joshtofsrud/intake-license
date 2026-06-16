@@ -105,7 +105,8 @@
 
     <div class="sig">Received by / signature</div>
 
-    @if($feedMm)<div style="height:{{ $feedMm }}"></div>@endif
+    @php $feedRows = (int) ceil(((int) ($print['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
+    @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
   </div>
 @empty
   <div class="slip">

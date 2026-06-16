@@ -143,7 +143,8 @@
       </div>
     @endif
 
-    @if($feedMm)<div style="height:{{ $feedMm }}"></div>@endif{{-- MARKER-PATCH-320 --}}
+    @php $feedRows = (int) ceil(((int) ($tag['feed_mm'] ?? 0)) / 3); @endphp{{-- MARKER-PATCH-327 --}}
+    @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
   </div>
 @endforeach
 
