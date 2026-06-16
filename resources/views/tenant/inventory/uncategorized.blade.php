@@ -189,6 +189,14 @@
     div.innerHTML = (c.depth > 0 ? '<span style="color:var(--ia-text-mute);font-family:var(--ia-mono);font-size:12px">&#9492;</span> ' : '') + c.name + ' <span style="margin-left:auto;font-size:11px;color:var(--ia-text-mute);font-family:var(--ia-mono)">0</span>';
     div.onclick = function(){ ucPick(c.id, 0, c.path); };
     tree.appendChild(div);
+    // Make the new category immediately available as a parent for the next create.
+    const psel = document.getElementById('ucNewParent');
+    if (psel && !psel.querySelector('option[value="' + c.id + '"]')) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = '— '.repeat(c.depth || 0) + c.name;
+      psel.appendChild(opt);
+    }
     ucPick(c.id, 0, c.path);
     ucToggleNew();
     document.getElementById('ucNewName').value = '';
