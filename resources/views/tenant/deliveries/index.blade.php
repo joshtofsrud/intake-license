@@ -784,6 +784,8 @@
           <button type="button" class="del-btn del-btn--danger" id="del-cancel-btn" style="display:none;" onclick="delCancel()">Cancel</button>
         </div>
         <div class="del-drawer-foot-right">
+          {{-- MARKER-PATCH-329 --}}
+          <button type="button" class="del-btn del-btn--ghost" id="del-print-btn" style="display:none;" onclick="delPrintSlip()">&#9113; Print</button>
           <button type="button" class="del-btn del-btn--ghost" onclick="delCloseDrawer()">Close</button>
           {{-- MARKER-PATCH-157 — hidden notify flag, set by the two save buttons --}}
           <input type="hidden" name="notify" id="del-notify-flag" value="0">
@@ -828,6 +830,7 @@
   };
 
   function delOpenCreate(type) {
+    { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = 'none'; } // MARKER-PATCH-329
     window.delEditing = null;
     document.getElementById('del-drawer-bg').classList.add('is-open');
     document.getElementById('del-drawer').classList.add('is-open');
@@ -860,10 +863,27 @@
     document.getElementById('del-save-notify-btn').textContent = 'Save & notify';
   }
 
+  // MARKER-PATCH-329 — print this delivery's receipt via a hidden iframe.
+  window.delPrintSlip = function () {
+    var id = window.delEditing;
+    if (!id) return;
+    var url = window.location.origin + '/admin/deliveries/' + id + '/slip?embed=1';
+    var f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    f.src = url;
+    f.onload = function () {
+      try { f.contentWindow.focus(); f.contentWindow.print(); }
+      catch (e) { window.open(url.replace('?embed=1',''), '_blank'); }
+      setTimeout(function () { f.remove(); }, 2000);
+    };
+    document.body.appendChild(f);
+  };
+
   function delOpenEdit(id) {
     var d = window.delDeliveries[id];
     if (!d) return;
     window.delEditing = id;
+    { var _pb = document.getElementById('del-print-btn'); if (_pb) _pb.style.display = ''; } // MARKER-PATCH-329
     document.getElementById('del-drawer-bg').classList.add('is-open');
     document.getElementById('del-drawer').classList.add('is-open');
     document.getElementById('del-drawer-title').textContent = 'Edit ' + d.type;
