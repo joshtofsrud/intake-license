@@ -23,6 +23,7 @@ class TenantPricingAttentionFlag extends Model
     public const REASON_MSRP_VANISHED = 'msrp_vanished';
     public const REASON_BELOW_MAP     = 'below_map';
     public const REASON_OFF_MSRP      = 'off_msrp';
+    public const REASON_TITLE_CHANGED = 'title_changed';
 
     protected $fillable = [
         'tenant_id',

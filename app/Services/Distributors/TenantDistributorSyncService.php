@@ -266,9 +266,28 @@ class TenantDistributorSyncService
                 $this->resolveFlag($tenantId, $item, $reason, $dryRun, $res);
             }
         }
+
+        // Title / identity drift — NOT stock-gated; a renamed catalog item
+        // matters regardless of stock. Never auto-applied: the tenant adopts or
+        // keeps their own name from the attention surface.
+        $titleNow = $cat->display_name;
+        if ($titleNow !== null && $titleNow !== '' && $titleNow !== $item->catalog_title_seen) {
+            $this->openFlag(
+                $tenantId, $item, $cat,
+                TenantPricingAttentionFlag::REASON_TITLE_CHANGED, null, $dryRun, $res,
+                [
+                    'old'               => $item->catalog_title_seen,
+                    'new'               => $titleNow,
+                    'current_item_name' => $item->name,
+                    'at'                => now()->toIso8601String(),
+                ]
+            );
+        } else {
+            $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_TITLE_CHANGED, $dryRun, $res);
+        }
     }
 
-    private function openFlag(string $tenantId, TenantInventoryItem $item, PlatformDistributorCatalog $cat, string $reason, ?int $prevCost, bool $dryRun, array &$res): void
+    private function openFlag(string $tenantId, TenantInventoryItem $item, PlatformDistributorCatalog $cat, string $reason, ?int $prevCost, bool $dryRun, array &$res, ?array $detailOverride = null): void
     {
         $existing = TenantPricingAttentionFlag::query()
             ->where('tenant_id', $tenantId)
@@ -285,7 +304,7 @@ class TenantDistributorSyncService
             return;
         }
 
-        $detail = [
+        $detail = $detailOverride ?? [
             'prev_cost_cents' => $prevCost,
             'prev_map_cents'  => $cat->prev_map_cents,
             'prev_msrp_cents' => $cat->prev_msrp_cents,

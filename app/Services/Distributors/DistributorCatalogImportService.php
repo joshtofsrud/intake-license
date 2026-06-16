@@ -173,6 +173,7 @@ class DistributorCatalogImportService
             'catalog_map_cents'      => $cat->map_cents,
             'catalog_case_quantity'  => $cat->case_quantity,
             'catalog_upc'            => $cat->upc,
+            'catalog_title_seen'     => $cat->display_name, // baseline for the title-change watch
             'shop_sell_price_cents'  => $cat->map_cents ?? $cat->msrp_cents, // first-link seed
             'computed_stock_count'   => 0,
             'is_stock_tracked'       => false, // catalog-only

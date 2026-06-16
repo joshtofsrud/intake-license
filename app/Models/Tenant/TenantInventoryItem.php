@@ -48,6 +48,7 @@ class TenantInventoryItem extends Model
         'catalog_map_cents',
         'catalog_case_quantity',
         'catalog_upc',
+        'catalog_title_seen',
         'catalog_synced_at',
         'price_ack_at',
         'price_ack_by',
