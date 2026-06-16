@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class CatalogTitleSetting extends Model
 {
     protected $fillable = [
-        'distributor_code', 'title_template', 'subtitle_template',
+        'distributor_code', 'title_template', 'subtitle_template', 'search_template',
         'color_attribute_priority', 'is_active', 'notes',
     ];
 

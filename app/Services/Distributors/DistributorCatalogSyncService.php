@@ -180,14 +180,18 @@ class DistributorCatalogSyncService
         $canonical['is_active']       = true;
 
         $composed = $this->composer->compose($code, [
-            'brand'       => $canonical['manufacturer'] ?? null,
-            'model'       => $canonical['name'] ?? null,
-            'mpn'         => $canonical['manufacturer_sku'] ?? null,
-            'description' => $canonical['description'] ?? ($variant['Description'] ?? ''),
-            'attributes'  => $variant['Attributes'] ?? ($canonical['attributes'] ?? []),
+            'brand'         => $canonical['manufacturer'] ?? null,
+            'model'         => $canonical['name'] ?? null,
+            'mpn'           => $canonical['manufacturer_sku'] ?? null,
+            'description'   => $canonical['description'] ?? ($variant['Description'] ?? ''),
+            'attributes'    => $variant['Attributes'] ?? ($canonical['attributes'] ?? []),
+            'category'      => $canonical['category'] ?? null,
+            'category_path' => $canonical['category_path'] ?? null,
+            'unit'          => $canonical['uom'] ?? null,
         ]);
         $canonical['display_name']     = $composed['title'] !== '' ? $composed['title'] : ($canonical['name'] ?? null);
         $canonical['display_subtitle'] = $composed['subtitle'] !== '' ? $composed['subtitle'] : null;
+        $canonical['search_text']      = ($composed['search'] ?? '') !== '' ? $composed['search'] : null;
 
         PlatformDistributorCatalog::query()->updateOrCreate(
             ['distributor_code' => $code, 'distributor_variant_no' => $vno],

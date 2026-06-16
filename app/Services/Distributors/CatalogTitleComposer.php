@@ -33,9 +33,10 @@ class CatalogTitleComposer
     public function compose(string $distributorCode, array $parts): array
     {
         $setting = $this->setting($distributorCode);
+        $attrs = $parts['attributes'] ?? [];
 
         $color = $this->pickColor(
-            $parts['attributes'] ?? [],
+            $attrs,
             $setting->color_attribute_priority ?: self::FALLBACK_COLOR_PRIORITY
         );
         $size = $this->extractSize($distributorCode, (string) ($parts['description'] ?? ''));
@@ -49,25 +50,62 @@ class CatalogTitleComposer
             $model = rtrim(substr($model, 0, -strlen($mpn)), " -,");
         }
 
+        // {type} = specific category (L1, from `category`); {type0} = broad
+        // category (L0, the first segment of `category_path` = "L0 > L1 > ...").
+        $type  = trim((string) ($parts['category'] ?? ''));
+        $type0 = '';
+        $cp = trim((string) ($parts['category_path'] ?? ''));
+        if ($cp !== '') {
+            $segs = array_values(array_filter(array_map('trim', preg_split('/>+/', $cp))));
+            $type0 = $segs[0] ?? '';
+            if ($type === '' && $segs) { $type = (string) end($segs); }
+        }
+        $unit = trim((string) ($parts['unit'] ?? ''));
+
         $tokens = [
-            'brand' => $brand,
-            'model' => $model,
-            'size'  => $size,
-            'color' => $color,
-            'mpn'   => $mpn,
+            'brand' => $brand, 'model' => $model, 'size' => $size,
+            'color' => $color, 'mpn' => $mpn,
+            'type'  => $type,  'type0' => $type0, 'unit' => $unit,
         ];
 
+        // Resolver handles static tokens plus dynamic {attr:NAME} and {allattr}.
+        $resolve = function (string $name) use ($tokens, $attrs): string {
+            $name = trim($name);
+            if ($name === 'allattr') {
+                $out = [];
+                foreach ($attrs as $a) {
+                    if (is_array($a) && isset($a['Name'], $a['Value']) && trim((string) $a['Value']) !== '') {
+                        $out[] = trim($a['Name'] . ' ' . $a['Value']);
+                    }
+                }
+                return implode(' ', $out);
+            }
+            if (str_starts_with($name, 'attr:')) {
+                $want = trim(substr($name, 5));
+                foreach ($attrs as $a) {
+                    if (is_array($a) && isset($a['Name'], $a['Value'])
+                        && strcasecmp((string) $a['Name'], $want) === 0) {
+                        return trim((string) $a['Value']);
+                    }
+                }
+                return '';
+            }
+            return $tokens[$name] ?? '';
+        };
+
         return [
-            'title'    => $this->render($setting->title_template ?: self::FALLBACK_TITLE, $tokens),
-            'subtitle' => $this->render($setting->subtitle_template ?: self::FALLBACK_SUBTITLE, $tokens),
+            'title'    => $this->render($setting->title_template ?: self::FALLBACK_TITLE, $resolve),
+            'subtitle' => $this->render($setting->subtitle_template ?: self::FALLBACK_SUBTITLE, $resolve),
+            'search'   => $this->render((string) ($setting->search_template ?? ''), $resolve),
             'size'     => $size,
             'color'    => $color,
         ];
     }
 
-    private function render(string $template, array $tokens): string
+    private function render(string $template, callable $resolve): string
     {
-        $out = preg_replace_callback('/\{(\w+)\}/', fn ($m) => $tokens[$m[1]] ?? '', $template);
+        if ($template === '') { return ''; }
+        $out = preg_replace_callback('/\{([^}]+)\}/', fn ($m) => $resolve($m[1]), $template);
         $out = preg_replace('/\s{2,}/', ' ', (string) $out);   // collapse gaps left by empty tokens
         return trim((string) $out, " \t\n\r\0\x0B-·|,");        // trim stray separators too
     }
