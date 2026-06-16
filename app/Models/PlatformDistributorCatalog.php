@@ -30,6 +30,8 @@ class PlatformDistributorCatalog extends Model
         'manufacturer_sku',
         'distributor_variant_no',
         'name',
+        'display_name',
+        'display_subtitle',
         'manufacturer',
         'category',
         'description',

@@ -4,6 +4,7 @@
 namespace App\Services\Distributors;
 
 use App\Models\PlatformDistributorCatalog;
+use App\Services\Distributors\CatalogTitleComposer;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +18,10 @@ use Illuminate\Support\Facades\DB;
  */
 class DistributorCatalogSyncService
 {
-    public function __construct(private readonly DistributorMapResolver $resolver) {}
+    public function __construct(
+        private readonly DistributorMapResolver $resolver,
+        private readonly CatalogTitleComposer $composer,
+    ) {}
 
     /**
      * @return array{code:string,pages:int,seen:int,written:int,skipped_delta:int,map_vanished:int,msrp_vanished:int,errors:array<string>}
@@ -174,6 +178,16 @@ class DistributorCatalogSyncService
         $canonical['source_raw']      = $variant;
         $canonical['last_synced_at']  = now();
         $canonical['is_active']       = true;
+
+        $composed = $this->composer->compose($code, [
+            'brand'       => $canonical['manufacturer'] ?? null,
+            'model'       => $canonical['name'] ?? null,
+            'mpn'         => $canonical['manufacturer_sku'] ?? null,
+            'description' => $canonical['description'] ?? ($variant['Description'] ?? ''),
+            'attributes'  => $variant['Attributes'] ?? ($canonical['attributes'] ?? []),
+        ]);
+        $canonical['display_name']     = $composed['title'] !== '' ? $composed['title'] : ($canonical['name'] ?? null);
+        $canonical['display_subtitle'] = $composed['subtitle'] !== '' ? $composed['subtitle'] : null;
 
         PlatformDistributorCatalog::query()->updateOrCreate(
             ['distributor_code' => $code, 'distributor_variant_no' => $vno],
