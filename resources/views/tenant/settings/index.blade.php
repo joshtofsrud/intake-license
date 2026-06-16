@@ -1460,7 +1460,7 @@
   </style>
 
   <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section set-section--grid" data-dirty-form>
-    @csrf
+    @csrf @method('PATCH') {{-- MARKER-PATCH-316 --}}
     <input type="hidden" name="tab" value="tags">
 
     <div class="set-savebar" data-savebar>
