@@ -79,6 +79,10 @@
   </div>
   <div class="appt-drawer-foot">
     <a href="#" class="ia-btn ia-btn--primary" id="drawer-fullview">Open full view</a>
+    {{-- MARKER-PATCH-328 --}}
+    @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
+    <button type="button" class="ia-btn ia-btn--ghost" id="drawer-printtag">&#9113; Print tag</button>
+    @endif
     <button type="button" class="ia-btn ia-btn--ghost" id="drawer-close-2">Close</button>
   </div>
 </aside>
@@ -92,6 +96,8 @@
   var closeBtn = document.getElementById('drawer-close');
   var closeBtn2= document.getElementById('drawer-close-2');
   var fullLink = document.getElementById('drawer-fullview');
+  var printTagBtn = document.getElementById('drawer-printtag'); // MARKER-PATCH-328
+  var currentApptId = null; // MARKER-PATCH-328
   var raEl     = document.getElementById('drawer-ra');
   var titleEl  = document.getElementById('drawer-title');
   var bodyEl   = document.getElementById('drawer-body');
@@ -102,6 +108,20 @@
   backdrop.addEventListener('click', closeDrawer);
   closeBtn.addEventListener('click', closeDrawer);
   closeBtn2.addEventListener('click', closeDrawer);
+  // MARKER-PATCH-328 — print the current job's tag via a hidden iframe.
+  if (printTagBtn) printTagBtn.addEventListener('click', function(){
+    if (!currentApptId) return;
+    var url = window.location.origin + '/admin/appointments/' + currentApptId + '/tag?embed=1';
+    var f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    f.src = url;
+    f.onload = function(){
+      try { f.contentWindow.focus(); f.contentWindow.print(); }
+      catch (e) { window.open(url.replace('?embed=1',''), '_blank'); }
+      setTimeout(function(){ f.remove(); }, 2000);
+    };
+    document.body.appendChild(f);
+  });
   document.addEventListener('keydown', function(e){ if (e.key==='Escape' && drawer.classList.contains('open')) closeDrawer(); });
 
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -109,6 +129,7 @@
 
   function loadDrawer(apptId, fullUrlOverride){
     openDrawer();
+    currentApptId = apptId; // MARKER-PATCH-328
     raEl.textContent = 'Loading…'; titleEl.textContent = '';
     bodyEl.innerHTML = '<div class="appt-drawer-loading">Loading…</div>';
 
