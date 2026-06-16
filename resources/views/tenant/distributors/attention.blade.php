@@ -1,5 +1,5 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Pricing Attention'; @endphp
+@php $pageTitle = 'Catalog Attention'; @endphp
 
 {{-- MARKER-PATCH-HLC7C --}}
 
@@ -18,6 +18,9 @@
 .at-b-map{background:rgba(226,75,74,.16);color:#f0a3a3}
 .at-b-msrp{background:rgba(239,159,39,.16);color:#f0c78a}
 .at-b-van{background:rgba(120,140,170,.16);color:#aebbcf}
+.at-b-title{background:rgba(190,242,100,.15);color:#cde98a}
+.at-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.at-sel{padding:7px 10px;border-radius:var(--ia-r-md);font-size:13px;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
 .at-bar{position:sticky;bottom:0;background:var(--ia-surface);border-top:1px solid var(--ia-border);padding:14px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .at-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--ia-r-md);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--ia-border-strong);background:var(--ia-surface-2);color:var(--ia-text)}
 .at-btn.primary{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
@@ -36,9 +39,10 @@
   $fmt = fn($c) => $c !== null ? '$' . number_format($c/100, 2) : '—';
   $badge = function($r){
     return match($r){
-      'below_map' => ['at-b-map','Below MAP'],
-      'off_msrp'  => ['at-b-msrp','Off MSRP'],
-      default     => ['at-b-van', str_replace('_',' ', $r)],
+      'below_map'     => ['at-b-map','Below MAP'],
+      'off_msrp'      => ['at-b-msrp','Off MSRP'],
+      'title_changed' => ['at-b-title','Title changed'],
+      default         => ['at-b-van', str_replace('_',' ', $r)],
     };
   };
 @endphp
@@ -50,10 +54,33 @@
 
   <div class="at-chips">
     <div class="at-chip"><div class="v">{{ $counts['total'] }}</div><div class="k">Open</div></div>
+    <div class="at-chip"><div class="v" style="color:#cde98a">{{ $counts['title'] ?? 0 }}</div><div class="k">Titles</div></div>
     <div class="at-chip"><div class="v" style="color:#f0a3a3">{{ $counts['below_map'] }}</div><div class="k">Below MAP</div></div>
     <div class="at-chip"><div class="v" style="color:#f0c78a">{{ $counts['off_msrp'] }}</div><div class="k">Off MSRP</div></div>
     <div class="at-chip"><div class="v" style="color:#aebbcf">{{ $counts['vanished'] }}</div><div class="k">Vanished</div></div>
   </div>
+
+  <form method="GET" action="{{ route('tenant.distributors.attention') }}" class="at-filter">
+    @unless($inStockOnly)<input type="hidden" name="all" value="1">@endunless
+    <select name="brand" class="at-sel">
+      <option value="">All brands</option>
+      @foreach(($brandOptions ?? []) as $b)<option value="{{ $b }}" @selected(($filters['brand'] ?? null)===$b)>{{ $b }}</option>@endforeach
+    </select>
+    <select name="category" class="at-sel">
+      <option value="">All categories</option>
+      @foreach(($categoryOptions ?? []) as $c)<option value="{{ $c }}" @selected(($filters['category'] ?? null)===$c)>{{ $c }}</option>@endforeach
+    </select>
+    <select name="reason" class="at-sel">
+      <option value="">All reasons</option>
+      <option value="title_changed" @selected(($filters['reason'] ?? null)==='title_changed')>Title changed</option>
+      <option value="below_map" @selected(($filters['reason'] ?? null)==='below_map')>Below MAP</option>
+      <option value="off_msrp" @selected(($filters['reason'] ?? null)==='off_msrp')>Off MSRP</option>
+    </select>
+    <button class="at-btn primary" type="submit">Filter</button>
+    @if(($filters['brand'] ?? null) || ($filters['category'] ?? null) || ($filters['reason'] ?? null))
+      <a class="at-btn" href="{{ route('tenant.distributors.attention', $inStockOnly ? [] : ['all' => 1]) }}">Clear</a>
+    @endif
+  </form>
 
   <div class="at-toggle" style="margin-bottom:12px">
     @if($inStockOnly)
@@ -69,6 +96,10 @@
     <form method="POST" action="{{ route('tenant.distributors.attention.resolve') }}">
       @csrf
       <input type="hidden" name="action" id="at-action" value="">
+      <input type="hidden" name="f_brand" value="{{ $filters['brand'] ?? '' }}">
+      <input type="hidden" name="f_category" value="{{ $filters['category'] ?? '' }}">
+      <input type="hidden" name="f_reason" value="{{ $filters['reason'] ?? '' }}">
+      <script>function setAct(a){document.getElementById('at-action').value=a;}</script>
       <div class="at-card" style="padding:6px 14px">
         <table class="at-tbl">
           <thead><tr>
@@ -77,15 +108,22 @@
           </tr></thead>
           <tbody>
           @foreach($flags as $f)
-            @php [$bc,$bl] = $badge($f->reason); $item = $f->item; @endphp
+            @php [$bc,$bl] = $badge($f->reason); $item = $f->item; $isTitle = $f->reason === 'title_changed'; @endphp
             <tr>
               <td><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
-              <td><div style="font-weight:600">{{ $item->name ?? '—' }}</div><div class="at-dim at-mono" style="font-size:11px">{{ $item->sku ?? '' }}</div></td>
-              <td><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
-              <td class="at-mono">{{ $fmt($item->shop_sell_price_cents ?? null) }}</td>
-              <td class="at-mono">{{ $fmt($item->catalog_map_cents ?? ($f->detail['prev_map_cents'] ?? null)) }}</td>
-              <td class="at-mono">{{ $fmt($item->catalog_msrp_cents ?? ($f->detail['prev_msrp_cents'] ?? null)) }}</td>
-              <td class="at-mono">{{ $item->computed_stock_count ?? 0 }}</td>
+              @if($isTitle)
+                <td><div style="font-weight:600">{{ $item->name ?? '—' }}</div><div class="at-dim at-mono" style="font-size:11px">{{ $item->sku ?? '' }}</div></td>
+                <td><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
+                <td colspan="4" class="at-dim">→ <span style="color:var(--ia-text);font-weight:600">{{ $f->detail['new'] ?? ($item->distributorCatalog->display_name ?? '—') }}</span></td>
+                <td class="at-mono">{{ $item->computed_stock_count ?? 0 }}</td>
+              @else
+                <td><div style="font-weight:600">{{ $item->name ?? '—' }}</div><div class="at-dim at-mono" style="font-size:11px">{{ $item->sku ?? '' }}</div></td>
+                <td><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
+                <td class="at-mono">{{ $fmt($item->shop_sell_price_cents ?? null) }}</td>
+                <td class="at-mono">{{ $fmt($item->catalog_map_cents ?? ($f->detail['prev_map_cents'] ?? null)) }}</td>
+                <td class="at-mono">{{ $fmt($item->catalog_msrp_cents ?? ($f->detail['prev_msrp_cents'] ?? null)) }}</td>
+                <td class="at-mono">{{ $item->computed_stock_count ?? 0 }}</td>
+              @endif
             </tr>
           @endforeach
           </tbody>
@@ -94,9 +132,15 @@
 
       <div class="at-bar">
         <span class="at-dim" style="font-size:12px">With selected:</span>
-        <button class="at-btn primary" type="submit" onclick="document.getElementById('at-action').value='raise_map'">Raise to MAP</button>
-        <button class="at-btn" type="submit" onclick="document.getElementById('at-action').value='match_msrp'">Match MSRP</button>
-        <button class="at-btn" type="submit" onclick="document.getElementById('at-action').value='acknowledge'">Acknowledge</button>
+        <button class="at-btn primary" type="submit" onclick="setAct('adopt_title')">Adopt new title</button>
+        <button class="at-btn" type="submit" onclick="setAct('keep_title')">Keep mine</button>
+        <span class="at-dim" style="opacity:.4">|</span>
+        <button class="at-btn primary" type="submit" onclick="setAct('raise_map')">Raise to MAP</button>
+        <button class="at-btn" type="submit" onclick="setAct('match_msrp')">Match MSRP</button>
+        <button class="at-btn" type="submit" onclick="setAct('acknowledge')">Dismiss</button>
+        <label class="at-dim" style="font-size:12px;margin-left:auto;cursor:pointer">
+          <input type="checkbox" name="select_all" value="1"> apply to all {{ $flags->count() }} matching the filter
+        </label>
       </div>
     </form>
   @endif
