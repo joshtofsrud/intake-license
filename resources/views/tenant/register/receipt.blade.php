@@ -5,6 +5,7 @@
   $pageMm   = ($print['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm';
   $logoMax  = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$print['logo_size'] ?? 'medium'] ?? '18mm';
   $logoUrl  = $print['logo_path'] ? asset('storage/' . ltrim($print['logo_path'], '/')) : null;
+  $feedMm   = (int) ($print['feed_mm'] ?? 0) > 0 ? ((int) $print['feed_mm']) . 'mm' : null; // MARKER-PATCH-320
   $sym      = $tenant->currency_symbol ?: '$';
   $m        = fn($c) => $sym . number_format(((int) $c) / 100, 2);
   $qfmt     = fn($q) => rtrim(rtrim(number_format((float) $q, 3), '0'), '.');
@@ -129,6 +130,7 @@
     Thank you!<br>{{ $tenant->name }}
   </div>
 
+  @if($feedMm)<div style="height:{{ $feedMm }}"></div>@endif{{-- MARKER-PATCH-320 --}}
 </div>
 
 <script>

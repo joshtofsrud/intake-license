@@ -7,6 +7,7 @@
   // so nothing reaches the printer's unprintable right edge.
   $pageMm    = ($tag['paper'] ?? '80mm') === '58mm' ? '46mm' : '70mm'; // MARKER-PATCH-318 — safety margin vs clip
   $logoMax   = ['small'=>'12mm','medium'=>'18mm','large'=>'26mm','xl'=>'34mm'][$tag['logo_size'] ?? 'medium'] ?? '18mm';
+  $feedMm    = (int) ($tag['feed_mm'] ?? 0) > 0 ? ((int) $tag['feed_mm']) . 'mm' : null; // MARKER-PATCH-320
   $name      = method_exists($appointment, 'customerName')
                  ? $appointment->customerName()
                  : trim(($appointment->customer_first_name ?? '') . ' ' . ($appointment->customer_last_name ?? ''));
@@ -142,6 +143,7 @@
       </div>
     @endif
 
+    @if($feedMm)<div style="height:{{ $feedMm }}"></div>@endif{{-- MARKER-PATCH-320 --}}
   </div>
 @endforeach
 
