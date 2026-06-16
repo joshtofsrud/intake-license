@@ -70,6 +70,7 @@ class AdminPanelProvider extends PanelProvider
                 // MARKER-PATCH-135 — custom dashboard replaces Pages\Dashboard
                 \App\Filament\Pages\PlatformDashboard::class,
                 \App\Filament\Pages\Distributors::class, // HLC distributor hub
+                \App\Filament\Pages\CatalogTitles::class, // MARKER-PATCH-HLCE2 title editor
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
