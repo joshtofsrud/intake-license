@@ -741,8 +741,9 @@ class AppointmentController extends Controller
         }
 
         $jobUrl = route('tenant.appointments.show', $appointment->id);
+        $embed  = $request->boolean('embed'); // MARKER-PATCH-314 — modal/iframe mode
 
-        return view('tenant.appointments.tag', compact('tenant', 'appointment', 'tag', 'slips', 'jobUrl'));
+        return view('tenant.appointments.tag', compact('tenant', 'appointment', 'tag', 'slips', 'jobUrl', 'embed'));
     }
 
     public function update(Request $request, string $id)

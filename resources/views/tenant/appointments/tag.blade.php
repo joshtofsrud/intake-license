@@ -55,14 +55,17 @@
     body { margin-top: 64px; }
   }
   @media print { .printbar { display: none; } }
+  @if($embed ?? false) @media screen { body { margin: 0 auto !important; box-shadow: none !important; } } @endif
 </style>
 </head>
 <body>
 
+@unless($embed ?? false)
 <div class="printbar">
   <span>Tag preview · {{ $job }} ({{ count($slips) }} {{ \Illuminate\Support\Str::plural('slip', count($slips)) }})</span>
   <button onclick="window.print()">Print</button>
 </div>
+@endunless
 
 @foreach($slips as $slip)
   <div class="slip">
@@ -150,7 +153,7 @@
       el.classList.add('qrfallback');
       el.textContent = url;
     });
-    setTimeout(function () { window.print(); }, 350);
+    @unless($embed ?? false) setTimeout(function () { window.print(); }, 350); @endunless
   })();
 </script>
 </body>

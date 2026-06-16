@@ -725,7 +725,7 @@
     @unless($isTerminal)
     <div class="appt-b-actions">
       {{-- MARKER-PATCH-313 --}}
-      <a href="{{ route('tenant.appointments.tag', $appointment->id) }}" target="_blank" rel="noopener" class="ia-btn ia-btn--secondary">&#9113; Print tag</a>
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
       <div class="appt-b-actions-divider"></div>
       {{-- MARKER-PATCH-285 — removed stray "Reschedule shipping tomorrow" cruft --}}
       <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
@@ -1617,6 +1617,9 @@
   </div>
 </div>
 @endif
+
+{{-- MARKER-PATCH-314 --}}
+@include('tenant.appointments._tag_modal')
 
 @endsection
 

@@ -1269,12 +1269,14 @@ input.ma-asset-name-edit:focus {
     {{-- MARKER-PATCH-205 — invoice export trigger --}}
     <div class="ma-page-actions">
       {{-- MARKER-PATCH-313 --}}
-      <a href="{{ route('tenant.appointments.tag', $appointment->id) }}" target="_blank" rel="noopener" class="ia-btn ia-btn--secondary">&#9113; Print tag</a>
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
       <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('invoiceModal').showModal()">&#9113; Invoice</button>
     </div>
   </div>
 
   @include('tenant.appointments._invoice-modal', ['appointment' => $appointment])
+  {{-- MARKER-PATCH-314 --}}
+  @include('tenant.appointments._tag_modal')
 
   {{-- MARKER-PATCH-158-G1 — Sale callout banners (mirrors legacy bannerSale) --}}
   @php
