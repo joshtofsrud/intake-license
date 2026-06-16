@@ -5,6 +5,10 @@
   $cur = Route::currentRouteName() ?? '';
   $distOn = $currentTenant->distributor_sync_enabled ?? false;
   $invTabs = ['tenant.inventory.index' => 'Items'];
+  $uncatCount = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $currentTenant->id)->whereNull('category_id')->count();
+  if ($uncatCount > 0) {
+      $invTabs['tenant.inventory.uncategorized'] = 'Uncategorized (' . $uncatCount . ')';
+  }
   if ($distOn) {
       $invTabs['tenant.distributors.import']     = 'Import';
       $invTabs['tenant.distributors.attention']  = 'Catalog attention';

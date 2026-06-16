@@ -535,6 +535,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
                 Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');
                 Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');
+                Route::get('/uncategorized',         [TenantControllers\InventoryController::class, 'uncategorized'])->name('uncategorized');
+                Route::post('/uncategorized/assign', [TenantControllers\InventoryController::class, 'uncategorizedAssign'])->name('uncategorized.assign');
 // Receiving — POS Phase 1, gated by retail capability
                 Route::prefix('receiving')->name('receiving.')->group(function () {
                     Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');

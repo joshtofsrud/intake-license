@@ -175,6 +175,103 @@ class InventoryController extends Controller
         ));
     }
 
+    /**
+     * MARKER-PATCH-HLC23 — items with no category, for bulk assignment.
+     */
+    public function uncategorized(Request $request): View
+    {
+        $tenant = tenant();
+
+        $fBrand  = trim((string) $request->query('brand', '')) ?: null;
+        $fCatCat = trim((string) $request->query('cat', '')) ?: null;
+        $search  = trim((string) $request->query('q', '')) ?: null;
+
+        $q = TenantInventoryItem::query()
+            ->with('distributorCatalog')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('category_id');
+
+        if ($fBrand) {
+            $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $fBrand));
+        }
+        if ($fCatCat) {
+            $q->whereHas('distributorCatalog', fn ($w) => $w->where('category', $fCatCat));
+        }
+        if ($search) {
+            $q->where(function ($w) use ($search) {
+                $w->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%");
+            });
+        }
+
+        $items = $q->orderBy('name')->limit(500)->get();
+        $total = TenantInventoryItem::where('tenant_id', $tenant->id)->whereNull('category_id')->count();
+
+        $catIds = TenantInventoryItem::where('tenant_id', $tenant->id)->whereNull('category_id')
+            ->whereNotNull('distributor_catalog_id')->pluck('distributor_catalog_id')->unique();
+        $brandOptions = \App\Models\PlatformDistributorCatalog::whereIn('id', $catIds)
+            ->whereNotNull('manufacturer')->distinct()->orderBy('manufacturer')->pluck('manufacturer');
+        $catCategoryOptions = \App\Models\PlatformDistributorCatalog::whereIn('id', $catIds)
+            ->whereNotNull('category')->distinct()->orderBy('category')->pluck('category');
+
+        $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->orderBy('name')->get();
+
+        $filters = ['brand' => $fBrand, 'cat' => $fCatCat, 'q' => $search];
+
+        return view('tenant.inventory.uncategorized', compact(
+            'items', 'total', 'categories', 'brandOptions', 'catCategoryOptions', 'filters'
+        ));
+    }
+
+    public function uncategorizedAssign(Request $request): RedirectResponse
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'category_id' => ['required', 'uuid', 'exists:tenant_inventory_categories,id'],
+            'item_ids'    => ['nullable', 'array'],
+            'item_ids.*'  => ['uuid'],
+            'select_all'  => ['nullable', 'boolean'],
+            'f_brand'     => ['nullable', 'string', 'max:128'],
+            'f_cat'       => ['nullable', 'string', 'max:128'],
+            'f_q'         => ['nullable', 'string', 'max:128'],
+        ]);
+
+        $category = TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->where('id', $data['category_id'])->first();
+        if (! $category) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'Category not found.']);
+        }
+
+        $q = TenantInventoryItem::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('category_id');
+
+        if ($request->boolean('select_all')) {
+            if (filled($data['f_brand'] ?? null)) {
+                $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $data['f_brand']));
+            }
+            if (filled($data['f_cat'] ?? null)) {
+                $q->whereHas('distributorCatalog', fn ($w) => $w->where('category', $data['f_cat']));
+            }
+            if (filled($data['f_q'] ?? null)) {
+                $s = $data['f_q'];
+                $q->where(function ($w) use ($s) {
+                    $w->where('name', 'like', "%{$s}%")->orWhere('sku', 'like', "%{$s}%");
+                });
+            }
+        } else {
+            $q->whereIn('id', $data['item_ids'] ?? []);
+        }
+
+        $count = $q->update(['category_id' => $category->id]);
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => "Assigned {$count} item(s) to {$category->name}.",
+        ]);
+    }
+
     public function create(Request $request): View|RedirectResponse
     {
         $tenant = tenant();
