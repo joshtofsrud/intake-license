@@ -198,8 +198,6 @@
     <div class="foot">
       @if($footerText){!! nl2br(e($footerText)) !!}@else Thank you!<br>{{ $tenant->name }}@endif
     </div>
-
-    @if($feedRows > 0)<div aria-hidden="true" style="line-height:3mm;font-size:9px;color:#000">{!! str_repeat('&nbsp;<br>', $feedRows) !!}</div>@endif
   </div>
 @endforeach
 
