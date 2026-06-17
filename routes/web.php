@@ -516,6 +516,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
             // MARKER-PATCH-313 — printable work-order service tag (80mm thermal)
             Route::get('/appointments/{id}/tag', [TenantControllers\AppointmentController::class, 'printTag'])->name('appointments.tag');
+            // MARKER-PATCH-336 — unified print (parallel path)
+            Route::get('/print/appointment/{id}', [TenantControllers\PrintController::class, 'appointment'])->name('print.appointment');
+            Route::get('/print/sale/{id}',        [TenantControllers\PrintController::class, 'sale'])->name('print.sale');
             // MARKER-PATCH-204 — work-order invoice export (PDF print + email)
             Route::match(['get','post'], '/appointments/{id}/invoice/preview',  [TenantControllers\InvoiceExportController::class, 'preview'])->name('appointments.invoice.preview');
             Route::match(['get','post'], '/appointments/{id}/invoice/download', [TenantControllers\InvoiceExportController::class, 'download'])->name('appointments.invoice.download');
