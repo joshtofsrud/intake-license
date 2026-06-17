@@ -63,16 +63,17 @@
 
 <style>
   .pc-dialog{border:0;border-radius:16px;padding:0;background:#141414;color:#f0f0f0;
-    width:min(940px,94vw);max-width:94vw;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+    width:min(940px,94vw);max-width:94vw;box-shadow:0 30px 80px rgba(0,0,0,.6);
+    margin:auto;max-height:92vh;overflow:hidden}{{-- MARKER-PATCH-342 --}}
   .pc-dialog::backdrop{background:rgba(0,0,0,.6)}
-  .pc-wrap{font-family:Inter,system-ui,sans-serif}
+  .pc-wrap{font-family:Inter,system-ui,sans-serif;display:flex;flex-direction:column;max-height:92vh}
   .pc-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
   .pc-title{font-size:16px;font-weight:600}
   .pc-ctx{font-size:12px;color:rgba(255,255,255,.5);margin-top:2px}
   .pc-x{background:none;border:0;color:rgba(255,255,255,.5);font-size:24px;cursor:pointer;line-height:1}
-  .pc-body{display:grid;grid-template-columns:300px 1fr;gap:0}
+  .pc-body{display:grid;grid-template-columns:300px 1fr;gap:0;flex:1 1 auto;min-height:0}
   @media(max-width:720px){.pc-body{grid-template-columns:1fr}.pc-preview{display:none}}
-  .pc-controls{padding:6px 18px 18px;max-height:70vh;overflow:auto}
+  .pc-controls{padding:6px 18px 18px;overflow:auto}
   .pc-grp{padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
   .pc-grp:last-child{border-bottom:0}
   .pc-lbl{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:rgba(255,255,255,.32);font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between}
@@ -102,7 +103,7 @@
   .pc-go{width:100%;margin-top:12px;background:#BEF264;color:#0c0c0c;border:0;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer}
   .pc-preview{background:repeating-linear-gradient(45deg,#0e0e0e 0 12px,#0b0b0b 12px 24px);border-left:1px solid rgba(255,255,255,.08);padding:14px;display:flex;flex-direction:column}
   .pc-pv-head{font-size:11px;color:rgba(255,255,255,.5);margin-bottom:8px}
-  #pc-frame{flex:1;width:100%;min-height:62vh;border:0;border-radius:8px;background:#fff}
+  #pc-frame{flex:1;width:100%;min-height:0;border:0;border-radius:8px;background:#fff}
 </style>
 
 <script>
