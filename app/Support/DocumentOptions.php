@@ -5,10 +5,10 @@ namespace App\Support;
 use Illuminate\Http\Request;
 
 /**
- * The choices made in the Print & Send composer at the moment of printing —
- * format, which assets, which notes, prices, ledger, and where it's going.
+ * Choices made in the Print & Send composer at print time, plus the shop's
+ * standing tag display toggles (which pass through as defaults).
  *
- * MARKER-PATCH-333
+ * MARKER-PATCH-333 / MARKER-PATCH-335
  */
 class DocumentOptions
 {
@@ -24,6 +24,12 @@ class DocumentOptions
         public bool   $includeLedger = false,     // payment history + running balance
         public string $action = 'print',          // print | pdf | email
         public ?string $emailTo = null,
+        // standing tag toggles (defaults from settings.work_order_tag)
+        public bool   $showHeader = true,
+        public bool   $showPhone = true,
+        public bool   $showBike = true,
+        public bool   $showServices = true,
+        public bool   $showStub = false,
     ) {
     }
 
@@ -44,6 +50,11 @@ class DocumentOptions
             includeLedger: $r->boolean('ledger', false),
             action: (string) $r->input('action', 'print'),
             emailTo: $r->input('email') ?: null,
+            showHeader: $r->boolean('show_header', true),
+            showPhone: $r->boolean('show_phone', true),
+            showBike: $r->boolean('show_bike', true),
+            showServices: $r->boolean('show_services', true),
+            showStub: $r->boolean('show_stub', false),
         );
     }
 
