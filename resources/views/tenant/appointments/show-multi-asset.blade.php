@@ -1271,7 +1271,7 @@ input.ma-asset-name-edit:focus {
       {{-- MARKER-PATCH-313 --}}
       {{-- MARKER-PATCH-315 — gated on the tag enable toggle --}}
       @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
-      <button type="button" class="ia-btn ia-btn--secondary" onclick="openTagModal()">&#9113; Print tag</button>
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>{{-- MARKER-PATCH-339 --}}
       @endif
       <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('invoiceModal').showModal()">&#9113; Invoice</button>
     </div>

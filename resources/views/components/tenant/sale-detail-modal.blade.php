@@ -688,6 +688,7 @@
     printReceiptBtn.addEventListener('click', function () {
       var sid = printReceiptBtn.dataset.saleId;
       if (!sid) return;
+      if (window.openPrintComposer) { window.openPrintComposer('sale', sid, { type: 'receipt' }); return; } // MARKER-PATCH-339
       var url = RECEIPT_URL_TEMPLATE.replace('__ID__', encodeURIComponent(sid)) + '?embed=1';
       var f = document.createElement('iframe');
       f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';

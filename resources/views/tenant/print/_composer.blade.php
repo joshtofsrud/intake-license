@@ -138,8 +138,13 @@
     return p.toString();
   }
 
+  function previewUrl() {
+    if (S.fmt === 'inv' && S.source === 'appointment')
+      return window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview';
+    return base() + '?' + params(true);
+  }
   function preview() {
-    document.getElementById('pc-frame').src = base() + '?' + params(true);
+    document.getElementById('pc-frame').src = previewUrl();
   }
 
   function renderDoc() {
@@ -153,7 +158,8 @@
   }
   function renderFmt() {
     const wrap = document.getElementById('pc-fmt'); wrap.innerHTML = '';
-    const allowed = DOC[S.type].fmts;
+    let allowed = DOC[S.type].fmts;
+    if (S.source === 'sale') allowed = allowed.filter(function (f) { return f !== 'inv'; });
     ['t80','t58','full','inv'].forEach(f => {
       const b = document.createElement('button');
       b.textContent = FMT[f]; b.disabled = !allowed.includes(f);
@@ -203,9 +209,24 @@
   }));
 
   document.getElementById('pc-go').addEventListener('click', () => {
-    if (S.action === 'email') { alert('Email sending activates in a later step.'); return; }
+    if (S.action === 'email') {
+      var em = (document.getElementById('pc-email').value || '').trim();
+      var bd = new URLSearchParams(params(false)); if (em) bd.set('email', em);
+      var tok = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
+      var go = document.getElementById('pc-go'); go.disabled = true; go.textContent = 'Sending…';
+      fetch(base() + '/email', { method:'POST', headers:{ 'X-CSRF-TOKEN':tok, 'Content-Type':'application/x-www-form-urlencoded', 'X-Requested-With':'XMLHttpRequest', 'Accept':'application/json' }, body: bd.toString() })
+        .then(function(r){ return r.json().catch(function(){ return { ok:false, message:'Could not send.' }; }); })
+        .then(function(d){ go.disabled = false; go.textContent = 'Send email'; alert(d.message || (d.ok ? 'Sent.' : 'Could not send.')); })
+        .catch(function(){ go.disabled = false; go.textContent = 'Send email'; alert('Could not send.'); });
+      return;
+    }
     // thermal/full: print via hidden iframe; invoice PDF: open in new tab
-    if (S.fmt === 'inv') { window.open(base() + '?' + params(false), '_blank'); return; }
+    if (S.fmt === 'inv') {
+      var iv = (S.source === 'appointment')
+        ? window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview'
+        : base() + '?' + params(false);
+      window.open(iv, '_blank'); return;
+    }
     const f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
     f.src = base() + '?' + params(true);

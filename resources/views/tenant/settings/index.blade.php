@@ -334,7 +334,7 @@
   <button type="button" class="set-tab"        data-tab="communication" role="tab">Communication</button>
   <button type="button" class="set-tab"        data-tab="account"       role="tab">Account</button>
   <button type="button" class="set-tab"        data-tab="payments"      role="tab">Payments</button>
-  <button type="button" class="set-tab"        data-tab="tags"          role="tab">Work-order tags</button>{{-- MARKER-PATCH-315 --}}
+  <button type="button" class="set-tab"        data-tab="tags"          role="tab">Print &amp; receipts</button>{{-- MARKER-PATCH-315 / 339 --}}
 </div>
 
 {{-- =====================================================================
