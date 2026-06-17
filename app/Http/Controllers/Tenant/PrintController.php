@@ -57,4 +57,36 @@ class PrintController extends Controller
             'showHeader' => $opt->showHeader,
         ]);
     }
+
+    public function meta(Request $request, string $source, string $id)
+    {
+        $tenant = tenant();
+
+        if ($source === 'appointment') {
+            $appt = TenantAppointment::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+            $assets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
+                ->where('appointment_id', $appt->id)
+                ->orderBy('sort_order')
+                ->get(['id', 'asset_name_snapshot', 'identifier_snapshot']);
+
+            return response()->json([
+                'source'       => 'appointment',
+                'number'       => $appt->ra_number,
+                'has_payments' => $appt->payments()->exists(),
+                'assets'       => $assets->map(fn ($a) => [
+                    'id'   => (string) $a->id,
+                    'name' => trim(($a->asset_name_snapshot ?? '') . ($a->identifier_snapshot ? ' · ' . $a->identifier_snapshot : '')),
+                ])->all(),
+            ]);
+        }
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        return response()->json([
+            'source'       => 'sale',
+            'number'       => $sale->sale_number,
+            'has_payments' => $sale->payments()->exists(),
+            'assets'       => [],
+        ]);
+    }
 }

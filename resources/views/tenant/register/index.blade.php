@@ -2440,8 +2440,10 @@ document.getElementById('receiptNewSale').addEventListener('click', () => { rese
   }
 
   if (printBtn) printBtn.addEventListener('click', function () {
-    if (!receiptSaleId || !ROUTES.saleReceipt) return;
+    if (!receiptSaleId) return;
     holdReset();
+    if (window.openPrintComposer) { window.openPrintComposer('sale', receiptSaleId, { type: 'receipt', format: 't80' }); return; } // MARKER-PATCH-338
+    if (!ROUTES.saleReceipt) return;
     var url = ROUTES.saleReceipt.replace('__ID__', encodeURIComponent(receiptSaleId)) + '?embed=1';
     var f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';

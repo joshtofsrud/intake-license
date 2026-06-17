@@ -111,6 +111,7 @@
   // MARKER-PATCH-328 — print the current job's tag via a hidden iframe.
   if (printTagBtn) printTagBtn.addEventListener('click', function(){
     if (!currentApptId) return;
+    if (window.openPrintComposer) { window.openPrintComposer('appointment', currentApptId, { type: 'tag', format: 't80' }); return; } // MARKER-PATCH-338
     var url = window.location.origin + '/admin/appointments/' + currentApptId + '/tag?embed=1';
     var f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';

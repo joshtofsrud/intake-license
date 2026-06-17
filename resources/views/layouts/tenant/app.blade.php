@@ -166,5 +166,6 @@
 @include('tenant._onboarding_modal')
 
   <script defer src="{{ asset('js/tenant/cl-subnav-hint.js') }}"></script>
+@include('tenant.print._composer') {{-- MARKER-PATCH-337 --}}
 </body>
 </html>
