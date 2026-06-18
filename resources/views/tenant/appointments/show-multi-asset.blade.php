@@ -312,7 +312,7 @@
 .ma-asset-services { padding: 8px 18px 14px; }
 .ma-service-row {
   display: grid;
-  grid-template-columns: 1fr 90px 90px 24px;
+  grid-template-columns: 1fr 78px 104px 26px; /* MARKER-PATCH-344 */
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -536,7 +536,13 @@
   padding: 3px 6px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  -webkit-appearance: none; -moz-appearance: textfield; appearance: textfield; margin: 0;
 }
+/* MARKER-PATCH-344 — no spinner arrows, fields sized to content */
+.ma-service-edit::-webkit-outer-spin-button,
+.ma-service-edit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ma-service-edit[data-field="duration_minutes"] { width: 46px; }
+.ma-service-edit[data-field="price_dollars"] { width: 80px; }
 .ma-service-edit:hover { border-color: var(--ia-border); }
 .ma-service-edit:focus {
   outline: none;
