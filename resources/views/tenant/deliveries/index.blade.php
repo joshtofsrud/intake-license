@@ -196,9 +196,9 @@
     background: var(--ia-surface);
     border: 0.5px solid var(--ia-border);
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto; /* MARKER-PATCH-345 — scroll instead of crush */
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(160px, 1fr));
   }
   .del-week-col { border-right: 0.5px solid var(--ia-border); min-height: 480px; }
   .del-week-col:last-child { border-right: 0; }

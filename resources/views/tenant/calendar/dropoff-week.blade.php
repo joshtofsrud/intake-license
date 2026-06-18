@@ -86,7 +86,7 @@
   </div>
 @else
   <div class="cal-week-wrap">
-    <div class="cal-week-grid" style="grid-template-columns: 140px repeat(7, 1fr);">
+    <div class="cal-week-grid" style="grid-template-columns: 140px repeat(7, minmax(150px, 1fr));">
       <div class="cal-week-corner"></div>
       @foreach($days as $day)
         <div class="cal-week-day-head">
@@ -154,7 +154,7 @@
 .cal-date-btn:hover{color:var(--ia-text);border-color:var(--ia-border-strong)}
 .cal-date-today{font-weight:600}
 
-.cal-week-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:8px;overflow:hidden}
+.cal-week-wrap{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:8px;overflow-x:auto}/* MARKER-PATCH-345 */
 .cal-week-grid{display:grid;gap:0}
 .cal-week-corner{background:var(--ia-surface-2,rgba(255,255,255,0.02));border-bottom:0.5px solid var(--ia-border);border-right:0.5px solid var(--ia-border)}
 .cal-week-day-head{text-align:center;padding:10px 8px;border-bottom:0.5px solid var(--ia-border);border-right:0.5px solid var(--ia-border);background:var(--ia-surface-2,rgba(255,255,255,0.02))}
