@@ -27,7 +27,7 @@
         + New appointment
       </button>
     </div>
-  <div class="ia-page-head-right" style="display:flex;gap:10px;align-items:center">
+  <div class="ia-page-head-right" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
     <div class="cal-view-toggle">
       <a href="?view=day&date={{ $weekStart->format('Y-m-d') }}" class="cal-view-tab">Day</a>
       <a href="?view=week&date={{ $weekStart->format('Y-m-d') }}" class="cal-view-tab is-active">Week</a>
@@ -146,11 +146,11 @@
 <link rel="stylesheet" href="{{ asset('css/tenant/calendar.css') }}?v={{ filemtime(public_path('css/tenant/calendar.css')) }}">
 <style>
 .cal-view-toggle{display:inline-flex;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:6px;padding:2px;gap:2px}
-.cal-view-tab{padding:6px 12px;font-size:12px;color:var(--ia-text-muted);border-radius:4px;text-decoration:none;font-weight:500}
+.cal-view-tab{padding:6px 12px;font-size:12px;color:var(--ia-text-muted);border-radius:4px;text-decoration:none;font-weight:500;white-space:nowrap}
 .cal-view-tab:hover{color:var(--ia-text)}
 .cal-view-tab.is-active{background:var(--ia-accent-soft);color:var(--ia-accent)}
 .cal-date-nav{display:inline-flex;align-items:center;gap:4px}
-.cal-date-btn{padding:5px 10px;border-radius:6px;font-size:13px;color:var(--ia-text-muted);text-decoration:none;border:0.5px solid var(--ia-border);background:var(--ia-surface)}
+.cal-date-btn{padding:5px 12px;border-radius:6px;font-size:13px;color:var(--ia-text-muted);text-decoration:none;border:0.5px solid var(--ia-border);background:var(--ia-surface);white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;min-height:34px;box-sizing:border-box}/* MARKER-PATCH-346 */
 .cal-date-btn:hover{color:var(--ia-text);border-color:var(--ia-border-strong)}
 .cal-date-today{font-weight:600}
 
