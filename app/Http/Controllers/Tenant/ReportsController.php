@@ -284,7 +284,7 @@ class ReportsController extends Controller
     {
         $tenant = tenant();
         $window = $request->query('window', '30d');
-        if (!in_array($window, ['7d', '30d', '90d'], true)) {
+        if (!in_array($window, ['1d', '7d', '30d', '90d'], true)) {
             $window = '30d';
         }
 

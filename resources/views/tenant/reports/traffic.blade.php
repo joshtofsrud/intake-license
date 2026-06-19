@@ -257,6 +257,7 @@
       Showing <strong style="color: var(--ia-text);">{{ $window }}</strong> · compared to prior {{ $window }}
     </div>
     <div class="rep-window">
+      <a href="?window=1d"  class="{{ $window === '1d'  ? 'active' : '' }}">Today</a>
       <a href="?window=7d"  class="{{ $window === '7d'  ? 'active' : '' }}">7 days</a>
       <a href="?window=30d" class="{{ $window === '30d' ? 'active' : '' }}">30 days</a>
       <a href="?window=90d" class="{{ $window === '90d' ? 'active' : '' }}">90 days</a>

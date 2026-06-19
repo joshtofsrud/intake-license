@@ -47,6 +47,7 @@ class TrafficReportService
     {
         $this->tenant = $tenant;
         $this->days   = match ($window) {
+            '1d'  => 1, // MARKER-TRAFFIC-TODAY
             '7d'  => 7,
             '90d' => 90,
             default => 30,
