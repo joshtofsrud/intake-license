@@ -131,7 +131,7 @@
               @endif
               @foreach($g['lines'] as $ln)
                 <tr>
-                  <td>{{ isset($ln['qty']) ? $qfmt($ln['qty']).' × '.$ln['name'] : (!empty($ln['add']) ? '+ '.$ln['name'] : $ln['name']) }}</td>
+                  <td>{{ (isset($ln['qty']) && $ln['qty'] > 1) ? $qfmt($ln['qty']).' × '.$ln['name'] : (!empty($ln['add']) ? '+ '.$ln['name'] : $ln['name']) }}</td>
                   @if($s['show_prices'])<td class="r">{{ $m($ln['cents']) }}</td>@endif
                 </tr>
               @endforeach

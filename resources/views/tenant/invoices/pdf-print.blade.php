@@ -43,6 +43,14 @@
   .li .nm { font-weight:500; }
   .li.add .nm { font-weight:400; color:#444; padding-left:16px; font-size:12.5px; }
   .li.add .amt { font-weight:400; color:#444; }
+  /* MARKER-PATCH-347 — parts & products sub-block within an asset */
+  .psub td { padding:9px 0 3px; }
+  .psub .pl { font-size:9.5px; text-transform:uppercase; letter-spacing:1px; color:#9a9a9a; font-weight:700; }
+  .li.part .nm { font-size:12.5px; color:#222; }
+  .li.part .amt { font-size:12.5px; color:#222; }
+  .li .qty { color:#9a9a9a; font-weight:400; font-size:11.5px; }
+  .li .tag { display:inline-block; font-size:8.5px; letter-spacing:.6px; text-transform:uppercase; color:#8a8a8a; border:1px solid #dcdcd6; border-radius:3px; padding:1px 5px; margin-left:6px; vertical-align:1px; }
+  .li .sku { font-size:10px; color:#aaa; font-family:ui-monospace,'SF Mono',monospace; margin-top:1px; }
   .asub td { text-align:right; font-size:11px; color:#8a8a8a; font-weight:600; padding:7px 0 18px; }
   .asub b { color:#444; }
   /* note */
@@ -101,25 +109,49 @@
     </tr>
   </table>
 
-  {{-- asset groups --}}
+  {{-- asset groups: services & add-ons, then a parts & products sub-block (MARKER-PATCH-347) --}}
   @foreach($assets as $a)
+    @php
+      $svcLines  = array_values(array_filter($a['lines'], fn ($l) => ($l['kind'] ?? 'service') !== 'part'));
+      $partLines = array_values(array_filter($a['lines'], fn ($l) => ($l['kind'] ?? '') === 'part'));
+    @endphp
     <table class="asset-h">
       <tr><td><span class="an">{{ $a['name'] }}</span></td><td class="as">Asset · {{ format_money($a['subtotal']) }}</td></tr>
     </table>
-    <table>
-      @foreach($a['lines'] as $l)
-        <tr class="li {{ $l['add'] ? 'add' : '' }}"><td class="nm">{{ $l['name'] }}</td><td class="amt">{{ format_money($l['cents']) }}</td></tr>
-      @endforeach
-    </table>
+    @if(count($svcLines))
+      <table>
+        @foreach($svcLines as $l)
+          <tr class="li {{ $l['add'] ? 'add' : '' }}"><td class="nm">{{ $l['name'] }}</td><td class="amt">{{ format_money($l['cents']) }}</td></tr>
+        @endforeach
+      </table>
+    @endif
+    @if(count($partLines))
+      <table>
+        <tr class="psub"><td colspan="2"><span class="pl">Parts &amp; products</span></td></tr>
+        @foreach($partLines as $l)
+          <tr class="li part">
+            <td class="nm">{{ $l['name'] }}@if(!empty($l['custom'])) <span class="tag">Custom</span>@endif
+              @if(($l['qty'] ?? 1) > 1)<span class="qty">× {{ $l['qty'] }}</span>@endif
+              @if(!empty($l['sku']))<div class="sku">{{ $l['sku'] }}</div>@endif</td>
+            <td class="amt">{{ format_money($l['cents']) }}</td>
+          </tr>
+        @endforeach
+      </table>
+    @endif
     <table><tr class="asub"><td>Asset subtotal&nbsp;&nbsp;<b>{{ format_money($a['subtotal']) }}</b></td></tr></table>
   @endforeach
 
-  {{-- loose / shop items --}}
+  {{-- loose / shop items (MARKER-PATCH-347) --}}
   @if(count($loose))
     <table class="asset-h"><tr><td><span class="an">Shop &amp; parts</span></td><td class="as"></td></tr></table>
     <table>
       @foreach($loose as $l)
-        <tr class="li {{ $l['add'] ? 'add' : '' }}"><td class="nm">{{ $l['name'] }}</td><td class="amt">{{ format_money($l['cents']) }}</td></tr>
+        <tr class="li {{ ($l['kind'] ?? '') === 'part' ? 'part' : ($l['add'] ? 'add' : '') }}">
+          <td class="nm">{{ $l['name'] }}@if(!empty($l['custom'])) <span class="tag">Custom</span>@endif
+            @if(($l['kind'] ?? '') === 'part' && ($l['qty'] ?? 1) > 1)<span class="qty">× {{ $l['qty'] }}</span>@endif
+            @if(!empty($l['sku']))<div class="sku">{{ $l['sku'] }}</div>@endif</td>
+          <td class="amt">{{ format_money($l['cents']) }}</td>
+        </tr>
       @endforeach
     </table>
   @endif

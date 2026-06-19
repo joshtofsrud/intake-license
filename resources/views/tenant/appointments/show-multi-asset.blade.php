@@ -1279,11 +1279,11 @@ input.ma-asset-name-edit:focus {
       @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
       <button type="button" class="ia-btn ia-btn--secondary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>{{-- MARKER-PATCH-339 --}}
       @endif
-      <button type="button" class="ia-btn ia-btn--secondary" onclick="document.getElementById('invoiceModal').showModal()">&#9113; Invoice</button>
+      {{-- MARKER-PATCH-347 — Invoice button removed; Print & Send (Invoice → "Graphical invoice") covers this. --}}
     </div>
   </div>
 
-  @include('tenant.appointments._invoice-modal', ['appointment' => $appointment])
+  {{-- MARKER-PATCH-347 — _invoice-modal include removed with the Invoice button. --}}
   {{-- MARKER-PATCH-314 --}}
   @include('tenant.appointments._tag_modal')
 
