@@ -1033,6 +1033,11 @@
   background: var(--pb2-danger);
   color: white;
 }
+/* MARKER-NAVDRAG */
+.pb2-insp-body .pb2-navlist-handle { cursor: grab; user-select: none; }
+.pb2-insp-body .pb2-navlist-item.dragging { opacity: .45; }
+.pb2-insp-body .pb2-navlist-item.drag-over-top { box-shadow: inset 0 2px 0 var(--pb2-accent, #BEF264); }
+.pb2-insp-body .pb2-navlist-item.drag-over-bottom { box-shadow: inset 0 -2px 0 var(--pb2-accent, #BEF264); }
 
 /* Details disclosure for "Add from existing pages" */
 .pb2-insp-body .pb2-details { margin-top: 4px; }
@@ -3238,6 +3243,7 @@
     if (!list) return;
 
     let saveTimer = null;
+    let navDragEl = null; // MARKER-NAVDRAG
     function scheduleSave(immediate) {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(saveNavLinks, immediate ? 100 : 800);
@@ -3294,6 +3300,44 @@
       if (remove) {
         remove.addEventListener('click', () => {
           row.remove();
+          scheduleSave(true);
+        });
+      }
+      // MARKER-NAVDRAG — hold the handle to drag-reorder; save reads DOM order
+      const handle = row.querySelector('.pb2-navlist-handle');
+      if (handle) {
+        handle.style.cursor = 'grab';
+        handle.addEventListener('mousedown',  () => { row.draggable = true; });
+        handle.addEventListener('touchstart', () => { row.draggable = true; }, { passive: true });
+        row.addEventListener('mouseup',    () => { row.draggable = false; });
+        row.addEventListener('mouseleave', () => { row.draggable = false; });
+        row.addEventListener('dragstart', e => {
+          navDragEl = row; row.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', 'nav'); } catch (_) {}
+        });
+        row.addEventListener('dragend', () => {
+          row.classList.remove('dragging'); row.draggable = false;
+          list.querySelectorAll('.pb2-navlist-item').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom'));
+          navDragEl = null;
+        });
+        row.addEventListener('dragover', e => {
+          if (!navDragEl || navDragEl === row) return;
+          e.preventDefault();
+          const rect = row.getBoundingClientRect();
+          const before = e.clientY < rect.top + rect.height / 2;
+          row.classList.toggle('drag-over-top', before);
+          row.classList.toggle('drag-over-bottom', !before);
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('drag-over-top','drag-over-bottom'));
+        row.addEventListener('drop', e => {
+          if (!navDragEl || navDragEl === row) return;
+          e.preventDefault();
+          const rect = row.getBoundingClientRect();
+          const before = e.clientY < rect.top + rect.height / 2;
+          row.classList.remove('drag-over-top','drag-over-bottom');
+          if (before) list.insertBefore(navDragEl, row);
+          else        list.insertBefore(navDragEl, row.nextSibling);
           scheduleSave(true);
         });
       }
