@@ -48,7 +48,43 @@ class InvoiceExportController extends Controller
             'terms' => $r->input('terms'),
             'note'  => $r->input('note', $appt->invoice_note),
         ]);
+        $data = $this->decorateIdentity($data, $appt, $r); // MARKER-PATCH-348
         return Pdf::loadView('tenant.invoices.pdf-print', $data)->setPaper('letter');
+    }
+
+    /**
+     * MARKER-PATCH-348 — attach the print logo (base64-embedded, because dompdf
+     * has remote images disabled) and the chosen logo size to the view data.
+     * logo_size comes from the Print & Send window per-print; it falls back to
+     * the tenant's saved print-identity size.
+     */
+    private function decorateIdentity(array $data, TenantAppointment $appt, Request $r): array
+    {
+        $identity = \App\Services\PrintIdentityService::forTenant($appt->tenant);
+        $size = $r->input('logo_size');
+        $data['logo_size'] = in_array($size, ['small', 'medium', 'large', 'xl'], true)
+            ? $size
+            : $identity['logo_size'];
+        $data['logo_data'] = $this->embedLogo($identity['logo_path'] ?? null);
+        return $data;
+    }
+
+    /** Read a stored logo file and return a data: URI dompdf can embed, or null. */
+    private function embedLogo(?string $path): ?string
+    {
+        if (!$path) return null;
+        $rel  = ltrim($path, '/');
+        $mime = [
+            'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif',
+        ];
+        foreach ([storage_path('app/public/' . $rel), public_path('storage/' . $rel)] as $abs) {
+            if (!is_file($abs)) continue;
+            $ext = strtolower(pathinfo($abs, PATHINFO_EXTENSION));
+            if (!isset($mime[$ext])) return null; // skip svg/webp — dompdf can't embed reliably
+            $bytes = @file_get_contents($abs);
+            if ($bytes !== false) return 'data:' . $mime[$ext] . ';base64,' . base64_encode($bytes);
+        }
+        return null;
     }
 
     /** Inline preview (opens in a new tab). */
@@ -111,6 +147,9 @@ class InvoiceExportController extends Controller
             'note'  => $r->input('note', $appt->invoice_note),
         ]);
         $view = $style === 'branded' ? 'tenant.invoices.web-branded' : 'tenant.invoices.pdf-print';
+        if ($view === 'tenant.invoices.pdf-print') {
+            $data = $this->decorateIdentity($data, $appt, $r); // MARKER-PATCH-348
+        }
 
         return response(view($view, $data)->render())
             ->header('Content-Type', 'text/html; charset=utf-8')

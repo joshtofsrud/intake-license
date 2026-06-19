@@ -24,6 +24,12 @@
           <div class="pc-seg pc-col" id="pc-fmt"></div>
         </div>
 
+        {{-- MARKER-PATCH-348 — logo size, graphical invoice only --}}
+        <div class="pc-grp" id="pc-logo-grp" style="display:none">
+          <div class="pc-lbl">Logo size</div>
+          <div class="pc-seg" id="pc-logo"></div>
+        </div>
+
         <div class="pc-grp" id="pc-assets-grp" style="display:none">
           <div class="pc-lbl">Assets <a href="#" id="pc-asset-all">all</a></div>
           <div id="pc-assets"></div>
@@ -119,6 +125,9 @@
   const FMT = { t80:'Thermal 80mm', t58:'Thermal 58mm', full:'Full page', inv:'Graphical invoice' };
   // url format token -> builder format param
   const FMTPARAM = { t80:'t80', t58:'t58', full:'full', inv:'invoice' };
+  // MARKER-PATCH-348 — default logo size from the tenant's saved print identity
+  const LOGO_DEFAULT = @json(\App\Services\PrintIdentityService::forTenant(tenant())['logo_size']);
+  const LOGO_OPTS = [['small','S'],['medium','M'],['large','L'],['xl','XL']];
 
   let S = null; // state
 
@@ -141,7 +150,7 @@
 
   function previewUrl() {
     if (S.fmt === 'inv' && S.source === 'appointment')
-      return window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview';
+      return window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview?logo_size=' + encodeURIComponent(S.logoSize);
     return base() + '?' + params(true);
   }
   function preview() {
@@ -169,6 +178,15 @@
       wrap.appendChild(b);
     });
   }
+  function renderLogo() {
+    const wrap = document.getElementById('pc-logo'); if (!wrap) return; wrap.innerHTML = '';
+    LOGO_OPTS.forEach(([v, lbl]) => {
+      const b = document.createElement('button');
+      b.textContent = lbl; b.className = v === S.logoSize ? 'on' : '';
+      b.onclick = () => { S.logoSize = v; sync(); };
+      wrap.appendChild(b);
+    });
+  }
   function renderAssets() {
     const grp = document.getElementById('pc-assets-grp');
     if (!S.assetList.length) { grp.style.display = 'none'; return; }
@@ -184,7 +202,8 @@
   }
 
   function sync() {
-    renderDoc(); renderFmt(); renderAssets();
+    renderDoc(); renderFmt(); renderAssets(); renderLogo();
+    document.getElementById('pc-logo-grp').style.display = (S.fmt === 'inv') ? '' : 'none';
     // QR only for tag; ledger only when payments exist
     const qr = document.getElementById('pc-qr-row');
     qr.classList.toggle('dim', S.type !== 'tag');
@@ -224,7 +243,7 @@
     // thermal/full: print via hidden iframe; invoice PDF: open in new tab
     if (S.fmt === 'inv') {
       var iv = (S.source === 'appointment')
-        ? window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview'
+        ? window.location.origin + '/admin/appointments/' + S.id + '/invoice/preview?logo_size=' + encodeURIComponent(S.logoSize)
         : base() + '?' + params(false);
       window.open(iv, '_blank'); return;
     }
@@ -243,6 +262,7 @@
       fmt: ctx.format || 't80',
       assetList: [], assets: {}, split: false,
       action: 'print', hasPayments: false,
+      logoSize: LOGO_DEFAULT,
       allowedDocs: source === 'sale' ? ['receipt'] : ['receipt','tag','invoice'],
       inc: { notes_customer:true, notes_staff:false, prices:true, ledger:false, qr:false },
     };
