@@ -600,6 +600,7 @@ class PageBuilderController extends Controller
             ->firstOrFail();
 
         $sections = $page->sections()->where('is_visible', true)->get();
+        $sections = TenantPageSection::withInheritedChrome($sections, $page->tenant_id, $page->id);
 
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')->get();
@@ -882,7 +883,7 @@ class PageBuilderController extends Controller
      */
     private function seedStarterSections(TenantPage $page): void
     {
-        $types = ['nav', 'hero', 'text_image', 'cta_banner', 'footer'];
+        $types = ['hero', 'text_image', 'cta_banner']; // PB1: chrome inherited, not seeded
         foreach ($types as $i => $type) {
             TenantPageSection::create([
                 'page_id' => $page->id, 'tenant_id' => $page->tenant_id,

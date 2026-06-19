@@ -92,6 +92,7 @@ class PublicController extends Controller
     {
         $tenant   = tenant();
         $sections = $page->sections()->where('is_visible', true)->get();
+        $sections = \App\Models\Tenant\TenantPageSection::withInheritedChrome($sections, $page->tenant_id, $page->id);
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')->get();
 
