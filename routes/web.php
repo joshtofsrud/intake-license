@@ -124,6 +124,7 @@ $tenantRoutes = function () {
     Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
     // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
     Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
+    Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
     // MARKER-PATCH-213 — returning-customer lookup (pre-fills the Bikes step)

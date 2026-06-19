@@ -30,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/stripe-connect', // MARKER-PATCH-172D (Stripe Connect, patch 168)
             'webhooks/stripe-direct/*', // MARKER-PATCH-172D (Direct Payments, patch 170)
             'api/plan-quiz/*',
+            'booking/abandon', // MARKER-RECOVERY — partial booking capture
             'funnel/track', // MARKER-FUNNEL-CSRF — anonymous analytics beacon
         ]);
     })

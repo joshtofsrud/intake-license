@@ -90,6 +90,42 @@
         fireStarted();
       }
     }, true);
+
+    // MARKER-RECOVERY — capture partial booking once contact info is entered.
+    function readContact() {
+      function v(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+      var first = v('bk-first-name'), last = v('bk-last-name');
+      var name  = (first + ' ' + last).trim();
+      var email = v('bk-email') || v('bk-pre-email');
+      var phone = v('bk-phone');
+      return { name: name, email: email, phone: phone };
+    }
+    function currentStep() {
+      var active = document.querySelector('.bk-section.active');
+      return active ? (active.id || '').replace('bk-step-','step ') : '';
+    }
+    function isEmail(s){ return /.+@.+\..+/.test(s); }
+    function sendAbandon() {
+      var c = readContact();
+      if (!isEmail(c.email) && (c.phone || '').replace(/\D/g,'').length < 7) return; // need a real contact
+      var payload = JSON.stringify({
+        name: c.name, email: c.email, phone: c.phone,
+        step_reached: currentStep(),
+      });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/booking/abandon', new Blob([payload], { type: 'application/json' }));
+        } else {
+          fetch('/booking/abandon', { method:'POST', headers:{'Content-Type':'application/json'}, body: payload, keepalive: true, credentials:'same-origin' }).catch(function(){});
+        }
+      } catch(e){}
+    }
+    // Fire when they finish a contact field, and on leave.
+    ['bk-email','bk-phone','bk-first-name','bk-last-name','bk-pre-email'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('blur', sendAbandon);
+    });
+    document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') sendAbandon(); });
   }
 })();
 </script>
