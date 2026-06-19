@@ -621,6 +621,36 @@ class PageBuilderController extends Controller
     {
         $tenant = tenant();
 
+        // MARKER-NAVFIX — nav-link save lands here (op=update_nav, no `update`
+        // field), so handle it before the new-page validator below 422s on the
+        // missing title. Empty-list guard prevents a bad save wiping the nav.
+        if ($request->input('op') === 'update_nav') {
+            $items = collect($request->input('nav_items', []))
+                ->filter(fn ($it) => !empty($it['label']))
+                ->values();
+
+            if ($items->isEmpty()) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Refusing to save an empty navigation. Add at least one link.',
+                ], 422);
+            }
+
+            \App\Models\Tenant\TenantNavItem::where('tenant_id', $tenant->id)->delete();
+            foreach ($items as $i => $item) {
+                \App\Models\Tenant\TenantNavItem::create([
+                    'tenant_id'       => $tenant->id,
+                    'label'           => $item['label'],
+                    'url'             => $item['url'] ?? '/',
+                    'is_external'     => filter_var($item['is_external']    ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'open_in_new_tab' => filter_var($item['open_in_new_tab'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'sort_order'      => $i,
+                ]);
+            }
+
+            return response()->json(['ok' => true, 'count' => $items->count()]);
+        }
+
         if ($request->has('section_op')) {
             return $this->handleSectionOp($tenant, $request);
         }
