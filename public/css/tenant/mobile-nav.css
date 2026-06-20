@@ -874,3 +874,24 @@
   .ia-content .sa-head-actions { flex-direction: column; }
   .ia-content .sa-head-actions > .ia-btn { width: 100%; justify-content: center; text-align: center; }
 }
+
+
+/* MOBILE-REPORTS-HARDEN v1 — keep report content inside its cards on phones.
+   .ia-content-scoped to outrank each report page's own <style> block.
+   (stat-strip / heatmap / range-bar / subnav handled separately — not here.) */
+@media (max-width: 767px) {
+  .ia-content table.rep-tbl {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ia-content table.rep-tbl th,
+  .ia-content table.rep-tbl td { white-space: nowrap; }
+
+  .ia-content .rep-kpi-row     { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ia-content .rep-staff-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ia-content .rep-modal-grid  { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .ia-content .rep-list-row    { grid-template-columns: minmax(0, 1fr) 90px 90px; }
+  .ia-content .rep-list-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
+}
