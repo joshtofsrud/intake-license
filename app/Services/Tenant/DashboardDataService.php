@@ -66,7 +66,11 @@ class DashboardDataService
 
         $nextUp = $todayAppointments->first(function ($a) {
             if (!$a->appointment_time) return false;
-            $apptDateTime = Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_time);
+            // MARKER-PATCH-362 — appointment_time is naive tenant-local wall-clock;
+            // parse it in the tenant timezone so "is it still upcoming?" compares
+            // real instants against tnow() (was ~7h early, which hid the next-up
+            // banner for genuinely upcoming appointments).
+            $apptDateTime = Carbon::parse($a->appointment_date->toDateString() . ' ' . $a->appointment_time, $this->tenant->timezone());
             return $apptDateTime->greaterThanOrEqualTo($this->tnow());
         });
 
