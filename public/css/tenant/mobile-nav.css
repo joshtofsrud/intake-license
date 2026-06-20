@@ -674,3 +674,35 @@
   .rep-toggle > a { flex: 0 0 auto; white-space: nowrap; }
 }
 /* =================== end patch-354 block =================== */
+
+
+/* ===================== MARKER-PATCH-355 =====================
+   Reports mobile refactor A: swap the tab row for a native report picker on
+   phones, and let report content use the full width. */
+.rep-subnav-picker { display: none; }
+
+@media (max-width: 767px) {
+  .rep-subnav-tabs { display: none !important; }
+  .rep-subnav-picker { display: block; margin-bottom: 18px; }
+
+  .rep-pick-cap {
+    display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ia-text-3, #888); font-weight: 700; margin-bottom: 7px;
+  }
+  .rep-pick-select {
+    -webkit-appearance: none; appearance: none;
+    width: 100%;
+    font: inherit; font-size: 16px; font-weight: 700;
+    color: var(--ia-text, #f0f0f0);
+    background-color: var(--ia-surface, #131313);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%238a8a8a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 16px center;
+    border: 1px solid var(--ia-border, #1f1f1f); border-radius: 12px;
+    padding: 14px 42px 14px 16px;
+  }
+  .rep-pick-select:focus { outline: none; border-color: var(--ia-accent, #e89a4f); }
+
+  /* Trim the desktop page padding so 2-up cards fill the phone width. */
+  [style*="padding: 32px 40px"] { padding: 22px 16px !important; }
+}
+/* =================== end patch-355 block =================== */

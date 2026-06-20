@@ -1,15 +1,36 @@
 {{--
   Shared subnav partial for the Reports tabs.
   Usage:  @include('tenant.reports._tab_subnav', ['active' => 'services'])
-  Active values: operations | customers | services | retail | money | staff
+  Active: traffic | operations | customers | services | retail | money | staff
+  MARKER-PATCH-355 — desktop tab row + native mobile report picker.
 --}}
-<nav class="rep-toggle" style="margin-bottom: 18px;">
-  {{-- MARKER-PATCH-151B — Traffic moved to first position --}}
-  <a href="{{ route('tenant.reports.traffic',   []) }}" class="{{ ($active ?? '') === 'traffic'    ? 'active' : '' }}">Traffic</a>
-  <a href="{{ route('tenant.reports.index',     []) }}" class="{{ ($active ?? '') === 'operations' ? 'active' : '' }}">Operations</a>
-  <a href="{{ route('tenant.reports.customers', []) }}" class="{{ ($active ?? '') === 'customers'  ? 'active' : '' }}">Customers</a>
-  <a href="{{ route('tenant.reports.services',  []) }}" class="{{ ($active ?? '') === 'services'   ? 'active' : '' }}">Services</a>
-  <a href="{{ route('tenant.reports.retail',    []) }}" class="{{ ($active ?? '') === 'retail'     ? 'active' : '' }}">Retail</a>
-  <a href="{{ route('tenant.reports.money',     []) }}" class="{{ ($active ?? '') === 'money'      ? 'active' : '' }}">Money</a>
-  <a href="{{ route('tenant.reports.staff',     []) }}" class="{{ ($active ?? '') === 'staff'      ? 'active' : '' }}">Staff</a>
+@php
+  $repTabs = [
+    ['key' => 'traffic',    'label' => 'Traffic',    'url' => route('tenant.reports.traffic')],
+    ['key' => 'operations', 'label' => 'Operations', 'url' => route('tenant.reports.index')],
+    ['key' => 'customers',  'label' => 'Customers',  'url' => route('tenant.reports.customers')],
+    ['key' => 'services',   'label' => 'Services',   'url' => route('tenant.reports.services')],
+    ['key' => 'retail',     'label' => 'Retail',     'url' => route('tenant.reports.retail')],
+    ['key' => 'money',      'label' => 'Money',      'url' => route('tenant.reports.money')],
+    ['key' => 'staff',      'label' => 'Staff',      'url' => route('tenant.reports.staff')],
+  ];
+  $repActive = $active ?? '';
+@endphp
+
+{{-- Desktop: horizontal tab row (hidden on phones via .rep-subnav-tabs) --}}
+<nav class="rep-toggle rep-subnav-tabs" style="margin-bottom: 18px;">
+  @foreach($repTabs as $t)
+    <a href="{{ $t['url'] }}" class="{{ $repActive === $t['key'] ? 'active' : '' }}">{{ $t['label'] }}</a>
+  @endforeach
 </nav>
+
+{{-- Phones: native report picker (hidden on desktop via .rep-subnav-picker) --}}
+<div class="rep-subnav-picker">
+  <label class="rep-pick-cap" for="rep-pick">Report</label>
+  <select id="rep-pick" class="rep-pick-select"
+          onchange="if(this.value){window.location.href=this.value;}">
+    @foreach($repTabs as $t)
+      <option value="{{ $t['url'] }}" @selected($repActive === $t['key'])>{{ $t['label'] }}</option>
+    @endforeach
+  </select>
+</div>
