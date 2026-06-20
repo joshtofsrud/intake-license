@@ -90,7 +90,7 @@
 
   .ia-theme-a .ia-mobile-nav-item.active,
   .ia-theme-c .ia-mobile-nav-item.active {
-    color: #BEF264;
+    color: var(--ia-accent, #BEF264); /* MARKER-PATCH-349 — match tenant brand, not hardcoded lime */
   }
 
   .ia-mobile-nav-icon {
@@ -111,6 +111,7 @@
   .ia-theme-a .ia-mobile-nav-item.active .ia-mobile-nav-icon,
   .ia-theme-c .ia-mobile-nav-item.active .ia-mobile-nav-icon {
     background: rgba(190, 242, 100, .18);
+    background: color-mix(in srgb, var(--ia-accent, #BEF264) 20%, transparent); /* MARKER-PATCH-349 */
   }
 
   .ia-mobile-nav-label {

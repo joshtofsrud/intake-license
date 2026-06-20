@@ -1551,10 +1551,133 @@
       });
     }
 
+    // ── TOUCH-DRAG-HOLD v1 (MARKER-PATCH-349) ──────────────────────────────
+    // Free drag works on touch too, but it requires a deliberate ~450ms
+    // press-and-hold to ARM — so an ordinary swipe still scrolls the day grid
+    // instead of grabbing an appointment. The mouse path above is unchanged.
+    var HOLD_MS = 450;
+    var TOUCH_MOVE_TOLERANCE = 10; // px of movement before arming = it's a scroll, abort
+    var holdTimer = null;
+
+    function touchPositionGhost(clientX, clientY) {
+      var col = findColumnAtPoint(clientX, clientY);
+      if (col) {
+        var colRect = col.getBoundingClientRect();
+        var yInCol = clientY - colRect.top;
+        var rawMin = openMin + (yInCol / pxPerMin);
+        var snappedMin = snapToInterval(rawMin);
+        state.currentMin = snappedMin;
+        state.currentResource = col.getAttribute('data-resource-id');
+        state.currentColumn = col;
+        var topPx = (snappedMin - openMin) * pxPerMin;
+        ghost.style.left = colRect.left + 'px';
+        ghost.style.top = (colRect.top + topPx) + 'px';
+        ghost.style.width = colRect.width + 'px';
+        ghost.style.display = 'block';
+        ghostTime.textContent = formatTime(snappedMin) + ' – ' + formatTime(snappedMin + state.durationMin);
+      } else {
+        ghost.style.display = 'none';
+      }
+      timeLabel.style.left = (clientX + 14) + 'px';
+      timeLabel.style.top = (clientY + 14) + 'px';
+      timeLabel.textContent = col ? formatTime(state.currentMin) : 'Outside grid';
+      timeLabel.classList.toggle('is-invalid', !col);
+    }
+
+    function clearHold() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+
+    function touchTeardown() {
+      document.removeEventListener('touchmove', onTouchMove, { passive: false });
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
+    }
+
+    function onTouchStart(e) {
+      if (e.touches.length !== 1) return;
+      var block = e.currentTarget;
+      var apptId       = block.getAttribute('data-appt-id');
+      var apptTime     = block.getAttribute('data-appt-time');
+      var apptDuration = parseInt(block.getAttribute('data-appt-duration') || '0', 10);
+      var apptResource = block.getAttribute('data-appt-resource-id');
+      if (!apptId || !apptTime) return;
+
+      var t = e.touches[0];
+      state = {
+        block: block, apptId: apptId, startTime: apptTime,
+        startMin: timeStrToMin(apptTime), durationMin: apptDuration,
+        startResource: apptResource, startX: t.clientX, startY: t.clientY,
+        dragging: false, armed: false,
+        currentMin: timeStrToMin(apptTime), currentResource: apptResource, currentColumn: null
+      };
+
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+      document.addEventListener('touchcancel', onTouchEnd);
+
+      clearHold();
+      holdTimer = setTimeout(function () {
+        if (!state) return;
+        state.armed = true;
+        state.dragging = true;
+        state.block.classList.add('ia-cal-appt-dragging');
+        document.body.classList.add('ia-cal-dragging-active');
+        ghost.hidden = false;
+        timeLabel.hidden = false;
+        var nameEl = state.block.querySelector('.ia-cal-appt-name');
+        ghostName.textContent = nameEl ? nameEl.textContent : 'Appointment';
+        ghost.style.height = (state.durationMin * pxPerMin) + 'px';
+        touchPositionGhost(state.startX, state.startY);
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (err) {} }
+      }, HOLD_MS);
+    }
+
+    function onTouchMove(e) {
+      if (!state) return;
+      var t = e.touches[0];
+      if (!state.armed) {
+        // Moved before the hold fired → user is scrolling. Abort and let the page scroll.
+        if (Math.abs(t.clientX - state.startX) > TOUCH_MOVE_TOLERANCE ||
+            Math.abs(t.clientY - state.startY) > TOUCH_MOVE_TOLERANCE) {
+          clearHold();
+          touchTeardown();
+          state = null;
+        }
+        return; // never preventDefault while unarmed — native scroll stays alive
+      }
+      e.preventDefault(); // armed: we own the gesture now
+      touchPositionGhost(t.clientX, t.clientY);
+    }
+
+    function onTouchEnd() {
+      clearHold();
+      touchTeardown();
+      document.body.classList.remove('ia-cal-dragging-active');
+      if (!state) return;
+      if (!state.armed || !state.dragging) { state = null; return; } // a tap → let it open detail
+
+      var unchanged = (state.currentMin === state.startMin) &&
+                      (state.currentResource === state.startResource);
+      cleanupGhost();
+      // Swallow the synthetic click that follows touchend so we don't also open the appointment.
+      suppressNextClickUntil = Date.now() + 400;
+
+      if (unchanged || !state.currentColumn) {
+        state.block.classList.remove('ia-cal-appt-dragging');
+        if (!state.currentColumn && window.IntakeToast) {
+          window.IntakeToast.info('Drop outside the grid — kept where it was.');
+        }
+        state = null;
+        return;
+      }
+      submitReschedule(state, false);
+    }
+
     // Bind to all appointment blocks on the day view
     document.querySelectorAll('.ia-cal-appt').forEach(function (block) {
       block.addEventListener('mousedown', onMouseDown);
+      block.addEventListener('touchstart', onTouchStart, { passive: true });
       block.style.cursor = 'grab';
+      block.style.touchAction = 'pan-y'; // vertical scroll stays free until a hold arms the drag
     });
 
     // Click suppression: after a drag, the browser fires a click on whatever
