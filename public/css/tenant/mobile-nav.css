@@ -846,3 +846,23 @@
 @media (min-width: 1024px) {
   .ia-mobile-header-bell { display: none !important; }
 }
+
+
+/* MOBILE-NOTIFICATIONS v1 — reflow the alerts list to fill narrow screens.
+   Rail removed: icon | full-width content; timestamp pinned top-right;
+   Acknowledge aligned at the bottom. Matches the <=600px page-head stack. */
+@media (max-width: 600px) {
+  .sa-filter-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .sa-alert {
+    grid-template-columns: 28px 1fr;
+    gap: 12px;
+    padding: 14px;
+    align-items: start;
+  }
+  .sa-src-icon { width: 28px; height: 28px; }
+  .sa-content { grid-column: 2; }
+  .sa-title { padding-right: 46px; }
+  .sa-ts { position: absolute; top: 14px; right: 14px; font-size: 11px; }
+  .sa-right { grid-column: 2; display: block; text-align: right; }
+  .sa-ack { display: inline-block; margin-top: 10px; }
+}

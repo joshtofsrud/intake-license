@@ -78,7 +78,7 @@
       </div>
     @endforeach
   </div>
-  <div style="margin-top:16px">{{ $alerts->links() }}</div>
+  <div style="margin-top:16px">{{ $alerts->links('vendor.pagination.intake') }}</div>
 @endif
 
 <style>
