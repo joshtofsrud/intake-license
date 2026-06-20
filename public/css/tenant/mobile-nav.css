@@ -848,21 +848,21 @@
 }
 
 
-/* MOBILE-NOTIFICATIONS v1 — reflow the alerts list to fill narrow screens.
-   Rail removed: icon | full-width content; timestamp pinned top-right;
-   Acknowledge aligned at the bottom. Matches the <=600px page-head stack. */
+/* MOBILE-NOTIFICATIONS v2 — reflow alerts to fill narrow screens. Prefixed
+   with .ia-content to outrank the page's own <style> (equal-specificity rules
+   that load later in the body were winning, so v1 had no visible effect). */
 @media (max-width: 600px) {
-  .sa-filter-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .sa-alert {
+  .ia-content .sa-filter-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ia-content .sa-alert {
     grid-template-columns: 28px 1fr;
     gap: 12px;
     padding: 14px;
     align-items: start;
   }
-  .sa-src-icon { width: 28px; height: 28px; }
-  .sa-content { grid-column: 2; }
-  .sa-title { padding-right: 46px; }
-  .sa-ts { position: absolute; top: 14px; right: 14px; font-size: 11px; }
-  .sa-right { grid-column: 2; display: block; text-align: right; }
-  .sa-ack { display: inline-block; margin-top: 10px; }
+  .ia-content .sa-src-icon { width: 28px; height: 28px; }
+  .ia-content .sa-content { grid-column: 2; }
+  .ia-content .sa-title { padding-right: 46px; }
+  .ia-content .sa-ts { position: absolute; top: 14px; right: 14px; font-size: 11px; }
+  .ia-content .sa-right { grid-column: 2; display: block; text-align: right; }
+  .ia-content .sa-ack { display: inline-block; margin-top: 10px; }
 }
