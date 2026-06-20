@@ -744,3 +744,22 @@
   .ia-content .rep-stat-cell:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 /* =================== end patch-356 block =================== */
+
+
+/* ===================== MARKER-PATCH-358 =====================
+   Capacity heatmap: fit 14 hourly columns on phones (no overflow/scroll). */
+@media (max-width: 767px) {
+  .ia-content .rep-heatmap,
+  .ia-content .rep-heatmap-axis {
+    grid-template-columns: 34px repeat(14, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .ia-content .rep-heatmap-cell { aspect-ratio: auto; height: 15px; }
+  .ia-content .rep-heatmap-row-label { font-size: 10px; padding-right: 4px; }
+  /* thin the axis to every-3rd label; keep hidden ones in flow for alignment */
+  .ia-content .rep-heatmap-axis-label {
+    visibility: hidden; font-size: 8.5px; white-space: nowrap;
+  }
+  .ia-content .rep-heatmap-axis-label:nth-child(3n+2) { visibility: visible; }
+}
+/* =================== end patch-358 block =================== */
