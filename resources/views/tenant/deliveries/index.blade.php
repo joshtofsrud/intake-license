@@ -256,7 +256,7 @@
   /* Drawer */
   .del-drawer-bg {
     display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,.65); z-index: 90;
+    background: rgba(0,0,0,.65); z-index: 200; /* MARKER-PATCH-369 — above the bottom tab bar */
   }
   .del-drawer-bg.is-open { display: block; }
   .del-drawer {
@@ -264,7 +264,7 @@
     width: 520px; max-width: 100vw;
     background: var(--ia-surface);
     border-left: 0.5px solid var(--ia-border-strong, rgba(255,255,255,.14));
-    z-index: 100; overflow-y: auto;
+    z-index: 201; overflow-y: auto; /* MARKER-PATCH-369 */
   }
   .del-drawer.is-open { display: block; }
   .del-drawer-head {
@@ -485,6 +485,21 @@
     }
   }
   /* =================== end patch-353 block =================== */
+
+  /* MARKER-PATCH-369 — pickup/dropoff drawer phone layout. Footer was
+     overflowing (up to 4 action buttons in a no-wrap row) and sat under the
+     bottom tab bar (drawer z-index now clears the nav). */
+  @media (max-width: 600px) {
+    .del-drawer-head { padding: 16px 16px 14px; }
+    .del-drawer-body { padding: 16px; }
+    .del-drawer-foot { padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px)); }
+    .del-row.split { grid-template-columns: 1fr; }
+    .del-drawer-foot-row { flex-wrap: wrap; gap: 8px; }
+    #del-foot-left { width: 100%; }
+    #del-foot-left > .del-btn { width: 100%; }
+    .del-drawer-foot-right { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+    .del-drawer-foot-right > .del-btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
+  }
 </style>
 @endpush
 
