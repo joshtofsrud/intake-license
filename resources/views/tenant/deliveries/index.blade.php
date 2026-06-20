@@ -387,6 +387,85 @@
     border: 0.5px solid rgba(248,113,113,.3);
   }
   .del-btn--danger:hover { background: rgba(248,113,113,.08); }
+
+  /* ===================== MARKER-PATCH-352 =====================
+     Deliveries WEEK -> phone route-list (matrix stays on >=768px). */
+  @media (max-width: 767px) {
+    .del-week { display: block; }
+
+    .del-week-col {
+      border-right: 0;
+      min-height: 0;
+      border-bottom: 0.5px solid var(--ia-border);
+      margin-bottom: 2px;
+      padding-bottom: 6px;
+    }
+    .del-week-col:last-child { border-bottom: 0; margin-bottom: 0; }
+
+    /* sticky day header: Dow . date . stop count, inline */
+    .del-week-head {
+      position: sticky; top: 0; z-index: 3;
+      display: flex; align-items: baseline; gap: 8px;
+      padding: 13px 16px 9px;
+      background: var(--ia-bg, #0b0b0b);
+      border-bottom: 0.5px solid var(--ia-border);
+    }
+    .del-week-head .dow {
+      font-size: 11px; font-weight: 700; letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--ia-text-dim, rgba(255,255,255,.42));
+    }
+    .del-week-head .date { font-size: 15px; font-weight: 700; color: var(--ia-text); }
+    .del-week-head .count {
+      margin-left: auto; font-size: 11.5px; font-weight: 500;
+      color: var(--ia-text-muted, rgba(255,255,255,.55));
+    }
+    .del-week-head.is-today .dow,
+    .del-week-head.is-today .date { color: var(--ia-accent, #BEF264); }
+
+    .del-week-body { padding: 8px 16px 4px; gap: 8px; }
+
+    /* card -> route row: [time] [name / addr] [type badge] */
+    .del-week-card {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas:
+        "time name tag"
+        "time addr tag";
+      align-items: center;
+      column-gap: 12px; row-gap: 1px;
+      padding: 11px 13px;
+      border-radius: 9px;
+      border-left-width: 3px;
+    }
+    .del-week-card .time {
+      grid-area: time; align-self: center; display: block;
+      margin-bottom: 0; line-height: 1.15;
+      font-size: 12px; font-weight: 700; color: var(--ia-text);
+    }
+    .del-week-card .name {
+      grid-area: name; font-size: 14px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .del-week-card .addr { grid-area: addr; font-size: 12px; margin-top: 0; }
+
+    /* type badge — text derived from .is-pickup / .is-dropoff, no markup change */
+    .del-week-card::after {
+      grid-area: tag; align-self: center; justify-self: end;
+      content: "Pickup";
+      font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 5px;
+      color: var(--del-pickup); background: rgba(96,165,250,.14);
+    }
+    .del-week-card.is-dropoff::after {
+      content: "Dropoff";
+      color: var(--del-dropoff); background: rgba(251,146,60,.14);
+    }
+
+    /* empty-day placeholder: left-aligned, compact */
+    .del-week-body > div { text-align: left !important; padding: 6px 2px 8px !important; }
+  }
+  /* =================== end patch-352 block =================== */
 </style>
 @endpush
 
