@@ -866,3 +866,11 @@
   .ia-content .sa-right { grid-column: 2; display: block; text-align: right; }
   .ia-content .sa-ack { display: inline-block; margin-top: 10px; }
 }
+
+
+/* MOBILE-NOTIF-ACTIONS v1 — stack the alerts page-head buttons full-width on
+   phones so three actions don't overflow the row. .ia-content-scoped to win. */
+@media (max-width: 600px) {
+  .ia-content .sa-head-actions { flex-direction: column; }
+  .ia-content .sa-head-actions > .ia-btn { width: 100%; justify-content: center; text-align: center; }
+}

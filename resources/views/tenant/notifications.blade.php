@@ -12,7 +12,7 @@
   </div>
   @php $canBroadcast = tenant()->staff_alerts_enabled && optional(auth('tenant')->user())->isManager(); @endphp
   {{-- MARKER-PATCH-280 — compose entry point --}}
-  <div style="display:flex;gap:8px;align-items:center">
+  <div class="sa-head-actions" style="display:flex;gap:8px;align-items:center">
     @if($canBroadcast)
       <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('bc-overlay').classList.add('open')">📣 New announcement</button>
     @endif
