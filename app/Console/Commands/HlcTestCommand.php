@@ -93,8 +93,16 @@ class HlcTestCommand extends Command
             $this->warn('   Inventory failed: ' . $e->getMessage());
         }
 
+        // MARKER-PATCH-370 — image URL/path shape probe
+        $this->info('-> Catalog/Products/Images for ' . implode(', ', $skus) . ' (image URL/path shape)...');
+        try {
+            $this->line($this->pretty($client->images($skus)));
+        } catch (\Throwable $e) {
+            $this->warn('   Images failed: ' . $e->getMessage());
+        }
+
         $this->newLine();
-        $this->info('Paste the Prices + Products output back to lock the PriceTypeId -> cost/MAP/MSRP mapping.');
+        $this->info('Paste the Prices + Products + Images output back to lock the field mappings (incl. image URLs/paths).');
         return self::SUCCESS;
     }
 
