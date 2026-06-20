@@ -73,6 +73,31 @@
   </div>
 @endif
 
+{{-- MARKER-PATCH-373 — product image from distributor catalog --}}
+@php $catImages = $item->distributorCatalog?->images ?? []; @endphp
+<div class="ia-card" style="margin-bottom:20px">
+  <div class="ia-card-head">
+    <span class="ia-card-title">Product image</span>
+    <span style="font-size:12px;color:var(--ia-text-muted);margin-left:8px">from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</span>
+  </div>
+  <div class="ia-card-body">
+    @if(!empty($catImages))
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+        @foreach($catImages as $img)
+          @php $src = is_array($img) ? ($img['url'] ?? $img['Url'] ?? $img['path'] ?? null) : (is_string($img) ? $img : null); @endphp
+          @if($src)
+            <div style="width:120px;height:120px;border-radius:8px;background:#f3f3f1;display:flex;align-items:center;justify-content:center;overflow:hidden">
+              <img src="{{ $src }}" alt="{{ $item->name }}" style="max-width:100%;max-height:100%;object-fit:contain">
+            </div>
+          @endif
+        @endforeach
+      </div>
+    @else
+      <div style="color:var(--ia-text-muted);font-size:13px">No image from the distributor catalog.</div>
+    @endif
+  </div>
+</div>
+
 {{-- patch-97 hero card — three-zone status: Here · Elsewhere · Special orders. --}}
 @php
   $hereIl = $currentLocation ? ($itemLocByLocId[$currentLocation->id] ?? null) : null;
@@ -351,6 +376,37 @@
   </div>
 
 </div>
+
+{{-- MARKER-PATCH-373 — specs from distributor catalog --}}
+@php
+  $catAttrs = $item->distributorCatalog?->attributes ?? [];
+  $catDesc  = $item->distributorCatalog?->description;
+  $hideAttr = ['inner pack','master pack','legacy #','legacy','ean','unit of measure',
+               'shipping length (l)','shipping width (w)','shipping height (h)','shipping weight','case quantity'];
+  $specRows = collect($catAttrs)
+    ->filter(fn($a) => is_array($a) && isset($a['Name'], $a['Value']) && trim((string) $a['Value']) !== '')
+    ->reject(fn($a) => in_array(strtolower(trim((string) $a['Name'])), $hideAttr, true));
+@endphp
+@if($specRows->isNotEmpty() || $catDesc)
+<div class="ia-card" style="margin-bottom:20px">
+  <div class="ia-card-head">
+    <span class="ia-card-title">Specs</span>
+    <span style="font-size:12px;color:var(--ia-text-muted);margin-left:8px">from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</span>
+  </div>
+  <div class="ia-card-body">
+    @if($catDesc)
+      <p style="color:var(--ia-text-muted);font-size:13.5px;line-height:1.5;margin:0 0 14px">{{ $catDesc }}</p>
+    @endif
+    @if($specRows->isNotEmpty())
+      <table class="ia-key-value">
+        @foreach($specRows as $a)
+          <tr><td>{{ $a['Name'] }}</td><td>{{ $a['Value'] }}</td></tr>
+        @endforeach
+      </table>
+    @endif
+  </div>
+</div>
+@endif
 
 {{-- Effective values (what actually shows up at the register) --}}
 <div class="ia-card" style="margin-bottom:20px">
