@@ -577,7 +577,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
 
                 Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
-                Route::get('/{id}/preview',      [TenantControllers\InventoryController::class, 'showPreview'])->name('show.preview');
                 Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
                 Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
                 Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');

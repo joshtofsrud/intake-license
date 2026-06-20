@@ -504,58 +504,6 @@ class InventoryController extends Controller
         ));
     }
 
-    /**
-     * MARKER-PATCH-374 — Option A item-page preview. Read-only; mirrors show()'s
-     * data prep exactly. Swap-in = point show() at the -preview view once approved.
-     */
-    public function showPreview(Request $request, string $id): View
-    {
-        $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
-
-        $item = TenantInventoryItem::with(['category', 'distributorCatalog', 'locations.location', 'specialOrders.vendor', 'specialOrders.customer', 'specialOrders.appointment', 'vendors'])
-            ->where('tenant_id', $tenant->id)
-            ->findOrFail($id);
-
-        $recentMovements = $item->movements()
-            ->with('location')
-            ->orderBy('created_at', 'desc')
-            ->limit(50)
-            ->get();
-
-        $locations = $tenant->activeLocations()->get();
-
-        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        $currentLocationId = $request->session()->get('current_location_id');
-        $currentLocation = null;
-        if ($currentLocationId) {
-            $currentLocation = $locations->firstWhere('id', $currentLocationId);
-        }
-        if (!$currentLocation) {
-            $currentLocation = $locations->firstWhere('is_default', true) ?? $locations->first();
-        }
-
-        $openSoStatuses = ['needed', 'ordered', 'arrived'];
-        $openSos = $item->specialOrders->whereIn('status', $openSoStatuses);
-        $soSummary = [
-            'open_count'    => $openSos->count(),
-            'by_status'     => $openSos->groupBy('status')->map->count()->toArray(),
-            'earliest_eta'  => $openSos->where('status', 'ordered')
-                ->whereNotNull('expected_arrival_date')
-                ->sortBy('expected_arrival_date')
-                ->first()?->expected_arrival_date,
-        ];
-
-        return view('tenant.inventory.show-preview', compact(
-            'item', 'recentMovements', 'locations', 'vendors',
-            'currentLocation', 'soSummary'
-        ));
-    }
-
     public function edit(string $id): View
     {
         $tenant = tenant();
