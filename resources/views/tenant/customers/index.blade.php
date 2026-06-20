@@ -253,12 +253,42 @@
   </div>
 
   @if($totalPages > 1)
-    <div class="ia-pagination">
-      @for($p = 1; $p <= $totalPages; $p++)
-        <a href="{{ route('tenant.customers.index', array_merge(request()->query(), ['page' => $p])) }}"
-           class="ia-page-btn {{ $p === $page ? 'active' : '' }}">{{ $p }}</a>
+    {{-- MARKER-PATCH-368 — windowed pager (prev/next + ellipses) replaces the full 1..N wall. --}}
+    @php
+      $pgUrl     = fn($p) => route('tenant.customers.index', array_merge(request()->query(), ['page' => $p]));
+      $winStart  = max(1, $page - 2);
+      $winEnd    = min($totalPages, $page + 2);
+      $shownFrom = $total > 0 ? ($page - 1) * 25 + 1 : 0;
+      $shownTo   = min($page * 25, $total);
+    @endphp
+    <div class="ia-pagination" role="navigation" aria-label="Customer pages">
+      @if($page > 1)
+        <a href="{{ $pgUrl($page - 1) }}" class="ia-page-btn" rel="prev" aria-label="Previous page">&lsaquo;</a>
+      @else
+        <span class="ia-page-btn is-disabled" aria-disabled="true">&lsaquo;</span>
+      @endif
+
+      @if($winStart > 1)
+        <a href="{{ $pgUrl(1) }}" class="ia-page-btn">1</a>
+        @if($winStart > 2)<span class="ia-page-ellipsis">&hellip;</span>@endif
+      @endif
+
+      @for($p = $winStart; $p <= $winEnd; $p++)
+        <a href="{{ $pgUrl($p) }}" class="ia-page-btn {{ $p === $page ? 'active' : '' }}"@if($p === $page) aria-current="page"@endif>{{ $p }}</a>
       @endfor
+
+      @if($winEnd < $totalPages)
+        @if($winEnd < $totalPages - 1)<span class="ia-page-ellipsis">&hellip;</span>@endif
+        <a href="{{ $pgUrl($totalPages) }}" class="ia-page-btn">{{ $totalPages }}</a>
+      @endif
+
+      @if($page < $totalPages)
+        <a href="{{ $pgUrl($page + 1) }}" class="ia-page-btn" rel="next" aria-label="Next page">&rsaquo;</a>
+      @else
+        <span class="ia-page-btn is-disabled" aria-disabled="true">&rsaquo;</span>
+      @endif
     </div>
+    <div class="cust-page-count">Showing {{ number_format($shownFrom) }}&ndash;{{ number_format($shownTo) }} of {{ number_format($total) }}</div>
   @endif
 @endif
 
@@ -540,6 +570,11 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
   .cust-sort-sheet,
   .cust-sort-sheet-backdrop { display: none !important; }
 }
+
+/* MARKER-PATCH-368 — windowed pager extras */
+.ia-page-btn.is-disabled { opacity: .35; pointer-events: none; }
+.ia-page-ellipsis { display: inline-flex; align-items: center; padding: 0 4px; color: var(--ia-text-3, #888); font-size: 12px; }
+.cust-page-count { margin-top: 8px; font-size: 11.5px; color: var(--ia-text-3, #888); }
 </style>
 @endpush
 
