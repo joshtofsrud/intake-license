@@ -40,7 +40,11 @@
     $nuMinutesAway = null;
     if ($nuTime) {
       try {
-        $nuStart = \Carbon\Carbon::parse($nu->appointment_date->toDateString() . ' ' . $nu->appointment_time);
+        // MARKER-PATCH-361 — appointment_time is naive tenant-local wall-clock;
+        // parse it in the tenant timezone so the countdown isn't offset by the
+        // UTC delta (which made the banner appear/hide at the wrong times).
+        $tz = tenant()?->timezone() ?? config('app.timezone', 'UTC');
+        $nuStart = \Carbon\Carbon::parse($nu->appointment_date->toDateString() . ' ' . $nu->appointment_time, $tz);
         // CARBON3-DIFF-FIX v1: timestamp math instead of diffInMinutes(false)
         // because Carbon 3 returns negative for "$nuStart is later than now",
         // which broke the "In 24 minutes" branch (always fell through to "Next up").
