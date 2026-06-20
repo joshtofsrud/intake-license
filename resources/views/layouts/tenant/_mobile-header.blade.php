@@ -26,6 +26,17 @@
   $mhdrLogo = \App\Support\ColorHelper::pickLogo($currentTenant, $mhdrBg);
   $mhdrLogoHeight = (int) ($currentTenant->logo_size_admin ?? 26);
   $mhdrLogoHeight = max(16, min(40, $mhdrLogoHeight)); // clamp to mobile-friendly size
+
+  // MARKER-PATCH-363 — unread alerts count for the mobile header bell
+  // (per-user, mirrors StaffAlertController::feed). Server-rendered; refreshes
+  // on each page load, like the inbox badge in the attention row.
+  $mhdrAlertsUnread = 0;
+  if (auth('tenant')->check()) {
+      $mhdrAlertsUnread = (int) \App\Models\Tenant\TenantStaffAlert::where('tenant_id', tenant()->id)
+          ->where('user_id', auth('tenant')->id())
+          ->whereNull('read_at')
+          ->count();
+  }
 @endphp
 <header class="ia-mobile-header" role="banner">
   <div class="ia-mobile-header-inner">
@@ -47,5 +58,14 @@
       </a>
     @endif
     @include('layouts.tenant._location-switcher')
+
+    {{-- MARKER-PATCH-363 — alerts bell -> full notifications page, with unread badge --}}
+    <a href="{{ route('tenant.notifications') }}" class="ia-mobile-header-bell"
+       aria-label="Notifications{{ $mhdrAlertsUnread > 0 ? ' — '.$mhdrAlertsUnread.' unread' : '' }}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      @if($mhdrAlertsUnread > 0)<span class="ia-mobile-header-bell-badge">{{ $mhdrAlertsUnread > 99 ? '99+' : $mhdrAlertsUnread }}</span>@endif
+    </a>
   </div>
 </header>
