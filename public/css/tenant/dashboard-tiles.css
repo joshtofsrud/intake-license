@@ -28,11 +28,11 @@
 /* ─────────────────────────────────────────────── */
 .ia-dash-tiles-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 @media (max-width: 900px) {
-  .ia-dash-tiles-grid { grid-template-columns: repeat(2, 1fr); }
+  .ia-dash-tiles-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
   .ia-dash-tiles-grid { grid-template-columns: 1fr; }
@@ -247,7 +247,7 @@
 /* ─────────────────────────────────────────────── */
 .ia-dash-growth-tiles-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 @media (max-width: 900px) {
@@ -352,14 +352,14 @@
 /* ─────────────────────────────────────────────── */
 .ia-dash-launcher-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 @media (max-width: 900px) {
-  .ia-dash-launcher-grid { grid-template-columns: repeat(3, 1fr); }
+  .ia-dash-launcher-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
-  .ia-dash-launcher-grid { grid-template-columns: repeat(2, 1fr); }
+  .ia-dash-launcher-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .ia-dash-launcher-tile {
@@ -469,3 +469,6 @@
 @media (max-width: 1023px) {
   .ia-dash-launcher-block { padding-bottom: 92px; }
 }
+
+/* MARKER-PATCH-351 — grid columns use minmax(0,1fr) above to stop nowrap subs
+   from blowing the grid past the viewport (fixes 'pinches small' + uneven cols). */
