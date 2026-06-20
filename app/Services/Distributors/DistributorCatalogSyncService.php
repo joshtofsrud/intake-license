@@ -193,6 +193,10 @@ class DistributorCatalogSyncService
         $canonical['display_subtitle'] = $composed['subtitle'] !== '' ? $composed['subtitle'] : null;
         $canonical['search_text']      = ($composed['search'] ?? '') !== '' ? $composed['search'] : null;
 
+        // MARKER-PATCH-372 — capture distributor product images. Public CDN URLs
+        // ({Format,Url,Hash}) already embedded per-variant in the Products payload.
+        $canonical['images'] = $variant['Images'] ?? [];
+
         PlatformDistributorCatalog::query()->updateOrCreate(
             ['distributor_code' => $code, 'distributor_variant_no' => $vno],
             $canonical
