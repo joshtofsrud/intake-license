@@ -763,3 +763,19 @@
   .ia-content .rep-heatmap-axis-label:nth-child(3n+2) { visibility: visible; }
 }
 /* =================== end patch-358 block =================== */
+
+
+/* ===================== MARKER-PATCH-359 =====================
+   Range bar: collapse "Custom range" to a 📅 icon on phones so it fits. */
+@media (max-width: 640px) {
+  .ia-content .rep-rangebar-controls .rep-customrange-btn {
+    flex: 0 0 auto;
+    font-size: 0;
+    padding: 7px 11px;
+  }
+  .ia-content .rep-rangebar-controls .rep-customrange-btn::before {
+    content: "\01F4C5";
+    font-size: 15px;
+  }
+}
+/* =================== end patch-359 block =================== */
