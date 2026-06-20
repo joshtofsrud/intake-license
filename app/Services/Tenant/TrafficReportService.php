@@ -202,19 +202,24 @@ class TrafficReportService
      */
     public function funnel(): array
     {
-        $sessionCount = function (string $eventType) {
+        // MARKER-PATCH-357 — cumulative cohort counts: distinct sessions that
+        // reached a stage OR BEYOND. Guarantees a monotonic funnel
+        // (viewed >= started >= completed) even when a session fires a later
+        // event without the earlier one (tracking gap). Previously this
+        // produced >100% steps and negative drop-offs.
+        $reached = function (array $eventTypes) {
             return (int) TenantFunnelEvent::query()
                 ->where('tenant_id', $this->tenant->id)
-                ->where('event_type', $eventType)
+                ->whereIn('event_type', $eventTypes)
                 ->where('created_at', '>=', $this->curStart)
                 ->where('created_at', '<',  $this->curEnd)
                 ->distinct('session_id')
                 ->count('session_id');
         };
 
-        $viewed    = $sessionCount('booking_page_viewed');
-        $started   = $sessionCount('booking_started');
-        $completed = $sessionCount('booking_completed');
+        $viewed    = $reached(['booking_page_viewed', 'booking_started', 'booking_completed']);
+        $started   = $reached(['booking_started', 'booking_completed']);
+        $completed = $reached(['booking_completed']);
 
         // Drop-off rates between adjacent steps
         $dropViewToStart  = $viewed   > 0 ? round((($viewed   - $started)   / $viewed)   * 100, 1) : 0.0;
