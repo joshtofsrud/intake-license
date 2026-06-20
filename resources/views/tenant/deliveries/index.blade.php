@@ -466,6 +466,25 @@
     .del-week-body > div { text-align: left !important; padding: 6px 2px 8px !important; }
   }
   /* =================== end patch-352 block =================== */
+
+  /* ===================== MARKER-PATCH-353 =====================
+     Deliveries toolbar -> no phone overflow (day + week share it). */
+  @media (max-width: 767px) {
+    /* action cluster: wrap instead of running off-screen */
+    .del-toolbar-right { width: 100%; flex-wrap: wrap; gap: 8px; }
+    .del-toolbar-right .del-dw-toggle { flex: 0 0 auto; }
+    .del-toolbar-right .del-btn { flex: 1 1 auto; justify-content: center; }
+
+    /* date range drops to its own line; arrows + This week stay paired */
+    .del-day-nav { width: 100%; flex-wrap: wrap; row-gap: 4px; }
+    .del-day-nav .date-label {
+      min-width: 0;
+      flex: 1 1 100%;
+      order: 5;
+      font-size: 14px;
+    }
+  }
+  /* =================== end patch-353 block =================== */
 </style>
 @endpush
 
