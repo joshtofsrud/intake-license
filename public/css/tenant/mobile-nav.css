@@ -779,3 +779,28 @@
   }
 }
 /* =================== end patch-359 block =================== */
+
+
+/* ===================== MARKER-PATCH-360 =====================
+   More drawer: sectioned single-column nav (replaces the 2-col link wall). */
+.ia-drawer-nav { display: block; padding: 4px 0 10px; }
+.ia-drawer-sect {
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ia-text-dim, #5f5f5f); font-weight: 700;
+  padding: 16px 20px 7px;
+}
+.ia-drawer-rule { height: 1px; background: var(--ia-border, rgba(255,255,255,.08)); margin: 6px 20px; }
+.ia-drawer-link {
+  display: flex; align-items: center; gap: 13px;
+  padding: 11px 20px; text-decoration: none;
+  color: var(--ia-text-2, #cfcfcf);
+  -webkit-tap-highlight-color: transparent;
+}
+.ia-drawer-link-ic { width: 22px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--ia-text-3, #8a8a8a); }
+.ia-drawer-link-ic svg { width: 18px; height: 18px; }
+.ia-drawer-link-lb { flex: 1; font-size: 15px; font-weight: 500; }
+.ia-drawer-link-ch { color: var(--ia-border-2, #3a3a3a); font-size: 16px; }
+.ia-drawer-link:active { background: var(--ia-surface-2, rgba(255,255,255,.05)); }
+.ia-drawer-link.active { color: var(--ia-text, #f0f0f0); }
+.ia-drawer-link.active .ia-drawer-link-ic { color: var(--ia-accent, #e89a4f); }
+/* =================== end patch-360 block =================== */
