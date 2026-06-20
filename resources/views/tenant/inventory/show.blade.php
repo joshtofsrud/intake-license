@@ -181,15 +181,15 @@
           })->filter()->values();
         @endphp
         @if($imgSrcs->isNotEmpty())
-          <div class="ia-media-main"><img src="{{ $imgSrcs->first() }}" alt="{{ $item->name }}"></div>
+          <div class="ia-media-main"><img id="ia-media-hero" src="{{ $imgSrcs->first() }}" alt="{{ $item->name }}"></div>
           @if($imgSrcs->count() > 1)
             <div class="ia-media-thumbs">
-              @foreach($imgSrcs as $s)
-                <div class="ia-media-thumb"><img src="{{ $s }}" alt=""></div>
+              @foreach($imgSrcs as $i => $s)
+                <button type="button" class="ia-media-thumb @if($i === 0)is-active @endif" data-src="{{ $s }}" onclick="iaPickImage(this)"><img src="{{ $s }}" alt=""></button>
               @endforeach
             </div>
           @endif
-          <div class="ia-media-cap">Image from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</div>
+          <div class="ia-media-cap">{{ $imgSrcs->count() }} image{{ $imgSrcs->count() === 1 ? '' : 's' }} from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</div>
         @else
           <div class="ia-media-empty">No image from the distributor catalog.</div>
         @endif
@@ -450,7 +450,8 @@
   .ia-media-main{background:#f3f3f1;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;max-height:360px}
   .ia-media-main img{max-width:100%;max-height:100%;object-fit:contain}
   .ia-media-thumbs{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .ia-media-thumb{width:56px;height:56px;border-radius:7px;background:#f3f3f1;border:1px solid var(--ia-border);overflow:hidden}
+  .ia-media-thumb{width:56px;height:56px;border-radius:7px;background:#f3f3f1;border:1px solid var(--ia-border);overflow:hidden;padding:0;cursor:pointer}
+  .ia-media-thumb.is-active{border-color:var(--ia-accent);box-shadow:0 0 0 1px var(--ia-accent)}
   .ia-media-thumb img{width:100%;height:100%;object-fit:contain}
   .ia-media-cap{margin-top:10px;font-size:11.5px;color:var(--ia-text-muted)}
   .ia-media-empty{color:var(--ia-text-muted);font-size:13px;padding:30px 0;text-align:center}
@@ -496,6 +497,7 @@
   }
 </style>
 <script>
+  function iaPickImage(btn){var h=document.getElementById('ia-media-hero');if(h){h.src=btn.getAttribute('data-src');}var p=btn.parentElement;if(p){p.querySelectorAll('.ia-media-thumb').forEach(function(t){t.classList.toggle('is-active',t===btn);});}}
   function iaShowAdjust(){var c=document.getElementById('adjust-stock-card');if(c){c.style.display='block';c.scrollIntoView({behavior:'smooth',block:'nearest'});}}
   function iaHideAdjust(){var c=document.getElementById('adjust-stock-card');if(c){c.style.display='none';}}
   (function(){
