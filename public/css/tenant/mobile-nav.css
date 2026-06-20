@@ -654,3 +654,23 @@
     overflow-anchor: none;
   }
 }
+
+
+/* ===================== MARKER-PATCH-354 =====================
+   Reports: the multi-tab subnav (Traffic ... Staff) was wider than the phone,
+   so the page overflowed and iOS shrank it to fit — squeezing every report's
+   content into ~half the screen. Let the tab bar scroll within the viewport
+   instead of forcing page width, and stop ancestors being widened by it. */
+@media (max-width: 1023px) {
+  .ia-shell, .ia-main, .ia-content { min-width: 0; }
+
+  .rep-toggle {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .rep-toggle::-webkit-scrollbar { display: none; }
+  .rep-toggle > a { flex: 0 0 auto; white-space: nowrap; }
+}
+/* =================== end patch-354 block =================== */
