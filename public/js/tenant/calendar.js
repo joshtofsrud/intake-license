@@ -1302,6 +1302,7 @@
 
     var snapMin   = 15;
     var dragThreshold = 5;
+    var lastTouchTime = 0; // MARKER-PATCH-349B — set on touch; used to ignore synthesized mouse events
 
     var ghost      = document.getElementById('ia-cal-drag-ghost');
     var ghostName  = document.getElementById('ia-cal-drag-ghost-name');
@@ -1354,6 +1355,9 @@
 
     function onMouseDown(e) {
       if (e.button !== 0) return;
+      // MARKER-PATCH-349B — on touch devices the browser also fires a synthesized
+      // mousedown; ignore it so only the press-and-hold touch path runs.
+      if (Date.now() - lastTouchTime < 700) return;
       var block = e.currentTarget;
       var apptId       = block.getAttribute('data-appt-id');
       var apptTime     = block.getAttribute('data-appt-time');
@@ -1594,6 +1598,7 @@
 
     function onTouchStart(e) {
       if (e.touches.length !== 1) return;
+      lastTouchTime = Date.now(); // MARKER-PATCH-349B
       var block = e.currentTarget;
       var apptId       = block.getAttribute('data-appt-id');
       var apptTime     = block.getAttribute('data-appt-time');
@@ -1649,6 +1654,7 @@
     }
 
     function onTouchEnd() {
+      lastTouchTime = Date.now(); // MARKER-PATCH-349B — covers the synthesized burst after touchend
       clearHold();
       touchTeardown();
       document.body.classList.remove('ia-cal-dragging-active');
