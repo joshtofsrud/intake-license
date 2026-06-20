@@ -423,3 +423,49 @@
 .ia-dash-launcher-tile .nudge--amber { background: #F59E0B; color: #0a0a0a; }
 .ia-dash-launcher-tile .nudge--blue  { background: #5fa8dc; color: #0a0a0a; }
 .ia-dash-launcher-tile .nudge--rose  { background: #F87171; color: #fff; }
+
+/* ─────────────────────────────────────────────── */
+/*   MARKER-PATCH-350 — mobile home polish         */
+/*   triage carousel · launcher icons · FAB room   */
+/* ─────────────────────────────────────────────── */
+
+/* "Needs you today" → horizontal swipe carousel on phones, so the cards
+   no longer push the page down. Tablet/desktop keep their grid. The
+   secondary (Show-more) grid is nested in <details>, so the direct-child
+   selector leaves it stacked. */
+@media (max-width: 600px) {
+  .ia-dash-tiles-block > .ia-dash-tiles-grid:not(.ia-dash-tiles-grid--secondary) {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    margin: 0 -16px;
+    padding: 2px 16px 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ia-dash-tiles-block > .ia-dash-tiles-grid:not(.ia-dash-tiles-grid--secondary)::-webkit-scrollbar {
+    display: none;
+  }
+  .ia-dash-tiles-block > .ia-dash-tiles-grid:not(.ia-dash-tiles-grid--secondary) > .ia-dash-tile {
+    flex: 0 0 84%;
+    scroll-snap-align: start;
+  }
+  .ia-dash-tiles-block > .ia-dash-tiles-grid:not(.ia-dash-tiles-grid--secondary) > .ia-dash-tile-clear {
+    flex: 0 0 100%;
+  }
+}
+
+/* Launcher: consistent monochrome line icons in place of emoji */
+.ia-dash-launcher-tile .ic svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: var(--ia-text-dim);
+}
+.ia-dash-launcher-tile:hover .ic svg { color: var(--ia-accent); }
+
+/* Keep the floating + (walk-in FAB) from covering the last launcher row */
+@media (max-width: 1023px) {
+  .ia-dash-launcher-block { padding-bottom: 92px; }
+}
