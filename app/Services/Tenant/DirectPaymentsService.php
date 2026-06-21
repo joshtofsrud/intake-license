@@ -217,7 +217,14 @@ class DirectPaymentsService
     {
         $client = $this->client();
 
-        $session = $client->checkout->sessions->create([
+        // MARKER-PATCH-379 — customer_email is optional and Stripe rejects an
+        // explicit null, which broke no-customer walk-in sales. Pull it out and
+        // only attach it when we actually have an address; keep it out of the
+        // Stripe metadata bag too.
+        $customerEmail = $metadata['customer_email'] ?? null;
+        unset($metadata['customer_email']);
+
+        $params = [
             'mode' => 'payment',
             'payment_method_types' => ['card'],
             'line_items' => [[
@@ -237,11 +244,14 @@ class DirectPaymentsService
                 'intake_tenant_id'   => $this->tenant->id,
                 'intake_environment' => app()->environment(),
             ], $metadata),
-            // Surface customer email collection so receipts can attach.
-            'customer_email' => $metadata['customer_email'] ?? null,
-        ]);
+        ];
 
-        return $session;
+        if (! empty($customerEmail)) {
+            // Pre-fills the email on Stripe Checkout so receipts attach.
+            $params['customer_email'] = $customerEmail;
+        }
+
+        return $client->checkout->sessions->create($params);
     }
 
     public function retrieveCheckoutSession(string $sessionId): \Stripe\Checkout\Session
