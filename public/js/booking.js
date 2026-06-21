@@ -848,8 +848,8 @@
         base: {
           fontFamily:  '-apple-system, sans-serif',
           fontSize:    '15px',
-          color:       '#111111',
-          '::placeholder': { color: '#aaa' },
+          color:       (getComputedStyle(document.body).color || '#111111'),
+          '::placeholder': { color: '#888888' },
         },
       },
     });
