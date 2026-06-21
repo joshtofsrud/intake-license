@@ -68,6 +68,37 @@ class PublicController extends Controller
         ]);
 
         $tenant = tenant();
+
+        // MARKER-PATCH-378 — route web contact submissions into the unified inbox
+        // so nothing is silently lost (notification_email may be unset). Inbound
+        // only: no SMS side-effects, no phone required. Email below stays as a
+        // fallback. Wrapped so a public form never 500s on a capture failure.
+        try {
+            $name  = trim((string) $request->input('name'));
+            $parts = explode(' ', $name, 2);
+            $first = ($parts[0] ?? '') !== '' ? $parts[0] : 'Website';
+            $last  = isset($parts[1]) ? trim($parts[1]) : '';
+
+            $customer = \App\Models\Tenant\TenantCustomer::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'email' => strtolower((string) $request->input('email'))],
+                ['first_name' => $first, 'last_name' => $last, 'phone' => $request->input('phone')]
+            );
+
+            $inbox  = app(\App\Services\Tenant\InboxService::class);
+            $thread = $inbox->threadFor($tenant, $customer, 'web');
+            if (! $thread->subject) {
+                $thread->update(['subject' => 'Website contact form']);
+            }
+            $inbox->postInbound($thread, (string) $request->input('message'), null, [
+                'source' => 'contact_form',
+                'name'   => $name,
+                'email'  => $request->input('email'),
+                'phone'  => $request->input('phone'),
+            ]);
+        } catch (\Throwable $e) {
+            logger()->error('Contact form inbox post failed: ' . $e->getMessage());
+        }
+
         $to     = $tenant?->notification_email ?? $tenant?->email_from_address;
 
         if ($to) {
