@@ -82,7 +82,8 @@
     .bk-addon-row { border-color: rgba(255,255,255,.08) !important; }
     /* MARKER-PATCH-380 — dark-theme contrast: service rows, add buttons, card field */
     .bk-service-row { border-color: rgba(255,255,255,.12) !important; background: rgba(255,255,255,.03) !important; }
-    .bk-service-add-btn { border-color: rgba(255,255,255,.30) !important; background: rgba(255,255,255,.06) !important; }
+    .bk-service-add-btn { border-color: rgba(255,255,255,.30) !important; background: rgba(255,255,255,.06) !important; color: #f0f0f0 !important; } /* MARKER-PATCH-381 */
+    .bk-service-row.is-selected .bk-service-add-btn { color: #0a0a0a !important; }
     .bk-service-addon:hover { background: rgba(255,255,255,.05) !important; }
     #bk-stripe-elements { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 13px 14px; }
     @endif
