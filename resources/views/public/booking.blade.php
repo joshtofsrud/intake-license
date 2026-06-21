@@ -482,6 +482,7 @@ window.BkData = {
   csrf:           '{{ csrf_token() }}',
   availUrl:       '{{ route("tenant.booking.availability") }}',
   submitUrl:      '{{ route("tenant.booking.submit") }}',
+  finalizeUrl:    '{{ route("tenant.booking.finalize") }}',
   currency:       '{{ $currentTenant->currency_symbol ?? "$" }}',
   stripeEnabled:  {{ $stripeEnabled ? 'true' : 'false' }},
   paypalEnabled:  {{ $paypalEnabled ? 'true' : 'false' }},

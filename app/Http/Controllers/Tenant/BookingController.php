@@ -38,13 +38,13 @@ class BookingController extends Controller
             ->where('is_active', true)->orderBy('sort_order')->get();
 
         $s = $tenant->settings ?? [];
-        $stripeEnabled = !empty($s['stripe_enabled']) && !empty($s['stripe_test_sk'] ?? $s['stripe_live_sk'] ?? '');
+        // MARKER-PATCH-385 — booking deposits run on Direct Payments now, so the
+        // publishable key must match the account that creates the PaymentIntent
+        // in submit(). Same keys as the register.
+        $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+        $stripeEnabled = $direct->isEnabled();
+        $stripePublishableKey = $stripeEnabled ? ($direct->publishableKey() ?? '') : '';
         $paypalEnabled = !empty($s['paypal_enabled']) && !empty($s['paypal_test_client_id'] ?? $s['paypal_live_client_id'] ?? '');
-        $stripePublishableKey = '';
-        if ($stripeEnabled) {
-            $mode = $s['stripe_mode'] ?? 'test';
-            $stripePublishableKey = $mode === 'live' ? ($s['stripe_live_pk'] ?? '') : ($s['stripe_test_pk'] ?? '');
-        }
         $paypalClientId = '';
         if ($paypalEnabled) {
             $mode = $s['paypal_mode'] ?? 'sandbox';
@@ -224,6 +224,53 @@ class BookingController extends Controller
 
         $tenant = tenant();
 
+        // MARKER-PATCH-385 — Card deposits use charge-then-create: reserve a slot
+        // and a PaymentIntent now, and materialize the appointment only after the
+        // card clears (see finalize()). Non-card paths fall through to the
+        // original create-then-charge flow below.
+        if ($request->input('payment_method') === 'stripe') {
+            $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+            if (! $direct->isEnabled()) {
+                return response()->json(['success' => false, 'message' => 'Card payments are not set up yet.'], 422);
+            }
+
+            try {
+                $pending = app(BookingService::class)->reserve($request->all(), $tenant->id);
+            } catch (LockAcquisitionException $e) {
+                return response()->json(['success' => false, 'code' => 'lock_timeout', 'message' => 'We couldn\'t hold this slot in time. Please try again.'], 409);
+            } catch (RuntimeException $e) {
+                if (str_contains($e->getMessage(), 'just taken')) {
+                    return response()->json(['success' => false, 'code' => 'slot_taken', 'message' => $e->getMessage()], 409);
+                }
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            // Zero-total booking that routed to card -> no charge, materialize now.
+            if ((int) $pending->total_cents === 0) {
+                $appt = app(BookingService::class)->materialize($pending);
+                return response()->json(['success' => true, 'redirect' => url("/confirm?ra={$appt->ra_number}"), 'ra_number' => $appt->ra_number]);
+            }
+
+            try {
+                $pi = $direct->createPaymentIntent(
+                    (int) $pending->total_cents,
+                    strtolower((string) ($tenant->currency ?? 'usd')),
+                    ['pending_booking_id' => $pending->id, 'pending_token' => $pending->token]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('booking.payment_intent_failed', ['tenant_id' => $tenant->id, 'pending_id' => $pending->id, 'error' => $e->getMessage()]);
+                return response()->json(['success' => false, 'message' => 'Could not start the card payment. Please try again.'], 422);
+            }
+
+            $pending->update(['stripe_payment_intent_id' => $pi->id]);
+
+            return response()->json([
+                'success' => true, 'payment' => 'stripe',
+                'client_secret' => $pi->client_secret,
+                'pending_token' => $pending->token,
+            ]);
+        }
+
         // Concurrency-protected booking creation.
         // Lock timeout → slot likely contended right now; caller should retry.
         // Slot-just-taken → someone else grabbed this exact time between
@@ -305,18 +352,8 @@ class BookingController extends Controller
             ]);
         }
 
-        if ($paymentMethod === 'stripe') {
-            $stripe = new StripeService($tenant);
-            if (!$stripe->isConfigured()) {
-                return response()->json(['success' => false, 'message' => 'Stripe is not configured.'], 422);
-            }
-            $intent = $stripe->createPaymentIntent($appointment);
-            return response()->json([
-                'success' => true, 'payment' => 'stripe',
-                'client_secret' => $intent['client_secret'],
-                'ra_number' => $appointment->ra_number,
-            ]);
-        }
+        // MARKER-PATCH-385 — card path is handled at the top of submit()
+        // (charge-then-create); the old StripeService branch is retired.
 
         if ($paymentMethod === 'paypal') {
             $paypal = new PayPalService($tenant);
@@ -332,6 +369,53 @@ class BookingController extends Controller
         }
 
         return response()->json(['success' => false, 'message' => 'Unknown payment method.'], 422);
+    }
+
+    /**
+     * MARKER-PATCH-385 — Materialize a paid booking hold into an appointment.
+     * Called by the browser after the card confirms. Verifies the PaymentIntent
+     * actually succeeded against Stripe (never trusts the client), then writes
+     * the appointment via BookingService::materialize (idempotent).
+     */
+    public function finalize(Request $request)
+    {
+        $tenant = tenant();
+        $token  = (string) $request->input('pending_token');
+
+        $pending = \App\Models\Tenant\TenantPendingBooking::where('tenant_id', $tenant->id)
+            ->where('token', $token)
+            ->first();
+        if (! $pending) {
+            return response()->json(['success' => false, 'message' => 'Booking session not found.'], 404);
+        }
+
+        // Idempotent: already materialized.
+        if ($pending->status === 'materialized' && $pending->appointment_id) {
+            $appt = \App\Models\Tenant\TenantAppointment::find($pending->appointment_id);
+            if ($appt) {
+                return response()->json(['success' => true, 'redirect' => url("/confirm?ra={$appt->ra_number}"), 'ra_number' => $appt->ra_number]);
+            }
+        }
+
+        // Never trust the browser — confirm the charge with Stripe directly.
+        $direct = new \App\Services\Tenant\DirectPaymentsService($tenant);
+        try {
+            $pi = $direct->retrievePaymentIntent((string) $pending->stripe_payment_intent_id);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => 'Could not verify payment.'], 422);
+        }
+        if (($pi->status ?? null) !== 'succeeded') {
+            return response()->json(['success' => false, 'message' => 'Payment not completed.'], 402);
+        }
+
+        try {
+            $appt = app(BookingService::class)->materialize($pending);
+        } catch (RuntimeException $e) {
+            \Illuminate\Support\Facades\Log::error('booking.materialize_failed', ['tenant_id' => $tenant->id, 'pending_id' => $pending->id, 'pi' => $pending->stripe_payment_intent_id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Your payment went through but that time was just taken. We will reach out to reschedule.'], 409);
+        }
+
+        return response()->json(['success' => true, 'redirect' => url("/confirm?ra={$appt->ra_number}"), 'ra_number' => $appt->ra_number]);
     }
 
     public function paypalReturn(Request $request)

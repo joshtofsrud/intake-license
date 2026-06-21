@@ -912,7 +912,22 @@
           showError(result.error.message);
           resetSubmitBtn();
         } else {
-          window.location.href = '/confirm?ra=' + encodeURIComponent(resp.ra_number);
+          // MARKER-PATCH-385 — card cleared; materialize the appointment server-side.
+          fetch(d.finalizeUrl, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            body:    JSON.stringify({ pending_token: resp.pending_token }),
+          }).then(function (r) { return r.json(); }).then(function (fin) {
+            if (fin && fin.success && fin.redirect) {
+              window.location.href = fin.redirect;
+            } else {
+              showError((fin && fin.message) || 'Your payment went through, but we could not finish the booking. Please contact us.');
+              resetSubmitBtn();
+            }
+          }).catch(function () {
+            showError('Your payment went through, but we could not finish the booking. Please contact us.');
+            resetSubmitBtn();
+          });
         }
       });
     });
