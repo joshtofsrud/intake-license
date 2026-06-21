@@ -136,6 +136,39 @@ class DirectPaymentsWebhookController extends Controller
         $pi = $event->data->object;
         $piId = $pi->id;
 
+        // MARKER-PATCH-386 — Booking deposit backstop. If the card confirmed but
+        // the browser never reached finalize() (closed tab, dropped network), the
+        // appointment was never written. The PI carries pending_booking_id in
+        // metadata; materialize the held booking here. Idempotent, and booking
+        // PIs return early so they never fall into the sale logic below.
+        $pendingId = $pi->metadata->pending_booking_id ?? null;
+        if (!empty($pendingId)) {
+            $pending = \App\Models\Tenant\TenantPendingBooking::where('tenant_id', $tenant->id)
+                ->where('stripe_payment_intent_id', $piId)
+                ->first();
+            if (!$pending) {
+                Log::warning('direct_payments_webhook.booking_hold_not_found', [
+                    'tenant_id' => $tenant->id, 'pi' => $piId, 'pending_id' => $pendingId,
+                ]);
+                return;
+            }
+            if ($pending->status === 'materialized') {
+                return; // finalize() already handled it
+            }
+            try {
+                app(\App\Services\BookingService::class)->materialize($pending);
+                Log::info('direct_payments_webhook.booking_materialized_via_webhook', [
+                    'tenant_id' => $tenant->id, 'pi' => $piId, 'pending_id' => $pending->id,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('direct_payments_webhook.booking_materialize_failed', [
+                    'tenant_id' => $tenant->id, 'pi' => $piId, 'pending_id' => $pending->id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+            return; // booking handled — not a sale
+        }
+
         // Is this already linked to a sale?
         $sale = TenantSale::where('tenant_id', $tenant->id)
             ->where('stripe_payment_intent_id', $piId)

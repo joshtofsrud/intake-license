@@ -10,7 +10,6 @@ use App\Models\Tenant\TenantServiceCategory;
 use App\Exceptions\LockAcquisitionException;
 use App\Services\BookingService;
 use App\Services\PayPalService;
-use App\Services\StripeService;
 use Illuminate\Http\Request;
 use RuntimeException;
 
@@ -430,17 +429,6 @@ class BookingController extends Controller
             logger()->error('PayPal return error: ' . $e->getMessage());
             return redirect('/book')->with('error', 'Payment could not be completed. Please try again.');
         }
-    }
-
-    public function stripeWebhook(Request $request)
-    {
-        try {
-            StripeService::handleWebhook(tenant(), $request->getContent(), $request->header('Stripe-Signature', ''));
-        } catch (\Throwable $e) {
-            logger()->error('Stripe webhook error: ' . $e->getMessage());
-            return response('error', 400);
-        }
-        return response('ok');
     }
 
     public function paypalWebhook(Request $request)

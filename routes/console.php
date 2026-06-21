@@ -74,3 +74,14 @@ Schedule::command('deliveries:remind')
     ->withoutOverlapping()
     ->runInBackground();
 
+// ----------------------------------------------------------------
+// MARKER-PATCH-387 — reap abandoned booking holds (charge-then-create).
+// Cheap indexed delete. Hourly is plenty; holds expire in 20 min and are
+// only deleted 2h past expiry so a lagging webhook can still materialize a
+// genuinely-paid hold first.
+// ----------------------------------------------------------------
+Schedule::command('bookings:reap-holds')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();
+

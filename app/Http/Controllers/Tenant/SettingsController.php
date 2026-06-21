@@ -286,13 +286,8 @@ class SettingsController extends Controller
     {
         $settings = $tenant->settings ?? [];
 
-        $settings['stripe_enabled']        = (bool) $request->input('stripe_enabled');
-        $settings['stripe_mode']           = $request->input('stripe_mode', 'test');
-        $settings['stripe_test_pk']        = $request->input('stripe_test_pk', '');
-        $settings['stripe_test_sk']        = $request->input('stripe_test_sk', '');
-        $settings['stripe_live_pk']        = $request->input('stripe_live_pk', '');
-        $settings['stripe_live_sk']        = $request->input('stripe_live_sk', '');
-        $settings['stripe_webhook_secret'] = $request->input('stripe_webhook_secret', '');
+        // MARKER-PATCH-388 — legacy booking-deposit stripe_* keys retired.
+        // Booking deposits now run on Direct Payments (register_payments_* keys).
 
         // MARKER-PATCH-169 — Direct Payments bridge feature.
         // Register card-sale keys, namespaced separately from the booking-deposit

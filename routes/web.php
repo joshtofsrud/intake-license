@@ -196,7 +196,6 @@ Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhook
 Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInboundController::class, 'handle'])
     ->name('webhooks.twilio.inbound');
 
-    Route::post('/webhooks/stripe',  [TenantControllers\BookingController::class, 'stripeWebhook'])->name('tenant.webhook.stripe');
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
     Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
