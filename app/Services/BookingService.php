@@ -490,11 +490,21 @@ class BookingService
      */
     public function resourceUsedSlotsForDate(string $tenantId, string $resourceId, string $date): int
     {
-        return (int) TenantAppointment::where('tenant_id', $tenantId)
+        // MARKER-PATCH-383 — count committed appointments plus active holds.
+        $appt = (int) TenantAppointment::where('tenant_id', $tenantId)
             ->where('resource_id', $resourceId)
             ->where('appointment_date', $date)
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->sum('slot_weight');
+
+        $held = (int) \App\Models\Tenant\TenantPendingBooking::where('tenant_id', $tenantId)
+            ->where('resource_id', $resourceId)
+            ->where('booking_date', $date)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->sum('slot_weight');
+
+        return $appt + $held;
     }
 
     /**
@@ -550,6 +560,30 @@ class BookingService
             'total_duration_minutes', 'prep_before_minutes_snapshot',
             'cleanup_after_minutes_snapshot',
         ]);
+
+        // MARKER-PATCH-383 — active pending holds occupy their slot during the
+        // card window. Shape them like booked rows (end derived from duration,
+        // no prep/cleanup tail) and fold them into the overlap set.
+        $holdQuery = \App\Models\Tenant\TenantPendingBooking::where('tenant_id', $tenant->id)
+            ->where('booking_date', $date)
+            ->where('status', 'pending')
+            ->where('expires_at', '>', now())
+            ->whereNotNull('appointment_time');
+        if ($resourceId !== null) {
+            $holdQuery->where('resource_id', $resourceId);
+        }
+        $holds = $holdQuery->get(['resource_id', 'appointment_time', 'total_duration_minutes'])
+            ->map(function ($h) {
+                return (object) [
+                    'resource_id'                    => $h->resource_id,
+                    'appointment_time'               => $h->appointment_time,
+                    'appointment_end_time'           => null,
+                    'total_duration_minutes'         => (int) $h->total_duration_minutes,
+                    'prep_before_minutes_snapshot'   => 0,
+                    'cleanup_after_minutes_snapshot' => 0,
+                ];
+            });
+        $booked = $booked->concat($holds);
 
         // Gather breaks and walk-in holds that apply on this date.
         // Both return arrays of ['starts_at' => Carbon, 'ends_at' => Carbon, 'resource_id' => ?string].
