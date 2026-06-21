@@ -317,6 +317,143 @@ class BookingService
     }
 
     /**
+     * MARKER-PATCH-384 — Reserve a slot with a pending hold (charge-then-create
+     * step). Mirrors createAppointment's prep exactly, via the same helpers, but
+     * writes a TenantPendingBooking instead of an appointment. The appointment is
+     * only materialized after payment succeeds.
+     */
+    public function reserve(array $data, string $tenantId): \App\Models\Tenant\TenantPendingBooking
+    {
+        if (empty($data['items']) || !is_array($data['items'])) {
+            throw new RuntimeException('At least one service is required.');
+        }
+
+        $plan = $this->buildBookingPlan($data['items'], $tenantId);
+
+        $totalCents        = 0;
+        $totalDuration     = 0;
+        $customerFacingDur = 0;
+        $slotWeight        = 0;
+        foreach ($plan as $row) {
+            $service = $row['service'];
+            $totalCents        += (int) ($row['effective_price_cents'] ?? $service->price_cents);
+            $customerFacingDur += (int) $service->duration_minutes;
+            $totalDuration     += (int) $service->prep_before_minutes
+                                + (int) $service->duration_minutes
+                                + (int) $service->cleanup_after_minutes;
+            $slotWeight        += (int) ($service->slot_weight ?? 1);
+            foreach ($row['addons'] as $addonRow) {
+                $totalCents        += (int) $addonRow['effective_price_cents'];
+                $totalDuration     += (int) $addonRow['effective_duration'];
+                $customerFacingDur += (int) $addonRow['effective_duration'];
+            }
+        }
+
+        $appointmentTime = !empty($data['appointment_time']) ? $data['appointment_time'] : null;
+        $resourceId      = !empty($data['resource_id'])      ? $data['resource_id']      : null;
+
+        if ($resourceId !== null) {
+            $resourceOk = \App\Models\Tenant\TenantResource::where('id', $resourceId)
+                ->where('tenant_id', $tenantId)
+                ->where('is_active', true)
+                ->exists();
+            if (!$resourceOk) {
+                throw new RuntimeException('That selection is no longer available. Please pick another.');
+            }
+        }
+
+        $tenant = Tenant::findOrFail($tenantId);
+        $mode   = $tenant->booking_mode ?? 'drop_off';
+
+        if ($mode === 'drop_off' && $resourceId === null) {
+            $candidateIds = null;
+            foreach ($plan as $row) {
+                $svcEligible  = $this->eligibleResourcesForService($tenantId, $row['service']->id);
+                $candidateIds = $candidateIds === null
+                    ? $svcEligible
+                    : array_values(array_intersect($candidateIds, $svcEligible));
+                if (empty($candidateIds)) break;
+            }
+            if (empty($candidateIds)) {
+                throw new RuntimeException(
+                    'No staff member can perform every selected service. '
+                    . 'Please pick a different combination.'
+                );
+            }
+            $candidates = \App\Models\Tenant\TenantResource::where('tenant_id', $tenantId)
+                ->whereIn('id', $candidateIds)
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get(['id', 'max_appointments_per_day']);
+            $picked = null;
+            foreach ($candidates as $cand) {
+                if ($cand->max_appointments_per_day === null) { $picked = $cand->id; break; }
+                $used = $this->resourceUsedSlotsForDate($tenantId, $cand->id, $data['date']);
+                if (($used + $slotWeight) <= (int) $cand->max_appointments_per_day) { $picked = $cand->id; break; }
+            }
+            if ($picked === null) {
+                throw new RuntimeException('All staff are fully booked on that date. Please pick another day.');
+            }
+            $resourceId = $picked;
+        }
+
+        $lockKey = $this->computeLockKey($mode, $tenantId, $data['date'], $appointmentTime, $resourceId);
+        $lock    = app(MySQLLock::class);
+
+        return $lock->withLock($lockKey, function () use (
+            $tenant, $mode, $data, $tenantId, $resourceId, $appointmentTime,
+            $customerFacingDur, $slotWeight, $totalDuration, $totalCents
+        ) {
+            if ($mode === 'time_slots' && $appointmentTime) {
+                $openSlots = $this->availableSlotsForDate($tenant, $data['date'], $resourceId, $customerFacingDur);
+                $wanted = substr($appointmentTime, 0, 5);
+                if (!in_array($wanted, $openSlots, true)) {
+                    throw new RuntimeException('That time slot was just taken. Please pick another.');
+                }
+            }
+
+            return \App\Models\Tenant\TenantPendingBooking::create([
+                'id'                     => (string) Str::uuid(),
+                'tenant_id'              => $tenantId,
+                'token'                  => (string) Str::uuid(),
+                'status'                 => 'pending',
+                'resource_id'            => $resourceId,
+                'booking_date'           => $data['date'],
+                'appointment_time'       => $appointmentTime,
+                'slot_weight'            => $slotWeight,
+                'total_duration_minutes' => $totalDuration,
+                'total_cents'            => $totalCents,
+                'payload'                => $data,
+                'contact_email'          => strtolower(trim((string) ($data['email'] ?? ''))),
+                'contact_name'           => trim(((string) ($data['first_name'] ?? '')) . ' ' . ((string) ($data['last_name'] ?? ''))),
+                'expires_at'             => now()->addMinutes(20),
+            ]);
+        });
+    }
+
+    /**
+     * MARKER-PATCH-384 — Materialize a paid hold into a real appointment. Wraps
+     * the unchanged createAppointment so the appointment write stays on the
+     * battle-tested path. Idempotent: a hold already materialized returns its
+     * appointment. The hold is flipped to 'materialized' before the write so the
+     * slot re-check inside createAppointment doesn't see this booking's own hold
+     * as a conflict; a failed write rolls the flip back.
+     */
+    public function materialize(\App\Models\Tenant\TenantPendingBooking $pending): TenantAppointment
+    {
+        if ($pending->status === 'materialized' && $pending->appointment_id) {
+            return TenantAppointment::findOrFail($pending->appointment_id);
+        }
+
+        return DB::transaction(function () use ($pending) {
+            $pending->update(['status' => 'materialized']);
+            $appointment = $this->createAppointment((array) $pending->payload, $pending->tenant_id);
+            $pending->update(['appointment_id' => $appointment->id]);
+            return $appointment;
+        });
+    }
+
+    /**
      * Computes the advisory-lock key for this booking attempt.
      *
      * Key must be <= 64 chars; MySQLLock normalizes via sha1 if it overflows.
