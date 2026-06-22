@@ -525,6 +525,28 @@
     .del-drawer-foot-right { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
     .del-drawer-foot-right > .del-btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
   }
+
+  /* ===================== MARKER-PATCH-398 =====================
+     Completed stops on the phone route-list: green check in the type-tag slot,
+     overriding patch-352's Pickup/Dropoff badge for both types. */
+  @media (max-width: 767px) {
+    .del-week-card.is-completed { padding-right: 13px; }
+    .del-week-card.is-completed::after {
+      grid-area: tag;
+      align-self: center;
+      justify-self: end;
+      position: static;
+      top: auto;
+      right: auto;
+      content: '';
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border-radius: 50%;
+      background: #3B6D11 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none'><path d='M2 5l2 2 4-4' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center / 11px 11px;
+    }
+  }
+  /* =================== end patch-398 block =================== */
 </style>
 @endpush
 
