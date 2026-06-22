@@ -150,6 +150,7 @@ class ListTenants extends ListRecords
             'active' => $tenants->filter(fn ($t) => $this->resolveLifecycle($t, $metrics->forTenant($t)['is_trial']) === 'active')->count(),
             'trial' => $tenants->filter(fn ($t) => $this->resolveLifecycle($t, $metrics->forTenant($t)['is_trial']) === 'trial')->count(),
             'suspended' => $tenants->filter(fn ($t) => $this->resolveLifecycle($t, $metrics->forTenant($t)['is_trial']) === 'suspended')->count(),
+            'past_due' => $tenants->filter(fn ($t) => $this->resolveLifecycle($t, $metrics->forTenant($t)['is_trial']) === 'past_due')->count(),
         ];
 
         $totalMrr = $tenantData->sum('mrr_cents');
@@ -177,6 +178,8 @@ class ListTenants extends ListRecords
     protected function resolveLifecycle(Tenant $t, bool $isTrial): string
     {
         if (($t->onboarding_status ?? null) === 'suspended') return 'suspended';
+        // MARKER-PATCH-402 — surface failed-payment tenants distinctly.
+        if (($t->subscription_status ?? null) === 'past_due') return 'past_due';
         if ($isTrial) return 'trial';
         return 'active';
     }

@@ -13,6 +13,7 @@
                     @if($counts['active']) · {{ $counts['active'] }} active @endif
                     @if($counts['trial']) · {{ $counts['trial'] }} trial @endif
                     @if($counts['suspended']) · {{ $counts['suspended'] }} suspended @endif
+                    @if($counts['past_due'] ?? 0) · {{ $counts['past_due'] }} past due @endif
                     · ${{ number_format($totalMrr / 100, 0) }}/mo MRR
                 </div>
                 <div class="tg-search-wrap">
@@ -40,6 +41,10 @@
                     <button type="button" wire:click="$set('filterStatus', 'suspended')"
                         class="tg-pill @if($filterStatus === 'suspended') tg-pill--active @endif">
                         Suspended · {{ $counts['suspended'] }}
+                    </button>
+                    <button type="button" wire:click="$set('filterStatus', 'past_due')"
+                        class="tg-pill @if($filterStatus === 'past_due') tg-pill--active @endif">
+                        Past due · {{ $counts['past_due'] ?? 0 }}
                     </button>
                 </div>
 
@@ -95,6 +100,7 @@
                         $cardClass = 'tg-card';
                         if ($t->lifecycle === 'trial') $cardClass .= ' tg-card--trial';
                         if ($t->lifecycle === 'suspended') $cardClass .= ' tg-card--suspended';
+                        if ($t->lifecycle === 'past_due') $cardClass .= ' tg-card--suspended';
                         if ($t->is_platform) $cardClass .= ' tg-card--platform';
 
                         $planColors = [
@@ -109,12 +115,14 @@
                             'active' => '● Active',
                             'trial' => '⚠ Trial',
                             'suspended' => '● Suspended',
+                            'past_due' => '● Past due',
                             default => $t->lifecycle,
                         };
                         $lifecycleColors = [
                             'active' => ['#E1F5EE', '#085041'],
                             'trial' => ['#FAC775', '#412402'],
                             'suspended' => ['#FCEBEB', '#791F1F'],
+                            'past_due' => ['#FCE3CF', '#7A3D02'],
                         ];
                         [$lifeBg, $lifeFg] = $lifecycleColors[$t->lifecycle] ?? ['#F1EFE8', '#5F5E5A'];
                     @endphp
