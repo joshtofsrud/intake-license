@@ -91,6 +91,8 @@
   $formDescription = $c['form_description']  ?? '';
   $formButton      = $c['form_button_label'] ?? 'Send';
   $formSuccess     = $c['form_success_text'] ?? "Thanks! We'll be in touch soon.";
+  $formShowPhone    = (bool)($c['form_show_phone']    ?? true);   // MARKER-PATCH-394
+  $formRequirePhone = (bool)($c['form_require_phone'] ?? false);
 
   // Advanced
   $anchorId    = trim($c['anchor_id'] ?? '');
@@ -518,6 +520,9 @@
                 @endif
                 <input type="text" name="name" placeholder="Your name" value="{{ old('name') }}" required>
                 <input type="email" name="email" placeholder="you@example.com" value="{{ old('email') }}" required>
+                @if($formShowPhone)
+                  <input type="tel" name="phone" placeholder="{{ $formRequirePhone ? 'Phone' : 'Phone (optional)' }}" value="{{ old('phone') }}" {{ $formRequirePhone ? 'required' : '' }}>
+                @endif
                 <textarea name="message" rows="2" placeholder="How can we help?" required>{{ old('message') }}</textarea>
                 <button type="submit">{{ $formButton }}</button>
               </form>

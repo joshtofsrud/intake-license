@@ -240,6 +240,15 @@
       <input type="text" class="pb2-input" data-field="form_button_label" value="{{ $get('form_button_label', 'Send') }}">
     </div>
 
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="form_show_phone" value="1" {{ $get('form_show_phone', true) ? 'checked' : '' }}>
+      <span>Show phone field on form</span>
+    </label>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="form_require_phone" value="1" {{ $get('form_require_phone', false) ? 'checked' : '' }}>
+      <span>Require phone</span>
+    </label>
+
     <div class="pb2-field">
       <label class="pb2-field-label">Success message</label>
       <input type="text" class="pb2-input" data-field="form_success_text" value="{{ $get('form_success_text', 'Thanks! We\'ll be in touch soon.') }}">

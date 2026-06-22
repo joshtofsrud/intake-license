@@ -294,6 +294,9 @@ class PageBuilderController extends Controller
             'form_description'=> '',
             'form_button_label' => 'Send',
             'form_success_text' => "Thanks! We'll be in touch soon.",
+            // MARKER-PATCH-394 — contact-form phone field control
+            'form_show_phone'   => true,
+            'form_require_phone'=> false,
             // Copyright
             'copyright_text'  => '',
             'show_powered_by' => true,
