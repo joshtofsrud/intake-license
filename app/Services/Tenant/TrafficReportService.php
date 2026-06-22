@@ -53,14 +53,18 @@ class TrafficReportService
             default => 30,
         };
 
-        // Windows are LEFT-INCLUSIVE, RIGHT-EXCLUSIVE.
-        // Current = [now - days, now)
-        // Prior   = [now - 2*days, now - days)
-        $this->now       = CarbonImmutable::now();
+        // MARKER-PATCH-400 — day-aligned to the tenant's local calendar, so "1d"
+        // means "since local midnight today" rather than a rolling 24h window.
+        // Boundaries are converted to UTC instants for the (UTC) event timestamps.
+        // Current = [local midnight (today - (days-1)), now)
+        // Prior   = same length immediately before.
+        $tz              = $tenant->timezone ?? config('app.timezone', 'UTC');
+        $localStartToday = CarbonImmutable::now($tz)->startOfDay();
+        $this->now       = CarbonImmutable::now($tz)->utc();
         $this->curEnd    = $this->now;
-        $this->curStart  = $this->now->subDays($this->days);
+        $this->curStart  = $localStartToday->subDays($this->days - 1)->utc();
         $this->prevEnd   = $this->curStart;
-        $this->prevStart = $this->prevEnd->subDays($this->days);
+        $this->prevStart = $this->curStart->subDays($this->days)->utc();
     }
 
     public function window(): string
