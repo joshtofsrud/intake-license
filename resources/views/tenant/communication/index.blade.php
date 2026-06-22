@@ -340,7 +340,7 @@
           <div class="cc-fld" id="ccEdSmsWrap" style="display:none">
             <label>Text version</label>
             <div class="cc-help">Generated automatically for now — editable once texting is set up.</div>
-            <textarea class="cc-inp" rows="2" disabled>{{ '{{shop_name}}' }}: details below. Reply STOP to opt out.</textarea>
+            <textarea class="cc-inp" rows="2" disabled>@{{shop_name}}: details below. Reply STOP to opt out.</textarea>
           </div>
         </div>
         <div>
@@ -431,9 +431,10 @@
       ? 'Everything except your greeting is automatic layout.'
       : 'No built-in layout — what you type is the email.';
     var vbox = document.getElementById('ccEdVars'); vbox.innerHTML = '';
+    var ccB1 = '{' + '{', ccB2 = '}' + '}';
     (d.vars || '').split(',').filter(Boolean).forEach(function(v){
-      var s = document.createElement('span'); s.className = 'cc-var'; s.textContent = '{{' + v + '}}';
-      s.onclick = function(){ ccInsert(body, '{{' + v + '}}'); ccPrev(); };
+      var s = document.createElement('span'); s.className = 'cc-var'; s.textContent = ccB1 + v + ccB2;
+      s.onclick = function(){ ccInsert(body, ccB1 + v + ccB2); ccPrev(); };
       vbox.appendChild(s);
     });
     ccPrev();
