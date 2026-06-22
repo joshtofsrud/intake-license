@@ -149,6 +149,13 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h11M5 5v7.5" stroke="currentColor" stroke-width="1.2"/></svg>',
       'group'  => 'engage',
     ],
+    // MARKER-PATCH-404 — Communication Center
+    [
+      'route'  => 'tenant.communication.index',
+      'label'  => 'Communication',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10a1 1 0 0 1 1 1V9a1 1 0 0 1-1 1H6l-3 2.5V10H2a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 6h5M4.5 7.8h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => 'engage',
+    ],
     [
       'route'  => 'tenant.emails.index',
       'label'  => 'Email',

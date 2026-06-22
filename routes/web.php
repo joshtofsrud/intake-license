@@ -717,6 +717,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
 
             Route::get('/emails',               [TenantControllers\EmailController::class, 'index'])->name('emails.index');
+            // MARKER-PATCH-404 — Communication Center (unified comms surface)
+            Route::get('/communication',        [TenantControllers\CommunicationController::class, 'index'])->name('communication.index');
+            Route::patch('/communication',      [TenantControllers\CommunicationController::class, 'updateToggles'])->name('communication.toggles');
             Route::patch('/emails/{type}',      [TenantControllers\EmailController::class, 'update'])->name('emails.update');
             // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
             Route::post('/sales/{id}/resend-receipt',
