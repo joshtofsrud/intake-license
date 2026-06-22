@@ -19,10 +19,11 @@ class InboxService
     /** Find the customer's thread for a channel, creating it if needed. */
     public function threadFor(Tenant $tenant, TenantCustomer $customer, string $channel = 'sms'): TenantThread
     {
+        // MARKER-PATCH-396 — one thread per customer; channels live on messages.
+        // Match per customer (ignore channel); $channel only seeds a new thread.
         $thread = TenantThread::where('tenant_id', $tenant->id)
             ->where('customer_id', $customer->id)
-            ->where('channel', $channel)
-            ->orderByDesc('last_message_at')
+            ->orderBy('created_at')
             ->first();
 
         if ($thread) {
@@ -66,25 +67,48 @@ class InboxService
      * the message. Throws \RuntimeException with a human message on guard
      * failure so the controller can flash it.
      */
-    public function postOutbound(Tenant $tenant, TenantThread $thread, string $body, ?string $userId = null): TenantMessage
+    public function postOutbound(Tenant $tenant, TenantThread $thread, string $body, ?string $userId = null, ?string $channel = null): TenantMessage
     {
         $customer = $thread->customer;
 
-        if (!$customer || empty($customer->phone)) {
-            throw new \RuntimeException('This customer has no phone number on file.');
-        }
-        if ($customer->sms_opt_out_at !== null) {
-            throw new \RuntimeException('This customer has opted out of SMS (STOP). They must text START to resume.');
-        }
+        // MARKER-PATCH-396 — reply channel: explicit choice, else the customer's
+        // last inbound channel, else the thread's seed channel.
+        $channel = $channel
+            ?? optional(
+                TenantMessage::where('thread_id', $thread->id)
+                    ->where('direction', 'in')
+                    ->orderByDesc('created_at')
+                    ->first()
+            )->channel
+            ?? $thread->channel;
 
-        SmsService::send($tenant, $customer->phone, $body);
+        if (in_array($channel, ['web', 'email'], true)) {
+            if (!$customer || empty($customer->email)) {
+                throw new \RuntimeException('This customer has no email address on file.');
+            }
+            $mailer  = \App\Services\EmailService::forTenant($tenant);
+            $subject = 'Re: your message to ' . $tenant->emailFromName();
+            $html    = $mailer->renderHtml(nl2br(e($body)));
+            if (! $mailer->sendRendered('inbox_reply', $customer->email, $subject, $html)) {
+                throw new \RuntimeException('The email could not be sent — check your email settings and try again.');
+            }
+        } else {
+            if (!$customer || empty($customer->phone)) {
+                throw new \RuntimeException('This customer has no phone number on file.');
+            }
+            if ($customer->sms_opt_out_at !== null) {
+                throw new \RuntimeException('This customer has opted out of SMS (STOP). They must text START to resume.');
+            }
+
+            SmsService::send($tenant, $customer->phone, $body);
+        }
 
         $message = TenantMessage::create([
             'thread_id'       => $thread->id,
             'direction'       => 'out',
             'kind'            => 'message',
             'body'            => $body,
-            'channel'         => $thread->channel,
+            'channel'         => $channel,
             'sent_by_user_id' => $userId,
             'delivered_at'    => now(), // best-effort; delivery receipts are a later enhancement
         ]);
