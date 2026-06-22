@@ -83,14 +83,7 @@ class SmsService
      */
     public static function normalizePhone(?string $raw): ?string
     {
-        if (!$raw) return null;
-        $digits = preg_replace('/\D+/', '', $raw);
-        if (!$digits) return null;
-        // If it's 10 digits, assume US and prepend +1
-        if (strlen($digits) === 10) return '+1' . $digits;
-        if (strlen($digits) === 11 && str_starts_with($digits, '1')) return '+' . $digits;
-        // If already has country code prefix
-        if (str_starts_with($raw, '+')) return '+' . $digits;
-        return '+' . $digits;
+        // MARKER-PATCH-392 — delegate to the shared phone standard.
+        return \App\Support\PhoneNumber::normalize($raw);
     }
 }

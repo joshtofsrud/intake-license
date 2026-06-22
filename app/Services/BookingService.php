@@ -1441,6 +1441,9 @@ class BookingService
 
     protected function upsertCustomer(array $data, string $tenantId): TenantCustomer
     {
+        // MARKER-PATCH-392 — standardize the phone once so every write below stores E.164.
+        $data['phone'] = \App\Support\PhoneNumber::normalize($data['phone'] ?? null);
+
         $email = strtolower(trim($data['email'] ?? ''));
         if ($email === '') throw new RuntimeException('Customer email is required.');
 

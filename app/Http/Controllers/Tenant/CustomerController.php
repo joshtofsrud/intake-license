@@ -397,7 +397,7 @@ class CustomerController extends Controller
         ]);
         return array_filter([
             'first_name' => $request->input('first_name'), 'last_name' => $request->input('last_name'),
-            'email' => $request->input('email') ?? $existingEmail, 'phone' => $request->input('phone'),
+            'email' => $request->input('email') ?? $existingEmail, 'phone' => \App\Support\PhoneNumber::normalize($request->input('phone')),
             'address_line1' => $request->input('address_line1'), 'city' => $request->input('city'),
             'state' => $request->input('state'), 'postcode' => $request->input('postcode'),
             'country' => strtoupper($request->input('country', 'US')),

@@ -92,7 +92,7 @@ class OnboardingController extends Controller
         $request->session()->put('pending_signup', [
             'name'            => $request->input('name'),
             'shop_name'       => $request->input('shop_name'),
-            'phone'           => $request->input('phone'),
+            'phone'           => \App\Support\PhoneNumber::normalize($request->input('phone')),
             'subdomain'       => strtolower($request->input('subdomain')),
             'email'           => strtolower($request->input('email')),
             'password_hash'   => Hash::make($request->input('password')),
