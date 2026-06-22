@@ -86,6 +86,19 @@ class InboxController extends Controller
         return redirect()->route('tenant.inbox.index', ['thread' => $thread->id]);
     }
 
+    // MARKER-PATCH-401 — soft-delete a single message, scoped to this tenant.
+    public function deleteMessage(string $id)
+    {
+        $tenant = tenant();
+        $message = \App\Models\Tenant\TenantMessage::whereHas('thread', function ($q) use ($tenant) {
+            $q->where('tenant_id', $tenant->id);
+        })->findOrFail($id);
+
+        $message->delete();
+
+        return back()->with('success', 'Message deleted.');
+    }
+
     public function toggleStatus(Request $request, string $id)
     {
         $this->gate();

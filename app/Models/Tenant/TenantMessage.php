@@ -6,6 +6,7 @@ namespace App\Models\Tenant;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * A single message/event in a thread. Offer cards and system events render
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class TenantMessage extends Model
 {
-    use HasUuids;
+    use HasUuids, SoftDeletes;
 
     protected $table = 'tenant_messages';
 

@@ -420,6 +420,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/inbox/start',                 [TenantControllers\InboxController::class, 'start'])->name('inbox.start');
             Route::post('/inbox/threads/{id}/messages', [TenantControllers\InboxController::class, 'send'])->name('inbox.send');
             Route::post('/inbox/threads/{id}/status',   [TenantControllers\InboxController::class, 'toggleStatus'])->name('inbox.status');
+            Route::post('/inbox/messages/{id}/delete',  [TenantControllers\InboxController::class, 'deleteMessage'])->name('inbox.message.delete'); // MARKER-PATCH-401
 
             Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
             Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');

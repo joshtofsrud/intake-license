@@ -104,6 +104,11 @@
             };
           @endphp
           <div class="ib-msg {{ $cls }}">
+            {{-- MARKER-PATCH-401 — delete a single message --}}
+            <form method="POST" action="{{ route('tenant.inbox.message.delete', $m->id) }}" onsubmit="return confirm('Delete this message? It will be hidden from the conversation.')" style="float:right;margin:-2px -2px 0 8px">
+              @csrf
+              <button type="submit" title="Delete message" style="background:none;border:0;color:inherit;opacity:.3;cursor:pointer;font-size:14px;line-height:1;padding:0">&times;</button>
+            </form>
             @if($cls === 'note')<strong>Internal note · </strong>@endif{{ $m->body }}
             <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out'){{ strtoupper($m->channel) }} · @endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
           </div>
