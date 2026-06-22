@@ -76,19 +76,41 @@ class EmailService
     }
 
     // ----------------------------------------------------------------
+    // MARKER-PATCH-403 — build the per-thread inbound Reply-To address.
+    // The thread's random inbound_token rides in the localpart as a "+tag";
+    // Postmark surfaces it as MailboxHash on the inbound webhook, which the
+    // PostmarkInboundController decodes back to the thread. Returns null when
+    // no inbound address is configured or no token is given (caller falls back
+    // to the tenant's normal Reply-To — fail-safe).
+    // ----------------------------------------------------------------
+    public static function inboundReplyAddress(?string $token): ?string
+    {
+        $token = trim((string) $token);
+        $base  = trim((string) config('services.postmark.inbound_address'));
+        if ($token === '' || $base === '' || ! str_contains($base, '@')) {
+            return null;
+        }
+        [$local, $domain] = explode('@', $base, 2);
+        return $local . '+' . $token . '@' . $domain;
+    }
+
+    // ----------------------------------------------------------------
     // MARKER-PATCH-160 — send pre-rendered HTML
     // Used by receipts which need Blade-level looping for line items.
     // Mirrors send(): suppression-gated, X-Tenant-Id header, from/reply-to.
+    // MARKER-PATCH-403 — optional $replyToOverride lets the inbox reply inject a
+    // token-bearing Reply-To; all other callers keep the tenant's normal one.
     // ----------------------------------------------------------------
     public function sendRendered(
         string $templateKey,
         string $toEmail,
         string $subject,
-        string $html
+        string $html,
+        ?string $replyToOverride = null
     ): bool {
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+        $replyTo   = $replyToOverride ?: ($this->tenant->email_reply_to ?? $fromEmail);
 
         if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
             logger()->info("EmailService::sendRendered skipped (suppressed) [{$templateKey}]", [

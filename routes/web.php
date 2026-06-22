@@ -191,6 +191,12 @@ Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceCont
 Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhookController::class, 'handle'])
     ->name('webhooks.postmark');
 
+// MARKER-PATCH-403 — Postmark inbound email -> unified inbox. Routes by the
+// per-thread token carried in MailboxHash. Fail-open posture (always 2xx);
+// unroutable mail is logged and dropped. CSRF-exempt (external POST).
+Route::post('webhooks/postmark/inbound', [\App\Http\Controllers\Webhooks\PostmarkInboundController::class, 'handle'])
+    ->name('webhooks.postmark.inbound');
+
 // MARKER-PATCH-221 — Twilio inbound SMS (unified inbox). Signature-validated,
 // always answers 2xx (fail-open posture; unprocessable requests are skipped).
 Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInboundController::class, 'handle'])

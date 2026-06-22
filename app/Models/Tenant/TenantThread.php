@@ -22,6 +22,7 @@ class TenantThread extends Model
     protected $fillable = [
         'tenant_id', 'customer_id', 'channel', 'status', 'subject',
         'assigned_user_id', 'last_message_at', 'last_inbound_at', 'unread_count',
+        'inbound_token',
     ];
 
     protected $casts = [
@@ -29,6 +30,18 @@ class TenantThread extends Model
         'last_inbound_at' => 'datetime',
         'unread_count'    => 'integer',
     ];
+
+    // MARKER-PATCH-403 — every thread gets an unguessable inbound token at
+    // creation, regardless of who creates it. The token is what lets a
+    // customer's email reply route back into this exact thread.
+    protected static function booted(): void
+    {
+        static::creating(function (self $thread) {
+            if (empty($thread->inbound_token)) {
+                $thread->inbound_token = bin2hex(random_bytes(12)); // 24 hex chars
+            }
+        });
+    }
 
     public function tenant(): BelongsTo
     {

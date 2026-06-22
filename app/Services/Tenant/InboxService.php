@@ -39,15 +39,17 @@ class InboxService
     }
 
     /** Inbound customer message: needs_reply + unread bump. */
-    public function postInbound(TenantThread $thread, string $body, ?string $externalId = null, array $meta = []): TenantMessage
+    public function postInbound(TenantThread $thread, string $body, ?string $externalId = null, array $meta = [], ?string $channel = null): TenantMessage
     {
+        // MARKER-PATCH-403 — explicit channel (email inbound passes 'email');
+        // falls back to the thread seed for the existing SMS caller.
         $message = TenantMessage::create([
             'thread_id'   => $thread->id,
             'direction'   => 'in',
             'kind'        => 'message',
             'body'        => $body,
             'meta'        => $meta ?: null,
-            'channel'     => $thread->channel,
+            'channel'     => $channel ?? $thread->channel,
             'external_id' => $externalId,
         ]);
 
@@ -89,7 +91,10 @@ class InboxService
             $mailer  = \App\Services\EmailService::forTenant($tenant);
             $subject = 'Re: your message to ' . $tenant->emailFromName();
             $html    = $mailer->renderHtml(nl2br(e($body)));
-            if (! $mailer->sendRendered('inbox_reply', $customer->email, $subject, $html)) {
+            // MARKER-PATCH-403 — stamp the thread's inbound token into Reply-To so the
+            // customer's reply routes back into THIS thread via the Postmark inbound webhook.
+            $replyTo = \App\Services\EmailService::inboundReplyAddress($thread->inbound_token);
+            if (! $mailer->sendRendered('inbox_reply', $customer->email, $subject, $html, $replyTo)) {
                 throw new \RuntimeException('The email could not be sent — check your email settings and try again.');
             }
         } else {

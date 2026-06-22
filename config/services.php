@@ -8,6 +8,16 @@ return [
         'from'   => env('TWILIO_FROM'),
     ],
 
+    // MARKER-PATCH-403 — Postmark inbound (unified inbox email replies).
+    // inbound_address is the base address of your Postmark inbound stream,
+    // e.g. "1a2b3c4d@inbound.postmarkapp.com" to start (zero DNS), or a
+    // branded "replies@reply.intake.works" once the MX points at Postmark.
+    // The per-thread token is injected as "+{token}" before the @, which
+    // Postmark returns as MailboxHash on the inbound webhook.
+    'postmark' => [
+        'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
+    ],
+
     // MARKER-PATCH-224B
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
