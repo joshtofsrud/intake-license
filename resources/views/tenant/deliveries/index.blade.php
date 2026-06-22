@@ -233,6 +233,31 @@
   }
   .del-week-card.is-pickup  { border-left-color: var(--del-pickup); }
   .del-week-card.is-dropoff { border-left-color: var(--del-dropoff); }
+
+  /* MARKER-PATCH-391 — completed deliveries: muted + green check badge, matching
+     the calendar's completed treatment (.ia-cal-appt.status-completed). */
+  .del-card.is-completed,
+  .del-week-card.is-completed {
+    opacity: .55;
+    position: relative;
+    padding-right: 24px;
+  }
+  .del-week-card.is-completed .name {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--ia-text-muted, #6A6A62);
+  }
+  .del-card.is-completed::after,
+  .del-week-card.is-completed::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #3B6D11 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none'><path d='M2 5l2 2 4-4' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat center / 9px 9px;
+  }
   .del-week-card .time {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     color: var(--ia-text-dim, rgba(255,255,255,.42));
@@ -618,7 +643,7 @@
         <div class="del-hour-label">{{ $label }}</div>
         <div class="del-hour-content">
           @foreach($byHour[$h] as $d)
-            <a class="del-card is-{{ $d->type }}"
+            <a class="del-card is-{{ $d->type }} {{ $d->status === 'completed' ? 'is-completed' : '' }}"
                href="#" onclick="delOpenEdit({{ json_encode((string) $d->id) }}); return false;">
               <div class="stripe"></div>
               <div class="body">
@@ -740,7 +765,7 @@
         </div>
         <div class="del-week-body">
           @forelse($dayDeliveries as $d)
-            <a class="del-week-card is-{{ $d->type }}"
+            <a class="del-week-card is-{{ $d->type }} {{ $d->status === 'completed' ? 'is-completed' : '' }}"
                href="#" onclick="delOpenEdit({{ json_encode((string) $d->id) }}); return false;">
               <span class="time">
                 {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}
