@@ -515,6 +515,9 @@
 
               <form method="POST" action="/contact" class="p-ftr-form">
                 @csrf
+                {{-- MARKER-PATCH-399 honeypot — bots fill this; real users never see or focus it --}}
+                <input type="text" name="company_website" tabindex="-1" autocomplete="off" aria-hidden="true"
+                       style="position:absolute !important;left:-9999px !important;top:auto;width:1px;height:1px;opacity:0;pointer-events:none">
                 @if($errors->any())
                   <div class="p-ftr-form-error">{{ $errors->first() }}</div>
                 @endif

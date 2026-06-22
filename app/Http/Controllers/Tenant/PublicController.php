@@ -60,6 +60,13 @@ class PublicController extends Controller
     // ----------------------------------------------------------------
     public function contact(Request $request)
     {
+        // MARKER-PATCH-399 — honeypot. Real users never fill this hidden field;
+        // if it's filled, silently drop with a normal success response so the
+        // bot can't tell it was caught.
+        if (filled($request->input('company_website'))) {
+            return back()->with('contact_success', true);
+        }
+
         $request->validate([
             'name'    => ['required', 'string', 'max:255'],
             'email'   => ['required', 'email', 'max:255'],
