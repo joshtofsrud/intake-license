@@ -81,7 +81,7 @@ class PublicController extends Controller
 
             $customer = \App\Models\Tenant\TenantCustomer::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'email' => strtolower((string) $request->input('email'))],
-                ['first_name' => $first, 'last_name' => $last, 'phone' => $request->input('phone')]
+                ['first_name' => $first, 'last_name' => $last, 'phone' => \App\Support\PhoneNumber::normalize($request->input('phone'))]
             );
 
             $inbox  = app(\App\Services\Tenant\InboxService::class);
