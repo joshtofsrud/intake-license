@@ -84,6 +84,7 @@
           <a href="{{ route('tenant.customers.show', $selected->customer_id) }}" style="font-size:14px;font-weight:700;text-decoration:none;color:inherit">{{ $selected->customer?->first_name }} {{ $selected->customer?->last_name }}</a>
           <div style="font-size:11.5px;opacity:.55">
             {{ $selected->customer?->phone ?? 'no phone' }}
+            @if($selected->customer?->email) · {{ $selected->customer?->email }}@endif
             @if($selected->customer?->sms_opt_out_at) · <span style="color:#A32D2D;font-weight:600">opted out (STOP)</span>@endif
           </div>
         </div>
@@ -104,21 +105,35 @@
           @endphp
           <div class="ib-msg {{ $cls }}">
             @if($cls === 'note')<strong>Internal note · </strong>@endif{{ $m->body }}
-            <div class="ib-msg-time">{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
+            <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out'){{ strtoupper($m->channel) }} · @endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
           </div>
         @empty
           <div class="ib-empty">No messages yet.</div>
         @endforelse
       </div>
 
+      @php
+        // MARKER-PATCH-397 — default the reply channel to the customer's last inbound.
+        $lastIn = $selected->messages->where('direction', 'in')->last();
+        $replyDefault = in_array($lastIn?->channel ?? '', ['web', 'email'], true) ? 'email' : 'sms';
+      @endphp
       <div class="ib-compose">
         <form method="POST" action="{{ route('tenant.inbox.send', $selected->id) }}">
           @csrf
-          <textarea name="body" rows="2" maxlength="1200" required placeholder="Reply by text… (or tick Internal note)" class="ia-input" style="width:100%;resize:vertical"></textarea>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-            <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
-              <input type="checkbox" name="as_note" value="1"> Internal note (not sent)
-            </label>
+          <textarea name="body" rows="2" maxlength="1200" required placeholder="Type your reply… (or tick Internal note)" class="ia-input" style="width:100%;resize:vertical"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:10px">
+            <div style="display:flex;align-items:center;gap:14px;min-width:0;flex-wrap:wrap">
+              <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
+                Reply via
+                <select name="reply_channel" class="ia-input" style="font-size:12px;padding:3px 6px;width:auto">
+                  <option value="sms"   {{ $replyDefault === 'sms'   ? 'selected' : '' }}>Text (SMS)</option>
+                  <option value="email" {{ $replyDefault === 'email' ? 'selected' : '' }}>Email</option>
+                </select>
+              </label>
+              <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
+                <input type="checkbox" name="as_note" value="1"> Internal note
+              </label>
+            </div>
             <button type="submit" class="ia-btn ia-btn--primary">Send</button>
           </div>
         </form>

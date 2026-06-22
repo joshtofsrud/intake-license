@@ -65,8 +65,9 @@ class InboxController extends Controller
         $tenant = tenant();
 
         $request->validate([
-            'body'    => ['required', 'string', 'max:1200'],
-            'as_note' => ['nullable', 'boolean'],
+            'body'          => ['required', 'string', 'max:1200'],
+            'as_note'       => ['nullable', 'boolean'],
+            'reply_channel' => ['nullable', 'in:sms,email'],
         ]);
 
         $thread = TenantThread::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
@@ -75,7 +76,7 @@ class InboxController extends Controller
             if ($request->boolean('as_note')) {
                 $this->inbox->postNote($thread, $request->input('body'), auth('tenant')->id());
             } else {
-                $this->inbox->postOutbound($tenant, $thread, $request->input('body'), auth('tenant')->id());
+                $this->inbox->postOutbound($tenant, $thread, $request->input('body'), auth('tenant')->id(), $request->input('reply_channel'));
             }
         } catch (\RuntimeException $e) {
             return redirect()->route('tenant.inbox.index', ['thread' => $thread->id])
