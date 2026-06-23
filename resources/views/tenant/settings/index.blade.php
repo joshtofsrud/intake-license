@@ -214,37 +214,7 @@
 .domain-badge.scale   { background:#E1F5EE; color:#0F6E56; }
 .domain-badge.custom  { background:#EAF3DE; color:#3B6D11; }
 
-/* Notification rows */
-.notif-row {
-  display:flex; align-items:flex-start; justify-content:space-between;
-  gap:16px; padding:14px 0;
-  border-bottom:0.5px solid var(--ia-border);
-}
-.notif-row:last-child { border-bottom:none; }
-.notif-row-main { min-width:0; flex:1; }
-.notif-row-title {
-  font-size:13px; font-weight:500;
-  display:flex; align-items:center; gap:8px;
-  margin-bottom:3px;
-}
-.notif-row-desc {
-  font-size:12px; color:var(--ia-text-muted); line-height:1.5;
-}
-.notif-row-toggles {
-  display:flex; gap:14px; align-items:center;
-  flex-shrink:0; padding-top:2px;
-}
-.notif-row-toggle-label {
-  display:flex; flex-direction:column; align-items:center;
-  gap:4px; font-size:10px; color:var(--ia-text-dim);
-  text-transform:uppercase; letter-spacing:.05em; font-weight:600;
-}
-.notif-coming {
-  font-size:10px; padding:2px 8px; border-radius:99px;
-  background:var(--ia-surface-2); color:var(--ia-text-dim);
-  text-transform:uppercase; letter-spacing:.06em; font-weight:600;
-}
-.notif-row.is-disabled { opacity:.5; }
+/* notif-row styles removed — patch-406 (toggles moved to Communication Center) */
 
 /* Color swatch (branding tab) */
 .color-swatch-row {
@@ -968,182 +938,13 @@
       <a href="{{ route('tenant.settings.messaging') }}" class="ia-btn ia-btn--primary">Open Messaging settings</a>
     </div>
 
-    {{-- Notifications --}}
+    {{-- MARKER-PATCH-406 — customer notifications moved to Communication Center --}}
     <div class="ia-card set-card--wide" style="margin-bottom:20px">
-      <div class="ia-card-head"><span class="ia-card-title">Notifications</span></div>
-      <p style="font-size:13px;opacity:.5;margin-bottom:8px;line-height:1.55">
-        Choose which messages get sent automatically. Email and SMS toggle independently per event.
-        Waitlist offers are configured separately on the
-        <a href="{{ route('tenant.waitlist.settings') }}" style="color:var(--ia-accent)">waitlist settings page</a>.
+      <div class="ia-card-head"><span class="ia-card-title">Customer notifications</span></div>
+      <p style="font-size:13px;opacity:.6;margin:0;line-height:1.55">
+        Booking, delivery, reminder, and receipt messages are managed in
+        <a href="{{ route('tenant.communication.index') }}" style="color:var(--ia-accent)">Communication</a>.
       </p>
-
-      {{-- Booking confirmation (WIRED) --}}
-      <div class="notif-row">
-        <div class="notif-row-main">
-          <div class="notif-row-title">Booking confirmation</div>
-          <div class="notif-row-desc">Sent to the customer when they finish booking.</div>
-        </div>
-        <div class="notif-row-toggles">
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_booking_confirmation_email" id="notify_booking_email_input" value="{{ $notifyBookingEmail ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyBookingEmail ? 'on' : '' }}"
-              id="notify-booking-email-btn" aria-label="Email booking confirmation">
-              <span class="ia-toggle-sr">{{ $notifyBookingEmail ? 'On' : 'Off' }}</span>
-            </button>
-            <span>Email</span>
-          </label>
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_booking_confirmation_sms" id="notify_booking_sms_input" value="{{ $notifyBookingSms ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyBookingSms ? 'on' : '' }}"
-              id="notify-booking-sms-btn" aria-label="SMS booking confirmation">
-              <span class="ia-toggle-sr">{{ $notifyBookingSms ? 'On' : 'Off' }}</span>
-            </button>
-            <span>SMS</span>
-          </label>
-        </div>
-      </div>
-
-      {{-- MARKER-PATCH-152C — Delivery scheduled --}}
-      {{-- MARKER-PATCH-156 — gated by deliveries_enabled --}}
-      <div class="notif-row {{ $currentTenant->deliveries_enabled ? '' : 'is-disabled' }}">
-        <div class="notif-row-main">
-          <div class="notif-row-title">
-            Delivery scheduled
-            @unless($currentTenant->deliveries_enabled)
-              <span class="notif-coming">Enable Deliveries to use</span>
-            @endunless
-          </div>
-          <div class="notif-row-desc">Sent to the customer when you schedule a pickup or dropoff.</div>
-        </div>
-        <div class="notif-row-toggles">
-          @if($currentTenant->deliveries_enabled)
-            <label class="notif-row-toggle-label">
-              <input type="hidden" name="notify_delivery_scheduled_email" id="notify_delivery_email_input" value="{{ $notifyDeliveryEmail ? '1' : '0' }}">
-              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryEmail ? 'on' : '' }}"
-                id="notify-delivery-email-btn" aria-label="Email delivery scheduled">
-                <span class="ia-toggle-sr">{{ $notifyDeliveryEmail ? 'On' : 'Off' }}</span>
-              </button>
-              <span>Email</span>
-            </label>
-            <label class="notif-row-toggle-label">
-              <input type="hidden" name="notify_delivery_scheduled_sms" id="notify_delivery_sms_input" value="{{ $notifyDeliverySms ? '1' : '0' }}">
-              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliverySms ? 'on' : '' }}"
-                id="notify-delivery-sms-btn" aria-label="SMS delivery scheduled">
-                <span class="ia-toggle-sr">{{ $notifyDeliverySms ? 'On' : 'Off' }}</span>
-              </button>
-              <span>SMS</span>
-            </label>
-          @else
-            <label class="notif-row-toggle-label">
-              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="Email delivery scheduled (disabled)">
-                <span class="ia-toggle-sr">Off</span>
-              </button>
-              <span>Email</span>
-            </label>
-            <label class="notif-row-toggle-label">
-              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="SMS delivery scheduled (disabled)">
-                <span class="ia-toggle-sr">Off</span>
-              </button>
-              <span>SMS</span>
-            </label>
-          @endif
-        </div>
-      </div>
-
-      {{-- MARKER-PATCH-154 — Appointment reminder (WIRED) --}}
-      <div class="notif-row">
-        <div class="notif-row-main">
-          <div class="notif-row-title">Appointment reminder</div>
-          <div class="notif-row-desc">Reminds the customer about their appointment 24 hours before.</div>
-        </div>
-        <div class="notif-row-toggles">
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_appointment_reminder_email" id="notify_appointment_reminder_email_input" value="{{ $notifyApptReminderEmail ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyApptReminderEmail ? 'on' : '' }}"
-              id="notify-appt-reminder-email-btn" aria-label="Email appointment reminder">
-              <span class="ia-toggle-sr">{{ $notifyApptReminderEmail ? 'On' : 'Off' }}</span>
-            </button>
-            <span>Email</span>
-          </label>
-          <label class="notif-row-toggle-label">
-            <input type="hidden" name="notify_appointment_reminder_sms" id="notify_appointment_reminder_sms_input" value="{{ $notifyApptReminderSms ? '1' : '0' }}">
-            <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyApptReminderSms ? 'on' : '' }}"
-              id="notify-appt-reminder-sms-btn" aria-label="SMS appointment reminder">
-              <span class="ia-toggle-sr">{{ $notifyApptReminderSms ? 'On' : 'Off' }}</span>
-            </button>
-            <span>SMS</span>
-          </label>
-        </div>
-      </div>
-
-      {{-- MARKER-PATCH-155 — Delivery reminder --}}
-      {{-- MARKER-PATCH-156 — gated by deliveries_enabled --}}
-      <div class="notif-row {{ $currentTenant->deliveries_enabled ? '' : 'is-disabled' }}">
-        <div class="notif-row-main">
-          <div class="notif-row-title">
-            Delivery reminder
-            @unless($currentTenant->deliveries_enabled)
-              <span class="notif-coming">Enable Deliveries to use</span>
-            @endunless
-          </div>
-          <div class="notif-row-desc">Reminds the customer 24 hours before a scheduled pickup or dropoff.</div>
-        </div>
-        <div class="notif-row-toggles">
-          @if($currentTenant->deliveries_enabled)
-            <label class="notif-row-toggle-label">
-              <input type="hidden" name="notify_delivery_reminder_email" id="notify_delivery_reminder_email_input" value="{{ $notifyDeliveryReminderEmail ? '1' : '0' }}">
-              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderEmail ? 'on' : '' }}"
-                id="notify-delivery-reminder-email-btn" aria-label="Email delivery reminder">
-                <span class="ia-toggle-sr">{{ $notifyDeliveryReminderEmail ? 'On' : 'Off' }}</span>
-              </button>
-              <span>Email</span>
-            </label>
-            <label class="notif-row-toggle-label">
-              <input type="hidden" name="notify_delivery_reminder_sms" id="notify_delivery_reminder_sms_input" value="{{ $notifyDeliveryReminderSms ? '1' : '0' }}">
-              <button type="button" class="ia-toggle ia-toggle--sm {{ $notifyDeliveryReminderSms ? 'on' : '' }}"
-                id="notify-delivery-reminder-sms-btn" aria-label="SMS delivery reminder">
-                <span class="ia-toggle-sr">{{ $notifyDeliveryReminderSms ? 'On' : 'Off' }}</span>
-              </button>
-              <span>SMS</span>
-            </label>
-          @else
-            <label class="notif-row-toggle-label">
-              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="Email delivery reminder (disabled)">
-                <span class="ia-toggle-sr">Off</span>
-              </button>
-              <span>Email</span>
-            </label>
-            <label class="notif-row-toggle-label">
-              <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="SMS delivery reminder (disabled)">
-                <span class="ia-toggle-sr">Off</span>
-              </button>
-              <span>SMS</span>
-            </label>
-          @endif
-        </div>
-      </div>
-
-      {{-- Receipt (NOT WIRED) --}}
-      <div class="notif-row is-disabled">
-        <div class="notif-row-main">
-          <div class="notif-row-title">Receipt <span class="notif-coming">Coming soon</span></div>
-          <div class="notif-row-desc">Emailed when a sale is paid in full at the register.</div>
-        </div>
-        <div class="notif-row-toggles">
-          <label class="notif-row-toggle-label">
-            <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="Email receipt (coming soon)">
-              <span class="ia-toggle-sr">Off</span>
-            </button>
-            <span>Email</span>
-          </label>
-          <label class="notif-row-toggle-label">
-            <button type="button" class="ia-toggle ia-toggle--sm" disabled aria-label="SMS receipt (coming soon)">
-              <span class="ia-toggle-sr">Off</span>
-            </button>
-            <span>SMS</span>
-          </label>
-        </div>
-      </div>
     </div>
   </form>
   {{-- MARKER-PATCH-150-FIX — Web analytics card, outside parent form (HTML disallows nested forms) --}}
@@ -1634,17 +1435,7 @@
   bindToggle('multi-asset-toggle-btn',      'multi_asset_enabled_input');
   bindToggle('tax-services-toggle-btn',     'tax_services_default_input');
   bindToggle('tax-exempt-toggle-btn',       'tax_supports_exempt_input');
-  bindToggle('notify-booking-email-btn',    'notify_booking_email_input');
-  bindToggle('notify-booking-sms-btn',      'notify_booking_sms_input');
-  // MARKER-PATCH-152C
-  bindToggle('notify-delivery-email-btn',   'notify_delivery_email_input');
-  bindToggle('notify-delivery-sms-btn',     'notify_delivery_sms_input');
-  // MARKER-PATCH-154
-  bindToggle('notify-appt-reminder-email-btn', 'notify_appointment_reminder_email_input');
-  bindToggle('notify-appt-reminder-sms-btn',   'notify_appointment_reminder_sms_input');
-  // MARKER-PATCH-155
-  bindToggle('notify-delivery-reminder-email-btn', 'notify_delivery_reminder_email_input');
-  bindToggle('notify-delivery-reminder-sms-btn',   'notify_delivery_reminder_sms_input');
+  // notify toggles removed — patch-406 (moved to Communication Center)
 
   /* -----------------------------------------------------------------------
    * Branding: color picker text/swatch sync

@@ -204,18 +204,7 @@ class SettingsController extends Controller
             'notification_email' => ['nullable', 'email', 'max:255'],
             // SMS
             // MARKER-PATCH-224 — sms_* moved to Settings\MessagingController.
-            // Notifications (only the wired ones validate)
-            'notify_booking_confirmation_email' => ['nullable', 'boolean'],
-            'notify_booking_confirmation_sms'   => ['nullable', 'boolean'],
-            // MARKER-PATCH-152C
-            'notify_delivery_scheduled_email'   => ['nullable', 'boolean'],
-            'notify_delivery_scheduled_sms'     => ['nullable', 'boolean'],
-            // MARKER-PATCH-154
-            'notify_appointment_reminder_email' => ['nullable', 'boolean'],
-            'notify_appointment_reminder_sms'   => ['nullable', 'boolean'],
-            // MARKER-PATCH-155
-            'notify_delivery_reminder_email'    => ['nullable', 'boolean'],
-            'notify_delivery_reminder_sms'      => ['nullable', 'boolean'],
+            // MARKER-PATCH-406 — notification toggles moved to Communication Center
         ]);
 
         // Don't overwrite an existing token with empty input — the form posts
@@ -229,21 +218,7 @@ class SettingsController extends Controller
             'notification_email' => $request->input('notification_email'),
         ]);
 
-        // Notification toggles live in settings JSON. Defaults are "on" via
-        // notificationEnabled() — the UI sends 0/1 explicitly so no defaulting issues.
-        $settings = $tenant->settings ?? [];
-        $settings['notify_booking_confirmation_email'] = (bool) $request->input('notify_booking_confirmation_email');
-        $settings['notify_booking_confirmation_sms']   = (bool) $request->input('notify_booking_confirmation_sms');
-        // MARKER-PATCH-152C
-        $settings['notify_delivery_scheduled_email']   = (bool) $request->input('notify_delivery_scheduled_email');
-        $settings['notify_delivery_scheduled_sms']     = (bool) $request->input('notify_delivery_scheduled_sms');
-        // MARKER-PATCH-154
-        $settings['notify_appointment_reminder_email'] = (bool) $request->input('notify_appointment_reminder_email');
-        $settings['notify_appointment_reminder_sms']   = (bool) $request->input('notify_appointment_reminder_sms');
-        // MARKER-PATCH-155
-        $settings['notify_delivery_reminder_email']    = (bool) $request->input('notify_delivery_reminder_email');
-        $settings['notify_delivery_reminder_sms']      = (bool) $request->input('notify_delivery_reminder_sms');
-        $tenant->update(['settings' => $settings]);
+        // MARKER-PATCH-406 — notification toggles now owned by CommunicationController
 
         return back()->with('success', 'Communication settings saved.');
     }
