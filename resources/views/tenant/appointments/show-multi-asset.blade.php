@@ -92,6 +92,16 @@
   .ma-layout { gap: 0; }
   #ma-appt[data-mtab] .ma-sale-banner { display: none; }
   #ma-appt[data-mtab="pay"] .ma-sale-banner { display: flex; }
+
+  /* MARKER-PATCH-418 — even up the mobile card family: one radius + one gutter
+     so hero / tabs / tiles line up; minmax(0,1fr) + min-width:0 keep a long
+     status label or email from pushing a tile past the gutter on a narrow phone. */
+  #ma-appt .ma-mhero,
+  #ma-appt .ma-mtabs,
+  #ma-appt .ma-top-tile { border-radius: 14px; }
+  #ma-appt .ma-top-tile { padding: 15px 16px; }
+  #ma-appt .ma-top-row { grid-template-columns: minmax(0, 1fr); }
+  #ma-appt .ma-progress-step { min-width: 0; }
 }
 /* MARKER-PATCH-211 — subtle card separation: stronger edges + a small lift */
 .ma-layout { --ia-border: rgba(255,255,255,0.17); }
