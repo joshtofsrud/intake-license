@@ -50,8 +50,16 @@ class SendDeliveryReminders extends Command
             $totalTenants++;
             $tz = $tenant->timezone ?? config('app.timezone', 'UTC');
 
-            $windowStart = Carbon::now($tz)->addHours(23);
-            $windowEnd   = Carbon::now($tz)->addHours(25);
+            // MARKER-PATCH-408 — scheduled_at is a UTC instant, so the window
+            // bounds must be UTC. A Carbon carrying the tenant TZ serializes to a
+            // LOCAL wall-clock string in the query binding (Laravel formats bindings
+            // in the object's own TZ, no auto UTC conversion), so without ->utc()
+            // the window silently mismatched the UTC column by the tenant's offset
+            // and reminders fired hours off or never matched. ->utc() matches the
+            // idiom used in DeliveriesController / RentalDeskController. $tz remains
+            // for dry-run display below only.
+            $windowStart = Carbon::now($tz)->addHours(23)->utc();
+            $windowEnd   = Carbon::now($tz)->addHours(25)->utc();
 
             // scheduled_at is stored as UTC datetime; Laravel/Carbon handles the
             // conversion. whereBetween compares Carbon instances against the
