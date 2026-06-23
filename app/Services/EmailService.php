@@ -51,17 +51,24 @@ class EmailService
             return;
         }
 
+        // MARKER-PATCH-410 — wrap the body in the same branded chrome (header +
+        // logo, footer) that receipts and inbox replies use, so every customer
+        // email is one consistent system instead of bare text. body_html is the
+        // content INSIDE the frame, exactly like the receipt greeting sits inside
+        // the receipt layout.
+        $html = $this->renderHtml($body);
+
         try {
             $tenantId = $this->tenant->id;
             Mail::send([], [], function ($message) use (
-                $toEmail, $subject, $body, $fromName, $fromEmail, $replyTo, $tenantId
+                $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo, $tenantId
             ) {
                 $message
                     ->to($toEmail)
                     ->from($fromEmail, $fromName)
                     ->replyTo($replyTo)
                     ->subject($subject)
-                    ->html($body);
+                    ->html($html);
                 // MARKER-PATCH-146 — header lets the bounce webhook map events back to tenants.
                 // MARKER-PATCH-201 — also set Postmark Metadata (X-PM-Metadata-*) so the
                 // Postmark bounce/complaint webhook can map events back to the tenant
