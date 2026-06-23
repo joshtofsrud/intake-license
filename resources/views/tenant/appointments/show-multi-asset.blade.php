@@ -88,7 +88,7 @@
   /* MARKER-PATCH-415 — match the mockup */
   .ma-page-head { display: none; }
   .ma-mbar { display: flex; }
-  .ia-page#ma-appt { padding-bottom: 92px !important; }
+  .ia-page#ma-appt { padding: 14px 14px 92px !important; } /* MARKER-PATCH-416 — match other surfaces' gutter */
   .ma-layout { gap: 0; }
   #ma-appt[data-mtab] .ma-sale-banner { display: none; }
   #ma-appt[data-mtab="pay"] .ma-sale-banner { display: flex; }
