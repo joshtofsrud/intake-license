@@ -396,6 +396,7 @@
 
   // MARKER-PATCH-405 — editor drawer
   var ccTplUrl = "{{ route('tenant.communication.template', ['type' => '__TYPE__']) }}";
+  var ccLastField = null;
   var ccIsReceipt = false;
   function ccInsert(el, text){
     var s = el.selectionStart, e = el.selectionEnd;
@@ -420,6 +421,9 @@
     subj.value = d.subject || ''; subj.placeholder = d.defsubject || '';
     var body = document.getElementById('ccEdBody');
     body.value = d.body || ''; body.placeholder = d.defbody || '';
+    subj.onfocus = function(){ ccLastField = subj; };
+    body.onfocus = function(){ ccLastField = body; };
+    ccLastField = body; // default chip target until a field is focused
     document.getElementById('ccEdBodyLabel').textContent = ccIsReceipt ? 'Greeting' : 'Email body';
     document.getElementById('ccEdBodyHelp').textContent = ccIsReceipt
       ? 'One line above the receipt. The itemized layout, totals, and footer are built in automatically — you do not write those.'
@@ -434,7 +438,7 @@
     var ccB1 = '{' + '{', ccB2 = '}' + '}';
     (d.vars || '').split(',').filter(Boolean).forEach(function(v){
       var s = document.createElement('span'); s.className = 'cc-var'; s.textContent = ccB1 + v + ccB2;
-      s.onclick = function(){ ccInsert(body, ccB1 + v + ccB2); ccPrev(); };
+      s.onclick = function(){ ccInsert(ccLastField || body, ccB1 + v + ccB2); ccPrev(); };
       vbox.appendChild(s);
     });
     ccPrev();
