@@ -371,7 +371,7 @@
             <span class="b {{ $cls }}"><span class="d"></span>{{ $lbl }}</span>
             <span class="ev">{{ $ev }}<span class="ch">{{ strtoupper($log->channel) }}</span></span>
             <span class="to">{{ $log->recipient }}</span>
-            <span class="tm">{{ optional($log->created_at)->format('M j g:ia') }}</span>
+            <span class="tm">{{ $log->created_at?->copy()->setTimezone($tz)->format('M j g:ia') }}</span>
           </div>
         @endforeach
       </div>

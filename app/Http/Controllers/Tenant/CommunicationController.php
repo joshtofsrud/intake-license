@@ -81,6 +81,8 @@ class CommunicationController extends Controller
             'emailLogoCustomUrl' => $tenant->settings['email_logo_custom_url'] ?? '',
             'logoLight'          => $tenant->logo_light_url ?? '',
             'logoMain'           => $tenant->logo_url ?? '',
+            // MARKER-PATCH-412 — tenant tz for converting UTC instants in the Activity feed.
+            'tz'                 => $tenant->timezone ?? config('app.timezone', 'UTC'),
         ]);
     }
 
