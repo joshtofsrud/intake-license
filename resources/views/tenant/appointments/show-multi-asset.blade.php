@@ -70,7 +70,7 @@
 .ma-mtabs button { flex: 1; border: none; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--ia-text-dim); padding: 8px 3px; border-radius: 8px; cursor: pointer; }
 .ma-mtabs button.on { background: rgba(255,255,255,0.07); color: var(--ia-text); }
 .ma-mhero-ra { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; letter-spacing: 0.02em; color: var(--ia-text-dim); margin-bottom: 9px; }
-.ma-mbar { display: none; position: fixed; left: 0; right: 0; bottom: 0; gap: 8px; padding: 11px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--ia-bg, #0b0b0c); border-top: 1px solid var(--ia-border); z-index: 50; }
+.ma-mbar { display: none; gap: 8px; margin-top: 13px; } /* MARKER-PATCH-417 — in-hero action row */
 .ma-mbar .ia-btn { flex: 1; }
 
 @media (max-width: 640px) {
@@ -86,9 +86,9 @@
   #ma-appt[data-mtab="notes"] #ma-notes-card { display: block; }
   #ma-appt[data-mtab="pay"] .ma-rail { display: flex; }
   /* MARKER-PATCH-415 — match the mockup */
-  .ma-page-head { display: none; }
+  #ma-appt .ma-page-head { display: none !important; } /* MARKER-PATCH-417 — beat the later base .ma-page-head rule */
   .ma-mbar { display: flex; }
-  .ia-page#ma-appt { padding: 14px 14px 92px !important; } /* MARKER-PATCH-416 — match other surfaces' gutter */
+  .ia-page#ma-appt { padding: 14px 14px 60px !important; } /* MARKER-PATCH-416/417 — gutter + nav clearance */
   .ma-layout { gap: 0; }
   #ma-appt[data-mtab] .ma-sale-banner { display: none; }
   #ma-appt[data-mtab="pay"] .ma-sale-banner { display: flex; }
@@ -1347,6 +1347,15 @@ input.ma-asset-name-edit:focus {
     @elseif((int) $appointment->total_cents > 0)
       <div class="ma-mhero-bal ma-mhero-bal--paid"><span class="l">Paid in full</span><span class="a">{{ format_money($appointment->total_cents) }}</span></div>
     @endif
+    {{-- MARKER-PATCH-417 — primary actions inside the hero (app has its own bottom nav) --}}
+    <div class="ma-mbar">
+      @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
+      <button type="button" class="ia-btn ia-btn--primary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
+      @endif
+      @unless($isTerminal)
+      <button type="button" class="ia-btn ia-btn--secondary" onclick="var b=document.querySelector('.appt-b-reschedule-btn'); if(b) b.click();">&#8635; Reschedule</button>
+      @endunless
+    </div>
   </div>
 
   {{-- MARKER-PATCH-414 — segmented control (phone only) --}}
@@ -3385,15 +3394,5 @@ input.ma-asset-name-edit:focus {
 })();
 </script>
 @endpush
-
-{{-- MARKER-PATCH-415 — mobile sticky action bar (phone only) --}}
-<div class="ma-mbar">
-  @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
-  <button type="button" class="ia-btn ia-btn--primary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
-  @endif
-  @unless($isTerminal)
-  <button type="button" class="ia-btn ia-btn--secondary" onclick="var b=document.querySelector('.appt-b-reschedule-btn'); if(b) b.click();">&#8635; Reschedule</button>
-  @endunless
-</div>
 
 @endsection
