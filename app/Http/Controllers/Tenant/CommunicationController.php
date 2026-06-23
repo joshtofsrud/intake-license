@@ -76,6 +76,7 @@ class CommunicationController extends Controller
             'smsNumber' => $tenant->sms_from_number,
             'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
             'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
+            'testEmail'     => optional(auth()->user())->email ?? '',
         ]);
     }
 
@@ -150,5 +151,91 @@ class CommunicationController extends Controller
         );
 
         return back()->with('success', 'Message updated.');
+    }
+
+    /**
+     * MARKER-PATCH-409 — send a test of any message to a chosen address.
+     * Reuses each message's real send path so the test matches what a customer
+     * would receive. Receipts use the tenant's most recent real record; body
+     * messages render the saved template (or built-in default) with sample data.
+     * Always sends (ignores the on/off toggle) so it works as a pre-launch preview.
+     */
+    public function sendTest(Request $request, string $type)
+    {
+        $tenant  = tenant();
+        $editors = collect($this->catalog())->pluck('editor', 'template');
+        if (! $editors->has($type)) {
+            return response()->json(['message' => 'Unknown message.'], 422);
+        }
+
+        $email = trim((string) $request->input('test_email', ''));
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return response()->json(['message' => 'Enter a valid email address.'], 422);
+        }
+
+        try {
+            if ($type === 'sale_receipt') {
+                $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                    ->latest()->first();
+                if (! $sale) {
+                    return response()->json(['message' => 'No sale yet to base a test receipt on — ring one up first.'], 422);
+                }
+                \App\Jobs\SendSaleReceiptJob::dispatchSync($sale->id, $email, 'manual_resend');
+
+            } elseif ($type === 'appointment_receipt') {
+                $appt = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+                    ->latest()->first();
+                if (! $appt) {
+                    return response()->json(['message' => 'No appointment yet to base a test receipt on.'], 422);
+                }
+                \App\Jobs\SendAppointmentReceiptJob::dispatchSync($appt->id, $email, 'manual_resend');
+
+            } else {
+                // Body-type messages render through EmailService::send(). Delivery
+                // splits into pickup/dropoff at the template level; test the pickup
+                // variant as representative.
+                $renderKey = [
+                    'booking_confirmation' => 'booking_confirmation',
+                    'appointment_reminder' => 'appointment_reminder',
+                    'delivery_scheduled'   => 'delivery_pickup_scheduled',
+                    'delivery_reminder'    => 'delivery_pickup_reminder',
+                ][$type] ?? $type;
+
+                \App\Services\EmailService::forTenant($tenant)->send($renderKey, $email, $this->sampleVars($tenant));
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('comm_send_test_failed', [
+                'tenant_id' => $tenant->id, 'type' => $type, 'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'Could not send the test — check your email settings.'], 500);
+        }
+
+        return response()->json(['message' => 'Test sent to ' . $email . '.']);
+    }
+
+    /** Representative sample variables covering the placeholders across templates. */
+    private function sampleVars($tenant): array
+    {
+        $accent = $tenant->accent_color ?? '#BEF264';
+        return [
+            'first_name'       => 'Alex',
+            'last_name'        => 'Rivera',
+            'shop_name'        => $tenant->name,
+            'ra_number'        => 'ITO-TEST-0001',
+            'sale_number'      => 'S-TEST-0001',
+            'date'             => now()->format('M j, Y'),
+            'date_short'       => now()->addDay()->format('M j'),
+            'date_human'       => now()->addDay()->format('l, F j'),
+            'time_start'       => '2:00 PM',
+            'time_end'         => '2:30 PM',
+            'window'           => '2:00 – 2:30 PM',
+            'appointment_date' => now()->addDay()->format('l, F j'),
+            'appointment_time' => '2:00 PM',
+            'when_human'       => now()->addDay()->format('l, F j') . ' at 2:00 PM',
+            'when_sms'         => now()->addDay()->format('M j') . ' at 2:00 PM',
+            'total'            => '$158.00',
+            'accent'           => $accent,
+            'accent_text'      => \App\Support\ColorHelper::accentTextColor($accent),
+        ];
     }
 }

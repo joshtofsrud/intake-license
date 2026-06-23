@@ -145,6 +145,12 @@
   .cc-chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ia-text-2,#a6a6ac);background:var(--ia-surface,#1b1b1f);border:1px solid var(--ia-border,#2a2a2e);border-radius:8px;padding:6px 11px;cursor:pointer}
   .cc-chk input{accent-color:var(--ia-accent,#e0a82e);margin:0}
   .cc-chk.locked{opacity:.6;cursor:default}
+
+  /* MARKER-PATCH-409 — send test row */
+  .cc-testrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 22px;border-top:1px solid var(--ia-border,#2a2a2e);background:rgba(255,255,255,.015)}
+  .cc-testlbl{font-size:12.5px;font-weight:600;color:var(--ia-text-2,#a6a6ac)}
+  .cc-testinp{width:auto;flex:1;min-width:170px;max-width:300px;padding:8px 11px}
+  #ccTestStatus{font-size:12px;color:var(--ia-text-2,#a6a6ac)}
 </style>
 @endpush
 
@@ -396,6 +402,13 @@
         </div>
       </div>
     </div>
+    {{-- MARKER-PATCH-409 — send test --}}
+    <div class="cc-testrow">
+      <span class="cc-testlbl">Send yourself a test</span>
+      <input type="email" id="ccTestEmail" class="cc-inp cc-testinp" value="{{ $testEmail }}" placeholder="you@example.com" autocomplete="off">
+      <button type="button" id="ccTestBtn" class="cc-ghost" onclick="ccSendTest()">Send test</button>
+      <span class="cc-help" id="ccTestStatus"></span>
+    </div>
     <div class="cc-dfoot">
       <button type="submit" class="cc-save">Save changes</button>
       <button type="submit" name="op" value="reset" class="cc-ghost" onclick="return confirm('Reset this message to the built-in default? Your custom copy will be removed.')">Reset to default</button>
@@ -431,6 +444,8 @@
   // MARKER-PATCH-405 — editor drawer
   var ccTplUrl = "{{ route('tenant.communication.template', ['type' => '__TYPE__']) }}";
   var ccLastField = null;
+  var ccCurrentType = '';
+  var ccTestUrl = "{{ route('tenant.communication.test', ['type' => '__TYPE__']) }}";
   var ccIsReceipt = false;
   function ccInsert(el, text){
     var s = el.selectionStart, e = el.selectionEnd;
@@ -449,6 +464,8 @@
     var d = btn.dataset;
     ccIsReceipt = d.editor === 'receipt';
     document.getElementById('ccEdForm').action = ccTplUrl.replace('__TYPE__', d.type);
+    ccCurrentType = d.type;
+    var ccTs = document.getElementById('ccTestStatus'); if (ccTs) ccTs.textContent = '';
     document.getElementById('ccEdTitle').textContent = d.label;
     document.getElementById('ccEdSub').textContent   = d.desc || '';
     var subj = document.getElementById('ccEdSubject');
@@ -484,5 +501,25 @@
     document.getElementById('ccDrawer').classList.remove('show');
   }
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ccCloseEd(); });
+
+  // MARKER-PATCH-409 — send test (fetch; targets the saved message)
+  function ccSendTest(){
+    var email = (document.getElementById('ccTestEmail').value || '').trim();
+    var status = document.getElementById('ccTestStatus');
+    var btn = document.getElementById('ccTestBtn');
+    if (!email) { status.textContent = 'Enter an email first.'; return; }
+    var tokenEl = document.querySelector('#ccEdForm input[name=_token]');
+    var token = tokenEl ? tokenEl.value : '';
+    var label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending…'; status.textContent = '';
+    fetch(ccTestUrl.replace('__TYPE__', ccCurrentType), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+      body: JSON.stringify({ test_email: email })
+    }).then(function(r){ return r.json(); })
+      .then(function(d){ status.textContent = (d && d.message) ? d.message : 'Sent.'; })
+      .catch(function(){ status.textContent = 'Could not send — check email settings.'; })
+      .then(function(){ btn.disabled = false; btn.textContent = label; });
+  }
 </script>
 @endpush
