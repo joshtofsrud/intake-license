@@ -55,6 +55,34 @@
   .ma-page-head { flex-direction: column; gap: 14px; }
   .ma-page-title { font-size: 19px; gap: 10px; }
 }
+
+/* ===== MARKER-PATCH-414 — mobile B: summary hero + segmented tabs ===== */
+.ma-mhero, .ma-mtabs { display: none; }
+.ma-mhero { background: var(--ia-surface, rgba(255,255,255,0.02)); border: 1px solid var(--ia-border); border-radius: 14px; padding: 15px 16px; margin-bottom: 13px; }
+.ma-mhero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ma-mhero-cust { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.ma-mhero-when { color: var(--ia-text-dim); font-size: 12.5px; margin-top: 2px; }
+.ma-mhero-bal { display: flex; align-items: baseline; justify-content: space-between; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--ia-border); }
+.ma-mhero-bal .l { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: #e0a82e; font-weight: 600; }
+.ma-mhero-bal .a { font-size: 22px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.ma-mhero-bal--paid .l { color: #86efac; }
+.ma-mtabs { background: rgba(255,255,255,0.04); border: 1px solid var(--ia-border); border-radius: 11px; padding: 3px; margin-bottom: 14px; }
+.ma-mtabs button { flex: 1; border: none; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--ia-text-dim); padding: 8px 3px; border-radius: 8px; cursor: pointer; }
+.ma-mtabs button.on { background: rgba(255,255,255,0.07); color: var(--ia-text); }
+
+@media (max-width: 640px) {
+  .ma-mhero { display: block; }
+  .ma-mtabs { display: flex; }
+  .ma-layout { display: block; }
+  #ma-appt[data-mtab] .ma-top-row,
+  #ma-appt[data-mtab] .ma-assets-group,
+  #ma-appt[data-mtab] #ma-notes-card,
+  #ma-appt[data-mtab] .ma-rail { display: none; }
+  #ma-appt[data-mtab="overview"] .ma-top-row { display: grid; }
+  #ma-appt[data-mtab="items"] .ma-assets-group { display: block; }
+  #ma-appt[data-mtab="notes"] #ma-notes-card { display: block; }
+  #ma-appt[data-mtab="pay"] .ma-rail { display: flex; }
+}
 /* MARKER-PATCH-211 — subtle card separation: stronger edges + a small lift */
 .ma-layout { --ia-border: rgba(255,255,255,0.17); }
 .ma-layout .ma-top-tile,
@@ -1258,7 +1286,7 @@ input.ma-asset-name-edit:focus {
 
 @section('content')
 {{-- MARKER-PATCH-158-G8 — Removed max-width:1400px + margin:0 auto. No other tenant page uses centered wrapper; this one shouldn't either. --}}
-<div class="ia-page" style="padding: 24px 28px 60px;">
+<div class="ia-page" id="ma-appt" style="padding: 24px 28px 60px;">
 
   {{-- Header --}}
   <div class="ma-page-head">
@@ -1292,6 +1320,39 @@ input.ma-asset-name-edit:focus {
   {{-- MARKER-PATCH-347 — _invoice-modal include removed with the Invoice button. --}}
   {{-- MARKER-PATCH-314 --}}
   @include('tenant.appointments._tag_modal')
+
+  {{-- MARKER-PATCH-414 — mobile summary hero (phone only) --}}
+  @php $mBalance = max(0, (int) $appointment->total_cents - (int) $appointment->paid_cents); @endphp
+  <div class="ma-mhero">
+    <div class="ma-mhero-top">
+      <div>
+        <div class="ma-mhero-cust">{{ $appointment->customer ? trim($appointment->customer->first_name . ' ' . $appointment->customer->last_name) : 'Walk-in' }}</div>
+        <div class="ma-mhero-when">{{ $appointment->appointment_date->format('D, M j') }}@if($appointment->appointment_time) · {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') }}@endif@if($appointment->resource) · {{ $appointment->resource->name }}@endif</div>
+      </div>
+      <span class="ma-status-pill ma-status-pill--{{ $appointment->status }}">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</span>
+    </div>
+    @if($mBalance > 0)
+      <div class="ma-mhero-bal"><span class="l">Balance due</span><span class="a">{{ format_money($mBalance) }}</span></div>
+    @elseif((int) $appointment->total_cents > 0)
+      <div class="ma-mhero-bal ma-mhero-bal--paid"><span class="l">Paid in full</span><span class="a">{{ format_money($appointment->total_cents) }}</span></div>
+    @endif
+  </div>
+
+  {{-- MARKER-PATCH-414 — segmented control (phone only) --}}
+  <div class="ma-mtabs">
+    <button type="button" class="on" onclick="maTab(this,'overview')">Overview</button>
+    <button type="button" onclick="maTab(this,'items')">Items</button>
+    <button type="button" onclick="maTab(this,'notes')">Notes</button>
+    <button type="button" onclick="maTab(this,'pay')">Pay</button>
+  </div>
+  <script>
+    (function(){ var p = document.getElementById('ma-appt'); if (p && !p.getAttribute('data-mtab')) p.setAttribute('data-mtab','overview'); })();
+    function maTab(btn, tab){
+      var p = document.getElementById('ma-appt'); if (p) p.setAttribute('data-mtab', tab);
+      btn.parentNode.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
+      btn.classList.add('on');
+    }
+  </script>
 
   {{-- MARKER-PATCH-158-G1 — Sale callout banners (mirrors legacy bannerSale) --}}
   @php
@@ -1466,6 +1527,9 @@ input.ma-asset-name-edit:focus {
 
     {{-- LEFT: assets + services --}}
     <main>
+
+      {{-- MARKER-PATCH-414 — assets group wrapper (mobile Items tab target) --}}
+      <div class="ma-assets-group">
 
       <div class="ma-section-head">
         <div class="ma-section-title">
@@ -2052,6 +2116,8 @@ input.ma-asset-name-edit:focus {
       @endisset
 
       {{-- MARKER-PATCH-158-G5 — Bottom work-order card removed; now per-asset inside each asset card --}}
+
+      </div>{{-- MARKER-PATCH-414 — /ma-assets-group --}}
 
       {{-- MARKER-PATCH-158-E5 — Notes card --}}
       <div class="ma-notes-card" id="ma-notes-card">
