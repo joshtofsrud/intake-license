@@ -57,16 +57,8 @@ class EmailController extends Controller
             ]);
         }
 
-        // MARKER-PATCH-161 — receipt automation state for the toggle card.
-        $settings = $tenant->settings ?? [];
-        $receiptSettings = [
-            'notify_sale_receipt_email'           => (bool) ($settings['notify_sale_receipt_email']        ?? true),
-            'notify_appointment_receipt_email'    => (bool) ($settings['notify_appointment_receipt_email'] ?? true),
-            'email_track_opens'                   => (bool) ($settings['email_track_opens']               ?? true),
-            'receipt_appointment_trigger_states'  => $settings['receipt_appointment_trigger_states']      ?? ['completed'],
-        ];
-
-        return view('tenant.emails.index', compact('types', 'receiptSettings'));
+        // MARKER-PATCH-407 — receipt automation moved to the Communication Center.
+        return view('tenant.emails.index', compact('types'));
     }
 
     public function update(Request $request, string $type)
@@ -143,45 +135,5 @@ class EmailController extends Controller
      * MARKER-PATCH-161 — Save tenant-wide receipt automation toggles + trigger states.
      * Writes into the tenants.settings JSON column.
      */
-    public function settingsUpdate(Request $request)
-    {
-        $tenant = tenant();
-
-        $validated = $request->validate([
-            'notify_sale_receipt_email'        => 'nullable|boolean',
-            'notify_appointment_receipt_email' => 'nullable|boolean',
-            'email_track_opens'                => 'nullable|boolean',
-            'receipt_appointment_trigger_states'   => 'nullable|array',
-            'receipt_appointment_trigger_states.*' => 'string|in:completed,shipped,closed',
-        ]);
-
-        $settings = $tenant->settings ?? [];
-
-        // Checkboxes only post when checked, so use input() with default false
-        // for the booleans rather than reading $validated which may omit keys.
-        $settings['notify_sale_receipt_email']        = (bool) $request->input('notify_sale_receipt_email', false);
-        $settings['notify_appointment_receipt_email'] = (bool) $request->input('notify_appointment_receipt_email', false);
-        $settings['email_track_opens']                = (bool) $request->input('email_track_opens', false);
-
-        // Trigger states: require at least 'completed' so receipts always fire on the default state.
-        $states = $validated['receipt_appointment_trigger_states'] ?? [];
-        if (! in_array('completed', $states, true)) {
-            $states[] = 'completed';
-        }
-        $settings['receipt_appointment_trigger_states'] = array_values(array_unique($states));
-
-        $tenant->update(['settings' => $settings]);
-
-        Log::info('EMAIL_SETTINGS_SAVED', [
-            'tenant_id' => $tenant->id,
-            'settings'  => array_intersect_key($settings, array_flip([
-                'notify_sale_receipt_email',
-                'notify_appointment_receipt_email',
-                'email_track_opens',
-                'receipt_appointment_trigger_states',
-            ])),
-        ]);
-
-        return back()->with('success', 'Receipt automation settings saved.');
-    }
+    // MARKER-PATCH-407 — settingsUpdate removed; receipt options live in CommunicationController.
 }

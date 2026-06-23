@@ -74,6 +74,8 @@ class CommunicationController extends Controller
             'fromEmail' => $tenant->emailFromAddress(),
             'replyTo'   => $tenant->email_reply_to,
             'smsNumber' => $tenant->sms_from_number,
+            'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
+            'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
         ]);
     }
 
@@ -93,6 +95,18 @@ class CommunicationController extends Controller
                 $settings[$field] = (bool) $request->input($field);
             }
         }
+
+        // MARKER-PATCH-407 — receipt options (moved from the Email page).
+        $settings['email_track_opens'] = (bool) $request->input('email_track_opens');
+        $states = array_values(array_intersect(
+            (array) $request->input('receipt_appointment_trigger_states', []),
+            ['completed', 'shipped', 'closed']
+        ));
+        if (! in_array('completed', $states, true)) {
+            $states[] = 'completed';
+        }
+        $settings['receipt_appointment_trigger_states'] = array_values(array_unique($states));
+
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Communication settings saved.');

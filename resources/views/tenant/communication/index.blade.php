@@ -134,6 +134,17 @@
   .cc-dfoot{padding:15px 22px;border-top:1px solid var(--ia-border,#2a2a2e);display:flex;gap:10px;align-items:center}
   .cc-ghost{background:none;border:1px solid var(--ia-border,#2a2a2e);color:var(--ia-text-2,#a6a6ac);border-radius:9px;font:inherit;font-size:13px;padding:10px 16px;cursor:pointer}
   .cc-dfoot .right{margin-left:auto}
+
+  /* MARKER-PATCH-407 — receipt options */
+  .cc-opts{margin-top:18px;background:var(--ia-surface,#161619);border:1px solid var(--ia-border,#2a2a2e);border-radius:13px;padding:2px 18px}
+  .cc-opt{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:15px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .cc-opt:last-child{border-bottom:none}
+  .cc-optt{font-weight:640;font-size:13.5px;color:var(--ia-text,#f4f4f5)}
+  .cc-optd{color:var(--ia-text-3,#74747a);font-size:12px;margin-top:2px;max-width:540px}
+  .cc-states{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;padding-top:2px}
+  .cc-chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ia-text-2,#a6a6ac);background:var(--ia-surface,#1b1b1f);border:1px solid var(--ia-border,#2a2a2e);border-radius:8px;padding:6px 11px;cursor:pointer}
+  .cc-chk input{accent-color:var(--ia-accent,#e0a82e);margin:0}
+  .cc-chk.locked{opacity:.6;cursor:default}
 </style>
 @endpush
 
@@ -239,6 +250,29 @@
           </tr>
         </tbody>
       </table>
+
+      {{-- MARKER-PATCH-407 — receipt options (single source) --}}
+      <div class="cc-opts">
+        <div class="cc-opt">
+          <div>
+            <div class="cc-optt">Track email opens</div>
+            <div class="cc-optd">Adds an invisible pixel so you can see when an email is opened. Some customers prefer this off.</div>
+          </div>
+          <input type="hidden" name="email_track_opens" id="sw_track_opens" value="{{ $trackOpens ? 1 : 0 }}">
+          <button type="button" class="cc-sw {{ $trackOpens ? 'on' : '' }}" data-for="sw_track_opens" onclick="ccTog(this)" aria-label="Track opens"></button>
+        </div>
+        <div class="cc-opt">
+          <div>
+            <div class="cc-optt">Send the work-order receipt when an appointment becomes</div>
+            <div class="cc-optd">Completed always sends. Shipped and Closed only apply if you use those states in your workflow.</div>
+          </div>
+          <div class="cc-states">
+            <label class="cc-chk locked"><input type="checkbox" checked disabled> Completed</label>
+            <label class="cc-chk"><input type="checkbox" name="receipt_appointment_trigger_states[]" value="shipped" {{ in_array('shipped', $triggerStates) ? 'checked' : '' }}> Shipped</label>
+            <label class="cc-chk"><input type="checkbox" name="receipt_appointment_trigger_states[]" value="closed" {{ in_array('closed', $triggerStates) ? 'checked' : '' }}> Closed</label>
+          </div>
+        </div>
+      </div>
 
       <div class="cc-savebar">
         <button type="submit" class="cc-save">Save changes</button>

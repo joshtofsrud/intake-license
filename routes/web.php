@@ -726,10 +726,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/sales/{id}/resend-receipt',
                 [TenantControllers\RegisterController::class, 'resendReceipt'])
                 ->name('sales.resend_receipt');
-            // MARKER-PATCH-161 — receipt automation toggles
-            Route::patch('/emails-settings',
-                [TenantControllers\EmailController::class, 'settingsUpdate'])
-                ->name('emails.settings.update');
+            // MARKER-PATCH-407 — emails.settings.update route removed (receipt options in Communication Center)
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
