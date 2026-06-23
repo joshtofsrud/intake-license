@@ -50,6 +50,11 @@
 @media (max-width: 900px) {
   .ma-top-row { grid-template-columns: 1fr; }
 }
+/* MARKER-PATCH-413 — phone: stack header so the long RA number isn't squeezed */
+@media (max-width: 640px) {
+  .ma-page-head { flex-direction: column; gap: 14px; }
+  .ma-page-title { font-size: 19px; gap: 10px; }
+}
 /* MARKER-PATCH-211 — subtle card separation: stronger edges + a small lift */
 .ma-layout { --ia-border: rgba(255,255,255,0.17); }
 .ma-layout .ma-top-tile,
@@ -151,8 +156,9 @@
 }
 .ma-page-title {
   font-size: 22px; font-weight: 500; letter-spacing: -0.01em;
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
 }
+.ma-ra-number { white-space: nowrap; }
 .ma-status-pill {
   font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
   padding: 3px 10px; border-radius: 4px;
@@ -1259,7 +1265,7 @@ input.ma-asset-name-edit:focus {
     <div>
       <div class="ma-page-eyebrow">Appointment</div>
       <h1 class="ma-page-title">
-        {{ $appointment->ra_number }}
+        <span class="ma-ra-number">{{ $appointment->ra_number }}</span>
         <span class="ma-status-pill ma-status-pill--{{ $appointment->status }}">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</span>
       </h1>
       <div class="ma-page-sub">
