@@ -77,6 +77,10 @@ class CommunicationController extends Controller
             'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
             'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
             'testEmail'     => optional(auth()->user())->email ?? '',
+            'emailLogoChoice'    => $tenant->settings['email_logo_choice'] ?? 'light',
+            'emailLogoCustomUrl' => $tenant->settings['email_logo_custom_url'] ?? '',
+            'logoLight'          => $tenant->logo_light_url ?? '',
+            'logoMain'           => $tenant->logo_url ?? '',
         ]);
     }
 
@@ -107,6 +111,11 @@ class CommunicationController extends Controller
             $states[] = 'completed';
         }
         $settings['receipt_appointment_trigger_states'] = array_values(array_unique($states));
+
+        // MARKER-PATCH-411 — email header logo choice.
+        $choice = (string) $request->input('email_logo_choice', 'light');
+        $settings['email_logo_choice'] = in_array($choice, ['light', 'main', 'custom', 'none'], true) ? $choice : 'light';
+        $settings['email_logo_custom_url'] = trim((string) $request->input('email_logo_custom_url', ''));
 
         $tenant->update(['settings' => $settings]);
 

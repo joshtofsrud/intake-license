@@ -256,6 +256,23 @@ class Tenant extends Model
     }
 
     /**
+     * MARKER-PATCH-411 — the logo shown on the dark header of every email.
+     * Single source driving both render paths (EmailService::renderHtml and the
+     * emails/layout Blade). Defaults to the light logo (the header is dark),
+     * falling back to the main logo, then to null (the text shop name renders).
+     */
+    public function emailLogoUrl(): ?string
+    {
+        $choice = $this->settings['email_logo_choice'] ?? 'light';
+        return match ($choice) {
+            'none'   => null,
+            'main'   => $this->logo_url ?: null,
+            'custom' => ($this->settings['email_logo_custom_url'] ?? null) ?: null,
+            default  => ($this->logo_light_url ?: $this->logo_url) ?: null,
+        };
+    }
+
+    /**
      * Does this tenant currently have access to the given feature?
      *
      * This is the canonical feature gate. Every controller, view, and job

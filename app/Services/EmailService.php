@@ -221,7 +221,7 @@ class EmailService
         $accent     = $this->tenant->accent_color     ?? '#BEF264';
         $accentText = \App\Support\ColorHelper::accentTextColor($accent);
         $name       = htmlspecialchars($this->tenant->name);
-        $logo       = $this->tenant->logo_url;
+        $logo       = $this->tenant->emailLogoUrl(); // MARKER-PATCH-411
 
         $header = $logo
             ? "<img src=\"{$logo}\" alt=\"{$name}\" style=\"height:36px;display:block;margin:0 auto 8px\">"

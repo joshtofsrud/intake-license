@@ -151,6 +151,15 @@
   .cc-testlbl{font-size:12.5px;font-weight:600;color:var(--ia-text-2,#a6a6ac)}
   .cc-testinp{width:auto;flex:1;min-width:170px;max-width:300px;padding:8px 11px}
   #ccTestStatus{font-size:12px;color:var(--ia-text-2,#a6a6ac)}
+
+  /* MARKER-PATCH-411 — email logo picker */
+  .cc-logoctrls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .cc-logosel{width:auto;min-width:210px;padding:8px 11px}
+  .cc-logourl{width:auto;flex:1;min-width:170px;max-width:300px;padding:8px 11px}
+  .cc-logobrowse{font-size:12px;color:var(--ia-accent,#e0a82e);text-decoration:none;font-weight:600;white-space:nowrap}
+  .cc-logoprev{flex-shrink:0;width:170px;height:66px;border-radius:9px;background:#111;display:flex;align-items:center;justify-content:center;border:1px solid var(--ia-border,#2a2a2e);overflow:hidden;padding:8px}
+  .cc-logoprev img{max-height:42px;max-width:100%;display:block}
+  .cc-logoprev .nm{color:#f0f0f0;font-weight:700;font-size:15px;font-family:-apple-system,sans-serif}
 </style>
 @endpush
 
@@ -259,6 +268,26 @@
 
       {{-- MARKER-PATCH-407 — receipt options (single source) --}}
       <div class="cc-opts">
+        {{-- MARKER-PATCH-411 — email header logo --}}
+        <div class="cc-opt">
+          <div style="flex:1;min-width:0">
+            <div class="cc-optt">Email header logo</div>
+            <div class="cc-optd">Shown on the dark header of every email. Your light logo usually reads best on it.</div>
+            <div class="cc-logoctrls">
+              <select name="email_logo_choice" id="ccLogoChoice" class="cc-inp cc-logosel" onchange="ccLogoPrev()">
+                <option value="light"  {{ $emailLogoChoice === 'light'  ? 'selected' : '' }}>Light logo (recommended)</option>
+                <option value="main"   {{ $emailLogoChoice === 'main'   ? 'selected' : '' }}>Main logo</option>
+                <option value="custom" {{ $emailLogoChoice === 'custom' ? 'selected' : '' }}>Custom image URL</option>
+                <option value="none"   {{ $emailLogoChoice === 'none'   ? 'selected' : '' }}>Shop name only</option>
+              </select>
+              <input type="url" name="email_logo_custom_url" id="ccLogoUrl" class="cc-inp cc-logourl"
+                     value="{{ $emailLogoCustomUrl }}" placeholder="Paste an image URL" oninput="ccLogoPrev()"
+                     style="{{ $emailLogoChoice === 'custom' ? '' : 'display:none' }}">
+              <a class="cc-logobrowse" href="{{ route('tenant.media.index') }}" target="_blank" rel="noopener">Browse Media</a>
+            </div>
+          </div>
+          <div class="cc-logoprev" id="ccLogoPreview"></div>
+        </div>
         <div class="cc-opt">
           <div>
             <div class="cc-optt">Track email opens</div>
@@ -521,5 +550,38 @@
       .catch(function(){ status.textContent = 'Could not send — check email settings.'; })
       .then(function(){ btn.disabled = false; btn.textContent = label; });
   }
+
+  // MARKER-PATCH-411 — email header logo picker + live preview
+  var ccLogoLight = @json($logoLight);
+  var ccLogoMain  = @json($logoMain);
+  var ccShopName  = @json($fromName);
+  function ccLogoText(prev){
+    prev.innerHTML = '';
+    var sp = document.createElement('span');
+    sp.className = 'nm';
+    sp.textContent = ccShopName;
+    prev.appendChild(sp);
+  }
+  function ccLogoPrev(){
+    var choice = document.getElementById('ccLogoChoice').value;
+    var urlInput = document.getElementById('ccLogoUrl');
+    urlInput.style.display = (choice === 'custom') ? '' : 'none';
+    var prev = document.getElementById('ccLogoPreview');
+    var src = '';
+    if (choice === 'light') { src = ccLogoLight || ccLogoMain; }
+    else if (choice === 'main') { src = ccLogoMain; }
+    else if (choice === 'custom') { src = (urlInput.value || '').trim(); }
+    if (choice !== 'none' && src) {
+      var img = document.createElement('img');
+      img.alt = '';
+      img.onerror = function(){ ccLogoText(prev); };
+      img.src = src;
+      prev.innerHTML = '';
+      prev.appendChild(img);
+    } else {
+      ccLogoText(prev);
+    }
+  }
+  ccLogoPrev();
 </script>
 @endpush

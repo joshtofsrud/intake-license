@@ -2,7 +2,7 @@
   $accent     = $tenant->accent_color ?? '#BEF264';
   $accentText = \App\Support\ColorHelper::accentTextColor($accent);
   $shopName   = $tenant->name;
-  $logo       = $tenant->logo_url;
+  $logo       = $tenant->emailLogoUrl(); {{-- MARKER-PATCH-411 --}}
 @endphp
 <!DOCTYPE html>
 <html lang="en">
