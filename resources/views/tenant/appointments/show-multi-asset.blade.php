@@ -69,6 +69,9 @@
 .ma-mtabs { background: rgba(255,255,255,0.04); border: 1px solid var(--ia-border); border-radius: 11px; padding: 3px; margin-bottom: 14px; }
 .ma-mtabs button { flex: 1; border: none; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--ia-text-dim); padding: 8px 3px; border-radius: 8px; cursor: pointer; }
 .ma-mtabs button.on { background: rgba(255,255,255,0.07); color: var(--ia-text); }
+.ma-mhero-ra { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; letter-spacing: 0.02em; color: var(--ia-text-dim); margin-bottom: 9px; }
+.ma-mbar { display: none; position: fixed; left: 0; right: 0; bottom: 0; gap: 8px; padding: 11px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--ia-bg, #0b0b0c); border-top: 1px solid var(--ia-border); z-index: 50; }
+.ma-mbar .ia-btn { flex: 1; }
 
 @media (max-width: 640px) {
   .ma-mhero { display: block; }
@@ -82,6 +85,13 @@
   #ma-appt[data-mtab="items"] .ma-assets-group { display: block; }
   #ma-appt[data-mtab="notes"] #ma-notes-card { display: block; }
   #ma-appt[data-mtab="pay"] .ma-rail { display: flex; }
+  /* MARKER-PATCH-415 — match the mockup */
+  .ma-page-head { display: none; }
+  .ma-mbar { display: flex; }
+  .ia-page#ma-appt { padding-bottom: 92px !important; }
+  .ma-layout { gap: 0; }
+  #ma-appt[data-mtab] .ma-sale-banner { display: none; }
+  #ma-appt[data-mtab="pay"] .ma-sale-banner { display: flex; }
 }
 /* MARKER-PATCH-211 — subtle card separation: stronger edges + a small lift */
 .ma-layout { --ia-border: rgba(255,255,255,0.17); }
@@ -1324,6 +1334,7 @@ input.ma-asset-name-edit:focus {
   {{-- MARKER-PATCH-414 — mobile summary hero (phone only) --}}
   @php $mBalance = max(0, (int) $appointment->total_cents - (int) $appointment->paid_cents); @endphp
   <div class="ma-mhero">
+    <div class="ma-mhero-ra">{{ $appointment->ra_number }}</div>
     <div class="ma-mhero-top">
       <div>
         <div class="ma-mhero-cust">{{ $appointment->customer ? trim($appointment->customer->first_name . ' ' . $appointment->customer->last_name) : 'Walk-in' }}</div>
@@ -3374,5 +3385,15 @@ input.ma-asset-name-edit:focus {
 })();
 </script>
 @endpush
+
+{{-- MARKER-PATCH-415 — mobile sticky action bar (phone only) --}}
+<div class="ma-mbar">
+  @if(data_get(tenant()->settings, 'work_order_tag.enabled', true))
+  <button type="button" class="ia-btn ia-btn--primary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
+  @endif
+  @unless($isTerminal)
+  <button type="button" class="ia-btn ia-btn--secondary" onclick="var b=document.querySelector('.appt-b-reschedule-btn'); if(b) b.click();">&#8635; Reschedule</button>
+  @endunless
+</div>
 
 @endsection
