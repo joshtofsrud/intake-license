@@ -1312,7 +1312,7 @@ input.ma-asset-name-edit:focus {
 .ma-mcontact-label { font-size: 11px; color: var(--ia-text-muted); font-weight: 500; }
 .ma-mcontact-tile.is-disabled { opacity: .35; pointer-events: none; }
 .ma-mcontact-tile.is-disabled svg { color: var(--ia-text-muted); }
-.ma-mcontact-view { display: none; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--ia-border); text-align: center; font-size: 12px; color: var(--ia-accent); text-decoration: none; }
+.ma-mcontact-view { display: none; margin-top: 12px; padding-bottom: 12px; text-align: center; font-size: 12px; color: var(--ia-accent); text-decoration: none; }
 @media (max-width: 640px) {
   #ma-appt .ma-top-customer { display: none; }
   #ma-appt .ma-top-resource { display: none; }
