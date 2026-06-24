@@ -1304,6 +1304,21 @@ input.ma-asset-name-edit:focus {
 .ma-part-so input { width: 13px; height: 13px; accent-color: var(--ia-accent, #BEF264); cursor: pointer; margin: 0; }
 .ma-part-so-badge { font-family: ui-monospace, 'SF Mono', monospace; font-size: 10px; letter-spacing: .02em; color: var(--ia-accent, #BEF264); opacity: .85; }
 .ma-part-so-badge:empty { display: none; }
+/* MARKER-PATCH-424 — mobile contact actions in the appointment customer tile */
+.ma-mcontact { display: none; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ma-mcontact-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 10px; padding: 12px 6px; color: var(--ia-text); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.ma-mcontact-tile svg { color: var(--ia-accent); }
+.ma-mcontact-tile:active { transform: scale(0.97); }
+.ma-mcontact-label { font-size: 11px; color: var(--ia-text-muted); font-weight: 500; }
+.ma-mcontact-tile.is-disabled { opacity: .35; pointer-events: none; }
+.ma-mcontact-tile.is-disabled svg { color: var(--ia-text-muted); }
+.ma-mcontact-view { display: none; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--ia-border); text-align: center; font-size: 12px; color: var(--ia-accent); text-decoration: none; }
+@media (max-width: 640px) {
+  #ma-appt .ma-top-customer { display: none; }
+  #ma-appt .ma-top-resource { display: none; }
+  #ma-appt .ma-mcontact { display: grid; }
+  #ma-appt .ma-mcontact-view { display: block; }
+}
 </style>
 @endpush
 
@@ -1522,6 +1537,22 @@ input.ma-asset-name-edit:focus {
           <a href="{{ route('tenant.customers.show', $appointment->customer->id) }}"
              class="ma-top-view-link">View →</a>
         </div>
+        {{-- MARKER-PATCH-424 — mobile contact actions (replace the hero-repeat on phones) --}}
+        <div class="ma-mcontact">
+          <a href="{{ $appointment->customer->phone ? 'tel:' . preg_replace('/[^0-9+]/', '', $appointment->customer->phone) : '#' }}" class="ma-mcontact-tile {{ $appointment->customer->phone ? '' : 'is-disabled' }}" {{ $appointment->customer->phone ? '' : 'aria-disabled=true' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span class="ma-mcontact-label">Call</span>
+          </a>
+          <a href="{{ $appointment->customer->phone ? 'sms:' . preg_replace('/[^0-9+]/', '', $appointment->customer->phone) : '#' }}" class="ma-mcontact-tile {{ $appointment->customer->phone ? '' : 'is-disabled' }}" {{ $appointment->customer->phone ? '' : 'aria-disabled=true' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="ma-mcontact-label">Text</span>
+          </a>
+          <a href="{{ $appointment->customer->email ? 'mailto:' . $appointment->customer->email : '#' }}" class="ma-mcontact-tile {{ $appointment->customer->email ? '' : 'is-disabled' }}" {{ $appointment->customer->email ? '' : 'aria-disabled=true' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span class="ma-mcontact-label">Email</span>
+          </a>
+        </div>
+        <a href="{{ route('tenant.customers.show', $appointment->customer->id) }}" class="ma-mcontact-view">View profile →</a>
       @endif
 
       {{-- Resource picker (data attrs match legacy so appointment-resource.js auto-binds) --}}
