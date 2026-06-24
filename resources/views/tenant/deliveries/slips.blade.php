@@ -92,7 +92,7 @@
 
     <hr class="hr">
 
-    <div class="lbl">ITEMS &nbsp; <span class="count">{{ $slip['asset_count'] ?: count($slip['items']) }}</span></div>
+    <div class="lbl">ITEMS</div>
     @forelse($slip['assets'] as $a)
       <div class="assets">— {{ $a }}</div>
     @empty

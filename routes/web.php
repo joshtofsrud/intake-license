@@ -470,6 +470,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/deliveries',                           [TenantControllers\DeliveriesController::class, 'index'])->name('deliveries.index');
             // MARKER-PATCH-321 — printable 80mm pickup/delivery slips for a day
             Route::get('/deliveries/slips',                     [TenantControllers\DeliveriesController::class, 'printSlips'])->name('deliveries.slips');
+            Route::get('/deliveries/customer-assets',           [TenantControllers\DeliveriesController::class, 'customerAssets'])->name('deliveries.customer-assets'); // MARKER-PATCH-427
             // MARKER-PATCH-329 — single delivery receipt
             Route::get('/deliveries/{id}/slip',                 [TenantControllers\DeliveriesController::class, 'printSlip'])->name('deliveries.slip');
             // MARKER-PATCH-152B — create + edit + complete + cancel

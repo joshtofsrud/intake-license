@@ -327,6 +327,14 @@
     outline: none; border-color: var(--ia-accent, #BEF264);
   }
   .del-textarea { resize: vertical; min-height: 60px; }
+  /* MARKER-PATCH-427 — bike picker */
+  .del-assets { display: flex; flex-direction: column; gap: 6px; }
+  .del-asset { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--ia-text); }
+  .del-asset:hover { border-color: var(--ia-border-strong, rgba(255,255,255,.18)); }
+  .del-asset input { accent-color: var(--ia-accent, #BEF264); width: 15px; height: 15px; flex: 0 0 auto; margin: 0; }
+  .del-asset-name { font-weight: 500; }
+  .del-asset-id { color: var(--ia-text-2, rgba(255,255,255,.55)); font-size: 12px; }
+  .del-assets-empty { font-size: 12px; color: var(--ia-text-2, rgba(255,255,255,.55)); padding: 4px 2px; }
 
   /* MARKER-PATCH-153-FIX1 — match customer-search component to drawer input styling */
   .del-drawer .ia-cs,
@@ -855,6 +863,13 @@
         @error('customer_id')<div class="del-error">{{ $message }}</div>@enderror
       </div>
 
+      {{-- Bikes on this run — MARKER-PATCH-427 --}}
+      <div class="del-row" id="del-assets-row" style="display:none;">
+        <label class="del-label">Bikes on this run</label>
+        <div id="del-assets" class="del-assets"></div>
+        <div id="del-assets-empty" class="del-assets-empty" style="display:none;">No saved bikes for this customer.</div>
+      </div>
+
       {{-- Date + start time --}}
       <div class="del-row split">
         <div>
@@ -976,6 +991,7 @@
       'customer_name'        => trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: ($d->customer->email ?? 'Customer'),
       'delivery_resource_id' => $d->delivery_resource_id,
       'notes'                => $d->notes,
+      'assets_ids'           => collect($d->assets ?? [])->pluck('id')->values()->all(), // MARKER-PATCH-427
     ];
   }
 @endphp
@@ -987,6 +1003,7 @@
   window.delRoutes = {
     store:    @json(route('tenant.deliveries.store')),
     base:     @json(route('tenant.deliveries.index')),
+    customerAssets: @json(route('tenant.deliveries.customer-assets')), // MARKER-PATCH-427
   };
 
   function delOpenCreate(type) {
@@ -1015,6 +1032,7 @@
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = '';
     document.getElementById('del-notes').value = '';
+    delLoadAssets(''); // MARKER-PATCH-427 — clear bikes on create
     document.getElementById('del-complete-btn').style.display = 'none';
     document.getElementById('del-cancel-btn').style.display = 'none';
     // MARKER-PATCH-157 — set both button labels for create mode
@@ -1062,6 +1080,7 @@
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = d.delivery_resource_id || '';
     document.getElementById('del-notes').value = d.notes || '';
+    delLoadAssets(d.customer_id, { selected: d.assets_ids || [] }); // MARKER-PATCH-427
     document.getElementById('del-complete-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
     document.getElementById('del-cancel-btn').style.display = (d.status === 'scheduled') ? '' : 'none';
     // MARKER-PATCH-157 — set both button labels for edit mode
@@ -1102,6 +1121,55 @@
     if (inField) inField.value = name || '';
     if (clear)   clear.hidden = !id;
   }
+
+  // MARKER-PATCH-427 — load the picked customer's bikes into the drawer.
+  function delLoadAssets(customerId, opts) {
+    opts = opts || {};
+    var row = document.getElementById('del-assets-row');
+    var wrap = document.getElementById('del-assets');
+    var empty = document.getElementById('del-assets-empty');
+    if (!row || !wrap) return;
+    if (!customerId) { row.style.display = 'none'; wrap.innerHTML = ''; return; }
+    var url = window.delRoutes.customerAssets + '?customer_id=' + encodeURIComponent(customerId);
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : { assets: [], address: null }; })
+      .then(function (data) {
+        var selected = opts.selected || [];
+        var assets = data.assets || [];
+        row.style.display = '';
+        wrap.innerHTML = '';
+        if (!assets.length) { if (empty) empty.style.display = ''; }
+        else {
+          if (empty) empty.style.display = 'none';
+          assets.forEach(function (a) {
+            var label = document.createElement('label');
+            label.className = 'del-asset';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.name = 'assets[]'; cb.value = a.id;
+            if (selected.indexOf(a.id) !== -1) cb.checked = true;
+            var nm = document.createElement('span');
+            nm.className = 'del-asset-name'; nm.textContent = a.name || '';
+            label.appendChild(cb); label.appendChild(nm);
+            if (a.identifier) {
+              var ids = document.createElement('span');
+              ids.className = 'del-asset-id'; ids.textContent = a.identifier;
+              label.appendChild(ids);
+            }
+            wrap.appendChild(label);
+          });
+        }
+        if (opts.fillAddress) {
+          var addrEl = document.getElementById('del-address');
+          if (addrEl && !addrEl.value && data.address) addrEl.value = data.address;
+        }
+      })
+      .catch(function () { row.style.display = 'none'; });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var idf = document.querySelector('.del-drawer [data-cs-id]');
+    if (idf) idf.addEventListener('change', function () { delLoadAssets(this.value, { fillAddress: true }); });
+  });
   // MARKER-PATCH-157 — accepts notify flag from the clicked button
   function delPrepSubmit(notify) {
     var d = document.getElementById('del-date').value;

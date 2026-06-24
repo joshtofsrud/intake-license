@@ -181,6 +181,7 @@
         select(c) {
             this.idField.value = c.id;
             this.input.value = `${c.label || 'Unnamed'} (${c.email || ''})`.trim();
+            this.idField.dispatchEvent(new Event('change', { bubbles: true })); // MARKER-PATCH-427
             this.clearBtn.hidden = false;
             this.close();
         }

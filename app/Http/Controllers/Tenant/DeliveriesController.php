@@ -20,6 +20,53 @@ use Illuminate\View\View;
  */
 class DeliveriesController extends Controller
 {
+    // MARKER-PATCH-427 — list a customer's saved bikes (+ composed address) for the delivery drawer.
+    public function customerAssets(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404);
+
+        $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', (string) $request->query('customer_id'))
+            ->first();
+        if (!$customer) {
+            return response()->json(['assets' => [], 'address' => null]);
+        }
+
+        $assets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->whereNull('archived_at')
+            ->orderBy('name')
+            ->get(['id', 'name', 'identifier'])
+            ->map(fn ($a) => ['id' => (string) $a->id, 'name' => $a->name, 'identifier' => $a->identifier])
+            ->values()->all();
+
+        $address = collect([
+            $customer->address_line1, $customer->address_line2,
+            $customer->city, $customer->state, $customer->postcode,
+        ])->filter()->implode(', ');
+
+        return response()->json(['assets' => $assets, 'address' => $address ?: null]);
+    }
+
+    // MARKER-PATCH-427 — snapshot the selected customer bikes onto the delivery (name + identifier).
+    private function snapshotAssets(array $data): array
+    {
+        $ids = array_values(array_filter((array) ($data['assets'] ?? [])));
+        if (empty($ids) || empty($data['customer_id'])) {
+            return [];
+        }
+
+        return \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', tenant()->id)
+            ->where('customer_id', $data['customer_id'])
+            ->whereIn('id', $ids)
+            ->whereNull('archived_at')
+            ->orderBy('name')
+            ->get(['id', 'name', 'identifier'])
+            ->map(fn ($a) => ['id' => (string) $a->id, 'name' => $a->name, 'identifier' => $a->identifier])
+            ->values()->all();
+    }
+
     // MARKER-PATCH-329 — render one pickup/dropoff slip on demand.
     public function printSlip(Request $request, string $id): View
     {
@@ -49,11 +96,13 @@ class DeliveriesController extends Controller
             'window_end'  => $d->window_minutes
                                ? tlocal($d->scheduled_at->copy()->addMinutes($d->window_minutes), 'g:i A')
                                : null,
-            'asset_count' => $assets->count(),
-            'assets'      => $assets->map(fn ($a) => trim(($a->asset_name_snapshot ?? '') . ($a->identifier_snapshot ? ' · ' . $a->identifier_snapshot : '')))->filter()->values()->all(),
+            'asset_count' => !empty($d->assets) ? count($d->assets) : $assets->count(),
+            'assets'      => !empty($d->assets)
+                               ? collect($d->assets)->map(fn ($a) => trim(($a['name'] ?? '') . (!empty($a['identifier']) ? ' · ' . $a['identifier'] : '')))->filter()->values()->all()
+                               : $assets->map(fn ($a) => trim(($a->asset_name_snapshot ?? '') . ($a->identifier_snapshot ? ' · ' . $a->identifier_snapshot : '')))->filter()->values()->all(),
             'items'       => $appt ? $appt->items->pluck('item_name_snapshot')->filter()->values()->all() : [],
             'job'         => $appt?->ra_number,
-            'notes'       => $appt?->staff_notes,
+            'notes'       => $d->notes ?: $appt?->staff_notes,
         ]];
 
         $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
@@ -104,11 +153,13 @@ class DeliveriesController extends Controller
                 'window_end'  => $d->window_minutes
                                    ? tlocal($d->scheduled_at->copy()->addMinutes($d->window_minutes), 'g:i A')
                                    : null,
-                'asset_count' => $assets->count(),
-                'assets'      => $assets->map(fn ($a) => trim(($a->asset_name_snapshot ?? '') . ($a->identifier_snapshot ? ' · ' . $a->identifier_snapshot : '')))->filter()->values()->all(),
+                'asset_count' => !empty($d->assets) ? count($d->assets) : $assets->count(),
+                'assets'      => !empty($d->assets)
+                                   ? collect($d->assets)->map(fn ($a) => trim(($a['name'] ?? '') . (!empty($a['identifier']) ? ' · ' . $a['identifier'] : '')))->filter()->values()->all()
+                                   : $assets->map(fn ($a) => trim(($a->asset_name_snapshot ?? '') . ($a->identifier_snapshot ? ' · ' . $a->identifier_snapshot : '')))->filter()->values()->all(),
                 'items'       => $appt ? $appt->items->pluck('item_name_snapshot')->filter()->values()->all() : [],
                 'job'         => $appt?->ra_number,
-                'notes'       => $appt?->staff_notes,
+                'notes'       => $d->notes ?: $appt?->staff_notes,
             ];
         }
 
@@ -192,6 +243,7 @@ class DeliveriesController extends Controller
             'appointment_id'        => $data['appointment_id'] ?? null,
             'delivery_resource_id'  => $data['delivery_resource_id'] ?? null,
             'notes'                 => $data['notes'] ?? null,
+            'assets'                => $this->snapshotAssets($data), // MARKER-PATCH-427 (create)
         ]);
 
         // MARKER-PATCH-157 — notification is now opt-in per click.
@@ -244,6 +296,7 @@ class DeliveriesController extends Controller
             'appointment_id'        => $data['appointment_id'] ?? null,
             'delivery_resource_id'  => $data['delivery_resource_id'] ?? null,
             'notes'                 => $data['notes'] ?? null,
+            'assets'                => $this->snapshotAssets($data), // MARKER-PATCH-427 (update)
         ]);
 
         // MARKER-PATCH-157 — opt-in notify on update.
@@ -305,6 +358,8 @@ class DeliveriesController extends Controller
             'work_order_id'         => ['nullable', 'uuid'],
             'appointment_id'        => ['nullable', 'uuid'],
             'notes'                 => ['nullable', 'string', 'max:5000'],
+            'assets'                => ['nullable', 'array'], // MARKER-PATCH-427
+            'assets.*'              => ['uuid'],
             'notify'                => ['nullable'], // MARKER-PATCH-157 — checkbox or 0/1
         ]);
     }
