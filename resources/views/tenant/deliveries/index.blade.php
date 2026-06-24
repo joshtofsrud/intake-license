@@ -327,6 +327,14 @@
     outline: none; border-color: var(--ia-accent, #BEF264);
   }
   .del-textarea { resize: vertical; min-height: 60px; }
+  /* MARKER-PATCH-427 — asset picker */
+  .del-assets { display: flex; flex-direction: column; gap: 6px; }
+  .del-asset { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--ia-text); }
+  .del-asset:hover { border-color: var(--ia-border-strong, rgba(255,255,255,.18)); }
+  .del-asset input { accent-color: var(--ia-accent, #BEF264); width: 15px; height: 15px; flex: 0 0 auto; margin: 0; }
+  .del-asset-name { font-weight: 500; }
+  .del-asset-id { color: var(--ia-text-2, rgba(255,255,255,.55)); font-size: 12px; }
+  .del-assets-empty { font-size: 12px; color: var(--ia-text-2, rgba(255,255,255,.55)); padding: 4px 2px; }
   /* MARKER-PATCH-427 — bike picker */
   .del-assets { display: flex; flex-direction: column; gap: 6px; }
   .del-asset { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--ia-text); }
