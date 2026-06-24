@@ -360,8 +360,28 @@ class CustomerController extends Controller
         $op = $request->input('op');
 
         if ($op === 'update_info') {
+            // MARKER-PATCH-423 — capture the pre-edit email; it's the legacy join
+            // key for appointment snapshots created before id-linking.
+            $oldEmail = $customer->email;
             $data = $this->validated($request, $customer->email);
             $customer->update($data);
+
+            // Propagate the corrected identity onto this customer's appointment
+            // snapshots so every snapshot-reading surface (calendar tiles, tags,
+            // the drawer fallback) shows current data. Matched by the stable
+            // customer_id, plus the old email to catch any pre-id-link rows.
+            TenantAppointment::where('tenant_id', $tenant->id)
+                ->where(function ($q) use ($customer, $oldEmail) {
+                    $q->where('customer_id', $customer->id)
+                      ->orWhere('customer_email', $oldEmail);
+                })
+                ->update([
+                    'customer_first_name' => $customer->first_name,
+                    'customer_last_name'  => $customer->last_name,
+                    'customer_email'      => $customer->email,
+                    'customer_phone'      => $customer->phone,
+                ]);
+
             return response()->json(['ok' => true]);
         }
         if ($op === 'toggle_vip') {
