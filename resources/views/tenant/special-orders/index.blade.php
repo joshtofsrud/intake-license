@@ -194,6 +194,7 @@
 @media (max-width: 700px) {
   .so-desktop-only { display: none; }
   .so-mobile-only  { display: block; }
+  .so-cards        { display: flex; }
   .so-mobile-head { padding: 16px 0 12px; }
   .so-mobile-title { font-size: 22px; font-weight: 600; margin: 0; color: var(--ia-text); }
   .so-mobile-sub { font-size: 12px; color: var(--ia-text-muted); margin: 2px 0 0; }
@@ -257,7 +258,7 @@
 .so-status--overdue  { background: rgba(248,113,113,0.15); color: #F87171; }
 
 /* Mobile cards */
-.so-cards { display: flex; flex-direction: column; gap: 8px; }
+.so-cards { flex-direction: column; gap: 8px; }
 .so-card {
   background: var(--ia-surface);
   border: 0.5px solid var(--ia-border);
