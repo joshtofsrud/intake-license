@@ -197,6 +197,82 @@ class SpecialOrderService
     }
 
     // ────────────────────────────────────────────────────────
+    //  MARKER-PATCH-419 — appointment-part bridge
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Reconcile the special order for a single work-order part line to match
+     * its is_special_order checkbox. Inventory-linked parts only — custom
+     * one-off charges are never ordered. Retracts only while the SO is still
+     * a soft 'needed' request; an already-ordered PO is left alone.
+     */
+    public function syncForAppointmentPart(\App\Models\Tenant\TenantAppointmentPart $part, ?string $userId = null): void
+    {
+        // Custom items (no inventory link) can't be special-ordered.
+        if (empty($part->inventory_item_id)) {
+            if ($part->special_order_id) {
+                $part->forceFill(['special_order_id' => null])->saveQuietly();
+            }
+            return;
+        }
+
+        $part->loadMissing('appointment', 'inventoryItem');
+        $appt = $part->appointment;
+        if (!$appt) {
+            return;
+        }
+
+        $linked = $part->special_order_id
+            ? TenantSpecialOrder::find($part->special_order_id)
+            : null;
+        $liveStatuses = [
+            TenantSpecialOrder::STATUS_NEEDED,
+            TenantSpecialOrder::STATUS_ORDERED,
+            TenantSpecialOrder::STATUS_ARRIVED,
+        ];
+        $linkedIsLive = $linked && in_array($linked->status, $liveStatuses, true);
+
+        if ($part->is_special_order) {
+            if ($linkedIsLive) {
+                // Keep qty aligned while it's still a soft request.
+                if ($linked->status === TenantSpecialOrder::STATUS_NEEDED
+                    && (int) $linked->quantity !== (int) $part->quantity) {
+                    $linked->update(['quantity' => (int) $part->quantity]);
+                }
+                return;
+            }
+
+            $so = $this->create([
+                'tenant_id'                 => $appt->tenant_id,
+                'item_name_snapshot'        => $part->item_name_snapshot,
+                'quantity'                  => (int) $part->quantity,
+                'inventory_item_id'         => $part->inventory_item_id,
+                'customer_id'               => $appt->customer_id,
+                'appointment_id'            => $appt->id,
+                'vendor_id'                 => $part->inventoryItem?->default_vendor_id,
+                'status'                    => TenantSpecialOrder::STATUS_NEEDED,
+                'created_from'              => 'appointment',
+                'created_by_user_id'        => $userId,
+                'unit_cost_cents_estimated' => $part->cost_cents_at_time,
+            ]);
+            $part->forceFill(['special_order_id' => $so->id])->saveQuietly();
+            return;
+        }
+
+        // Unchecked.
+        if ($linked && $linked->status === TenantSpecialOrder::STATUS_NEEDED) {
+            // Still just a request — safe to retract.
+            $this->cancel($linked->id, 'Removed from work order (part special-order unchecked).');
+            $part->forceFill(['special_order_id' => null])->saveQuietly();
+        } elseif ($linkedIsLive) {
+            // Already ordered/arrived — can't un-order from a checkbox; re-check it.
+            $part->forceFill(['is_special_order' => true])->saveQuietly();
+        } else {
+            $part->forceFill(['special_order_id' => null])->saveQuietly();
+        }
+    }
+
+    // ────────────────────────────────────────────────────────
     //  Transitions
     // ────────────────────────────────────────────────────────
 

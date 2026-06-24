@@ -619,7 +619,7 @@ class AppointmentController extends Controller
         $tenant = tenant();
         $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
             ->where('id', $id)
-            ->with(['items', 'addons', 'parts.inventoryItem', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
+            ->with(['items', 'addons', 'parts.inventoryItem', 'parts.specialOrder', 'notes', 'charges', 'customer', 'workOrderResponses', 'workOrderFields', 'payments.registerSale', 'sales'])
             ->firstOrFail();
 
         $transitions = AppointmentStatus::TRANSITIONS[$appointment->status] ?? [];
@@ -664,7 +664,7 @@ class AppointmentController extends Controller
         if ($tenant->multi_asset_enabled) {
             $appointmentAssets = \App\Models\Tenant\TenantAppointmentAsset::where('tenant_id', $tenant->id)
                 ->where('appointment_id', $appointment->id)
-                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem', 'workOrderResponses']) // MARKER-PATCH-158-G5
+                ->with(['customerAsset', 'items.serviceItem', 'addons.addon', 'parts.inventoryItem', 'parts.specialOrder', 'workOrderResponses']) // MARKER-PATCH-158-G5
                 ->orderBy('sort_order')
                 ->get();
 
@@ -1752,8 +1752,17 @@ class AppointmentController extends Controller
                 'unit_price_cents'      => (int) ($invItem->effectiveSellPriceCents() ?? 0),
                 'cost_cents_at_time'    => $invItem->effectiveCostCents(),
                 'is_taxable'            => true,
+                'is_special_order'      => $request->boolean('special_order', true), // MARKER-PATCH-419 — default on
                 'committed_at'          => null,
             ]);
+
+            // MARKER-PATCH-419 — mirror this part into Special Orders (status 'needed').
+            try {
+                app(\App\Services\Tenant\SpecialOrderService::class)
+                    ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('SO sync on part add failed: '.$e->getMessage());
+            }
 
             // Audit note for the activity log.
             TenantAppointmentNote::create([
@@ -1825,6 +1834,7 @@ class AppointmentController extends Controller
                 'unit_price_cents'      => (int) $request->input('unit_price_cents'),
                 'cost_cents_at_time'    => null,
                 'is_taxable'            => $request->boolean('is_taxable', true),
+                'is_special_order'      => false, // MARKER-PATCH-419 — custom one-offs aren't ordered
                 'committed_at'          => null,
             ]);
 
@@ -1854,6 +1864,33 @@ class AppointmentController extends Controller
                     'line_total_cents'   => $part->lineTotalCents(),
                     'line_total_display' => format_money($part->lineTotalCents()),
                 ],
+            ]);
+        }
+
+        // MARKER-PATCH-419 — per-line "add to special orders" checkbox toggle
+        if ($op === 'toggle_part_special_order') {
+            $part = TenantAppointmentPart::where('appointment_id', $appointment->id)
+                ->where('id', $request->input('part_id'))
+                ->first();
+            if (!$part) {
+                return response()->json(['ok' => false, 'message' => 'Part not found.'], 422);
+            }
+            if (!$part->inventory_item_id) {
+                return response()->json(['ok' => false, 'message' => 'Custom items can’t be special-ordered.'], 422);
+            }
+            $part->forceFill(['is_special_order' => $request->boolean('enabled')])->saveQuietly();
+            try {
+                app(\App\Services\Tenant\SpecialOrderService::class)
+                    ->syncForAppointmentPart($part, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+            } catch (\Throwable $e) {
+                return response()->json(['ok' => false, 'message' => 'Could not update special order: '.$e->getMessage()], 422);
+            }
+            $part->refresh()->loadMissing('specialOrder');
+            return response()->json([
+                'ok'               => true,
+                'is_special_order' => (bool) $part->is_special_order,
+                'so_number'        => $part->specialOrder?->so_number,
+                'so_status'        => $part->specialOrder?->status,
             ]);
         }
 

@@ -34,6 +34,8 @@ class TenantAppointmentPart extends Model
         'cost_cents_at_time',
         'is_taxable',
         'committed_at',
+        'is_special_order',   // MARKER-PATCH-419 — per-line "add to special orders" (default on)
+        'special_order_id',   // MARKER-PATCH-419 — link to the needed SO this line spawned
     ];
 
     protected $casts = [
@@ -43,6 +45,7 @@ class TenantAppointmentPart extends Model
         'cost_cents_at_time'        => 'integer',
         'is_taxable'                => 'boolean',
         'committed_at'              => 'datetime',
+        'is_special_order'          => 'boolean', // MARKER-PATCH-419
     ];
 
     public function appointment(): BelongsTo
@@ -53,6 +56,12 @@ class TenantAppointmentPart extends Model
     public function inventoryItem(): BelongsTo
     {
         return $this->belongsTo(TenantInventoryItem::class, 'inventory_item_id');
+    }
+
+    // MARKER-PATCH-419 — the needed special order this line spawned, if any.
+    public function specialOrder(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Tenant\TenantSpecialOrder::class, 'special_order_id');
     }
 
     // MARKER-PATCH-158-G4 — nullable; null means "loose" on the appointment

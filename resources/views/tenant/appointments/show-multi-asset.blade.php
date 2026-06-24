@@ -1299,6 +1299,11 @@ input.ma-asset-name-edit:focus {
   color: var(--ia-text-dim);
   margin-bottom: 5px;
 }
+/* MARKER-PATCH-419 — per-line special-order checkbox */
+.ma-part-so { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--ia-text-dim); cursor: pointer; user-select: none; }
+.ma-part-so input { width: 13px; height: 13px; accent-color: var(--ia-accent, #BEF264); cursor: pointer; margin: 0; }
+.ma-part-so-badge { font-family: ui-monospace, 'SF Mono', monospace; font-size: 10px; letter-spacing: .02em; color: var(--ia-accent, #BEF264); opacity: .85; }
+.ma-part-so-badge:empty { display: none; }
 </style>
 @endpush
 
@@ -1348,7 +1353,7 @@ input.ma-asset-name-edit:focus {
     <div class="ma-mhero-top">
       <div>
         <div class="ma-mhero-cust">{{ $appointment->customer ? trim($appointment->customer->first_name . ' ' . $appointment->customer->last_name) : 'Walk-in' }}</div>
-        <div class="ma-mhero-when">{{ $appointment->appointment_date->format('D, M j') }}@if($appointment->appointment_time) · {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') }}@endif@if($appointment->resource) · {{ $appointment->resource->name }}@endif</div>
+        <div class="ma-mhero-when">{{ $appointment->appointment_date->format('D, M j') }}@if($appointment->appointment_time) · {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') }}@endif @if($appointment->resource) · {{ $appointment->resource->name }}@endif</div>
       </div>
       <span class="ma-status-pill ma-status-pill--{{ $appointment->status }}">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</span>
     </div>
@@ -1738,6 +1743,14 @@ input.ma-asset-name-edit:focus {
                               @endif
                             </div>
                           @endif
+                          @if($part->inventory_item_id)
+                            {{-- MARKER-PATCH-419 — per-line "add to special orders" --}}
+                            <label class="ma-part-so">
+                              <input type="checkbox" class="ma-part-so-toggle" data-part-id="{{ $part->id }}" {{ $part->is_special_order ? 'checked' : '' }}>
+                              <span>Special order</span>
+                              <span class="ma-part-so-badge" data-part-id="{{ $part->id }}">{{ $part->special_order_id && $part->specialOrder ? $part->specialOrder->so_number : '' }}</span>
+                            </label>
+                          @endif
                         </td>
                         <td class="num">
                           <input type="number" min="1" max="999"
@@ -2060,6 +2073,14 @@ input.ma-asset-name-edit:focus {
                           Stock: {{ $stockNow }} → {{ $stockProjected }} on completion
                         @endif
                       </div>
+                    @endif
+                    @if($part->inventory_item_id)
+                      {{-- MARKER-PATCH-419 — per-line "add to special orders" --}}
+                      <label class="ma-part-so">
+                        <input type="checkbox" class="ma-part-so-toggle" data-part-id="{{ $part->id }}" {{ $part->is_special_order ? 'checked' : '' }}>
+                        <span>Special order</span>
+                        <span class="ma-part-so-badge" data-part-id="{{ $part->id }}">{{ $part->special_order_id && $part->specialOrder ? $part->specialOrder->so_number : '' }}</span>
+                      </label>
                     @endif
                   </td>
                   <td class="num">
@@ -2918,6 +2939,28 @@ input.ma-asset-name-edit:focus {
         return;
       }
       location.reload();
+    });
+  });
+
+  // MARKER-PATCH-419 — per-line "add to special orders" toggle
+  document.querySelectorAll('.ma-part-so-toggle').forEach(function(box) {
+    box.addEventListener('change', async function() {
+      const partId = box.dataset.partId;
+      const result = await post({ op: 'toggle_part_special_order', part_id: partId, enabled: box.checked ? 1 : 0 });
+      if (!result.ok) {
+        box.checked = !box.checked;
+        if (window.IntakeToast) IntakeToast.error('Could not update: ' + result.message);
+        else alert('Could not update: ' + result.message);
+        return;
+      }
+      box.checked = !!result.data.is_special_order;
+      const badge = document.querySelector('.ma-part-so-badge[data-part-id="' + partId + '"]');
+      if (badge) badge.textContent = result.data.so_number || '';
+      if (window.IntakeToast) {
+        IntakeToast.success(result.data.is_special_order
+          ? ('Added to special orders' + (result.data.so_number ? ' · ' + result.data.so_number : ''))
+          : 'Removed from special orders');
+      }
     });
   });
 
