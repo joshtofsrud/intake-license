@@ -144,7 +144,7 @@ class AppointmentController extends Controller
                 ->first(['id', 'name', 'color_hex']);
         }
 
-        $appointments = $q->with('resource:id,name,color_hex')
+        $appointments = $q->with(['resource:id,name,color_hex', 'customer'])
                           ->offset(($page - 1) * $perPage)
                           ->limit($perPage)
                           ->get();

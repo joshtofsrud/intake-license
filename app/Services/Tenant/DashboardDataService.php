@@ -61,7 +61,7 @@ class DashboardDataService
             ->whereNotIn('status', AppointmentStatus::terminalStatuses())
             ->orderByRaw('appointment_time IS NULL, appointment_time ASC')
             ->orderBy('created_at')
-            ->with('items')
+            ->with(['items', 'customer'])
             ->get();
 
         $nextUp = $todayAppointments->first(function ($a) {

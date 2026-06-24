@@ -58,7 +58,7 @@
              class="schedule-row {{ $isNext ? 'now' : '' }}">
             <div class="time">{{ $timeStr }}</div>
             <div class="info">
-              <div class="name">{{ trim(($a->customer_first_name ?? '') . ' ' . ($a->customer_last_name ?? '')) }}</div>
+              <div class="name">{{ $a->customerName() }}</div>
               <div class="svc">{{ $svc }}</div>
             </div>
             <div class="status status--{{ $statusClass }}">{{ ucwords(str_replace('_', ' ', $a->status)) }}</div>

@@ -318,7 +318,7 @@ class CustomerController extends Controller
         $notes = TenantCustomerNote::where('customer_id', $customer->id)->orderByDesc('created_at')->get();
 
         $appointments = TenantAppointment::where('tenant_id', $tenant->id)
-            ->where('customer_email', $customer->email)
+            ->where('customer_id', $customer->id) // MARKER-PATCH-421 — stable id, not the mutable email snapshot
             ->orderByDesc('appointment_date')->orderByDesc('created_at')->get();
 
         // MARKER-PATCH-184F — lifetime spend from the sale payment ledger.
