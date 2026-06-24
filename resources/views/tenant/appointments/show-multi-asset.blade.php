@@ -1319,6 +1319,10 @@ input.ma-asset-name-edit:focus {
   #ma-appt .ma-mcontact { display: grid; }
   #ma-appt .ma-mcontact-view { display: block; }
 }
+/* MARKER-PATCH-425 — mobile: single full-width Cancel; reschedule lives in the hero */
+@media (max-width: 640px) {
+  #ma-appt .ma-top-actions .appt-b-reschedule-btn { display: none; }
+}
 </style>
 @endpush
 
@@ -1383,7 +1387,7 @@ input.ma-asset-name-edit:focus {
       <button type="button" class="ia-btn ia-btn--primary" onclick="window.openPrintComposer ? openPrintComposer('appointment', '{{ $appointment->id }}', {type:'tag', number:'{{ $appointment->ra_number }}'}) : openTagModal()">&#9113; Print &amp; Send</button>
       @endif
       @unless($isTerminal)
-      <button type="button" class="ia-btn ia-btn--secondary" onclick="var b=document.querySelector('.appt-b-reschedule-btn'); if(b) b.click();">&#8635; Reschedule</button>
+      <button type="button" class="ia-btn ia-btn--secondary" style="background:#ffffff;color:#0d0d0d;border-color:#ffffff;" onclick="var b=document.querySelector('.appt-b-reschedule-btn'); if(b) b.click();">&#8635; Reschedule</button>
       @endunless
     </div>
   </div>
