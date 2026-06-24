@@ -281,6 +281,25 @@ class DashboardDataService
         // Arrived: status=arrived (waiting on staff to pull from bench).
         // Overdue: status=ordered AND expected_arrival_date past today
         //   (vendor missed promised date, chase them).
+        // MARKER-PATCH-422 — Needed: status=needed (soft request, not yet ordered from a vendor).
+        $soNeededCount = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
+            ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
+            ->count();
+
+        if ($soNeededCount > 0) {
+            $cards[] = [
+                'count' => $soNeededCount,
+                'title' => 'Special orders to place',
+                'key'   => 'so_needed',
+                'icon'  => '🛒',
+                'desc'  => $soNeededCount === 1
+                    ? 'Customer part not yet ordered from a vendor'
+                    : 'Customer parts not yet ordered from a vendor',
+                'tone'  => 'amber',  // your action: pick a vendor + place the order
+                'link'  => route('tenant.special-orders.index'),
+            ];
+        }
+
         $soArrivedCount = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
             ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_ARRIVED)
             ->count();
