@@ -202,14 +202,17 @@
     .cc-logosel,.cc-logourl{min-width:0;width:100%;max-width:none;flex:1 1 100%}
   }
 
-  /* MARKER-PATCH-441 — Communication Center mobile: sticky Save bar replaces nav (Messages + editor), full-screen editor */
+  /* MARKER-PATCH-444 — Communication mobile: Save bar surfaces only on unsaved changes; nav stays for an exit */
   @media(max-width:760px){
-    body.cc-nav-off .ia-mobile-nav,
+    /* nav hides only while there are unsaved changes or the full-screen editor is open */
+    body.cc-dirty .ia-mobile-nav,
     body.cc-editor-open .ia-mobile-nav{display:none}
-    #cc-messages{padding-bottom:80px}
-    .cc-savebar{position:fixed;left:0;right:0;bottom:0;z-index:40;margin:0;gap:12px;
+    /* Save bar appears only when something changed; it takes the nav's spot, and saving reloads back to the nav */
+    .cc-savebar{display:none}
+    body.cc-dirty .cc-savebar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;margin:0;gap:12px;
       padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));
       background:var(--ia-bg,#0b0b0c);border-top:1px solid var(--ia-border,#2a2a2e)}
+    body.cc-dirty #cc-messages{padding-bottom:84px}
     .cc-save{padding:12px 22px;font-size:14px}
     .cc-drawer{width:100vw;border-left:none}
   }
@@ -509,10 +512,10 @@
         document.querySelectorAll('.cc-view').forEach(x=>x.classList.remove('on'));
         t.classList.add('on');
         document.getElementById('cc-' + t.dataset.tab).classList.add('on');
-        document.body.classList.toggle('cc-nav-off', t.dataset.tab === 'messages'); /* MARKER-PATCH-441 */
       });
     });
-    document.body.classList.add('cc-nav-off'); /* MARKER-PATCH-441 — Messages is the default tab */
+    var ccForm = document.querySelector('#cc-messages form'); /* MARKER-PATCH-444 — any field change surfaces the Save bar */
+    if(ccForm){ ccForm.addEventListener('change', function(){ document.body.classList.add('cc-dirty'); }); }
   })();
   function ccTog(btn){
     btn.classList.toggle('on');
@@ -520,6 +523,7 @@
     if(inp){ inp.value = btn.classList.contains('on') ? 1 : 0; }
     var d = document.getElementById('ccDirty');
     if(d){ d.textContent = 'Unsaved changes'; d.classList.add('on'); }
+    document.body.classList.add('cc-dirty'); /* MARKER-PATCH-444 — surface the Save bar */
   }
   function ccShake(btn){
     btn.animate([{transform:'translateX(0)'},{transform:'translateX(-3px)'},{transform:'translateX(3px)'},{transform:'translateX(0)'}],{duration:200});
