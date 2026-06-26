@@ -31,6 +31,17 @@
   .ib-msg-time { font-size:10px; opacity:.45; margin-top:4px; }
   .ib-compose { border-top:.5px solid var(--ia-border); padding:12px 16px; }
   .ib-empty { display:flex; align-items:center; justify-content:center; flex:1; font-size:13px; opacity:.5; padding:40px; text-align:center; }
+  /* MARKER-PATCH-433 — mobile: full-screen conversation + back arrow */
+  .ib-back { display:none; }
+  @media (max-width: 980px) {
+    .ib-conv.has-sel { position:fixed; inset:0; z-index:500; background:var(--ia-surface); border-radius:0; }
+    .ib-conv.has-sel .ib-conv-head { padding-top:max(12px, env(safe-area-inset-top)); }
+    .ib-conv.has-sel .ib-msgs { overscroll-behavior:contain; }
+    .ib-conv.has-sel .ib-compose { padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+    .ib-conv-head-left { display:flex; align-items:center; gap:10px; min-width:0; }
+    .ib-back { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 auto; margin:-4px 2px -4px -6px; border-radius:8px; text-decoration:none; color:inherit; font-size:21px; line-height:1; opacity:.75; }
+    .ib-back:active, .ib-back:hover { background:rgba(127,127,127,.12); opacity:1; }
+  }
 </style>
 @endpush
 
@@ -80,6 +91,8 @@
       <div class="ib-empty">Pick a conversation — or text your business number to see one arrive.</div>
     @else
       <div class="ib-conv-head">
+        <div class="ib-conv-head-left">
+        <a class="ib-back" href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null])) }}" aria-label="Back to conversations">&larr;</a>
         <div style="min-width:0">
           <a href="{{ route('tenant.customers.show', $selected->customer_id) }}" style="font-size:14px;font-weight:700;text-decoration:none;color:inherit">{{ $selected->customer?->first_name }} {{ $selected->customer?->last_name }}</a>
           <div style="font-size:11.5px;opacity:.55">
@@ -87,6 +100,7 @@
             @if($selected->customer?->email) · {{ $selected->customer?->email }}@endif
             @if($selected->customer?->sms_opt_out_at) · <span style="color:#A32D2D;font-weight:600">opted out (STOP)</span>@endif
           </div>
+        </div>
         </div>
         <form method="POST" action="{{ route('tenant.inbox.status', $selected->id) }}">@csrf
           <button type="submit" class="ia-btn" style="font-size:11.5px">{{ $selected->status === 'closed' ? 'Reopen' : 'Close' }}</button>
