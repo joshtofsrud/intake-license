@@ -240,6 +240,23 @@
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.16);
   }
+
+  /* MARKER-PATCH-431 — short range labels hidden on desktop */
+  .rw-sm { display: none; }
+
+  @media (max-width: 767px) {
+    /* Report picker + range pills on a single row */
+    .rep-controls { display: flex; align-items: center; gap: 10px; }
+    .rep-controls .rep-subnav-picker { flex: 0 0 auto; margin-bottom: 0; }
+    .rep-controls .rep-pick-cap { display: none; }
+    .rep-controls .rep-pick-select { width: auto; min-width: 112px; padding-top: 10px; padding-bottom: 10px; }
+    .rep-window-wrap { flex: 1; margin-bottom: 0 !important; }
+    .rep-showing { display: none; }
+    .rep-window { display: flex; width: 100%; }
+    .rep-window a { flex: 1; text-align: center; padding: 8px 4px; }
+    .rw-lg { display: none; }
+    .rw-sm { display: inline; }
+  }
 </style>
 @endpush
 
@@ -249,18 +266,21 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">How your business is performing.</div>
 
-  @include('tenant.reports._tab_subnav', ['active' => 'traffic'])
+  {{-- MARKER-PATCH-431 — report picker + range share one row on phones --}}
+  <div class="rep-controls">
+    @include('tenant.reports._tab_subnav', ['active' => 'traffic'])
 
-  {{-- Window switcher --}}
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-    <div style="font-size: 13px; color: var(--ia-text-dim, rgba(255,255,255,.42));">
-      Showing <strong style="color: var(--ia-text);">{{ $window }}</strong> · compared to prior {{ $window }}
-    </div>
-    <div class="rep-window">
-      <a href="?window=1d"  class="{{ $window === '1d'  ? 'active' : '' }}">Today</a>
-      <a href="?window=7d"  class="{{ $window === '7d'  ? 'active' : '' }}">7 days</a>
-      <a href="?window=30d" class="{{ $window === '30d' ? 'active' : '' }}">30 days</a>
-      <a href="?window=90d" class="{{ $window === '90d' ? 'active' : '' }}">90 days</a>
+    {{-- Window switcher --}}
+    <div class="rep-window-wrap" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+      <div class="rep-showing" style="font-size: 13px; color: var(--ia-text-dim, rgba(255,255,255,.42));">
+        Showing <strong style="color: var(--ia-text);">{{ $window }}</strong> · compared to prior {{ $window }}
+      </div>
+      <div class="rep-window">
+        <a href="?window=1d"  class="{{ $window === '1d'  ? 'active' : '' }}">Today</a>
+        <a href="?window=7d"  class="{{ $window === '7d'  ? 'active' : '' }}"><span class="rw-lg">7 days</span><span class="rw-sm">7d</span></a>
+        <a href="?window=30d" class="{{ $window === '30d' ? 'active' : '' }}"><span class="rw-lg">30 days</span><span class="rw-sm">30d</span></a>
+        <a href="?window=90d" class="{{ $window === '90d' ? 'active' : '' }}"><span class="rw-lg">90 days</span><span class="rw-sm">90d</span></a>
+      </div>
     </div>
   </div>
 
