@@ -201,6 +201,18 @@
     .cc-logoprev{width:100%}
     .cc-logosel,.cc-logourl{min-width:0;width:100%;max-width:none;flex:1 1 100%}
   }
+
+  /* MARKER-PATCH-441 — Communication Center mobile: sticky Save bar replaces nav (Messages + editor), full-screen editor */
+  @media(max-width:760px){
+    body.cc-nav-off .ia-mobile-nav,
+    body.cc-editor-open .ia-mobile-nav{display:none}
+    #cc-messages{padding-bottom:80px}
+    .cc-savebar{position:fixed;left:0;right:0;bottom:0;z-index:40;margin:0;gap:12px;
+      padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));
+      background:var(--ia-bg,#0b0b0c);border-top:1px solid var(--ia-border,#2a2a2e)}
+    .cc-save{padding:12px 22px;font-size:14px}
+    .cc-drawer{width:100vw;border-left:none}
+  }
 </style>
 @endpush
 
@@ -497,8 +509,10 @@
         document.querySelectorAll('.cc-view').forEach(x=>x.classList.remove('on'));
         t.classList.add('on');
         document.getElementById('cc-' + t.dataset.tab).classList.add('on');
+        document.body.classList.toggle('cc-nav-off', t.dataset.tab === 'messages'); /* MARKER-PATCH-441 */
       });
     });
+    document.body.classList.add('cc-nav-off'); /* MARKER-PATCH-441 — Messages is the default tab */
   })();
   function ccTog(btn){
     btn.classList.toggle('on');
@@ -565,10 +579,12 @@
     ccPrev();
     document.getElementById('ccBackdrop').classList.add('show');
     document.getElementById('ccDrawer').classList.add('show');
+    document.body.classList.add('cc-editor-open'); /* MARKER-PATCH-441 */
   }
   function ccCloseEd(){
     document.getElementById('ccBackdrop').classList.remove('show');
     document.getElementById('ccDrawer').classList.remove('show');
+    document.body.classList.remove('cc-editor-open'); /* MARKER-PATCH-441 */
   }
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ccCloseEd(); });
 
