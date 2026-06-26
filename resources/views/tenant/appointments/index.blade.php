@@ -167,8 +167,6 @@ td.ia-inline-cell { cursor: default; }
   </div>
 </div>
 
-<x-tenant.schedule-tabs active="appointments" />
-
 @php
   // Inline-fetch the attention cards so the same row appears on this page.
   // Cheap — same query the dashboard runs.
@@ -334,6 +332,9 @@ td.ia-inline-cell { cursor: default; }
     <button type="button" class="appt-filter-btn-apply" onclick="ApptFilter.apply()">Apply</button>
   </div>
 </div>
+
+{{-- MARKER-PATCH-439 — section tabs sit below the controls, right above the list --}}
+<x-tenant.schedule-tabs active="appointments" />
 
 {{-- Mobile result header --}}
 <div class="appt-mobile-only appt-list-header">
