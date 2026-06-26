@@ -202,8 +202,8 @@
   .ia-page-actions .ia-btn { flex:1; }
   .ia-page-head-right { width:100%; flex-wrap:wrap; justify-content:flex-start !important; }
   .cal-date-btn { padding:8px 14px; font-size:13.5px; min-height:36px; }
-  .cal-view-toggle { display:flex; flex:1; }
-  .cal-view-tab { flex:1; justify-content:center; }
+  /* MARKER-PATCH-430 — compact Day/Week toggle; date nav fills to the right edge. */
+  .cal-view-toggle { flex:0 0 auto; }
   .cal-date-nav { display:flex; flex:1; }
   .cal-date-today { flex:1; }
   .ia-schedule-toggle { display:flex; width:100%; }
