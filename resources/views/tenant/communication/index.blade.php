@@ -160,6 +160,47 @@
   .cc-logoprev{flex-shrink:0;width:170px;height:66px;border-radius:9px;background:#111;display:flex;align-items:center;justify-content:center;border:1px solid var(--ia-border,#2a2a2e);overflow:hidden;padding:8px}
   .cc-logoprev img{max-height:42px;max-width:100%;display:block}
   .cc-logoprev .nm{color:#f0f0f0;font-weight:700;font-size:15px;font-family:-apple-system,sans-serif}
+
+  /* MARKER-PATCH-440 — Communication Center mobile: segmented tabs, Messages cards, stacked options */
+  @media(max-width:760px){
+    /* tabs -> full-width segmented control */
+    .cc-tabs{background:var(--ia-surface,#161619);border:1px solid var(--ia-border,#2a2a2e);border-radius:13px;padding:4px;gap:3px;border-bottom:none;margin-bottom:18px}
+    .cc-tab{flex:1 1 0;min-width:0;text-align:center;padding:10px 6px;font-size:13.5px;border-radius:9px;border-bottom:none !important;margin-bottom:0}
+    .cc-tab.on{background:rgba(255,255,255,.07)}
+
+    /* Messages table -> cards */
+    .cc-tbl{background:none;border:none;border-radius:0;overflow:visible}
+    .cc-tbl thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+    .cc-tbl tbody,.cc-tbl tr,.cc-tbl td{display:block}
+    .cc-tbl tr.cc-grp{padding:0}
+    .cc-tbl tr.cc-grp td{background:none;border:none;padding:16px 2px 7px}
+    .cc-tbl tr:not(.cc-grp){position:relative;display:grid;grid-template-columns:1fr 1fr;gap:9px;
+      background:var(--ia-surface,#161619);border:1px solid var(--ia-border,#2a2a2e);border-radius:14px;padding:14px 15px;margin-bottom:10px}
+    .cc-tbl tr:not(.cc-grp) td{padding:0;border:none}
+    .cc-tbl tr:not(.cc-grp) td:nth-child(1){grid-column:1/-1;grid-row:1;padding-right:52px}
+    .cc-mname{font-size:15.5px}
+    .cc-tbl tr:not(.cc-grp) td.c{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;
+      background:rgba(255,255,255,.025);border:1px solid var(--ia-border,#2a2a2e);border-radius:10px;padding:9px 12px;min-height:42px}
+    .cc-tbl tr:not(.cc-grp) td:nth-child(2){grid-column:1;grid-row:2}
+    .cc-tbl tr:not(.cc-grp) td:nth-child(3){grid-column:2;grid-row:2}
+    .cc-tbl tr:not(.cc-grp) td.c::before{font-size:12.5px;font-weight:600;color:var(--ia-text-2,#a6a6ac)}
+    .cc-tbl tr:not(.cc-grp) td:nth-child(2)::before{content:"Email"}
+    .cc-tbl tr:not(.cc-grp) td:nth-child(3)::before{content:"Text"}
+    .cc-tbl tr:not(.cc-grp) td.cc-fires{display:none}
+    .cc-tbl tr:not(.cc-grp) td:last-child{position:absolute;top:13px;right:14px;padding:0}
+    .cc-blkwrap{flex-direction:row;gap:6px;align-items:center}
+    .cc-blknote{font-size:10px}
+    .cc-always{font-size:12px}
+
+    /* receipt / logo options stack */
+    .cc-opts{padding:2px 15px}
+    .cc-opt{flex-direction:column;align-items:stretch;gap:0}
+    .cc-optd{max-width:none}
+    .cc-opt > .cc-sw{align-self:flex-start;margin-top:12px}
+    .cc-states{padding-top:12px}
+    .cc-logoprev{width:100%}
+    .cc-logosel,.cc-logourl{min-width:0;width:100%;max-width:none;flex:1 1 100%}
+  }
 </style>
 @endpush
 
