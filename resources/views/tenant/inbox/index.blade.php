@@ -42,6 +42,36 @@
     .ib-back { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 auto; margin:-4px 2px -4px -6px; border-radius:8px; text-decoration:none; color:inherit; font-size:21px; line-height:1; opacity:.75; }
     .ib-back:active, .ib-back:hover { background:rgba(127,127,127,.12); opacity:1; }
   }
+  /* MARKER-PATCH-434 — mobile inbox styling to match the approved mockup */
+  .ib-nr { display:none; }
+  .ib-conv-name { font-size:14px; }
+  .ib-compose-meta { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:8px; }
+  .ib-compose-row { display:flex; gap:10px; align-items:flex-end; }
+  .ib-compose-field { flex:1 1 auto; min-width:0; }
+  .ib-compose-send { flex:0 0 auto; }
+  .ib-send-ar { display:none; }
+  @media (max-width: 980px) {
+    .ib-sub-more { display:none; }
+    /* thread list — airier rows, mockup sizing */
+    .ib-thread { padding:15px 16px; }
+    .ib-thread-name { font-size:16px; }
+    .ib-thread-time { font-size:12px; }
+    .ib-snippet { font-size:14px; margin-top:4px; }
+    .ib-dot { width:9px; height:9px; background:var(--ia-accent); margin-right:8px; }
+    .ib-nr { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.04em; color:#B8801A; border:1px solid rgba(184,128,26,.45); border-radius:6px; padding:1px 6px; margin-left:8px; vertical-align:middle; }
+    /* conversation — bigger text, green outbound bubbles */
+    .ib-conv-name { font-size:17px; }
+    .ib-msgs { padding:14px 16px; }
+    .ib-msg { max-width:80%; padding:10px 13px; border-radius:15px; font-size:14px; }
+    .ib-msg.in  { background:var(--ia-surface-2); border-bottom-left-radius:5px; }
+    .ib-msg.out { background:#2a4a2a; color:#eafce0; border-bottom-right-radius:5px; }
+    /* composer — pill field + round send */
+    .ib-compose-field { border-radius:20px; min-height:44px; padding:11px 16px; }
+    .ib-compose-row { gap:8px; }
+    .ib-compose-send { width:44px; height:44px; min-width:44px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; }
+    .ib-send-txt { display:none; }
+    .ib-send-ar { display:inline; font-size:19px; line-height:1; }
+  }
 </style>
 @endpush
 
@@ -50,7 +80,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Inbox</h1>
-    <p class="ia-page-subtitle">Every customer text in one place. Replies, internal notes, and what needs your attention.</p>
+    <p class="ia-page-subtitle">Every customer text in one place.<span class="ib-sub-more"> Replies, internal notes, and what needs your attention.</span></p>
   </div>
 </div>
 
@@ -73,6 +103,7 @@
             <span class="ib-thread-name">
               @if((int) $t->unread_count > 0 || $t->status === 'needs_reply')<span class="ib-dot"></span>@endif
               {{ $t->customer?->first_name }} {{ $t->customer?->last_name }}
+              @if($t->status === 'needs_reply')<span class="ib-nr">Needs reply</span>@endif
             </span>
             <span class="ib-thread-time">{{ $t->last_message_at ? tlocal_datetime($t->last_message_at, 'M j, g:i A') : '' }}</span>
           </div>
@@ -92,9 +123,9 @@
     @else
       <div class="ib-conv-head">
         <div class="ib-conv-head-left">
-        <a class="ib-back" href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null])) }}" aria-label="Back to conversations">&larr;</a>
+        <a class="ib-back" href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null])) }}" aria-label="Back to conversations">&lsaquo;</a>
         <div style="min-width:0">
-          <a href="{{ route('tenant.customers.show', $selected->customer_id) }}" style="font-size:14px;font-weight:700;text-decoration:none;color:inherit">{{ $selected->customer?->first_name }} {{ $selected->customer?->last_name }}</a>
+          <a href="{{ route('tenant.customers.show', $selected->customer_id) }}" class="ib-conv-name" style="font-weight:700;text-decoration:none;color:inherit">{{ $selected->customer?->first_name }} {{ $selected->customer?->last_name }}</a>
           <div style="font-size:11.5px;opacity:.55">
             {{ $selected->customer?->phone ?? 'no phone' }}
             @if($selected->customer?->email) · {{ $selected->customer?->email }}@endif
@@ -139,21 +170,21 @@
       <div class="ib-compose">
         <form method="POST" action="{{ route('tenant.inbox.send', $selected->id) }}">
           @csrf
-          <textarea name="body" rows="2" maxlength="1200" required placeholder="Type your reply… (or tick Internal note)" class="ia-input" style="width:100%;resize:vertical"></textarea>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:10px">
-            <div style="display:flex;align-items:center;gap:14px;min-width:0;flex-wrap:wrap">
-              <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
-                Reply via
-                <select name="reply_channel" class="ia-input" style="font-size:12px;padding:3px 6px;width:auto">
-                  <option value="sms"   {{ $replyDefault === 'sms'   ? 'selected' : '' }}>Text (SMS)</option>
-                  <option value="email" {{ $replyDefault === 'email' ? 'selected' : '' }}>Email</option>
-                </select>
-              </label>
-              <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
-                <input type="checkbox" name="as_note" value="1"> Internal note
-              </label>
-            </div>
-            <button type="submit" class="ia-btn ia-btn--primary">Send</button>
+          <div class="ib-compose-meta">
+            <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
+              Reply via
+              <select name="reply_channel" class="ia-input" style="font-size:12px;padding:3px 6px;width:auto">
+                <option value="sms"   {{ $replyDefault === 'sms'   ? 'selected' : '' }}>Text (SMS)</option>
+                <option value="email" {{ $replyDefault === 'email' ? 'selected' : '' }}>Email</option>
+              </select>
+            </label>
+            <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" name="as_note" value="1"> Internal note
+            </label>
+          </div>
+          <div class="ib-compose-row">
+            <textarea name="body" rows="2" maxlength="1200" required placeholder="Type your reply…" class="ia-input ib-compose-field" style="resize:vertical"></textarea>
+            <button type="submit" class="ia-btn ia-btn--primary ib-compose-send"><span class="ib-send-txt">Send</span><span class="ib-send-ar" aria-hidden="true">&uarr;</span></button>
           </div>
         </form>
       </div>
