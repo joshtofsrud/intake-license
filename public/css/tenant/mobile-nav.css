@@ -895,3 +895,60 @@
   .ia-content .rep-list-row    { grid-template-columns: minmax(0, 1fr) 90px 90px; }
   .ia-content .rep-list-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
 }
+
+
+/* ===================== MARKER-PATCH-432 =====================
+   Reports: the report picker and the range control share one row on phones,
+   consistently across every report tab. Traffic uses .rep-window pills;
+   Operations/Services/Retail/Money/Staff use the .rep-rangebar card. Both are
+   handled here, scoped under .rep-controls so these rules out-rank each view's
+   own bare .rep-rangebar / .rep-window mobile CSS regardless of source order.
+   Customers has no range control and is left full-width. Operations' "Custom
+   range" button is hidden on phones — the four presets cover the common cases
+   and custom-range stays a desktop affordance. */
+.rw-sm { display: none; }
+
+@media (max-width: 767px) {
+  .rep-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+
+  /* Report picker: compact on the left. Drop the "Report" cap and the wide
+     left glyph so the dropdown only takes the width its text needs. */
+  .rep-controls .rep-subnav-picker { flex: 0 0 auto; margin-bottom: 0; }
+  .rep-controls .rep-pick-cap { display: none; }
+  .rep-controls .rep-pick-select {
+    width: auto; min-width: 84px; max-width: 132px;
+    padding: 10px 30px 10px 12px; font-size: 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%238a8a8a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: right 11px center;
+  }
+
+  /* Traffic — rep-window pills fill the rest as a segmented control */
+  .rep-controls .rep-window-wrap { flex: 1; min-width: 0; margin-bottom: 0 !important; }
+  .rep-controls .rep-showing { display: none; }
+  .rep-controls .rep-window { display: flex; width: 100%; }
+  .rep-controls .rep-window a { flex: 1; text-align: center; padding: 8px 4px; }
+
+  /* Rangebar tabs — de-card, drop the "Range: …" label and the custom-range
+     button, render the presets as a segmented control matching Traffic. */
+  .rep-controls .rep-rangebar {
+    flex: 1; min-width: 0; margin-bottom: 0 !important;
+    padding: 0 !important; background: none !important; border: none !important;
+  }
+  .rep-controls .rep-rangebar > div:first-child { display: none; }
+  .rep-controls .rep-customrange-btn { display: none; }
+  .rep-controls .rep-rangebar-controls { display: flex; width: 100%; }
+  .rep-controls .rep-rangebar-controls .rep-toggle {
+    display: flex; width: 100%; gap: 4px; max-width: none; overflow: visible;
+    background: var(--ia-surface-2); border: 1px solid var(--ia-border);
+    border-radius: 6px; padding: 2px;
+  }
+  .rep-controls .rep-rangebar-controls .rep-toggle > a {
+    flex: 1; text-align: center; white-space: nowrap;
+    padding: 7px 4px; font-size: 12px; border-radius: 4px;
+  }
+
+  /* Short range labels on (Traffic) */
+  .rw-lg { display: none; }
+  .rw-sm { display: inline; }
+}
+/* =================== end patch-432 block =================== */

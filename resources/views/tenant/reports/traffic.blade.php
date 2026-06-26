@@ -241,22 +241,7 @@
     border-color: rgba(255, 255, 255, 0.16);
   }
 
-  /* MARKER-PATCH-431 — short range labels hidden on desktop */
-  .rw-sm { display: none; }
-
-  @media (max-width: 767px) {
-    /* Report picker + range pills on a single row */
-    .rep-controls { display: flex; align-items: center; gap: 10px; }
-    .rep-controls .rep-subnav-picker { flex: 0 0 auto; margin-bottom: 0; }
-    .rep-controls .rep-pick-cap { display: none; }
-    .rep-controls .rep-pick-select { width: auto; min-width: 112px; padding-top: 10px; padding-bottom: 10px; }
-    .rep-window-wrap { flex: 1; margin-bottom: 0 !important; }
-    .rep-showing { display: none; }
-    .rep-window { display: flex; width: 100%; }
-    .rep-window a { flex: 1; text-align: center; padding: 8px 4px; }
-    .rw-lg { display: none; }
-    .rw-sm { display: inline; }
-  }
+  /* MARKER-PATCH-432 — range controls handled centrally in mobile-nav.css */
 </style>
 @endpush
 

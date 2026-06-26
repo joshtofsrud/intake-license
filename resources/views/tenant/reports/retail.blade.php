@@ -10,6 +10,7 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
 
+  <div class="rep-controls">{{-- MARKER-PATCH-432 --}}
   @include('tenant.reports._tab_subnav', ['active' => 'retail'])
 
   <div class="rep-rangebar">
@@ -21,6 +22,7 @@
         <a href="{{ route('tenant.reports.retail', ['range' => 'month']) }}"  class="{{ $range === 'month' ? 'active' : '' }}">Month</a>
       </nav>
     </div>
+  </div>
   </div>
 
   {{-- Sales summary --}}

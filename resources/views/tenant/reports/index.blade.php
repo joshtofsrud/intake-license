@@ -234,6 +234,7 @@
   <div class="rep-sub">{{ $today_label }}</div>
 
   {{-- Tab subnav: Operations (this page) | Customers --}}
+  <div class="rep-controls">{{-- MARKER-PATCH-432 --}}
   @include('tenant.reports._tab_subnav', ['active' => 'operations'])
 
   {{-- GLOBAL RANGE BAR --}}
@@ -251,6 +252,7 @@
       </nav>
       <button type="button" id="rep-customrange-btn" class="rep-customrange-btn {{ $range === 'custom' ? 'active' : '' }}">📅 Custom range</button>
     </div>
+  </div>
   </div>
 
   {{-- KPI ROW --}}

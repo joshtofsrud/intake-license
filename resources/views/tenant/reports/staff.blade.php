@@ -10,6 +10,7 @@
   <h1 class="rep-h1">Reports</h1>
   <div class="rep-sub">{{ $today_label }}</div>
 
+  <div class="rep-controls">{{-- MARKER-PATCH-432 --}}
   @include('tenant.reports._tab_subnav', ['active' => 'staff'])
 
   <div class="rep-rangebar">
@@ -22,6 +23,7 @@
         <a href="{{ route('tenant.reports.staff', ['range' => 'last_30']) }}" class="{{ $range === 'last_30' ? 'active' : '' }}">Last 30</a>
       </nav>
     </div>
+  </div>
   </div>
 
   {{-- Booking density --}}
