@@ -49,7 +49,7 @@
   .cc-sw.blk{background:#26262a;cursor:not-allowed}.cc-sw.blk::after{background:#4a4a52}
   .cc-blkwrap{display:inline-flex;flex-direction:column;align-items:center;gap:3px}
   .cc-blknote{font-size:9.5px;color:#e3b341;text-decoration:underline;text-underline-offset:2px}
-  .cc-edit{font-size:12px;color:var(--ia-accent,#e0a82e);text-decoration:none;font-weight:600;white-space:nowrap}
+  .cc-edit{appearance:none;-webkit-appearance:none;background:none;border:none;cursor:pointer;padding:0;font-family:inherit;font-size:12px;font-weight:600;color:var(--ia-accent,#e0a82e);text-decoration:none;white-space:nowrap} /* MARKER-PATCH-443 cc-edit button reset */
 
   .cc-savebar{display:flex;align-items:center;gap:14px;margin-top:16px}
   .cc-dirty{font-size:12.5px;color:var(--ia-text-3,#74747a)}
