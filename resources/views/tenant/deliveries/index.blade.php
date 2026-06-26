@@ -647,8 +647,6 @@
   </div>
 </div>
 
-<x-tenant.schedule-tabs active="deliveries" />
-
 @if(session('success'))
   <div style="margin-bottom: 16px; padding: 10px 14px; background: rgba(134,239,172,.08); border: 0.5px solid rgba(134,239,172,.2); border-radius: 6px; color: #86EFAC; font-size: 13px;">
     {{ session('success') }}
@@ -677,6 +675,9 @@
     <button type="button" class="del-btn del-btn--primary" onclick="delOpenCreate('dropoff')">+ Dropoff</button>
   </div>
 </div>
+
+{{-- MARKER-PATCH-438 — section tabs sit below the toolbar, right above the list --}}
+<x-tenant.schedule-tabs active="deliveries" />
 
 {{-- ===========================================================
      VIEW: DAY · capacity mode (single column)

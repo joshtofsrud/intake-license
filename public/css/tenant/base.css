@@ -480,6 +480,12 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   box-shadow: 0 0 0 0.5px rgba(255,255,255,.1);
 }
 
+/* MARKER-PATCH-437 — schedule section tabs fill the row on phones */
+@media (max-width: 767px) {
+  .ia-schedule-toggle { display: flex; width: 100%; }
+  .ia-schedule-pill { flex: 1 1 0; min-width: 0; justify-content: center; padding: 7px 6px; gap: 5px; }
+}
+
 /* ============================================================
  * Appointment show page action row — buttons wrap on narrow screens
  * Fixes mobile clipping where Mark completed / Mark shipped / Cancel
