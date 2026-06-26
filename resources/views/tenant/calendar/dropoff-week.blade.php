@@ -191,6 +191,24 @@
 .cal-week-card[data-status="in_progress"]{border-left-color:#3B82F6}
 .cal-week-card[data-status="completed"]{border-left-color:#6C6C6C;opacity:0.7}
 .cal-week-card[data-status="completed"] .cal-week-card-name::after{content:" ✓";color:#6C6C6C}
+
+/* MARKER-PATCH-428 — mobile: full-width controls. Day/Week toggle and the
+   date selector share one full-width row; schedule pill spans full width.
+   Scoped here so the shared pill (Appointments/Deliveries pages) is unaffected. */
+@media (max-width: 640px) {
+  .ia-page-head .ia-page-title { display:block; font-size:22px; margin:0; color:var(--ia-text); }
+  .ia-page-head .ia-page-subtitle { font-size:12.5px; margin-top:4px; }
+  .ia-page-actions { width:100%; }
+  .ia-page-actions .ia-btn { flex:1; }
+  .ia-page-head-right { width:100%; flex-wrap:wrap; justify-content:flex-start !important; }
+  .cal-date-btn { padding:8px 14px; font-size:13.5px; min-height:36px; }
+  .cal-view-toggle { display:flex; flex:1; }
+  .cal-view-tab { flex:1; justify-content:center; }
+  .cal-date-nav { display:flex; flex:1; }
+  .cal-date-today { flex:1; }
+  .ia-schedule-toggle { display:flex; width:100%; }
+  .ia-schedule-pill { flex:1; justify-content:center; }
+}
 </style>
 @endpush
 
