@@ -311,6 +311,19 @@
     align-items: center;
   }
 
+  /* MARKER-PATCH-428 — full-width controls on mobile, aligned to the
+     "+ New appointment" button. Day/Week + date nav each take their own
+     full-width row; the schedule toggle pill spans the width too.
+     Scoped here so the shared pill (Appointments/Deliveries pages) is
+     unaffected. */
+  .ia-page-head-right { flex-direction: column; align-items: stretch; }
+  .cal-view-toggle { display: flex; width: 100%; }
+  .cal-view-tab { flex: 1; justify-content: center; }
+  .cal-date-nav { display: flex; width: 100%; }
+  .cal-date-today { flex: 1; }
+  .ia-schedule-toggle { display: flex; width: 100%; }
+  .ia-schedule-pill { flex: 1; justify-content: center; }
+
   /* Resource columns: the inline style sets
      `grid-template-columns: repeat(N, minmax(220px, 1fr))` which forces
      each col to at least 220px. With 2+ resources this overflows the
