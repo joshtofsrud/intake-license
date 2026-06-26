@@ -35,9 +35,6 @@
   @include('layouts.tenant._inventory-tabs')
   <p class="dc-sub">Connect your own HLC account to unlock your cost and live availability.</p>
 
-  @if(session('success'))<div class="dc-banner dc-ok">{{ session('success') }}</div>@endif
-  @if(session('error'))<div class="dc-banner dc-err">{{ session('error') }}</div>@endif
-
   <div class="dc-note">Browsing and importing the catalog works without a key. Your <b>own</b> HLC key unlocks <b>your cost</b> and <b>live availability</b> — per-account, never shared between shops.</div>
 
   <div class="dc-card">

@@ -91,13 +91,6 @@
   </div>
 </div>
 
-@if(session('success'))
-  <div class="ia-notice ia-notice--success" style="margin-bottom:16px">{{ session('success') }}</div>
-@endif
-@if(session('error'))
-  <div class="ia-notice ia-notice--error" style="margin-bottom:16px">{{ session('error') }}</div>
-@endif
-
 {{-- Add location form --}}
 <div class="loc-add-card" id="loc-add-card">
   <div style="font-size:13px;font-weight:500;margin-bottom:16px">New location</div>

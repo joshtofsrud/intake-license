@@ -94,13 +94,6 @@
     </button>
   </div>
 
-  @if(session('success'))
-    <div class="ia-flash ia-flash--ok" style="margin-bottom: 12px;">{{ session('success') }}</div>
-  @endif
-  @if(session('error'))
-    <div class="ia-flash ia-flash--err" style="margin-bottom: 12px;">{{ session('error') }}</div>
-  @endif
-
   <div class="ia-card">
     <div class="sup-tabs">
       <a href="{{ route('tenant.suppressions.index', ['tab' => 'all']) }}"

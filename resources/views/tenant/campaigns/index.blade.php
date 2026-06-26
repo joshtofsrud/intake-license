@@ -100,16 +100,6 @@
 </div>
 
 {{-- Flash messages --}}
-@if(session('success'))
-  <div class="ia-alert ia-alert--success" style="margin-bottom:16px;padding:10px 14px;background:var(--ia-accent-soft);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-md);font-size:13px">
-    {{ session('success') }}
-  </div>
-@endif
-@if(session('error'))
-  <div class="ia-alert ia-alert--error" style="margin-bottom:16px;padding:10px 14px;background:rgba(239,68,68,.1);border:0.5px solid rgba(239,68,68,.4);border-radius:var(--ia-r-md);font-size:13px;color:#FCA5A5">
-    {{ session('error') }}
-  </div>
-@endif
 
 {{-- New campaign form --}}
 <div class="cm-new-card">

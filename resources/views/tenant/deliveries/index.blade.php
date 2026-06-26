@@ -647,12 +647,6 @@
   </div>
 </div>
 
-@if(session('success'))
-  <div style="margin-bottom: 16px; padding: 10px 14px; background: rgba(134,239,172,.08); border: 0.5px solid rgba(134,239,172,.2); border-radius: 6px; color: #86EFAC; font-size: 13px;">
-    {{ session('success') }}
-  </div>
-@endif
-
 <div class="del-toolbar">
   {{-- MARKER-PATCH-436 — toggle + date nav grouped (matches calendar); actions full-width on phones --}}
   <div class="del-toolbar-nav">

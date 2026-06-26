@@ -90,6 +90,7 @@
       @if(session('success'))
         <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
       @endif
+      {{-- MARKER-PATCH-445 — single global flash; per-page success/error banners removed across tenant views --}}
       @if(session('error'))
         @push('scripts')
         <script>

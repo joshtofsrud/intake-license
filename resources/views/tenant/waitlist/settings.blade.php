@@ -48,12 +48,6 @@
   </div>
 </div>
 
-@if(session('success'))
-  <div style="padding:12px 16px;background:var(--ia-accent-soft);border:0.5px solid rgba(190,242,100,.25);border-radius:var(--ia-r-md);margin-bottom:16px;font-size:13px;color:var(--ia-accent)">
-    {{ session('success') }}
-  </div>
-@endif
-
 @if($tenant->hasWaitlistFeature())
 <form method="POST" action="{{ route('tenant.waitlist.settings.update') }}">
   @csrf

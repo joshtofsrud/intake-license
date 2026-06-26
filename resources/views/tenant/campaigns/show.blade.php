@@ -462,17 +462,6 @@
   </div>
 </div>
 
-@if(session('success'))
-  <div style="margin-bottom:16px;padding:10px 14px;background:var(--ia-accent-soft);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-md);font-size:13px">
-    {{ session('success') }}
-  </div>
-@endif
-@if(session('error'))
-  <div style="margin-bottom:16px;padding:10px 14px;background:rgba(239,68,68,.1);border:0.5px solid rgba(239,68,68,.4);border-radius:var(--ia-r-md);font-size:13px;color:#FCA5A5">
-    {{ session('error') }}
-  </div>
-@endif
-
 <form method="POST" action="{{ route('tenant.campaigns.update', $campaign->id) }}" id="cb-form">
   @csrf @method('PATCH')
 

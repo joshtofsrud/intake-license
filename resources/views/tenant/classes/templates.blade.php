@@ -84,9 +84,6 @@
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
 </nav></div>
 
-@if(session('success'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('success') }}</div>
-@endif
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif

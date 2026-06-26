@@ -163,9 +163,6 @@
 @if($errors->any())
   <div class="ia-flash ia-flash--error" style="margin-bottom:16px">{{ $errors->first() }}</div>
 @endif
-@if(session('success'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('success') }}</div>
-@endif
 
 <div class="ia-page-head" style="margin-bottom:16px">
   <div class="ia-page-head-left">

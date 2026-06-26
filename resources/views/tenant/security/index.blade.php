@@ -37,13 +37,6 @@
   </div>
 </div>
 
-@if(session('success'))
-  <div class="ia-notice ia-notice--success" style="margin-bottom:16px">{{ session('success') }}</div>
-@endif
-@if(session('error'))
-  <div class="ia-notice ia-notice--error" style="margin-bottom:16px">{{ session('error') }}</div>
-@endif
-
 <div class="sec-tabs">
   <button type="button" class="sec-tab active" data-sec-tab="devices">Trusted devices</button>
   <button type="button" class="sec-tab" data-sec-tab="policy">Sign-in policy</button>
@@ -133,7 +126,6 @@
     <div style="margin-top:20px;display:flex;justify-content:flex-end">
       <button type="submit" class="ia-btn ia-btn--primary">Save policy</button>
     </div>
-
 
   </form>
 </div>

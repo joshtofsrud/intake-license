@@ -235,8 +235,6 @@
     <a href="{{ route('tenant.settings.index') }}">Edit sender details →</a>
   </div>
 
-  @if(session('success'))<div class="cc-flash">{{ session('success') }}</div>@endif
-
   <div class="cc-tabs">
     <button class="cc-tab on" data-tab="messages" type="button">Messages</button>
     <button class="cc-tab" data-tab="inbound" type="button">Inbound</button>

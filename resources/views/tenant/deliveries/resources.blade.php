@@ -17,12 +17,6 @@
   </div>
 </div>
 
-@if(session('success'))
-  <div style="margin-bottom: 16px; padding: 10px 14px; background: rgba(134,239,172,.08); border: 0.5px solid rgba(134,239,172,.2); border-radius: 6px; color: #86EFAC; font-size: 13px;">
-    {{ session('success') }}
-  </div>
-@endif
-
 <div style="background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 8px; padding: 18px; margin-bottom: 20px;">
   <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Add delivery resource</div>
   <form method="POST" action="{{ route('tenant.deliveries.resources.store') }}" style="display: grid; grid-template-columns: 2fr 2fr 100px auto; gap: 10px; align-items: end;">

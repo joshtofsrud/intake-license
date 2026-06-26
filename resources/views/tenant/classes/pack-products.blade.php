@@ -87,10 +87,6 @@
   <a href="{{ route('tenant.classes.reports') }}" class="cl-subnav-tab">Reports</a>
 </nav></div>
 
-@if(session('success'))
-  <div class="ia-flash ia-flash--success" style="margin-bottom:16px">{{ session('success') }}</div>
-@endif
-
 <div class="cl-card">
   <div class="cl-table-head">
     <div>Pack</div>
