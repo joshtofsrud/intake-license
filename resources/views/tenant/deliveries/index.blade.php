@@ -527,6 +527,20 @@
   }
   /* =================== end patch-353 block =================== */
 
+  /* ===================== MARKER-PATCH-436 =====================
+     Deliveries toolbar matches the calendar: Day/Week toggle + date nav on one
+     row (compact toggle, nav fills); Pickup/Dropoff full-width below on phones.
+     Supersedes the patch-353 .del-day-nav / .date-label rules (markup moved). */
+  .del-toolbar-nav { display: flex; align-items: center; gap: 12px; }
+  @media (max-width: 767px) {
+    .del-toolbar-nav { width: 100%; gap: 8px; }
+    .del-dw-toggle { flex: 0 0 auto; }
+    .del-day-nav { width: auto; flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; }
+    .del-today-btn { flex: 1 1 auto; justify-content: center; }
+    .del-toolbar-right { width: 100%; flex-wrap: wrap; gap: 8px; }
+    .del-toolbar-right .del-btn { flex: 1 1 auto; justify-content: center; }
+  }
+
   /* MARKER-PATCH-369 — pickup/dropoff drawer phone layout. Footer was
      overflowing (up to 4 action buttons in a no-wrap row) and sat under the
      bottom tab bar (drawer z-index now clears the nav). */
@@ -625,7 +639,7 @@
     <p class="ia-page-subtitle">
       Deliveries ·
       @if($view === 'week')
-        Week of {{ $weekStart->format('M j') }}
+        Week of {{ $weekStart->format('M j') }} – {{ $weekEnd->format('M j, Y') }}
       @else
         {{ $date->format('l, F j, Y') }}
       @endif
@@ -642,23 +656,19 @@
 @endif
 
 <div class="del-toolbar">
-  <div class="del-day-nav">
-    <a class="del-icon-btn" href="?view={{ $view }}&date={{ $prevDate }}" title="Previous">‹</a>
-    <a class="del-today-btn" href="?view={{ $view }}">{{ $view === 'week' ? 'This week' : 'Today' }}</a>
-    <a class="del-icon-btn" href="?view={{ $view }}&date={{ $nextDate }}" title="Next">›</a>
-    <span class="del-day-nav date-label">
-      @if($view === 'week')
-        {{ $weekStart->format('M j') }} – {{ $weekEnd->format('M j, Y') }}
-      @else
-        {{ $date->format('l, M j') }}
-      @endif
-    </span>
-  </div>
-  <div class="del-toolbar-right">
+  {{-- MARKER-PATCH-436 — toggle + date nav grouped (matches calendar); actions full-width on phones --}}
+  <div class="del-toolbar-nav">
     <div class="del-dw-toggle">
       <a href="?view=day&date={{ $date->toDateString() }}" class="{{ $view === 'day' ? 'is-active' : '' }}">Day</a>
       <a href="?view=week&date={{ $date->toDateString() }}" class="{{ $view === 'week' ? 'is-active' : '' }}">Week</a>
     </div>
+    <div class="del-day-nav">
+      <a class="del-icon-btn" href="?view={{ $view }}&date={{ $prevDate }}" title="Previous">‹</a>
+      <a class="del-today-btn" href="?view={{ $view }}">{{ $view === 'week' ? 'This week' : 'Today' }}</a>
+      <a class="del-icon-btn" href="?view={{ $view }}&date={{ $nextDate }}" title="Next">›</a>
+    </div>
+  </div>
+  <div class="del-toolbar-right">
     {{-- MARKER-PATCH-321 --}}
     @if($view === 'day')
       <a class="del-btn del-btn--ghost" href="{{ route('tenant.deliveries.slips') }}?date={{ $date->toDateString() }}" target="_blank" rel="noopener">&#9113; Print slips</a>
