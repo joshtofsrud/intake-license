@@ -72,6 +72,14 @@
     .ib-send-txt { display:none; }
     .ib-send-ar { display:inline; font-size:19px; line-height:1; }
   }
+  /* MARKER-PATCH-435 — mobile: hide the empty pane, edge-to-edge list, fix row overflow */
+  @media (max-width: 980px) {
+    .ib-conv { display:none; }            /* empty "pick a conversation" pane stays hidden on phones */
+    .ib-conv.has-sel { display:flex; }    /* a selected conversation still shows (full-screen overlay) */
+    .ib-wrap { min-width:0; border-radius:0; box-shadow:none; min-height:0; background:transparent; }
+    .ib-list { min-width:0; border-right:0; }
+    .ib-thread-name { min-width:0; }
+  }
 </style>
 @endpush
 
