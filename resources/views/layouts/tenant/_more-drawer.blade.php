@@ -51,6 +51,13 @@
       'group'  => null,
     ],
     [
+      // MARKER-PATCH-442 — Communication in the mobile More drawer (engage cluster, ungated)
+      'route'  => 'tenant.communication.index',
+      'label'  => 'Communication',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 2.5h9a1 1 0 0 1 1 1v4.5a1 1 0 0 1-1 1H5.5l-2.5 2v-2h-.5a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => null,
+    ],
+    [
       'route'  => 'tenant.inventory.index',
       'label'  => 'Inventory',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="4" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M2 6h10" stroke="currentColor" stroke-width="1.2"/><path d="M5 2v3M9 2v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
