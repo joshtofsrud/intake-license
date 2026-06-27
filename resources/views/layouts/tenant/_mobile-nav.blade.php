@@ -25,10 +25,17 @@
 
   // Conditionally show Inbox if messaging is shipped (route exists).
   if (\Illuminate\Support\Facades\Route::has('tenant.inbox.index')) {
+    // MARKER-PATCH-448 — unread count badge, matching the desktop attention row
+    $inboxUnread = 0;
+    if (tenant()->unified_inbox_enabled) {
+      $inboxUnread = (int) \App\Models\Tenant\TenantThread::where('tenant_id', tenant()->id)
+        ->where('status', '!=', 'closed')->sum('unread_count');
+    }
     $mobilePrimary[] = [
       'route'  => 'tenant.inbox.index',
       'label'  => 'Inbox',
       'match'  => 'tenant.inbox',
+      'badge'  => $inboxUnread,
       'icon'   => '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6l-3 2V5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
     ];
   }
@@ -47,7 +54,7 @@
       $url = route($item['route']);
     @endphp
     <a href="{{ $url }}" class="ia-mobile-nav-item {{ $isActive ? 'active' : '' }}">
-      <span class="ia-mobile-nav-icon">{!! $item['icon'] !!}</span>
+      <span class="ia-mobile-nav-icon">{!! $item['icon'] !!}@if(($item['badge'] ?? 0) > 0)<span class="ia-mobile-nav-badge">{{ $item['badge'] > 99 ? '99+' : $item['badge'] }}</span>@endif</span>
       <span class="ia-mobile-nav-label">{{ $item['label'] }}</span>
     </a>
   @endforeach

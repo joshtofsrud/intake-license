@@ -952,3 +952,28 @@
   .rw-sm { display: inline; }
 }
 /* =================== end patch-432 block =================== */
+
+
+/* =================== patch-448 block — inbox unread badge =================== */
+@media (max-width: 1023px) {
+  .ia-mobile-nav-icon { position: relative; }
+  .ia-mobile-nav-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #5BA3D0;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+}
+/* =================== end patch-448 block =================== */
