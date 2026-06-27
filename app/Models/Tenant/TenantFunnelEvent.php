@@ -32,6 +32,7 @@ class TenantFunnelEvent extends Model
         'utm_medium',
         'utm_campaign',
         'device',
+        'step',
         'is_new_session',
         'created_at',
     ];
@@ -50,11 +51,13 @@ class TenantFunnelEvent extends Model
     public const TYPE_BOOKING_PAGE_VIEWED = 'booking_page_viewed';
     public const TYPE_BOOKING_STARTED     = 'booking_started';
     public const TYPE_BOOKING_COMPLETED   = 'booking_completed';
+    public const TYPE_BOOKING_STEP        = 'booking_step';   // MARKER-PATCH-452
 
     public const VALID_TYPES = [
         self::TYPE_PAGE_VIEW,
         self::TYPE_BOOKING_PAGE_VIEWED,
         self::TYPE_BOOKING_STARTED,
         self::TYPE_BOOKING_COMPLETED,
+        self::TYPE_BOOKING_STEP,
     ];
 }

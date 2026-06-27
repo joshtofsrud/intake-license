@@ -105,12 +105,24 @@
   .rec-handled-row:last-child { border-bottom: none; }
   .rec-pill { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 999px; border: 0.5px solid var(--ia-border); }
 
+  /* step drop-off */
+  .rec-steps { display: flex; flex-direction: column; gap: 8px; }
+  .rec-step { display: grid; grid-template-columns: 180px 1fr 44px 48px; align-items: center; gap: 12px; }
+  .rec-step-label { font-size: 12px; color: var(--ia-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rec-step-bar { height: 22px; background: var(--ia-surface-2); border: 0.5px solid var(--ia-border); border-radius: 6px; overflow: hidden; }
+  .rec-step-fill { height: 100%; background: var(--ia-accent); opacity: .55; border-radius: 6px; transition: width .3s; }
+  .rec-step-n { font-size: 13px; font-weight: 600; text-align: right; }
+  .rec-step-drop { font-size: 11px; text-align: right; color: var(--ia-text-muted); }
+  .rec-step-drop .is-cliff { color: #E0A23B; font-weight: 600; }
+
   @media (max-width: 700px) {
     .rec-row { grid-template-columns: 1fr; gap: 12px; }
     .rec-actions { flex-wrap: wrap; }
     .rec-btn { flex: 1; text-align: center; }
     .rec-stage-n { font-size: 22px; }
     .rec-arrow { min-width: 30px; }
+    .rec-step { grid-template-columns: 96px 1fr 30px 38px; gap: 8px; }
+    .rec-step-label { font-size: 11px; }
   }
 </style>
 @endpush
@@ -151,6 +163,26 @@
     <strong>{{ $funnel['pct_overall'] }}%</strong> of people who opened booking completed it.
   </div>
 </div>
+
+{{-- Step-by-step drop-off --}}
+@if(!empty($steps))
+<div class="rec-funnel">
+  <div class="rec-funnel-head">
+    <h2>Where people drop off</h2>
+    <span>Last 30 days</span>
+  </div>
+  <div class="rec-steps">
+    @foreach($steps as $s)
+      <div class="rec-step">
+        <div class="rec-step-label">{{ $s['label'] }}</div>
+        <div class="rec-step-bar"><div class="rec-step-fill" style="width: {{ $s['width'] }}%"></div></div>
+        <div class="rec-step-n">{{ $s['sessions'] }}</div>
+        <div class="rec-step-drop">@if($s['drop'] !== null)<span class="{{ $s['drop'] >= 40 ? 'is-cliff' : '' }}">&minus;{{ $s['drop'] }}%</span>@endif</div>
+      </div>
+    @endforeach
+  </div>
+</div>
+@endif
 
 {{-- Worklist --}}
 <div class="rec-sec-head">

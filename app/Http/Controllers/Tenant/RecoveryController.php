@@ -50,6 +50,36 @@ class RecoveryController extends Controller
             'pct_overall' => $viewed  > 0 ? (int) round($completed / $viewed  * 100) : 0,
         ];
 
+        // Step-by-step drop-off — distinct sessions reaching each wizard step
+        // (booking_step events). The stored key is "NN label", so ordering by it
+        // follows the wizard order; strip the prefix for display.
+        $stepRows = TenantFunnelEvent::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('created_at', '>=', $since)
+            ->where('event_type', TenantFunnelEvent::TYPE_BOOKING_STEP)
+            ->whereNotNull('step')
+            ->select('step', DB::raw('COUNT(DISTINCT session_id) AS sessions'))
+            ->groupBy('step')
+            ->orderBy('step')
+            ->get();
+
+        $first = (int) ($stepRows->first()->sessions ?? 0);
+        $prev  = null;
+        $steps = [];
+        foreach ($stepRows as $r) {
+            $sessions = (int) $r->sessions;
+            $label = trim(preg_replace('/^\d+\s/', '', $r->step));
+            $steps[] = [
+                'label'    => $label !== '' ? $label : $r->step,
+                'sessions' => $sessions,
+                'width'    => $first > 0 ? max(4, (int) round($sessions / $first * 100)) : 0,
+                'drop'     => ($prev !== null && $prev > 0 && $sessions < $prev)
+                                ? (int) round(($prev - $sessions) / $prev * 100)
+                                : null,
+            ];
+            $prev = $sessions;
+        }
+
         // Abandoned worklist — open rows to follow up, plus recently handled.
         $open = TenantAbandonedBooking::query()
             ->where('tenant_id', $tenant->id)
@@ -64,7 +94,7 @@ class RecoveryController extends Controller
             ->limit(25)
             ->get();
 
-        return view('tenant.recovery.index', compact('funnel', 'open', 'handled', 'since'));
+        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since'));
     }
 
     public function updateStatus(Request $request, string $id)

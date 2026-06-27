@@ -95,6 +95,30 @@
       }
     }, true);
 
+    // MARKER-PATCH-452 — record each wizard step the anonymous session reaches,
+    // so drop-off is visible even before any contact info exists. Deduped per step.
+    (function trackSteps(){
+      var seenSteps = {};
+      function fireStep(){
+        var active = document.querySelector('.bk-section.active');
+        if (!active) return;
+        var sections = Array.prototype.slice.call(document.querySelectorAll('.bk-section'));
+        var idx = sections.indexOf(active);
+        if (idx < 0) return;
+        var h = active.querySelector('.bk-section-title');
+        var label = (h ? h.textContent : (active.id || '')).replace(/\s+/g, ' ').trim().slice(0, 44);
+        var key = (idx < 10 ? '0' + idx : '' + idx) + ' ' + label;
+        if (seenSteps[key]) return;
+        seenSteps[key] = true;
+        send('booking_step', { step: key });
+      }
+      fireStep();
+      try {
+        var mo = new MutationObserver(function(){ fireStep(); });
+        mo.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+      } catch (e) {}
+    })();
+
     // MARKER-RECOVERY — capture partial booking once contact info is entered.
     function readContact() {
       function v(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; }

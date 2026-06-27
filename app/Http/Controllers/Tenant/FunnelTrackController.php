@@ -51,6 +51,7 @@ class FunnelTrackController extends Controller
             'utm_source'   => ['nullable', 'string', 'max:100'],
             'utm_medium'   => ['nullable', 'string', 'max:100'],
             'utm_campaign' => ['nullable', 'string', 'max:191'],
+            'step'         => ['nullable', 'string', 'max:48'],
         ]);
 
         // Session cookie — anonymous, 90 days
@@ -91,6 +92,7 @@ class FunnelTrackController extends Controller
             'utm_medium'      => $data['utm_medium']   ?? null,
             'utm_campaign'    => $data['utm_campaign'] ?? null,
             'device'          => $device,
+            'step'            => $data['step'] ?? null,
             'is_new_session'  => $isNew,
             'created_at'      => now(),
         ]);
