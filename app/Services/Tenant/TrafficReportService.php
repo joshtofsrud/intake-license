@@ -245,6 +245,190 @@ class TrafficReportService
     }
 
     /**
+     * MARKER-PATCH-453 — granular booking funnel + per-step drop diagnosis.
+     *
+     * One pass over the window's booking events builds, per session, the
+     * furthest stage it reached plus its device / source / new-or-returning.
+     * Stages: Opened booking → each wizard step (booking_step, in flow order)
+     * → Booked (booking_completed). Counts are cohort "reached this stage or
+     * beyond", so the funnel is always monotonic. The detail array carries the
+     * device/source/new-vs-returning split of whoever dropped at each stage —
+     * that's what localizes a cliff (e.g. "this drop is 81% mobile").
+     */
+    public function bookingFunnelData(): array
+    {
+        $rows = TenantFunnelEvent::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('created_at', '>=', $this->curStart)
+            ->where('created_at', '<',  $this->curEnd)
+            ->whereIn('event_type', ['booking_page_viewed', 'booking_started', 'booking_step', 'booking_completed'])
+            ->get(['session_id', 'event_type', 'step', 'device', 'utm_source', 'referrer_domain', 'is_new_session']);
+
+        // Ordered wizard-step keys ("NN heading" — sorts into flow order).
+        $stepKeys = $rows->where('event_type', 'booking_step')
+            ->pluck('step')->filter()->unique()->sort()->values()->all();
+        $k = count($stepKeys);
+        $stepIndex = array_flip($stepKeys);              // key => 0-based slot
+        $S = $k + 2;                                     // Opened + steps + Booked
+
+        // Per session: furthest stage + first-seen attributes.
+        $sessions = [];
+        foreach ($rows as $r) {
+            $sid = $r->session_id;
+            if (!isset($sessions[$sid])) {
+                $sessions[$sid] = [
+                    'stage'  => 0,
+                    'device' => $r->device ?: 'unknown',
+                    'source' => $r->utm_source ?: ($r->referrer_domain ?: '(direct)'),
+                    'new'    => (bool) $r->is_new_session,
+                ];
+            }
+            $st = 0;
+            if ($r->event_type === 'booking_completed') {
+                $st = $k + 1;
+            } elseif ($r->event_type === 'booking_step' && isset($stepIndex[$r->step])) {
+                $st = $stepIndex[$r->step] + 1;
+            }
+            if ($st > $sessions[$sid]['stage']) {
+                $sessions[$sid]['stage'] = $st;
+            }
+        }
+
+        // Stage labels.
+        $labels = ['Opened booking'];
+        foreach ($stepKeys as $key) {
+            $clean = trim(preg_replace('/^\d+\s/', '', $key));
+            $labels[] = $clean !== '' ? $clean : $key;
+        }
+        $labels[] = 'Booked';
+
+        // dropAt[s] = sessions whose furthest stage is exactly s.
+        // reached[s] = sessions at stage s or beyond (monotonic).
+        $dropAt = array_fill(0, $S, 0);
+        foreach ($sessions as $s) {
+            $dropAt[$s['stage']]++;
+        }
+        $reached = array_fill(0, $S, 0);
+        $run = 0;
+        for ($s = $S - 1; $s >= 0; $s--) {
+            $run += $dropAt[$s];
+            $reached[$s] = $run;
+        }
+
+        $opened = $reached[0];
+        $steps = [];
+        for ($s = 0; $s < $S; $s++) {
+            $steps[] = [
+                'label' => $labels[$s],
+                'count' => $reached[$s],
+                'pct'   => $opened > 0 ? round($reached[$s] / $opened * 100, 1) : 0.0,
+            ];
+        }
+
+        $dropoffs = [];
+        for ($s = 0; $s < $S - 1; $s++) {
+            $lost = $reached[$s] - $reached[$s + 1];
+            $dropoffs[] = [
+                'from' => $labels[$s] . ' → ' . $labels[$s + 1],
+                'pct'  => $reached[$s] > 0 ? round($lost / $reached[$s] * 100, 1) : 0.0,
+                'lost' => max(0, $lost),
+            ];
+        }
+
+        // Per-stage drop diagnosis (who left at each stage, not counting Booked).
+        $detail = [];
+        for ($s = 0; $s < $S - 1; $s++) {
+            $drop = array_filter($sessions, fn ($x) => $x['stage'] === $s);
+            $n = count($drop);
+            $device = $this->tallyFixed($drop, 'device', ['mobile', 'desktop', 'tablet', 'unknown']);
+            $detail[] = [
+                'label'   => $labels[$s],
+                'left'    => $n,
+                'device'  => $device,
+                'source'  => $this->tallyTop($drop, 'source', 4),
+                'newret'  => $this->tallyNewReturning($drop),
+                'insight' => $this->dropInsight($device, $n),
+            ];
+        }
+
+        return [
+            'funnel' => [
+                'steps'       => $steps,
+                'dropoffs'    => $dropoffs,
+                'overall_pct' => $opened > 0 ? round($reached[$S - 1] / $opened * 100, 1) : 0.0,
+            ],
+            'detail' => $detail,
+        ];
+    }
+
+    /** Tally a fixed set of keys → [['k'=>label,'pct'=>int], ...] sorted desc, zeros dropped. */
+    private function tallyFixed(array $sessions, string $field, array $order): array
+    {
+        $n = count($sessions);
+        if ($n === 0) return [];
+        $counts = [];
+        foreach ($order as $key) $counts[$key] = 0;
+        foreach ($sessions as $s) {
+            $v = $s[$field] ?? 'unknown';
+            if (!isset($counts[$v])) $counts[$v] = 0;
+            $counts[$v]++;
+        }
+        $out = [];
+        foreach ($counts as $key => $c) {
+            if ($c === 0) continue;
+            $out[] = ['k' => ucfirst($key), 'pct' => (int) round($c / $n * 100)];
+        }
+        usort($out, fn ($a, $b) => $b['pct'] <=> $a['pct']);
+        return $out;
+    }
+
+    /** Tally free-form values, keep top N → [['k'=>label,'pct'=>int], ...]. */
+    private function tallyTop(array $sessions, string $field, int $limit): array
+    {
+        $n = count($sessions);
+        if ($n === 0) return [];
+        $counts = [];
+        foreach ($sessions as $s) {
+            $v = $s[$field] ?: '(direct)';
+            $counts[$v] = ($counts[$v] ?? 0) + 1;
+        }
+        arsort($counts);
+        $out = [];
+        foreach (array_slice($counts, 0, $limit, true) as $key => $c) {
+            $out[] = ['k' => $key, 'pct' => (int) round($c / $n * 100)];
+        }
+        return $out;
+    }
+
+    /** New vs returning split → [['k'=>'New','pct'=>x], ['k'=>'Returning','pct'=>y]]. */
+    private function tallyNewReturning(array $sessions): array
+    {
+        $n = count($sessions);
+        if ($n === 0) return [];
+        $new = 0;
+        foreach ($sessions as $s) if (!empty($s['new'])) $new++;
+        $ret = $n - $new;
+        return [
+            ['k' => 'New',       'pct' => (int) round($new / $n * 100)],
+            ['k' => 'Returning', 'pct' => (int) round($ret / $n * 100)],
+        ];
+    }
+
+    /** A one-line read on a drop, or null when nothing stands out. */
+    private function dropInsight(array $device, int $n): ?string
+    {
+        if ($n < 5 || empty($device)) return null;
+        $top = $device[0];
+        if ($top['k'] === 'Mobile' && $top['pct'] >= 60) {
+            return 'Most of this drop is on mobile (' . $top['pct'] . '%) — worth walking the step on a real phone.';
+        }
+        if ($top['k'] === 'Desktop' && $top['pct'] >= 70) {
+            return 'This drop is mostly desktop (' . $top['pct'] . '%) — unusual for booking, may point to a layout issue.';
+        }
+        return null;
+    }
+
+    /**
      * Top sources — UTM source preferred, falls back to referrer domain,
      * falls back to '(direct)' when both are absent.
      *

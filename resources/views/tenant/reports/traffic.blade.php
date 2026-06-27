@@ -392,7 +392,7 @@
 
     <div class="rep-funnel">
       @foreach($funnel['steps'] as $i => $step)
-        <div class="rep-funnel-step">
+        <div class="rep-funnel-step rep-fn-click" data-fi="{{ $i }}" onclick="repSelStep({{ $i }})">
           <div class="rep-funnel-label">{{ $step['label'] }}</div>
           <div class="rep-funnel-bar-track">
             <div class="rep-funnel-bar" style="width: {{ max(2, ($step['count'] / $maxFunnel) * 100) }}%;"></div>
@@ -411,6 +411,81 @@
       @endforeach
     </div>
   </div>
+
+  {{-- MARKER-PATCH-453 — per-step drop diagnosis --}}
+  <style>
+   .rep-seg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+   .rep-seg{background:rgba(255,255,255,.03);border:.5px solid var(--ia-border);border-radius:10px;padding:13px 15px}
+   .rep-seg-t{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ia-text-dim,rgba(255,255,255,.42));margin-bottom:11px;font-weight:700}
+   .rep-seg-row{display:grid;grid-template-columns:78px 1fr 38px;align-items:center;gap:9px;margin-bottom:9px}
+   .rep-seg-row:last-child{margin-bottom:0}
+   .rep-seg-k{font-size:12px;color:var(--ia-text-2,rgba(255,255,255,.78))}
+   .rep-seg-bar{height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+   .rep-seg-bar i{display:block;height:100%;background:rgba(255,255,255,.4);border-radius:3px}
+   .rep-seg-bar.hot i{background:#E0A23B}
+   .rep-seg-v{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.42));text-align:right}
+   .rep-diag-sum{font-size:14px;margin-bottom:14px}
+   .rep-diag-sum b{font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--ia-accent,#BEF264);font-weight:600}
+   .rep-diag-sum b.s{color:var(--ia-text)}
+   .rep-ins{display:flex;gap:9px;align-items:flex-start;background:rgba(224,162,59,.12);border:.5px solid rgba(224,162,59,.4);border-radius:10px;padding:10px 13px;margin-top:14px;font-size:12.5px;line-height:1.45;color:var(--ia-text-2,rgba(255,255,255,.82))}
+   .rep-ins svg{flex:none;margin-top:1px;color:#E0A23B;width:15px;height:15px}
+   .rep-diag-foot{margin-top:14px}
+   .rep-diag-foot a{color:var(--ia-accent,#BEF264);font-size:12.5px;text-decoration:none}
+   .rep-diag-foot a:hover{text-decoration:underline}
+   .rep-fn-click{cursor:pointer}
+   .rep-fn-click:hover{background:rgba(255,255,255,.03)}
+   .rep-fn-click.on{background:rgba(190,242,100,.07)}
+  </style>
+
+  <div class="rep-zone">
+    <div class="rep-zone-head">
+      <div>
+        <div class="rep-zone-title">Step diagnosis</div>
+        <div class="rep-zone-sub">Click a funnel step above — see who left there and why</div>
+      </div>
+    </div>
+    <div id="rep-diag"></div>
+  </div>
+
+  <script>
+  (function(){
+    var DETAIL = @json($funnelDetail ?? []);
+    var box = document.getElementById('rep-diag');
+    if (!box) return;
+    if (!DETAIL.length) { box.innerHTML = '<div style="color:rgba(255,255,255,.42);font-size:13px;padding:6px 0">No step data yet — this fills in as people move through booking.</div>'; return; }
+
+    var ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+    function seg(title, rows, hot){
+      var r = (rows||[]).map(function(row,i){
+        var h = (hot && i===0) ? ' hot' : '';
+        return '<div class="rep-seg-row"><span class="rep-seg-k">'+row.k+'</span><span class="rep-seg-bar'+h+'"><i style="width:'+row.pct+'%"></i></span><span class="rep-seg-v">'+row.pct+'%</span></div>';
+      }).join('');
+      return '<div class="rep-seg"><div class="rep-seg-t">'+title+'</div>'+(r||'<div class="rep-seg-v">—</div>')+'</div>';
+    }
+
+    function render(i){
+      var d = DETAIL[i];
+      if(!d) return;
+      var hot = !!d.insight;
+      var word = d.left===1 ? 'session' : 'sessions';
+      var html = '<div class="rep-diag-sum"><b>'+d.left+'</b> '+word+' reached <b class="s">'+d.label+'</b> and left here</div>';
+      html += '<div class="rep-seg-grid">'+seg('By device', d.device, hot)+seg('By source', d.source, false)+seg('New vs returning', d.newret, false)+'</div>';
+      if(d.insight){ html += '<div class="rep-ins">'+ICON_WARN+'<span>'+d.insight+'</span></div>'; }
+      html += '<div class="rep-diag-foot"><a href="/recovery">Follow up with people who left contact info →</a></div>';
+      box.innerHTML = html;
+      document.querySelectorAll('.rep-fn-click').forEach(function(el){ el.classList.toggle('on', (+el.dataset.fi) === i); });
+    }
+
+    var def = 0, best = -1;
+    DETAIL.forEach(function(d,i){ if(i>=1 && d.left > best){ best = d.left; def = i; } });
+    if(best < 0){ DETAIL.forEach(function(d,i){ if(d.left > best){ best = d.left; def = i; } }); }
+
+    window.repSelStep = render;
+    render(def);
+  })();
+  </script>
+
 
   {{-- Two-column row: sources + devices --}}
   <div class="rep-two-col">

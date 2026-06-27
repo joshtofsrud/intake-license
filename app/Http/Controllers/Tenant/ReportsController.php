@@ -289,6 +289,7 @@ class ReportsController extends Controller
         }
 
         $svc = new \App\Services\Tenant\TrafficReportService($tenant, $window);
+        $bf  = $svc->bookingFunnelData();
 
         return view('tenant.reports.traffic', [
             'tenant'         => $tenant,
@@ -296,7 +297,8 @@ class ReportsController extends Controller
             'topStats'       => $svc->topStats(),
             'dailyVisitors'  => $svc->dailyVisitors(),
             // MARKER-PATCH-151B — additional panels
-            'funnel'         => $svc->funnel(),
+            'funnel'         => $bf['funnel'],
+            'funnelDetail'   => $bf['detail'],
             'topSources'     => $svc->topSources(),
             'deviceSplit'    => $svc->deviceSplit(),
             'topPages'       => $svc->topPages(),
