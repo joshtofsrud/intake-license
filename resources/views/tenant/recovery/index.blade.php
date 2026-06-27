@@ -115,6 +115,8 @@
 </style>
 @endpush
 
+@section('content')
+
 <p class="rec-intro">People who started a booking and left contact info before finishing. Reach out, then mark them done. The funnel counts anonymous sessions over the last 30 days.</p>
 
 {{-- Funnel --}}
@@ -214,3 +216,5 @@
     @endforeach
   </div>
 @endif
+
+@endsection
