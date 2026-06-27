@@ -89,6 +89,17 @@
     display: block;
     margin-top: 8px;
   }
+  /* MARKER-PATCH-454 — chart hover */
+  .rep-chart-wrap { position: relative; }
+  .rep-chart-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.18); opacity: 0; pointer-events: none; transition: opacity .1s; }
+  .rep-chart-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: #BEF264; box-shadow: 0 0 0 3px rgba(190,242,100,.2); transform: translate(-50%, -50%); opacity: 0; pointer-events: none; transition: opacity .1s; }
+  .rep-chart-tip { position: absolute; transform: translate(-50%, calc(-100% - 12px)); background: #1B1B1F; border: .5px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 10px; font-size: 12px; line-height: 1.3; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .1s; z-index: 5; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .rep-chart-tip .tip-d { font-weight: 600; margin-bottom: 2px; }
+  .rep-chart-tip .tip-c { font-family: 'JetBrains Mono', ui-monospace, monospace; color: #BEF264; }
+  .rep-chart-tip .tip-p { font-family: 'JetBrains Mono', ui-monospace, monospace; color: rgba(255,255,255,.5); font-size: 11px; }
+  .rep-chart-wrap.show .rep-chart-guide,
+  .rep-chart-wrap.show .rep-chart-dot,
+  .rep-chart-wrap.show .rep-chart-tip { opacity: 1; }
   .rep-chart-legend {
     display: flex; gap: 20px;
     margin-top: 8px;
@@ -350,7 +361,16 @@
           $padT + ($h / 2),               // 50%
           $padT,                          // top
         ];
+        // MARKER-PATCH-454 — per-point data for hover tooltips
+        $points = [];
+        foreach ($cur as $i => $v) {
+            $label = isset($dailyStart) ? $dailyStart->addDays($i)->format('M j') : ('Day ' . ($i + 1));
+            $xPct  = (($padL + $i * $stepX) / $vbW) * 100;
+            $yv    = $padT + $h - (($v / $maxVal) * $h);
+            $points[] = ['l' => $label, 'c' => (int) $v, 'p' => (int) ($prior[$i] ?? 0), 'x' => round($xPct, 2), 'y' => round(($yv / $vbH) * 100, 2)];
+        }
       @endphp
+      <div class="rep-chart-wrap" id="rep-chart-wrap">
       <svg class="rep-chart" viewBox="0 0 {{ $vbW }} {{ $vbH }}" preserveAspectRatio="none" aria-label="Daily visitors line chart">
         {{-- Grid --}}
         @foreach($gridYs as $gy)
@@ -361,6 +381,40 @@
         {{-- Current period (lime, solid) --}}
         <path d="{{ $pathCur }}" stroke="#BEF264" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
+      <div class="rep-chart-guide" id="rep-chart-guide"></div>
+      <div class="rep-chart-dot" id="rep-chart-dot"></div>
+      <div class="rep-chart-tip" id="rep-chart-tip"><div class="tip-d"></div><div class="tip-c"></div><div class="tip-p"></div></div>
+      </div>{{-- /rep-chart-wrap --}}
+      <script>
+      (function(){
+        var pts = @json($points ?? []);
+        var wrap = document.getElementById('rep-chart-wrap');
+        if(!wrap || !pts.length) return;
+        var guide = document.getElementById('rep-chart-guide');
+        var dot = document.getElementById('rep-chart-dot');
+        var tip = document.getElementById('rep-chart-tip');
+        var tipD = tip.querySelector('.tip-d'), tipC = tip.querySelector('.tip-c'), tipP = tip.querySelector('.tip-p');
+        function show(i){
+          var p = pts[i]; if(!p) return;
+          wrap.classList.add('show');
+          guide.style.left = p.x + '%';
+          dot.style.left = p.x + '%'; dot.style.top = p.y + '%';
+          tip.style.left = p.x + '%'; tip.style.top = p.y + '%';
+          tipD.textContent = p.l;
+          tipC.textContent = p.c + (p.c === 1 ? ' visitor' : ' visitors');
+          tipP.textContent = 'prior: ' + p.p;
+        }
+        function nearest(clientX){
+          var r = wrap.getBoundingClientRect();
+          var frac = (clientX - r.left) / r.width;
+          var i = Math.round(frac * (pts.length - 1));
+          return i < 0 ? 0 : (i > pts.length - 1 ? pts.length - 1 : i);
+        }
+        wrap.addEventListener('mousemove', function(e){ show(nearest(e.clientX)); });
+        wrap.addEventListener('mouseleave', function(){ wrap.classList.remove('show'); });
+        wrap.addEventListener('touchstart', function(e){ show(nearest(e.touches[0].clientX)); }, {passive:true});
+      })();
+      </script>
       <div class="rep-chart-legend">
         <span><i style="background: #BEF264;"></i> Last {{ $window }} · peak {{ number_format(max($cur ?: [0])) }}/day</span>
         <span><i style="background: rgba(255,255,255,.32);"></i> Prior {{ $window }} · peak {{ number_format(max($prior ?: [0])) }}/day</span>

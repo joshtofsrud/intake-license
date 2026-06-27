@@ -296,6 +296,7 @@ class ReportsController extends Controller
             'window'         => $window,
             'topStats'       => $svc->topStats(),
             'dailyVisitors'  => $svc->dailyVisitors(),
+            'dailyStart'     => $svc->curStart(),
             // MARKER-PATCH-151B — additional panels
             'funnel'         => $bf['funnel'],
             'funnelDetail'   => $bf['detail'],
