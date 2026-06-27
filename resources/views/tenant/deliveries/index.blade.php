@@ -307,6 +307,14 @@
   }
   .del-drawer-close:hover { background: rgba(255,255,255,.06); color: var(--ia-text); }
   .del-drawer-body { padding: 18px 24px; }
+  /* MARKER-PATCH-447 — contact tiles (call / text / email), mirrors the customer page */
+  .del-contact-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .del-ctile { display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--ia-surface); border: 0.5px solid var(--ia-border); border-radius: 10px; padding: 12px 6px; color: var(--ia-text); text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .del-ctile svg { color: var(--ia-accent); }
+  .del-ctile:active { transform: scale(0.97); }
+  .del-ctile-label { font-size: 11px; color: var(--ia-text-muted, rgba(255,255,255,.55)); font-weight: 500; }
+  .del-ctile.is-disabled { opacity: .35; pointer-events: none; }
+  .del-ctile.is-disabled svg { color: var(--ia-text-muted, rgba(255,255,255,.55)); }
   .del-row { margin-bottom: 16px; }
   .del-row.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .del-label {
@@ -852,6 +860,22 @@
 
     <div class="del-drawer-body">
 
+      {{-- MARKER-PATCH-447 — contact the delivery customer (call / text / email) --}}
+      <div class="del-contact-tiles" id="del-contact-tiles" style="display:none">
+        <a href="#" class="del-ctile is-disabled" id="del-ctile-call">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span class="del-ctile-label">Call</span>
+        </a>
+        <a href="#" class="del-ctile is-disabled" id="del-ctile-text">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span class="del-ctile-label">Text</span>
+        </a>
+        <a href="#" class="del-ctile is-disabled" id="del-ctile-email">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <span class="del-ctile-label">Email</span>
+        </a>
+      </div>
+
       {{-- Type --}}
       <div class="del-row">
         <label class="del-label">Type</label>
@@ -1002,6 +1026,9 @@
       'customer_id'          => $d->customer_id,
       // MARKER-PATCH-153 — needed by drawer edit-mode preselect
       'customer_name'        => trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? '')) ?: ($d->customer->email ?? 'Customer'),
+      // MARKER-PATCH-447 — contact tiles in the delivery drawer
+      'customer_phone'       => $d->customer?->phone ?? '',
+      'customer_email'       => $d->customer?->email ?? '',
       'delivery_resource_id' => $d->delivery_resource_id,
       'notes'                => $d->notes,
       'assets_ids'           => collect($d->assets ?? [])->pluck('id')->values()->all(), // MARKER-PATCH-427
@@ -1041,6 +1068,7 @@
     document.getElementById('del-window').value = '30';
     // MARKER-PATCH-153 — customer-search component reset
     delResetCustomer();
+    delSetContactTiles('', ''); // MARKER-PATCH-447 — no customer yet on create
     document.getElementById('del-address').value = '';
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = '';
@@ -1089,6 +1117,7 @@
     document.getElementById('del-window').value = String(d.window_minutes || 30);
     // MARKER-PATCH-153 — populate search box with customer name
     delSetCustomer(d.customer_id, d.customer_name || '');
+    delSetContactTiles(d.customer_phone || '', d.customer_email || ''); // MARKER-PATCH-447
     document.getElementById('del-address').value = d.address || '';
     var rEl = document.getElementById('del-resource');
     if (rEl) rEl.value = d.delivery_resource_id || '';
@@ -1100,6 +1129,21 @@
     // MARKER-PATCH-157-FIX1 — shorter labels
     document.getElementById('del-save-btn').textContent = 'Update';
     document.getElementById('del-save-notify-btn').textContent = 'Update & notify';
+  }
+
+  // MARKER-PATCH-447 — set the call/text/email tiles from the customer's phone/email
+  function delSetContactTiles(phone, email) {
+    var row = document.getElementById('del-contact-tiles');
+    if (!row) return;
+    var p = (phone || '').replace(/[^0-9+]/g, '');
+    var call = document.getElementById('del-ctile-call');
+    var text = document.getElementById('del-ctile-text');
+    var mail = document.getElementById('del-ctile-email');
+    if (p) { call.href = 'tel:' + p; call.classList.remove('is-disabled'); text.href = 'sms:' + p; text.classList.remove('is-disabled'); }
+    else   { call.href = '#'; call.classList.add('is-disabled'); text.href = '#'; text.classList.add('is-disabled'); }
+    if (email) { mail.href = 'mailto:' + email; mail.classList.remove('is-disabled'); }
+    else       { mail.href = '#'; mail.classList.add('is-disabled'); }
+    row.style.display = (p || email) ? '' : 'none';
   }
 
   function delCloseDrawer() {
