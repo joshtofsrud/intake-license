@@ -68,8 +68,12 @@
   // Always fire page_view on every public page
   send('page_view');
 
-  // Booking-page hooks
-  if (window.location.pathname === '/book' || window.location.pathname.indexOf('/book/') === 0) {
+  // Booking-page hooks. The tracker loads in <head>, so the booking form
+  // isn't in the DOM yet — defer setup until DOM-ready, and detect the booking
+  // page by its surface (not the URL) so this fires on /book, custom domains,
+  // and any page-builder slug. MARKER-PATCH-449
+  function initBookingHooks() {
+    if (!document.getElementById('bk-progress') && !document.querySelector('.bk-section')) return;
     send('booking_page_viewed');
 
     // First interaction with the booking form = "started"
@@ -126,6 +130,13 @@
       if (el) el.addEventListener('blur', sendAbandon);
     });
     document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') sendAbandon(); });
+  }
+
+  // Run now if the DOM is already parsed, otherwise wait for it. MARKER-PATCH-449
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBookingHooks);
+  } else {
+    initBookingHooks();
   }
 })();
 </script>
