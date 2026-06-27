@@ -26,6 +26,17 @@ class RequireOnboardingIncomplete
         $tenant = app('tenant');
 
         if ($tenant && $tenant->onboarding_status === 'complete') {
+            // Wizard step submits are fetch() calls that expect JSON {next_url}.
+            // An HTML redirect makes res.json() choke ("Unexpected token '<'"),
+            // so hand JSON requests the dashboard URL via next_url to navigate to.
+            // MARKER-PATCH-446
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'       => true,
+                    'next_url' => route('tenant.dashboard', ['subdomain' => $tenant->subdomain]),
+                ]);
+            }
+
             return redirect()->route('tenant.dashboard', [
                 'subdomain' => $tenant->subdomain,
             ]);
