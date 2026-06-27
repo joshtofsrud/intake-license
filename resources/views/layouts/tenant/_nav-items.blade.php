@@ -181,6 +181,13 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M9 4l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
       'group'  => 'engage',
     ],
+    // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking follow-up)
+    [
+      'route'  => 'tenant.recovery.index',
+      'label'  => 'Recovery',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7a4.5 4.5 0 1 1 1.3 3.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M2 7.5V10h2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'group'  => 'engage',
+    ],
     [
       'route'  => 'tenant.help.index',
       'label'  => 'Help & Guides',

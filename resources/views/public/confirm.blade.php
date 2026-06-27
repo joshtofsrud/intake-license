@@ -3,13 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-{{-- MARKER-PATCH-150 — fire booking_completed on confirm page load --}}
+{{-- MARKER-PATCH-450 — booking finished: record completion + clear the abandoned-booking row --}}
 <script>
-  // Coordinated with __intakeFunnel from _funnel_tracker partial. Defer until that has loaded.
+  // Both endpoints read the anonymous fnl_sid cookie server-side and are CSRF-exempt,
+  // so these fire-and-forget beacons work without the funnel tracker being loaded here.
   document.addEventListener('DOMContentLoaded', function() {
-    if (window.__intakeFunnel && window.__intakeFunnel.send) {
-      window.__intakeFunnel.send('booking_completed');
+    function beacon(url, obj) {
+      try {
+        var body = JSON.stringify(obj);
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+        } else {
+          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, credentials: 'same-origin' }).catch(function(){});
+        }
+      } catch (e) {}
     }
+    beacon('/funnel/track',    { event_type: 'booking_completed', path: window.location.pathname });
+    beacon('/booking/abandon', { completed: true });
   });
 </script>
   <title>Booking confirmed — {{ $currentTenant->name }}</title>
