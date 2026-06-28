@@ -83,10 +83,25 @@ class BookingController extends Controller
             'step4_sub'      => $s['booking_step4_sub'] ?? 'Confirm everything looks good.',
         ];
 
-        return view('public.booking', compact(
+        // MARKER-FLOW-3 — booking flow mode (advanced | simple | choice).
+        // Simple and choice are lighter front-ends onto the same endpoints;
+        // advanced is unchanged. A single-item Simple booking submits the exact
+        // same payload as a one-item advanced booking, so no backend change.
+        $flowSvc  = app(\App\Services\Tenant\BookingFlowService::class);
+        $flowMode = $flowSvc->mode($tenant);
+        $flow     = request()->query('flow');
+
+        if ($flowSvc->showFork($flowMode, $flow)) {
+            return view('public.booking-choice', compact('bk', 'flowMode'));
+        }
+
+        $simpleServices = $flowSvc->simpleServices($tenant);
+        $view = $flowSvc->useSimpleView($flowMode, $flow) ? 'public.booking-simple' : 'public.booking';
+
+        return view($view, compact(
             'catalog', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
-            'bookingMode', 'resources', 'bk'
+            'bookingMode', 'resources', 'bk', 'simpleServices', 'flowMode'
         ));
     }
 

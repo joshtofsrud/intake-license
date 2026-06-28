@@ -15,6 +15,7 @@ class TenantServiceItem extends Model
         'tenant_id','category_id','name','slug','description','image_url',
         'price_cents','prep_before_minutes','duration_minutes','cleanup_after_minutes',
         'slot_weight','is_active','sort_order',
+        'simple_enabled','simple_sort','simple_tagline', // MARKER-FLOW-4
     ];
     protected $casts = [
         'is_active'             => 'boolean',
@@ -24,6 +25,8 @@ class TenantServiceItem extends Model
         'cleanup_after_minutes' => 'integer',
         'slot_weight'           => 'integer',
         'sort_order'            => 'integer',
+        'simple_enabled'        => 'boolean',
+        'simple_sort'           => 'integer',
     ];
 
     public function category(): BelongsTo

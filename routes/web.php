@@ -740,6 +740,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/recovery',         [TenantControllers\RecoveryController::class, 'index'])->name('recovery.index');
             Route::patch('/recovery/{id}',  [TenantControllers\RecoveryController::class, 'updateStatus'])->name('recovery.update');
 
+            // MARKER-FLOW-6 — Booking Mode admin (flow mode + Simple-menu curation)
+            Route::get('/booking-modes',  [TenantControllers\BookingModesController::class, 'index'])->name('booking_modes.index');
+            Route::post('/booking-modes', [TenantControllers\BookingModesController::class, 'save'])->name('booking_modes.save');
+
             // Campaign image library
             Route::get('/campaign-images',           [TenantControllers\CampaignImageController::class, 'index'])->name('campaign-images.index');
             Route::get('/campaign-images/usage',     [TenantControllers\CampaignImageController::class, 'usage'])->name('campaign-images.usage');

@@ -30,7 +30,7 @@ class Tenant extends Model
         'payment_processor', 'payment_processor_status',
         'payment_processor_account_id', 'payment_processor_connected_at',
         'notification_email', 'currency', 'currency_symbol', 'timezone',
-        'booking_window_days', 'min_notice_hours', 'booking_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
+        'booking_window_days', 'min_notice_hours', 'booking_mode', 'booking_flow_mode', 'last_booking_mode_switch_at', 'classes_enabled', 'deliveries_enabled', 'multi_asset_enabled',
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
         'asset_label_singular', 'asset_label_plural', // MARKER-PATCH-215
@@ -56,6 +56,7 @@ class Tenant extends Model
         'booking_window_days' => 'integer',
         'min_notice_hours'    => 'integer',
         'booking_mode'        => 'string',
+        'booking_flow_mode'   => 'string',
         'classes_enabled'     => 'boolean',
         // MARKER-PATCH-169 — Direct Payments bridge toggle
         'direct_payments_enabled' => 'boolean',
