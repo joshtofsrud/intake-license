@@ -108,6 +108,7 @@ class TenantSalePayment extends Model
         return match ($this->method) {
             'cash'          => 'Cash',
             'card_terminal' => 'Card terminal',
+            'card'          => 'Card', // MARKER-PATCH-463 — manual/recorded card refunds & payments
             'check'         => 'Check',
             'store_credit'  => 'Store credit',
             'mark_paid'     => 'Marked paid (no charge)',

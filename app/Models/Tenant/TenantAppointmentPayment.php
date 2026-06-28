@@ -98,6 +98,7 @@ class TenantAppointmentPayment extends Model
         return match ($this->method) {
             'cash'          => 'Cash',
             'card_terminal' => 'Card terminal',
+            'card'          => 'Card', // MARKER-PATCH-463 — keep in sync with TenantSalePayment
             'check'         => 'Check',
             'store_credit'  => 'Store credit',
             'mark_paid'     => 'Marked paid (no charge)',
