@@ -199,17 +199,16 @@ class StaffSwitchController extends Controller
             return response()->json(['ok' => false, 'error' => 'pin_already_set'], 409);
         }
 
-        // Second factor: re-verify the device password. Any active tenant
-        // user's password works — this is "do you have credentials for
-        // SOMEONE at this shop", not necessarily this exact staff member.
-        // Pattern from spec §4.2 — prevents a stranger from setting a PIN
-        // on a trusted device.
-        $passwordOk = TenantUser::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
-            ->get()
-            ->contains(function (TenantUser $u) use ($request) {
-                return Hash::check($request->input('device_password'), $u->password);
-            });
+        // MARKER-PATCH-459 — per-user credential, never the shop.
+        // Second factor: re-verify THIS user's OWN account password. The
+        // previous check accepted ANY active user's password, so at
+        // Who's-here anyone could tap the owner's card and set a PIN on it
+        // using their own (or any staff) password — a free account takeover.
+        // PIN setup must prove possession of this exact user's credential.
+        // A user with no password set cannot self-set a PIN here and must
+        // come through the invite / reset path.
+        $passwordOk = ! empty($user->password)
+            && Hash::check($request->input('device_password'), $user->password);
 
         if (! $passwordOk) {
             return response()->json([

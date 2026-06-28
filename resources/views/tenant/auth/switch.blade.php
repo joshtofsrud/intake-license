@@ -179,9 +179,10 @@
       <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="3" autocomplete="off">
     </div>
 
-    <label>Your account password (anyone at this shop)</label>
+    {{-- MARKER-PATCH-459 — per-user credential, never the shop --}}
+    <label>Your account password</label>
     <input type="password" id="set-device-password" placeholder="••••••••" autocomplete="off">
-    <div class="hint">Second factor: re-enter the email password from this device. Prevents someone setting a PIN on your behalf.</div>
+    <div class="hint">Second factor: re-enter <strong>your own</strong> account password — the one you sign in with. This proves it's really you before a PIN is set on your card.</div>
 
     <div class="pin-msg" id="set-msg" style="margin-top:18px"></div>
 
@@ -370,7 +371,7 @@
       }
 
       if (body.error === 'device_password_mismatch') {
-        msg('set', "That password didn't match any account on this device.", 'error');
+        msg('set', "That password didn't match your account. Use the password you sign in with.", 'error');
         return;
       }
       if (body.error === 'pin_already_set') {
