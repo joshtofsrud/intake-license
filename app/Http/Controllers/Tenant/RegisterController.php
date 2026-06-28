@@ -1871,8 +1871,8 @@ class RegisterController extends Controller
      * difference (or a portion of it): it writes a negative overage_refund row
      * on the appointment's money-bearing sale, which cascades the appointment
      * paid cache + payment_status centrally via SalePaymentService::recalcStatus().
-     * For 'card' it fires a real Stripe partial refund first; card is only valid
-     * when the sale actually has a Stripe charge to refund against.
+     * 'card' fires a real Stripe partial refund when the sale has a charge to
+     * reverse; otherwise card records a manual refund like the other methods.
      */
     public function recordAppointmentOverageRefund(Request $request): JsonResponse
     {
@@ -1919,15 +1919,13 @@ class RegisterController extends Controller
             return response()->json(['ok' => false, 'error' => 'No sale found to refund against.'], 422);
         }
 
-        // Card path is only valid against a real Stripe charge.
+        // MARKER-PATCH-462 — card refund: fire a real Stripe refund when the sale
+        // has a charge to reverse; otherwise fall through and record a manual
+        // 'card' refund (operator returned it out-of-band — terminal, manual key).
         $stripeRefundId = null;
-        if ($validated['method'] === 'card') {
-            if (! $tenant->direct_payments_enabled || ! $sale->stripe_payment_intent_id) {
-                return response()->json([
-                    'ok'    => false,
-                    'error' => 'No card charge on file for this appointment — choose cash, check, store credit, or mark-paid.',
-                ], 422);
-            }
+        if ($validated['method'] === 'card'
+            && $tenant->direct_payments_enabled
+            && $sale->stripe_payment_intent_id) {
             try {
                 $direct = new DirectPaymentsService($tenant);
                 $stripeRefund = $direct->refundCharge(

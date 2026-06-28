@@ -1491,15 +1491,14 @@ input.ma-asset-name-edit:focus {
         </div>
 
         <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.5);margin-bottom:6px;">Method</label>
-        <select id="ma-overage-method" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:#f0f0f0;font-size:14px;font-family:inherit;margin-bottom:14px;">
+        <select id="ma-overage-method" onchange="maOverageMethodChanged()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:#f0f0f0;font-size:14px;font-family:inherit;margin-bottom:8px;">
           <option value="cash">Cash</option>
           <option value="check">Check</option>
           <option value="store_credit">Store credit</option>
           <option value="mark_paid">Mark paid (bookkeeping only)</option>
-          @if($bannerHasStripeCharge)
-            <option value="card">Card (refund to original card)</option>
-          @endif
+          <option value="card">Card</option>
         </select>
+        <div id="ma-overage-card-hint" style="display:none;font-size:11.5px;color:#FBBF24;margin:0 0 14px;line-height:1.4;">No card charge on file for this appointment — this records a card refund without sending money through Stripe.</div>
 
         <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.5);margin-bottom:6px;">Note (optional)</label>
         <input id="ma-overage-note" type="text" maxlength="500" placeholder="e.g. returned cash at pickup"
@@ -1517,10 +1516,15 @@ input.ma-asset-name-edit:focus {
     <script>
       (function(){
         var OVERAGE_CENTS = {{ (int) $bannerOverage }};
+        var HAS_STRIPE = {{ $bannerHasStripeCharge ? 'true' : 'false' }};
         var TOKEN = {!! json_encode(csrf_token()) !!};
         var URL = {!! json_encode(route('tenant.register.appointment-overage-refund')) !!};
         var APPT = {!! json_encode($appointment->id) !!};
-        window.maOpenOverageRefund  = function(){ document.getElementById('ma-overage-modal').style.display = 'flex'; };
+        window.maOverageMethodChanged = function(){
+          var m = document.getElementById('ma-overage-method').value;
+          document.getElementById('ma-overage-card-hint').style.display = (m === 'card' && !HAS_STRIPE) ? 'block' : 'none';
+        };
+        window.maOpenOverageRefund  = function(){ document.getElementById('ma-overage-modal').style.display = 'flex'; window.maOverageMethodChanged(); };
         window.maCloseOverageRefund = function(){ document.getElementById('ma-overage-modal').style.display = 'none'; };
         window.maSubmitOverageRefund = function(){
           var msg = document.getElementById('ma-overage-msg');
