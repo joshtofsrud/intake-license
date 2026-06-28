@@ -1864,6 +1864,146 @@ class RegisterController extends Controller
         }
     }
 
+    /**
+     * MARKER-PATCH-461 — Record an overage refund against an appointment.
+     *
+     * paid_cents > total_cents means the customer overpaid. This returns the
+     * difference (or a portion of it): it writes a negative overage_refund row
+     * on the appointment's money-bearing sale, which cascades the appointment
+     * paid cache + payment_status centrally via SalePaymentService::recalcStatus().
+     * For 'card' it fires a real Stripe partial refund first; card is only valid
+     * when the sale actually has a Stripe charge to refund against.
+     */
+    public function recordAppointmentOverageRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'appointment_id' => 'required|uuid',
+            'amount_cents'   => 'required|integer|min:1',
+            'method'         => 'required|string|in:cash,check,store_credit,mark_paid,card',
+            'notes'          => 'nullable|string|max:500',
+        ]);
+
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $validated['appointment_id'])
+            ->first();
+        if (! $appointment) {
+            return response()->json(['ok' => false, 'error' => 'Appointment not found.'], 404);
+        }
+
+        // Authoritative overage from the ledger, not the cached column.
+        $appointment->load('payments');
+        $paid    = $appointment->paidCentsFromLedger();
+        $total   = (int) $appointment->total_cents;
+        $overage = $paid - $total;
+
+        if ($overage <= 0) {
+            return response()->json(['ok' => false, 'error' => 'This appointment has no overage to refund.'], 422);
+        }
+        if ((int) $validated['amount_cents'] > $overage) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Refund exceeds the overage of $' . number_format($overage / 100, 2) . '.',
+            ], 422);
+        }
+
+        // The sale holding the money: highest net-paid, non-cancelled.
+        $paymentSvc = app(\App\Services\Tenant\SalePaymentService::class);
+        $sale = $appointment->sales()
+            ->where('status', '!=', 'cancelled')
+            ->get()
+            ->sortByDesc(fn ($s) => $paymentSvc->paidCents($s))
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'No sale found to refund against.'], 422);
+        }
+
+        // Card path is only valid against a real Stripe charge.
+        $stripeRefundId = null;
+        if ($validated['method'] === 'card') {
+            if (! $tenant->direct_payments_enabled || ! $sale->stripe_payment_intent_id) {
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'No card charge on file for this appointment — choose cash, check, store credit, or mark-paid.',
+                ], 422);
+            }
+            try {
+                $direct = new DirectPaymentsService($tenant);
+                $stripeRefund = $direct->refundCharge(
+                    $sale->stripe_payment_intent_id,
+                    (int) $validated['amount_cents'],
+                    [
+                        'intake_overage_refund_appointment_id' => $appointment->id,
+                        'intake_sale_id'                       => $sale->id,
+                    ]
+                );
+                $stripeRefundId = $stripeRefund->id;
+            } catch (\Throwable $e) {
+                Log::error('overage_refund.stripe_failed', [
+                    'tenant_id'      => $tenant->id,
+                    'appointment_id' => $appointment->id,
+                    'sale_id'        => $sale->id,
+                    'error'          => $e->getMessage(),
+                ]);
+                return response()->json(['ok' => false, 'error' => 'Stripe refund failed: ' . $e->getMessage()], 422);
+            }
+        }
+
+        // Refund chain: point at the most recent inbound payment on this sale.
+        $referencePaymentId = \App\Models\Tenant\TenantSalePayment::where('sale_id', $sale->id)
+            ->where('amount_cents', '>', 0)
+            ->orderByDesc('recorded_at')
+            ->value('id');
+
+        try {
+            $payment = $paymentSvc->record(
+                $sale,
+                -1 * (int) $validated['amount_cents'],
+                \App\Models\Tenant\TenantSalePayment::KIND_OVERAGE_REFUND,
+                \App\Models\Tenant\TenantSalePayment::SOURCE_MANUAL_ENTRY,
+                $validated['method'],
+                $referencePaymentId,
+                $stripeRefundId,
+                $validated['notes'] ?? null,
+            );
+        } catch (\Throwable $e) {
+            Log::error('overage_refund.record_failed', [
+                'tenant_id'        => $tenant->id,
+                'appointment_id'   => $appointment->id,
+                'sale_id'          => $sale->id,
+                'stripe_refund_id' => $stripeRefundId,
+                'error'            => $e->getMessage(),
+            ]);
+            $tail = $stripeRefundId
+                ? ' (Stripe refund ' . $stripeRefundId . ' DID fire — reconcile manually)'
+                : '';
+            return response()->json(['ok' => false, 'error' => 'Could not record the refund' . $tail . ': ' . $e->getMessage()], 500);
+        }
+
+        $appointment->refresh()->load('payments');
+        $newPaid    = $appointment->paidCentsFromLedger();
+        $newOverage = max(0, $newPaid - $total);
+
+        Log::info('overage_refund.recorded', [
+            'tenant_id'      => $tenant->id,
+            'appointment_id' => $appointment->id,
+            'sale_id'        => $sale->id,
+            'amount_cents'   => (int) $validated['amount_cents'],
+            'method'         => $validated['method'],
+            'stripe_refund'  => $stripeRefundId,
+            'by'             => auth('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'               => true,
+            'payment_id'       => $payment->id,
+            'paid_cents'       => $newPaid,
+            'overage_cents'    => $newOverage,
+            'stripe_refund_id' => $stripeRefundId,
+        ]);
+    }
+
     protected function taxLabel($tenant): string
     {
         $rate = $tenant->default_tax_rate;

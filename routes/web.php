@@ -309,6 +309,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-PATCH-177 — standalone refund (customer + amount, no sale)
                 Route::post('/register/refunds/standalone', [TenantControllers\RegisterController::class, 'storeStandaloneRefund'])->name('register.refunds.standalone');
 
+                // MARKER-PATCH-461 — record an appointment overage refund (overage_refund ledger row + paid-cache cascade)
+                Route::post('/register/appointment-overage-refund', [TenantControllers\RegisterController::class, 'recordAppointmentOverageRefund'])->name('register.appointment-overage-refund');
+
                 // patch-100a oversell actions — register cart buttons that
                 // create a transfer request or a special order when staff
                 // rings up a line that exceeds available stock at the

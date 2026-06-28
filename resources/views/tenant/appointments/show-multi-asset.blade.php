@@ -1422,6 +1422,9 @@ input.ma-asset-name-edit:focus {
     $bannerPaidFull = ((int)$appointment->total_cents > 0)
                       && ((int)$appointment->paid_cents >= (int)$appointment->total_cents)
                       && ($bannerOverage === 0);
+    // MARKER-PATCH-461 — a real Stripe charge means a 'card' overage refund is
+    // possible; otherwise the refund is cash/check/store-credit/mark-paid only.
+    $bannerHasStripeCharge = $appointment->sales()->whereNotNull('stripe_payment_intent_id')->exists();
   @endphp
   @if($bannerPendingLink)
     {{-- MARKER-PATCH-196 — a payment link is out and awaiting the customer. --}}
@@ -1470,7 +1473,79 @@ input.ma-asset-name-edit:focus {
         <div class="ma-sale-banner-title">Customer overpaid — ${{ number_format($bannerOverage / 100, 2) }}</div>
         <div class="ma-sale-banner-sub">Refund the overage or adjust the total.</div>
       </div>
+      {{-- MARKER-PATCH-461 — record an overage refund (writes overage_refund row + cascades paid cache) --}}
+      <button type="button" class="ia-btn ia-btn--primary ia-btn--sm" onclick="maOpenOverageRefund()">Record refund</button>
     </div>
+
+    {{-- MARKER-PATCH-461 — overage refund modal (only present when an overage exists) --}}
+    <div id="ma-overage-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)maCloseOverageRefund()">
+      <div style="background:#1a1a1a;border:0.5px solid rgba(255,255,255,.12);border-radius:14px;max-width:420px;width:100%;padding:22px;font-family:inherit;color:#f0f0f0;">
+        <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Record overage refund</div>
+        <div style="font-size:12.5px;color:rgba(255,255,255,.5);margin-bottom:16px;">Customer overpaid by ${{ number_format($bannerOverage / 100, 2) }}. Return all or part of it.</div>
+
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.5);margin-bottom:6px;">Amount</label>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;">
+          <span style="opacity:.5;">$</span>
+          <input id="ma-overage-amount" type="number" min="0.01" step="0.01" max="{{ number_format($bannerOverage / 100, 2, '.', '') }}" value="{{ number_format($bannerOverage / 100, 2, '.', '') }}"
+                 style="flex:1;padding:9px 12px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:#f0f0f0;font-size:14px;font-family:inherit;">
+        </div>
+
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.5);margin-bottom:6px;">Method</label>
+        <select id="ma-overage-method" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:#f0f0f0;font-size:14px;font-family:inherit;margin-bottom:14px;">
+          <option value="cash">Cash</option>
+          <option value="check">Check</option>
+          <option value="store_credit">Store credit</option>
+          <option value="mark_paid">Mark paid (bookkeeping only)</option>
+          @if($bannerHasStripeCharge)
+            <option value="card">Card (refund to original card)</option>
+          @endif
+        </select>
+
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.5);margin-bottom:6px;">Note (optional)</label>
+        <input id="ma-overage-note" type="text" maxlength="500" placeholder="e.g. returned cash at pickup"
+               style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.12);border-radius:8px;color:#f0f0f0;font-size:14px;font-family:inherit;margin-bottom:8px;">
+
+        <div id="ma-overage-msg" style="font-size:12.5px;min-height:16px;margin-bottom:10px;"></div>
+
+        <div style="display:flex;gap:10px;">
+          <button type="button" class="ia-btn ia-btn--ghost" style="flex:1;" onclick="maCloseOverageRefund()">Cancel</button>
+          <button type="button" id="ma-overage-submit" class="ia-btn ia-btn--primary" style="flex:1;" onclick="maSubmitOverageRefund()">Record refund</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        var OVERAGE_CENTS = {{ (int) $bannerOverage }};
+        var TOKEN = {!! json_encode(csrf_token()) !!};
+        var URL = {!! json_encode(route('tenant.register.appointment-overage-refund')) !!};
+        var APPT = {!! json_encode($appointment->id) !!};
+        window.maOpenOverageRefund  = function(){ document.getElementById('ma-overage-modal').style.display = 'flex'; };
+        window.maCloseOverageRefund = function(){ document.getElementById('ma-overage-modal').style.display = 'none'; };
+        window.maSubmitOverageRefund = function(){
+          var msg = document.getElementById('ma-overage-msg');
+          var btn = document.getElementById('ma-overage-submit');
+          msg.style.color = 'rgba(255,255,255,.6)';
+          var dollars = parseFloat(document.getElementById('ma-overage-amount').value);
+          if (isNaN(dollars) || dollars <= 0) { msg.style.color = '#F09595'; msg.textContent = 'Enter an amount greater than zero.'; return; }
+          var cents = Math.round(dollars * 100);
+          if (cents > OVERAGE_CENTS) { msg.style.color = '#F09595'; msg.textContent = 'That is more than the overage.'; return; }
+          var method = document.getElementById('ma-overage-method').value;
+          var notes  = document.getElementById('ma-overage-note').value;
+          btn.disabled = true; msg.textContent = 'Recording…';
+          fetch(URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': TOKEN, 'Accept': 'application/json' },
+            body: JSON.stringify({ appointment_id: APPT, amount_cents: cents, method: method, notes: notes })
+          }).then(function(r){ return r.json().then(function(b){ return { ok: r.ok, b: b }; }); })
+            .then(function(res){
+              if (res.ok && res.b.ok) { window.location.reload(); return; }
+              btn.disabled = false; msg.style.color = '#F09595';
+              msg.textContent = (res.b && res.b.error) ? res.b.error : 'Something went wrong.';
+            }).catch(function(){ btn.disabled = false; msg.style.color = '#F09595'; msg.textContent = 'Network error. Try again.'; });
+        };
+      })();
+    </script>
   @endif
 
   {{-- MARKER-PATCH-158-G3 — Top row: status pipeline (left) + customer/resource/actions tile (right) --}}
