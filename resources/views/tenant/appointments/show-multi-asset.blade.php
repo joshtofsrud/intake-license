@@ -1629,6 +1629,15 @@ input.ma-asset-name-edit:focus {
       @foreach($appointmentAssets as $idx => $aa)
         @php
           $isExistingAsset = $aa->customerAsset !== null && $aa->customer_asset_id;
+          // MARKER-PATCH-460 — per-asset subtotal must include parts. The stored
+          // appointment_asset.subtotal_cents column is initialised to 0 and never
+          // recomputed when parts/services change (recalcAppointmentTotals only
+          // maintains the appointment-level total), so it always rendered $0.00.
+          // Compute from this asset's own line items, mirroring the controller's
+          // effective-price methods so per-asset subtotals sum to the grand total.
+          $aaSubtotalCents = (int) $aa->items->sum(fn ($i) => (int) $i->effectivePriceCents())
+                           + (int) $aa->addons->sum(fn ($a) => (int) $a->effectivePriceCents())
+                           + (int) $aa->parts->sum(fn ($p) => (int) $p->lineTotalCents());
         @endphp
         <article class="ma-asset">
           <header class="ma-asset-head">
@@ -1657,7 +1666,7 @@ input.ma-asset-name-edit:focus {
             </div>
             <div class="ma-asset-subtotal">
               <div class="ma-asset-subtotal-label">Subtotal</div>
-              <div>${{ number_format($aa->subtotal_cents / 100, 2) }}</div>
+              <div>${{ number_format($aaSubtotalCents / 100, 2) }}</div>
             </div>
             {{-- MARKER-PATCH-158-E1 — detach button --}}
             <button type="button" class="ma-asset-detach"
