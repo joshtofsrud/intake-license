@@ -67,8 +67,6 @@
     }
     .pin-input:focus{outline:none;border-color:var(--accent)}
     .pin-input.error{border-color:var(--error)}
-    /* MARKER-PATCH-464 — typed PIN digit shows briefly, then masks to a bullet */
-    .pin-input.masked{-webkit-text-security:disc;text-security:disc}
 
     .pin-msg{font-size:13px;text-align:center;min-height:18px;margin-bottom:14px}
     .pin-msg.error{color:var(--error)}
@@ -244,13 +242,14 @@
     inputs.forEach((inp, idx) => {
       inp.addEventListener('input', (e) => {
         inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
-        // MARKER-PATCH-464 — reveal the digit for a beat, then mask it to a bullet.
+        // MARKER-PATCH-465 — reveal the digit for a beat, then mask it via type
+        // swap to 'password' (native masking, works in every browser).
         clearTimeout(inp._maskTimer);
         if (inp.value) {
-          inp.classList.remove('masked');
-          inp._maskTimer = setTimeout(() => inp.classList.add('masked'), 400);
+          inp.type = 'text';
+          inp._maskTimer = setTimeout(() => { inp.type = 'password'; }, 400);
         } else {
-          inp.classList.remove('masked');
+          inp.type = 'text';
         }
         if (inp.value && idx < inputs.length - 1) {
           inputs[idx + 1].focus();
