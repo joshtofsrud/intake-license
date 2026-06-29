@@ -2613,6 +2613,26 @@ input.ma-asset-name-edit:focus {
       {{-- MARKER-PATCH-467 — live filter of the catalog --}}
       <input type="text" id="ma-svc-search" class="ia-input" placeholder="Search services & add-ons…" autocomplete="off" oninput="maFilterServices()" style="width:100%;margin:0 0 12px;">
 
+      {{-- MARKER-PATCH-469 — category pill rail (filters the services list) --}}
+      <style>
+        .ma-cat-rail{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;margin:0;scrollbar-width:none}
+        .ma-cat-rail::-webkit-scrollbar{display:none}
+        .ma-cat-pill{flex:none;padding:7px 13px;border-radius:99px;border:0.5px solid var(--ia-border,rgba(255,255,255,.14));background:transparent;color:var(--ia-text,#f0f0f0);opacity:.72;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit;transition:all .12s}
+        .ma-cat-pill:hover{opacity:1;border-color:var(--ia-border-strong,rgba(255,255,255,.22))}
+        .ma-cat-pill.on{background:var(--ia-accent,#BEF264);color:var(--ia-accent-text,#0a0a0a);border-color:var(--ia-accent,#BEF264);opacity:1}
+        .ma-cat-ct{opacity:.55;font-size:11px;margin-left:5px}
+        .ma-cat-pill.on .ma-cat-ct{opacity:.75}
+      </style>
+      @php
+        $svcCats = $availableServices->groupBy(fn ($s) => $s->category?->name ?? 'Other')->sortKeys();
+      @endphp
+      <div class="ma-cat-rail" id="ma-cat-rail" data-active="">
+        <button type="button" class="ma-cat-pill on" data-cat="" onclick="maPickCat(this)">All <span class="ma-cat-ct">{{ $availableServices->count() }}</span></button>
+        @foreach($svcCats as $catName => $items)
+          <button type="button" class="ma-cat-pill" data-cat="{{ strtolower($catName) }}" onclick="maPickCat(this)">{{ $catName }} <span class="ma-cat-ct">{{ $items->count() }}</span></button>
+        @endforeach
+      </div>
+
       <div class="ma-tab-panel is-active" data-panel="service">
         @if($availableServices->isEmpty())
           <div style="padding: 18px; text-align: center; color: var(--ia-text-dim); font-size: 12.5px;">
@@ -2621,12 +2641,12 @@ input.ma-asset-name-edit:focus {
         @else
           <div class="ma-catalog-list">
             @foreach($availableServices as $svc)
-              <label class="ma-catalog-row">
+              <label class="ma-catalog-row" data-cat="{{ strtolower($svc->category?->name ?? 'Other') }}">
                 <input type="radio" name="svc_choice" value="service:{{ $svc->id }}" class="ma-picker-radio">
                 <div class="ma-catalog-main">
                   <div class="ma-catalog-name">{{ $svc->name }}</div>
-                  @if($svc->duration_minutes)
-                    <div class="ma-catalog-meta">{{ $svc->duration_minutes }} min</div>
+                  @if($svc->duration_minutes || $svc->category)
+                    <div class="ma-catalog-meta">{{ $svc->duration_minutes ? $svc->duration_minutes.' min' : '' }}{{ $svc->category ? ($svc->duration_minutes ? ' · ' : '').$svc->category->name : '' }}</div>
                   @endif
                 </div>
                 <div class="ma-catalog-price">${{ number_format($svc->price_cents / 100, 2) }}</div>
@@ -2752,6 +2772,8 @@ input.ma-asset-name-edit:focus {
     // MARKER-PATCH-467 — reset + focus the catalog search on open
     const svcSearch = document.getElementById('ma-svc-search');
     if (svcSearch) svcSearch.value = '';
+    const catRail = document.getElementById('ma-cat-rail'); // MARKER-PATCH-469 — reset to All
+    if (catRail) { catRail.dataset.active = ''; catRail.querySelectorAll('.ma-cat-pill').forEach((p, i) => p.classList.toggle('on', i === 0)); }
     maFilterServices();
     maSwitchSvcTab('service');
     openModal('ma-add-svc-modal');
@@ -2765,30 +2787,45 @@ input.ma-asset-name-edit:focus {
     document.querySelectorAll('#ma-add-svc-modal .ma-tab-panel').forEach(p => {
       p.classList.toggle('is-active', p.dataset.panel === tab);
     });
+    const rail = document.getElementById('ma-cat-rail'); // MARKER-PATCH-469
+    if (rail) rail.style.display = (tab === 'service') ? 'flex' : 'none';
   };
 
-  // MARKER-PATCH-467 — live filter of the service/add-on catalog
+  // MARKER-PATCH-469 — category pill selection
+  window.maPickCat = function(btn) {
+    const rail = document.getElementById('ma-cat-rail');
+    rail.querySelectorAll('.ma-cat-pill').forEach(p => p.classList.toggle('on', p === btn));
+    rail.dataset.active = btn.dataset.cat || '';
+    maFilterServices();
+  };
+
+  // MARKER-PATCH-469 — filter by category (services) + search text (both panels)
   window.maFilterServices = function() {
     const box = document.getElementById('ma-svc-search');
     const q = (box ? box.value : '').trim().toLowerCase();
+    const rail = document.getElementById('ma-cat-rail');
+    const cat = rail ? (rail.dataset.active || '') : '';
     document.querySelectorAll('#ma-add-svc-modal .ma-tab-panel').forEach(panel => {
+      const isService = panel.dataset.panel === 'service';
       let shown = 0;
       panel.querySelectorAll('.ma-catalog-row').forEach(row => {
         const nameEl = row.querySelector('.ma-catalog-name');
         const name = nameEl ? nameEl.textContent.toLowerCase() : '';
-        const match = !q || name.includes(q);
+        const catOk = !isService || !cat || (row.dataset.cat || '') === cat;
+        const qOk = !q || name.includes(q);
+        const match = catOk && qOk;
         row.style.display = match ? '' : 'none';
         if (match) shown++;
       });
       let empty = panel.querySelector('.ma-catalog-noresults');
-      if (q && shown === 0) {
+      if (shown === 0 && (q || (isService && cat))) {
         if (!empty) {
           empty = document.createElement('div');
           empty.className = 'ma-catalog-noresults';
           empty.style.cssText = 'padding:18px;text-align:center;color:var(--ia-text-dim);font-size:12.5px;';
-          empty.textContent = 'No matches.';
           (panel.querySelector('.ma-catalog-list') || panel).appendChild(empty);
         }
+        empty.textContent = q ? ('No services match “' + q + '.”') : 'Nothing in this category.';
         empty.style.display = '';
       } else if (empty) {
         empty.style.display = 'none';

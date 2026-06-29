@@ -629,8 +629,9 @@ class AppointmentController extends Controller
         // Loaded once at render; the inline editor shows them in select dropdowns.
         $availableServices = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
             ->where('is_active', true)
+            ->with('category:id,name')
             ->orderBy('name')
-            ->get(['id', 'name', 'price_cents', 'duration_minutes']);
+            ->get(['id', 'name', 'price_cents', 'duration_minutes', 'category_id']);
 
         $availableAddons = \App\Models\Tenant\TenantAddon::where('tenant_id', $tenant->id)
             ->where('is_active', true)
