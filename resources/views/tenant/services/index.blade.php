@@ -364,6 +364,62 @@ body.sv-sheet-open{overflow:hidden !important}
   </div>
 </div>
 
+@php
+  $aSing = $currentTenant->asset_label_singular ?: 'item';
+  $aPlur = $currentTenant->asset_label_plural ?: 'items';
+  $aOn   = (bool) $currentTenant->multi_asset_enabled;
+  $aSub  = $aOn
+    ? "Each service ties to a specific {$aSing} — staff pick which one when booking, and history follows it."
+    : "Services are not tied to {$aPlur}. The asset step is hidden across booking and appointments.";
+@endphp
+{{-- MARKER-PATCH-468 — track-assets mode banner --}}
+<style>
+  .sv-asset-banner{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border,rgba(255,255,255,.12));background:var(--ia-surface-2,#1c1c1c);margin:0 0 16px;transition:border-color .15s,background .15s}
+  .sv-asset-banner.is-on{border-color:var(--ia-accent,#BEF264);background:var(--ia-accent-soft,rgba(190,242,100,.08))}
+  .sv-asset-banner-ico{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.05);border:0.5px solid var(--ia-border,rgba(255,255,255,.12));color:var(--ia-text-muted)}
+  .sv-asset-banner.is-on .sv-asset-banner-ico{background:var(--ia-accent-soft,rgba(190,242,100,.1));border-color:var(--ia-accent,#BEF264);color:var(--ia-accent,#BEF264)}
+  .sv-asset-banner-main{flex:1;min-width:0}
+  .sv-asset-banner-title{font-size:14px;font-weight:600;margin-bottom:2px}
+  .sv-asset-banner-sub{font-size:12px;color:var(--ia-text-muted);line-height:1.45}
+  .sv-switch{width:44px;height:25px;border-radius:99px;background:rgba(255,255,255,.14);border:0.5px solid var(--ia-border,rgba(255,255,255,.12));position:relative;cursor:pointer;flex:none;transition:background .15s,border-color .15s;padding:0}
+  .sv-switch::after{content:"";position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:#fff;transition:transform .16s}
+  .sv-switch.on{background:var(--ia-accent,#BEF264);border-color:var(--ia-accent,#BEF264)}
+  .sv-switch.on::after{transform:translateX(19px)}
+  .sv-switch:disabled{opacity:.5;cursor:default}
+</style>
+<div class="sv-asset-banner {{ $aOn ? 'is-on' : '' }}" id="sv-asset-banner">
+  <span class="sv-asset-banner-ico">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6.5h11M6.5 13.5v-7" stroke-linecap="round"/></svg>
+  </span>
+  <div class="sv-asset-banner-main">
+    <div class="sv-asset-banner-title">Track what you're working on</div>
+    <div class="sv-asset-banner-sub" id="sv-asset-banner-sub">{{ $aSub }}</div>
+  </div>
+  <button type="button" class="sv-switch {{ $aOn ? 'on' : '' }}" id="sv-asset-toggle" role="switch" aria-checked="{{ $aOn ? 'true' : 'false' }}" onclick="svToggleAssetTracking(this)"></button>
+</div>
+<script>
+  window.svToggleAssetTracking = function(btn){
+    if (btn.dataset.busy) return;
+    const turnOn = !btn.classList.contains('on');
+    btn.dataset.busy = '1'; btn.disabled = true;
+    fetch({!! json_encode(route('tenant.services.asset-tracking.toggle')) !!}, {
+      method: 'PATCH',
+      headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': {!! json_encode(csrf_token()) !!}, 'Accept':'application/json' },
+      body: JSON.stringify({ enabled: turnOn ? 1 : 0 })
+    }).then(r => r.json()).then(d => {
+      btn.disabled = false; delete btn.dataset.busy;
+      if (!d || !d.ok) return;
+      const on = !!d.enabled, sing = {!! json_encode($aSing) !!}, plur = {!! json_encode($aPlur) !!};
+      btn.classList.toggle('on', on);
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      document.getElementById('sv-asset-banner').classList.toggle('is-on', on);
+      document.getElementById('sv-asset-banner-sub').textContent = on
+        ? `Each service ties to a specific ${sing} — staff pick which one when booking, and history follows it.`
+        : `Services are not tied to ${plur}. The asset step is hidden across booking and appointments.`;
+    }).catch(() => { btn.disabled = false; delete btn.dataset.busy; });
+  };
+</script>
+
 <div class="sv-subnav" id="sv-subnav">
   <button type="button" class="sv-subnav-tab is-active" data-tab="services">
     Services <span class="sv-subnav-tab-count" id="sv-count-services">0</span>

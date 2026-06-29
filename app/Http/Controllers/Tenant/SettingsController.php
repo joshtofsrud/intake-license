@@ -294,6 +294,15 @@ class SettingsController extends Controller
     // POST endpoint: send a test SMS to verify Twilio configuration.
     // Uses the tenant's *saved* credentials, so user must save before testing.
     // -------------------------------------------------------------------
+    // MARKER-PATCH-468 — toggle asset tracking from the Services-page banner
+    public function toggleAssetTracking(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $enabled = (bool) $request->input('enabled');
+        $tenant->update(['multi_asset_enabled' => $enabled]);
+        return response()->json(['ok' => true, 'enabled' => $enabled]);
+    }
+
     public function sendTestSms(Request $request): JsonResponse
     {
         $request->validate([
