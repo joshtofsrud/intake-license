@@ -132,6 +132,15 @@
   inputs.forEach((inp, idx) => {
     inp.addEventListener('input', () => {
       inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
+      // MARKER-PATCH-466 — reveal the digit for a beat, then mask it via type
+      // swap to 'password' (native masking, repaints reliably across browsers).
+      clearTimeout(inp._maskTimer);
+      if (inp.value) {
+        inp.type = 'text';
+        inp._maskTimer = setTimeout(() => { inp.type = 'password'; }, 400);
+      } else {
+        inp.type = 'text';
+      }
       if (inp.value && idx < inputs.length - 1) {
         inputs[idx + 1].focus();
       }
