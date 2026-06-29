@@ -1522,7 +1522,7 @@ class AppointmentController extends Controller
         //   - detach_asset           → removes the pivot, unpins services (set FK null)
         //   - add_service_to_asset   → creates an item or addon pinned to a specific asset
         // -------------------------------------------------------------------
-        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset', 'rename_appointment_asset'], true)) {
+        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset', 'rename_appointment_asset', 'assign_loose_to_asset'], true)) {
             if (!$tenant->multi_asset_enabled) {
                 return response()->json(['ok' => false, 'message' => 'Multi-asset is not enabled for this tenant.'], 403);
             }
@@ -1676,6 +1676,36 @@ class AppointmentController extends Controller
             }
 
             // Recalc this asset's subtotal + the appointment grand total
+            $aa->refreshSubtotal();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        // MARKER-PATCH-470 — move a loose (unassigned) service/add-on under an asset
+        if ($op === 'assign_loose_to_asset') {
+            $data = $request->validate([
+                'appointment_asset_id' => ['required', 'uuid'],
+                'kind'                 => ['required', 'in:service,addon'],
+                'item_id'              => ['required', 'uuid'],
+            ]);
+
+            $aa = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                ->where('id', $data['appointment_asset_id'])
+                ->first();
+            if (!$aa) return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+
+            $model = $data['kind'] === 'service'
+                ? \App\Models\Tenant\TenantAppointmentItem::class
+                : \App\Models\Tenant\TenantAppointmentAddon::class;
+
+            $line = $model::where('id', $data['item_id'])
+                ->where('appointment_id', $appointment->id)
+                ->whereNull('appointment_asset_id')
+                ->first();
+            if (!$line) return response()->json(['ok' => false, 'message' => 'Unassigned line not found.'], 422);
+
+            $line->update(['appointment_asset_id' => $aa->id]);
+
             $aa->refreshSubtotal();
             $this->recalcAppointmentTotals($appointment);
             return response()->json(['ok' => true]);

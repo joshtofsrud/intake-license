@@ -412,6 +412,16 @@
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--ia-text-dim); margin-bottom: 12px;
 }
+/* MARKER-PATCH-470 — assign-later holding state */
+.ma-loose-card--needs { border-color: rgba(245,158,11,.38); background: rgba(245,158,11,.06); }
+.ma-loose-title--row { display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; }
+.ma-loose-count { display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:rgba(255,255,255,.08);color:var(--ia-text-dim);font-size:11px;font-weight:600;margin-left:4px; }
+.ma-loose-needs { color:#f59e0b;border:0.5px solid rgba(245,158,11,.45);border-radius:99px;padding:2px 9px;font-size:10px;font-weight:600;text-transform:none;letter-spacing:0; }
+.ma-assign-loose-btn { margin-top:7px;padding:4px 10px;border-radius:7px;border:0.5px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);color:#f59e0b;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .12s; }
+.ma-assign-loose-btn:hover { background:rgba(245,158,11,.16); }
+.ma-assign-loose-list { display:flex;flex-direction:column;gap:7px; }
+.ma-assign-opt { text-align:left;padding:12px 14px;border-radius:9px;border:1px solid var(--ia-border);background:var(--ia-surface,rgba(255,255,255,.02));color:var(--ia-text,#f0f0f0);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .12s; }
+.ma-assign-opt:hover { border-color:var(--ia-accent,#BEF264);background:var(--ia-accent-soft,rgba(190,242,100,.08)); }
 
 /* Right rail cards */
 .ma-rail { display: flex; flex-direction: column; gap: 12px; }
@@ -2028,8 +2038,19 @@ input.ma-asset-name-edit:focus {
 
       {{-- Loose items section — only shown if there are unpinned items --}}
       @if($looseItems->isNotEmpty() || $looseAddons->isNotEmpty())
-        <div class="ma-loose-card">
-          <div class="ma-loose-title">Unassigned services</div>
+        @php
+          $assetSingular = tenant()->asset_label_singular ?: 'item';
+          $looseCount = $looseItems->count() + $looseAddons->count();
+          $hasAssets = $appointmentAssets->isNotEmpty();
+        @endphp
+        {{-- MARKER-PATCH-470 — assign-later holding state --}}
+        <div class="ma-loose-card{{ $hasAssets ? ' ma-loose-card--needs' : '' }}">
+          <div class="ma-loose-title ma-loose-title--row">
+            <span>Unassigned <span class="ma-loose-count">{{ $looseCount }}</span></span>
+            @if($hasAssets)
+              <span class="ma-loose-needs">needs a {{ $assetSingular }}</span>
+            @endif
+          </div>
           @foreach($looseItems as $item)
             <div class="ma-service-row line-row" data-kind="service" data-item-id="{{ $item->id }}" style="margin-bottom: 6px;">
               <div>
@@ -2593,6 +2614,22 @@ input.ma-asset-name-edit:focus {
 </div>
 
 {{-- Add service-to-asset modal --}}
+{{-- MARKER-PATCH-470 — assign-loose picker --}}
+<script>
+  window.maApptAssets = @json($appointmentAssets->map(fn ($a) => ['id' => $a->id, 'name' => $a->asset_name_snapshot])->values());
+  window.maLooseAssetSingular = @json(tenant()->asset_label_singular ?: 'item');
+</script>
+<div class="ma-modal-backdrop" id="ma-assign-loose-modal" onclick="if(event.target===this) maCloseModal('ma-assign-loose-modal')">
+  <div class="ma-modal" style="width: 380px;">
+    <div class="ma-modal-head">
+      <div class="ma-modal-title">Assign to a {{ tenant()->asset_label_singular ?: 'item' }}</div>
+      <button type="button" class="ma-modal-close" onclick="maCloseModal('ma-assign-loose-modal')">✕</button>
+    </div>
+    <div class="ma-modal-body">
+      <div class="ma-assign-loose-list" id="ma-assign-loose-list"></div>
+    </div>
+  </div>
+</div>
 <div class="ma-modal-backdrop" id="ma-add-svc-modal" onclick="if(event.target===this) maCloseModal('ma-add-svc-modal')">
   <div class="ma-modal" style="width: 560px;">
     <div class="ma-modal-head">
@@ -2765,6 +2802,50 @@ input.ma-asset-name-edit:focus {
   };
 
   // ---------------------- Add service to asset ----------------------
+  // MARKER-PATCH-470 — assign a loose (unassigned) line to an asset
+  let maAssignTarget = null;
+  async function maDoAssign(appointmentAssetId) {
+    if (!maAssignTarget) return;
+    const result = await post({ op: 'assign_loose_to_asset', appointment_asset_id: appointmentAssetId, kind: maAssignTarget.kind, item_id: maAssignTarget.itemId });
+    if (!result.ok) {
+      if (window.IntakeToast) IntakeToast.error('Could not assign: ' + result.message); else alert('Could not assign: ' + result.message);
+      return;
+    }
+    closeModal('ma-assign-loose-modal');
+    if (window.IntakeToast) IntakeToast.success('Assigned');
+    setTimeout(function() { location.reload(); }, 500);
+  }
+  window.maAssignLoose = function(itemId, kind) {
+    maAssignTarget = { itemId: itemId, kind: kind };
+    const assets = window.maApptAssets || [];
+    if (assets.length === 0) return;
+    if (assets.length === 1) { maDoAssign(assets[0].id); return; }
+    const list = document.getElementById('ma-assign-loose-list');
+    list.innerHTML = '';
+    assets.forEach(function(a) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'ma-assign-opt'; b.textContent = a.name;
+      b.addEventListener('click', function() { maDoAssign(a.id); });
+      list.appendChild(b);
+    });
+    openModal('ma-assign-loose-modal');
+  };
+  // Inject "Assign to a {asset}" into each unassigned line (name cell — keeps the row grid intact)
+  (function injectAssignButtons() {
+    if (!window.maApptAssets || !window.maApptAssets.length) return;
+    document.querySelectorAll('.ma-loose-card .line-row').forEach(function(row) {
+      if (row.querySelector('.ma-assign-loose-btn')) return;
+      const cell = row.firstElementChild;
+      if (!cell) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ma-assign-loose-btn';
+      btn.textContent = 'Assign to a ' + (window.maLooseAssetSingular || 'item');
+      btn.addEventListener('click', function() { window.maAssignLoose(row.dataset.itemId, row.dataset.kind); });
+      cell.appendChild(btn);
+    });
+  })();
+
   window.maOpenAddServiceModal = function(appointmentAssetId, assetName) {
     currentAssetId = appointmentAssetId;
     document.getElementById('ma-add-svc-title').textContent = 'Add to ' + assetName;
