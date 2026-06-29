@@ -427,6 +427,7 @@
 .ma-assign-opt--new { border-style:dashed;color:var(--ia-accent,#BEF264);font-weight:600; }
 .ma-assign-sec-label { font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);margin:12px 2px 6px; }
 .ma-assign-sec-label:first-child { margin-top:0; }
+.ma-assign-opt--later { color:var(--ia-text-dim);border-style:dashed; }
 
 /* Right rail cards */
 .ma-rail { display: flex; flex-direction: column; gap: 12px; }
@@ -2110,6 +2111,11 @@ input.ma-asset-name-edit:focus {
         </div>
       @endif
 
+      {{-- MARKER-PATCH-472 — service-first add (primary path, always available) --}}
+      <button type="button" class="ma-add-asset-btn" onclick="maOpenAddServiceFirst()" style="border-color:var(--ia-accent,#BEF264);color:var(--ia-accent,#BEF264);margin-bottom:8px;">
+        + Add a service
+      </button>
+
       {{-- MARKER-PATCH-158-E1 — real Attach asset button (only when assets already exist; empty state has its own) --}}
       @if($appointmentAssets->isNotEmpty())
         <button type="button" class="ma-add-asset-btn" onclick="maOpenAttachAssetModal()">
@@ -2628,7 +2634,7 @@ input.ma-asset-name-edit:focus {
 <div class="ma-modal-backdrop" id="ma-assign-loose-modal" onclick="if(event.target===this) maCloseModal('ma-assign-loose-modal')">
   <div class="ma-modal" style="width: 380px;">
     <div class="ma-modal-head">
-      <div class="ma-modal-title">Assign to a {{ tenant()->asset_label_singular ?: 'item' }}</div>
+      <div class="ma-modal-title" id="ma-assign-loose-title">Assign to a {{ tenant()->asset_label_singular ?: 'item' }}</div>
       <button type="button" class="ma-modal-close" onclick="maCloseModal('ma-assign-loose-modal')">✕</button>
     </div>
     <div class="ma-modal-body">
@@ -2818,7 +2824,11 @@ input.ma-asset-name-edit:focus {
 
   // ---------------------- Add service to asset ----------------------
   // MARKER-PATCH-471 — unified assign picker: appointment assets + customer's saved assets + add-new, one path
+  // MARKER-PATCH-472 — generalized to two modes: 'move' an existing loose line vs 'add' a new service
   let maAssignTarget = null;
+  let maPickerMode = 'move';
+  let maPickerService = null;
+  let maServiceFirst = false;
   function maOptButton(name, sub, onClick, extraClass) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -2849,17 +2859,26 @@ input.ma-asset-name-edit:focus {
     }
     list.appendChild(maSecLabel('Or create one'));
     list.appendChild(maOptButton('+ Add a new ' + sing, null, function() { maAssignShowNew(); }, 'ma-assign-opt--new'));
+    if (maPickerMode === 'add') {
+      list.appendChild(maOptButton('Assign later', 'Add it now, attach a ' + sing + ' when you know', function() { maDoAssign({ target: 'later' }); }, 'ma-assign-opt--later'));
+    }
   }
   async function maDoAssign(extra) {
-    if (!maAssignTarget) return;
-    const payload = Object.assign({ op: 'assign_loose_to_target', kind: maAssignTarget.kind, item_id: maAssignTarget.itemId }, extra);
+    let payload;
+    if (maPickerMode === 'add') {
+      if (!maPickerService) return;
+      payload = Object.assign({ op: 'add_service_to_target', kind: maPickerService.kind, service_id: maPickerService.id }, extra);
+    } else {
+      if (!maAssignTarget) return;
+      payload = Object.assign({ op: 'assign_loose_to_target', kind: maAssignTarget.kind, item_id: maAssignTarget.itemId }, extra);
+    }
     const result = await post(payload);
     if (!result.ok) {
-      if (window.IntakeToast) IntakeToast.error('Could not assign: ' + result.message); else alert('Could not assign: ' + result.message);
+      if (window.IntakeToast) IntakeToast.error('Could not add: ' + result.message); else alert('Could not add: ' + result.message);
       return;
     }
     closeModal('ma-assign-loose-modal');
-    if (window.IntakeToast) IntakeToast.success('Assigned');
+    if (window.IntakeToast) IntakeToast.success(maPickerMode === 'add' ? 'Service added' : 'Assigned');
     setTimeout(function() { location.reload(); }, 500);
   }
   window.maAssignShowNew = function() {
@@ -2879,7 +2898,22 @@ input.ma-asset-name-edit:focus {
     maDoAssign({ target: 'new', name: name, identifier: document.getElementById('ma-assign-new-identifier').value.trim(), notes: document.getElementById('ma-assign-new-notes').value.trim() });
   };
   window.maAssignLoose = function(itemId, kind) {
+    maPickerMode = 'move';
     maAssignTarget = { itemId: itemId, kind: kind };
+    const t = document.getElementById('ma-assign-loose-title');
+    if (t) t.textContent = 'Assign to a ' + (window.maLooseAssetSingular || 'item');
+    maBuildAssignList();
+    document.getElementById('ma-assign-new-form').style.display = 'none';
+    document.getElementById('ma-assign-loose-list').style.display = '';
+    openModal('ma-assign-loose-modal');
+  };
+  // MARKER-PATCH-472 — service-first: pick a service, then choose which asset (or assign later)
+  window.maPickServiceTarget = function(svc) {
+    maPickerMode = 'add';
+    maPickerService = svc;
+    const sing = window.maLooseAssetSingular || 'item';
+    const t = document.getElementById('ma-assign-loose-title');
+    if (t) t.textContent = 'Which ' + sing + ' is “' + svc.name + '” for?';
     maBuildAssignList();
     document.getElementById('ma-assign-new-form').style.display = 'none';
     document.getElementById('ma-assign-loose-list').style.display = '';
@@ -2900,8 +2934,27 @@ input.ma-asset-name-edit:focus {
     });
   })();
 
+  // MARKER-PATCH-472 — service-first entry: pick the service first, then choose the asset
+  window.maOpenAddServiceFirst = function() {
+    currentAssetId = null;
+    maServiceFirst = true;
+    document.getElementById('ma-add-svc-title').textContent = 'Add a service';
+    document.getElementById('ma-add-svc-submit').textContent = 'Continue';
+    document.querySelectorAll('input[name="svc_choice"]').forEach(function(r) { r.checked = false; });
+    const svcSearch = document.getElementById('ma-svc-search');
+    if (svcSearch) svcSearch.value = '';
+    const catRail = document.getElementById('ma-cat-rail');
+    if (catRail) { catRail.dataset.active = ''; catRail.querySelectorAll('.ma-cat-pill').forEach(function(p, i) { p.classList.toggle('on', i === 0); }); }
+    maFilterServices();
+    maSwitchSvcTab('service');
+    openModal('ma-add-svc-modal');
+    setTimeout(function() { svcSearch && svcSearch.focus(); }, 60);
+  };
+
   window.maOpenAddServiceModal = function(appointmentAssetId, assetName) {
     currentAssetId = appointmentAssetId;
+    maServiceFirst = false; // MARKER-PATCH-472 — asset-first add
+    document.getElementById('ma-add-svc-submit').textContent = 'Add';
     document.getElementById('ma-add-svc-title').textContent = 'Add to ' + assetName;
     document.querySelectorAll('input[name="svc_choice"]').forEach(r => r.checked = false);
     // MARKER-PATCH-467 — reset + focus the catalog search on open
@@ -2971,9 +3024,18 @@ input.ma-asset-name-edit:focus {
   window.maSubmitAddService = async function() {
     const sel = document.querySelector('input[name="svc_choice"]:checked');
     if (!sel) { alert('Pick a service or add-on first.'); return; }
+    const [kind, id] = sel.value.split(':');
+    if (maServiceFirst) {
+      // MARKER-PATCH-472 — service-first: capture the service, then ask which asset
+      const row = sel.closest('.ma-catalog-row');
+      const nameEl = row ? row.querySelector('.ma-catalog-name') : null;
+      const name = nameEl ? nameEl.textContent.trim() : (kind === 'addon' ? 'add-on' : 'service');
+      closeModal('ma-add-svc-modal');
+      maPickServiceTarget({ kind: kind, id: id, name: name });
+      return;
+    }
     const btn = document.getElementById('ma-add-svc-submit');
     btn.disabled = true;
-    const [kind, id] = sel.value.split(':');
     const payload = { op: 'add_service_to_asset', appointment_asset_id: currentAssetId, kind };
     if (kind === 'service') payload.service_item_id = id;
     else                    payload.addon_id        = id;
