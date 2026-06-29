@@ -2610,6 +2610,9 @@ input.ma-asset-name-edit:focus {
         </button>
       </div>
 
+      {{-- MARKER-PATCH-467 — live filter of the catalog --}}
+      <input type="text" id="ma-svc-search" class="ia-input" placeholder="Search services & add-ons…" autocomplete="off" oninput="maFilterServices()" style="width:100%;margin:0 0 12px;">
+
       <div class="ma-tab-panel is-active" data-panel="service">
         @if($availableServices->isEmpty())
           <div style="padding: 18px; text-align: center; color: var(--ia-text-dim); font-size: 12.5px;">
@@ -2746,8 +2749,13 @@ input.ma-asset-name-edit:focus {
     currentAssetId = appointmentAssetId;
     document.getElementById('ma-add-svc-title').textContent = 'Add to ' + assetName;
     document.querySelectorAll('input[name="svc_choice"]').forEach(r => r.checked = false);
+    // MARKER-PATCH-467 — reset + focus the catalog search on open
+    const svcSearch = document.getElementById('ma-svc-search');
+    if (svcSearch) svcSearch.value = '';
+    maFilterServices();
     maSwitchSvcTab('service');
     openModal('ma-add-svc-modal');
+    setTimeout(() => { svcSearch && svcSearch.focus(); }, 60);
   };
 
   window.maSwitchSvcTab = function(tab) {
@@ -2756,6 +2764,35 @@ input.ma-asset-name-edit:focus {
     });
     document.querySelectorAll('#ma-add-svc-modal .ma-tab-panel').forEach(p => {
       p.classList.toggle('is-active', p.dataset.panel === tab);
+    });
+  };
+
+  // MARKER-PATCH-467 — live filter of the service/add-on catalog
+  window.maFilterServices = function() {
+    const box = document.getElementById('ma-svc-search');
+    const q = (box ? box.value : '').trim().toLowerCase();
+    document.querySelectorAll('#ma-add-svc-modal .ma-tab-panel').forEach(panel => {
+      let shown = 0;
+      panel.querySelectorAll('.ma-catalog-row').forEach(row => {
+        const nameEl = row.querySelector('.ma-catalog-name');
+        const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+        const match = !q || name.includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      let empty = panel.querySelector('.ma-catalog-noresults');
+      if (q && shown === 0) {
+        if (!empty) {
+          empty = document.createElement('div');
+          empty.className = 'ma-catalog-noresults';
+          empty.style.cssText = 'padding:18px;text-align:center;color:var(--ia-text-dim);font-size:12.5px;';
+          empty.textContent = 'No matches.';
+          (panel.querySelector('.ma-catalog-list') || panel).appendChild(empty);
+        }
+        empty.style.display = '';
+      } else if (empty) {
+        empty.style.display = 'none';
+      }
     });
   };
 
