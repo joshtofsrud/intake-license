@@ -1522,7 +1522,7 @@ class AppointmentController extends Controller
         //   - detach_asset           → removes the pivot, unpins services (set FK null)
         //   - add_service_to_asset   → creates an item or addon pinned to a specific asset
         // -------------------------------------------------------------------
-        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset', 'rename_appointment_asset', 'assign_loose_to_asset'], true)) {
+        if (in_array($op, ['attach_existing_asset', 'attach_new_asset', 'detach_asset', 'add_service_to_asset', 'rename_appointment_asset', 'assign_loose_to_asset', 'assign_loose_to_target'], true)) {
             if (!$tenant->multi_asset_enabled) {
                 return response()->json(['ok' => false, 'message' => 'Multi-asset is not enabled for this tenant.'], 403);
             }
@@ -1705,6 +1705,103 @@ class AppointmentController extends Controller
             if (!$line) return response()->json(['ok' => false, 'message' => 'Unassigned line not found.'], 422);
 
             $line->update(['appointment_asset_id' => $aa->id]);
+
+            $aa->refreshSubtotal();
+            $this->recalcAppointmentTotals($appointment);
+            return response()->json(['ok' => true]);
+        }
+
+        // MARKER-PATCH-471 — unified assign: ensure the asset is attached (existing
+        // appointment asset, a saved customer asset, or a brand-new one), then move the
+        // loose line onto it — all atomically, so a failure leaves no half-attached asset.
+        if ($op === 'assign_loose_to_target') {
+            $data = $request->validate([
+                'kind'                 => ['required', 'in:service,addon'],
+                'item_id'              => ['required', 'uuid'],
+                'target'               => ['required', 'in:appointment_asset,customer_asset,new'],
+                'appointment_asset_id' => ['nullable', 'uuid'],
+                'customer_asset_id'    => ['nullable', 'uuid'],
+                'name'                 => ['nullable', 'string', 'max:200'],
+                'identifier'           => ['nullable', 'string', 'max:120'],
+                'notes'                => ['nullable', 'string', 'max:5000'],
+            ]);
+
+            $model = $data['kind'] === 'service'
+                ? \App\Models\Tenant\TenantAppointmentItem::class
+                : \App\Models\Tenant\TenantAppointmentAddon::class;
+            $line = $model::where('id', $data['item_id'])
+                ->where('appointment_id', $appointment->id)
+                ->whereNull('appointment_asset_id')
+                ->first();
+            if (!$line) return response()->json(['ok' => false, 'message' => 'Unassigned line not found.'], 422);
+
+            // Read-only validation up front, so we never start writing on a bad target.
+            $customerAsset = null;
+            if ($data['target'] === 'appointment_asset') {
+                if (empty($data['appointment_asset_id'])) return response()->json(['ok' => false, 'message' => 'appointment_asset_id required.'], 422);
+                $exists = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                    ->where('id', $data['appointment_asset_id'])->exists();
+                if (!$exists) return response()->json(['ok' => false, 'message' => 'Asset not on this appointment.'], 422);
+            } elseif ($data['target'] === 'customer_asset') {
+                if (empty($data['customer_asset_id'])) return response()->json(['ok' => false, 'message' => 'customer_asset_id required.'], 422);
+                $customerAsset = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+                    ->where('customer_id', $appointment->customer_id)
+                    ->where('id', $data['customer_asset_id'])
+                    ->whereNull('archived_at')
+                    ->first();
+                if (!$customerAsset) return response()->json(['ok' => false, 'message' => 'Asset not found or archived.'], 422);
+            } else {
+                if (trim((string) ($data['name'] ?? '')) === '') return response()->json(['ok' => false, 'message' => 'Name is required.'], 422);
+            }
+
+            $aa = DB::transaction(function () use ($data, $appointment, $tenant, $customerAsset, $line) {
+                if ($data['target'] === 'appointment_asset') {
+                    $aa = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                        ->where('id', $data['appointment_asset_id'])
+                        ->first();
+                } elseif ($data['target'] === 'customer_asset') {
+                    // Reuse an existing attachment if this asset is somehow already on
+                    // the appointment; otherwise attach it now.
+                    $aa = \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)
+                        ->where('customer_asset_id', $customerAsset->id)
+                        ->first();
+                    if (!$aa) {
+                        $maxSort = (int) \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)->max('sort_order');
+                        $aa = \App\Models\Tenant\TenantAppointmentAsset::create([
+                            'tenant_id'           => $tenant->id,
+                            'appointment_id'      => $appointment->id,
+                            'customer_asset_id'   => $customerAsset->id,
+                            'asset_name_snapshot' => $customerAsset->name,
+                            'identifier_snapshot' => $customerAsset->identifier,
+                            'sort_order'          => $maxSort + 10,
+                            'subtotal_cents'      => 0,
+                        ]);
+                    }
+                } else {
+                    $asset = \App\Models\Tenant\TenantCustomerAsset::create([
+                        'tenant_id'           => $tenant->id,
+                        'customer_id'         => $appointment->customer_id,
+                        'name'                => trim($data['name']),
+                        'identifier'          => $data['identifier'] ?? null,
+                        'notes'               => $data['notes'] ?? null,
+                        'last_seen_at'        => now(),
+                        'last_appointment_id' => $appointment->id,
+                    ]);
+                    $maxSort = (int) \App\Models\Tenant\TenantAppointmentAsset::where('appointment_id', $appointment->id)->max('sort_order');
+                    $aa = \App\Models\Tenant\TenantAppointmentAsset::create([
+                        'tenant_id'           => $tenant->id,
+                        'appointment_id'      => $appointment->id,
+                        'customer_asset_id'   => $asset->id,
+                        'asset_name_snapshot' => $asset->name,
+                        'identifier_snapshot' => $asset->identifier,
+                        'sort_order'          => $maxSort + 10,
+                        'subtotal_cents'      => 0,
+                    ]);
+                }
+
+                $line->update(['appointment_asset_id' => $aa->id]);
+                return $aa;
+            });
 
             $aa->refreshSubtotal();
             $this->recalcAppointmentTotals($appointment);

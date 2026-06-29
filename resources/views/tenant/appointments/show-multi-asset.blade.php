@@ -422,6 +422,11 @@
 .ma-assign-loose-list { display:flex;flex-direction:column;gap:7px; }
 .ma-assign-opt { text-align:left;padding:12px 14px;border-radius:9px;border:1px solid var(--ia-border);background:var(--ia-surface,rgba(255,255,255,.02));color:var(--ia-text,#f0f0f0);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .12s; }
 .ma-assign-opt:hover { border-color:var(--ia-accent,#BEF264);background:var(--ia-accent-soft,rgba(190,242,100,.08)); }
+.ma-assign-opt { display:flex;flex-direction:column;gap:0; }
+.ma-assign-opt-sub { font-size:11px;color:var(--ia-text-dim);font-weight:400;margin-top:2px; }
+.ma-assign-opt--new { border-style:dashed;color:var(--ia-accent,#BEF264);font-weight:600; }
+.ma-assign-sec-label { font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);margin:12px 2px 6px; }
+.ma-assign-sec-label:first-child { margin-top:0; }
 
 /* Right rail cards */
 .ma-rail { display: flex; flex-direction: column; gap: 12px; }
@@ -2044,12 +2049,10 @@ input.ma-asset-name-edit:focus {
           $hasAssets = $appointmentAssets->isNotEmpty();
         @endphp
         {{-- MARKER-PATCH-470 — assign-later holding state --}}
-        <div class="ma-loose-card{{ $hasAssets ? ' ma-loose-card--needs' : '' }}">
+        <div class="ma-loose-card ma-loose-card--needs">
           <div class="ma-loose-title ma-loose-title--row">
             <span>Unassigned <span class="ma-loose-count">{{ $looseCount }}</span></span>
-            @if($hasAssets)
-              <span class="ma-loose-needs">needs a {{ $assetSingular }}</span>
-            @endif
+            <span class="ma-loose-needs">needs a {{ $assetSingular }}</span>
           </div>
           @foreach($looseItems as $item)
             <div class="ma-service-row line-row" data-kind="service" data-item-id="{{ $item->id }}" style="margin-bottom: 6px;">
@@ -2617,7 +2620,10 @@ input.ma-asset-name-edit:focus {
 {{-- MARKER-PATCH-470 — assign-loose picker --}}
 <script>
   window.maApptAssets = @json($appointmentAssets->map(fn ($a) => ['id' => $a->id, 'name' => $a->asset_name_snapshot])->values());
+  window.maPickerAssets = @json($pickerAssets->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'identifier' => $a->identifier])->values());
   window.maLooseAssetSingular = @json(tenant()->asset_label_singular ?: 'item');
+  window.maLooseAssetPlural = @json(tenant()->asset_label_plural ?: 'items');
+  window.maLooseCustomerName = @json($appointment->customer->first_name ?? null);
 </script>
 <div class="ma-modal-backdrop" id="ma-assign-loose-modal" onclick="if(event.target===this) maCloseModal('ma-assign-loose-modal')">
   <div class="ma-modal" style="width: 380px;">
@@ -2627,6 +2633,15 @@ input.ma-asset-name-edit:focus {
     </div>
     <div class="ma-modal-body">
       <div class="ma-assign-loose-list" id="ma-assign-loose-list"></div>
+      <div class="ma-assign-new-form" id="ma-assign-new-form" style="display:none">
+        <input type="text" id="ma-assign-new-name" class="ia-input" placeholder="{{ ucfirst(tenant()->asset_label_singular ?: 'item') }} name" autocomplete="off" style="width:100%;margin:0 0 8px;">
+        <input type="text" id="ma-assign-new-identifier" class="ia-input" placeholder="Serial / ID (optional)" autocomplete="off" style="width:100%;margin:0 0 8px;">
+        <textarea id="ma-assign-new-notes" class="ia-input" rows="2" placeholder="Notes (optional)" style="width:100%;margin:0 0 10px;resize:vertical;"></textarea>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="ia-btn ia-btn--ghost" onclick="maAssignNewBack()" style="flex:1;">Back</button>
+          <button type="button" class="ia-btn ia-btn--primary" onclick="maAssignNewSubmit()" style="flex:1;">Create &amp; assign</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2802,11 +2817,43 @@ input.ma-asset-name-edit:focus {
   };
 
   // ---------------------- Add service to asset ----------------------
-  // MARKER-PATCH-470 — assign a loose (unassigned) line to an asset
+  // MARKER-PATCH-471 — unified assign picker: appointment assets + customer's saved assets + add-new, one path
   let maAssignTarget = null;
-  async function maDoAssign(appointmentAssetId) {
+  function maOptButton(name, sub, onClick, extraClass) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ma-assign-opt' + (extraClass ? ' ' + extraClass : '');
+    const t = document.createElement('span'); t.textContent = name; b.appendChild(t);
+    if (sub) { const s = document.createElement('span'); s.className = 'ma-assign-opt-sub'; s.textContent = sub; b.appendChild(s); }
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function maSecLabel(text) {
+    const d = document.createElement('div'); d.className = 'ma-assign-sec-label'; d.textContent = text; return d;
+  }
+  function maBuildAssignList() {
+    const list = document.getElementById('ma-assign-loose-list');
+    list.innerHTML = '';
+    const appt = window.maApptAssets || [];
+    const saved = window.maPickerAssets || [];
+    const sing = window.maLooseAssetSingular || 'item';
+    const plur = window.maLooseAssetPlural || (sing + 's');
+    if (appt.length) {
+      list.appendChild(maSecLabel('On this appointment'));
+      appt.forEach(function(a) { list.appendChild(maOptButton(a.name, null, function() { maDoAssign({ target: 'appointment_asset', appointment_asset_id: a.id }); })); });
+    }
+    if (saved.length) {
+      const owner = window.maLooseCustomerName ? (window.maLooseCustomerName + '’s ' + plur) : ('Saved ' + plur);
+      list.appendChild(maSecLabel(owner));
+      saved.forEach(function(a) { list.appendChild(maOptButton(a.name, a.identifier || null, function() { maDoAssign({ target: 'customer_asset', customer_asset_id: a.id }); })); });
+    }
+    list.appendChild(maSecLabel('Or create one'));
+    list.appendChild(maOptButton('+ Add a new ' + sing, null, function() { maAssignShowNew(); }, 'ma-assign-opt--new'));
+  }
+  async function maDoAssign(extra) {
     if (!maAssignTarget) return;
-    const result = await post({ op: 'assign_loose_to_asset', appointment_asset_id: appointmentAssetId, kind: maAssignTarget.kind, item_id: maAssignTarget.itemId });
+    const payload = Object.assign({ op: 'assign_loose_to_target', kind: maAssignTarget.kind, item_id: maAssignTarget.itemId }, extra);
+    const result = await post(payload);
     if (!result.ok) {
       if (window.IntakeToast) IntakeToast.error('Could not assign: ' + result.message); else alert('Could not assign: ' + result.message);
       return;
@@ -2815,24 +2862,31 @@ input.ma-asset-name-edit:focus {
     if (window.IntakeToast) IntakeToast.success('Assigned');
     setTimeout(function() { location.reload(); }, 500);
   }
+  window.maAssignShowNew = function() {
+    document.getElementById('ma-assign-loose-list').style.display = 'none';
+    document.getElementById('ma-assign-new-form').style.display = '';
+    const n = document.getElementById('ma-assign-new-name');
+    n.value = ''; document.getElementById('ma-assign-new-identifier').value = ''; document.getElementById('ma-assign-new-notes').value = '';
+    setTimeout(function() { n.focus(); }, 50);
+  };
+  window.maAssignNewBack = function() {
+    document.getElementById('ma-assign-new-form').style.display = 'none';
+    document.getElementById('ma-assign-loose-list').style.display = '';
+  };
+  window.maAssignNewSubmit = function() {
+    const name = document.getElementById('ma-assign-new-name').value.trim();
+    if (!name) { alert('Name is required.'); return; }
+    maDoAssign({ target: 'new', name: name, identifier: document.getElementById('ma-assign-new-identifier').value.trim(), notes: document.getElementById('ma-assign-new-notes').value.trim() });
+  };
   window.maAssignLoose = function(itemId, kind) {
     maAssignTarget = { itemId: itemId, kind: kind };
-    const assets = window.maApptAssets || [];
-    if (assets.length === 0) return;
-    if (assets.length === 1) { maDoAssign(assets[0].id); return; }
-    const list = document.getElementById('ma-assign-loose-list');
-    list.innerHTML = '';
-    assets.forEach(function(a) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'ma-assign-opt'; b.textContent = a.name;
-      b.addEventListener('click', function() { maDoAssign(a.id); });
-      list.appendChild(b);
-    });
+    maBuildAssignList();
+    document.getElementById('ma-assign-new-form').style.display = 'none';
+    document.getElementById('ma-assign-loose-list').style.display = '';
     openModal('ma-assign-loose-modal');
   };
   // Inject "Assign to a {asset}" into each unassigned line (name cell — keeps the row grid intact)
   (function injectAssignButtons() {
-    if (!window.maApptAssets || !window.maApptAssets.length) return;
     document.querySelectorAll('.ma-loose-card .line-row').forEach(function(row) {
       if (row.querySelector('.ma-assign-loose-btn')) return;
       const cell = row.firstElementChild;
