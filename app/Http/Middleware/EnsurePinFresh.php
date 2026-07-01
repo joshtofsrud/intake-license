@@ -46,6 +46,7 @@ class EnsurePinFresh
         $whitelist = [
             'tenant.pin.heartbeat',
             'tenant.pin.unlock',
+            'tenant.pin.setup',
             'tenant.switch',
             'tenant.pin.verify',
             'tenant.pin.set',

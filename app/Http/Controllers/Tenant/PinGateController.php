@@ -27,6 +27,27 @@ class PinGateController extends Controller
 {
     public function __construct(protected PinService $pins) {}
 
+    // MARKER-PATCH-480 — first-time PIN setup from the lock overlay (JSON).
+    public function setupPin(Request $request)
+    {
+        $user = Auth::guard('tenant')->user();
+        if (! $user) {
+            return response()->json(['ok' => false, 'error' => 'not_signed_in'], 401);
+        }
+        if ($user->pin_hash) {
+            // Already has a PIN — use the normal unlock / account flow instead.
+            return response()->json(['ok' => false, 'error' => 'pin_exists'], 409);
+        }
+
+        $data = $request->validate([
+            'pin' => ['required', 'string', 'regex:/^\d{4}$/'],
+        ]);
+
+        $this->pins->setPin($user, $data['pin']);
+
+        return response()->json(['ok' => true]);
+    }
+
     /**
      * POST /admin/pin/heartbeat
      *

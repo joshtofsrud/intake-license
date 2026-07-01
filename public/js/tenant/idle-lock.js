@@ -25,6 +25,10 @@
   const inputs = Array.from(overlay.querySelectorAll('.ia-lock-pin-input'));
   const msgEl  = overlay.querySelector('#ia-lock-msg');
   const submitBtn = overlay.querySelector('#ia-lock-submit');
+  const subEl     = overlay.querySelector('#ia-lock-sub');
+  // MARKER-PATCH-480 — first-time PIN setup mode.
+  const isSetup   = overlay.dataset.lockMode === 'setup';
+  let pendingPin  = null;
 
   function showOverlay() {
     if (overlay.style.display === 'flex') return;
@@ -82,7 +86,53 @@
     }
   }
 
+  // MARKER-PATCH-480 — enter -> confirm -> save a brand-new PIN.
+  async function submitSetup() {
+    const pin = inputs.map(i => i.value).join('');
+    if (pin.length !== 4) return;
+
+    if (pendingPin === null) {
+      pendingPin = pin;
+      inputs.forEach(i => { i.value = ''; });
+      if (subEl) subEl.textContent = 'Re-enter to confirm';
+      msg('', '');
+      inputs[0] && inputs[0].focus();
+      return;
+    }
+
+    if (pin !== pendingPin) {
+      pendingPin = null;
+      inputs.forEach(i => { i.value = ''; i.classList.add('error'); });
+      if (subEl) subEl.textContent = 'Create a 4-digit PIN';
+      msg("PINs didn't match. Start over.", '');
+      setTimeout(() => inputs.forEach(i => i.classList.remove('error')), 600);
+      inputs[0] && inputs[0].focus();
+      return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    msg('Saving…', 'info');
+    try {
+      const res = await fetch('/admin/pin/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.ok) { window.location.reload(); return; }
+      msg('Could not save PIN. Try again.', '');
+      pendingPin = null;
+      inputs.forEach(i => { i.value = ''; });
+      if (subEl) subEl.textContent = 'Create a 4-digit PIN';
+    } catch (e) {
+      msg('Network error. Try again.', '');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
   async function submitPin() {
+    if (isSetup) return submitSetup();
     const pin = inputs.map(i => i.value).join('');
     if (pin.length !== 4) return;
     if (submitBtn) submitBtn.disabled = true;

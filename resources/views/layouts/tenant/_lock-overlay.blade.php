@@ -10,6 +10,7 @@
 <div class="ia-lock-overlay" id="ia-lock-overlay"
      style="display: {{ ($pinLockPending ?? false) ? 'flex' : 'none' }}"
      data-initially-locked="{{ ($pinLockPending ?? false) ? '1' : '0' }}"
+     data-lock-mode="{{ $authUser->pin_hash ? 'enter' : 'setup' }}"
      role="dialog"
      aria-modal="true"
      aria-labelledby="ia-lock-title">
@@ -22,7 +23,7 @@
       </svg>
     </div>
     <div class="ia-lock-title" id="ia-lock-title">Signed in as {{ $authUser->name }}</div>
-    <div class="ia-lock-sub">Enter your PIN to continue</div>
+    <div class="ia-lock-sub" id="ia-lock-sub">{{ $authUser->pin_hash ? 'Enter your PIN to continue' : 'Create a 4-digit PIN' }}</div>
 
     <div class="ia-lock-pin-wrap">
       <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="0" autocomplete="off">
@@ -35,7 +36,7 @@
 
     <div class="ia-lock-actions">
       <a href="{{ route('tenant.switch') }}" class="ia-lock-btn ia-lock-btn-ghost">← Not you?</a>
-      <button type="button" class="ia-lock-btn ia-lock-btn-primary" id="ia-lock-submit">Unlock</button>
+      <button type="button" class="ia-lock-btn ia-lock-btn-primary" id="ia-lock-submit">{{ $authUser->pin_hash ? 'Unlock' : 'Set PIN' }}</button>
     </div>
 
     <div class="ia-lock-footer">Your work is preserved beneath this screen.</div>
