@@ -85,6 +85,8 @@
     user-select: none;
 }
 .ia-dr-pop[hidden] { display: none; }
+/* MARKER-PATCH-476 — right-align when flipped so the calendar never clips off-screen. */
+.ia-dr-pop.is-flip-right { left: auto; right: 0; }
 
 .ia-dr-presets {
     display: flex;
