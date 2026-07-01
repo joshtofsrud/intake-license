@@ -768,6 +768,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
 
+            // MARKER-PATCH-473 — verify a tenant's Square connection
+            Route::post('/settings/square/verify', [TenantControllers\SettingsController::class, 'verifySquareConnection'])->name('settings.square.verify');
+
             // MARKER-PATCH-468 — toggle asset tracking from the Services-page banner
             Route::patch('/services/asset-tracking', [TenantControllers\SettingsController::class, 'toggleAssetTracking'])->name('services.asset-tracking.toggle');
 

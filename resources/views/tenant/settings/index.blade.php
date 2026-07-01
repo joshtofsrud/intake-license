@@ -1144,6 +1144,97 @@
     </div>
     @endif
 
+    {{-- MARKER-PATCH-473 — Square (tenant-connected, paste-token). Same master-admin gate as Stripe. --}}
+    @if($currentTenant->direct_payments_enabled ?? false)
+    <div class="provider-card enabled" id="square-payments-card" style="border-color:var(--ia-border);margin-top:16px">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px">Square card payments</div>
+          <div style="font-size:12px;opacity:.6;margin-top:2px">Connect your own Square account as an alternative to Stripe. Paste the credentials from your Square app, save, then test the connection.</div>
+        </div>
+      </div>
+      <div class="provider-fields" style="display:block">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Mode</label>
+          <select name="square_payments_mode" class="ia-input" style="width:auto">
+            <option value="sandbox" @selected(($s['square_payments_mode'] ?? 'sandbox') === 'sandbox')>Sandbox</option>
+            <option value="production" @selected(($s['square_payments_mode'] ?? 'sandbox') === 'production')>Production</option>
+          </select>
+          <div style="font-size:11px;opacity:.55;margin-top:6px">Sandbox and production are separate Square apps with their own credentials. Verify in sandbox first.</div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="font-size:11px;font-weight:600;opacity:.7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Sandbox credentials</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Application ID</label>
+            <input type="text" name="square_sandbox_app_id" value="{{ $s['square_sandbox_app_id'] ?? '' }}" class="ia-input" placeholder="sandbox-sq0idb-…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Location ID</label>
+            <input type="text" name="square_sandbox_location_id" value="{{ $s['square_sandbox_location_id'] ?? '' }}" class="ia-input" placeholder="L…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group" style="grid-column:1 / -1">
+            <label class="ia-form-label">Access token</label>
+            <input type="password" name="square_sandbox_access_token" value="{{ $s['square_sandbox_access_token'] ?? '' }}" class="ia-input" placeholder="EAAAl…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="font-size:11px;font-weight:600;opacity:.7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Production credentials</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Application ID</label>
+            <input type="text" name="square_production_app_id" value="{{ $s['square_production_app_id'] ?? '' }}" class="ia-input" placeholder="sq0idp-…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Location ID</label>
+            <input type="text" name="square_production_location_id" value="{{ $s['square_production_location_id'] ?? '' }}" class="ia-input" placeholder="L…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group" style="grid-column:1 / -1">
+            <label class="ia-form-label">Access token</label>
+            <input type="password" name="square_production_access_token" value="{{ $s['square_production_access_token'] ?? '' }}" class="ia-input" placeholder="EAAAl…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div class="ia-form-group">
+          <label class="ia-form-label">Webhook signature key</label>
+          <input type="password" name="square_webhook_signature_key" value="{{ $s['square_webhook_signature_key'] ?? '' }}" class="ia-input" placeholder="webhook signature key" autocomplete="off" spellcheck="false">
+          <div style="font-size:11px;opacity:.55;margin-top:6px">
+            From Square Developer Console -> your app -> Webhooks. Point a subscription at <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">{{ url('/webhooks/square/' . $currentTenant->id) }}</code> and subscribe to <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">payment.updated</code> and <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">refund.updated</code>.
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="ia-btn ia-btn--ghost" onclick="squareTestConnection(this)">Test connection</button>
+          <span id="square-test-result" style="font-size:12px;opacity:.85"></span>
+        </div>
+        <div style="font-size:11px;opacity:.55;margin-top:8px">Save your credentials first, then test. This calls Square with your saved access token to confirm the location is reachable.</div>
+      </div>
+    </div>
+    <script>
+      window.squareTestConnection = function (btn) {
+        var out = document.getElementById('square-test-result');
+        btn.disabled = true; out.textContent = 'Testing…'; out.style.color = '';
+        fetch({!! json_encode(route('tenant.settings.square.verify')) !!}, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': {!! json_encode(csrf_token()) !!}, 'Accept': 'application/json' },
+          body: '{}'
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          btn.disabled = false;
+          if (d && d.ok) { out.textContent = '\u2713 ' + (d.message || 'Connected'); out.style.color = 'var(--ia-accent)'; }
+          else { out.textContent = '\u2715 ' + ((d && d.message) || 'Failed'); out.style.color = '#f87171'; }
+        }).catch(function () { btn.disabled = false; out.textContent = '\u2715 Request failed'; out.style.color = '#f87171'; });
+      };
+    </script>
+    @endif
+
     {{-- PayPal --}}
     <div class="provider-card {{ ($s['paypal_enabled'] ?? false) ? 'enabled' : '' }}" id="paypal-card">
       <div class="provider-header">

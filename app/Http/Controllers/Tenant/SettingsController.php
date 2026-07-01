@@ -277,6 +277,16 @@ class SettingsController extends Controller
             $settings['register_payments_live_pk']        = $request->input('register_payments_live_pk', '');
             $settings['register_payments_live_sk']        = $request->input('register_payments_live_sk', '');
             $settings['register_payments_webhook_secret'] = $request->input('register_payments_webhook_secret', '');
+
+            // MARKER-PATCH-473 — Square (tenant-connected) credentials
+            $settings['square_payments_mode']           = $request->input('square_payments_mode', 'sandbox');
+            $settings['square_sandbox_app_id']          = $request->input('square_sandbox_app_id', '');
+            $settings['square_sandbox_location_id']     = $request->input('square_sandbox_location_id', '');
+            $settings['square_sandbox_access_token']    = $request->input('square_sandbox_access_token', '');
+            $settings['square_production_app_id']       = $request->input('square_production_app_id', '');
+            $settings['square_production_location_id']  = $request->input('square_production_location_id', '');
+            $settings['square_production_access_token'] = $request->input('square_production_access_token', '');
+            $settings['square_webhook_signature_key']   = $request->input('square_webhook_signature_key', '');
         }
 
         $settings['paypal_enabled']        = (bool) $request->input('paypal_enabled');
@@ -301,6 +311,17 @@ class SettingsController extends Controller
         $enabled = (bool) $request->input('enabled');
         $tenant->update(['multi_asset_enabled' => $enabled]);
         return response()->json(['ok' => true, 'enabled' => $enabled]);
+    }
+
+    // MARKER-PATCH-473 — verify the tenant's pasted Square credentials
+    public function verifySquareConnection(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        if (! ($tenant->direct_payments_enabled ?? false)) {
+            return response()->json(['ok' => false, 'message' => 'Payments are not enabled for this account.'], 403);
+        }
+        $result = (new \App\Services\Tenant\SquarePaymentsService($tenant))->verifyConnection();
+        return response()->json($result);
     }
 
     public function sendTestSms(Request $request): JsonResponse
