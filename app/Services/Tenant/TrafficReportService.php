@@ -43,9 +43,37 @@ class TrafficReportService
     /** @var CarbonImmutable */
     protected $prevEnd;
 
-    public function __construct(Tenant $tenant, string $window = '30d')
+    // MARKER-PATCH-475 — true when an explicit from/to range is in effect.
+    protected bool $isCustom = false;
+
+    public function __construct(Tenant $tenant, string $window = '30d', $from = null, $to = null)
     {
         $this->tenant = $tenant;
+
+        $tz        = $tenant->timezone ?? config('app.timezone', 'UTC');
+        $this->now = CarbonImmutable::now($tz)->utc();
+
+        // MARKER-PATCH-475 — an explicit from/to range (from the shared calendar
+        // picker) overrides the preset window. Days are tenant-local and inclusive
+        // of both ends; the prior period is the same-length span immediately before,
+        // so every "vs prior" delta on the report stays meaningful.
+        if ($from !== null && $to !== null && $from !== '' && $to !== '') {
+            $f = CarbonImmutable::parse($from, $tz)->startOfDay();
+            $t = CarbonImmutable::parse($to, $tz)->startOfDay();
+            if ($t->lessThan($f)) {
+                [$f, $t] = [$t, $f];
+            }
+
+            $this->days      = $f->diffInDays($t) + 1;
+            $this->curStart  = $f->utc();
+            $this->curEnd    = $t->addDay()->utc();
+            $this->prevEnd   = $this->curStart;
+            $this->prevStart = $f->subDays($this->days)->utc();
+            $this->isCustom  = true;
+
+            return;
+        }
+
         $this->days   = match ($window) {
             '1d'  => 1, // MARKER-TRAFFIC-TODAY
             '7d'  => 7,
@@ -55,12 +83,8 @@ class TrafficReportService
 
         // MARKER-PATCH-400 — day-aligned to the tenant's local calendar, so "1d"
         // means "since local midnight today" rather than a rolling 24h window.
-        // Boundaries are converted to UTC instants for the (UTC) event timestamps.
-        // Current = [local midnight (today - (days-1)), now)
-        // Prior   = same length immediately before.
-        $tz              = $tenant->timezone ?? config('app.timezone', 'UTC');
+        // Current = [local midnight (today - (days-1)), now); prior = same length before.
         $localStartToday = CarbonImmutable::now($tz)->startOfDay();
-        $this->now       = CarbonImmutable::now($tz)->utc();
         $this->curEnd    = $this->now;
         $this->curStart  = $localStartToday->subDays($this->days - 1)->utc();
         $this->prevEnd   = $this->curStart;
@@ -70,6 +94,31 @@ class TrafficReportService
     public function window(): string
     {
         return $this->days . 'd';
+    }
+
+    // MARKER-PATCH-475
+    public function isCustom(): bool
+    {
+        return $this->isCustom;
+    }
+
+    // MARKER-PATCH-475 — human label for the "Showing …" line.
+    public function rangeLabel(): string
+    {
+        $tz = $this->tenant->timezone ?? config('app.timezone', 'UTC');
+
+        if ($this->isCustom) {
+            $s = $this->curStart->setTimezone($tz);
+            $e = $this->curEnd->setTimezone($tz)->subDay(); // inclusive last day
+            return $s->format('M j') . ' – ' . $e->format('M j, Y');
+        }
+
+        return match ($this->days) {
+            1  => 'today',
+            7  => 'last 7 days',
+            90 => 'last 90 days',
+            default => 'last ' . $this->days . ' days',
+        };
     }
 
     public function curStart(): CarbonImmutable { return $this->curStart; }

@@ -269,13 +269,24 @@
     {{-- Window switcher --}}
     <div class="rep-window-wrap" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
       <div class="rep-showing" style="font-size: 13px; color: var(--ia-text-dim, rgba(255,255,255,.42));">
-        Showing <strong style="color: var(--ia-text);">{{ $window }}</strong> · compared to prior {{ $window }}
+        Showing <strong style="color: var(--ia-text);">{{ $rangeText ?? $window }}</strong> · compared to prior {{ $window }}
       </div>
-      <div class="rep-window">
-        <a href="?window=1d"  class="{{ $window === '1d'  ? 'active' : '' }}">Today</a>
-        <a href="?window=7d"  class="{{ $window === '7d'  ? 'active' : '' }}"><span class="rw-lg">7 days</span><span class="rw-sm">7d</span></a>
-        <a href="?window=30d" class="{{ $window === '30d' ? 'active' : '' }}"><span class="rw-lg">30 days</span><span class="rw-sm">30d</span></a>
-        <a href="?window=90d" class="{{ $window === '90d' ? 'active' : '' }}"><span class="rw-lg">90 days</span><span class="rw-sm">90d</span></a>
+      {{-- MARKER-PATCH-475 — preset windows + shared calendar picker for custom ranges --}}
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div class="rep-window">
+          <a href="?window=1d"  class="{{ (empty($isCustom) && $window === '1d')  ? 'active' : '' }}">Today</a>
+          <a href="?window=7d"  class="{{ (empty($isCustom) && $window === '7d')  ? 'active' : '' }}"><span class="rw-lg">7 days</span><span class="rw-sm">7d</span></a>
+          <a href="?window=30d" class="{{ (empty($isCustom) && $window === '30d') ? 'active' : '' }}"><span class="rw-lg">30 days</span><span class="rw-sm">30d</span></a>
+          <a href="?window=90d" class="{{ (empty($isCustom) && $window === '90d') ? 'active' : '' }}"><span class="rw-lg">90 days</span><span class="rw-sm">90d</span></a>
+        </div>
+        <form method="GET" action="{{ route('tenant.reports.traffic') }}" style="margin: 0;">
+          <x-tenant.date-range
+            fromName="from"
+            toName="to"
+            :fromValue="$from ?? ''"
+            :toValue="$to ?? ''"
+            placeholder="Custom range" />
+        </form>
       </div>
     </div>
   </div>

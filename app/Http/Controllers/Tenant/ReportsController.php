@@ -283,17 +283,40 @@ class ReportsController extends Controller
     public function traffic(Request $request): View
     {
         $tenant = tenant();
+
+        // MARKER-PATCH-475 — a custom date range (shared calendar picker) wins over
+        // the preset windows when both `from` and `to` are supplied and valid.
+        $fromStr = trim((string) $request->query('from', ''));
+        $toStr   = trim((string) $request->query('to', ''));
+
+        $svc = null;
+        if ($fromStr !== '' && $toStr !== '') {
+            try {
+                $svc = new \App\Services\Tenant\TrafficReportService($tenant, '30d', $fromStr, $toStr);
+            } catch (\Throwable $e) {
+                $svc     = null;
+                $fromStr = '';
+                $toStr   = '';
+            }
+        }
+
         $window = $request->query('window', '30d');
         if (!in_array($window, ['1d', '7d', '30d', '90d'], true)) {
             $window = '30d';
         }
+        if ($svc === null) {
+            $svc = new \App\Services\Tenant\TrafficReportService($tenant, $window);
+        }
 
-        $svc = new \App\Services\Tenant\TrafficReportService($tenant, $window);
-        $bf  = $svc->bookingFunnelData();
+        $bf = $svc->bookingFunnelData();
 
         return view('tenant.reports.traffic', [
             'tenant'         => $tenant,
-            'window'         => $window,
+            'window'         => $svc->window(),
+            'isCustom'       => $svc->isCustom(),
+            'rangeText'      => $svc->rangeLabel(),
+            'from'           => $fromStr,
+            'to'             => $toStr,
             'topStats'       => $svc->topStats(),
             'dailyVisitors'  => $svc->dailyVisitors(),
             'dailyStart'     => $svc->curStart(),
