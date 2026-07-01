@@ -216,6 +216,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
         Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit');
         Route::get('/reset-password',   [TenantControllers\AuthController::class, 'showReset'])->name('reset');
         Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
+        // MARKER-PATCH-478 — team-member invite setup (public, tenant-resolved, token-gated)
+        Route::get('/team/setup',       [TenantControllers\TeamController::class, 'setupForm'])->name('team.setup');
+        Route::post('/team/setup',      [TenantControllers\TeamController::class, 'completeSetup'])->name('team.setup.complete');
         Route::post('/logout',          [TenantControllers\AuthController::class, 'logout'])->name('logout');
 
         // MARKER-PATCH-173 — Customer-facing return pages for the send-payment-

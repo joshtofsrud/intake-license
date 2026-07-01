@@ -65,14 +65,16 @@ class TeamController extends Controller
             return back()->with('error', 'A team member with that email already exists.');
         }
 
-        $tempPassword = Str::random(12);
+        // MARKER-PATCH-478 — invite flow: create the member INACTIVE with an
+        // unusable password. They set their own password via a single-use setup
+        // link, which activates the account (is_active=false blocks login).
         $newUser = TenantUser::create([
             'tenant_id' => $tenant->id,
             'name'      => $data['name'],
             'email'     => $data['email'],
-            'password'  => Hash::make($tempPassword),
+            'password'  => Hash::make(Str::random(40)),
             'role'      => $data['role'],
-            'is_active' => true,
+            'is_active' => false,
         ]);
 
         // Locations: explicit set if provided, else default location.
@@ -87,7 +89,72 @@ class TeamController extends Controller
         }
         $this->syncLocations($newUser, $locationIds);
 
-        return back()->with('success', "Team member added. Temporary password: {$tempPassword}");
+        // MARKER-PATCH-478 — single-use setup token (Cache, mirrors password reset).
+        $token = Str::random(64);
+        \Illuminate\Support\Facades\Cache::put('team_invite_' . $token, $newUser->id, now()->addDays(7));
+        $setupUrl = route('tenant.team.setup') . '?token=' . $token;
+
+        // Best-effort email; the link is always shown to the inviter as a fallback.
+        try {
+            $inviter = (string) (\Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name ?? '');
+            \Illuminate\Support\Facades\Mail::to($newUser->email)->send(
+                new \App\Mail\TeamInvite($tenant, $newUser, $setupUrl, $inviter)
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Team invite mail failed: ' . $e->getMessage());
+        }
+
+        return back()->with('success',
+            "Invite sent to {$newUser->name} at {$newUser->email}. If it doesn't arrive, share this setup link: {$setupUrl}");
+    }
+
+    // MARKER-PATCH-478 — public setup page for an invited member (token-gated).
+    public function setupForm(Request $request)
+    {
+        $token  = (string) $request->query('token', '');
+        $userId = $token !== '' ? \Illuminate\Support\Facades\Cache::get('team_invite_' . $token) : null;
+        if (! $userId) {
+            return redirect()->route('tenant.login')
+                ->withErrors(['email' => 'This setup link is invalid or has expired.']);
+        }
+
+        $user = TenantUser::where('tenant_id', tenant()->id)->find($userId);
+        if (! $user) {
+            return redirect()->route('tenant.login')
+                ->withErrors(['email' => 'This setup link is no longer valid.']);
+        }
+
+        return view('tenant.auth.setup', ['user' => $user, 'token' => $token]);
+    }
+
+    // MARKER-PATCH-478 — complete setup: set password, activate, consume token.
+    public function completeSetup(Request $request)
+    {
+        $request->validate([
+            'token'    => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $token  = $request->input('token');
+        $key    = 'team_invite_' . $token;
+        $userId = \Illuminate\Support\Facades\Cache::get($key);
+        if (! $userId) {
+            return back()->withErrors(['password' => 'This setup link is invalid or has expired.']);
+        }
+
+        $user = TenantUser::where('tenant_id', tenant()->id)->find($userId);
+        if (! $user) {
+            return back()->withErrors(['password' => 'This setup link is no longer valid.']);
+        }
+
+        $user->update([
+            'password'  => Hash::make($request->input('password')),
+            'is_active' => true,
+        ]);
+        \Illuminate\Support\Facades\Cache::forget($key);
+
+        return redirect()->route('tenant.login')
+            ->with('success', 'Your account is ready — sign in with your email and new password.');
     }
 
     // ─────────────────────────── Detail ─────────────────────────────
