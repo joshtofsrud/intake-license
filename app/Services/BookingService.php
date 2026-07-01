@@ -441,16 +441,101 @@ class BookingService
      */
     public function materialize(\App\Models\Tenant\TenantPendingBooking $pending): TenantAppointment
     {
+        // Fast path: already materialized (no lock needed for the common case).
         if ($pending->status === 'materialized' && $pending->appointment_id) {
             return TenantAppointment::findOrFail($pending->appointment_id);
         }
 
         return DB::transaction(function () use ($pending) {
-            $pending->update(['status' => 'materialized']);
-            $appointment = $this->createAppointment((array) $pending->payload, $pending->tenant_id);
-            $pending->update(['appointment_id' => $appointment->id]);
+            // MARKER-PATCH-474 — lock the hold row so the browser finalize() and the
+            // Stripe payment_intent.succeeded webhook can't both materialize the same
+            // booking. Without this row lock, two concurrent calls each read status
+            // 'pending' and each write an appointment (the double-booking bug).
+            $locked = \App\Models\Tenant\TenantPendingBooking::where('id', $pending->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($locked && $locked->status === 'materialized' && $locked->appointment_id) {
+                return TenantAppointment::findOrFail($locked->appointment_id);
+            }
+
+            $locked->update(['status' => 'materialized']);
+            $appointment = $this->createAppointment((array) $locked->payload, $locked->tenant_id);
+            $locked->update(['appointment_id' => $appointment->id]);
+
+            // MARKER-PATCH-474 — record the prepaid card charge through the same path a
+            // backend appointment uses, so booking revenue reconciles into the one ledger.
+            $this->recordPrepaidDeposit($locked, $appointment);
+
             return $appointment;
         });
+    }
+
+    /**
+     * MARKER-PATCH-474 — Record a booking's prepaid card charge as a sale payment on
+     * the appointment's balance sale, mirroring a backend-created appointment exactly:
+     * AppointmentRegisterBridgeService builds the linked balance sale and
+     * SalePaymentService writes the payment into tenant_sale_payments (the single
+     * revenue ledger MoneyReportService reads). The appointment's paid state is then a
+     * derived cache recomputed from that ledger, so it reads 'paid' the same way a
+     * register/checkout payment would.
+     *
+     * Idempotent: keyed on the PaymentIntent id (reference_payment_id), so the browser
+     * finalize() and the Stripe webhook can each reach this without double-posting.
+     * No-ops for zero-total / pay-in-person holds (no PaymentIntent, nothing to record).
+     */
+    protected function recordPrepaidDeposit(
+        \App\Models\Tenant\TenantPendingBooking $pending,
+        TenantAppointment $appointment
+    ): void {
+        $piId   = (string) ($pending->stripe_payment_intent_id ?? '');
+        $amount = (int) $pending->total_cents;
+
+        if ($piId === '' || $amount <= 0) {
+            return;
+        }
+
+        // Already on the ledger? Nothing to do (idempotent across finalize + webhook).
+        if (\App\Models\Tenant\TenantSalePayment::where('tenant_id', $pending->tenant_id)
+                ->where('reference_payment_id', $piId)
+                ->exists()) {
+            return;
+        }
+
+        // Build the balance-collection sale exactly as the backend does when an
+        // appointment enters a committed status.
+        $bridge = app(\App\Services\Tenant\AppointmentRegisterBridgeService::class);
+        $result = $bridge->onAppointmentEnteringCommittedStatus($appointment);
+
+        $sale = null;
+        if (($result['action'] ?? null) === 'sale_created' && !empty($result['sale_id'])) {
+            $sale = \App\Models\Tenant\TenantSale::find($result['sale_id']);
+        }
+        if (! $sale) {
+            $sale = $appointment->sales()
+                ->whereNotIn('status', ['cancelled', 'closed'])
+                ->orderByDesc('created_at')
+                ->first();
+        }
+        if (! $sale) {
+            \Illuminate\Support\Facades\Log::error('booking.deposit_no_sale', [
+                'tenant_id'      => $pending->tenant_id,
+                'appointment_id' => $appointment->id,
+                'pi'             => $piId,
+            ]);
+            return;
+        }
+
+        app(\App\Services\Tenant\SalePaymentService::class)->record(
+            $sale,
+            $amount,
+            \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT,
+            \App\Models\Tenant\TenantSalePayment::SOURCE_BOOKING_FLOW,
+            'stripe',
+            $piId,
+            null,
+            'Prepaid at online booking',
+        );
     }
 
     /**
