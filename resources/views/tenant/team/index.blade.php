@@ -69,6 +69,20 @@
 </div>
 @endif
 
+{{-- MARKER-PATCH-479 — persistent, copyable invite link banner --}}
+@if(session('invite_url'))
+<div style="border:0.5px solid rgba(123,191,106,.4);background:rgba(123,191,106,.10);border-radius:var(--ia-r-lg);padding:16px 20px;margin-bottom:24px">
+  <div style="font-size:13px;font-weight:600;color:#7bbf6a;margin-bottom:6px">&#10003; Invite sent to {{ session('invite_name') }}</div>
+  <div style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:12px">We emailed a setup link to {{ session('invite_email') }}. If it doesn't arrive, copy the link and send it to them directly.</div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="text" value="{{ session('invite_url') }}" readonly onclick="this.select()"
+      style="flex:1;min-width:220px;font-family:ui-monospace,monospace;font-size:12px;color:var(--ia-text);background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;padding:9px 11px">
+    <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm"
+      onclick="navigator.clipboard.writeText('{{ session('invite_url') }}').then(()=>{ this.textContent='Copied'; })">Copy link</button>
+  </div>
+</div>
+@endif
+
 <div class="ia-card ia-card--tight" style="margin-bottom:20px;font-size:12px;color:var(--ia-text-dim)">
   <strong style="color:var(--ia-text)">Owner</strong> — full access including billing &nbsp;·&nbsp;
   <strong style="color:var(--ia-text)">Manager</strong> — full access except billing &nbsp;·&nbsp;
@@ -140,7 +154,7 @@
   var x = document.getElementById('invite-cancel');
   if (t) t.addEventListener('click', function(){ c.classList.add('open'); t.style.display='none'; });
   if (x) x.addEventListener('click', function(){ c.classList.remove('open'); t.style.display=''; });
-  @if(session('success') && str_contains(session('success'), 'password'))
+  @if($errors->any())
     c && c.classList.add('open');
   @endif
 </script>

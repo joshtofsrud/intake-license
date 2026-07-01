@@ -104,8 +104,13 @@ class TeamController extends Controller
             \Illuminate\Support\Facades\Log::error('Team invite mail failed: ' . $e->getMessage());
         }
 
-        return back()->with('success',
-            "Invite sent to {$newUser->name} at {$newUser->email}. If it doesn't arrive, share this setup link: {$setupUrl}");
+        // MARKER-PATCH-479 — structured flash so the team page can render a
+        // persistent, copyable link banner (not just a fading toast).
+        return back()
+            ->with('success', "Invite sent to {$newUser->name}.")
+            ->with('invite_url', $setupUrl)
+            ->with('invite_name', $newUser->name)
+            ->with('invite_email', $newUser->email);
     }
 
     // MARKER-PATCH-478 — public setup page for an invited member (token-gated).
