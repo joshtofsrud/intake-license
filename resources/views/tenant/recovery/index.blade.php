@@ -129,6 +129,30 @@
 
 @section('content')
 
+{{-- MARKER-PATCH-484 — at-risk regulars --}}
+@if(!empty($atRisk) && count($atRisk))
+<div style="margin-bottom:26px">
+  <h2 style="font-size:15px;font-weight:600;margin:0 0 4px">At-risk regulars</h2>
+  <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 14px">Regulars overdue against their own visit rhythm. A flagged reason comes from their last experience.</p>
+  @foreach($atRisk as $c)
+    @php $flagged = !empty($c['reason']); @endphp
+    <div style="border:1px solid {{ $flagged ? 'rgba(224,162,60,.4)' : 'var(--ia-border)' }};background:{{ $flagged ? 'rgba(224,162,60,.08)' : 'var(--ia-surface)' }};border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:190px">
+        <div style="font-size:14px;font-weight:600">{{ $c['name'] ?: 'Customer' }}</div>
+        <div style="font-size:11.5px;color:var(--ia-text-muted);margin-top:2px">
+          Normally every ~{{ $c['avg_gap_days'] }}d &middot; <b style="color:{{ $flagged ? '#e0a23c' : 'var(--ia-text)' }}">{{ $c['days_since'] }}d</b> since last visit &middot; {{ $c['visit_count'] }} visits
+        </div>
+        @if($flagged)
+          <div style="font-size:12px;color:#e0a23c;margin-top:6px">&#8618; Likely why: {{ $c['reason'] }}</div>
+        @endif
+      </div>
+      @if($c['phone'])<a href="tel:{{ $c['phone'] }}" style="font-size:12px;color:var(--ia-accent);text-decoration:none">{{ $c['phone'] }}</a>@endif
+      <a href="{{ route('tenant.customers.show', $c['customer_id']) }}" class="ia-btn ia-btn--{{ $flagged ? 'primary' : 'secondary' }} ia-btn--sm">{{ $flagged ? 'Make it right' : 'Reach out' }}</a>
+    </div>
+  @endforeach
+</div>
+@endif
+
 <p class="rec-intro">People who started a booking and left contact info before finishing. Reach out, then mark them done. The funnel counts anonymous sessions over the last 30 days.</p>
 
 {{-- Funnel --}}

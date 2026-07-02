@@ -94,7 +94,10 @@ class RecoveryController extends Controller
             ->limit(25)
             ->get();
 
-        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since'));
+        // MARKER-PATCH-484 — at-risk regulars (overdue vs. their own cadence).
+        $atRisk = app(\App\Services\Tenant\AtRiskCustomerService::class)->forTenant($tenant->id);
+
+        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since', 'atRisk'));
     }
 
     public function updateStatus(Request $request, string $id)
