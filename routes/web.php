@@ -746,6 +746,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking worklist + funnel)
             Route::get('/recovery',         [TenantControllers\RecoveryController::class, 'index'])->name('recovery.index');
+            // MARKER-PATCH-486 — settings PATCH before the {id} PATCH so it matches first.
+            Route::patch('/recovery/settings', [TenantControllers\RecoveryController::class, 'updateSettings'])->name('recovery.settings.update');
             Route::patch('/recovery/{id}',  [TenantControllers\RecoveryController::class, 'updateStatus'])->name('recovery.update');
 
             // MARKER-FLOW-6 — Booking Mode admin (flow mode + Simple-menu curation)

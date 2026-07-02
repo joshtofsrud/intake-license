@@ -66,6 +66,19 @@ class TenantAppointment extends Model
                 app(\App\Services\Tenant\RecoverySignalService::class)->evaluate($appt);
             }
         });
+
+        // MARKER-PATCH-485 — a shop-side date move on a live appointment (one the
+        // customer was already expecting) is a reschedule signal. New bookings and
+        // pending/cancelled rows don't count.
+        static::saved(function (self $appt) {
+            if ($appt->wasChanged('appointment_date')
+                && ! $appt->wasRecentlyCreated
+                && $appt->customer_id
+                && ! in_array($appt->status, ['pending', 'cancelled', 'refunded'], true)) {
+                app(\App\Services\Tenant\RecoverySignalService::class)
+                    ->reschedule($appt, $appt->getOriginal('appointment_date'));
+            }
+        });
     }
 
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }

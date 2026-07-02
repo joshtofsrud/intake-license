@@ -273,4 +273,40 @@
   </div>
 @endif
 
+{{-- MARKER-PATCH-486 — recovery settings --}}
+<form method="POST" action="{{ route('tenant.recovery.settings.update') }}" style="margin-top:32px;border-top:1px solid var(--ia-border);padding-top:22px">
+  @csrf
+  @method('PATCH')
+  <h2 style="font-size:15px;font-weight:600;margin:0 0 4px">Recovery settings</h2>
+  <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 16px">Tune what counts as late and when a regular is overdue. Sensible defaults — most shops won't need to touch these.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:18px;margin-bottom:16px">
+    <label style="font-size:12px;color:var(--ia-text-muted)">Late-completion grace (days)
+      <input type="number" name="recovery_late_completion_grace_days" min="0" max="60" value="{{ $recoverySettings['grace_days'] }}"
+        style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+    </label>
+    <label style="font-size:12px;color:var(--ia-text-muted)">Overdue buffer (&times; their gap)
+      <input type="number" step="0.25" name="recovery_overdue_buffer" min="1" max="5" value="{{ $recoverySettings['overdue_buffer'] }}"
+        style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+    </label>
+    <label style="font-size:12px;color:var(--ia-text-muted)">Trust cadence after (visits)
+      <input type="number" name="recovery_min_visits" min="2" max="20" value="{{ $recoverySettings['min_visits'] }}"
+        style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+    </label>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+    <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+      <input type="checkbox" name="recovery_signal_late_completion" value="1" {{ $recoverySettings['sig_late'] ? 'checked' : '' }}>
+      Log <b>late completion</b> signals
+    </label>
+    <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+      <input type="checkbox" name="recovery_signal_reschedule" value="1" {{ $recoverySettings['sig_reschedule'] ? 'checked' : '' }}>
+      Log <b>reschedule</b> signals
+    </label>
+  </div>
+
+  <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save settings</button>
+</form>
+
 @endsection

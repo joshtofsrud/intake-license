@@ -97,7 +97,39 @@ class RecoveryController extends Controller
         // MARKER-PATCH-484 — at-risk regulars (overdue vs. their own cadence).
         $atRisk = app(\App\Services\Tenant\AtRiskCustomerService::class)->forTenant($tenant->id);
 
-        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since', 'atRisk'));
+        // MARKER-PATCH-486 — current recovery knobs (defaults when unset).
+        $s = (array) ($tenant->settings ?? []);
+        $recoverySettings = [
+            'grace_days'     => (int) ($s['recovery_late_completion_grace_days'] ?? 1),
+            'overdue_buffer' => (float) ($s['recovery_overdue_buffer'] ?? 1.5),
+            'min_visits'     => (int) ($s['recovery_min_visits'] ?? 3),
+            'sig_late'       => (bool) ($s['recovery_signal_late_completion'] ?? true),
+            'sig_reschedule' => (bool) ($s['recovery_signal_reschedule'] ?? true),
+        ];
+
+        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since', 'atRisk', 'recoverySettings'));
+    }
+
+    // MARKER-PATCH-486 — persist the recovery knobs to tenant settings.
+    public function updateSettings(Request $request)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'recovery_late_completion_grace_days' => ['required', 'integer', 'min:0', 'max:60'],
+            'recovery_overdue_buffer'             => ['required', 'numeric', 'min:1', 'max:5'],
+            'recovery_min_visits'                 => ['required', 'integer', 'min:2', 'max:20'],
+        ]);
+
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['recovery_late_completion_grace_days'] = (int) $data['recovery_late_completion_grace_days'];
+        $settings['recovery_overdue_buffer']             = (float) $data['recovery_overdue_buffer'];
+        $settings['recovery_min_visits']                 = (int) $data['recovery_min_visits'];
+        $settings['recovery_signal_late_completion']     = (bool) $request->input('recovery_signal_late_completion');
+        $settings['recovery_signal_reschedule']          = (bool) $request->input('recovery_signal_reschedule');
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Recovery settings saved.');
     }
 
     public function updateStatus(Request $request, string $id)
