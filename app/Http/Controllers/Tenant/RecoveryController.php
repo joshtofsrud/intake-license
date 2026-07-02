@@ -63,7 +63,9 @@ class RecoveryController extends Controller
             ->orderBy('step')
             ->get();
 
-        $first = (int) ($stepRows->first()->sessions ?? 0);
+        // MARKER-PATCH-487 — scale bars against the busiest step (capped at 100%),
+        // so the funnel reads proportionally instead of every bar clamping to full.
+        $maxSessions = (int) ($stepRows->max('sessions') ?? 0);
         $prev  = null;
         $steps = [];
         foreach ($stepRows as $r) {
@@ -72,7 +74,7 @@ class RecoveryController extends Controller
             $steps[] = [
                 'label'    => $label !== '' ? $label : $r->step,
                 'sessions' => $sessions,
-                'width'    => $first > 0 ? max(4, (int) round($sessions / $first * 100)) : 0,
+                'width'    => $maxSessions > 0 ? max(4, min(100, (int) round($sessions / $maxSessions * 100))) : 0,
                 'drop'     => ($prev !== null && $prev > 0 && $sessions < $prev)
                                 ? (int) round(($prev - $sessions) / $prev * 100)
                                 : null,
