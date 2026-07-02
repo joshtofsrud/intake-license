@@ -245,6 +245,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             'App\Http\Middleware\ConsumeOnboardingToken',
             'App\Http\Middleware\EnsureTrustedDevice',
             'App\Http\Middleware\RequireTenantAuth',
+            // MARKER-PATCH-492 — per-section role enforcement (Roles & access)
+            'App\Http\Middleware\EnforceSectionAccess',
             'App\Http\Middleware\EnsurePinFresh',
             'App\Http\Middleware\ApplyTenantTheme',
         ])->group(function () {
