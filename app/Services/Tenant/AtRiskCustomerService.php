@@ -25,7 +25,7 @@ class AtRiskCustomerService
         $settings  = Tenant::find($tenantId)?->settings ?? [];
         $buffer    = (float) ($opts['buffer'] ?? ($settings['recovery_overdue_buffer'] ?? 1.5));
         $minVisits = (int)   ($opts['min_visits'] ?? ($settings['recovery_min_visits'] ?? 3));
-        $today     = ttoday();
+        $today     = tnow()->startOfDay();
 
         $visitsByCustomer = TenantAppointment::query()
             ->where('tenant_id', $tenantId)
