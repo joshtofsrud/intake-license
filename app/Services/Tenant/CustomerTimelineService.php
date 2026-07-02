@@ -68,10 +68,47 @@ class CustomerTimelineService
             ->concat($this->loadMembershipGrants($tenantId, $customerId))
             ->concat($this->loadRentals($tenantId, $customerId)) // MARKER-PATCH-219
             ->concat($this->loadLeases($tenantId, $customerId)) // MARKER-PATCH-230
-            ->concat($this->loadThreads($tenantId, $customerId)); // MARKER-PATCH-221
+            ->concat($this->loadThreads($tenantId, $customerId)) // MARKER-PATCH-221
+            ->concat($this->loadSignals($tenantId, $customerId)); // MARKER-PATCH-483
 
         // Single sort after merge — newest first.
         return $events->sortByDesc(fn ($e) => $e['date']->timestamp)->values();
+    }
+
+    /**
+     * MARKER-PATCH-483 — quality signals (late_completion, ...) as timeline notes.
+     */
+    protected function loadSignals(string $tenantId, string $customerId): Collection
+    {
+        return \App\Models\Tenant\TenantCustomerSignal::where('tenant_id', $tenantId)
+            ->where('customer_id', $customerId)
+            ->orderByDesc('occurred_at')
+            ->get()
+            ->map(function ($s) {
+                $meta = $s->meta ?? [];
+                $days = (int) ($meta['days_late'] ?? 0);
+
+                [$title, $status] = match ($s->type) {
+                    'late_completion'     => ['Ready ' . $days . ' day' . ($days === 1 ? '' : 's') . ' after promised', 'Late completion'],
+                    'late_delivery'       => ['Delivered after the promised window', 'Late delivery'],
+                    'reschedule'          => ['Shop moved the appointment', 'Reschedule'],
+                    'special_order_delay' => ['Part arrived after the quoted ETA', 'Special-order delay'],
+                    default               => [ucfirst(str_replace('_', ' ', $s->type)), 'Signal'],
+                };
+
+                return [
+                    'kind'         => 'quality_signal',
+                    'date'         => $s->occurred_at,
+                    'title'        => $title,
+                    'subtitle'     => 'Auto-logged — may affect their next experience',
+                    'status'       => $status,
+                    'status_tone'  => 'warning',
+                    'amount_cents' => null,
+                    'is_refunded'  => false,
+                    'href'         => null,
+                    'identifier'   => $meta['ra_number'] ?? null,
+                ];
+            });
     }
 
     /**
