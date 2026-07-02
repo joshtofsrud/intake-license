@@ -26,6 +26,7 @@ class TenantAppointment extends Model
         'invoice_note','invoice_terms', // MARKER-PATCH-204
         'needs_time_review',
         'reminded_at', // MARKER-PATCH-154
+        'completed_at', // MARKER-PATCH-481
     ];
     protected $casts = [
         'appointment_date'         => 'date',
@@ -42,7 +43,22 @@ class TenantAppointment extends Model
         'paid_cents'               => 'integer',
         'reminded_at'              => 'datetime', // MARKER-PATCH-154
         'promised_at'              => 'datetime', // MARKER-PATCH-311
+        'completed_at'             => 'datetime', // MARKER-PATCH-481
     ];
+
+    // MARKER-PATCH-481 — stamp the actual completion instant once, on the first
+    // transition into a done state, from any write path. Pairs with promised_at to
+    // measure late_completion; never overwritten (records the first completion).
+    protected static function booted(): void
+    {
+        static::saving(function (self $appt) {
+            if (! $appt->completed_at
+                && $appt->isDirty('status')
+                && in_array($appt->status, ['completed', 'shipped', 'closed'], true)) {
+                $appt->completed_at = tnow()->utc();
+            }
+        });
+    }
 
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }
     public function customer(): BelongsTo  { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
