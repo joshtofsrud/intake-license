@@ -39,11 +39,22 @@ class TenantRole extends Model
      */
     public static function ensureDefaults(string $tenantId): void
     {
+        $roles = [];
         foreach (['Owner', 'Manager', 'Staff'] as $name) {
-            static::firstOrCreate(
+            $roles[$name] = static::firstOrCreate(
                 ['tenant_id' => $tenantId, 'name' => $name],
                 ['sections' => null, 'is_system' => true]
             );
+        }
+
+        // MARKER-PATCH-495 — adopt users created without a role_id (e.g. the
+        // invite flow pre-495, or any future path that only sets the enum).
+        // Runs on every Team page load, so stragglers self-heal.
+        foreach (['owner' => 'Owner', 'manager' => 'Manager', 'staff' => 'Staff'] as $enum => $name) {
+            TenantUser::where('tenant_id', $tenantId)
+                ->where('role', $enum)
+                ->whereNull('role_id')
+                ->update(['role_id' => $roles[$name]->id]);
         }
     }
 }

@@ -69,12 +69,20 @@ class TeamController extends Controller
         // MARKER-PATCH-478 — invite flow: create the member INACTIVE with an
         // unusable password. They set their own password via a single-use setup
         // link, which activates the account (is_active=false blocks login).
+        // MARKER-PATCH-495 — new members carry a role_id from day one.
+        TenantRole::ensureDefaults($tenant->id);
+        $systemRole = TenantRole::where('tenant_id', $tenant->id)
+            ->where('is_system', true)
+            ->where('name', ucfirst($data['role']))
+            ->first();
+
         $newUser = TenantUser::create([
             'tenant_id' => $tenant->id,
             'name'      => $data['name'],
             'email'     => $data['email'],
             'password'  => Hash::make(Str::random(40)),
             'role'      => $data['role'],
+            'role_id'   => $systemRole?->id,
             'is_active' => false,
         ]);
 
