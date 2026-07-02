@@ -2,7 +2,7 @@
   $accent     = $tenant->accent_color ?? '#BEF264';
   $accentText = \App\Support\ColorHelper::accentTextColor($accent);
   $shopName   = $tenant->name;
-  $logo       = $tenant->emailLogoUrl(); {{-- MARKER-PATCH-411 --}}
+  $logo       = $tenant->emailLogoUrl(); // MARKER-PATCH-489 (411 logo url; was a Blade comment inside @php)
 @endphp
 <!DOCTYPE html>
 <html lang="en">
