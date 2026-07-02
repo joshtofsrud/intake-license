@@ -88,9 +88,10 @@
     <div class="pd-field">
       <div class="pd-field-label">Role</div>
       <div class="pd-field-value">
-        <select name="role" class="ia-input" style="width:auto">
-          @foreach(['owner','manager','staff'] as $r)
-            <option value="{{ $r }}" @selected($member->role === $r)>{{ ucfirst($r) }}</option>
+        {{-- MARKER-PATCH-494 — named roles --}}
+        <select name="role_id" class="ia-input" style="width:auto">
+          @foreach($allRoles as $r)
+            <option value="{{ $r->id }}" @selected($member->role_id === $r->id)>{{ $r->name }}</option>
           @endforeach
         </select>
         <button class="ia-btn ia-btn--ghost ia-btn--sm">Change role</button>

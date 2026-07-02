@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantLocation;
 use App\Models\Tenant\TenantTrustedDevice;
+use App\Models\Tenant\TenantRole;
 use App\Models\Tenant\TenantUser;
 use App\Services\DeviceTrustService;
 use App\Services\PinService;
@@ -181,10 +182,19 @@ class TeamController extends Controller
         $allLocations = $tenant->locations()->orderBy('sort_order')->get();
         $memberLocationIds = $member->locations()->pluck('tenant_locations.id')->all();
 
+        // MARKER-PATCH-494 — named roles for the role select
+        TenantRole::ensureDefaults($tenant->id);
+        $allRoles = TenantRole::where('tenant_id', $tenant->id)
+            ->orderByDesc('is_system')
+            ->orderByRaw("FIELD(name,'Owner','Manager','Staff')")
+            ->orderBy('created_at')
+            ->get();
+
         return view('tenant.team.show', [
             'member'            => $member,
             'allLocations'      => $allLocations,
             'memberLocationIds' => $memberLocationIds,
+            'allRoles'          => $allRoles,
         ]);
     }
 
@@ -220,12 +230,23 @@ class TeamController extends Controller
             }
 
             case 'change_role': {
+                // MARKER-PATCH-494 — roles are tenant_roles rows now. The legacy
+                // enum shadows the named role (Owner->owner, Manager->manager,
+                // everything else->staff) so isOwner()/isManager() keep working.
                 if ($member->role === 'owner' && $me->role !== 'owner') {
                     return back()->with('error', "Only owners can change another owner's role.");
                 }
-                $data = $request->validate(['role' => ['required','in:owner,manager,staff']]);
-                $member->update(['role' => $data['role']]);
-                return back()->with('success', 'Role updated.');
+                $data = $request->validate(['role_id' => ['required','uuid']]);
+                $newRole = TenantRole::where('tenant_id', $tenant->id)
+                    ->where('id', $data['role_id'])->firstOrFail();
+                if ($newRole->isOwnerRole() && $me->role !== 'owner') {
+                    return back()->with('error', 'Only owners can grant the Owner role.');
+                }
+                $enum = 'staff';
+                if ($newRole->is_system && $newRole->name === 'Owner')   $enum = 'owner';
+                if ($newRole->is_system && $newRole->name === 'Manager') $enum = 'manager';
+                $member->update(['role' => $enum, 'role_id' => $newRole->id]);
+                return back()->with('success', "Role updated to {$newRole->name}.");
             }
 
             case 'reset_password': {
@@ -352,6 +373,112 @@ class TeamController extends Controller
     }
 
     // ──────────────────────────── Helpers ───────────────────────────
+
+    // ─────────────────────── Roles & access ─────────────────────────
+    // MARKER-PATCH-494 — custom named roles with per-section visibility.
+    // Owner-only surface: viewing and editing roles shapes what every
+    // other member can open, so it stays with the account owner.
+
+    public function rolesIndex(Request $request)
+    {
+        $this->requireOwner();
+        $tenant = tenant();
+        TenantRole::ensureDefaults($tenant->id);
+
+        $roles = TenantRole::where('tenant_id', $tenant->id)
+            ->withCount('users')
+            ->orderByDesc('is_system')
+            ->orderByRaw("FIELD(name,'Owner','Manager','Staff')")
+            ->orderBy('created_at')
+            ->get();
+
+        // Only sections this tenant can actually see (feature gates).
+        $sections = [];
+        foreach (\App\Support\SectionRegistry::all() as $key => $def) {
+            if ($def['gate'] && ! $tenant->{$def['gate']}) continue;
+            $sections[$key] = $def;
+        }
+        $groups = \App\Support\SectionRegistry::groups();
+
+        $selected = $roles->firstWhere('id', $request->query('role')) ?: $roles->first();
+
+        return view('tenant.team.roles', compact('roles', 'sections', 'groups', 'selected'));
+    }
+
+    public function storeRole(Request $request)
+    {
+        $this->requireOwner();
+        $tenant = tenant();
+        $data = $request->validate(['name' => ['required', 'string', 'max:60']]);
+
+        $clash = TenantRole::where('tenant_id', $tenant->id)->where('name', $data['name'])->exists();
+        if ($clash) return back()->with('error', 'A role with that name already exists.');
+
+        $role = TenantRole::create([
+            'tenant_id' => $tenant->id,
+            'name'      => $data['name'],
+            'sections'  => null,   // full access until trimmed
+            'is_system' => false,
+        ]);
+
+        return redirect()->route('tenant.team.roles', ['role' => $role->id])
+            ->with('success', "Role \"{$role->name}\" created — full access until you trim it.");
+    }
+
+    public function updateRole(Request $request, string $roleId)
+    {
+        $this->requireOwner();
+        $tenant = tenant();
+        $role = TenantRole::where('tenant_id', $tenant->id)->where('id', $roleId)->firstOrFail();
+
+        if ($role->isOwnerRole()) {
+            return back()->with('error', 'The Owner role is locked to full access.');
+        }
+
+        $data = $request->validate([
+            'name'       => ['required', 'string', 'max:60'],
+            'sections'   => ['array'],
+            'sections.*' => ['string'],
+        ]);
+
+        $registry = \App\Support\SectionRegistry::all();
+        $checked  = array_values(array_intersect(array_keys($registry), $data['sections'] ?? []));
+
+        // Sections whose feature gate is OFF weren't shown in the editor —
+        // keep them allowed so enabling a feature later doesn't surprise-hide
+        // it from existing roles.
+        foreach ($registry as $key => $def) {
+            if ($def['gate'] && ! $tenant->{$def['gate']} && ! in_array($key, $checked, true)) {
+                $checked[] = $key;
+            }
+        }
+
+        $clash = TenantRole::where('tenant_id', $tenant->id)->where('name', $data['name'])
+            ->where('id', '!=', $role->id)->exists();
+        if ($clash) return back()->with('error', 'A role with that name already exists.');
+
+        $role->update(['name' => $data['name'], 'sections' => $checked]);
+
+        return redirect()->route('tenant.team.roles', ['role' => $role->id])
+            ->with('success', 'Role saved.');
+    }
+
+    public function destroyRole(string $roleId)
+    {
+        $this->requireOwner();
+        $tenant = tenant();
+        $role = TenantRole::where('tenant_id', $tenant->id)->where('id', $roleId)->firstOrFail();
+
+        if ($role->is_system) {
+            return back()->with('error', "System roles can't be deleted — trim their sections instead.");
+        }
+        if ($role->users()->exists()) {
+            return back()->with('error', 'Reassign the people on this role first.');
+        }
+
+        $role->delete();
+        return redirect()->route('tenant.team.roles')->with('success', 'Role deleted.');
+    }
 
     protected function requireManager(): void
     {

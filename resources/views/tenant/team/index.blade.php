@@ -30,6 +30,8 @@
   </div>
   <div class="ia-page-actions">
     @if($me->isOwner())
+      {{-- MARKER-PATCH-494 --}}
+      <a href="{{ route('tenant.team.roles') }}" class="ia-btn ia-btn--ghost">Roles & access</a>
       <a href="{{ route('tenant.team.devices') }}" class="ia-btn ia-btn--ghost">All devices</a>
       <a href="{{ route('tenant.team.policy') }}" class="ia-btn ia-btn--ghost">Sign-in policy</a>
     @endif

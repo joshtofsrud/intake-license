@@ -825,6 +825,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/team/devices/revoke-all',        [TenantControllers\TeamController::class, 'revokeAllDevices'])->name('team.devices.revoke-all');
             Route::get('/team/policy',                     [TenantControllers\TeamController::class, 'policy'])->name('team.policy');
             Route::patch('/team/policy',                   [TenantControllers\TeamController::class, 'updatePolicy'])->name('team.policy.update');
+            // MARKER-PATCH-494 — Roles & access (custom named roles). Must sit
+            // BEFORE /team/{id} or 'roles' gets swallowed as a member id.
+            Route::get('/team/roles',                      [TenantControllers\TeamController::class, 'rolesIndex'])->name('team.roles');
+            Route::post('/team/roles',                     [TenantControllers\TeamController::class, 'storeRole'])->name('team.roles.store');
+            Route::patch('/team/roles/{roleId}',           [TenantControllers\TeamController::class, 'updateRole'])->name('team.roles.update');
+            Route::delete('/team/roles/{roleId}',          [TenantControllers\TeamController::class, 'destroyRole'])->name('team.roles.destroy');
             Route::get('/team/{id}',                       [TenantControllers\TeamController::class, 'show'])->name('team.show');
             Route::patch('/team/{id}',                     [TenantControllers\TeamController::class, 'update'])->name('team.update');
             Route::delete('/team/{id}',                    [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
