@@ -189,7 +189,14 @@
 
 <script>
 (function () {
-  const SECTIONS = @json(collect($sections)->map(fn($def, $key) => ['key' => $key, 'label' => $def['label'], 'group' => $def['group']])->values());
+  {{-- MARKER-PATCH-494B — @json splits on commas; precompute instead --}}
+  @php
+    $raSectionsJs = [];
+    foreach ($sections as $raKey => $raDef) {
+        $raSectionsJs[] = ['key' => $raKey, 'label' => $raDef['label'], 'group' => $raDef['group']];
+    }
+  @endphp
+  const SECTIONS = {!! json_encode($raSectionsJs) !!};
   const GROUPS   = @json($groups);
   const editor   = document.getElementById('ra-editor');
   const navcol   = document.getElementById('ra-navcol');
