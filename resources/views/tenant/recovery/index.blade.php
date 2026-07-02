@@ -161,27 +161,10 @@
     <h2>Booking funnel</h2>
     <span>Last 30 days</span>
   </div>
-  <div class="rec-stages">
-    <div class="rec-stage">
-      <div class="rec-stage-n">{{ $funnel['viewed'] }}</div>
-      <div class="rec-stage-l">Opened booking</div>
-    </div>
-    <div class="rec-arrow">
-      <div class="rec-arrow-glyph">&rarr;</div>
-      <div class="rec-arrow-pct">{{ $funnel['pct_start'] }}%</div>
-    </div>
-    <div class="rec-stage">
-      <div class="rec-stage-n">{{ $funnel['started'] }}</div>
-      <div class="rec-stage-l">Started</div>
-    </div>
-    <div class="rec-arrow">
-      <div class="rec-arrow-glyph">&rarr;</div>
-      <div class="rec-arrow-pct">{{ $funnel['pct_finish'] }}%</div>
-    </div>
-    <div class="rec-stage">
-      <div class="rec-stage-n">{{ $funnel['completed'] }}</div>
-      <div class="rec-stage-l">Completed</div>
-    </div>
+  {{-- MARKER-PATCH-488 — headline replaces the three redundant stage cards --}}
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:4px 0 2px">
+    <div style="font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1">{{ $funnel['completed'] }}<span style="font-size:18px;color:var(--ia-text-muted);font-weight:500"> / {{ $funnel['viewed'] }}</span></div>
+    <div style="font-size:12.5px;color:var(--ia-text-muted);flex:1;min-width:220px">completed &mdash; <strong style="color:var(--ia-accent)">{{ $funnel['pct_overall'] }}%</strong> of everyone who opened booking. The bars below show where the rest fall away.</div>
   </div>
   <div class="rec-funnel-foot">
     <strong>{{ $funnel['pct_overall'] }}%</strong> of people who opened booking completed it.
