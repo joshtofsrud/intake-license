@@ -58,6 +58,14 @@ class TenantAppointment extends Model
                 $appt->completed_at = tnow()->utc();
             }
         });
+
+        // MARKER-PATCH-482 — once a completion is stamped, evaluate quality signals
+        // (late_completion) for the customer's recovery history.
+        static::saved(function (self $appt) {
+            if ($appt->wasChanged('completed_at') && $appt->completed_at && $appt->customer_id) {
+                app(\App\Services\Tenant\RecoverySignalService::class)->evaluate($appt);
+            }
+        });
     }
 
     public function tenant(): BelongsTo    { return $this->belongsTo(Tenant::class); }
