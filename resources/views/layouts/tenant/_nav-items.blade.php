@@ -250,6 +250,12 @@
     @continue
   @endif
 
+  {{-- MARKER-PATCH-493 — Roles & access: hide sections outside the user's role --}}
+  @php $navSec = \App\Support\SectionRegistry::sectionForRoute($item['route']); @endphp
+  @if($navSec && !empty($authUser) && !$authUser->canAccessSection($navSec))
+    @continue
+  @endif
+
   @if($item['group'] !== $lastGroup && $item['group'])
     @if($lastGroup !== null)
       <div class="ia-sidebar-divider"></div>

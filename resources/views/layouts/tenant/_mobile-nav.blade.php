@@ -39,6 +39,16 @@
       'icon'   => '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6l-3 2V5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
     ];
   }
+
+  // MARKER-PATCH-493 — role section visibility on primary tabs.
+  // A tab whose section is outside the user's role drops out; the
+  // remaining tabs shift left and "More" still closes the row.
+  if (!empty($authUser)) {
+    $mobilePrimary = array_values(array_filter($mobilePrimary, function ($tab) use ($authUser) {
+      $sec = \App\Support\SectionRegistry::sectionForRoute($tab['route']);
+      return !$sec || $authUser->canAccessSection($sec);
+    }));
+  }
 @endphp
 
 <nav class="ia-mobile-nav" aria-label="Primary">

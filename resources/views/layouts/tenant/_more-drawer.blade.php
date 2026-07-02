@@ -247,6 +247,9 @@
         @continue(in_array($navItem['route'], $drawerSkip, true))
         @continue(!empty($navItem['gate']) && !$currentTenant->{$navItem['gate']})
         @continue(!\Illuminate\Support\Facades\Route::has($navItem['route']))
+        {{-- MARKER-PATCH-493 — role section visibility --}}
+        @php $dSec = \App\Support\SectionRegistry::sectionForRoute($navItem['route']); @endphp
+        @continue($dSec && !empty($authUser) && !$authUser->canAccessSection($dSec))
         @php $sect = $navItem['group'] ?? 'workspace'; @endphp
         @if($sect !== $lastSect)
           @if($lastSect !== null)<div class="ia-drawer-rule"></div>@endif
