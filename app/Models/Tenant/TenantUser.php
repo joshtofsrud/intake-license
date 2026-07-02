@@ -10,11 +10,28 @@ class TenantUser extends Authenticatable
 {
     use HasUuids;
     protected $table = 'tenant_users';
-    protected $fillable = ['tenant_id','name','email','phone','password','role','is_active','last_login_at','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
+    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','is_active','last_login_at','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
     protected $hidden   = ['password','remember_token','pin_hash'];
     protected $casts    = ['is_active' => 'boolean', 'last_login_at' => 'datetime', 'pin_set_at' => 'datetime', 'pin_locked_until' => 'datetime', 'pin_last_used_at' => 'datetime'];
 
     public function tenant(): BelongsTo { return $this->belongsTo(Tenant::class); }
+
+    // MARKER-PATCH-490 — named access role (custom roles & per-section visibility)
+    public function accessRole(): BelongsTo { return $this->belongsTo(TenantRole::class, 'role_id'); }
+
+    /**
+     * Can this user open the given SectionRegistry key?
+     * Owner enum always passes. Users without a role_id fall back to
+     * legacy full access (pre-roles behavior) so nothing locks out
+     * mid-migration.
+     */
+    public function canAccessSection(string $key): bool
+    {
+        if ($this->role === 'owner') return true;
+        $role = $this->accessRole;
+        if (!$role) return true;
+        return $role->allowsSection($key);
+    }
     public function isOwner(): bool     { return $this->role === 'owner'; }
     public function isManager(): bool   { return in_array($this->role, ['owner','manager']); }
 
