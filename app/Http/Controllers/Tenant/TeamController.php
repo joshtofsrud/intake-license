@@ -280,7 +280,10 @@ class TeamController extends Controller
             }
         }
         $member->delete();
-        return back()->with('success', 'Team member removed.');
+
+        // MARKER-PATCH-490 — go to the roster, not back(): back() is the member's
+        // own (now-deleted) page, which 404s.
+        return redirect()->route('tenant.team.index')->with('success', 'Team member removed.');
     }
 
     // ─────────────────────────── Devices ────────────────────────────
