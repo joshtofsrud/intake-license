@@ -61,6 +61,19 @@
           </button>
         </form>
 
+        {{-- MARKER-PATCH-496 — switch user (PIN tier only) --}}
+        @if($currentTenant->pin_tier_active)
+        <a href="{{ route('tenant.switch') }}" class="ia-sb-user-menu-item" role="menuitem">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 3h5v5"/><path d="M21 3l-7 7"/>
+            <path d="M8 21H3v-5"/><path d="M3 21l7-7"/>
+          </svg>
+          <span>Switch user</span>
+        </a>
+        @endif
+
         <button type="button" class="ia-sb-user-menu-item"
                 onclick="document.getElementById('logout-form').submit()"
                 role="menuitem">

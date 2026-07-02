@@ -273,6 +273,16 @@
         <div class="ia-user-role">{{ ucfirst($authUser->role ?? 'Member') }}</div>
       </div>
     </div>
+    {{-- MARKER-PATCH-496 — switch user (PIN tier only) --}}
+    @if($currentTenant->pin_tier_active)
+    <a href="{{ route('tenant.switch') }}" class="ia-drawer-signout" style="text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M16 3h5v5"/><path d="M21 3l-7 7"/>
+        <path d="M8 21H3v-5"/><path d="M3 21l7-7"/>
+      </svg>
+      Switch user
+    </a>
+    @endif
     <button type="button"
             class="ia-drawer-signout"
             onclick="if(confirm('Sign out of {{ addslashes($currentTenant->name) }}?')) document.getElementById('logout-form-mobile').submit()">
