@@ -28,8 +28,15 @@
       return;
     }
 
-    if ( boot.view === 'day' )  initDayView();
-    if ( boot.view === 'week' ) initWeekView();
+    // MARKER-PATCH-506 — touch-primary devices never drag. SortableJS grabs
+    // cards on touch with no hold, which made accidental reschedules from a
+    // phone trivially easy. Taps still open the drawer; mobile reschedules
+    // from the appointment page. Desktop drag unchanged.
+    var touchPrimary = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if ( !touchPrimary ) {
+      if ( boot.view === 'day' )  initDayView();
+      if ( boot.view === 'week' ) initWeekView();
+    }
 
     initClickHandler();
   } );
