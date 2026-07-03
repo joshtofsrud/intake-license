@@ -208,7 +208,8 @@
       <tbody>
         @foreach($customers as $c)
           @php $stat = $stats[$c->id] ?? null; @endphp
-          <tr style="cursor:pointer" onclick="openDetailModal('customer','{{ $c->id }}')">
+          {{-- MARKER-PATCH-503 — straight to the customer page, no modal hop --}}
+          <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
             <td><span style="font-weight:500">{{ $c->first_name }} {{ $c->last_name }}</span>@if($c->is_vip)<span class="vip-list-star" title="VIP">★</span>@endif</td>
             <td class="ia-muted-cell">{{ $c->email }}</td>
             <td class="ia-muted-cell">{{ $c->phone ?: '—' }}</td>
@@ -234,7 +235,7 @@
           : null;
         $contactParts = array_filter([$c->email, $c->phone]);
       @endphp
-      <button type="button" class="cust-card" onclick="openDetailModal('customer','{{ $c->id }}')">
+      <button type="button" class="cust-card" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
         <div class="cust-card-top">
           <span class="cust-card-name">{{ $c->first_name }} {{ $c->last_name }}</span>
           @if($spend > 0)

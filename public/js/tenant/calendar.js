@@ -1559,7 +1559,7 @@
     // Free drag works on touch too, but it requires a deliberate ~450ms
     // press-and-hold to ARM — so an ordinary swipe still scrolls the day grid
     // instead of grabbing an appointment. The mouse path above is unchanged.
-    var HOLD_MS = 450;
+    var HOLD_MS = 700; // MARKER-PATCH-502 — was 450; too easy to grab while scrolling
     var TOUCH_MOVE_TOLERANCE = 10; // px of movement before arming = it's a scroll, abort
     var holdTimer = null;
 
