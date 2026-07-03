@@ -1681,9 +1681,11 @@
     // Bind to all appointment blocks on the day view
     document.querySelectorAll('.ia-cal-appt').forEach(function (block) {
       block.addEventListener('mousedown', onMouseDown);
-      block.addEventListener('touchstart', onTouchStart, { passive: true });
+      // MARKER-PATCH-504 — touch drag disabled. Hold-to-drag fought scrolling
+      // on phones; mobile reschedules from the appointment page instead.
+      // Mouse drag (desktop) is unchanged. onTouchStart stays defined but
+      // unbound so this is a one-line revert if we ever bring it back.
       block.style.cursor = 'grab';
-      block.style.touchAction = 'pan-y'; // vertical scroll stays free until a hold arms the drag
     });
 
     // Click suppression: after a drag, the browser fires a click on whatever
