@@ -144,9 +144,15 @@ class TeamController extends Controller
     // MARKER-PATCH-478 — complete setup: set password, activate, consume token.
     public function completeSetup(Request $request)
     {
+        // MARKER-PATCH-499 — PIN is set here, with the password. Required
+        // whenever the PIN tier is on (an invite implies 2+ users, so it
+        // will be for any Branded/Scale tenant).
         $request->validate([
             'token'    => ['required', 'string'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'pin'      => tenant()->pin_tier_active
+                ? ['required', 'digits:4']
+                : ['nullable', 'digits:4'],
         ]);
 
         $token  = $request->input('token');
@@ -165,6 +171,11 @@ class TeamController extends Controller
             'password'  => Hash::make($request->input('password')),
             'is_active' => true,
         ]);
+
+        // MARKER-PATCH-499 — see validate() above.
+        if ($request->filled('pin')) {
+            $this->pins->setPin($user, $request->input('pin'));
+        }
         \Illuminate\Support\Facades\Cache::forget($key);
 
         // MARKER-PATCH-498 — they just proved who they are by consuming a
