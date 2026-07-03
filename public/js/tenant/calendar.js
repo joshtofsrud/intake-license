@@ -1355,6 +1355,10 @@
 
     function onMouseDown(e) {
       if (e.button !== 0) return;
+      // MARKER-PATCH-505 — touch-primary devices never drag. Mobile browsers
+      // synthesize mouse events from touch, which ran this desktop path on
+      // phones with no hold. Device-class check beats event heuristics.
+      if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
       // MARKER-PATCH-349B — on touch devices the browser also fires a synthesized
       // mousedown; ignore it so only the press-and-hold touch path runs.
       if (Date.now() - lastTouchTime < 700) return;
