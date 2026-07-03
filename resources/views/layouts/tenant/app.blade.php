@@ -42,6 +42,30 @@
 </head>
 
 <body class="ia-theme-{{ $adminTheme }}">
+{{-- MARKER-PATCH-498 — invite setup success: check draws, circle wraps it, dashboard fades in --}}
+@if(session('setup_complete'))
+<div id="ia-setup-success" aria-hidden="true">
+  <svg viewBox="0 0 72 72" width="88" height="88">
+    <circle cx="36" cy="36" r="32" fill="none" stroke="var(--ia-accent)" stroke-width="3"
+            stroke-linecap="round" stroke-dasharray="202" stroke-dashoffset="202"
+            transform="rotate(-90 36 36)" class="iss-circle"/>
+    <path d="M23 37l9 9 17-19" fill="none" stroke="var(--ia-accent)" stroke-width="4"
+          stroke-linecap="round" stroke-linejoin="round"
+          stroke-dasharray="40" stroke-dashoffset="40" class="iss-check"/>
+  </svg>
+  <div class="iss-label">You're in</div>
+</div>
+<style>
+#ia-setup-success{position:fixed;inset:0;z-index:9999;background:var(--ia-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:iss-fade .5s ease 1.6s forwards}
+#ia-setup-success .iss-check{animation:iss-draw .35s ease-out .15s forwards}
+#ia-setup-success .iss-circle{animation:iss-draw .55s ease-in-out .45s forwards}
+#ia-setup-success .iss-label{font-size:14px;font-weight:600;color:var(--ia-text);opacity:0;animation:iss-in .3s ease .9s forwards}
+@keyframes iss-draw{to{stroke-dashoffset:0}}
+@keyframes iss-in{to{opacity:1}}
+@keyframes iss-fade{to{opacity:0;visibility:hidden}}
+</style>
+<script>setTimeout(function(){var el=document.getElementById('ia-setup-success');if(el)el.remove();},2300);</script>
+@endif
 
 @include('layouts.tenant._mobile-header')
 

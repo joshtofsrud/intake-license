@@ -167,8 +167,24 @@ class TeamController extends Controller
         ]);
         \Illuminate\Support\Facades\Cache::forget($key);
 
-        return redirect()->route('tenant.login')
-            ->with('success', 'Your account is ready — sign in with your email and new password.');
+        // MARKER-PATCH-498 — they just proved who they are by consuming a
+        // single-use token and setting a password; making them sign in again
+        // (and run the PIN gauntlet) is friction with no security upside.
+        Auth::guard('tenant')->login($user);
+        $request->session()->regenerate();
+        $request->session()->put('last_pin_activity_at', now()->toIso8601String());
+        $user->forceFill(['last_login_at' => now()])->save();
+
+        // Location resolution (slim version of AuthController's branch —
+        // invites always attach at least the default location).
+        $locations = $user->activeLocations()->orderBy('is_default', 'desc')->orderBy('name')->get();
+        if ($locations->count() === 1) {
+            $request->session()->put('current_location_id', $locations->first()->id);
+        } elseif ($locations->count() > 1) {
+            return redirect()->route('tenant.select-location')->with('setup_complete', true);
+        }
+
+        return redirect()->route('tenant.dashboard')->with('setup_complete', true);
     }
 
     // ─────────────────────────── Detail ─────────────────────────────
