@@ -58,6 +58,10 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $user->forceFill(['last_login_at' => now()])->save();
 
+        // MARKER-PATCH-497 — a password sign-in is stronger auth than a PIN,
+        // so stamp PIN freshness or EnsurePinFresh locks the very first page.
+        $request->session()->put('last_pin_activity_at', now()->toIso8601String());
+
         // PATCH-CHUNK-4 mint — device trust opt-in. Only kicks in when the
         // tenant's PIN tier is active (additional_users + 2+ staff). For
         // every tenant right now this is false, so this whole block is a
@@ -190,6 +194,8 @@ class AuthController extends Controller
         Cache::forget($cacheKey);
 
         Auth::guard('tenant')->login($user);
+        // MARKER-PATCH-497 — see login(): stamp PIN freshness on password auth.
+        $request->session()->put('last_pin_activity_at', now()->toIso8601String());
 
         return redirect()->route('tenant.dashboard')
             ->with('success', 'Password updated successfully.');
