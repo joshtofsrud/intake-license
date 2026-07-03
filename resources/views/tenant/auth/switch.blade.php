@@ -87,7 +87,9 @@
 
     /* Set-initial-PIN stage */
     label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;margin-top:14px}
-    input[type=password],input[type=text]{width:100%;padding:10px 14px;background:rgba(255,255,255,.05);border:0.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;transition:border-color .12s}
+    /* MARKER-PATCH-500 — was input[type=password],input[type=text]: the
+       type=text half outranked .pin-input and stretched the PIN boxes. */
+    input[type=password]:not(.pin-input){width:100%;padding:10px 14px;background:rgba(255,255,255,.05);border:0.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;transition:border-color .12s}
     input:focus{outline:none;border-color:var(--accent)}
     .hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.45}
   </style>
@@ -138,10 +140,10 @@
     </div>
     <p class="lede">Enter your 4-digit PIN.</p>
     <div class="pin-input-wrap">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="0" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="1" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="2" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="3" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="0" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="1" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="2" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-pin-pos="3" autocomplete="off">
     </div>
     <div class="pin-msg" id="pin-msg"></div>
     <div class="row">
@@ -165,18 +167,18 @@
     <p class="lede">Choose a 4-digit PIN. Use it on this device from now on.</p>
 
     <div class="pin-input-wrap">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="0" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="1" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="2" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="3" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="0" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="1" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="2" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-set-pos="3" autocomplete="off">
     </div>
 
     <p class="lede" style="margin:14px 0 6px;font-size:12px">Confirm:</p>
     <div class="pin-input-wrap">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="0" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="1" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="2" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="3" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="0" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="1" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="2" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="pin-input" data-confirm-pos="3" autocomplete="off">
     </div>
 
     {{-- MARKER-PATCH-459 — per-user credential, never the shop --}}

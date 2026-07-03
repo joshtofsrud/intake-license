@@ -46,7 +46,7 @@
     {{-- MARKER-PATCH-499 — PIN created here, alongside the password --}}
     @if($currentTenant->pin_tier_active)
       <label>4-digit PIN</label>
-      <input type="text" name="pin" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
+      <input type="password" name="pin" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
              autocomplete="off" placeholder="For quick sign-in on shared devices"
              style="letter-spacing:.35em">
     @endif

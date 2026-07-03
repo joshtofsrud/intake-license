@@ -26,10 +26,10 @@
     <div class="ia-lock-sub" id="ia-lock-sub">{{ $authUser->pin_hash ? 'Enter your PIN to continue' : 'Create a 4-digit PIN' }}</div>
 
     <div class="ia-lock-pin-wrap">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="0" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="1" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="2" autocomplete="off">
-      <input type="text" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="3" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="0" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="1" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="2" autocomplete="off">
+      <input type="password" inputmode="numeric" pattern="\d*" maxlength="1" class="ia-lock-pin-input" data-lock-pos="3" autocomplete="off">
     </div>
 
     <div class="ia-lock-msg" id="ia-lock-msg"></div>
