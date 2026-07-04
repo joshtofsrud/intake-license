@@ -5,15 +5,17 @@
     <div style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:14px" id="dp-modal-sub"></div>
     <div id="dp-modal-windows" style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px"></div>
     <div style="font-size:11.5px;color:var(--ia-text-muted);margin-bottom:16px" id="dp-modal-note"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip">Skip</button>
-      <button type="button" class="ia-btn ia-btn--primary" id="dp-modal-send">Send text</button>
+    {{-- MARKER-PATCH-531 — pick a window here, or hand the choice to the customer --}}
+    <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center">
+      <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip" style="margin-right:auto">Skip</button>
+      <button type="button" class="ia-btn ia-btn--secondary" id="dp-modal-send">Let customer choose</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="dp-modal-schedule" disabled>Schedule it</button>
     </div>
   </div>
 </div>
 <script>
 window.IntakeDeliveryPropose = (function () {
-  var modal, updateUrl, csrf;
+  var modal, updateUrl, csrf, selected; // MARKER-PATCH-531
 
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
@@ -27,21 +29,31 @@ window.IntakeDeliveryPropose = (function () {
       'Text <b>' + esc(payload.customer_name) + '</b> (…' + esc(payload.phone_tail) + ') the next open delivery windows — they pick one from the link.';
     var list = document.getElementById('dp-modal-windows');
     list.innerHTML = '';
+    selected = null; // MARKER-PATCH-531
     (payload.windows || []).forEach(function (w, i) {
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;border:0.5px solid var(--ia-border);border-radius:10px;padding:9px 12px;font-size:13px' + (i === 0 ? ';border-color:var(--ia-accent)' : '');
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;border:0.5px solid var(--ia-border);border-radius:10px;padding:9px 12px;font-size:13px;background:none;color:var(--ia-text);font-family:inherit;cursor:pointer;width:100%;text-align:left';
       row.innerHTML = '<span style="font-weight:600">' + esc(w.day_label) + '</span><span>' + esc(w.label) + '</span>'
         + '<span style="margin-left:auto;font-size:11px;color:var(--ia-text-muted)">' + esc(w.remaining) + ' stop' + (w.remaining === 1 ? '' : 's') + ' left</span>'
-        + (i === 0 ? '<span style="font-size:10px;color:var(--ia-accent);border:0.5px solid var(--ia-accent);border-radius:99px;padding:1px 7px">default</span>' : '');
+        + (i === 0 ? '<span style="font-size:10px;color:var(--ia-accent);border:0.5px solid var(--ia-accent);border-radius:99px;padding:1px 7px">first offered</span>' : '');
+      row.onclick = function () {
+        selected = w;
+        Array.prototype.forEach.call(list.children, function (c) { c.style.borderColor = 'var(--ia-border)'; c.style.background = 'none'; });
+        row.style.borderColor = 'var(--ia-accent)';
+        row.style.background = 'var(--ia-accent-soft, rgba(212,255,63,.08))';
+        document.getElementById('dp-modal-schedule').disabled = false;
+      };
       list.appendChild(row);
     });
     document.getElementById('dp-modal-note').textContent =
-      'No reply by ' + payload.deadline_label + ' → the first window locks in automatically.';
+      'Pick a window and Schedule it — or text the options and no reply by ' + payload.deadline_label + ' locks in the first one.';
 
     modal.style.display = 'flex';
 
     document.getElementById('dp-modal-skip').onclick = function () { close(true); };
     document.getElementById('dp-modal-send').onclick = function () { send(); };
+    document.getElementById('dp-modal-schedule').onclick = function () { scheduleDirect(); }; // MARKER-PATCH-531
     return true;
   }
 
@@ -70,6 +82,34 @@ window.IntakeDeliveryPropose = (function () {
       })
       .catch(function () {
         btn.disabled = false; btn.textContent = 'Send text';
+        if (window.IntakeToast) IntakeToast.error('Network error. Try again.');
+      });
+  }
+
+  // MARKER-PATCH-531 — staff picked a window: schedule immediately
+  function scheduleDirect() {
+    if (!selected) return;
+    var btn = document.getElementById('dp-modal-schedule');
+    btn.disabled = true; btn.textContent = 'Scheduling…';
+    var fd = new FormData();
+    fd.append('_token', csrf);
+    fd.append('_method', 'PATCH');
+    fd.append('op', 'delivery_schedule_direct');
+    fd.append('window_id', selected.window_id);
+    fd.append('date', selected.date);
+    fetch(updateUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          if (window.IntakeToast) IntakeToast.success('Delivery scheduled');
+          close(true);
+        } else {
+          btn.disabled = false; btn.textContent = 'Schedule it';
+          if (window.IntakeToast) IntakeToast.error((j && j.message) || 'Could not schedule.');
+        }
+      })
+      .catch(function () {
+        btn.disabled = false; btn.textContent = 'Schedule it';
         if (window.IntakeToast) IntakeToast.error('Network error. Try again.');
       });
   }

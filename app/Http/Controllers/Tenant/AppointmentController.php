@@ -1139,6 +1139,35 @@ class AppointmentController extends Controller
             ]);
         }
 
+        // MARKER-PATCH-531 — staff picked a window in the modal: schedule it now
+        if ($op === 'delivery_schedule_direct') {
+            if (!$tenant->deliveries_enabled) {
+                return response()->json(['ok' => false, 'message' => 'Deliveries are not enabled.'], 422);
+            }
+            try {
+                $delivery = DeliveryProposalService::forTenant($tenant)->scheduleDirect(
+                    $appointment,
+                    (string) $request->input('window_id'),
+                    (string) $request->input('date'),
+                );
+            } catch (\RuntimeException $e) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Direct delivery schedule failed', [
+                    'appointment_id' => $appointment->id, 'error' => $e->getMessage(),
+                ]);
+                return response()->json(['ok' => false, 'message' => 'Could not schedule — check logs.'], 500);
+            }
+            TenantAppointmentNote::create([
+                'appointment_id' => $appointment->id,
+                'user_id' => Auth::guard('tenant')->id(),
+                'note_type' => 'system', 'is_customer_visible' => false,
+                'note_content' => 'Delivery scheduled for ' . tlocal($delivery->scheduled_at, 'D M j, g:i A') . ' from the completion modal.',
+                'created_at' => now(),
+            ]);
+            return response()->json(['ok' => true]);
+        }
+
         // MARKER-PATCH-527 — staff confirmed the modal: create + text the proposal
         if ($op === 'delivery_proposal_send') {
             if (!$tenant->deliveries_enabled) {

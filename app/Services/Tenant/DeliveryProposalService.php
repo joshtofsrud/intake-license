@@ -8,6 +8,7 @@ use App\Models\Tenant\TenantAppointment;
 use App\Models\Tenant\TenantDeliveryProposal;
 use App\Models\Tenant\TenantRouteWindow;
 use App\Services\Sms\SmsService;
+use App\Services\Tenant\TenantDeliveryNotificationService; // MARKER-PATCH-531
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -127,6 +128,68 @@ class DeliveryProposalService
         if ($channels) $proposal->update(['sent_channels' => implode(',', $channels)]);
 
         return $proposal;
+    }
+
+    /**
+     * MARKER-PATCH-531 — staff picked a window in the completion modal:
+     * schedule the dropoff directly (no proposal/text-link round trip)
+     * and send the standard "scheduled" notification.
+     */
+    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date): \App\Models\Tenant\TenantDelivery
+    {
+        $tz     = $this->tenant->timezone();
+        $day    = Carbon::parse($date, $tz);
+        $window = TenantRouteWindow::query()
+            ->where('tenant_id', $this->tenant->id)->where('id', $windowId)->first();
+        if (!$window || !$window->is_active || !$window->runsOn($day)) {
+            throw new \RuntimeException('That window is no longer available.');
+        }
+        if ($day->lt(Carbon::now($tz)->startOfDay()->addDay())) {
+            throw new \RuntimeException('Delivery day must be tomorrow or later.');
+        }
+        if ($window->remainingStops($day) < 1) {
+            throw new \RuntimeException('That window just filled up.');
+        }
+
+        $appointment->loadMissing('customer');
+        $c = $appointment->customer;
+        $address = $c
+            ? trim(implode(', ', array_filter([
+                trim(($c->address_line1 ?? '') . ' ' . ($c->address_line2 ?? '')),
+                $c->city ?? null,
+                trim(($c->state ?? '') . ' ' . ($c->postcode ?? '')),
+              ])))
+            : '';
+        $start = Carbon::parse($day->toDateString() . ' ' . (string) $window->starts_at, $tz);
+        $end   = Carbon::parse($day->toDateString() . ' ' . (string) $window->ends_at, $tz);
+
+        $delivery = \App\Models\Tenant\TenantDelivery::create([
+            'tenant_id'      => $this->tenant->id,
+            'type'           => \App\Models\Tenant\TenantDelivery::TYPE_DROPOFF,
+            'status'         => \App\Models\Tenant\TenantDelivery::STATUS_SCHEDULED,
+            'scheduled_at'   => $start->copy()->utc(),
+            'window_minutes' => max(15, $start->diffInMinutes($end)),
+            'address'        => $address !== '' ? $address : null,
+            'customer_id'    => $appointment->customer_id,
+            'appointment_id' => $appointment->id,
+        ]);
+
+        // Retire any pending proposal so the assume cron can't double-book.
+        TenantDeliveryProposal::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('appointment_id', $appointment->id)
+            ->where('status', TenantDeliveryProposal::STATUS_PENDING)
+            ->update(['status' => TenantDeliveryProposal::STATUS_CANCELLED]);
+
+        try {
+            TenantDeliveryNotificationService::forTenant($this->tenant)->sendScheduled($delivery);
+        } catch (\Throwable $e) {
+            Log::error('Direct-schedule notification failed', [
+                'delivery_id' => $delivery->id, 'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $delivery;
     }
 
     public function confirmUrl(TenantDeliveryProposal $proposal): string
