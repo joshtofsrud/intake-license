@@ -29,7 +29,8 @@ class TenantDeliveryProposal extends Model
 
     public const STATUS_PENDING   = 'pending';
     public const STATUS_CONFIRMED = 'confirmed';
-    public const STATUS_ASSUMED   = 'assumed';
+    public const STATUS_ASSUMED   = 'assumed'; // legacy — no longer written (MARKER-PATCH-534)
+    public const STATUS_NO_REPLY  = 'no_reply'; // MARKER-PATCH-534
     public const STATUS_EXPIRED   = 'expired';
     public const STATUS_CANCELLED = 'cancelled';
 

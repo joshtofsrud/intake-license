@@ -38,7 +38,7 @@ class DeliveryConfirmController extends Controller
         [$tenant, $proposal] = $this->resolve($token);
         if (!$proposal) abort(404);
 
-        if (!$proposal->isPending()) {
+        if (!$proposal->isPending() && $proposal->status !== TenantDeliveryProposal::STATUS_NO_REPLY) { // MARKER-PATCH-534
             return redirect()->route('tenant.delivery_confirm.show', $token);
         }
 

@@ -43,8 +43,9 @@ class TenantDeliveryNotificationService
      * Safe to call from a controller — catches all internal exceptions
      * so a notification failure never breaks the user-facing save flow.
      */
-    public function sendScheduled(TenantDelivery $delivery): void
+    public function sendScheduled(TenantDelivery $delivery, ?array $only = null): void // MARKER-PATCH-534 — optional channel restriction
     {
+        $allow = fn (string $ch) => $only === null || in_array($ch, $only, true);
         $delivery->loadMissing('customer');
         $customer = $delivery->customer;
         if (!$customer) {
@@ -59,7 +60,8 @@ class TenantDeliveryNotificationService
 
         // EMAIL
         if (
-            $this->tenant->notificationEnabled('delivery_scheduled_email')
+            $allow('email') // MARKER-PATCH-534
+            && $this->tenant->notificationEnabled('delivery_scheduled_email')
             && !empty($customer->email)
         ) {
             try {
@@ -82,7 +84,8 @@ class TenantDeliveryNotificationService
 
         // SMS
         if (
-            $this->tenant->notificationEnabled('delivery_scheduled_sms')
+            $allow('sms') // MARKER-PATCH-534
+            && $this->tenant->notificationEnabled('delivery_scheduled_sms')
             && !empty($customer->phone)
         ) {
             try {

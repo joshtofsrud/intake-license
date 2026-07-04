@@ -135,7 +135,7 @@ class DeliveryProposalService
      * schedule the dropoff directly (no proposal/text-link round trip)
      * and send the standard "scheduled" notification.
      */
-    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date, bool $notify = true): \App\Models\Tenant\TenantDelivery // MARKER-PATCH-533
+    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date, array $channels = ['sms', 'email']): \App\Models\Tenant\TenantDelivery // MARKER-PATCH-534
     {
         $tz     = $this->tenant->timezone();
         $day    = Carbon::parse($date, $tz);
@@ -181,10 +181,10 @@ class DeliveryProposalService
             ->where('status', TenantDeliveryProposal::STATUS_PENDING)
             ->update(['status' => TenantDeliveryProposal::STATUS_CANCELLED]);
 
-        // MARKER-PATCH-533 — customer notification only with explicit staff consent
-        if ($notify) {
+        // MARKER-PATCH-534 — notify only on the channels staff chose in the modal
+        if (!empty($channels)) {
             try {
-                TenantDeliveryNotificationService::forTenant($this->tenant)->sendScheduled($delivery);
+                TenantDeliveryNotificationService::forTenant($this->tenant)->sendScheduled($delivery, $channels);
             } catch (\Throwable $e) {
                 Log::error('Direct-schedule notification failed', [
                     'delivery_id' => $delivery->id, 'error' => $e->getMessage(),
@@ -202,16 +202,12 @@ class DeliveryProposalService
 
     private function smsBody(TenantDeliveryProposal $proposal, string $firstName): string
     {
-        $shop  = $this->tenant->name;
-        $first = $proposal->windows[0];
-        $tz    = $this->tenant->timezone();
-        $deadlineLocal = $proposal->expires_at->copy()->setTimezone($tz);
-        $deadlineTxt   = $deadlineLocal->isToday() ? 'tonight ' . $deadlineLocal->format('g A')
-                       : $deadlineLocal->format('D g A');
-        $hi = $firstName !== '' ? "{$firstName}, your" : 'Your';
+        $shop = $this->tenant->name;
+        $hi   = $firstName !== '' ? "{$firstName}, your" : 'Your';
 
-        return "{$shop}: {$hi} bike is ready! Pick a delivery window: "
+        // MARKER-PATCH-534 — no assume-first: the link just offers the windows.
+        return "{$shop}: {$hi} bike is ready! Pick a delivery window that works: "
             . $this->confirmUrl($proposal)
-            . " — no reply by {$deadlineTxt} and we'll plan on {$first['day_label']} {$first['label']}. Reply STOP to opt out.";
+            . " Reply STOP to opt out.";
     }
 }

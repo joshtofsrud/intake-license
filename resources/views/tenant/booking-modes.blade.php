@@ -142,7 +142,7 @@
         <input type="number" name="pd_windows_offered" min="1" max="6" value="{{ $pd['windows_offered'] }}"
                style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
       </label>
-      <label style="font-size:12px;color:var(--ia-text-muted)">Assume first window if no reply by (hour, 24h)
+      <label style="font-size:12px;color:var(--ia-text-muted)">Flag as no-reply at (hour, 24h){{-- MARKER-PATCH-534 --}}
         <input type="number" name="pd_assume_first_hour" min="12" max="23" value="{{ $pd['assume_first_hour'] }}"
                style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
       </label>

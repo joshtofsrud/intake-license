@@ -3,7 +3,7 @@
   $accent = $tenant->accent_color ?? '#BEF264';
   $accentText = \App\Support\ColorHelper::accentTextColor($accent);
   $tz = $tenant->timezone();
-  $isPending = $proposal->isPending();
+  $isPending = $proposal->isPending() || $proposal->status === 'no_reply'; // MARKER-PATCH-534 — link keeps working after the no-reply flag
   $deadline = $proposal->expires_at?->copy()->setTimezone($tz);
 @endphp
 <!DOCTYPE html>
@@ -59,9 +59,6 @@
       @endforeach
       <input type="hidden" name="window_id" id="dc-window-id">
       <input type="hidden" name="date" id="dc-date">
-      @if($deadline)
-        <p class="note">No pick by {{ $deadline->format('l g:i A') }} and we'll plan on the first window above.</p>
-      @endif
       <button class="btn" type="submit" id="dc-btn" disabled>Confirm window</button>
     </form>
     <script>
