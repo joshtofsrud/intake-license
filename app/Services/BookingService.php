@@ -478,9 +478,12 @@ class BookingService
                 'tenant_id'      => $appointment->tenant_id,
                 'type'           => 'pickup',
                 'status'         => 'scheduled',
-                'scheduled_at'   => $date->copy()->setTimeFromTimeString((string) $window->starts_at),
-                'window_minutes' => max(15, $date->copy()->setTimeFromTimeString((string) $window->starts_at)
-                                        ->diffInMinutes($date->copy()->setTimeFromTimeString((string) $window->ends_at))),
+                // MARKER-PATCH-513 — scheduled_at is a UTC instant; build the
+                // wall-clock moment in the tenant tz, then convert.
+                'scheduled_at'   => \Carbon\Carbon::parse($date->toDateString() . ' ' . (string) $window->starts_at,
+                                        \App\Models\Tenant::find($appointment->tenant_id)?->timezone() ?? config('app.timezone'))->utc(),
+                'window_minutes' => max(15, \Carbon\Carbon::parse((string) $window->starts_at)
+                                        ->diffInMinutes(\Carbon\Carbon::parse((string) $window->ends_at))),
                 'customer_id'    => $appointment->customer_id,
                 'appointment_id' => $appointment->id,
                 'address'        => $appointment->customer?->address ?: null,

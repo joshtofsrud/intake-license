@@ -46,8 +46,11 @@ class TenantRouteWindow extends Model
      */
     public function bookedStops(Carbon $date): int
     {
-        $start = $date->copy()->setTimeFromTimeString($this->starts_at);
-        $end   = $date->copy()->setTimeFromTimeString($this->ends_at);
+        // MARKER-PATCH-513 — scheduled_at values are UTC; build the window
+        // bounds as tenant-local wall clock and convert before comparing.
+        $tz    = $this->tenant?->timezone() ?? config('app.timezone');
+        $start = Carbon::parse($date->toDateString() . ' ' . (string) $this->starts_at, $tz)->utc();
+        $end   = Carbon::parse($date->toDateString() . ' ' . (string) $this->ends_at, $tz)->utc();
 
         return TenantDelivery::query()
             ->where('tenant_id', $this->tenant_id)
