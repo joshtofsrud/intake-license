@@ -2359,7 +2359,7 @@ input.ma-asset-name-edit:focus {
                   <span class="ma-note-visibility ma-note-visibility--customer">Customer-visible</span>
                 @endif
                 <span class="ma-note-time">
-                  {{ \Carbon\Carbon::parse($note->created_at)->format('M j, g:i a') }}
+                  {{ tlocal($note->created_at, 'M j, g:i a') }}{{-- MARKER-PATCH-532 --}}
                 </span>
                 @if($note->note_type !== 'system')
                   <button type="button" class="ma-note-delete"

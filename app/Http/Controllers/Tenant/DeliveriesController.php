@@ -206,6 +206,7 @@ class DeliveriesController extends Controller
         // MARKER-PATCH-514 — map deliveries to route windows for the chip.
         // MARKER-PATCH-514B — day view only; the week path doesn't build $deliveries.
         $windowChips = [];
+        $deliveries = $payload['deliveries'] ?? null; // MARKER-PATCH-532 — chips never rendered: local var was never set
         $rw = isset($deliveries)
             ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->active()->get()
             : collect();

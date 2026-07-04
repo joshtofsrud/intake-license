@@ -1340,7 +1340,7 @@
                 {{ $note->user?->name ?? ($note->note_type === 'system' ? 'System' : 'Staff') }}
               </span>
               <span class="ia-note-time">
-                {{ \Carbon\Carbon::parse($note->created_at)->format('M j, g:i a') }}
+                {{ tlocal($note->created_at, 'M j, g:i a') }}{{-- MARKER-PATCH-532 --}}
               </span>
               @if($note->note_type !== 'system')
                 <button type="button" class="ia-note-delete"
