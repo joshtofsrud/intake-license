@@ -204,8 +204,11 @@ class DeliveriesController extends Controller
         }
 
         // MARKER-PATCH-514 — map deliveries to route windows for the chip.
+        // MARKER-PATCH-514B — day view only; the week path doesn't build $deliveries.
         $windowChips = [];
-        $rw = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->active()->get();
+        $rw = isset($deliveries)
+            ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->active()->get()
+            : collect();
         if ($rw->isNotEmpty()) {
             foreach ($deliveries as $dv) {
                 $local = tlocal_carbon($dv->scheduled_at);
