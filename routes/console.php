@@ -75,6 +75,16 @@ Schedule::command('deliveries:remind')
     ->runInBackground();
 
 // ----------------------------------------------------------------
+// MARKER-PATCH-529 — assume-first delivery windows. Pending proposals
+// past their deadline get the first open window locked in. Status
+// transition is the idempotence guard.
+// ----------------------------------------------------------------
+Schedule::command('deliveries:assume-windows')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// ----------------------------------------------------------------
 // MARKER-PATCH-387 — reap abandoned booking holds (charge-then-create).
 // Cheap indexed delete. Hourly is plenty; holds expire in 20 min and are
 // only deleted 2h past expiry so a lagging webhook can still materialize a
