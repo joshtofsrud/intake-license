@@ -144,6 +144,34 @@ class BookingController extends Controller
             $earliest = ['date' => $dates[0], 'time' => null];
         }
 
+        // MARKER-PATCH-511 — Pickup & delivery: per-date route windows with
+        // remaining stop counts. Only present when the tenant runs routes;
+        // the P2b frontend renders it, older frontends ignore the key.
+        $pdWindows = [];
+        if ($tenant->deliveries_enabled) {
+            $windows = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)
+                ->active()->get();
+            if ($windows->isNotEmpty()) {
+                foreach ($dates as $date) {
+                    $day = \Carbon\Carbon::parse($date);
+                    $dayWindows = [];
+                    foreach ($windows as $w) {
+                        if (! $w->runsOn($day)) continue;
+                        $remaining = $w->remainingStops($day);
+                        $dayWindows[] = [
+                            'id'        => $w->id,
+                            'label'     => $w->label,
+                            'starts_at' => substr((string) $w->starts_at, 0, 5),
+                            'ends_at'   => substr((string) $w->ends_at, 0, 5),
+                            'remaining' => $remaining,
+                            'full'      => $remaining === 0,
+                        ];
+                    }
+                    if (! empty($dayWindows)) $pdWindows[$date] = $dayWindows;
+                }
+            }
+        }
+
         $slots = [];
         $slotResources = [];
 
@@ -204,6 +232,7 @@ class BookingController extends Controller
             'unavailable_dates' => $unavailable,
             'earliest'          => $earliest,
             'slots'             => $slots,
+            'pd_windows'        => $pdWindows, // MARKER-PATCH-511
             'slot_resources'    => $slotResources,
             'mode'              => $mode,
         ]);
