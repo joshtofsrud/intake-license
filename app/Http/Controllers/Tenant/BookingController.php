@@ -246,6 +246,8 @@ class BookingController extends Controller
             'email'                   => ['required', 'email', 'max:191'],
             'phone'                   => ['nullable', 'string', 'max:32'],
             'date'                    => ['required', 'date', 'after_or_equal:today'],
+            'route_window_id'         => ['nullable', 'uuid'], // MARKER-PATCH-512
+            'need_by'                 => ['nullable', 'date', 'after_or_equal:date'], // MARKER-PATCH-512
             'appointment_time'        => ['nullable', 'string'],
             'resource_id'             => ['nullable', 'string', 'uuid'],
             'receiving_method'        => ['nullable', 'string'],

@@ -311,6 +311,16 @@ class BookingService
                     ]);
                 }
 
+                // MARKER-PATCH-512 — Pickup & delivery: the booked pickup stop.
+                // Runs for both public paths (direct + pending->materialize) since
+                // both funnel the raw payload through createAppointment.
+                if (!empty($data['route_window_id'])) {
+                    $this->createPickupStop($appointment, (string) $data['route_window_id'], (array) $data);
+                }
+                if (!empty($data['need_by']) && (bool) (((array) $tenant->settings)['pd_need_by_enabled'] ?? true)) {
+                    $appointment->forceFill(['need_by' => $data['need_by']])->save();
+                }
+
                 return $appointment->fresh(['items', 'addons', 'customer', 'responses']);
             });
         });
@@ -439,6 +449,46 @@ class BookingService
      * slot re-check inside createAppointment doesn't see this booking's own hold
      * as a conflict; a failed write rolls the flip back.
      */
+    /**
+     * MARKER-PATCH-512 — create the pickup route stop for a public booking.
+     * Capacity re-checked under an advisory lock keyed tenant+window+date;
+     * a full window throws (surfaces as booking failed, same as slot_taken).
+     */
+    protected function createPickupStop(TenantAppointment $appointment, string $windowId, array $data): void
+    {
+        $window = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $appointment->tenant_id)
+            ->where('is_active', true)
+            ->find($windowId);
+        if (! $window) {
+            throw new RuntimeException('That pickup window is no longer available.');
+        }
+
+        $date = \Carbon\Carbon::parse($data['date']);
+        if (! $window->runsOn($date)) {
+            throw new RuntimeException('That pickup window does not run on the selected day.');
+        }
+
+        $lockKey = 'pdwin:' . $appointment->tenant_id . ':' . $window->id . ':' . $date->toDateString();
+        app(MySQLLock::class)->withLock($lockKey, function () use ($window, $date, $appointment) {
+            if ($window->remainingStops($date) < 1) {
+                throw new RuntimeException('That pickup window just filled up — please pick another.');
+            }
+
+            \App\Models\Tenant\TenantDelivery::create([
+                'tenant_id'      => $appointment->tenant_id,
+                'type'           => 'pickup',
+                'status'         => 'scheduled',
+                'scheduled_at'   => $date->copy()->setTimeFromTimeString((string) $window->starts_at),
+                'window_minutes' => max(15, $date->copy()->setTimeFromTimeString((string) $window->starts_at)
+                                        ->diffInMinutes($date->copy()->setTimeFromTimeString((string) $window->ends_at))),
+                'customer_id'    => $appointment->customer_id,
+                'appointment_id' => $appointment->id,
+                'address'        => $appointment->customer?->address ?: null,
+                'notes'          => 'Booked online — ' . $window->label,
+            ]);
+        });
+    }
+
     public function materialize(\App\Models\Tenant\TenantPendingBooking $pending): TenantAppointment
     {
         // Fast path: already materialized (no lock needed for the common case).

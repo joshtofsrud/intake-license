@@ -35,6 +35,7 @@
 
   // Calendar state
   var calYear, calMonth, calAvailable = {}, calUnavailable = {}, calEarliest = null, calTimeSlots = {}, calSlotResources = {};
+  var calPdWindows = {}; // MARKER-PATCH-512 — pickup & delivery route windows per date
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -448,6 +449,7 @@
       (resp.unavailable_dates || []).forEach(function (dt) { calUnavailable[dt] = true; });
       calEarliest = resp.earliest || null;
       calTimeSlots = resp.slots || {};
+      calPdWindows = resp.pd_windows || {}; // MARKER-PATCH-512
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
@@ -514,7 +516,58 @@
       renderTimeSlots(dateStr);
     }
 
+    // MARKER-PATCH-512 — pickup & delivery: window picker on drop_off dates
+    state.pdWindowId = null;
+    var pdExisting = document.getElementById('bk-pd-windows');
+    if (pdExisting) pdExisting.remove();
+    if (bookingMode === 'drop_off' && (calPdWindows[dateStr] || []).length) {
+      renderPdWindows(dateStr);
+    }
+
     renderEarliestPill();
+    updateNext2();
+  }
+
+  // MARKER-PATCH-512 — pickup window picker (mirrors renderTimeSlots)
+  function renderPdWindows(dateStr) {
+    var windows = calPdWindows[dateStr] || [];
+    var wrap = document.createElement('div');
+    wrap.id = 'bk-pd-windows';
+    wrap.style.cssText = 'margin-top:16px';
+
+    var label = document.createElement('div');
+    label.style.cssText = 'font-size:13px;font-weight:500;margin-bottom:10px';
+    label.textContent = 'Pickup window — we come to you';
+    wrap.appendChild(label);
+
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
+
+    windows.forEach(function (w) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = w.label + (w.full ? ' · full' : ' · ' + w.remaining + (w.remaining === 1 ? ' stop left' : ' stops left'));
+      btn.disabled = !!w.full;
+      btn.style.cssText = 'padding:8px 14px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--p-text)' + (w.full ? ';opacity:.4;cursor:default;text-decoration:line-through' : '');
+      btn.addEventListener('click', function () {
+        if (w.full) return;
+        state.pdWindowId = w.id;
+        grid.querySelectorAll('button').forEach(function (b) {
+          b.style.background = 'transparent';
+          b.style.borderColor = 'rgba(0,0,0,.12)';
+          b.style.color = 'var(--p-text)';
+        });
+        btn.style.background  = 'var(--p-accent)';
+        btn.style.borderColor = 'var(--p-accent)';
+        btn.style.color       = 'var(--p-accent-text)';
+        updateNext2();
+      });
+      grid.appendChild(btn);
+    });
+
+    wrap.appendChild(grid);
+    var cal = document.getElementById('bk-calendar');
+    if (cal && cal.parentElement) cal.parentElement.appendChild(wrap);
     updateNext2();
   }
 
@@ -647,6 +700,8 @@
   function canProceedStep2() {
     if (!state.date) return false;
     if (bookingMode === 'time_slots' && !state.appointmentTime) return false;
+    // MARKER-PATCH-512 — a date with route windows requires picking one
+    if (bookingMode === 'drop_off' && (calPdWindows[state.date] || []).length && !state.pdWindowId) return false;
     if (bookingMode === 'time_slots' && (d.resources || []).length >= 2 && !state.resourceId) return false;
     if (d.hasReceiving) {
       var sel = document.getElementById('bk-receiving');
@@ -1068,6 +1123,7 @@
       first_name: state.firstName, last_name: state.lastName,
       email: state.email, phone: state.phone,
       date: state.date, appointment_time: state.appointmentTime || null,
+      route_window_id: state.pdWindowId || null, // MARKER-PATCH-512
       resource_id: state.resourceId || null,
       receiving_method: state.receivingMethod,
       items: items,
