@@ -328,11 +328,21 @@ HTML;
 <p>— The {$shop} team</p>",
             ],
 
+            // MARKER-PATCH-536 — "your work is ready, pick a window" options email
+            'delivery_windows_ready' => [
+                'subject'   => 'Your {{asset_noun}} is ready — pick a delivery window',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Good news — your {{asset_noun}} is ready! We have {{window_count}} delivery windows open, starting {{first_window}}.</p>
+<p style='margin:20px 0'><a href='{{confirm_url}}' style='display:inline-block;padding:12px 22px;border-radius:8px;background:#111;color:#fff;text-decoration:none;font-weight:600'>Pick your window</a></p>
+<p style='font-size:13px;color:#666'>Or copy this link: {{confirm_url}}</p>
+<p>— The {$shop} team</p>",
+            ],
+
             // MARKER-PATCH-152C — internal delivery scheduling notifications
             'delivery_pickup_scheduled' => [
                 'subject'   => 'Pickup scheduled — {{date_short}} at {{time_start}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
-<p>{$shop} has scheduled a <strong>pickup</strong> for your bike.</p>
+<p>{$shop} has scheduled a <strong>pickup</strong> for your {{asset_noun}}.</p>
 <table style='font-size:14px;line-height:1.8;margin:12px 0'>
   <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{date_human}}</strong></td></tr>
   <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
@@ -344,7 +354,7 @@ HTML;
             'delivery_dropoff_scheduled' => [
                 'subject'   => 'Dropoff scheduled — {{date_short}} at {{time_start}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
-<p>Your bike is ready! {$shop} has scheduled a <strong>dropoff</strong> back to you.</p>
+<p>Your {{asset_noun}} is ready! {$shop} has scheduled a <strong>dropoff</strong> back to you.</p>
 <table style='font-size:14px;line-height:1.8;margin:12px 0'>
   <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{date_human}}</strong></td></tr>
   <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
@@ -358,7 +368,7 @@ HTML;
             'delivery_pickup_reminder' => [
                 'subject'   => 'Reminder: pickup tomorrow at {{time_start}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
-<p>A quick reminder that {$shop} will pick up your bike <strong>{{when_human}}</strong>.</p>
+<p>A quick reminder that {$shop} will pick up your {{asset_noun}} <strong>{{when_human}}</strong>.</p>
 <table style='font-size:14px;line-height:1.8;margin:12px 0'>
   <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{when_human}}</strong></td></tr>
   <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>
@@ -370,7 +380,7 @@ HTML;
             'delivery_dropoff_reminder' => [
                 'subject'   => 'Reminder: bike dropoff tomorrow at {{time_start}}',
                 'body_html' => "<p>Hi {{first_name}},</p>
-<p>A quick reminder that {$shop} will drop off your bike <strong>{{when_human}}</strong>.</p>
+<p>A quick reminder that {$shop} will drop off your {{asset_noun}} <strong>{{when_human}}</strong>.</p>
 <table style='font-size:14px;line-height:1.8;margin:12px 0'>
   <tr><td style='color:#666;padding-right:16px'>When</td><td><strong>{{when_human}}</strong></td></tr>
   <tr><td style='color:#666;padding-right:16px'>Window</td><td>{{window}}</td></tr>

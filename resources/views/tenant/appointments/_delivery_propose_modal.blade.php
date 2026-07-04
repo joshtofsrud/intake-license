@@ -14,10 +14,11 @@
       <button type="button" class="dp-pill" id="dp-pill-email" data-on="1" style="flex:1;justify-content:center"><span class="dp-tick">&#10003;</span>Email</button>
     </div>
     <div style="font-size:12px;color:var(--ia-text-muted);margin:11px 0 16px;min-height:17px" id="dp-modal-hint"></div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip">Skip</button>
-      <button type="button" id="dp-modal-clear" style="margin-left:auto;display:none;background:none;border:0;color:var(--ia-text-muted);font-size:12px;font-family:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px">clear selection</button>
-      <button type="button" class="ia-btn ia-btn--primary" id="dp-modal-go">Text the options</button>
+    {{-- MARKER-PATCH-536 — full-width action row: skip 1/3, primary 2/3 --}}
+    <button type="button" id="dp-modal-clear" style="display:none;background:none;border:0;color:var(--ia-text-muted);font-size:12px;font-family:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-bottom:10px">clear selection</button>
+    <div style="display:flex;align-items:stretch;gap:12px;width:100%">
+      <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip" style="flex:1">Skip</button>
+      <button type="button" class="ia-btn ia-btn--primary" id="dp-modal-go" style="flex:2">Text the options</button>
     </div>
   </div>
 </div>
@@ -98,11 +99,16 @@ window.IntakeDeliveryPropose = (function () {
     var t = pillOn('dp-pill-text'), e = pillOn('dp-pill-email');
     if (!selected) {
       clear.style.display = 'none';
-      goBtn.textContent = 'Text ' + firstName + ' the options';
-      goBtn.disabled = !t; // the options link travels by text
-      hint.textContent = t
+      // MARKER-PATCH-536 — options mode honors the pills
+      goBtn.textContent =
+        t && e ? 'Text & email ' + firstName + ' the options' :
+        t      ? 'Text ' + firstName + ' the options' :
+        e      ? 'Email ' + firstName + ' the options' :
+                 'Text ' + firstName + ' the options';
+      goBtn.disabled = !t && !e;
+      hint.textContent = (t || e)
         ? 'They pick from a link; if they don\u2019t reply, the appointment shows on your dashboard as awaiting delivery.'
-        : 'The options link goes by text \u2014 turn Text back on, or pick a window to schedule it yourself.';
+        : 'Turn on Text or Email to send the options \u2014 or pick a window to schedule it yourself.';
       return;
     }
     clear.style.display = 'block';
@@ -137,6 +143,8 @@ window.IntakeDeliveryPropose = (function () {
       fd.append('notify_email', pillOn('dp-pill-email') ? '1' : '0');
     } else {
       fd.append('op', 'delivery_proposal_send');
+      fd.append('notify_sms',   pillOn('dp-pill-text')  ? '1' : '0'); // MARKER-PATCH-536
+      fd.append('notify_email', pillOn('dp-pill-email') ? '1' : '0');
     }
     fetch(updateUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })

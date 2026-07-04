@@ -1180,8 +1180,16 @@ class AppointmentController extends Controller
             if (!$tenant->deliveries_enabled) {
                 return response()->json(['ok' => false, 'message' => 'Deliveries are not enabled.'], 422);
             }
+            // MARKER-PATCH-536 — options go out only on the channels staff chose
+            $propChannels = array_values(array_filter([
+                $request->input('notify_sms', '1') === '1' ? 'sms' : null,
+                $request->input('notify_email') === '1' ? 'email' : null,
+            ]));
+            if (empty($propChannels)) {
+                return response()->json(['ok' => false, 'message' => 'Pick at least one channel (text or email).'], 422);
+            }
             try {
-                $proposal = DeliveryProposalService::forTenant($tenant)->proposeForAppointment($appointment);
+                $proposal = DeliveryProposalService::forTenant($tenant)->proposeForAppointment($appointment, $propChannels);
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error('Delivery proposal send failed', [
                     'appointment_id' => $appointment->id, 'error' => $e->getMessage(),
@@ -1198,7 +1206,7 @@ class AppointmentController extends Controller
                 'appointment_id' => $appointment->id,
                 'user_id' => Auth::guard('tenant')->id(),
                 'note_type' => 'system', 'is_customer_visible' => false,
-                'note_content' => 'Delivery windows texted to customer (' . count($proposal->windows) . ' options).',
+                'note_content' => 'Delivery windows sent to customer by ' . str_replace('sms', 'text', implode(' + ', $propChannels)) . ' (' . count($proposal->windows) . ' options).', // MARKER-PATCH-536
                 'created_at' => now(),
             ]);
             return response()->json(['ok' => true]);

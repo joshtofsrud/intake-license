@@ -75,11 +75,14 @@ class DeliveryProposalService
      * the confirm link. Returns null when nothing sendable (no phone, no
      * open windows, or a pending proposal already exists).
      */
-    public function proposeForAppointment(TenantAppointment $appointment): ?TenantDeliveryProposal
+    public function proposeForAppointment(TenantAppointment $appointment, array $requestedChannels = ['sms']): ?TenantDeliveryProposal // MARKER-PATCH-536
     {
         $appointment->loadMissing('customer');
         $customer = $appointment->customer;
-        if (!$customer || empty($customer->phone)) return null;
+        if (!$customer) return null;
+        $wantSms   = in_array('sms', $requestedChannels, true) && !empty($customer->phone);
+        $wantEmail = in_array('email', $requestedChannels, true) && !empty($customer->email);
+        if (!$wantSms && !$wantEmail) return null;
 
         $existing = TenantDeliveryProposal::query()
             ->where('tenant_id', $this->tenant->id)
@@ -116,14 +119,34 @@ class DeliveryProposalService
         ]);
 
         $channels = [];
-        try {
-            SmsService::send($this->tenant, $customer->phone, $this->smsBody($proposal, $customer->first_name ?? ''));
-            $channels[] = 'sms';
-        } catch (\Throwable $e) {
-            Log::error('Delivery proposal SMS failed', [
-                'proposal_id' => $proposal->id,
-                'error'       => $e->getMessage(),
-            ]);
+        if ($wantSms) {
+            try {
+                SmsService::send($this->tenant, $customer->phone, $this->smsBody($proposal, $customer->first_name ?? ''));
+                $channels[] = 'sms';
+            } catch (\Throwable $e) {
+                Log::error('Delivery proposal SMS failed', [
+                    'proposal_id' => $proposal->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
+        // MARKER-PATCH-536 — email flavor of the options link
+        if ($wantEmail) {
+            try {
+                \App\Services\EmailService::forTenant($this->tenant)->send('delivery_windows_ready', $customer->email, [
+                    'first_name'   => $customer->first_name ?? '',
+                    'asset_noun'   => $this->tenant->asset_label_singular ?: 'order',
+                    'window_count' => count($windows),
+                    'first_window' => $windows[0]['day_label'] . ' ' . $windows[0]['label'],
+                    'confirm_url'  => $this->confirmUrl($proposal),
+                ]);
+                $channels[] = 'email';
+            } catch (\Throwable $e) {
+                Log::error('Delivery proposal email failed', [
+                    'proposal_id' => $proposal->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
         }
         if ($channels) $proposal->update(['sent_channels' => implode(',', $channels)]);
 
