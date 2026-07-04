@@ -5,6 +5,7 @@
   $tz = $tenant->timezone();
   $isPending = $proposal->isPending() || $proposal->status === 'no_reply'; // MARKER-PATCH-534 — link keeps working after the no-reply flag
   $deadline = $proposal->expires_at?->copy()->setTimezone($tz);
+  $noun = $tenant->asset_label_singular ?: 'order'; // MARKER-PATCH-535
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -41,7 +42,7 @@
   <div class="shop">{{ $tenant->name }}</div>
 
   @if($isPending)
-    <h1>Your bike is ready! 🎉</h1>
+    <h1>Your {{ $noun }} is ready! 🎉</h1>
     <p class="sub">Pick the delivery window that works — we'll bring it to you.</p>
     @if($error)<div class="err">{{ $error }}</div>@endif
 
@@ -81,7 +82,7 @@
     <div class="done">
       <div class="done-ic">✓</div>
       <h1>You're all set</h1>
-      <p class="sub">We'll deliver your bike</p>
+      <p class="sub">We'll deliver your {{ $noun }}</p>
       <div class="done-when">
         {{ $proposal->confirmed_date?->format('l, F j') }}<br>
         <span style="font-size:14px;opacity:.65;font-weight:500">{{ $win['label'] ?? '' }}</span>

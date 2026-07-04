@@ -1115,6 +1115,7 @@ class AppointmentController extends Controller
                             $dl = \Carbon\Carbon::now($tz)->setTime($assumeHour, 0);
                             if ($dl->isPast()) $dl->addDay();
                             $proposeDelivery = [
+                                'asset_noun'     => $tenant->asset_label_singular ?: 'work', // MARKER-PATCH-535
                                 'customer_name'  => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')),
                                 'phone_tail'     => substr(preg_replace('/\D/', '', $cust->phone), -4),
                                 'windows'        => $cands,

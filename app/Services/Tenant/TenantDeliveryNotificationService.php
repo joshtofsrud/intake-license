@@ -196,6 +196,7 @@ class TenantDeliveryNotificationService
             'delivery_type'    => $delivery->type,
             'type_verb'        => $delivery->isPickup() ? 'pick up' : 'drop off',
             'type_noun'        => $delivery->isPickup() ? 'pickup'  : 'dropoff',
+            'asset_noun'       => $this->tenant->asset_label_singular ?: 'order', // MARKER-PATCH-535
             'date_human'       => $start->format('l, F j'),
             'date_short'       => $start->format('M j'),
             'time_start'       => $start->format('g:i A'),
@@ -220,9 +221,9 @@ class TenantDeliveryNotificationService
         $verb = $vars['type_verb'];
         $when = $vars['date_short'] . ' at ' . $vars['time_start'];
         if ($delivery->isPickup()) {
-            return "{$shop}: We'll {$verb} your bike on {$when} ({$vars['window']}). Reply STOP to opt out.";
+            return "{$shop}: We'll {$verb} your {$vars['asset_noun']} on {$when} ({$vars['window']}). Reply STOP to opt out."; // MARKER-PATCH-535
         }
-        return "{$shop}: We'll {$verb} your bike on {$when} ({$vars['window']}) at {$vars['address']}. Reply STOP to opt out.";
+        return "{$shop}: We'll {$verb} your {$vars['asset_noun']} on {$when} ({$vars['window']}) at {$vars['address']}. Reply STOP to opt out."; // MARKER-PATCH-535
     }
 
     /**
@@ -234,8 +235,8 @@ class TenantDeliveryNotificationService
         $shop = $vars['shop_name'];
         $verb = $vars['type_verb'];
         if ($delivery->isPickup()) {
-            return "{$shop}: Reminder \u{2014} we'll {$verb} your bike {$vars['when_sms']}. Reply STOP to opt out.";
+            return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']}. Reply STOP to opt out."; // MARKER-PATCH-535
         }
-        return "{$shop}: Reminder \u{2014} we'll {$verb} your bike {$vars['when_sms']} at {$vars['address']}. Reply STOP to opt out.";
+        return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']} at {$vars['address']}. Reply STOP to opt out."; // MARKER-PATCH-535
     }
 }

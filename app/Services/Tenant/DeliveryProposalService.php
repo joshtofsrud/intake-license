@@ -203,10 +203,11 @@ class DeliveryProposalService
     private function smsBody(TenantDeliveryProposal $proposal, string $firstName): string
     {
         $shop = $this->tenant->name;
+        $noun = $this->tenant->asset_label_singular ?: 'order'; // MARKER-PATCH-535
         $hi   = $firstName !== '' ? "{$firstName}, your" : 'Your';
 
         // MARKER-PATCH-534 — no assume-first: the link just offers the windows.
-        return "{$shop}: {$hi} bike is ready! Pick a delivery window that works: "
+        return "{$shop}: {$hi} {$noun} is ready! Pick a delivery window that works: "
             . $this->confirmUrl($proposal)
             . " Reply STOP to opt out.";
     }

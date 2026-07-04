@@ -4,13 +4,14 @@
      and no assume-first — no reply just surfaces on the dashboard. --}}
 <div id="dp-modal" style="display:none;position:fixed;inset:0;z-index:220;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)">
   <div style="background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:16px;padding:24px 26px;width:min(480px,calc(100vw - 32px));box-shadow:0 24px 60px rgba(0,0,0,.5)">
-    <div style="font-size:17px;font-weight:700;margin-bottom:4px">Bike's done &mdash; delivery?</div>
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px;text-transform:capitalize" id="dp-modal-title">Done &mdash; delivery?</div>{{-- MARKER-PATCH-535 — title uses tenant asset noun via payload --}}
     <div style="font-size:13px;color:var(--ia-text-muted);margin-bottom:16px" id="dp-modal-sub"></div>
     <div id="dp-modal-windows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px"></div>
-    <div id="dp-modal-notify" style="display:none;align-items:center;gap:10px;margin:14px 0 2px">
-      <span style="font-size:12.5px;color:var(--ia-text-muted)" id="dp-notify-lbl">Notify by:</span>
-      <button type="button" class="dp-pill" id="dp-pill-text" data-on="1"><span class="dp-tick">&#10003;</span>Text</button>
-      <button type="button" class="dp-pill" id="dp-pill-email" data-on="1"><span class="dp-tick">&#10003;</span>Email</button>
+    {{-- MARKER-PATCH-535 — always visible, full modal width --}}
+    <div id="dp-modal-notify" style="display:flex;align-items:center;gap:10px;margin:14px 0 2px;width:100%">
+      <span style="font-size:12.5px;color:var(--ia-text-muted);flex:none" id="dp-notify-lbl">Notify by:</span>
+      <button type="button" class="dp-pill" id="dp-pill-text" data-on="1" style="flex:1;justify-content:center"><span class="dp-tick">&#10003;</span>Text</button>
+      <button type="button" class="dp-pill" id="dp-pill-email" data-on="1" style="flex:1;justify-content:center"><span class="dp-tick">&#10003;</span>Email</button>
     </div>
     <div style="font-size:12px;color:var(--ia-text-muted);margin:11px 0 16px;min-height:17px" id="dp-modal-hint"></div>
     <div style="display:flex;align-items:center;gap:12px">
@@ -44,6 +45,9 @@ window.IntakeDeliveryPropose = (function () {
 
     selected  = null;
     firstName = (payload.customer_name || 'the customer').split(' ')[0];
+    // MARKER-PATCH-535 — tenant asset noun, never hardcoded
+    var noun = payload.asset_noun || 'work';
+    document.getElementById('dp-modal-title').textContent = noun + "'s done \u2014 delivery?";
     document.getElementById('dp-modal-sub').innerHTML =
       'Pick a window for <b style="color:var(--ia-text)">' + esc(payload.customer_name) + '</b> (&hellip;' + esc(payload.phone_tail) + '), or text the options and let them choose.';
     document.getElementById('dp-notify-lbl').textContent = 'Notify ' + firstName + ' by:';
@@ -72,6 +76,7 @@ window.IntakeDeliveryPropose = (function () {
     document.getElementById('dp-pill-email').onclick = function () { this.dataset.on = this.dataset.on === '1' ? '0' : '1'; render(); };
     document.getElementById('dp-pill-text').dataset.on = '1';
     document.getElementById('dp-pill-email').dataset.on = '1';
+    document.getElementById('dp-modal-go').disabled = false; // MARKER-PATCH-535
     document.getElementById('dp-modal-skip').onclick  = function () { close(true); };
     document.getElementById('dp-modal-clear').onclick = function () {
       selected = null;
@@ -86,20 +91,22 @@ window.IntakeDeliveryPropose = (function () {
   }
 
   function render() {
-    var goBtn  = document.getElementById('dp-modal-go');
-    var hint   = document.getElementById('dp-modal-hint');
-    var notify = document.getElementById('dp-modal-notify');
-    var clear  = document.getElementById('dp-modal-clear');
+    // MARKER-PATCH-535 — pills always visible; button label carries the consequence
+    var goBtn = document.getElementById('dp-modal-go');
+    var hint  = document.getElementById('dp-modal-hint');
+    var clear = document.getElementById('dp-modal-clear');
+    var t = pillOn('dp-pill-text'), e = pillOn('dp-pill-email');
     if (!selected) {
-      notify.style.display = 'none';
       clear.style.display = 'none';
       goBtn.textContent = 'Text ' + firstName + ' the options';
-      hint.textContent = 'They pick from a link; if they don\u2019t reply, the appointment shows on your dashboard as awaiting delivery.';
+      goBtn.disabled = !t; // the options link travels by text
+      hint.textContent = t
+        ? 'They pick from a link; if they don\u2019t reply, the appointment shows on your dashboard as awaiting delivery.'
+        : 'The options link goes by text \u2014 turn Text back on, or pick a window to schedule it yourself.';
       return;
     }
-    notify.style.display = 'flex';
     clear.style.display = 'block';
-    var t = pillOn('dp-pill-text'), e = pillOn('dp-pill-email');
+    goBtn.disabled = false;
     goBtn.textContent =
       t && e ? 'Schedule + text & email' :
       t      ? 'Schedule + text' :
