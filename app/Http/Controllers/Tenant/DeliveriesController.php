@@ -411,6 +411,15 @@ class DeliveriesController extends Controller
             'completed_at' => now(),
         ]);
 
+        // MARKER-PATCH-530 — recovery signal: drop-off landed after the window
+        try {
+            app(\App\Services\Tenant\RecoverySignalService::class)->lateDelivery($delivery->fresh());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('late_delivery signal failed', [
+                'delivery_id' => $delivery->id, 'error' => $e->getMessage(),
+            ]);
+        }
+
         return back()->with('success', 'Marked complete.');
     }
 

@@ -334,9 +334,10 @@
         <div class="rl"><div class="rt">Reschedule</div><div class="rd">You moved the appointment on the customer</div></div>
         <input type="checkbox" class="rs-tog" name="recovery_signal_reschedule" value="1" @checked($recoverySettings['sig_reschedule'])>
       </div>
-      <div class="rs-row off">
+      {{-- MARKER-PATCH-530 — live with pickup & delivery --}}
+      <div class="rs-row">
         <div class="rl"><div class="rt">Late delivery</div><div class="rd">Drop-off happened after the delivery window</div></div>
-        <span class="soon">With pickup &amp; delivery</span>
+        <input type="checkbox" class="rs-tog" name="recovery_signal_late_delivery" value="1" @checked($recoverySettings['sig_late_delivery'])>
       </div>
       <div class="rs-row off">
         <div class="rl"><div class="rt">Special-order delay</div><div class="rd">Part arrived later than the quoted ETA</div></div>
