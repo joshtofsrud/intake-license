@@ -122,6 +122,9 @@ $tenantRoutes = function () {
     Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
 
     Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
+    // MARKER-PATCH-528 — public delivery-window confirm page (token is the credential)
+    Route::get('/d/{token}',             [TenantControllers\DeliveryConfirmController::class, 'show'])->name('tenant.delivery_confirm.show');
+    Route::post('/d/{token}',            [TenantControllers\DeliveryConfirmController::class, 'confirm'])->name('tenant.delivery_confirm.save');
     // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
     Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
     Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
