@@ -320,6 +320,9 @@
 <div class="bk-section" id="bk-step-2">
   <h1 class="bk-section-title">{{ $bk['step2_heading'] ?? 'Pick a drop-off date' }}</h1>
   <p class="bk-section-sub">{{ $bk['step2_sub'] ?? 'Choose an available date for your service.' }}</p>
+  {{-- MARKER-PATCH-525 — split layout open --}}
+  <div class="bk-details-layout bk-s2-layout">
+  <div class="bk-s2-main">
   <button type="button" class="bk-earliest" id="bk-earliest" style="display:none">
     <span class="bk-earliest-dot"></span>
     <span class="bk-earliest-text" id="bk-earliest-text">Loading…</span>
@@ -343,21 +346,37 @@
       <span class="bk-cal-legend-item"><span class="bk-cal-legend-strike"></span>full or closed</span>
     </div>
   </div>
-  @if($receivingMethods->isNotEmpty())
-    <div style="margin-top:24px;max-width:400px">
-      <label class="bk-label">How are you dropping off?</label>
-      <select class="bk-select" id="bk-receiving">
-        <option value="">Select…</option>
-        @foreach($receivingMethods as $rm)
-          <option value="{{ $rm->name }}">{{ $rm->name }}</option>
-        @endforeach
-      </select>
+  </div>{{-- /.bk-s2-main --}}
+  {{-- MARKER-PATCH-525 — schedule rail --}}
+  <div class="bk-s2-rail">
+    <div class="bk-sidebar bk-s2-card">
+      <div class="bk-sidebar-title">Your services</div>
+      <div id="bk-rail-order-items"><p class="bk-sidebar-empty">No services selected yet.</p></div>
+      <button type="button" class="bk-s2-change" onclick="goTo(1)">Change services</button>
     </div>
-  @endif
-  <div class="bk-nav">
-    <button type="button" class="bk-back" onclick="goTo(1)">← Back</button>
-    <button type="button" class="bk-next" id="bk-next-2" disabled onclick="goTo(3)">Continue → {{ $stepLabels[2] }}</button>
+    <div class="bk-sidebar bk-s2-card" id="bk-rail-day" style="display:none">
+      <div class="bk-sidebar-title">Your day</div>
+      <div class="bk-s2-day" data-rail-date>—</div>
+      <div class="bk-s2-day-sub" data-rail-cap></div>
+    </div>
+    <div class="bk-sidebar bk-s2-card" id="bk-rail-mounts"></div>
+    @if($receivingMethods->isNotEmpty())
+      <div class="bk-sidebar bk-s2-card">
+        <label class="bk-label">How are you dropping off?</label>
+        <select class="bk-select" id="bk-receiving">
+          <option value="">Select…</option>
+          @foreach($receivingMethods as $rm)
+            <option value="{{ $rm->name }}">{{ $rm->name }}</option>
+          @endforeach
+        </select>
+      </div>
+    @endif
+    <div class="bk-nav bk-s2-nav">
+      <button type="button" class="bk-back" onclick="goTo(1)">← Back</button>
+      <button type="button" class="bk-next" id="bk-next-2" disabled onclick="goTo(3)">Continue → {{ $stepLabels[2] }}</button>
+    </div>
   </div>
+  </div>{{-- /.bk-s2-layout --}}
 </div>
 
 {{-- Step 3: Details --}}

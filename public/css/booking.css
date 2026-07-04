@@ -688,3 +688,24 @@
 
 /* MARKER-PATCH-214k — fixed (account) asset display in the Bikes step */
 .bk-pre-bike-fixed { font-size: 15px; font-weight: 600; padding: 5px 2px; }
+
+
+/* MARKER-PATCH-525 — schedule step split layout */
+.bk-s2-layout { margin-top: 4px; }
+.bk-s2-main { min-width: 0; }
+.bk-s2-rail { position: sticky; top: 80px; }
+.bk-s2-card { position: static; top: auto; padding: 16px 18px; margin-bottom: 12px; }
+.bk-s2-card:empty { display: none; }
+.bk-s2-rail #bk-pd-windows,
+.bk-s2-rail #bk-time-slots { margin-top: 0; }
+.bk-s2-rail #bk-pd-windows > div:last-child { flex-direction: column; align-items: stretch; }
+.bk-s2-change { margin-top: 12px; background: none; border: none; padding: 0; font-size: 12.5px; cursor: pointer; color: inherit; opacity: .6; text-decoration: underline; }
+.bk-s2-change:hover { opacity: 1; }
+.bk-s2-day { font-size: 17px; font-weight: 650; }
+.bk-s2-day-sub { font-size: 12.5px; opacity: .6; margin-top: 2px; }
+.bk-s2-nav { margin-top: 2px; }
+@media (max-width: 900px) {
+  .bk-s2-layout { grid-template-columns: 1fr; }
+  .bk-s2-rail { position: static; }
+  .bk-s2-nav { position: sticky; bottom: 12px; background: var(--p-bg, #fff); border: 1.5px solid rgba(0,0,0,.1); border-radius: var(--p-r-lg); padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.14); z-index: 5; }
+}

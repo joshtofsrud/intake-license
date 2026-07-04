@@ -59,6 +59,7 @@
     bindCalNav();
     bindReceiving();
     initCalendar();
+    initS2Rail(); // MARKER-PATCH-525
     if (d.multiAsset) window.__bkInitAssetServices = initAssetServices; // MARKER-PATCH-214c (run at pre-flow handoff, not boot)
     if (d.stripeEnabled && d.stripePk) initStripe();
     if (d.paypalEnabled && window.paypal) initPayPal();
@@ -683,6 +684,7 @@
       c.classList.toggle('selected', c.textContent == parseInt(dateStr.split('-')[2], 10) && calAvailable[dateStr]);
     });
     renderCalendar();
+    renderRailDay(dateStr); // MARKER-PATCH-525
 
     // Time slot mode — show time picker
     if (bookingMode === 'time_slots') {
@@ -775,13 +777,18 @@
       wrap.appendChild(nb);
     }
 
-    // MARKER-PATCH-520 — sit directly under the calendar / week / day view
-    var anchorEl = document.getElementById('bk-altview') || document.getElementById('cal-grid');
-    if (anchorEl && anchorEl.parentNode) {
-      anchorEl.parentNode.insertBefore(wrap, anchorEl.nextSibling);
+    // MARKER-PATCH-525 — mount in the schedule rail when present, else legacy anchor
+    var mnt = s2Mount();
+    if (mnt) {
+      mnt.appendChild(wrap);
     } else {
-      var cal = document.getElementById('bk-calendar');
-      if (cal && cal.parentElement) cal.parentElement.appendChild(wrap);
+      var anchorEl = document.getElementById('bk-altview') || document.getElementById('cal-grid');
+      if (anchorEl && anchorEl.parentNode) {
+        anchorEl.parentNode.insertBefore(wrap, anchorEl.nextSibling);
+      } else {
+        var cal = document.getElementById('bk-calendar');
+        if (cal && cal.parentElement) cal.parentElement.appendChild(wrap);
+      }
     }
     updateNext2();
   }
@@ -827,7 +834,8 @@
     });
 
     wrap.appendChild(grid);
-    document.getElementById('bk-calendar').after(wrap);
+    var mntTs = s2Mount(); // MARKER-PATCH-525
+    if (mntTs) mntTs.appendChild(wrap); else document.getElementById('bk-calendar').after(wrap);
   }
 
   function renderResourcePicker(dateStr, time) {
@@ -888,7 +896,8 @@
     if (timeSlotsEl) {
       timeSlotsEl.after(wrap);
     } else {
-      document.getElementById('bk-calendar').after(wrap);
+      var mntRp = s2Mount(); // MARKER-PATCH-525
+      if (mntRp) mntRp.appendChild(wrap); else document.getElementById('bk-calendar').after(wrap);
     }
   }
 
@@ -972,6 +981,30 @@
   // =========================================================================
   // Sidebar
   // =========================================================================
+  // MARKER-PATCH-525 — schedule-rail helpers
+  function s2Mount() { return document.getElementById('bk-rail-mounts'); }
+
+  function initS2Rail() {
+    var src = document.getElementById('bk-sidebar-items');
+    var dst = document.getElementById('bk-rail-order-items');
+    if (!src || !dst) return;
+    var sync = function () { dst.innerHTML = src.innerHTML; };
+    new MutationObserver(sync).observe(src, { childList: true, subtree: true });
+    sync();
+  }
+
+  function renderRailDay(dateStr) {
+    var el = document.getElementById('bk-rail-day');
+    if (!el) return;
+    if (!dateStr) { el.style.display = 'none'; return; }
+    var dObj = new Date(dateStr + 'T12:00:00');
+    var cap = capLabel(dateStr);
+    el.style.display = '';
+    el.querySelector('[data-rail-date]').textContent =
+      dObj.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    el.querySelector('[data-rail-cap]').textContent = cap || '';
+  }
+
   function updateSidebar() {
     if (d.multiAsset && state.activeAsset) { state.assetSel[state.activeAsset] = cloneSel(state.selections); renderAssetTabs(); } // MARKER-PATCH-214b/d
     var container = document.getElementById('bk-sidebar-items');
