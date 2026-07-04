@@ -5,6 +5,43 @@
 <style>
   .rec-intro { font-size: 13px; color: var(--ia-text-muted); margin-bottom: 18px; line-height: 1.5; max-width: 640px; }
 
+  /* MARKER-PATCH-507 — subnav + settings tab */
+  .rec-subnav{display:flex;gap:4px;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:11px;padding:4px;margin-bottom:22px;width:fit-content}
+  .rec-subnav a{font-size:12.5px;font-weight:500;color:var(--ia-text-muted);padding:7px 15px;border-radius:8px;text-decoration:none}
+  .rec-subnav a.on{background:var(--ia-accent-soft);color:var(--ia-accent);box-shadow:inset 0 0 0 1px var(--ia-accent)}
+  .rs-dep{display:flex;gap:11px;align-items:flex-start;border:0.5px solid var(--ia-border);background:var(--ia-surface-2);border-radius:12px;padding:13px 15px;margin-bottom:18px;max-width:760px}
+  .rs-dep .di{flex:none;font-size:15px;margin-top:1px;opacity:.7}
+  .rs-dep .dt{font-size:12.5px}
+  .rs-dep .dt b{font-weight:600}
+  .rs-dep .dt span{display:block;color:var(--ia-text-muted);margin-top:2px;font-size:11.5px}
+  .rs-group{border:0.5px solid var(--ia-border);border-radius:15px;background:var(--ia-surface);margin-bottom:18px;overflow:hidden;max-width:760px}
+  .rs-gh{padding:15px 18px 14px;border-bottom:0.5px solid var(--ia-border)}
+  .rs-gh .gt{font-size:14px;font-weight:600}
+  .rs-gh .gs{font-size:12px;color:var(--ia-text-muted);margin-top:2px}
+  .rs-gb{padding:6px 18px 14px}
+  .rs-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:0.5px solid var(--ia-border)}
+  .rs-row:last-child{border-bottom:none}
+  .rs-row .rl{flex:1}
+  .rs-row .rt{font-size:13.5px;font-weight:500}
+  .rs-row .rd{font-size:11.5px;color:var(--ia-text-dim,var(--ia-text-muted));margin-top:2px}
+  .rs-row.off{opacity:.42}
+  .rs-row .soon{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ia-text-muted);border:0.5px solid var(--ia-border);border-radius:5px;padding:2px 8px;flex:none}
+  .rs-inp{display:inline-flex;align-items:center;background:var(--ia-bg,rgba(0,0,0,.3));border:0.5px solid var(--ia-border);border-radius:8px;overflow:hidden;flex:none}
+  .rs-inp input{width:44px;text-align:center;font-size:13px;font-weight:600;color:var(--ia-text);padding:7px 0;background:transparent;border:0;-moz-appearance:textfield}
+  .rs-inp input::-webkit-outer-spin-button,.rs-inp input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .rs-inp input:focus{outline:none}
+  .rs-inp .u{font-size:11.5px;color:var(--ia-text-muted);padding:0 10px 0 6px;border-left:0.5px solid var(--ia-border);align-self:stretch;display:flex;align-items:center}
+  .rs-tog{appearance:none;-webkit-appearance:none;width:40px;height:23px;border-radius:99px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);position:relative;flex:none;cursor:pointer;transition:.15s;margin:0}
+  .rs-tog::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#8a8a88;transition:.15s}
+  .rs-tog:checked{background:var(--ia-accent-soft);border-color:var(--ia-accent)}
+  .rs-tog:checked::after{left:19px;background:var(--ia-accent)}
+  .rs-seg{display:flex;gap:4px;background:var(--ia-bg,rgba(0,0,0,.3));border:0.5px solid var(--ia-border);border-radius:9px;padding:3px;flex:none}
+  .rs-seg label{font-size:12px;font-weight:500;color:var(--ia-text-muted);padding:6px 12px;border-radius:6px;cursor:pointer}
+  .rs-seg input{display:none}
+  .rs-seg label:has(input:checked){background:var(--ia-accent-soft);color:var(--ia-accent)}
+  .rs-savebar{display:flex;align-items:center;gap:12px;margin-top:22px;max-width:760px}
+  .rs-savebar .note{margin-left:auto;font-size:11.5px;color:var(--ia-text-muted)}
+
   /* Funnel card */
   .rec-funnel {
     background: var(--ia-surface);
@@ -129,6 +166,13 @@
 
 @section('content')
 
+{{-- MARKER-PATCH-507 — Recovery / Settings subnav --}}
+<div class="rec-subnav">
+  <a href="{{ route('tenant.recovery.index') }}" class="{{ $tab === 'main' ? 'on' : '' }}">Recovery</a>
+  <a href="{{ route('tenant.recovery.index', ['tab' => 'settings']) }}" class="{{ $tab === 'settings' ? 'on' : '' }}">Settings</a>
+</div>
+
+@if($tab === 'main')
 {{-- MARKER-PATCH-484 — at-risk regulars --}}
 @if(!empty($atRisk) && count($atRisk))
 <div style="margin-bottom:26px">
@@ -256,40 +300,84 @@
   </div>
 @endif
 
-{{-- MARKER-PATCH-486 — recovery settings --}}
-<form method="POST" action="{{ route('tenant.recovery.settings.update') }}" style="margin-top:32px;border-top:1px solid var(--ia-border);padding-top:22px">
+@else
+{{-- MARKER-PATCH-507 — settings tab (replaces the patch-486 inline form) --}}
+
+<div class="rs-dep">
+  <div class="di">&#9888;</div>
+  <div class="dt"><b>Lateness is measured against what you told the customer.</b>
+    <span>Appointments without a promised / ready-by time simply don't produce a signal — nothing breaks.</span>
+  </div>
+</div>
+
+<form method="POST" action="{{ route('tenant.recovery.settings.update') }}">
   @csrf
   @method('PATCH')
-  <h2 style="font-size:15px;font-weight:600;margin:0 0 4px">Recovery settings</h2>
-  <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 16px">Tune what counts as late and when a regular is overdue. Sensible defaults — most shops won't need to touch these.</p>
 
-  <div style="display:flex;flex-wrap:wrap;gap:18px;margin-bottom:16px">
-    <label style="font-size:12px;color:var(--ia-text-muted)">Late-completion grace (days)
-      <input type="number" name="recovery_late_completion_grace_days" min="0" max="60" value="{{ $recoverySettings['grace_days'] }}"
-        style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
-    </label>
-    <label style="font-size:12px;color:var(--ia-text-muted)">Overdue buffer (&times; their gap)
-      <input type="number" step="0.25" name="recovery_overdue_buffer" min="1" max="5" value="{{ $recoverySettings['overdue_buffer'] }}"
-        style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
-    </label>
-    <label style="font-size:12px;color:var(--ia-text-muted)">Trust cadence after (visits)
-      <input type="number" name="recovery_min_visits" min="2" max="20" value="{{ $recoverySettings['min_visits'] }}"
-        style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
-    </label>
+  <div class="rs-group">
+    <div class="rs-gh">
+      <div class="gt">Quality signals</div>
+      <div class="gs">Which slip-ups get logged to a customer's history — and how much grace before one counts.</div>
+    </div>
+    <div class="rs-gb">
+      <div class="rs-row">
+        <div class="rl"><div class="rt">Late completion</div><div class="rd">Work finished after the promised time</div></div>
+        <div class="rs-inp">
+          <input type="number" name="recovery_late_completion_grace_days" min="0" max="60" value="{{ $recoverySettings['grace_days'] }}">
+          <span class="u">day{{ $recoverySettings['grace_days'] === 1 ? '' : 's' }} grace</span>
+        </div>
+        <input type="checkbox" class="rs-tog" name="recovery_signal_late_completion" value="1" @checked($recoverySettings['sig_late'])>
+      </div>
+      <div class="rs-row">
+        <div class="rl"><div class="rt">Reschedule</div><div class="rd">You moved the appointment on the customer</div></div>
+        <input type="checkbox" class="rs-tog" name="recovery_signal_reschedule" value="1" @checked($recoverySettings['sig_reschedule'])>
+      </div>
+      <div class="rs-row off">
+        <div class="rl"><div class="rt">Late delivery</div><div class="rd">Drop-off happened after the delivery window</div></div>
+        <span class="soon">With pickup &amp; delivery</span>
+      </div>
+      <div class="rs-row off">
+        <div class="rl"><div class="rt">Special-order delay</div><div class="rd">Part arrived later than the quoted ETA</div></div>
+        <span class="soon">Planned</span>
+      </div>
+    </div>
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
-    <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
-      <input type="checkbox" name="recovery_signal_late_completion" value="1" {{ $recoverySettings['sig_late'] ? 'checked' : '' }}>
-      Log <b>late completion</b> signals
-    </label>
-    <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
-      <input type="checkbox" name="recovery_signal_reschedule" value="1" {{ $recoverySettings['sig_reschedule'] ? 'checked' : '' }}>
-      Log <b>reschedule</b> signals
-    </label>
+  <div class="rs-group">
+    <div class="rs-gh">
+      <div class="gt">At-risk detector</div>
+      <div class="gs">When a regular counts as overdue — measured against their own visit rhythm, not a fixed number.</div>
+    </div>
+    <div class="rs-gb">
+      <div class="rs-row">
+        <div class="rl"><div class="rt">Flag when overdue by</div><div class="rd">Past their normal gap between visits</div></div>
+        <div class="rs-seg">
+          @foreach(['1.25' => '1.25&times;', '1.5' => '1.5&times;', '2' => '2&times;'] as $val => $label)
+            <label><input type="radio" name="recovery_overdue_buffer" value="{{ $val }}"
+              @checked((string) $recoverySettings['overdue_buffer'] === $val || (float) $recoverySettings['overdue_buffer'] === (float) $val)>{!! $label !!}</label>
+          @endforeach
+        </div>
+      </div>
+      <div class="rs-row">
+        <div class="rl"><div class="rt">Trust cadence after</div><div class="rd">Minimum visits before we assume a rhythm</div></div>
+        <div class="rs-inp">
+          <input type="number" name="recovery_min_visits" min="2" max="20" value="{{ $recoverySettings['min_visits'] }}">
+          <span class="u">visits</span>
+        </div>
+      </div>
+      <div class="rs-row">
+        <div class="rl"><div class="rt">Prioritize flagged reasons</div><div class="rd">Sort at-risk regulars with a known issue to the top</div></div>
+        <input type="checkbox" class="rs-tog" name="recovery_prioritize_flagged" value="1" @checked($recoverySettings['prioritize'])>
+      </div>
+    </div>
   </div>
 
-  <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save settings</button>
+  <div class="rs-savebar">
+    <button type="submit" class="ia-btn ia-btn--primary">Save settings</button>
+    <a href="{{ route('tenant.recovery.index') }}" class="ia-btn ia-btn--ghost">Cancel</a>
+    <span class="note">Shown with sensible defaults — works untouched.</span>
+  </div>
 </form>
+@endif
 
 @endsection

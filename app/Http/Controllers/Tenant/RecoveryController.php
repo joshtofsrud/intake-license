@@ -107,9 +107,12 @@ class RecoveryController extends Controller
             'min_visits'     => (int) ($s['recovery_min_visits'] ?? 3),
             'sig_late'       => (bool) ($s['recovery_signal_late_completion'] ?? true),
             'sig_reschedule' => (bool) ($s['recovery_signal_reschedule'] ?? true),
+            // MARKER-PATCH-507
+            'prioritize'     => (bool) ($s['recovery_prioritize_flagged'] ?? true),
         ];
+        $tab = request()->query('tab') === 'settings' ? 'settings' : 'main';
 
-        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since', 'atRisk', 'recoverySettings'));
+        return view('tenant.recovery.index', compact('funnel', 'steps', 'open', 'handled', 'since', 'atRisk', 'recoverySettings', 'tab'));
     }
 
     // MARKER-PATCH-486 — persist the recovery knobs to tenant settings.
@@ -129,9 +132,11 @@ class RecoveryController extends Controller
         $settings['recovery_min_visits']                 = (int) $data['recovery_min_visits'];
         $settings['recovery_signal_late_completion']     = (bool) $request->input('recovery_signal_late_completion');
         $settings['recovery_signal_reschedule']          = (bool) $request->input('recovery_signal_reschedule');
+        $settings['recovery_prioritize_flagged']         = (bool) $request->input('recovery_prioritize_flagged'); // MARKER-PATCH-507
         $tenant->update(['settings' => $settings]);
 
-        return back()->with('success', 'Recovery settings saved.');
+        return redirect()->route('tenant.recovery.index', ['tab' => 'settings'])
+            ->with('success', 'Recovery settings saved.');
     }
 
     public function updateStatus(Request $request, string $id)

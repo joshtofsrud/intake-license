@@ -89,9 +89,11 @@ class AtRiskCustomerService
             return $c;
         });
 
-        // Flagged reasons first, then most overdue.
+        // MARKER-PATCH-507 — flagged-first is now a setting (default on).
+        $prioritize = (bool) ($settings['recovery_prioritize_flagged'] ?? true);
+
         return $atRisk
-            ->sortByDesc(fn ($c) => ($c['reason'] ? 1_000_000 : 0) + $c['days_since'])
+            ->sortByDesc(fn ($c) => ($prioritize && $c['reason'] ? 1_000_000 : 0) + $c['days_since'])
             ->values();
     }
 
