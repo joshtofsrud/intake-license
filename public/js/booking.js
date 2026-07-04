@@ -36,6 +36,7 @@
   // Calendar state
   var calYear, calMonth, calAvailable = {}, calUnavailable = {}, calEarliest = null, calTimeSlots = {}, calSlotResources = {};
   var calPdWindows = {}; // MARKER-PATCH-512 — pickup & delivery route windows per date
+  var calCapacity = {}, calView = 'month'; // MARKER-PATCH-518 — day/week/month
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -450,6 +451,7 @@
       calEarliest = resp.earliest || null;
       calTimeSlots = resp.slots || {};
       calPdWindows = resp.pd_windows || {}; // MARKER-PATCH-512
+      calCapacity  = resp.capacity || {};   // MARKER-PATCH-518
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
@@ -458,6 +460,120 @@
       if (loading) loading.style.display = 'none';
       renderCalendar();
     });
+  }
+
+  // ======================================================================
+  // MARKER-PATCH-518 — Day / Week / Month customer views
+  // ======================================================================
+  function capLabel(ds) {
+    var c = calCapacity[ds];
+    if (!c) return null;
+    if (c.left === null || c.left === undefined) return 'open';
+    return bookingMode === 'time_slots'
+      ? c.left + (c.left === 1 ? ' time' : ' times')
+      : c.left + ' left';
+  }
+
+  function ensureViewBar() {
+    if (document.getElementById('bk-viewbar')) return;
+    var grid = document.getElementById('cal-grid');
+    if (!grid || !grid.parentElement) return;
+    var bar = document.createElement('div');
+    bar.id = 'bk-viewbar';
+    bar.style.cssText = 'display:flex;gap:4px;margin:0 0 12px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.08);border-radius:10px;padding:3px;width:fit-content';
+    ['day', 'week', 'month'].forEach(function (v) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.view = v;
+      b.textContent = v.charAt(0).toUpperCase() + v.slice(1);
+      b.style.cssText = 'font-size:12px;font-weight:600;padding:6px 14px;border-radius:7px;border:0;cursor:pointer;background:transparent;color:var(--p-text);font-family:inherit;opacity:.65';
+      b.addEventListener('click', function () { calView = v; paintViewBar(); renderCalendar(); });
+      bar.appendChild(b);
+    });
+    grid.parentElement.insertBefore(bar, grid);
+    paintViewBar();
+  }
+
+  function paintViewBar() {
+    var bar = document.getElementById('bk-viewbar');
+    if (!bar) return;
+    bar.querySelectorAll('button').forEach(function (b) {
+      var on = b.dataset.view === calView;
+      b.style.background = on ? 'var(--p-accent)' : 'transparent';
+      b.style.color      = on ? 'var(--p-accent-text)' : 'var(--p-text)';
+      b.style.opacity    = on ? '1' : '.65';
+    });
+  }
+
+  function altContainer() {
+    var el = document.getElementById('bk-altview');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'bk-altview';
+      var grid = document.getElementById('cal-grid');
+      grid.parentElement.insertBefore(el, grid.nextSibling);
+    }
+    return el;
+  }
+
+  function fmtDayLabel(d) {
+    return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+  }
+
+  function renderWeekView() {
+    var alt = altContainer();
+    alt.innerHTML = '';
+    var anchor = state.date ? new Date(state.date + 'T12:00:00') : new Date();
+    if (anchor < today) anchor = new Date();
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:7px';
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + i);
+      var ds = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      var open = !!calAvailable[ds];
+      var c = calCapacity[ds];
+      var col = document.createElement('div');
+      var sel = ds === state.date;
+      col.style.cssText = 'text-align:center;padding:10px 4px;border:1.5px solid ' + (sel ? 'var(--p-accent)' : 'rgba(0,0,0,.1)') + ';border-radius:10px;cursor:' + (open ? 'pointer' : 'default') + ';opacity:' + (open ? '1' : '.38') + (sel ? ';background:color-mix(in srgb, var(--p-accent) 12%, transparent)' : '');
+      var pct = (c && c.max) ? Math.max(0, Math.min(1, ((c.max - c.left) / c.max))) : null;
+      col.innerHTML =
+        '<div style="font-size:10px;opacity:.6">' + fmtDayLabel(d) + '</div>' +
+        '<div style="font-size:15px;font-weight:600;margin:1px 0 6px">' + d.getDate() + '</div>' +
+        (open
+          ? (pct !== null
+              ? '<div style="height:5px;border-radius:99px;background:rgba(0,0,0,.1);overflow:hidden"><div style="height:100%;width:' + Math.round(pct * 100) + '%;background:var(--p-accent)"></div></div><div style="font-size:9.5px;margin-top:4px;opacity:.7">' + capLabel(ds) + '</div>'
+              : '<div style="font-size:9.5px;opacity:.7">' + (capLabel(ds) || 'open') + '</div>')
+          : '<div style="font-size:9.5px;opacity:.7">—</div>');
+      if (open) (function (dstr) { col.addEventListener('click', function () { selectDate(dstr); renderCalendar(); }); })(ds);
+      row.appendChild(col);
+    }
+    alt.appendChild(row);
+  }
+
+  function renderDayView() {
+    var alt = altContainer();
+    alt.innerHTML = '';
+    var ds = state.date || (calEarliest && calEarliest.date);
+    if (!ds) { alt.innerHTML = '<div style="font-size:13px;opacity:.6;padding:10px 0">Pick a date from the month view first.</div>'; return; }
+    var d = new Date(ds + 'T12:00:00');
+    var c = calCapacity[ds];
+    var head = document.createElement('div');
+    head.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:10px';
+    head.textContent = fmtDayLabel(d) + ', ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    alt.appendChild(head);
+
+    if (bookingMode === 'drop_off') {
+      var card = document.createElement('div');
+      card.style.cssText = 'border:1.5px solid var(--p-accent);border-radius:12px;padding:16px;background:color-mix(in srgb, var(--p-accent) 10%, transparent)';
+      var leftTxt = c ? (c.left === null ? 'Open' : c.left + (c.max ? ' <span style="font-size:13px;opacity:.6;font-weight:500">of ' + c.max + '</span>' : '')) : '—';
+      card.innerHTML =
+        '<div style="font-size:11.5px;opacity:.7;margin-bottom:2px">' + ((calPdWindows[ds] || []).length ? 'Pickup spots left' : 'Drop-off spots left') + '</div>' +
+        '<div style="font-size:26px;font-weight:700;letter-spacing:-.02em">' + leftTxt + '</div>';
+      alt.appendChild(card);
+      // window picker / receiving flow continues below via selectDate's DOM
+    } else {
+      renderTimeSlots(ds); // reuses the existing picker under the grid
+    }
   }
 
   function renderCalendar() {
@@ -489,6 +605,14 @@
       if (calAvailable[dateStr]) {
         cell.classList.add('available');
         if (dateStr === state.date) cell.classList.add('selected');
+        // MARKER-PATCH-518 — capacity chip
+        var capInfo = capLabel(dateStr);
+        if (capInfo) {
+          var chip = document.createElement('span');
+          chip.textContent = capInfo;
+          chip.style.cssText = 'display:block;font-size:8.5px;font-weight:600;line-height:1;margin-top:2px;opacity:.75';
+          cell.appendChild(chip);
+        }
         (function (ds) {
           cell.addEventListener('click', function () { selectDate(ds); });
         })(dateStr);
@@ -497,6 +621,17 @@
       }
 
       grid.appendChild(cell);
+    }
+
+    // MARKER-PATCH-518 — view routing: month shows the grid, week/day swap it out
+    ensureViewBar();
+    var altEl = document.getElementById('bk-altview');
+    if (calView === 'month') {
+      grid.style.display = '';
+      if (altEl) altEl.innerHTML = '';
+    } else {
+      grid.style.display = 'none';
+      if (calView === 'week') renderWeekView(); else renderDayView();
     }
   }
 

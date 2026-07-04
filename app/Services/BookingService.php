@@ -620,7 +620,8 @@ class BookingService
         return "intake:{$tenantShort}:drop:{$dayKey}";
     }
 
-    public function availableDates(Tenant $tenant, int $year, int $month, ?string $serviceId = null): array
+    // MARKER-PATCH-517 — optional $capacity out-param: per-date ['left','max'] (null = unbounded)
+    public function availableDates(Tenant $tenant, int $year, int $month, ?string $serviceId = null, ?array &$capacity = null): array
     {
         $windowDays     = $tenant->booking_window_days ?? 60;
         $minNoticeHours = $tenant->min_notice_hours    ?? 24;
@@ -704,6 +705,13 @@ class BookingService
                 // null effectiveCap = unbounded, which keeps the day available.
                 if ($effectiveCap === null || $used < $effectiveCap) {
                     $available[] = $dateStr;
+                    // MARKER-PATCH-517
+                    if ($capacity !== null) {
+                        $capacity[$dateStr] = [
+                            'left' => $effectiveCap === null ? null : max(0, $effectiveCap - $used),
+                            'max'  => $effectiveCap,
+                        ];
+                    }
                 }
             } else {
                 // time_slots: availableSlotsForDate already honors $rule.
@@ -711,7 +719,13 @@ class BookingService
                 // distinct slots remain bookable, but the grid math — not
                 // a shop-wide weight sum — is the primary gating factor.
                 $slots = $this->availableSlotsForDate($tenant, $dateStr, null, 0, $rule);
-                if (!empty($slots)) $available[] = $dateStr;
+                if (!empty($slots)) {
+                    $available[] = $dateStr;
+                    // MARKER-PATCH-517 — for slot mode, "left" = open times that day
+                    if ($capacity !== null) {
+                        $capacity[$dateStr] = ['left' => count($slots), 'max' => null];
+                    }
+                }
             }
             $cursor->addDay();
         }

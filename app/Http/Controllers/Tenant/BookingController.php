@@ -120,7 +120,8 @@ class BookingController extends Controller
         $month      = (int) $request->input('month');
         $serviceId  = $request->input('service_id');
 
-        $dates = $booking->availableDates($tenant, $year, $month, $serviceId);
+        $capacityMap = []; // MARKER-PATCH-517
+        $dates = $booking->availableDates($tenant, $year, $month, $serviceId, $capacityMap);
 
         $available   = array_flip($dates);
         $unavailable = [];
@@ -233,6 +234,7 @@ class BookingController extends Controller
             'earliest'          => $earliest,
             'slots'             => $slots,
             'pd_windows'        => $pdWindows, // MARKER-PATCH-511
+            'capacity'          => $capacityMap, // MARKER-PATCH-517
             'slot_resources'    => $slotResources,
             'mode'              => $mode,
         ]);
