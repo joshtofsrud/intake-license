@@ -39,6 +39,39 @@
       @if($rtDropoff)
         <span style="font-weight:600">{{ tlocal_datetime($rtDropoff->scheduled_at, 'D M j · g:i A') }}</span>
         <span style="color:var(--ia-text-muted);font-size:11.5px">· {{ $rtDropoff->status }}</span>
+      @elseif($appointment->status === 'completed' && $rtPickup)
+        {{-- MARKER-PATCH-515 — inline return scheduler at Ready --}}
+        @php
+          $rtOptions = [];
+          $rtWindows = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $appointment->tenant_id)->active()->get();
+          for ($i = 0; $i < 7 && count($rtOptions) < 12; $i++) {
+              $rtDay = tnow()->addDays($i);
+              foreach ($rtWindows as $rtW) {
+                  if (! $rtW->runsOn($rtDay)) continue;
+                  $rtLeft = $rtW->remainingStops($rtDay);
+                  if ($rtLeft < 1) continue;
+                  $rtOptions[$rtW->id . '|' . $rtDay->toDateString()] =
+                      $rtDay->format('D M j') . ' · ' . $rtW->label . ' · ' . $rtLeft . ' left';
+              }
+          }
+        @endphp
+        @if(empty($rtOptions))
+          <span style="color:var(--ia-text-muted)">no open route windows in the next week — add capacity in Settings → Booking Mode</span>
+        @else
+          <form method="POST" action="{{ route('tenant.deliveries.schedule_return', $appointment->id) }}"
+                style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            @csrf
+            <select name="window_slot" style="padding:6px 9px;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12px">
+              @foreach($rtOptions as $rtVal => $rtLabel)
+                <option value="{{ $rtVal }}">{{ $rtLabel }}</option>
+              @endforeach
+            </select>
+            <label style="font-size:11.5px;color:var(--ia-text-muted);display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" name="notify" value="1" checked> text customer
+            </label>
+            <button class="ia-btn ia-btn--primary ia-btn--sm">Schedule delivery</button>
+          </form>
+        @endif
       @else
         <span style="color:var(--ia-text-muted)">window proposed when work is marked complete</span>
       @endif

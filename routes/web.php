@@ -487,6 +487,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/deliveries',                           [TenantControllers\DeliveriesController::class, 'store'])->name('deliveries.store');
             Route::patch('/deliveries/{id}',                     [TenantControllers\DeliveriesController::class, 'update'])->name('deliveries.update');
             Route::patch('/deliveries/{id}/complete',            [TenantControllers\DeliveriesController::class, 'complete'])->name('deliveries.complete');
+            // MARKER-PATCH-515 — schedule the return leg from the appointment
+            Route::post('/deliveries/schedule-return/{appointmentId}', [TenantControllers\DeliveriesController::class, 'scheduleReturn'])->name('deliveries.schedule_return');
             Route::patch('/deliveries/{id}/cancel',              [TenantControllers\DeliveriesController::class, 'cancel'])->name('deliveries.cancel');
             Route::get('/deliveries/resources',                 [TenantControllers\DeliveryResourcesController::class, 'index'])->name('deliveries.resources.index');
             Route::post('/deliveries/resources',                [TenantControllers\DeliveryResourcesController::class, 'store'])->name('deliveries.resources.store');

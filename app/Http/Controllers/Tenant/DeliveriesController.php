@@ -278,6 +278,69 @@ class DeliveriesController extends Controller
         return back()->with('success', $flash);
     }
 
+    /**
+     * MARKER-PATCH-515 — schedule the return (dropoff) leg for a completed
+     * appointment, against route-window capacity. Value format: "windowId|Y-m-d".
+     */
+    public function scheduleReturn(Request $request, string $appointmentId): RedirectResponse
+    {
+        $tenant = tenant();
+        abort_unless($tenant->deliveries_enabled, 404);
+
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->findOrFail($appointmentId);
+
+        $data = $request->validate(['window_slot' => ['required', 'string', 'max:60']]);
+        [$windowId, $dateStr] = array_pad(explode('|', $data['window_slot'], 2), 2, null);
+
+        $window = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)
+            ->where('is_active', true)->find((string) $windowId);
+        $date = $dateStr ? \Carbon\Carbon::parse($dateStr) : null;
+        if (! $window || ! $date || ! $window->runsOn($date)) {
+            return back()->with('error', 'That delivery window is not available.');
+        }
+
+        $exists = TenantDelivery::where('tenant_id', $tenant->id)
+            ->where('appointment_id', $appointment->id)
+            ->where('type', 'dropoff')->where('status', '!=', 'cancelled')->exists();
+        if ($exists) {
+            return back()->with('error', 'A delivery is already scheduled for this appointment.');
+        }
+
+        $pickup  = TenantDelivery::where('tenant_id', $tenant->id)
+            ->where('appointment_id', $appointment->id)->where('type', 'pickup')->first();
+        $lockKey = 'pdwin:' . $tenant->id . ':' . $window->id . ':' . $date->toDateString();
+
+        try {
+            $delivery = app(\App\Support\MySQLLock::class)->withLock($lockKey, function () use ($window, $date, $tenant, $appointment, $pickup) {
+                if ($window->remainingStops($date) < 1) {
+                    throw new \RuntimeException('That window just filled — pick another.');
+                }
+                return TenantDelivery::create([
+                    'tenant_id'      => $tenant->id,
+                    'type'           => 'dropoff',
+                    'status'         => TenantDelivery::STATUS_SCHEDULED,
+                    'scheduled_at'   => \Carbon\CarbonImmutable::parse($date->toDateString() . ' ' . (string) $window->starts_at, $tenant->timezone ?? 'UTC')->utc(),
+                    'window_minutes' => max(15, \Carbon\Carbon::parse((string) $window->starts_at)->diffInMinutes(\Carbon\Carbon::parse((string) $window->ends_at))),
+                    'customer_id'    => $appointment->customer_id,
+                    'appointment_id' => $appointment->id,
+                    'address'        => $pickup?->address,
+                    'notes'          => 'Return — ' . $window->label,
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $flash = 'Delivery scheduled for ' . tlocal_datetime($delivery->scheduled_at, 'D M j · g:i A') . '.';
+        if ($request->boolean('notify', true)) {
+            \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)->sendScheduled($delivery);
+            $flash .= ' Customer notified.';
+        }
+
+        return back()->with('success', $flash);
+    }
+
     public function update(Request $request, string $id): RedirectResponse
     {
         $tenant = tenant();
