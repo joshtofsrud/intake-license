@@ -28,7 +28,24 @@ class BookingModesController extends Controller
             }])
             ->get();
 
-        return view('tenant.booking-modes', compact('mode', 'categories'));
+        // MARKER-PATCH-510 — Pickup & delivery section data
+        $routeWindows = $tenant->deliveries_enabled
+            ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)
+                ->orderBy('sort_order')->orderBy('starts_at')->get()
+            : collect();
+        $s = (array) ($tenant->settings ?? []);
+        $pd = [
+            'flavor'            => $s['pd_flavor'] ?? 'queue',
+            'auto_propose'      => (bool) ($s['pd_auto_propose'] ?? true),
+            'windows_offered'   => (int) ($s['pd_windows_offered'] ?? 3),
+            'assume_first_hour' => (int) ($s['pd_assume_first_hour'] ?? 20),
+            'pay_before'        => (bool) ($s['pd_pay_before_delivery'] ?? false),
+            'online_pay'        => (bool) ($s['pd_online_pay_at_booking'] ?? true),
+            'need_by'           => (bool) ($s['pd_need_by_enabled'] ?? true),
+            'turnaround'        => $s['pd_turnaround_label'] ?? '2–3 days',
+        ];
+
+        return view('tenant.booking-modes', compact('mode', 'categories', 'routeWindows', 'pd'));
     }
 
     public function save(Request $request)

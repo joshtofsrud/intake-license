@@ -129,4 +129,117 @@
     });
   });
 </script>
+
+{{-- MARKER-PATCH-510 — Pickup & delivery (route windows + behavior) --}}
+@if($currentTenant->deliveries_enabled)
+<div style="margin-top:36px;border-top:0.5px solid var(--ia-border);padding-top:26px;max-width:760px">
+  <h2 style="font-size:15px;font-weight:600;margin:0 0 4px">Pickup &amp; delivery</h2>
+  <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 18px">Route windows are the capacity customers book pickups against — pickups and deliveries share each window's stop count. Booking-flow integration is coming next; these settings take effect then.</p>
+
+  {{-- windows list --}}
+  <div style="border:0.5px solid var(--ia-border);border-radius:15px;background:var(--ia-surface);overflow:hidden;margin-bottom:16px">
+    <div style="padding:14px 18px;border-bottom:0.5px solid var(--ia-border)">
+      <div style="font-size:14px;font-weight:600">Route windows</div>
+      <div style="font-size:12px;color:var(--ia-text-muted)">When you run routes, and how many stops fit in each window.</div>
+    </div>
+    <div style="padding:12px 18px">
+      @forelse($routeWindows as $w)
+        <div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border:0.5px solid var(--ia-border);border-radius:10px;margin-bottom:7px;{{ $w->is_active ? '' : 'opacity:.45' }}">
+          <span style="font-weight:600;font-size:13px;min-width:88px">{{ $w->label }}</span>
+          <span style="font-size:11.5px;color:var(--ia-text-muted)">
+            {{ collect($w->days)->map(fn($d) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][$d-1])->join(', ') }}
+          </span>
+          <form method="POST" action="{{ route('tenant.route_windows.update', $w->id) }}" style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            @csrf @method('PATCH')
+            <input type="number" name="max_stops" value="{{ $w->max_stops }}" min="1" max="50"
+                   style="width:58px;padding:6px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:7px;color:var(--ia-text);font-size:12.5px;text-align:center">
+            <span style="font-size:11px;color:var(--ia-text-muted)">stops</span>
+            <button class="ia-btn ia-btn--ghost ia-btn--sm">Save</button>
+          </form>
+          <form method="POST" action="{{ route('tenant.route_windows.destroy', $w->id) }}"
+                onsubmit="return confirm('Remove the {{ $w->label }} window?')">
+            @csrf @method('DELETE')
+            <button class="ia-btn ia-btn--ghost ia-btn--sm" style="color:var(--ia-text-muted)">×</button>
+          </form>
+        </div>
+      @empty
+        <div style="font-size:12.5px;color:var(--ia-text-muted);padding:6px 0 10px">No windows yet — add your first below.</div>
+      @endforelse
+
+      <form method="POST" action="{{ route('tenant.route_windows.store') }}"
+            style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:0.5px dashed var(--ia-border);padding-top:12px;margin-top:6px">
+        @csrf
+        <input type="text" name="label" placeholder="8–10 am" required maxlength="40"
+               style="width:100px;padding:7px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px">
+        <input type="time" name="starts_at" required
+               style="padding:6px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px">
+        <span style="color:var(--ia-text-muted);font-size:12px">to</span>
+        <input type="time" name="ends_at" required
+               style="padding:6px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px">
+        <span style="display:flex;gap:4px">
+          @foreach(['M','T','W','T','F','S','S'] as $i => $d)
+            <label style="font-size:10.5px;color:var(--ia-text-muted);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">
+              {{ $d }}<input type="checkbox" name="days[]" value="{{ $i + 1 }}" @checked($i < 6)>
+            </label>
+          @endforeach
+        </span>
+        <input type="number" name="max_stops" value="3" min="1" max="50"
+               style="width:52px;padding:7px 8px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:12.5px;text-align:center">
+        <span style="font-size:11px;color:var(--ia-text-muted)">stops</span>
+        <button class="ia-btn ia-btn--primary ia-btn--sm">Add window</button>
+      </form>
+    </div>
+  </div>
+
+  {{-- behavior knobs --}}
+  <form method="POST" action="{{ route('tenant.route_windows.settings') }}"
+        style="border:0.5px solid var(--ia-border);border-radius:15px;background:var(--ia-surface);padding:16px 18px">
+    @csrf @method('PATCH')
+    <div style="font-size:14px;font-weight:600;margin-bottom:2px">Behavior</div>
+    <div style="font-size:12px;color:var(--ia-text-muted);margin-bottom:14px">How booking, payment, and the Ready step behave.</div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px">
+      <label style="font-size:12px;color:var(--ia-text-muted)">Booking flavor
+        <select name="pd_flavor" style="display:block;margin-top:5px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+          <option value="queue" @selected($pd['flavor'] === 'queue')>Queue — customer books pickup only</option>
+          <option value="anchored" @selected($pd['flavor'] === 'anchored')>Anchored — customer picks the service day</option>
+        </select>
+      </label>
+      <label style="font-size:12px;color:var(--ia-text-muted)">Windows offered at Ready
+        <input type="number" name="pd_windows_offered" min="1" max="6" value="{{ $pd['windows_offered'] }}"
+               style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+      </label>
+      <label style="font-size:12px;color:var(--ia-text-muted)">Assume first window if no reply by (hour, 24h)
+        <input type="number" name="pd_assume_first_hour" min="12" max="23" value="{{ $pd['assume_first_hour'] }}"
+               style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+      </label>
+      <label style="font-size:12px;color:var(--ia-text-muted)">Turnaround shown at booking
+        <input type="text" name="pd_turnaround_label" maxlength="30" value="{{ $pd['turnaround'] }}"
+               style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+      </label>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+        <input type="checkbox" name="pd_auto_propose" value="1" @checked($pd['auto_propose'])>
+        Text delivery windows automatically when work hits <b>Ready</b>
+      </label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+        <input type="checkbox" name="pd_online_pay_at_booking" value="1" @checked($pd['online_pay'])>
+        Online bookings pay at booking <span style="color:var(--ia-text-muted);font-size:11.5px">(staff bookings always choose)</span>
+      </label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+        <input type="checkbox" name="pd_pay_before_delivery" value="1" @checked($pd['pay_before'])>
+        Require any remaining balance paid before delivery <span style="color:var(--ia-text-muted);font-size:11.5px">(off = collect at the door)</span>
+      </label>
+      <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+        <input type="checkbox" name="pd_need_by_enabled" value="1" @checked($pd['need_by'])>
+        Allow customers to add a "need it by" date
+      </label>
+    </div>
+
+    <button class="ia-btn ia-btn--primary ia-btn--sm">Save pickup &amp; delivery settings</button>
+  </form>
+</div>
+@endif
 @endsection

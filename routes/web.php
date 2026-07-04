@@ -755,6 +755,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-FLOW-6 — Booking Mode admin (flow mode + Simple-menu curation)
             Route::get('/booking-modes',  [TenantControllers\BookingModesController::class, 'index'])->name('booking_modes.index');
             Route::post('/booking-modes', [TenantControllers\BookingModesController::class, 'save'])->name('booking_modes.save');
+            // MARKER-PATCH-510 — Pickup & delivery: route windows + knobs
+            Route::post('/booking-modes/route-windows',              [TenantControllers\RouteWindowsController::class, 'store'])->name('route_windows.store');
+            Route::patch('/booking-modes/route-windows/settings',    [TenantControllers\RouteWindowsController::class, 'saveSettings'])->name('route_windows.settings');
+            Route::patch('/booking-modes/route-windows/{id}',        [TenantControllers\RouteWindowsController::class, 'update'])->name('route_windows.update');
+            Route::delete('/booking-modes/route-windows/{id}',       [TenantControllers\RouteWindowsController::class, 'destroy'])->name('route_windows.destroy');
 
             // Campaign image library
             Route::get('/campaign-images',           [TenantControllers\CampaignImageController::class, 'index'])->name('campaign-images.index');
