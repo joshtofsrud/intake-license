@@ -237,6 +237,7 @@ class BookingController extends Controller
             'capacity'          => $capacityMap, // MARKER-PATCH-517
             'pd_need_by'        => ! empty($pdWindows) && (bool) (((array) ($tenant->settings ?? []))['pd_need_by_enabled'] ?? true), // MARKER-PATCH-519
             'pd_lead_days'      => (int) (((array) ($tenant->settings ?? []))['pd_pickup_lead_days'] ?? 1), // MARKER-PATCH-520
+            'pd_allow_day_of'   => (bool) (((array) ($tenant->settings ?? []))['pd_allow_day_of'] ?? false), // MARKER-PATCH-524
             'slot_resources'    => $slotResources,
             'mode'              => $mode,
         ]);

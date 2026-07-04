@@ -175,6 +175,11 @@
         <input type="checkbox" name="pd_need_by_enabled" value="1" @checked($pd['need_by'])>
         Allow customers to add a "need it by" date
       </label>
+      {{-- MARKER-PATCH-524 --}}
+      <label style="font-size:13px;display:flex;align-items:center;gap:9px;cursor:pointer">
+        <input type="checkbox" name="pd_allow_day_of" value="1" @checked((bool) (((array) ($currentTenant->settings ?? []))['pd_allow_day_of'] ?? false))>
+        Offer same-day pickup windows <span style="color:var(--ia-text-muted);font-size:11.5px">(off = pickups always land on an earlier route day)</span>
+      </label>
     </div>
 
     <button class="ia-btn ia-btn--primary ia-btn--sm">Save pickup &amp; delivery settings</button>

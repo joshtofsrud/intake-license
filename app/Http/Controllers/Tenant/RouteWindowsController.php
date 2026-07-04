@@ -87,6 +87,7 @@ class RouteWindowsController extends Controller
         $settings['pd_need_by_enabled']       = (bool) $request->input('pd_need_by_enabled');
         // MARKER-PATCH-520 — how many days before the service date pickup can happen
         $settings['pd_pickup_lead_days']      = max(0, min(7, (int) $request->input('pd_pickup_lead_days', 1)));
+        $settings['pd_allow_day_of']          = (bool) $request->input('pd_allow_day_of'); // MARKER-PATCH-524
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Pickup & delivery settings saved.');

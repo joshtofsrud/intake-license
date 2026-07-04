@@ -39,6 +39,7 @@
   var calCapacity = {}, calView = 'month'; // MARKER-PATCH-518 — day/week/month
   var calPdNeedBy = false; // MARKER-PATCH-519
   var calPdLead = 1, calWeekStart = null; // MARKER-PATCH-520
+  var calPdAllowDayOf = false; // MARKER-PATCH-524
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -483,6 +484,7 @@
       calCapacity  = resp.capacity || {};   // MARKER-PATCH-518
       calPdNeedBy  = !!resp.pd_need_by;     // MARKER-PATCH-519
       calPdLead    = (resp.pd_lead_days === undefined) ? 1 : (resp.pd_lead_days | 0); // MARKER-PATCH-520
+      calPdAllowDayOf = !!resp.pd_allow_day_of; // MARKER-PATCH-524
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
@@ -707,7 +709,7 @@
     (function () {
       var end = new Date(dateStr + 'T12:00:00');
       var todayMid = new Date(); todayMid.setHours(0,0,0,0);
-      for (var off = calPdLead; off >= 0; off--) {
+      for (var off = calPdLead; off >= (calPdAllowDayOf ? 0 : 1); off--) { // MARKER-PATCH-524
         var d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - off);
         if (d < todayMid) continue;
         var ds = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());

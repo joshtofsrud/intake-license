@@ -470,6 +470,14 @@ class BookingService
             throw new RuntimeException('That pickup window does not run on the selected day.');
         }
 
+        // MARKER-PATCH-524 — same-day pickups are opt-in; reject a pickup dated
+        // on the service day itself when the tenant hasn't enabled them.
+        $tenantSettings = (array) (\App\Models\Tenant::find($appointment->tenant_id)?->settings ?? []);
+        $allowDayOf = (bool) ($tenantSettings['pd_allow_day_of'] ?? false);
+        if (! $allowDayOf && isset($data['date']) && $date->toDateString() === \Carbon\Carbon::parse($data['date'])->toDateString()) {
+            throw new RuntimeException('Same-day pickup is not available — please pick an earlier window.');
+        }
+
         $lockKey = 'pdwin:' . $appointment->tenant_id . ':' . $window->id . ':' . $date->toDateString();
         app(MySQLLock::class)->withLock($lockKey, function () use ($window, $date, $appointment) {
             if ($window->remainingStops($date) < 1) {
