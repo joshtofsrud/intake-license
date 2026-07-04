@@ -2512,6 +2512,8 @@ input.ma-asset-name-edit:focus {
         </div>
         {{-- MARKER-PATCH-311 --}}
         @include('tenant.appointments._promised_editor')
+        {{-- MARKER-PATCH-514 --}}
+        @include('tenant.appointments._route_trip')
         @if($appointment->appointment_time)
           <div class="ma-schedule-row">
             <span class="lbl">Time</span>

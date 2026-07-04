@@ -709,6 +709,10 @@
               </div>
               <div class="time-col">
                 {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i A') }}
+                {{-- MARKER-PATCH-514 — route window chip --}}
+                @if(!empty(($windowChips ?? [])[$d->id] ?? null))
+                  <span style="display:inline-block;font-size:9.5px;font-weight:600;letter-spacing:.05em;color:var(--ia-accent);background:var(--ia-accent-soft);border:0.5px solid var(--ia-accent);border-radius:99px;padding:1px 8px;margin-bottom:3px">{{ ($windowChips ?? [])[$d->id] }}</span>
+                @endif
                 <span class="window">
                   {{ $d->scheduled_at->copy()->setTimezone($tz)->format('g:i') }}
                   –

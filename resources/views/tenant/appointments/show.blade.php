@@ -674,6 +674,8 @@
     @endif
     {{-- MARKER-PATCH-311 --}}
     <div style="margin-top:10px">@include('tenant.appointments._promised_editor')</div>
+    {{-- MARKER-PATCH-514 --}}
+    @include('tenant.appointments._route_trip')
 
     {{-- Status pipeline (markup is fed into vertical CSS by .appt-b-rail wrapper) --}}
     @if($isTerminal)

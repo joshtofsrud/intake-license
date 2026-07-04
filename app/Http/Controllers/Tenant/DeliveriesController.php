@@ -203,6 +203,25 @@ class DeliveriesController extends Controller
             $payload['deliveries'] = $svc->forDay($date);
         }
 
+        // MARKER-PATCH-514 — map deliveries to route windows for the chip.
+        $windowChips = [];
+        $rw = \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $tenant->id)->active()->get();
+        if ($rw->isNotEmpty()) {
+            foreach ($deliveries as $dv) {
+                $local = tlocal_carbon($dv->scheduled_at);
+                if (! $local) continue;
+                foreach ($rw as $w) {
+                    if (! $w->runsOn($local)) continue;
+                    $t = $local->format('H:i:s');
+                    if ($t >= (string) $w->starts_at && $t < (string) $w->ends_at) {
+                        $windowChips[$dv->id] = $w->label . ' · ' . $w->bookedStops($local) . '/' . $w->max_stops;
+                        break;
+                    }
+                }
+            }
+        }
+        $payload['windowChips'] = $windowChips;
+
         return view('tenant.deliveries.index', $payload);
     }
 
