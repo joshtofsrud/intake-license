@@ -55,6 +55,27 @@
   <div class="bm-flash">{{ session('status') }}</div>
 @endif
 
+{{-- MARKER-PATCH-516 styles --}}
+<style>
+  .bm-acc{border:0.5px solid var(--ia-border);border-radius:12px;background:var(--ia-surface-2);margin-bottom:10px;overflow:hidden}
+  .bm-acc-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;background:none;border:0;cursor:pointer;color:var(--ia-text);font-family:inherit;text-align:left}
+  .bm-acc-t{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .bm-acc-badge{font-size:10.5px;color:var(--ia-accent);background:var(--ia-accent-soft);border:0.5px solid var(--ia-accent);border-radius:99px;padding:1px 9px}
+  .bm-acc-badge.zero{color:var(--ia-text-muted);background:var(--ia-surface);border-color:var(--ia-border)}
+  .bm-acc-chev{margin-left:auto;color:var(--ia-text-muted);font-size:11px;transition:transform .15s}
+  .bm-acc.open .bm-acc-chev{transform:rotate(180deg)}
+  .bm-acc-b{display:none;border-top:0.5px solid var(--ia-border);padding:2px 16px 8px}
+  .bm-acc.open .bm-acc-b{display:block}
+  .bm-acc .bm-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:0.5px solid var(--ia-border);background:none;border-radius:0;margin:0}
+  .bm-acc .bm-item:last-child{border-bottom:none}
+  .bm-chk{width:16px;height:16px;accent-color:var(--ia-accent);flex:none}
+  .bm-acc .bm-item-main{flex:1;min-width:0}
+  .bm-acc .bm-item-fields{display:none;align-items:center;gap:10px}
+  .bm-acc .bm-item.checked .bm-item-fields{display:flex}
+  .bm-save--sticky{position:sticky;bottom:14px;display:flex;align-items:center;gap:14px;background:var(--ia-surface);border:0.5px solid var(--ia-border-2,var(--ia-border));border-radius:12px;padding:11px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);z-index:5}
+  .bm-save-note{font-size:12px;color:var(--ia-text-muted)}
+  .bm-save-note b{color:var(--ia-accent)}
+</style>
 <form method="POST" action="{{ route('tenant.booking_modes.save') }}">
   @csrf
 
@@ -82,42 +103,82 @@
       service tile (defaults to the start of the service description if left blank). Only used by Simple and the Quick path.
     </div>
 
+    {{-- MARKER-PATCH-516 — collapse-in-place: accordions, badges, checked-only fields --}}
     @forelse($categories as $cat)
       @if($cat->items->count())
-        <div class="bm-cat">{{ $cat->name }}</div>
-        @foreach($cat->items as $item)
-          <div class="bm-item">
-            <div class="bm-toggle">
-              <input type="checkbox" name="items[{{ $item->id }}][simple_enabled]" value="1" {{ $item->simple_enabled ? 'checked' : '' }} aria-label="Show {{ $item->name }} in Simple menu">
-            </div>
-            <div class="bm-item-main">
-              <div class="bm-item-name">{{ $item->name }}</div>
-              <div class="bm-item-price">
-                @if($item->price_cents > 0)${{ number_format($item->price_cents/100, 2) }}@else No price @endif
-                @if($item->duration_minutes) · {{ $item->duration_minutes >= 60 ? round($item->duration_minutes/60,1).' hr' : $item->duration_minutes.' min' }}@endif
+        @php $bmShown = $cat->items->where('simple_enabled', true)->count(); @endphp
+        <div class="bm-acc {{ $bmShown ? 'open' : '' }}">
+          <button type="button" class="bm-acc-h" onclick="this.parentElement.classList.toggle('open')">
+            <span class="bm-acc-t">{{ $cat->name }}</span>
+            <span class="bm-acc-badge {{ $bmShown ? '' : 'zero' }}" data-cat-badge>{{ $bmShown }} of {{ $cat->items->count() }} shown</span>
+            <span class="bm-acc-chev">▾</span>
+          </button>
+          <div class="bm-acc-b">
+            @foreach($cat->items as $item)
+              <div class="bm-item {{ $item->simple_enabled ? 'checked' : '' }}">
+                <input type="checkbox" class="bm-chk" name="items[{{ $item->id }}][simple_enabled]" value="1" {{ $item->simple_enabled ? 'checked' : '' }} aria-label="Show {{ $item->name }} in Simple menu">
+                <div class="bm-item-main">
+                  <div class="bm-item-name">{{ $item->name }}</div>
+                  <div class="bm-item-price">
+                    @if($item->price_cents > 0)${{ number_format($item->price_cents/100, 2) }}@else No price @endif
+                    @if($item->duration_minutes) · {{ $item->duration_minutes >= 60 ? round($item->duration_minutes/60,1).' hr' : $item->duration_minutes.' min' }}@endif
+                  </div>
+                </div>
+                <div class="bm-item-fields">
+                  <div>
+                    <label>Order</label>
+                    <input class="bm-sort" type="number" min="0" name="items[{{ $item->id }}][simple_sort]" value="{{ $item->simple_sort ?? 0 }}">
+                  </div>
+                  <div>
+                    <label>Tagline</label>
+                    <input class="bm-tag" type="text" maxlength="160" name="items[{{ $item->id }}][simple_tagline]" value="{{ $item->simple_tagline }}" placeholder="Short description">
+                  </div>
+                </div>
               </div>
-            </div>
-            <div class="bm-item-fields">
-              <div>
-                <label>Order</label>
-                <input class="bm-sort" type="number" min="0" name="items[{{ $item->id }}][simple_sort]" value="{{ $item->simple_sort ?? 0 }}">
-              </div>
-              <div>
-                <label>Tagline</label>
-                <input class="bm-tag" type="text" maxlength="160" name="items[{{ $item->id }}][simple_tagline]" value="{{ $item->simple_tagline }}" placeholder="Short description">
-              </div>
-            </div>
+            @endforeach
           </div>
-        @endforeach
+        </div>
       @endif
     @empty
       <div class="bm-empty">No services yet. Add services first, then curate the Simple menu here.</div>
     @endforelse
   </div>
 
-  <div class="bm-save">
+  {{-- MARKER-PATCH-516 — sticky save with live shown count --}}
+  <div class="bm-save bm-save--sticky">
     <button type="submit" class="bm-btn">Save booking mode</button>
+    <span class="bm-save-note"><b id="bm-shown-count">0</b> services shown to customers</span>
   </div>
+
+  <script>
+  (function () {
+    // MARKER-PATCH-516 — checked-row fields, per-category badges, live count
+    function refresh() {
+      var total = 0;
+      document.querySelectorAll('.bm-acc').forEach(function (acc) {
+        var rows = acc.querySelectorAll('.bm-item');
+        var shown = 0;
+        rows.forEach(function (row) {
+          var on = row.querySelector('.bm-chk').checked;
+          row.classList.toggle('checked', on);
+          if (on) shown++;
+        });
+        total += shown;
+        var badge = acc.querySelector('[data-cat-badge]');
+        if (badge) {
+          badge.textContent = shown + ' of ' + rows.length + ' shown';
+          badge.classList.toggle('zero', shown === 0);
+        }
+      });
+      var count = document.getElementById('bm-shown-count');
+      if (count) count.textContent = total;
+    }
+    document.querySelectorAll('.bm-chk').forEach(function (cb) {
+      cb.addEventListener('change', refresh);
+    });
+    refresh();
+  })();
+  </script>
 </form>
 
 <script>
