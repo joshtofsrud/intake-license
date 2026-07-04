@@ -6,9 +6,11 @@
   .rec-intro { font-size: 13px; color: var(--ia-text-muted); margin-bottom: 18px; line-height: 1.5; max-width: 640px; }
 
   /* MARKER-PATCH-507 — subnav + settings tab */
-  .rec-subnav{display:flex;gap:4px;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:11px;padding:4px;margin-bottom:22px;width:fit-content}
-  .rec-subnav a{font-size:12.5px;font-weight:500;color:var(--ia-text-muted);padding:7px 15px;border-radius:8px;text-decoration:none}
-  .rec-subnav a.on{background:var(--ia-accent-soft);color:var(--ia-accent);box-shadow:inset 0 0 0 1px var(--ia-accent)}
+  /* MARKER-PATCH-508 — underline tabs, same pattern as cl-subnav / cc-tabs */
+  .rec-subnav{display:flex;gap:2px;margin-bottom:22px;border-bottom:0.5px solid var(--ia-border)}
+  .rec-subnav a{font-size:13px;color:var(--ia-text-muted);padding:9px 14px;border-bottom:2px solid transparent;margin-bottom:-0.5px;text-decoration:none;transition:color var(--ia-t),border-color var(--ia-t)}
+  .rec-subnav a:hover{color:var(--ia-text)}
+  .rec-subnav a.on{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
   .rs-dep{display:flex;gap:11px;align-items:flex-start;border:0.5px solid var(--ia-border);background:var(--ia-surface-2);border-radius:12px;padding:13px 15px;margin-bottom:18px;max-width:760px}
   .rs-dep .di{flex:none;font-size:15px;margin-top:1px;opacity:.7}
   .rs-dep .dt{font-size:12.5px}
