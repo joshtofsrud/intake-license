@@ -45,6 +45,116 @@
   calYear  = today.getFullYear();
   calMonth = today.getMonth() + 1;
 
+  // MARKER-PATCH-526 — refresh persistence
+  var bkStoreKey = 'bk-state:' + location.host + ':' + location.pathname + ':' + (location.search || '');
+  var bkRestoring = false;
+
+  function bkSnap() {
+    if (bkRestoring) return;
+    try {
+      sessionStorage.setItem(bkStoreKey, JSON.stringify({
+        v: 1,
+        assets: window.BkAssets || null,
+        customer: window.BkCustomer || null,
+        assetSel: state.assetSel,
+        activeAsset: state.activeAsset,
+        selections: state.selections,
+        date: state.date,
+        appointmentTime: state.appointmentTime,
+        resourceId: state.resourceId,
+        receivingMethod: state.receivingMethod,
+        pdWindowId: state.pdWindowId || null,
+        pdPickupDate: state.pdPickupDate || null,
+        needBy: state.needBy || null,
+        step: state.step,
+      }));
+    } catch (e) {}
+  }
+  window.__bkClearSnap = function () { try { sessionStorage.removeItem(bkStoreKey); } catch (e) {} };
+
+  function bkRestore() {
+    var raw = null;
+    try { raw = sessionStorage.getItem(bkStoreKey); } catch (e) {}
+    if (!raw) return;
+    var snap = null;
+    try { snap = JSON.parse(raw); } catch (e) { return; }
+    if (!snap || snap.v !== 1) return;
+    var hasServices = snap.selections && Object.keys(snap.selections).length;
+    var hasAssetSel = snap.assetSel && Object.keys(snap.assetSel).some(function (k) { return Object.keys(snap.assetSel[k] || {}).length; });
+    if (!hasServices && !hasAssetSel && !snap.date) return;
+
+    bkRestoring = true;
+    try {
+      if (snap.assets && snap.assets.length) { window.BkAssets = snap.assets; }
+      if (snap.customer) { window.BkCustomer = snap.customer; }
+      state.assetSel = snap.assetSel || {};
+      state.activeAsset = snap.activeAsset || null;
+      state.selections = snap.selections || {};
+      state.receivingMethod = snap.receivingMethod || null;
+      state.pdWindowId = snap.pdWindowId || null;
+      state.pdPickupDate = snap.pdPickupDate || null;
+      state.needBy = snap.needBy || null;
+
+      // Skip the preflow when it was already completed.
+      var pastPre = (d.multiAsset && snap.assets && snap.assets.length) || (parseInt(snap.step, 10) || 1) > 1 || hasServices || hasAssetSel;
+      if (pastPre) {
+        var pre = document.getElementById('bk-preflow');
+        if (pre) pre.classList.remove('active');
+        document.querySelectorAll('.bk-step--pre').forEach(function (dot) { dot.classList.remove('active'); dot.classList.add('done'); });
+      }
+      if (d.multiAsset && snap.assets && snap.assets.length) {
+        if (typeof initAssetServices === 'function') initAssetServices();
+      } else if (typeof syncRowsToSelections === 'function') {
+        syncRowsToSelections();
+      }
+      updateSidebar();
+      if (typeof updateNext1 === 'function') updateNext1();
+
+      // Aim the first availability fetch at the saved date's month, and
+      // finish the date/window/slot restore once it lands.
+      if (snap.date) {
+        var sd = new Date(snap.date + 'T12:00:00');
+        calYear = sd.getFullYear(); calMonth = sd.getMonth() + 1;
+        window.__bkPending = {
+          date: snap.date,
+          time: snap.appointmentTime || null,
+          resourceId: snap.resourceId || null,
+          winId: snap.pdWindowId || null,
+          winDate: snap.pdPickupDate || null,
+        };
+      }
+
+      var rcv = document.getElementById('bk-receiving');
+      if (rcv && snap.receivingMethod) rcv.value = snap.receivingMethod;
+
+      var step = Math.min(Math.max(parseInt(snap.step, 10) || 1, 1), 3);
+      if (pastPre) setStep(step);
+    } finally {
+      bkRestoring = false;
+    }
+  }
+
+  function bkApplyPending() {
+    var pend = window.__bkPending;
+    if (!pend) return;
+    window.__bkPending = null;
+    if (!calAvailable[pend.date]) { bkSnap(); return; }
+    selectDate(pend.date);
+    if (pend.winId) {
+      var wb = document.querySelector('#bk-pd-windows button[data-win-id="' + pend.winId + '"][data-win-date="' + (pend.winDate || '') + '"]');
+      if (wb && !wb.disabled) wb.click();
+    }
+    if (pend.time) {
+      var tb = null;
+      document.querySelectorAll('#bk-time-slots button').forEach(function (b) { if (b.dataset.slot === pend.time) tb = b; });
+      if (tb) tb.click();
+      if (pend.resourceId) {
+        var rb = document.querySelector('#bk-resource-picker button[data-resource-id="' + pend.resourceId + '"]');
+        if (rb) rb.click();
+      }
+    }
+  }
+
   // Stripe state
   var stripe, stripeElements, stripeCard;
 
@@ -58,6 +168,7 @@
     bindCatPills();
     bindCalNav();
     bindReceiving();
+    bkRestore(); // MARKER-PATCH-526 — before initCalendar so the fetch targets the saved month
     initCalendar();
     initS2Rail(); // MARKER-PATCH-525
     if (d.multiAsset) window.__bkInitAssetServices = initAssetServices; // MARKER-PATCH-214c (run at pre-flow handoff, not boot)
@@ -93,6 +204,7 @@
     if (el) el.classList.add('active');
 
     if (step === 3) populateStep3Recap();
+    bkSnap(); // MARKER-PATCH-526
 
     // Progress dots
     document.querySelectorAll('.bk-step').forEach(function (dot) {
@@ -489,6 +601,7 @@
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
+      bkApplyPending(); // MARKER-PATCH-526
     })
     .catch(function () {
       if (loading) loading.style.display = 'none';
@@ -739,6 +852,7 @@
     windows.forEach(function (w) {
       var btn = document.createElement('button');
       btn.type = 'button';
+      btn.dataset.winId = w.id; btn.dataset.winDate = w.date; // MARKER-PATCH-526
       btn.textContent = w.dayLabel + ' · ' + w.label + (w.full ? ' · full' : ' · ' + w.remaining + (w.remaining === 1 ? ' stop left' : ' stops left')); // MARKER-PATCH-520
       btn.disabled = !!w.full;
       btn.style.cssText = 'padding:8px 14px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--p-text)' + (w.full ? ';opacity:.4;cursor:default;text-decoration:line-through' : '');
@@ -815,6 +929,7 @@
     slots.forEach(function(slot) {
       var btn = document.createElement('button');
       btn.type = 'button';
+      btn.dataset.slot = slot; // MARKER-PATCH-526
       btn.textContent = formatTime(slot);
       btn.style.cssText = 'padding:8px 14px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--p-text)';
       btn.addEventListener('click', function() {
@@ -937,6 +1052,7 @@
   function updateNext2() {
     var btn = document.getElementById('bk-next-2');
     if (btn) btn.disabled = !canProceedStep2();
+    bkSnap(); // MARKER-PATCH-526
   }
 
   // =========================================================================
@@ -1007,6 +1123,7 @@
 
   function updateSidebar() {
     if (d.multiAsset && state.activeAsset) { state.assetSel[state.activeAsset] = cloneSel(state.selections); renderAssetTabs(); } // MARKER-PATCH-214b/d
+    bkSnap(); // MARKER-PATCH-526
     var container = document.getElementById('bk-sidebar-items');
     if (!container) return;
     if (d.multiAsset) {
@@ -1255,6 +1372,7 @@
 
     promise.then(function (resp) {
       if (!resp.success) { showError(resp.message || 'Booking failed.'); resetSubmitBtn(); return; }
+      if (typeof window.__bkClearSnap === 'function') window.__bkClearSnap(); // MARKER-PATCH-526
       if (resp.redirect) { window.location.href = resp.redirect; return; }
       if (resp.payment === 'paypal' && resp.approve_url) { window.location.href = resp.approve_url; return; }
     }).catch(function () {
