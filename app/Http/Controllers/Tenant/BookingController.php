@@ -235,6 +235,7 @@ class BookingController extends Controller
             'slots'             => $slots,
             'pd_windows'        => $pdWindows, // MARKER-PATCH-511
             'capacity'          => $capacityMap, // MARKER-PATCH-517
+            'pd_need_by'        => ! empty($pdWindows) && (bool) (((array) ($tenant->settings ?? []))['pd_need_by_enabled'] ?? true), // MARKER-PATCH-519
             'slot_resources'    => $slotResources,
             'mode'              => $mode,
         ]);

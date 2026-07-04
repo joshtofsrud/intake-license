@@ -37,6 +37,7 @@
   var calYear, calMonth, calAvailable = {}, calUnavailable = {}, calEarliest = null, calTimeSlots = {}, calSlotResources = {};
   var calPdWindows = {}; // MARKER-PATCH-512 — pickup & delivery route windows per date
   var calCapacity = {}, calView = 'month'; // MARKER-PATCH-518 — day/week/month
+  var calPdNeedBy = false; // MARKER-PATCH-519
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -452,6 +453,7 @@
       calTimeSlots = resp.slots || {};
       calPdWindows = resp.pd_windows || {}; // MARKER-PATCH-512
       calCapacity  = resp.capacity || {};   // MARKER-PATCH-518
+      calPdNeedBy  = !!resp.pd_need_by;     // MARKER-PATCH-519
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
@@ -701,6 +703,23 @@
     });
 
     wrap.appendChild(grid);
+
+    // MARKER-PATCH-519 — optional "need it back by" under the window picker
+    if (calPdNeedBy) {
+      var nb = document.createElement('div');
+      nb.style.cssText = 'margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+      var nbl = document.createElement('span');
+      nbl.style.cssText = 'font-size:12.5px;opacity:.75';
+      nbl.textContent = 'Need it back by a certain date? (optional)';
+      var nbi = document.createElement('input');
+      nbi.type = 'date';
+      nbi.min = dateStr;
+      nbi.style.cssText = 'padding:7px 10px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-family:inherit;background:transparent;color:var(--p-text)';
+      nbi.addEventListener('change', function () { state.needBy = nbi.value || null; });
+      nb.appendChild(nbl); nb.appendChild(nbi);
+      wrap.appendChild(nb);
+    }
+
     var cal = document.getElementById('bk-calendar');
     if (cal && cal.parentElement) cal.parentElement.appendChild(wrap);
     updateNext2();
@@ -1259,6 +1278,7 @@
       email: state.email, phone: state.phone,
       date: state.date, appointment_time: state.appointmentTime || null,
       route_window_id: state.pdWindowId || null, // MARKER-PATCH-512
+      need_by: state.needBy || null, // MARKER-PATCH-519
       resource_id: state.resourceId || null,
       receiving_method: state.receivingMethod,
       items: items,

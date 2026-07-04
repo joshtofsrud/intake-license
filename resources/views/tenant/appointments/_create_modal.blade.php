@@ -307,6 +307,50 @@
           <div class="appt-section-h">Staff Notes (optional)</div>
           <textarea id="appt-notes" class="appt-input appt-textarea" placeholder="Internal notes about this appointment…"></textarea>
         </div>
+
+        {{-- MARKER-PATCH-519 — pickup window + need-by (route tenants only) --}}
+        @php
+          $pdModalWindows = $currentTenant->deliveries_enabled
+              ? \App\Models\Tenant\TenantRouteWindow::where('tenant_id', $currentTenant->id)->active()->get()
+              : collect();
+        @endphp
+        @if($pdModalWindows->isNotEmpty())
+        <div id="appt-pd-wrap" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:180px">
+            <label style="display:block;font-size:11px;color:var(--ia-text-muted);margin-bottom:4px">Pickup window <span style="opacity:.6">(optional — picks the chosen date)</span></label>
+            <select id="appt-pd-window" class="appt-input">
+              <option value="">No pickup — customer brings it</option>
+              @foreach($pdModalWindows as $w)
+                <option value="{{ $w->id }}" data-days="{{ implode(',', $w->days ?? []) }}">{{ $w->label }} · {{ $w->max_stops }} stops/day</option>
+              @endforeach
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--ia-text-muted);margin-bottom:4px">Need by</label>
+            <input type="date" id="appt-pd-needby" class="appt-input">
+          </div>
+        </div>
+        <script>
+        (function () {
+          // MARKER-PATCH-519 — grey window options that don't run on the picked date
+          window.apptPdFilter = function (dateStr) {
+            var sel = document.getElementById('appt-pd-window');
+            if (!sel || !dateStr) return;
+            var d = new Date(dateStr + 'T12:00:00');
+            var iso = d.getDay() === 0 ? 7 : d.getDay();
+            Array.prototype.forEach.call(sel.options, function (o) {
+              if (!o.value) return;
+              var days = (o.dataset.days || '').split(',');
+              var ok = days.indexOf(String(iso)) !== -1;
+              o.disabled = !ok;
+              if (!ok && o.selected) sel.value = '';
+            });
+            var nb = document.getElementById('appt-pd-needby');
+            if (nb) nb.min = dateStr;
+          };
+        })();
+        </script>
+        @endif
       </div>
 
       <div class="appt-foot">
@@ -677,6 +721,7 @@ window.ApptModal = (function () {
           time: slot.time,
           resource_id: state.selectedResourceId,
         };
+        if (window.apptPdFilter) window.apptPdFilter(slot.date); // MARKER-PATCH-519
         renderTimes();
       });
     });
@@ -738,6 +783,8 @@ window.ApptModal = (function () {
       appointment_time: state.selectedSlot.time,
       resource_id: state.selectedResourceId,
       staff_notes: el('appt-notes').value || null,
+      route_window_id: (el('appt-pd-window') && el('appt-pd-window').value) || null, // MARKER-PATCH-519
+      need_by: (el('appt-pd-needby') && el('appt-pd-needby').value) || null,
       items: [
         { service_item_id: state.selectedServiceId, price_override_cents: null },
       ],

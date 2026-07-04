@@ -224,6 +224,9 @@ class AppointmentController extends Controller
             'date'             => $data['appointment_date'],
             'appointment_time' => $apptTime,
             'resource_id'      => $data['resource_id'] ?? null,
+            // MARKER-PATCH-519 — P&D fields; createAppointment re-validates both.
+            'route_window_id'  => $request->input('route_window_id') ?: null,
+            'need_by'          => $request->input('need_by') ?: null,
             'items'            => array_map(function ($item) {
                 return [
                     'service_item_id'      => $item['service_item_id'],
