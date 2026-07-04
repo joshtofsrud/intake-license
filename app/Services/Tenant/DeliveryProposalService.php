@@ -135,7 +135,7 @@ class DeliveryProposalService
      * schedule the dropoff directly (no proposal/text-link round trip)
      * and send the standard "scheduled" notification.
      */
-    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date): \App\Models\Tenant\TenantDelivery
+    public function scheduleDirect(TenantAppointment $appointment, string $windowId, string $date, bool $notify = true): \App\Models\Tenant\TenantDelivery // MARKER-PATCH-533
     {
         $tz     = $this->tenant->timezone();
         $day    = Carbon::parse($date, $tz);
@@ -181,12 +181,15 @@ class DeliveryProposalService
             ->where('status', TenantDeliveryProposal::STATUS_PENDING)
             ->update(['status' => TenantDeliveryProposal::STATUS_CANCELLED]);
 
-        try {
-            TenantDeliveryNotificationService::forTenant($this->tenant)->sendScheduled($delivery);
-        } catch (\Throwable $e) {
-            Log::error('Direct-schedule notification failed', [
-                'delivery_id' => $delivery->id, 'error' => $e->getMessage(),
-            ]);
+        // MARKER-PATCH-533 — customer notification only with explicit staff consent
+        if ($notify) {
+            try {
+                TenantDeliveryNotificationService::forTenant($this->tenant)->sendScheduled($delivery);
+            } catch (\Throwable $e) {
+                Log::error('Direct-schedule notification failed', [
+                    'delivery_id' => $delivery->id, 'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $delivery;

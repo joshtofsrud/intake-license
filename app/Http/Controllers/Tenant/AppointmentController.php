@@ -1145,10 +1145,12 @@ class AppointmentController extends Controller
                 return response()->json(['ok' => false, 'message' => 'Deliveries are not enabled.'], 422);
             }
             try {
+                $notify = (bool) $request->input('notify'); // MARKER-PATCH-533 — explicit opt-in only
                 $delivery = DeliveryProposalService::forTenant($tenant)->scheduleDirect(
                     $appointment,
                     (string) $request->input('window_id'),
                     (string) $request->input('date'),
+                    $notify,
                 );
             } catch (\RuntimeException $e) {
                 return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
@@ -1162,7 +1164,7 @@ class AppointmentController extends Controller
                 'appointment_id' => $appointment->id,
                 'user_id' => Auth::guard('tenant')->id(),
                 'note_type' => 'system', 'is_customer_visible' => false,
-                'note_content' => 'Delivery scheduled for ' . tlocal($delivery->scheduled_at, 'D M j, g:i A') . ' from the completion modal.',
+                'note_content' => 'Delivery scheduled for ' . tlocal($delivery->scheduled_at, 'D M j, g:i A') . ' from the completion modal' . ($notify ? ' — confirmation sent to customer.' : ' — no customer notification.'), // MARKER-PATCH-533
                 'created_at' => now(),
             ]);
             return response()->json(['ok' => true]);

@@ -5,6 +5,11 @@
     <div style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:14px" id="dp-modal-sub"></div>
     <div id="dp-modal-windows" style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px"></div>
     <div style="font-size:11.5px;color:var(--ia-text-muted);margin-bottom:16px" id="dp-modal-note"></div>
+    {{-- MARKER-PATCH-533 — nothing goes to the customer without this box --}}
+    <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;margin-bottom:14px;color:var(--ia-text)">
+      <input type="checkbox" id="dp-modal-notify">
+      <span>Send the customer a message <span style="color:var(--ia-text-muted)">(confirmation on Schedule, options link on Let customer choose)</span></span>
+    </label>
     {{-- MARKER-PATCH-531 — pick a window here, or hand the choice to the customer --}}
     <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center">
       <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip" style="margin-right:auto">Skip</button>
@@ -51,8 +56,16 @@ window.IntakeDeliveryPropose = (function () {
 
     modal.style.display = 'flex';
 
+    // MARKER-PATCH-533 — default unchecked: no accidental customer messages
+    var notifyCb = document.getElementById('dp-modal-notify');
+    notifyCb.checked = false;
+    var sendBtn = document.getElementById('dp-modal-send');
+    var toggleSend = function () { sendBtn.disabled = !notifyCb.checked; };
+    notifyCb.onchange = toggleSend;
+    toggleSend();
+
     document.getElementById('dp-modal-skip').onclick = function () { close(true); };
-    document.getElementById('dp-modal-send').onclick = function () { send(); };
+    sendBtn.onclick = function () { if (notifyCb.checked) send(); };
     document.getElementById('dp-modal-schedule').onclick = function () { scheduleDirect(); }; // MARKER-PATCH-531
     return true;
   }
@@ -97,11 +110,12 @@ window.IntakeDeliveryPropose = (function () {
     fd.append('op', 'delivery_schedule_direct');
     fd.append('window_id', selected.window_id);
     fd.append('date', selected.date);
+    fd.append('notify', document.getElementById('dp-modal-notify').checked ? '1' : '0'); // MARKER-PATCH-533
     fetch(updateUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) {
-          if (window.IntakeToast) IntakeToast.success('Delivery scheduled');
+          if (window.IntakeToast) IntakeToast.success(document.getElementById('dp-modal-notify').checked ? 'Delivery scheduled — customer notified' : 'Delivery scheduled — customer NOT notified');
           close(true);
         } else {
           btn.disabled = false; btn.textContent = 'Schedule it';
