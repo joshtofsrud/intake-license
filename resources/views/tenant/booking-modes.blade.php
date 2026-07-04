@@ -45,21 +45,28 @@
 @endpush
 
 @section('content')
-<div class="bm-intro">
+@if(session('status'))
+  <div class="bm-flash">{{ session('status') }}</div>
+@endif
+
+{{-- MARKER-PATCH-523 — underline tabs: Booking mode | Pickup & delivery --}}
+@if($currentTenant->deliveries_enabled)
+<div class="bm-tabs" role="tablist">
+  <button type="button" class="bm-tab on" data-tab="mode">Booking mode</button>
+  <button type="button" class="bm-tab" data-tab="pd">Pickup &amp; delivery</button>
+</div>
+@endif
+
+<div class="bm-intro" data-pane="mode">
   Choose how customers move through your public booking page. <strong>Advanced</strong> is the full multi-step flow.
   <strong>Simple</strong> shows a curated menu of services in three quick steps. <strong>Let the customer choose</strong>
   opens on a fork so they pick the path that fits. Simple and Advanced both create the same kind of booking — Simple is just a faster front door.
 </div>
 
-@if(session('status'))
-  <div class="bm-flash">{{ session('status') }}</div>
-@endif
-
 {{-- MARKER-PATCH-521 — P&D settings promoted above the mode form --}}
 {{-- MARKER-PATCH-510 — Pickup & delivery (route windows + behavior) --}}
 @if($currentTenant->deliveries_enabled)
-<div style="margin-top:36px;border-top:0.5px solid var(--ia-border);padding-top:26px;max-width:760px">
-  <h2 style="font-size:15px;font-weight:600;margin:0 0 4px">Pickup &amp; delivery</h2>
+<div data-pane="pd" hidden style="max-width:760px;margin-top:8px">
   <p style="font-size:12.5px;color:var(--ia-text-muted);margin:0 0 18px">Route windows are the capacity customers book pickups against — pickups and deliveries share each window's stop count. Booking-flow integration is coming next; these settings take effect then.</p>
 
   {{-- windows list --}}
@@ -200,7 +207,7 @@
   .bm-save-note{font-size:12px;color:var(--ia-text-muted)}
   .bm-save-note b{color:var(--ia-accent)}
 </style>
-<form method="POST" action="{{ route('tenant.booking_modes.save') }}">
+<form method="POST" action="{{ route('tenant.booking_modes.save') }}" data-pane="mode">
   @csrf
 
   <div class="bm-modes">
@@ -313,6 +320,36 @@
       document.getElementById('bm-curate').classList.toggle('dim', el.dataset.mode === 'advanced');
     });
   });
+</script>
+
+{{-- MARKER-PATCH-523 — tab styles + switcher --}}
+<style>
+  .bm-tabs{display:flex;gap:22px;border-bottom:0.5px solid var(--ia-border);margin:0 0 22px}
+  .bm-tab{background:none;border:0;padding:0 2px 10px;margin-bottom:-0.5px;font-family:inherit;font-size:13px;font-weight:600;color:var(--ia-text-muted);cursor:pointer;border-bottom:2px solid transparent}
+  .bm-tab.on{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
+  .bm-tab:hover{color:var(--ia-text)}
+</style>
+<script>
+  (function(){
+    var tabs = document.querySelectorAll('.bm-tab');
+    if (!tabs.length) return;
+    function activate(name){
+      var found = false;
+      tabs.forEach(function(x){ if (x.dataset.tab === name) found = true; });
+      if (!found) name = 'mode';
+      tabs.forEach(function(x){ x.classList.toggle('on', x.dataset.tab === name); });
+      document.querySelectorAll('[data-pane]').forEach(function(p){
+        p.hidden = p.dataset.pane !== name;
+      });
+      try { localStorage.setItem('bm-tab', name); } catch(e){}
+    }
+    tabs.forEach(function(t){
+      t.addEventListener('click', function(){ activate(t.dataset.tab); });
+    });
+    var saved = null;
+    try { saved = localStorage.getItem('bm-tab'); } catch(e){}
+    if (saved && saved !== 'mode') activate(saved);
+  })();
 </script>
 
 
