@@ -3086,6 +3086,11 @@ input.ma-asset-name-edit:focus {
             return;
           }
           if (window.IntakeToast) IntakeToast.success(label);
+          // MARKER-PATCH-527 — completed + P&D: offer to text delivery windows
+          if (result.data && result.data.propose_delivery && window.IntakeDeliveryPropose
+              && IntakeDeliveryPropose.show(result.data.propose_delivery, { updateUrl: APPT_URL, csrf: CSRF })) {
+            return; // modal handles the reload
+          }
           setTimeout(function() { location.reload(); }, 600);
         };
 
@@ -3801,6 +3806,7 @@ input.ma-asset-name-edit:focus {
 
 {{-- MARKER-PATCH-158-G2 — Shared reschedule modal partial (markup + JS) --}}
 @include('tenant.appointments._reschedule_modal')
+@include('tenant.appointments._delivery_propose_modal'){{-- MARKER-PATCH-527 --}}
 
 {{-- MARKER-PATCH-158-G2 — Resource picker save handler (shared with legacy view) --}}
 @push('scripts')

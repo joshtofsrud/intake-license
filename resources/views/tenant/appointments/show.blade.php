@@ -674,6 +674,7 @@
     @endif
     {{-- MARKER-PATCH-311 --}}
     <div style="margin-top:10px">@include('tenant.appointments._promised_editor')</div>
+    @include('tenant.appointments._delivery_propose_modal'){{-- MARKER-PATCH-527 --}}
     {{-- MARKER-PATCH-514 --}}
     @include('tenant.appointments._route_trip')
 
@@ -1875,6 +1876,11 @@
       .then(function (res) {
         if (res.ok && res.body && res.body.ok) {
           window.IntakeToast.success(targetLabel || 'Saved');
+          // MARKER-PATCH-527 — completed + P&D: offer to text delivery windows
+          if (res.body.propose_delivery && window.IntakeDeliveryPropose
+              && IntakeDeliveryPropose.show(res.body.propose_delivery, { updateUrl: updateUrl, csrf: csrf })) {
+            return true; // modal handles the reload
+          }
           setTimeout(function () {
             if (opts.redirectToCalendar) {
               window.location.href = '{{ route("tenant.calendar.index") }}';

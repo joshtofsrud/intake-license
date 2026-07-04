@@ -12,6 +12,7 @@ use App\Models\Tenant\TenantCustomer;
 use App\Models\Tenant\TenantInventoryItem;
 use App\Services\Tenant\AppointmentInventoryService;
 use App\Services\Tenant\AppointmentRegisterBridgeService;
+use App\Services\Tenant\DeliveryProposalService; // MARKER-PATCH-527
 use App\Services\Tenant\InventoryStockException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -1090,13 +1091,81 @@ class AppointmentController extends Controller
                 }
             }
             TenantAppointmentNote::create(['appointment_id' => $appointment->id, 'user_id' => Auth::guard('tenant')->id(), 'note_type' => 'system', 'is_customer_visible' => false, 'note_content' => 'Status changed to ' . ucwords(str_replace('_', ' ', $newStatus)) . '.', 'created_at' => now()]);
+            // MARKER-PATCH-527 — offer to text delivery windows when work hits Completed
+            $proposeDelivery = null;
+            if (
+                $newStatus === 'completed' && $oldStatus !== 'completed'
+                && $tenant->deliveries_enabled
+                && (bool) (($tenant->settings['pd_auto_propose'] ?? true))
+            ) {
+                try {
+                    $appointment->loadMissing('customer');
+                    $cust = $appointment->customer;
+                    $hasPending = \App\Models\Tenant\TenantDeliveryProposal::query()
+                        ->where('tenant_id', $tenant->id)
+                        ->where('appointment_id', $appointment->id)
+                        ->where('status', 'pending')->exists();
+                    if ($cust && !empty($cust->phone) && !$hasPending) {
+                        $svc = DeliveryProposalService::forTenant($tenant);
+                        $cands = $svc->candidates();
+                        if (!empty($cands)) {
+                            $settings   = (array) ($tenant->settings ?? []);
+                            $assumeHour = max(12, min(23, (int) ($settings['pd_assume_first_hour'] ?? 20)));
+                            $tz = $tenant->timezone();
+                            $dl = \Carbon\Carbon::now($tz)->setTime($assumeHour, 0);
+                            if ($dl->isPast()) $dl->addDay();
+                            $proposeDelivery = [
+                                'customer_name'  => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')),
+                                'phone_tail'     => substr(preg_replace('/\D/', '', $cust->phone), -4),
+                                'windows'        => $cands,
+                                'deadline_label' => $dl->isToday() ? ('tonight ' . $dl->format('g A')) : $dl->format('D g A'),
+                            ];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Delivery propose payload failed', [
+                        'appointment_id' => $appointment->id, 'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return response()->json([
                 'ok'             => true,
                 'status'         => $newStatus,
                 'label'          => ucwords(str_replace('_', ' ', $newStatus)),
                 'register_bridge'=> $bridgeResult,
+                'propose_delivery' => $proposeDelivery, // MARKER-PATCH-527
                 'reload'         => true, // signal client to reload — banner / lock state needs fresh data
             ]);
+        }
+
+        // MARKER-PATCH-527 — staff confirmed the modal: create + text the proposal
+        if ($op === 'delivery_proposal_send') {
+            if (!$tenant->deliveries_enabled) {
+                return response()->json(['ok' => false, 'message' => 'Deliveries are not enabled.'], 422);
+            }
+            try {
+                $proposal = DeliveryProposalService::forTenant($tenant)->proposeForAppointment($appointment);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Delivery proposal send failed', [
+                    'appointment_id' => $appointment->id, 'error' => $e->getMessage(),
+                ]);
+                return response()->json(['ok' => false, 'message' => 'Could not send — check logs.'], 500);
+            }
+            if (!$proposal) {
+                return response()->json(['ok' => false, 'message' => 'Nothing to send — no phone, no open windows, or already proposed.'], 422);
+            }
+            if (!$proposal->sent_channels) {
+                return response()->json(['ok' => false, 'message' => 'Proposal saved but the text failed to send.'], 500);
+            }
+            TenantAppointmentNote::create([
+                'appointment_id' => $appointment->id,
+                'user_id' => Auth::guard('tenant')->id(),
+                'note_type' => 'system', 'is_customer_visible' => false,
+                'note_content' => 'Delivery windows texted to customer (' . count($proposal->windows) . ' options).',
+                'created_at' => now(),
+            ]);
+            return response()->json(['ok' => true]);
         }
         if ($op === 'payment') {
             // DEPRECATED: this op used to let staff manually flip
