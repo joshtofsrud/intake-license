@@ -274,6 +274,12 @@
         <input type="number" name="pd_assume_first_hour" min="12" max="23" value="{{ $pd['assume_first_hour'] }}"
                style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
       </label>
+      <label style="font-size:12px;color:var(--ia-text-muted)">Pickup up to N days before the service date
+        {{-- MARKER-PATCH-520 --}}
+        <input type="number" name="pd_pickup_lead_days" min="0" max="7"
+               value="{{ (int) (((array) ($currentTenant->settings ?? []))['pd_pickup_lead_days'] ?? 1) }}"
+               style="display:block;margin-top:5px;width:90px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">
+      </label>
       <label style="font-size:12px;color:var(--ia-text-muted)">Turnaround shown at booking
         <input type="text" name="pd_turnaround_label" maxlength="30" value="{{ $pd['turnaround'] }}"
                style="display:block;margin-top:5px;width:120px;padding:8px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-size:13px">

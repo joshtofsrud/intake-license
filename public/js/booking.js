@@ -38,6 +38,7 @@
   var calPdWindows = {}; // MARKER-PATCH-512 — pickup & delivery route windows per date
   var calCapacity = {}, calView = 'month'; // MARKER-PATCH-518 — day/week/month
   var calPdNeedBy = false; // MARKER-PATCH-519
+  var calPdLead = 1, calWeekStart = null; // MARKER-PATCH-520
   var bookingMode = d.bookingMode || 'drop_off';
   var today = new Date();
   calYear  = today.getFullYear();
@@ -238,20 +239,47 @@
   function bindCalNav() {
     var prev = document.getElementById('cal-prev');
     var next = document.getElementById('cal-next');
-    if (prev) prev.addEventListener('click', function () {
-      calMonth--;
-      if (calMonth < 1) { calMonth = 12; calYear--; }
+    // MARKER-PATCH-520 — arrows follow the active view
+    function stepMonth(dir) {
+      calMonth += dir;
+      if (calMonth < 1)  { calMonth = 12; calYear--; }
+      if (calMonth > 12) { calMonth = 1;  calYear++; }
       state.date = null;
       updateNext2();
       loadMonth();
-    });
-    if (next) next.addEventListener('click', function () {
-      calMonth++;
-      if (calMonth > 12) { calMonth = 1; calYear++; }
-      state.date = null;
-      updateNext2();
-      loadMonth();
-    });
+    }
+    function syncMonthTo(ds) {
+      var d = new Date(ds + 'T12:00:00');
+      if (d.getFullYear() !== calYear || (d.getMonth() + 1) !== calMonth) {
+        calYear = d.getFullYear(); calMonth = d.getMonth() + 1;
+        loadMonth();
+        return true;
+      }
+      return false;
+    }
+    function stepView(dir) {
+      if (calView === 'week') {
+        var w = new Date((calWeekStart || (calYear + '-' + pad(calMonth) + '-01')) + 'T12:00:00');
+        w.setDate(w.getDate() + 7 * dir);
+        var tm = new Date(); tm.setHours(0,0,0,0);
+        if (w < tm) w = new Date();
+        calWeekStart = w.getFullYear() + '-' + pad(w.getMonth() + 1) + '-' + pad(w.getDate());
+        if (!syncMonthTo(calWeekStart)) renderCalendar();
+      } else if (calView === 'day') {
+        var keys = Object.keys(calAvailable).sort();
+        if (!keys.length) return stepMonth(dir);
+        var cur = state.date || keys[0];
+        var idx = keys.indexOf(cur);
+        var nxt = (idx === -1) ? keys[0] : keys[idx + dir];
+        if (!nxt) return stepMonth(dir);
+        selectDate(nxt);
+        if (!syncMonthTo(nxt)) renderCalendar();
+      } else {
+        stepMonth(dir);
+      }
+    }
+    if (prev) prev.addEventListener('click', function () { stepView(-1); });
+    if (next) next.addEventListener('click', function () { stepView(1); });
   }
 
   function populateStep3Recap() {
@@ -454,6 +482,7 @@
       calPdWindows = resp.pd_windows || {}; // MARKER-PATCH-512
       calCapacity  = resp.capacity || {};   // MARKER-PATCH-518
       calPdNeedBy  = !!resp.pd_need_by;     // MARKER-PATCH-519
+      calPdLead    = (resp.pd_lead_days === undefined) ? 1 : (resp.pd_lead_days | 0); // MARKER-PATCH-520
       calSlotResources = resp.slot_resources || {};
       renderCalendar();
       renderEarliestPill();
@@ -525,8 +554,13 @@
   function renderWeekView() {
     var alt = altContainer();
     alt.innerHTML = '';
-    var anchor = state.date ? new Date(state.date + 'T12:00:00') : new Date();
-    if (anchor < today) anchor = new Date();
+    // MARKER-PATCH-520 — stable week anchor; only the arrows move it
+    if (!calWeekStart) {
+      var a0 = state.date ? new Date(state.date + 'T12:00:00') : new Date();
+      if (a0 < today) a0 = new Date();
+      calWeekStart = a0.getFullYear() + '-' + pad(a0.getMonth() + 1) + '-' + pad(a0.getDate());
+    }
+    var anchor = new Date(calWeekStart + 'T12:00:00');
     var row = document.createElement('div');
     row.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:7px';
     for (var i = 0; i < 7; i++) {
@@ -655,6 +689,7 @@
 
     // MARKER-PATCH-512 — pickup & delivery: window picker on drop_off dates
     state.pdWindowId = null;
+    state.pdPickupDate = null; // MARKER-PATCH-520
     var pdExisting = document.getElementById('bk-pd-windows');
     if (pdExisting) pdExisting.remove();
     if (bookingMode === 'drop_off' && (calPdWindows[dateStr] || []).length) {
@@ -667,7 +702,24 @@
 
   // MARKER-PATCH-512 — pickup window picker (mirrors renderTimeSlots)
   function renderPdWindows(dateStr) {
-    var windows = calPdWindows[dateStr] || [];
+    // MARKER-PATCH-520 — windows from (dateStr - lead) through dateStr
+    var windows = [];
+    (function () {
+      var end = new Date(dateStr + 'T12:00:00');
+      var todayMid = new Date(); todayMid.setHours(0,0,0,0);
+      for (var off = calPdLead; off >= 0; off--) {
+        var d = new Date(end.getFullYear(), end.getMonth(), end.getDate() - off);
+        if (d < todayMid) continue;
+        var ds = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        (calPdWindows[ds] || []).forEach(function (w) {
+          windows.push({
+            id: w.id, label: w.label, remaining: w.remaining, full: w.full, date: ds,
+            dayLabel: (off === 0 ? 'Day of' : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate()),
+          });
+        });
+      }
+    })();
+    if (!windows.length) return;
     var wrap = document.createElement('div');
     wrap.id = 'bk-pd-windows';
     wrap.style.cssText = 'margin-top:16px';
@@ -683,12 +735,13 @@
     windows.forEach(function (w) {
       var btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = w.label + (w.full ? ' · full' : ' · ' + w.remaining + (w.remaining === 1 ? ' stop left' : ' stops left'));
+      btn.textContent = w.dayLabel + ' · ' + w.label + (w.full ? ' · full' : ' · ' + w.remaining + (w.remaining === 1 ? ' stop left' : ' stops left')); // MARKER-PATCH-520
       btn.disabled = !!w.full;
       btn.style.cssText = 'padding:8px 14px;border:1.5px solid rgba(0,0,0,.12);border-radius:var(--p-r);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;background:transparent;color:var(--p-text)' + (w.full ? ';opacity:.4;cursor:default;text-decoration:line-through' : '');
       btn.addEventListener('click', function () {
         if (w.full) return;
         state.pdWindowId = w.id;
+        state.pdPickupDate = w.date; // MARKER-PATCH-520
         grid.querySelectorAll('button').forEach(function (b) {
           b.style.background = 'transparent';
           b.style.borderColor = 'rgba(0,0,0,.12)';
@@ -720,8 +773,14 @@
       wrap.appendChild(nb);
     }
 
-    var cal = document.getElementById('bk-calendar');
-    if (cal && cal.parentElement) cal.parentElement.appendChild(wrap);
+    // MARKER-PATCH-520 — sit directly under the calendar / week / day view
+    var anchorEl = document.getElementById('bk-altview') || document.getElementById('cal-grid');
+    if (anchorEl && anchorEl.parentNode) {
+      anchorEl.parentNode.insertBefore(wrap, anchorEl.nextSibling);
+    } else {
+      var cal = document.getElementById('bk-calendar');
+      if (cal && cal.parentElement) cal.parentElement.appendChild(wrap);
+    }
     updateNext2();
   }
 
@@ -1279,6 +1338,7 @@
       date: state.date, appointment_time: state.appointmentTime || null,
       route_window_id: state.pdWindowId || null, // MARKER-PATCH-512
       need_by: state.needBy || null, // MARKER-PATCH-519
+      pickup_date: state.pdPickupDate || null, // MARKER-PATCH-520
       resource_id: state.resourceId || null,
       receiving_method: state.receivingMethod,
       items: items,

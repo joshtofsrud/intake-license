@@ -463,7 +463,9 @@ class BookingService
             throw new RuntimeException('That pickup window is no longer available.');
         }
 
-        $date = \Carbon\Carbon::parse($data['date']);
+        // MARKER-PATCH-520 — the stop lands on pickup_date (a lead day),
+        // falling back to the service date for older payloads.
+        $date = \Carbon\Carbon::parse($data['pickup_date'] ?? $data['date']);
         if (! $window->runsOn($date)) {
             throw new RuntimeException('That pickup window does not run on the selected day.');
         }

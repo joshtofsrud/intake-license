@@ -236,6 +236,7 @@ class BookingController extends Controller
             'pd_windows'        => $pdWindows, // MARKER-PATCH-511
             'capacity'          => $capacityMap, // MARKER-PATCH-517
             'pd_need_by'        => ! empty($pdWindows) && (bool) (((array) ($tenant->settings ?? []))['pd_need_by_enabled'] ?? true), // MARKER-PATCH-519
+            'pd_lead_days'      => (int) (((array) ($tenant->settings ?? []))['pd_pickup_lead_days'] ?? 1), // MARKER-PATCH-520
             'slot_resources'    => $slotResources,
             'mode'              => $mode,
         ]);
@@ -250,6 +251,7 @@ class BookingController extends Controller
             'phone'                   => ['nullable', 'string', 'max:32'],
             'date'                    => ['required', 'date', 'after_or_equal:today'],
             'route_window_id'         => ['nullable', 'uuid'], // MARKER-PATCH-512
+            'pickup_date'             => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:date'], // MARKER-PATCH-520
             'need_by'                 => ['nullable', 'date', 'after_or_equal:date'], // MARKER-PATCH-512
             'appointment_time'        => ['nullable', 'string'],
             'resource_id'             => ['nullable', 'string', 'uuid'],

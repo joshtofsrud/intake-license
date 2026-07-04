@@ -85,6 +85,8 @@ class RouteWindowsController extends Controller
         $settings['pd_pay_before_delivery']   = (bool) $request->input('pd_pay_before_delivery');
         $settings['pd_online_pay_at_booking'] = (bool) $request->input('pd_online_pay_at_booking');
         $settings['pd_need_by_enabled']       = (bool) $request->input('pd_need_by_enabled');
+        // MARKER-PATCH-520 — how many days before the service date pickup can happen
+        $settings['pd_pickup_lead_days']      = max(0, min(7, (int) $request->input('pd_pickup_lead_days', 1)));
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Pickup & delivery settings saved.');
