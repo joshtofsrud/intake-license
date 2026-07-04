@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
+use Carbon\Carbon; // MARKER-PATCH-511B — base class accepts Illuminate's subclass too
 
 // MARKER-PATCH-509 — a route window: "8–10 am, Mon–Sat, 3 stops".
 // Pickups and deliveries share the window's stop count (locked spec).
