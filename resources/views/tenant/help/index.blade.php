@@ -193,6 +193,11 @@
   <div class="help-hero">
     <div class="help-hero-title">Help &amp; Guides</div>
     <div class="help-hero-sub">Everything you need to run your shop on Intake. Sections below mirror the order they appear in your sidebar.</div>
+    {{-- MARKER-PATCH-547 — homes for the items folded out of the sidebar --}}
+    <div style="margin-top:14px;display:flex;gap:18px;justify-content:center;font-size:13px">
+      <a href="{{ route('tenant.whats_new.changelog') }}" style="color:var(--ia-accent);text-decoration:none">What's new</a>
+      <a href="{{ route('tenant.whats_new.roadmap') }}" style="color:var(--ia-accent);text-decoration:none">What's coming</a>
+    </div>
   </div>
 
   {{-- How this guide is organized --}}

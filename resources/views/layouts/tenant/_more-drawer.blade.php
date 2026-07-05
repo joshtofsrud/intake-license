@@ -224,6 +224,43 @@
     ],
   ];
 
+  {{-- MARKER-PATCH-547 — nav restructure: explicit order, regroup, fold-ins.
+       Email + Suppressions live inside Communication; What's New/Coming live
+       on Help & Guides. Capacity is set-once config -> Settings. --}}
+  @php
+    $navOrder547 = [
+      // main
+      'tenant.dashboard', 'tenant.calendar.index', 'tenant.register.index',
+      'tenant.customers.index', 'tenant.inventory.index', 'tenant.special-orders.index',
+      'tenant.transfer-requests.index', 'tenant.vendors.index',
+      'tenant.rentals.desk', 'tenant.classes.sessions', 'tenant.reports.index',
+      // manage
+      'tenant.team.index', 'tenant.services.index', 'tenant.resources.index',
+      'tenant.work-order-fields.index', 'tenant.booking-editor.index',
+      // engage
+      'tenant.media.index', 'tenant.pages.index', 'tenant.templates.index',
+      'tenant.communication.index', 'tenant.waitlist.index',
+      'tenant.campaigns.index', 'tenant.recovery.index',
+      // settings
+      'tenant.help.index', 'tenant.locations.index', 'tenant.booking_modes.index',
+      'tenant.capacity.index', 'tenant.settings.index', 'tenant.feature_addons.index',
+    ];
+    $navDrop547  = ['tenant.emails.index', 'tenant.suppressions.index', 'tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
+    $gw547       = ['manage' => 1, 'engage' => 2, 'settings' => 3];
+    $navItems = collect($navItems)
+        ->reject(fn ($i) => in_array($i['route'], $navDrop547))
+        ->map(function ($i) {
+            if ($i['route'] === 'tenant.capacity.index') $i['group'] = 'settings';
+            return $i;
+        })
+        ->sortBy(function ($i, $idx) use ($navOrder547, $gw547) {
+            $g = $gw547[$i['group'] ?? ''] ?? 0;
+            $p = array_search($i['route'], $navOrder547);
+            return $g * 1000 + ($p === false ? 500 + $idx : $p);
+        })
+        ->values()->all();
+  @endphp
+
   $drawerSections = ['workspace' => 'Workspace', 'manage' => 'Manage', 'engage' => 'Engage', 'settings' => 'Settings'];
   // Already in the bottom tab bar — don't repeat them in the drawer:
   $drawerSkip = ['tenant.dashboard', 'tenant.calendar.index', 'tenant.customers.index', 'tenant.inbox.index'];
