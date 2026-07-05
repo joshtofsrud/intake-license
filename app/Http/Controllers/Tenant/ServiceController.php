@@ -51,6 +51,7 @@ class ServiceController extends Controller
                 'cleanup_after_minutes' => (int) $item->cleanup_after_minutes,
                 'slot_weight'           => (int) $item->slot_weight,
                 'is_active'             => (bool) $item->is_active,
+                'quick_only'            => (bool) $item->quick_only, // MARKER-PATCH-546
                 'sort_order'            => (int) $item->sort_order,
                 'eligible_resource_ids' => $item->eligibleResources->pluck('id')->values()->toArray(),
                 'addons'                => $item->serviceAddons->map(fn($pivot) => [
@@ -225,6 +226,7 @@ class ServiceController extends Controller
             'duration_minutes'      => max(1, (int) $request->input('duration_minutes', 30)),
             'cleanup_after_minutes' => (int) $request->input('cleanup_after_minutes', 0),
             'slot_weight'           => max(1, min(4, (int) $request->input('slot_weight', 1))),
+            'quick_only'            => (bool) ((int) $request->input('quick_only', 0)), // MARKER-PATCH-546
         ];
 
         if ($id) {

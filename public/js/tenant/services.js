@@ -49,6 +49,7 @@
       cleanup_after_minutes: s.cleanup_after_minutes|0,
       slot_weight: s.slot_weight|0 || 1,
       is_active: !!s.is_active,
+      quick_only: !!s.quick_only, // MARKER-PATCH-546
       sort_order: s.sort_order|0,
       eligible_resource_ids: Array.isArray(s.eligible_resource_ids) ? s.eligible_resource_ids.slice() : [],
       addons: (s.addons || []).map(normalizeAttachedAddon),
@@ -391,6 +392,14 @@
         + '</div>'
       + '</div>'
       + (state.resources.length >= 2 ? renderEligibilityField(s) : '')
+      // MARKER-PATCH-546 — quick-only visibility flag
+      + '<div class="sv-drawer-field">'
+        + '<label class="sv-drawer-label" style="display:flex;align-items:center;gap:9px;cursor:pointer;text-transform:none;letter-spacing:normal">'
+          + '<input type="checkbox" data-drawer-field="quick_only" data-drawer-check="1" data-service="' + esc(s.id) + '"' + (s.quick_only ? ' checked' : '') + ' style="accent-color:var(--ia-accent)">'
+          + 'Only show in quick booking'
+        + '</label>'
+        + '<div class="sv-time-hint">Hidden from the full multi-step flow. Still needs to be in the Simple menu (Booking Mode page) to appear anywhere.</div>'
+      + '</div>'
       + '<div class="sv-drawer-field">'
         + '<label class="sv-drawer-label">Add-ons attached <span style="color:var(--ia-text-dim);margin-left:6px;text-transform:none;letter-spacing:normal">(' + s.addons.length + ')</span></label>'
         + '<div class="sv-attached-addons">' + addonRows + '</div>'
@@ -539,6 +548,7 @@
       var field = el.getAttribute('data-drawer-field');
       var isMoney = el.getAttribute('data-drawer-money') === '1';
       var value = el.value;
+      if (el.getAttribute('data-drawer-check') === '1') { payload[field] = el.checked ? 1 : 0; return; } // MARKER-PATCH-546
       if (isMoney) {
         var parsed = parseFloat(value);
         value = isNaN(parsed) ? 0 : Math.round(parsed * 100);

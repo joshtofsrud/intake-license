@@ -23,7 +23,7 @@ class BookingController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->with(['items' => function ($q) {
-                $q->where('is_active', true)->orderBy('sort_order')
+                $q->where('is_active', true)->where('quick_only', false)->orderBy('sort_order') // MARKER-PATCH-546 — quick-only services never appear in the full flow
                   ->with(['serviceAddons' => function ($sa) { $sa->orderBy('sort_order')->with('addon'); }]);
             }])
             ->get();

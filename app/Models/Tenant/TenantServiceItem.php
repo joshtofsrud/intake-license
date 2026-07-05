@@ -16,6 +16,7 @@ class TenantServiceItem extends Model
         'price_cents','prep_before_minutes','duration_minutes','cleanup_after_minutes',
         'slot_weight','is_active','sort_order',
         'simple_enabled','simple_sort','simple_tagline', // MARKER-FLOW-4
+        'quick_only', // MARKER-PATCH-546
     ];
     protected $casts = [
         'is_active'             => 'boolean',
@@ -26,6 +27,7 @@ class TenantServiceItem extends Model
         'slot_weight'           => 'integer',
         'sort_order'            => 'integer',
         'simple_enabled'        => 'boolean',
+        'quick_only'            => 'boolean', // MARKER-PATCH-546
         'simple_sort'           => 'integer',
     ];
 
