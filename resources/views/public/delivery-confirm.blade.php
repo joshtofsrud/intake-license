@@ -19,6 +19,7 @@
   body { font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #101010; color: #f0f0f0; -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 460px; margin: 0 auto; padding: 40px 20px 60px; }
   .shop { font-size: 18px; font-weight: 700; margin-bottom: 26px; }
+  .shop-logo { max-height: 44px; max-width: 220px; display: block; margin-bottom: 26px; } /* MARKER-PATCH-541 */
   h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 6px; }
   .sub { font-size: 14px; opacity: .65; margin-bottom: 24px; }
   .err { background: rgba(255,90,90,.12); border: 1px solid rgba(255,90,90,.4); border-radius: 10px; padding: 11px 14px; font-size: 13px; margin-bottom: 16px; }
@@ -45,7 +46,12 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="shop">{{ $tenant->name }}</div>
+  @php $logo = $tenant->emailLogoUrl(); @endphp
+  @if($logo)
+    <img class="shop-logo" src="{{ $logo }}" alt="{{ $tenant->name }}">{{-- MARKER-PATCH-541 --}}
+  @else
+    <div class="shop">{{ $tenant->name }}</div>
+  @endif
 
   @if($isPending)
     <h1>Your {{ $noun }} is ready! 🎉</h1>
