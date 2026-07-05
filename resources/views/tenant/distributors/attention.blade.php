@@ -54,6 +54,37 @@
   <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
   @include('layouts.tenant._inventory-tabs')
 
+  {{-- MARKER-PATCH-555 — manual sync controls + last-run visibility --}}
+  <div style="display:flex;align-items:center;gap:12px;margin:2px 0 14px;flex-wrap:wrap">
+    <div style="font-size:12.5px;color:var(--ia-text-muted)">
+      @if(!empty($lastSyncRun))
+        Last sync: {{ tlocal($lastSyncRun->started_at, 'M j, g:i a') }}
+        · {{ $lastSyncRun->dry_run ? 'dry run' : ($lastSyncRun->trigger === 'schedule' ? 'nightly' : 'manual') }}
+        @if($lastSyncRun->finished_at)
+          @php $st = json_decode($lastSyncRun->stats ?? '[]', true) ?: []; @endphp
+          @if($lastSyncRun->error)
+            · <span style="color:#f0a3a3">failed: {{ \Illuminate\Support\Str::limit($lastSyncRun->error, 80) }}</span>
+          @else
+            · {{ collect($st)->except('errors')->map(fn($v,$k) => is_numeric($v) ? "$k $v" : null)->filter()->take(4)->implode(' · ') ?: 'no changes' }}
+          @endif
+        @else
+          · <span style="color:var(--ia-accent)">running…</span>
+        @endif
+      @else
+        Tenant pricing sync has never run.
+      @endif
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <form method="POST" action="{{ route('tenant.distributors.attention.sync') }}">@csrf
+        <input type="hidden" name="mode" value="dry">
+        <button class="ia-btn ia-btn--ghost ia-btn--sm">Dry run</button>
+      </form>
+      <form method="POST" action="{{ route('tenant.distributors.attention.sync') }}">@csrf
+        <button class="ia-btn ia-btn--primary ia-btn--sm">Sync now</button>
+      </form>
+    </div>
+  </div>
+
   <div class="at-chips">
     <div class="at-chip"><div class="v">{{ $counts['total'] }}</div><div class="k">Open</div></div>
     <div class="at-chip"><div class="v" style="color:#cde98a">{{ $counts['title'] ?? 0 }}</div><div class="k">Titles</div></div>

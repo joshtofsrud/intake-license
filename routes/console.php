@@ -79,6 +79,21 @@ Schedule::command('deliveries:remind')
 // past their deadline get the first open window locked in. Status
 // transition is the idempotence guard.
 // ----------------------------------------------------------------
+// ----------------------------------------------------------------
+// MARKER-PATCH-555 — two-tier distributor sync, nightly. Tier 1 pulls
+// the HLC catalog delta; tier 2 reconciles every tenant's linked items
+// (cost, availability, vanish + title flags) an hour later.
+// ----------------------------------------------------------------
+Schedule::command('distributors:sync-catalog HLC --delta')
+    ->dailyAt('04:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('distributors:sync-tenant --all')
+    ->dailyAt('05:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('deliveries:assume-windows')
     ->everyFifteenMinutes()
     ->withoutOverlapping()

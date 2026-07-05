@@ -238,9 +238,29 @@ class DistributorController extends Controller
 
         $filters = ['brand' => $fBrand, 'category' => $fCategory, 'reason' => $fReason];
 
+        // MARKER-PATCH-555 — latest sync run for the header line
+        $lastSyncRun = \Illuminate\Support\Facades\DB::table('tenant_distributor_sync_runs')
+            ->where('tenant_id', $tenant->id)->orderByDesc('started_at')->first();
+
         return view('tenant.distributors.attention', compact(
-            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions'
+            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions', 'lastSyncRun'
         ));
+    }
+
+    /**
+     * POST /attention/sync — MARKER-PATCH-555
+     * Queue a tenant distributor sync (real or dry-run) and bounce back;
+     * the page shows the run row when the worker finishes.
+     */
+    public function attentionSync(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $this->guard();
+        $tenant = tenant();
+        $dry = $request->input('mode') === 'dry';
+        \App\Jobs\RunTenantDistributorSyncJob::dispatch($tenant->id, $dry, 'manual');
+        return back()->with('success', $dry
+            ? 'Dry run queued — refresh in a minute to see what would change.'
+            : 'Sync queued — refresh in a minute for results.');
     }
 
     public function attentionResolve(\Illuminate\Http\Request $request): \Illuminate\Http\RedirectResponse
