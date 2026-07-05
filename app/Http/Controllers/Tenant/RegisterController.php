@@ -1308,7 +1308,7 @@ class RegisterController extends Controller
             ->sum('quantity');
 
         // MARKER-PATCH-553 — cost/margin only for roles with the capability
-        $user = Auth::guard('tenant')->user();
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user(); // MARKER-PATCH-554
         $costPayload = null;
         if ($user && $user->canAccessSection('cost_margins')) {
             $cost  = (int) ($item->effectiveCostCents() ?? 0);
