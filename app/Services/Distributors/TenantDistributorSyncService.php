@@ -82,6 +82,16 @@ class TenantDistributorSyncService
                 }
                 $pivot->live_checked_at = now();
                 $pivot->save();
+
+                // MARKER-PATCH-556 — stamp the item so "Last synced" is honest
+                // and cost/margin surfaces (item page, register modal, reports
+                // via effectiveCostCents) see the synced cost. Never clobber a
+                // known cost with null when HLC omits one.
+                $item->catalog_synced_at = now();
+                if ($newCost !== null) {
+                    $item->catalog_cost_cents = $newCost;
+                }
+                $item->saveQuietly();
             }
             if ($newCost !== null) {
                 $res['cost_updated']++;

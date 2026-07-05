@@ -113,7 +113,9 @@ class DistributorController extends Controller
             return back()->with('error', 'Connect your HLC key before refreshing.');
         }
 
-        TenantDistributorSyncJob::dispatch($sub->id);
+        // MARKER-PATCH-556 — same logged job as Catalog attention's Sync now,
+        // so every sync (any button) appears in the run history.
+        \App\Jobs\RunTenantDistributorSyncJob::dispatch(tenant()->id, false, 'manual');
         return back()->with('success', 'Refreshing your cost & availability in the background.');
     }
 
