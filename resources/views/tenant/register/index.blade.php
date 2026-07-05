@@ -775,6 +775,65 @@
 </script>
 @endif
 
+{{-- MARKER-PATCH-552 — item info modal --}}
+<style>
+  .reg-info-btn{flex:none;width:22px;height:22px;border-radius:50%;border:0.5px solid var(--ia-border);background:none;color:var(--ia-text-muted);font:italic 700 11px Georgia,serif;cursor:pointer;margin:0 10px;align-self:center}
+  .reg-info-btn:hover{border-color:var(--ia-accent);color:var(--ia-accent)}
+</style>
+<div id="reg-item-modal" style="display:none;position:fixed;inset:0;z-index:210;align-items:center;justify-content:center;background:rgba(0,0,0,.55)" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:14px;padding:20px 22px;width:min(460px,calc(100vw - 32px));max-height:82vh;overflow-y:auto">
+    <div style="display:flex;gap:16px;align-items:flex-start">
+      <img id="rim-img" src="" alt="" style="display:none;width:88px;height:88px;object-fit:contain;background:#fff;border-radius:10px;flex:none">
+      <div style="min-width:0">
+        <div id="rim-name" style="font-size:15px;font-weight:700;line-height:1.35"></div>
+        <div id="rim-sub" style="font-size:12.5px;color:var(--ia-text-muted);margin-top:3px"></div>
+        <div id="rim-price" style="font-size:16px;font-weight:700;margin-top:8px;color:var(--ia-accent)"></div>
+      </div>
+    </div>
+    <div id="rim-desc" style="font-size:12.5px;color:var(--ia-text-muted);margin-top:12px;line-height:1.5"></div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:14px" id="rim-meta"></table>
+    <div style="margin-top:14px">
+      <div style="font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:6px">Stock</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px" id="rim-stock"></table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <button type="button" class="ia-btn ia-btn--ghost" onclick="document.getElementById('reg-item-modal').style.display='none'">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+// MARKER-PATCH-552
+async function openItemInfo(id) {
+  const m = document.getElementById('reg-item-modal');
+  m.style.display = 'flex';
+  document.getElementById('rim-name').textContent = 'Loading…';
+  ['rim-sub','rim-desc','rim-price'].forEach(x => document.getElementById(x).textContent = '');
+  document.getElementById('rim-meta').innerHTML = '';
+  document.getElementById('rim-stock').innerHTML = '';
+  document.getElementById('rim-img').style.display = 'none';
+  try {
+    const r = await fetch('/admin/register/item/' + encodeURIComponent(id) + '/info', { headers: { 'Accept': 'application/json' } });
+    const d = await r.json();
+    if (!d || !d.ok) throw new Error();
+    document.getElementById('rim-name').textContent = d.name || '';
+    document.getElementById('rim-sub').textContent = d.subtitle || '';
+    document.getElementById('rim-desc').textContent = d.description || '';
+    document.getElementById('rim-price').textContent = fmt(d.price_cents) + (d.taxable ? '' : ' · tax exempt');
+    if (d.image) { const img = document.getElementById('rim-img'); img.src = d.image; img.style.display = ''; }
+    const rows = [['SKU', d.sku], ['UPC', d.upc], ['Category', d.category]].filter(x => x[1]);
+    document.getElementById('rim-meta').innerHTML = rows.map(x =>
+      '<tr><td style="padding:5px 10px 5px 0;color:var(--ia-text-muted);border-top:0.5px solid var(--ia-border);width:90px">' + x[0] + '</td>'
+      + '<td style="padding:5px 0;border-top:0.5px solid var(--ia-border);font-family:ui-monospace,monospace;font-size:12px">' + escapeHtml(x[1]) + '</td></tr>').join('');
+    document.getElementById('rim-stock').innerHTML = (d.stock && d.stock.length)
+      ? d.stock.map(sr => '<tr><td style="padding:5px 10px 5px 0;border-top:0.5px solid var(--ia-border)">' + escapeHtml(sr.location) + '</td>'
+        + '<td style="padding:5px 0;border-top:0.5px solid var(--ia-border);text-align:right;font-variant-numeric:tabular-nums">' + sr.count + '</td></tr>').join('')
+      : '<tr><td style="padding:5px 0;color:var(--ia-text-muted)">No stock records</td></tr>';
+  } catch (e) {
+    document.getElementById('rim-name').textContent = 'Could not load item.';
+  }
+}
+</script>
+
 @endsection
 
 @push('scripts')
@@ -1039,6 +1098,7 @@ function renderResults(data, refundResult) {
       const idx = visibleResults.length - 1;
       html += `<div class="reg-row" data-i="${idx}">
         <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.subtitle || p.sku || '')}</div></div>
+        <button type="button" class="reg-info-btn" data-item-id="${p.id}" title="Item details" aria-label="Item details">i</button>
         <div class="price">${fmt(p.price_cents)}</div>
       </div>`;
     });
@@ -1066,6 +1126,14 @@ function renderResults(data, refundResult) {
   // Reset highlight to first row
   if (highlighted >= visibleResults.length) highlighted = 0;
   applyHighlight();
+
+  // MARKER-PATCH-552 — info buttons open the item modal; stop the row's add-to-cart
+  resultsArea.querySelectorAll('.reg-info-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openItemInfo(btn.dataset.itemId);
+    });
+  });
 
   // Click handler — add the row's item, then clear search and refocus (same as Enter)
   resultsArea.querySelectorAll('[data-i]').forEach(row => {

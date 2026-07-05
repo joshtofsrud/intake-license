@@ -73,11 +73,11 @@ class InventoryController extends Controller
             ->where('is_active', true);
 
         if ($search !== '') {
+            // MARKER-PATCH-552 — tokenized any-field match
             $q->where(function ($q2) use ($search) {
-                $q2->where('name', 'like', "%{$search}%")
-                   ->orWhere('sku',  'like', "%{$search}%")
-                   ->orWhere('display_subtitle', 'like', "%{$search}%")
-                   ->orWhere('catalog_upc', 'like', "%{$search}%");
+                foreach (array_filter(preg_split('/\s+/', $search)) as $t) {
+                    $q2->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                }
             });
         }
 
@@ -318,8 +318,10 @@ class InventoryController extends Controller
             }
             if (filled($data['f_q'] ?? null)) {
                 $s = $data['f_q'];
-                $q->where(function ($w) use ($s) {
-                    $w->where('name', 'like', "%{$s}%")->orWhere('sku', 'like', "%{$s}%");
+                $q->where(function ($w) use ($s) { // MARKER-PATCH-552 — tokenized
+                    foreach (array_filter(preg_split('/\s+/', $s)) as $t) {
+                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                    }
                 });
             }
         } else {

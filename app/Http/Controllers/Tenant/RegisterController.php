@@ -175,10 +175,12 @@ class RegisterController extends Controller
 
             $productItems = TenantInventoryItem::where('tenant_id', $tenant->id)
                 ->where('is_active', true)
+                // MARKER-PATCH-552 — every word must hit SOMEWHERE across the
+                // item's text: "Centerline Rotor 200mm" matches name+subtitle.
                 ->where(function ($w) use ($q) {
-                    $w->where('name', 'like', "%{$q}%")
-                      ->orWhere('sku', 'like', "%{$q}%")
-                      ->orWhere('display_subtitle', 'like', "%{$q}%");
+                    foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
+                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                    }
                 })
                 ->limit(15)
                 ->get();
@@ -1262,6 +1264,42 @@ class RegisterController extends Controller
         } catch (SaleValidationException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * GET /register/item/{id}/info — MARKER-PATCH-552
+     * Everything staff want to see about an item mid-sale: identity,
+     * price, per-location stock, and the catalog image when linked.
+     */
+    public function itemInfo(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $item = TenantInventoryItem::with(['category', 'distributorCatalog'])
+            ->where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $stock = \App\Models\Tenant\TenantInventoryItemLocation::query()
+            ->where('inventory_item_id', $item->id)
+            ->get()
+            ->map(function ($row) use ($tenant) {
+                $loc = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->where('id', $row->location_id)->first();
+                return ['location' => $loc?->name ?? '—', 'count' => (int) $row->computed_stock_count];
+            })->values();
+
+        $images = (array) ($item->distributorCatalog?->images ?? []);
+
+        return response()->json([
+            'ok'          => true,
+            'name'        => $item->name,
+            'subtitle'    => $item->display_subtitle,
+            'description' => $item->description,
+            'sku'         => $item->sku,
+            'upc'         => $item->catalog_upc,
+            'category'    => $item->category?->name,
+            'price_cents' => (int) ($item->effectiveSellPriceCents() ?? 0),
+            'taxable'     => (($item->tax_class_code ?? null) !== 'exempt'),
+            'image'       => $images[0] ?? null,
+            'stock'       => $stock,
+        ]);
     }
 
     public function searchRefundables(Request $request): JsonResponse
