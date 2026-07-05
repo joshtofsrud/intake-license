@@ -19,7 +19,14 @@
   body { font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #101010; color: #f0f0f0; -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 460px; margin: 0 auto; padding: 40px 20px 60px; }
   .shop { font-size: 18px; font-weight: 700; margin-bottom: 26px; }
-  .shop-logo { max-height: 44px; max-width: 220px; display: block; margin-bottom: 26px; } /* MARKER-PATCH-541 */
+  .shop-logo { max-height: 72px; max-width: 300px; display: block; margin: 0 auto 30px; } /* MARKER-PATCH-542 — bigger, centered */
+  .shop { text-align: center; } /* MARKER-PATCH-542 */
+  /* MARKER-PATCH-542 — check + headline share a row */
+  .done-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 8px 0 18px; }
+  .done-row .done-ic { margin: 0; flex: none; }
+  .done-row .done-txt { text-align: right; }
+  .done-row h1 { margin-bottom: 2px; }
+  .done-row .sub { margin-bottom: 0; }
   h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 6px; }
   .sub { font-size: 14px; opacity: .65; margin-bottom: 24px; }
   .err { background: rgba(255,90,90,.12); border: 1px solid rgba(255,90,90,.4); border-radius: 10px; padding: 11px 14px; font-size: 13px; margin-bottom: 16px; }
@@ -104,10 +111,12 @@
           ]);
       }
     @endphp
-    <div class="done">
+    <div class="done-row">{{-- MARKER-PATCH-542 --}}
       <div class="done-ic">✓</div>
-      <h1>You're all set!</h1>
-      <p class="sub">Your {{ $noun }} is on the schedule</p>
+      <div class="done-txt">
+        <h1>You're all set!</h1>
+        <p class="sub">Your {{ $noun }} is on the schedule</p>
+      </div>
     </div>
     <div class="card">
       <div class="card-row">
