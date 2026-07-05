@@ -263,6 +263,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // so they work even when the lock overlay is pending.
             Route::post('/pin/heartbeat',    [TenantControllers\PinGateController::class, 'heartbeat'])->name('pin.heartbeat');
             Route::post('/pin/unlock',       [TenantControllers\PinGateController::class, 'unlock'])->name('pin.unlock');
+            Route::get('/pin/context',       [TenantControllers\PinGateController::class, 'context'])->name('pin.context'); // MARKER-PATCH-545
             // MARKER-PATCH-480 — first-time PIN setup from the lock overlay
             Route::post('/pin/setup',        [TenantControllers\PinGateController::class, 'setupPin'])->name('pin.setup');
 

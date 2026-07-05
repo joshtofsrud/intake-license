@@ -10,7 +10,7 @@
   }
 
   const admin = window.IntakeAdmin || {};
-  const csrf = admin.csrfToken;
+  let csrf = admin.csrfToken; // MARKER-PATCH-545 — mutable: refreshed after long idle
 
   // Configurable from window.IntakeAdmin if needed; defaults here match
   // the config/intake.php server-side values.
@@ -131,7 +131,19 @@
     }
   }
 
-  async function submitPin() {
+  // MARKER-PATCH-545 — after long idle the page's CSRF token (and sometimes
+  // the whole session) is stale. Refresh the token and report auth state so
+  // the unlock can retry silently instead of erroring forever.
+  async function refreshContext() {
+    try {
+      const r = await fetch('/admin/pin/context', { headers: { 'Accept': 'application/json' } });
+      const b = await r.json();
+      if (b && b.csrf) csrf = b.csrf;
+      return !!(b && b.authed);
+    } catch (e) { return false; }
+  }
+
+  async function submitPin(isRetry) {
     if (isSetup) return submitSetup();
     const pin = inputs.map(i => i.value).join('');
     if (pin.length !== 4) return;
@@ -144,6 +156,21 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
         body: JSON.stringify({ pin })
       });
+
+      // MARKER-PATCH-545 — stale token or dead session
+      if ((res.status === 419 || res.status === 401) && !isRetry) {
+        const authed = await refreshContext();
+        if (authed) {
+          if (submitBtn) submitBtn.disabled = false;
+          return submitPin(true); // fresh token, same PIN — silent retry
+        }
+        // Session is gone: the switcher is the only path that works.
+        msg('Session expired — taking you to sign in…', 'info');
+        const notYou = document.querySelector('#ia-lock-overlay a[href]');
+        setTimeout(() => { window.location.href = notYou ? notYou.href : '/admin'; }, 900);
+        return;
+      }
+
       const body = await res.json().catch(() => ({}));
 
       if (res.ok && body.ok) {

@@ -104,6 +104,21 @@ class PinGateController extends Controller
      *
      * Verifies the PIN against the currently signed-in user.
      */
+    /**
+     * GET /admin/pin/context — MARKER-PATCH-545
+     * The overlay calls this when an unlock POST 419s after long idle:
+     * returns whether the session is still authenticated plus a fresh
+     * CSRF token so the overlay can retry silently instead of looping
+     * "Something went wrong."
+     */
+    public function context()
+    {
+        return response()->json([
+            'authed' => (bool) Auth::guard('tenant')->user(),
+            'csrf'   => csrf_token(),
+        ]);
+    }
+
     public function unlock(Request $request)
     {
         $user = Auth::guard('tenant')->user();
