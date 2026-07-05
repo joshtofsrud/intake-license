@@ -134,6 +134,9 @@ $tenantRoutes = function () {
     // MARKER-PATCH-213 — returning-customer lookup (pre-fills the Bikes step)
     Route::post('/book/customer-lookup', [TenantControllers\BookingLookupController::class, 'lookup'])->name('tenant.booking.customer-lookup');
     // MARKER-PATCH-239 — public rental availability browse.
+    // MARKER-PATCH-561 — Online Retail Wave 2: read-only storefront
+    Route::get('/shop',                  [TenantControllers\StorefrontController::class, 'index'])->name('tenant.shop.index');
+    Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
     Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
     // MARKER-PATCH-240 — public reservation checkout.
     Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');

@@ -62,12 +62,14 @@ class TenantInventoryItem extends Model
         'computed_stock_count',
         'allow_oversell',
         'is_active',
+        'show_online', // MARKER-PATCH-561
         'is_stock_tracked',
         'tax_class_code',
         'default_vendor_id',
     ];
 
     protected $casts = [
+        'show_online' => 'boolean', // MARKER-PATCH-561
         'catalog_cost_cents' => 'integer',
         'catalog_msrp_cents' => 'integer',
         'catalog_map_cents' => 'integer',
