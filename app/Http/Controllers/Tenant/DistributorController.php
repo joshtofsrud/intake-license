@@ -271,6 +271,7 @@ class DistributorController extends Controller
         $data = $request->validate([
             'action'     => ['required', 'in:raise_map,match_msrp,acknowledge,adopt_title,keep_title'],
             'flag_ids'   => ['nullable', 'array'],
+            'row_flag'   => ['nullable', 'string'], // MARKER-PATCH-558 — per-row one-click action
             'flag_ids.*' => ['string'],
             'select_all' => ['nullable', 'boolean'],
             'f_brand'    => ['nullable', 'string', 'max:128'],
@@ -280,6 +281,13 @@ class DistributorController extends Controller
         ]);
 
         $action = $data['action'];
+
+        // MARKER-PATCH-558 — a row button targets exactly one flag,
+        // regardless of checkboxes or the apply-all toggle.
+        if (filled($data['row_flag'] ?? null)) {
+            $data['flag_ids'] = [$data['row_flag']];
+            $request->merge(['select_all' => false]);
+        }
 
         $q = \App\Models\Tenant\TenantPricingAttentionFlag::query()
             ->with('item.distributorCatalog')

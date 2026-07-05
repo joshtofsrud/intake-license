@@ -277,6 +277,40 @@ class TenantDistributorSyncService
             }
         }
 
+        // MARKER-PATCH-557 — price-position detectors.
+        $sell = $item->effectiveSellPriceCents();
+        if ($sell !== null && $sell > 0) {
+            if ($cat->map_cents !== null && $sell < $cat->map_cents) {
+                $this->openFlag($tenantId, $item, $cat,
+                    TenantPricingAttentionFlag::REASON_BELOW_MAP, $prevCost, $dryRun, $res, [
+                        'sell_cents'     => $sell,
+                        'map_cents'      => $cat->map_cents,
+                        'prev_map_cents' => $cat->prev_map_cents,
+                        'delta_cents'    => $cat->map_cents - $sell,
+                        'at'             => now()->toIso8601String(),
+                    ]);
+            } else {
+                $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_BELOW_MAP, $dryRun, $res);
+            }
+
+            // Off-MSRP only matters when it's not already a MAP problem and
+            // the gap is real (>= 5% under MSRP), so the queue stays signal.
+            $msrp = $cat->msrp_cents;
+            $isMapProblem = $cat->map_cents !== null && $sell < $cat->map_cents;
+            if (! $isMapProblem && $msrp !== null && $msrp > 0 && $sell < (int) round($msrp * 0.95)) {
+                $this->openFlag($tenantId, $item, $cat,
+                    TenantPricingAttentionFlag::REASON_OFF_MSRP, $prevCost, $dryRun, $res, [
+                        'sell_cents'      => $sell,
+                        'msrp_cents'      => $msrp,
+                        'prev_msrp_cents' => $cat->prev_msrp_cents,
+                        'pct_under'       => round((($msrp - $sell) / $msrp) * 100, 1),
+                        'at'              => now()->toIso8601String(),
+                    ]);
+            } else {
+                $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_OFF_MSRP, $dryRun, $res);
+            }
+        }
+
         // Title / identity drift — NOT stock-gated; a renamed catalog item
         // matters regardless of stock. Never auto-applied: the tenant adopts or
         // keeps their own name from the attention surface.

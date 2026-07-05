@@ -56,20 +56,12 @@
   </div>
 
   <div class="dc-card">
-    <h2 class="dc-h">My sync status</h2>
-    <p class="dc-sub">Your cost &amp; availability for the items you carry — runs on your key.</p>
-    <div class="dc-stats">
-      <div class="dc-stat"><div class="k">Last run</div><div class="v" style="font-size:14px">{{ $sub->last_sync_at ? $sub->last_sync_at->diffForHumans() : '—' }}</div></div>
-      <div class="dc-stat"><div class="k">Status</div><div class="v" style="font-size:14px">{{ $sub->last_sync_status ?? '—' }}</div></div>
-      <div class="dc-stat"><div class="k">Linked items</div><div class="v" style="color:var(--ia-accent)">{{ $linkedCount }}</div></div>
-      <div class="dc-stat"><div class="k">Open flags</div><div class="v" style="color:var(--tone-amber,#EF9F27)">{{ $openFlags }}</div></div>
+    {{-- MARKER-PATCH-559 — sync status + manual runs moved to Catalog attention,
+         the surface staff actually watch. Connection is credentials only. --}}
+    <div style="font-size:12.5px;color:var(--ia-text-muted);padding:6px 0 2px">
+      Looking for sync status or a manual refresh? That lives on
+      <a href="{{ route('tenant.distributors.attention') }}" style="color:var(--ia-accent)">Catalog attention</a> now.
     </div>
-    @if($sub->last_sync_error)<div class="dc-err dc-banner" style="margin-bottom:14px">{{ \Illuminate\Support\Str::limit($sub->last_sync_error,160) }}</div>@endif
-    <form method="POST" action="{{ route('tenant.distributors.connection.refresh') }}">
-      @csrf
-      <button class="dc-btn primary" type="submit" @disabled(!$hasKey)>Refresh my cost &amp; availability</button>
-      @unless($hasKey)<span class="dc-dim" style="margin-left:10px;font-size:12px">Connect your key first.</span>@endunless
-    </form>
   </div>
 
   <div class="dc-card">
