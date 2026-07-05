@@ -232,10 +232,9 @@
     ],
   ];
 
-  {{-- MARKER-PATCH-547 — nav restructure: explicit order, regroup, fold-ins.
-       Email + Suppressions live inside Communication; What's New/Coming live
-       on Help & Guides. Capacity is set-once config -> Settings. --}}
-  @php
+  // MARKER-PATCH-549 — nav restructure (547 hotfix): runs inside the existing
+  // @php block; Email+Suppressions live in Communication, What's New/Coming
+  // in Help & Guides, Capacity -> Settings.
     $navOrder547 = [
       // main
       'tenant.dashboard', 'tenant.calendar.index', 'tenant.register.index',
@@ -267,7 +266,6 @@
             return $g * 1000 + ($p === false ? 500 + $idx : $p);
         })
         ->values()->all();
-  @endphp
 
   $groups = ['manage' => 'Manage', 'engage' => 'Engage', 'settings' => 'Settings'];
   $lastGroup = null;
