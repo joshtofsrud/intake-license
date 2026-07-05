@@ -1101,11 +1101,8 @@ class AppointmentController extends Controller
                 try {
                     $appointment->loadMissing('customer');
                     $cust = $appointment->customer;
-                    $hasPending = \App\Models\Tenant\TenantDeliveryProposal::query()
-                        ->where('tenant_id', $tenant->id)
-                        ->where('appointment_id', $appointment->id)
-                        ->where('status', 'pending')->exists();
-                    if ($cust && !empty($cust->phone) && !$hasPending) {
+                    // MARKER-PATCH-538 — pending proposal no longer blocks the modal (re-send supersedes)
+                    if ($cust && !empty($cust->phone)) {
                         $svc = DeliveryProposalService::forTenant($tenant);
                         $cands = $svc->candidates();
                         if (!empty($cands)) {
@@ -1197,7 +1194,7 @@ class AppointmentController extends Controller
                 return response()->json(['ok' => false, 'message' => 'Could not send — check logs.'], 500);
             }
             if (!$proposal) {
-                return response()->json(['ok' => false, 'message' => 'Nothing to send — no phone, no open windows, or already proposed.'], 422);
+                return response()->json(['ok' => false, 'message' => 'Nothing to send — no contact info for the chosen channels, or no open windows.'], 422); // MARKER-PATCH-538
             }
             if (!$proposal->sent_channels) {
                 return response()->json(['ok' => false, 'message' => 'Proposal saved but the text failed to send.'], 500);

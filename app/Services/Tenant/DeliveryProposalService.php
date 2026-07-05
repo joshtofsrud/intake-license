@@ -84,12 +84,12 @@ class DeliveryProposalService
         $wantEmail = in_array('email', $requestedChannels, true) && !empty($customer->email);
         if (!$wantSms && !$wantEmail) return null;
 
-        $existing = TenantDeliveryProposal::query()
+        // MARKER-PATCH-538 — supersede rather than refuse: old link dies, new one rules
+        TenantDeliveryProposal::query()
             ->where('tenant_id', $this->tenant->id)
             ->where('appointment_id', $appointment->id)
-            ->where('status', TenantDeliveryProposal::STATUS_PENDING)
-            ->exists();
-        if ($existing) return null;
+            ->whereIn('status', [TenantDeliveryProposal::STATUS_PENDING, TenantDeliveryProposal::STATUS_NO_REPLY])
+            ->update(['status' => TenantDeliveryProposal::STATUS_CANCELLED]);
 
         $windows = $this->candidates();
         if (empty($windows)) return null;
