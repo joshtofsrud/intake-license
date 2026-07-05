@@ -29,6 +29,7 @@ class DeliveryConfirmController extends Controller
             'tenant'   => $tenant,
             'proposal' => $proposal,
             'windows'  => $this->windowsWithAvailability($proposal),
+            'delivery' => $proposal->delivery_id ? $proposal->delivery : null, // MARKER-PATCH-540
             'error'    => session('dc_error'),
         ]);
     }

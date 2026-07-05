@@ -35,6 +35,12 @@
   .done { text-align: center; padding: 30px 0 10px; }
   .done-ic { width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 26px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
   .done-when { font-size: 19px; font-weight: 700; margin-top: 4px; }
+  /* MARKER-PATCH-540 */
+  .card { background: rgba(255,255,255,.04); border: 1.5px solid rgba(255,255,255,.12); border-radius: 14px; padding: 4px 18px; margin: 6px 0 18px; }
+  .card-row { display: flex; gap: 16px; padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .card-k { flex: none; width: 54px; font-size: 12px; opacity: .55; padding-top: 2px; }
+  .card-v { font-size: 14.5px; line-height: 1.45; }
+  .btn--ghost { background: none; border: 1.5px solid rgba(255,255,255,.18); color: #f0f0f0; }
 </style>
 </head>
 <body>
@@ -76,21 +82,48 @@
     </script>
 
   @elseif(in_array($proposal->status, ['confirmed', 'assumed']))
+    {{-- MARKER-PATCH-540 — confirmation card with add-to-calendar + next steps --}}
     @php
       $win = collect($proposal->windows)->first(fn ($w) => $w['window_id'] === $proposal->confirmed_window_id && $w['date'] === $proposal->confirmed_date?->toDateString());
+      $start = $delivery?->scheduled_at?->copy()->setTimezone($tz);
+      $end   = $start?->copy()->addMinutes($delivery->window_minutes ?: 60);
+      $gcal  = null;
+      if ($start && $end) {
+          $gcal = 'https://calendar.google.com/calendar/render?' . http_build_query([
+              'action'   => 'TEMPLATE',
+              'text'     => $tenant->name . ' — ' . ucfirst($noun) . ' delivery',
+              'dates'    => $start->format('Ymd\THis') . '/' . $end->format('Ymd\THis'),
+              'details'  => 'We\'ll deliver your ' . $noun . ' during this window.',
+              'location' => $delivery->address ?? '',
+          ]);
+      }
     @endphp
     <div class="done">
       <div class="done-ic">✓</div>
-      <h1>You're all set</h1>
-      <p class="sub">We'll deliver your {{ $noun }}</p>
-      <div class="done-when">
-        {{ $proposal->confirmed_date?->format('l, F j') }}<br>
-        <span style="font-size:14px;opacity:.65;font-weight:500">{{ $win['label'] ?? '' }}</span>
-      </div>
-      @if($proposal->status === 'assumed')
-        <p class="note" style="margin-top:18px">This window was scheduled automatically — need a different one? Just give us a call.</p>
-      @endif
+      <h1>You're all set!</h1>
+      <p class="sub">Your {{ $noun }} is on the schedule</p>
     </div>
+    <div class="card">
+      <div class="card-row">
+        <span class="card-k">When</span>
+        <span class="card-v"><b>{{ $proposal->confirmed_date?->format('l, F j') }}</b><br>{{ $win['label'] ?? '' }}</span>
+      </div>
+      @if($delivery?->address)
+        <div class="card-row">
+          <span class="card-k">Where</span>
+          <span class="card-v">{{ $delivery->address }}</span>
+        </div>
+      @endif
+      <div class="card-row" style="border-bottom:0">
+        <span class="card-k">From</span>
+        <span class="card-v">{{ $tenant->name }}</span>
+      </div>
+    </div>
+    @if($gcal)
+      <a class="btn" style="text-align:center;text-decoration:none;margin-bottom:10px" href="{{ $gcal }}" target="_blank" rel="noopener">Add to calendar</a>
+    @endif
+    <a class="btn btn--ghost" style="text-align:center;text-decoration:none" href="{{ $tenant->publicUrl() }}">Back to {{ $tenant->name }}</a>
+    <p class="note" style="text-align:center;margin-top:16px">Need to change it? Reply to our text or give us a call — we'll sort it out.</p>
 
   @else
     <h1>This link has expired</h1>
