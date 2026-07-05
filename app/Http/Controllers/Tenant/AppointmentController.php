@@ -62,6 +62,7 @@ class AppointmentController extends Controller
             'overdue_unstarted'    => 'Overdue: not started',
             'overdue_in_progress'  => 'Overdue: in progress',
             'stale_pickups'        => 'Stale pickups',
+            'awaiting_delivery'    => 'Awaiting delivery', // MARKER-PATCH-539
         ];
         $filter = array_key_exists($filter, $filterLabels) ? $filter : '';
 
@@ -94,6 +95,18 @@ class AppointmentController extends Controller
                 $q->whereIn('status', AppointmentStatus::doneStatuses())
                   ->whereIn('payment_status', ['unpaid', 'partial'])
                   ->where('updated_at', '<', now()->subDays(3));
+                break;
+            case 'awaiting_delivery': // MARKER-PATCH-539 — mirrors DashboardDataService card
+                $q->where('status', 'completed')
+                  ->whereNotNull('completed_at')
+                  ->where('completed_at', '>=', now()->subDays(14))
+                  ->whereNotExists(function ($sub) {
+                      $sub->selectRaw('1')
+                          ->from('tenant_deliveries')
+                          ->whereColumn('tenant_deliveries.appointment_id', 'tenant_appointments.id')
+                          ->where('tenant_deliveries.type', 'dropoff')
+                          ->where('tenant_deliveries.status', '!=', 'cancelled');
+                  });
                 break;
         }
 

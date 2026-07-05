@@ -162,7 +162,54 @@ class DashboardDataService
             }
         }
 
+        // MARKER-PATCH-539 — completed jobs with no scheduled drop-off (P&D tenants).
+        // No-reply proposals (customer never picked from the options link) called out.
+        $awaitingDeliveryCount = 0;
+        $awaitingNoReplyCount  = 0;
+        if ($this->tenant->deliveries_enabled) {
+            $base = TenantAppointment::query()
+                ->where('tenant_appointments.tenant_id', $tenantId)
+                ->where('tenant_appointments.status', 'completed')
+                ->whereNotNull('tenant_appointments.completed_at')
+                ->where('tenant_appointments.completed_at', '>=', now()->subDays(14))
+                ->whereNotExists(function ($q) {
+                    $q->selectRaw('1')
+                        ->from('tenant_deliveries')
+                        ->whereColumn('tenant_deliveries.appointment_id', 'tenant_appointments.id')
+                        ->where('tenant_deliveries.type', 'dropoff')
+                        ->where('tenant_deliveries.status', '!=', 'cancelled');
+                });
+            $awaitingDeliveryCount = (clone $base)->count();
+            if ($awaitingDeliveryCount > 0) {
+                $awaitingNoReplyCount = (clone $base)
+                    ->whereExists(function ($q) use ($tenantId) {
+                        $q->selectRaw('1')
+                            ->from('tenant_delivery_proposals')
+                            ->whereColumn('tenant_delivery_proposals.appointment_id', 'tenant_appointments.id')
+                            ->where('tenant_delivery_proposals.tenant_id', $tenantId)
+                            ->where('tenant_delivery_proposals.status', 'no_reply');
+                    })->count();
+            }
+        }
+
         $cards = [];
+
+        if ($awaitingDeliveryCount > 0) {
+            $singular = $this->tenant->asset_label_singular ?: 'job';   // MARKER-PATCH-539
+            $plural   = $this->tenant->asset_label_plural ?: 'jobs';
+            $cards[] = [
+                'count' => $awaitingDeliveryCount,
+                'title' => 'Awaiting delivery',
+                'key'   => 'awaiting_delivery',
+                'icon'  => '🚚',
+                'desc'  => ($awaitingDeliveryCount === 1
+                        ? "1 completed {$singular} with no drop-off scheduled"
+                        : "{$awaitingDeliveryCount} completed {$plural} with no drop-off scheduled")
+                    . ($awaitingNoReplyCount > 0 ? " — {$awaitingNoReplyCount} never replied to the options link" : ''),
+                'tone'  => 'amber',
+                'link'  => route('tenant.appointments.index', ['filter' => 'awaiting_delivery']),
+            ];
+        }
 
         if ($unconfirmedCount > 0) {
             $cards[] = [
