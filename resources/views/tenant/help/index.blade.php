@@ -787,7 +787,7 @@
       <div class="help-text">
         <p>Templates use <strong>tokens</strong> — placeholders that get replaced with real data when the email actually goes out. Common tokens:</p>
         <ul>
-          <li><code>{{customer_first_name}}</code> &mdash; the customer&rsquo;s first name</li>
+          <li><code>@{{customer_first_name}}</code> &mdash; the customer&rsquo;s first name</li>
           <li><code>{{appointment_date}}</code> &mdash; formatted date of the appointment</li>
           <li><code>{{appointment_time}}</code> &mdash; formatted time</li>
           <li><code>{{ra_number}}</code> &mdash; the RA / job number</li>
@@ -873,7 +873,7 @@
     <div class="help-card">
       <div class="help-card-title"><span class="help-card-num">2</span> Compose</div>
       <div class="help-text">
-        <p>Same block builder as Email and Pages. Subject line, preview text, body. Tokens work here too — <code>{{customer_first_name}}</code> personalizes each send.</p>
+        <p>Same block builder as Email and Pages. Subject line, preview text, body. Tokens work here too — <code>@{{customer_first_name}}</code> personalizes each send.</p>
       </div>
     </div>
 
