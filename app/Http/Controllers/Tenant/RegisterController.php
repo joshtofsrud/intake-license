@@ -1285,11 +1285,44 @@ class RegisterController extends Controller
                 return ['location' => $loc?->name ?? '—', 'count' => (int) $row->computed_stock_count];
             })->values();
 
-        $images = (array) ($item->distributorCatalog?->images ?? []);
+        // MARKER-PATCH-553 — HLC stores images as objects; pull usable URLs.
+        $images = collect((array) ($item->distributorCatalog?->images ?? []))
+            ->map(function ($im) {
+                if (is_string($im)) return $im;
+                if (is_array($im)) return $im['Url'] ?? $im['url'] ?? $im['src'] ?? null;
+                return null;
+            })->filter()->values()->all();
+
+        // Specs from canonical attributes
+        $attrs = collect((array) ($item->distributorCatalog?->attributes ?? []))
+            ->filter(fn ($a) => is_array($a) && !empty($a['Name']) && trim((string) ($a['Value'] ?? '')) !== '')
+            ->map(fn ($a) => ['name' => $a['Name'], 'value' => $a['Value']])
+            ->values()->all();
+
+        // Sold in the last 30 days (real sales only)
+        $sold30 = (float) \App\Models\Tenant\TenantSaleItem::query()
+            ->where('inventory_item_id', $item->id)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereHas('sale', fn ($q) => $q->where('tenant_id', $tenant->id)
+                ->whereNotIn('payment_status', ['draft', 'quote']))
+            ->sum('quantity');
+
+        // MARKER-PATCH-553 — cost/margin only for roles with the capability
+        $user = Auth::guard('tenant')->user();
+        $costPayload = null;
+        if ($user && $user->canAccessSection('cost_margins')) {
+            $cost  = (int) ($item->effectiveCostCents() ?? 0);
+            $price = (int) ($item->effectiveSellPriceCents() ?? 0);
+            $costPayload = [
+                'cost_cents' => $cost,
+                'margin_pct' => ($price > 0 && $cost > 0) ? round((($price - $cost) / $price) * 100, 1) : null,
+            ];
+        }
 
         return response()->json([
             'ok'          => true,
             'name'        => $item->name,
+            'brand'       => $item->distributorCatalog?->manufacturer,
             'subtitle'    => $item->display_subtitle,
             'description' => $item->description,
             'sku'         => $item->sku,
@@ -1297,7 +1330,11 @@ class RegisterController extends Controller
             'category'    => $item->category?->name,
             'price_cents' => (int) ($item->effectiveSellPriceCents() ?? 0),
             'taxable'     => (($item->tax_class_code ?? null) !== 'exempt'),
-            'image'       => $images[0] ?? null,
+            'images'      => array_slice($images, 0, 4),
+            'attrs'       => $attrs,
+            'sold_30d'    => $sold30,
+            'cost'        => $costPayload,
+            'edit_url'    => route('tenant.inventory.edit', $item->id),
             'stock'       => $stock,
         ]);
     }

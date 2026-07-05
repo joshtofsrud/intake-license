@@ -30,6 +30,10 @@ class SectionRegistry
             'reports'           => ['label' => 'Reports',            'group' => 'main',     'prefixes' => ['tenant.reports'],                              'gate' => null],
 
             'team'              => ['label' => 'Team & access',      'group' => 'manage',   'prefixes' => ['tenant.team'],                                 'gate' => 'additional_users_enabled'],
+            // MARKER-PATCH-553 — capability, not a page: gates cost/margin
+            // visibility (register item modal, future report columns).
+            // Empty prefixes = never route-enforced, never in nav.
+            'cost_margins'      => ['label' => 'Costs & margins',    'group' => 'manage',   'prefixes' => [],                                              'gate' => 'retail_enabled'],
             'services'          => ['label' => 'Services',           'group' => 'manage',   'prefixes' => ['tenant.services'],                             'gate' => null],
             'resources'         => ['label' => 'Resources',          'group' => 'manage',   'prefixes' => ['tenant.resources'],                            'gate' => null],
             'work_order_fields' => ['label' => 'Work Order Fields',  'group' => 'manage',   'prefixes' => ['tenant.work-order-fields'],                    'gate' => null],

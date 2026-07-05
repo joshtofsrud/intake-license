@@ -62,6 +62,7 @@ class EnforceSectionAccess
             if ($def['gate'] && !$tenant->{$def['gate']}) continue;
             if (!$user->canAccessSection($key)) continue;
 
+            if (empty($def['prefixes'])) continue; // MARKER-PATCH-553 — capability keys have no pages
             foreach ([$def['prefixes'][0] . '.index', $def['prefixes'][0]] as $routeName) {
                 if (Route::has($routeName)) {
                     return route($routeName);
