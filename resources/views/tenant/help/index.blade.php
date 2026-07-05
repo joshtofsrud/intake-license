@@ -788,10 +788,10 @@
         <p>Templates use <strong>tokens</strong> — placeholders that get replaced with real data when the email actually goes out. Common tokens:</p>
         <ul>
           <li><code>@{{customer_first_name}}</code> &mdash; the customer&rsquo;s first name</li>
-          <li><code>{{appointment_date}}</code> &mdash; formatted date of the appointment</li>
-          <li><code>{{appointment_time}}</code> &mdash; formatted time</li>
-          <li><code>{{ra_number}}</code> &mdash; the RA / job number</li>
-          <li><code>{{shop_name}}</code> &mdash; your shop name</li>
+          <li><code>@{{appointment_date}}</code> &mdash; formatted date of the appointment</li>
+          <li><code>@{{appointment_time}}</code> &mdash; formatted time</li>
+          <li><code>@{{ra_number}}</code> &mdash; the RA / job number</li>
+          <li><code>@{{shop_name}}</code> &mdash; your shop name</li>
         </ul>
         <p>The full list is shown in a sidebar inside the editor. Click any token to insert it at your cursor.</p>
       </div>
