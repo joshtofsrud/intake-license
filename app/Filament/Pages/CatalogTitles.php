@@ -172,11 +172,42 @@ class CatalogTitles extends Page implements HasForms
             ->body('Rebuilding catalog titles + syncing tenant items in the background.')->send();
     }
 
+    /**
+     * MARKER-PATCH-544 — real attribute-name inventory for the selected
+     * distributor: distinct Attribute Names + how many catalog rows carry
+     * each, so {attr:NAME} is discoverable instead of guessed. Sampled and
+     * cached: decoding 14k JSON blobs on every request would be rude.
+     */
+    public function availableAttributes(): array
+    {
+        $code = $this->data['code'] ?? '*';
+        $cacheKey = 'catalog-attr-names:' . $code;
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($code) {
+            $q = PlatformDistributorCatalog::query()->whereNotNull('attributes');
+            if ($code !== '*') $q->where('distributor_code', $code);
+            $counts = [];
+            $q->select(['id', 'attributes'])->chunkById(1000, function ($rows) use (&$counts) {
+                foreach ($rows as $row) {
+                    $attrs = is_array($row->attributes) ? $row->attributes : (json_decode($row->attributes ?? '[]', true) ?: []);
+                    foreach ($attrs as $a) {
+                        if (is_array($a) && isset($a['Name']) && trim((string) ($a['Value'] ?? '')) !== '') {
+                            $n = trim((string) $a['Name']);
+                            if ($n !== '') $counts[$n] = ($counts[$n] ?? 0) + 1;
+                        }
+                    }
+                }
+            });
+            arsort($counts);
+            return $counts;
+        });
+    }
+
     public function getViewData(): array
     {
         return [
-            'tokens'  => self::TOKENS,
-            'preview' => $this->previewRows(),
+            'tokens'     => self::TOKENS,
+            'preview'    => $this->previewRows(),
+            'attrNames'  => $this->availableAttributes(), // MARKER-PATCH-544
         ];
     }
 }

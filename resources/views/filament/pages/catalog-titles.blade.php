@@ -16,6 +16,25 @@
                     </div>
                 @endforeach
             </dl>
+
+            {{-- MARKER-PATCH-544 — the attribute names that actually exist in this
+                 distributor's data, with row counts. These are the only valid
+                 targets for {attr:NAME}; anything not listed is an HLC data gap. --}}
+            <h3 class="text-sm font-semibold mt-5 mb-1">Available attributes</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Real attribute names in this catalog and how many rows carry each.
+                Use them as <span class="font-mono">{attr:Name}</span>. Cached hourly.
+            </p>
+            <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
+                @forelse ($attrNames as $name => $count)
+                    <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-white/10 px-2 py-0.5 text-xs">
+                        <span class="font-mono">{{ $name }}</span>
+                        <span class="text-gray-400">{{ number_format($count) }}</span>
+                    </span>
+                @empty
+                    <span class="text-xs text-gray-400">No attributes found for this distributor.</span>
+                @endforelse
+            </div>
         </div>
 
         {{-- live preview --}}
