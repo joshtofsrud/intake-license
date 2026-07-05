@@ -111,12 +111,10 @@
           ]);
       }
     @endphp
-    <div class="done-row">{{-- MARKER-PATCH-542 --}}
+    <div class="done">{{-- MARKER-PATCH-543 — centered stack restored --}}
       <div class="done-ic">✓</div>
-      <div class="done-txt">
-        <h1>You're all set!</h1>
-        <p class="sub">Your {{ $noun }} is on the schedule</p>
-      </div>
+      <h1>You're all set!</h1>
+      <p class="sub">Your {{ $noun }} is on the schedule</p>
     </div>
     <div class="card">
       <div class="card-row">
