@@ -520,6 +520,6 @@ window.BkData = {
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
 @if($paypalEnabled)<script src="https://www.paypal.com/sdk/js?client-id={{ $paypalClientId }}&currency={{ strtoupper($currentTenant->currency ?? 'USD') }}"></script>@endif
 <script src="{{ asset('js/booking.js') }}?v={{ filemtime(public_path('js/booking.js')) }}"></script>
-@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom'])@endif {{-- MARKER-PATCH-589 --}}
+@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif {{-- MARKER-PATCH-590 --}}
 </body>
 </html>

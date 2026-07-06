@@ -156,6 +156,10 @@
         <input type="checkbox" data-bke="booking_show_logo" value="1" {{ ($booking['booking_show_logo'] ?? '1') === '1' ? 'checked' : '' }}>
         Logo header inside the page
       </label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:4px 0 10px">
+        <input type="checkbox" data-bke="booking_hide_cta" value="1" {{ ($booking['booking_hide_cta'] ?? '0') === '1' ? 'checked' : '' }}>
+        Hide CTA band on this page
+      </label> {{-- MARKER-PATCH-590 --}}
       <div style="font-size:11px;color:var(--ia-text-muted);margin:-6px 0 12px">With the nav on, most sites turn the in-page logo off. Footer content itself (links, contact form, CTA band) is edited in Pages &rarr; your home page footer.</div>
 
       {{-- MARKER-PATCH-589 — brand kit reference --}}

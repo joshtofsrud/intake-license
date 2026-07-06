@@ -41,7 +41,7 @@
 @if(($chromePos ?? 'top') === 'bottom' && $ci['footer'])
   <div class="p-chrome-scope">
   @include('public.sections._footer', [
-      'c' => $ci['footer']->content ?? [], 'section' => $ci['footer'],
+      'c' => (($hideBookingCta ?? false) ? array_merge($ci['footer']->content ?? [], ['cta_band' => false]) : ($ci['footer']->content ?? [])), 'section' => $ci['footer'], {{-- MARKER-PATCH-590 --}}
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),
   ])
   </div>

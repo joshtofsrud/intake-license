@@ -18,6 +18,7 @@ class BookingEditorController extends Controller
         'booking_show_nav'       => '1', // MARKER-PATCH-589 — site nav
         'booking_show_footer'    => '1', // MARKER-PATCH-589 — site footer
         'booking_show_logo'      => '1', // MARKER-PATCH-589 — page's own logo header
+        'booking_hide_cta'       => '0', // MARKER-PATCH-590 — hide pre-footer CTA band on booking page
         'booking_step1_label'    => 'Services',
         'booking_step2_label'    => 'Schedule',
         'booking_step3_label'    => 'Details',

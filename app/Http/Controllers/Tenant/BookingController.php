@@ -71,6 +71,7 @@ class BookingController extends Controller
             'body_text'      => $s['booking_body_text'] ?? '',
             'show_nav'       => $s['booking_show_nav'] ?? ($s['booking_show_chrome'] ?? '1'),    // MARKER-PATCH-589
             'show_footer'    => $s['booking_show_footer'] ?? ($s['booking_show_chrome'] ?? '1'), // MARKER-PATCH-589
+            'hide_cta'       => ($s['booking_hide_cta'] ?? '0') === '1', // MARKER-PATCH-590
             'show_logo'      => $s['booking_show_logo'] ?? '1',                                   // MARKER-PATCH-589
             'step1_label'    => $s['booking_step1_label'] ?? 'Services',
             'step2_label'    => $s['booking_step2_label'] ?? 'Schedule',
