@@ -2,6 +2,9 @@
      through public.layout via SiteChromeService between the tenant own
      nav + footer sections. Original standalone blade retired. --}}
 @php
+  // MARKER-PATCH-585 — layout's mobile-nav loop clobbers $item in scope;
+  // rebind from the alias before anything reads it.
+  $item = $shopItem ?? $item;
   $accent = $tenant->accent_color ?? '#BEF264';
   $tname  = $tenant->name ?? 'Shop';
   $money = fn ($c) => $c !== null ? '$' . number_format($c / 100, 2) : '';

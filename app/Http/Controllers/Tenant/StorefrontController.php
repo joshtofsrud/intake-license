@@ -154,6 +154,7 @@ class StorefrontController extends Controller
             ->values()->all();
 
         return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_show', [ // MARKER-PATCH-579
+            'shopItem' => $item, // MARKER-PATCH-585 — collision-proof alias
             'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(), // MARKER-PATCH-564
             'tenant' => tenant(),
             'item'   => $item,
