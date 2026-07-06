@@ -124,6 +124,7 @@
 </style>
 </head>
 <body>
+@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
 
 <div class="bk-top-bar">
   <div class="bk-top-logo">
@@ -519,5 +520,6 @@ window.BkData = {
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
 @if($paypalEnabled)<script src="https://www.paypal.com/sdk/js?client-id={{ $paypalClientId }}&currency={{ strtoupper($currentTenant->currency ?? 'USD') }}"></script>@endif
 <script src="{{ asset('js/booking.js') }}?v={{ filemtime(public_path('js/booking.js')) }}"></script>
+@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
 </body>
 </html>

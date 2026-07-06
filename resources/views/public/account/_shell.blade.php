@@ -63,6 +63,7 @@
   @include('public._funnel_tracker')
 </head>
 <body>
+@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
 @php
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $currentTenant->bg_color ?? '#ffffff');
   $customer = Auth::guard('customer')->user();
@@ -98,5 +99,6 @@
 @endif
 
 @stack('scripts')
+@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
 </body>
 </html>

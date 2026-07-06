@@ -22,6 +22,31 @@ class SiteChromeService
      * tenant's site chrome. $data is passed to the view so the body
      * partial sees its page data; $meta carries title/description.
      */
+    /**
+     * MARKER-PATCH-581 — chrome pieces for standalone documents that keep
+     * their own <html> shell (booking family, rentals, portal): the home
+     * page's nav/footer sections + global nav items, request-cached.
+     */
+    public static function parts(Tenant $tenant): array
+    {
+        static $cache = [];
+        if (isset($cache[$tenant->id])) return $cache[$tenant->id];
+
+        $home = TenantPage::query()
+            ->where('tenant_id', $tenant->id)->where('is_home', true)->first();
+        $chrome = $home
+            ? TenantPageSection::query()->where('page_id', $home->id)
+                ->where('is_visible', true)
+                ->whereIn('section_type', ['nav', 'footer'])->get()
+            : collect();
+
+        return $cache[$tenant->id] = [
+            'nav'      => $chrome->firstWhere('section_type', 'nav'),
+            'footer'   => $chrome->firstWhere('section_type', 'footer'),
+            'navItems' => TenantNavItem::where('tenant_id', $tenant->id)->orderBy('sort_order')->get(),
+        ];
+    }
+
     public static function render(Tenant $tenant, string $bodyType, array $data = [], array $meta = [])
     {
         // Home page chrome (same source withInheritedChrome uses)

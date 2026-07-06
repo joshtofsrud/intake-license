@@ -142,6 +142,7 @@
   </style>
 </head>
 <body>
+@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
   <div class="wrap">
     <div class="bk-head">
       <div class="bk-logo">
@@ -464,5 +465,6 @@
     }
   })();
   </script>
+@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
 </body>
 </html>

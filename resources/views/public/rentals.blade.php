@@ -40,6 +40,7 @@
 </style>
 </head>
 <body>
+@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
 <div class="wrap">
   <div class="top">
     <a class="home" href="/">{{ $tname }}</a>
@@ -91,5 +92,6 @@
     <p style="font-size:12px;opacity:.4;text-align:center;margin-top:10px">{{ $unitCount }} unit{{ $unitCount === 1 ? '' : 's' }} free for this window.</p>
   @endif
 </div>
+@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
 </body>
 </html>
