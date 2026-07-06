@@ -142,28 +142,32 @@
     </div>
 
     <div class="bke-field">
-      {{-- MARKER-PATCH-588 — page structure controls --}}
-      <div class="bke-field-label" style="margin-top:14px">Site nav &amp; footer</div>
-      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:2px 0 8px">
-        <input type="checkbox" data-bke="booking_show_chrome" value="1" {{ ($booking['booking_show_chrome'] ?? '1') === '1' ? 'checked' : '' }}>
-        Show your site's nav and footer on booking pages
+      {{-- MARKER-PATCH-589 — page structure: what frames the booking page --}}
+      <div class="bke-field-label" style="margin-top:16px;letter-spacing:.08em">PAGE</div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:4px 0">
+        <input type="checkbox" data-bke="booking_show_nav" value="1" {{ ($booking['booking_show_nav'] ?? ($booking['booking_show_chrome'] ?? '1')) === '1' ? 'checked' : '' }}>
+        Site navigation bar
       </label>
-      <div class="bke-field-label">Page logo header</div>
-      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:2px 0 8px">
+      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:4px 0">
+        <input type="checkbox" data-bke="booking_show_footer" value="1" {{ ($booking['booking_show_footer'] ?? ($booking['booking_show_chrome'] ?? '1')) === '1' ? 'checked' : '' }}>
+        Site footer
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:4px 0 10px">
         <input type="checkbox" data-bke="booking_show_logo" value="1" {{ ($booking['booking_show_logo'] ?? '1') === '1' ? 'checked' : '' }}>
-        Show the logo header inside the page (turn off if the nav already shows it)
+        Logo header inside the page
       </label>
+      <div style="font-size:11px;color:var(--ia-text-muted);margin:-6px 0 12px">With the nav on, most sites turn the in-page logo off. Footer content itself (links, contact form, CTA band) is edited in Pages &rarr; your home page footer.</div>
 
-      {{-- MARKER-PATCH-588 — brand kit reference --}}
-      <div class="bke-field-label" style="margin-top:14px">Brand kit</div>
-      <div style="display:flex;flex-wrap:wrap;gap:7px;padding:2px 0 10px">
+      {{-- MARKER-PATCH-589 — brand kit reference --}}
+      <div class="bke-field-label">Brand kit</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;padding:2px 0 8px">
         @foreach(($brandKit ?? []) as $bkc)
           <button type="button" title="{{ $bkc['name'] }} — click to copy {{ $bkc['value'] }}"
                   onclick="navigator.clipboard.writeText('{{ $bkc['value'] }}');this.style.outline='2px solid var(--ia-accent)';setTimeout(()=>this.style.outline='',600)"
                   style="width:26px;height:26px;border-radius:7px;border:1px solid rgba(255,255,255,.18);cursor:pointer;background:{{ $bkc['value'] }}"></button>
         @endforeach
       </div>
-      <div style="font-size:11px;color:var(--ia-text-muted);margin:-6px 0 10px">Click a swatch to copy its hex, then paste into any color field.</div>
+      <div style="font-size:11px;color:var(--ia-text-muted);margin:-4px 0 12px">Click a swatch to copy its hex, then paste into any color field.</div>
 
       <div class="bke-field-label">Background tint color</div>
       <div class="bke-color-row">
@@ -385,7 +389,7 @@ function saveBookingSettings() {
   fd.append('save_booking', '1');
 
   document.querySelectorAll('[data-bke]').forEach(function(el) {
-    // MARKER-PATCH-588 — checkboxes send their checked state, not value
+    // MARKER-PATCH-589 — checkboxes send their checked state, not value
     fd.append(el.getAttribute('data-bke'),
       el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value);
   });

@@ -142,15 +142,13 @@
   </style>
 </head>
 <body>
-@if(($bk['show_chrome'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-588 --}}
+@if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
   <div class="wrap">
-@if(($bk['show_logo'] ?? '1') === '1'){{-- MARKER-PATCH-588 --}}
     <div class="bk-head">
       <div class="bk-logo">
         @if($logoUrl)<img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">@else<span class="name">{{ $currentTenant->name }}</span>@endif
       </div>
     </div>
-  @endif
 
     <div id="bk-progress">
       <div class="pg on" data-step="1"><span class="pg-num">1</span><span class="pg-lbl">{{ $bk['step1_label'] ?? 'Service' }}</span></div>
@@ -467,6 +465,6 @@
     }
   })();
   </script>
-@if(($bk['show_chrome'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom'])@endif {{-- MARKER-PATCH-588 --}}
+@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom'])@endif {{-- MARKER-PATCH-589 --}}
 </body>
 </html>

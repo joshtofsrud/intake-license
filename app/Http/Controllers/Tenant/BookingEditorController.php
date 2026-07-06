@@ -15,8 +15,9 @@ class BookingEditorController extends Controller
         'booking_progress_bg'    => '',
         'booking_progress_text'  => '#000000',
         'booking_body_text'      => '',
-        'booking_show_chrome'    => '1', // MARKER-PATCH-588 — site nav + footer
-        'booking_show_logo'      => '1', // MARKER-PATCH-588 — page's own logo header
+        'booking_show_nav'       => '1', // MARKER-PATCH-589 — site nav
+        'booking_show_footer'    => '1', // MARKER-PATCH-589 — site footer
+        'booking_show_logo'      => '1', // MARKER-PATCH-589 — page's own logo header
         'booking_step1_label'    => 'Services',
         'booking_step2_label'    => 'Schedule',
         'booking_step3_label'    => 'Details',
@@ -42,8 +43,7 @@ class BookingEditorController extends Controller
             $booking[$key] = $settings[$key] ?? $default;
         }
 
-        // MARKER-PATCH-588 — brand kit palette for the customizer (same
-        // source as the page builder's floating reference).
+        // MARKER-PATCH-589 — brand kit palette (same source as page builder)
         $saved = tenant()->settings['brand_kit'] ?? null;
         $brandKit = is_array($saved) && count($saved)
             ? array_values(array_map(fn ($c) => [
