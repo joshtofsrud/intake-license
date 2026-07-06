@@ -120,6 +120,6 @@
       });
     });
   </script>
-@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom'])@endif {{-- MARKER-PATCH-589 --}}
+@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif {{-- MARKER-PATCH-592 --}}
 </body>
 </html>
