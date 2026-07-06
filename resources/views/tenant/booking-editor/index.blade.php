@@ -142,6 +142,29 @@
     </div>
 
     <div class="bke-field">
+      {{-- MARKER-PATCH-588 — page structure controls --}}
+      <div class="bke-field-label" style="margin-top:14px">Site nav &amp; footer</div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:2px 0 8px">
+        <input type="checkbox" data-bke="booking_show_chrome" value="1" {{ ($booking['booking_show_chrome'] ?? '1') === '1' ? 'checked' : '' }}>
+        Show your site's nav and footer on booking pages
+      </label>
+      <div class="bke-field-label">Page logo header</div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;padding:2px 0 8px">
+        <input type="checkbox" data-bke="booking_show_logo" value="1" {{ ($booking['booking_show_logo'] ?? '1') === '1' ? 'checked' : '' }}>
+        Show the logo header inside the page (turn off if the nav already shows it)
+      </label>
+
+      {{-- MARKER-PATCH-588 — brand kit reference --}}
+      <div class="bke-field-label" style="margin-top:14px">Brand kit</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;padding:2px 0 10px">
+        @foreach(($brandKit ?? []) as $bkc)
+          <button type="button" title="{{ $bkc['name'] }} — click to copy {{ $bkc['value'] }}"
+                  onclick="navigator.clipboard.writeText('{{ $bkc['value'] }}');this.style.outline='2px solid var(--ia-accent)';setTimeout(()=>this.style.outline='',600)"
+                  style="width:26px;height:26px;border-radius:7px;border:1px solid rgba(255,255,255,.18);cursor:pointer;background:{{ $bkc['value'] }}"></button>
+        @endforeach
+      </div>
+      <div style="font-size:11px;color:var(--ia-text-muted);margin:-6px 0 10px">Click a swatch to copy its hex, then paste into any color field.</div>
+
       <div class="bke-field-label">Background tint color</div>
       <div class="bke-color-row">
         <input type="color" class="bke-color-swatch" id="bke-booking_bg_tint-swatch"
@@ -362,7 +385,9 @@ function saveBookingSettings() {
   fd.append('save_booking', '1');
 
   document.querySelectorAll('[data-bke]').forEach(function(el) {
-    fd.append(el.getAttribute('data-bke'), el.value);
+    // MARKER-PATCH-588 — checkboxes send their checked state, not value
+    fd.append(el.getAttribute('data-bke'),
+      el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value);
   });
 
   fetch(storeUrl, {

@@ -69,6 +69,8 @@ class BookingController extends Controller
             'progress_bg'    => $s['booking_progress_bg'] ?? '',
             'progress_text'  => $s['booking_progress_text'] ?? '#000000',
             'body_text'      => $s['booking_body_text'] ?? '',
+            'show_chrome'    => $s['booking_show_chrome'] ?? '1', // MARKER-PATCH-588
+            'show_logo'      => $s['booking_show_logo'] ?? '1',   // MARKER-PATCH-588
             'step1_label'    => $s['booking_step1_label'] ?? 'Services',
             'step2_label'    => $s['booking_step2_label'] ?? 'Schedule',
             'step3_label'    => $s['booking_step3_label'] ?? 'Details',

@@ -14,7 +14,8 @@
 
 @if(($chromePos ?? 'top') === 'top' && $ci['nav'])
   <style>
-    :root {
+    /* MARKER-PATCH-588 — scoped, NOT :root: booking pages own their vars */
+    .p-chrome-scope {
       --p-accent:       {{ $ciTenant->accent_color ?? '#BEF264' }};
       --p-text:         {{ $ciTenant->text_color   ?? '#111111' }};
       --p-bg:           {{ $ciTenant->bg_color     ?? '#ffffff' }};
@@ -29,15 +30,19 @@
     .p-mobile-nav.open { display: flex; }
     .p-mobile-nav a { font-size: 22px; font-weight: 600; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,.07); color: var(--p-text); text-decoration: none; }
   </style>
+  <div class="p-chrome-scope">
   @include('public.sections._nav', [
       'c' => $ci['nav']->content ?? [], 'section' => $ci['nav'],
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),
   ])
+  </div>
 @endif
 
 @if(($chromePos ?? 'top') === 'bottom' && $ci['footer'])
+  <div class="p-chrome-scope">
   @include('public.sections._footer', [
       'c' => $ci['footer']->content ?? [], 'section' => $ci['footer'],
       'navItems' => $ci['navItems'], 'tenant' => $ciTenant, 'catalog' => collect(),
   ])
+  </div>
 @endif

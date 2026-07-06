@@ -124,9 +124,10 @@
 </style>
 </head>
 <body>
-@include('public._chrome-inline', ['chromePos' => 'top']) {{-- MARKER-PATCH-581 --}}
+@if(($bk['show_chrome'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-588 --}}
 
 <div class="bk-top-bar">
+@if(($bk['show_logo'] ?? '1') === '1'){{-- MARKER-PATCH-588 --}}
   <div class="bk-top-logo">
     @if($logoUrl)
       <img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">
@@ -134,6 +135,7 @@
       {{ $currentTenant->name }}
     @endif
   </div>
+  @endif
   <a href="/" class="bk-top-back">← Back to site</a>
 </div>
 
@@ -520,6 +522,6 @@ window.BkData = {
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
 @if($paypalEnabled)<script src="https://www.paypal.com/sdk/js?client-id={{ $paypalClientId }}&currency={{ strtoupper($currentTenant->currency ?? 'USD') }}"></script>@endif
 <script src="{{ asset('js/booking.js') }}?v={{ filemtime(public_path('js/booking.js')) }}"></script>
-@include('public._chrome-inline', ['chromePos' => 'bottom']) {{-- MARKER-PATCH-581 --}}
+@if(($bk['show_chrome'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom'])@endif {{-- MARKER-PATCH-588 --}}
 </body>
 </html>
