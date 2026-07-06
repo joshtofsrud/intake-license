@@ -39,6 +39,10 @@
   .avail .dot { width: 8px; height: 8px; border-radius: 50%; }
   .avail.in .dot { background: #1d9a4b; } .avail.in { color: #1d7a3a; }
   .avail.order .dot { background: #888; } .avail.order { color: #555; }
+  .qtybox { display: flex; align-items: stretch; border: 1.5px solid rgba(0,0,0,.14); border-radius: 11px; overflow: hidden; background: #fff; flex: none; }
+  .qtybox button { font: inherit; font-size: 17px; width: 40px; border: 0; background: #fff; cursor: pointer; }
+  .qtybox input { width: 46px; text-align: center; font: inherit; font-size: 15px; font-weight: 700; border: 0; -moz-appearance: textfield; }
+  .qtybox input::-webkit-outer-spin-button, .qtybox input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .cta { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 14px 0; border: 0; border-radius: 11px; background: var(--acc); cursor: not-allowed; opacity: .55; }
   .cta-note { font-size: 12px; opacity: .5; text-align: center; margin-top: 8px; }
   .desc { font-size: 14px; opacity: .8; margin-top: 22px; line-height: 1.65; }
@@ -87,12 +91,23 @@
         {{ $inStock ? 'In stock — ready for pickup' : 'Special order — usually a few days' }}
       </div>
 
-      {{-- MARKER-PATCH-564 — the cart is real now --}}
-      <form method="POST" action="/cart/items">
+      {{-- MARKER-PATCH-565 — qty + add-to-cart --}}
+      <form method="POST" action="/cart/items" style="display:flex;gap:10px;align-items:stretch">
         @csrf
         <input type="hidden" name="item_id" value="{{ $item->id }}">
-        <button class="cta" style="cursor:pointer;opacity:1">Add to cart</button>
+        <div class="qtybox">
+          <button type="button" onclick="spQty(-1)">−</button>
+          <input id="sp-qty" name="quantity" type="number" value="1" min="1" max="99" inputmode="numeric">
+          <button type="button" onclick="spQty(1)">+</button>
+        </div>
+        <button class="cta" style="cursor:pointer;opacity:1;flex:1">Add to cart</button>
       </form>
+      <script>
+        function spQty(d) {
+          var el = document.getElementById('sp-qty');
+          el.value = Math.max(1, Math.min(99, (parseInt(el.value, 10) || 1) + d));
+        }
+      </script>
       <div class="cta-note">Pickup in store — checkout online is on its way.</div>
 
       @if($item->description)<div class="desc">{{ $item->description }}</div>@endif
