@@ -16,16 +16,15 @@ use Illuminate\Http\Request;
 class StorefrontController extends Controller
 {
     /**
-     * MARKER-PATCH-562 — storefront floor: Branded and above only.
-     * Starter gets a 404 (indistinguishable from "no store"), matching
-     * how tierRank() treats unknown tiers as most-restrictive.
+     * MARKER-PATCH-563 — storefront gates through the addon framework
+     * (online_store: included branded+scale, never starter), replacing
+     * 562's hardcoded tier match. One gating system everywhere.
      */
     private function guardTier(): void
     {
-        $rank = match (tenant()->plan_tier ?? 'starter') {
-            'branded' => 1, 'scale' => 2, 'custom' => 3, default => 0,
-        };
-        abort_if($rank < 1, 404);
+        $ok = app(\App\Services\FeatureAccessService::class)
+            ->hasAddon(tenant(), 'online_store');
+        abort_unless($ok, 404);
     }
 
     /** Base query for anything the store may show. */
