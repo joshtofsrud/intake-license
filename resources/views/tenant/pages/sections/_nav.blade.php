@@ -84,6 +84,30 @@
 
     <button type="button" class="pb2-addrow" id="pb2-nav-addlink">+ Add link</button>
 
+    {{-- MARKER-PATCH-577 — app destinations: feature-gated quick-add links --}}
+    @php
+      $navT = $currentTenant ?? tenant();
+      $appDests = collect([
+          ['label' => 'Book',    'url' => '/book',    'on' => true],
+          ['label' => 'Shop',    'url' => '/shop',    'on' => $navT->online_store_enabled && (bool) (($navT->settings['storefront']['enabled'] ?? true))],
+          ['label' => 'Rentals', 'url' => '/rentals', 'on' => (bool) ($navT->rentals_visible ?? false)],
+      ])->filter(fn ($d) => $d['on']);
+    @endphp
+    @if($appDests->isNotEmpty())
+      <details class="pb2-details" style="margin-top:10px">
+        <summary class="pb2-details-summary">Add from your apps</summary>
+        <div class="pb2-details-body">
+          @foreach($appDests as $d)
+            <button type="button" class="pb2-pagelink"
+              data-page-title="{{ $d['label'] }}"
+              data-page-url="{{ $d['url'] }}">
+              + {{ $d['label'] }} <span class="pb2-field-hint">{{ $d['url'] }}</span>
+            </button>
+          @endforeach
+        </div>
+      </details>
+    @endif
+
     @if($availablePages->isNotEmpty())
       <details class="pb2-details" style="margin-top:10px">
         <summary class="pb2-details-summary">Add from existing pages</summary>

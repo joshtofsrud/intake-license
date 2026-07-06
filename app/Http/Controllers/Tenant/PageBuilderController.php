@@ -271,6 +271,8 @@ class PageBuilderController extends Controller
         'booking_embed'  => ['heading'=>'Book online'],
         // MARKER-PATCH-239 — live fleet showcase with rates + browse CTA.
         'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>''],
+        // MARKER-PATCH-576 — online store product showcase
+        'products_showcase' => ['eyebrow'=>'','heading'=>'From the shop','body'=>'','category_id'=>'','max_items'=>8,'in_stock_only'=>'0','show_prices'=>'1','show_search'=>'0','search_placeholder'=>'','cta_label'=>'Browse the shop','cta_url'=>'/shop','bg_color'=>''],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
         'roadmap_grid'  => ['intro_text'=>'An honest look at where Intake is heading. Plans change as we learn from shops using the product.'],
         'changelog_list'=> ['intro_text'=>'Everything we shipped lately, reverse-chronological.'],
@@ -721,6 +723,16 @@ class PageBuilderController extends Controller
                 $extras = [];
                 // MARKER-PATCH-239 — rentals showcase editor needs the
                 // rental categories for its filter select.
+                // MARKER-PATCH-576 — products showcase editor needs the
+                // inventory categories that actually contain published items.
+                if ($section->section_type === 'products_showcase') {
+                    $extras['productCategories'] = \App\Models\Tenant\TenantInventoryCategory::where('tenant_id', $tenant->id)
+                        ->whereIn('id', \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+                            ->where('is_active', true)->where('show_online', true)
+                            ->select('category_id'))
+                        ->orderBy('name')
+                        ->get(['id', 'name']);
+                }
                 if ($section->section_type === 'rentals_showcase') {
                     $extras['rentalCategories'] = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
                         ->whereNull('archived_at')
