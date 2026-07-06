@@ -135,7 +135,7 @@ class OrderService
             abort(422, 'Payment not confirmed.');
         }
 
-        return DB::transaction(function () use ($order, $pi) {
+        $result = DB::transaction(function () use ($order, $pi) {
             // Re-check under lock so browser-return and webhook can't both build a sale.
             $fresh = TenantOrder::query()->whereKey($order->id)->lockForUpdate()->first();
             if ($fresh->sale_id) return $fresh;
@@ -197,5 +197,40 @@ class OrderService
 
             return $fresh;
         });
+
+        // MARKER-PATCH-574 — order confirmation email, outside the
+        // transaction so mail latency/failures never touch the money path.
+        if ($result->sale_id && filled($result->contact_email)) {
+            try {
+                $rows = $result->items->map(fn ($l) =>
+                    "<tr><td style='padding:3px 14px 3px 0'>" . e($l->name_snapshot)
+                    . " ×" . (int) $l->quantity . "</td><td style='text-align:right'>$"
+                    . number_format($l->line_total_cents / 100, 2) . "</td></tr>"
+                )->implode('');
+                (new \App\Services\EmailService($this->tenant))->send(
+                    'order_confirmation',
+                    $result->contact_email,
+                    [
+                        'first_name'       => $result->contact_first_name ?: 'there',
+                        'order_number'     => $result->order_number,
+                        'total'            => '$' . number_format($result->total_cents / 100, 2),
+                        'items_rows'       => "<table style='font-size:14px'>{$rows}</table>",
+                        'fulfillment_line' => $result->fulfillment_type === 'local_delivery'
+                            ? 'Local delivery — we\'ll reach out to set a window'
+                            : 'Pickup — we\'ll text you when it\'s ready',
+                        'order_url'        => 'https://' . request()->getHost() . '/order/' . $result->token,
+                        'whats_next'       => $result->wants_install
+                            ? 'You asked about installation — we\'ll be in touch to get it scheduled.'
+                            : 'Questions? Just reply to this email.',
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::error('online_order.confirmation_email_failed', [
+                    'order' => $result->id, 'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
     }
 }

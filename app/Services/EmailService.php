@@ -329,6 +329,20 @@ HTML;
             ],
 
             // MARKER-PATCH-536 — "your work is ready, pick a window" options email
+            // MARKER-PATCH-574 — online store order confirmation
+            'order_confirmation' => [
+                'subject'   => 'Order confirmed — {{order_number}}',
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Thanks for your order with {$shop}! Here's what we have:</p>
+{{items_rows}}
+<table style='font-size:14px;line-height:1.9;margin-top:8px'>
+  <tr><td style='color:#666;padding-right:16px'>Order</td><td><strong>{{order_number}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Total</td><td><strong>{{total}}</strong></td></tr>
+  <tr><td style='color:#666;padding-right:16px'>Getting it to you</td><td>{{fulfillment_line}}</td></tr>
+</table>
+<p style='margin-top:14px'><a href='{{order_url}}' style='color:#111'>View your order</a></p>
+<p>{{whats_next}}</p>",
+            ],
             'delivery_windows_ready' => [
                 'subject'   => 'Your {{asset_noun}} is ready — pick a delivery window',
                 'body_html' => "<p>Hi {{first_name}},</p>

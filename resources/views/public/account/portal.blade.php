@@ -90,9 +90,31 @@
 <div class="ac-tabs">
   <button class="ac-tab active" onclick="showTab('upcoming', this)">Upcoming</button>
   <button class="ac-tab" onclick="showTab('history', this)">History</button>
+  @if(($onlineOrders ?? collect())->isNotEmpty())
+    <button class="ac-tab" onclick="showTab('orders', this)">Orders</button>
+  @endif
 </div>
 
 {{-- Upcoming tab --}}
+{{-- MARKER-PATCH-574 — online order history --}}
+@if(($onlineOrders ?? collect())->isNotEmpty())
+<div class="ac-tab-panel" id="tab-orders">
+  <div class="ac-section-title">Online orders</div>
+  @foreach($onlineOrders as $o)
+    <a href="/order/{{ $o->token }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 2px;border-bottom:1px solid var(--p-border);text-decoration:none;color:inherit">
+      <div>
+        <div style="font-size:13.5px;font-weight:600">{{ $o->order_number }}</div>
+        <div style="font-size:12px;opacity:.55">{{ (int) $o->items->sum('quantity') }} item{{ $o->items->sum('quantity') == 1 ? '' : 's' }} · {{ $o->fulfillment_type === 'local_delivery' ? 'delivery' : 'pickup' }} · {{ $o->created_at->format('M j, Y') }}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:13.5px;font-weight:700">${{ number_format($o->total_cents / 100, 2) }}</div>
+        <div style="font-size:11px;opacity:.55;text-transform:capitalize">{{ str_replace('_', ' ', $o->status) }}</div>
+      </div>
+    </a>
+  @endforeach
+</div>
+@endif
+
 <div class="ac-tab-panel active" id="tab-upcoming">
   <div class="ac-portal-grid">
     <div class="ac-stat">

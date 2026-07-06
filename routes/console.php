@@ -84,6 +84,12 @@ Schedule::command('deliveries:remind')
 // the HLC catalog delta; tier 2 reconciles every tenant's linked items
 // (cost, availability, vanish + title flags) an hour later.
 // ----------------------------------------------------------------
+// MARKER-PATCH-574 — abandoned-cart hygiene, nightly
+Schedule::command('orders:reap-abandoned')
+    ->dailyAt('03:30')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('distributors:sync-catalog HLC --delta')
     ->dailyAt('04:00')
     ->withoutOverlapping()

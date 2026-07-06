@@ -250,6 +250,16 @@ class CustomerAccountController extends Controller
             ->limit(10)
             ->get();
 
+        // MARKER-PATCH-574 — online order history for the portal
+        $onlineOrders = \App\Models\Tenant\TenantOrder::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->whereNotNull('order_number')
+            ->with('items')
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
         $activeMembership = $customer->activeMembership();
         $activePacks      = $customer->activePacks()->get();
 
@@ -259,6 +269,7 @@ class CustomerAccountController extends Controller
             'pastClasses',
             'upcomingAppointments',
             'pastAppointments',
+            'onlineOrders', // MARKER-PATCH-574
             'activeMembership',
             'activePacks'
         ));
