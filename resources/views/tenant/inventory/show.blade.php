@@ -90,7 +90,7 @@
       &nbsp;·&nbsp;
       <code>{{ $item->sku }}</code>
       @if($item->category)&nbsp;·&nbsp; {{ $item->category->name }}@endif
-      @php $mpn = $item->distributorCatalog?->display_subtitle ?: $item->distributorCatalog?->manufacturer_sku; @endphp
+      @php $mpn = $item->distributorCatalog?->manufacturer_sku; @endphp {{-- MARKER-PATCH-587 --}}
       @if($mpn)&nbsp;·&nbsp; MPN <code>{{ $mpn }}</code>@endif
     </p>
   </div>
