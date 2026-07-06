@@ -102,8 +102,9 @@
     </div>
     <div class="sum-note">Tax and any delivery fee are calculated at checkout.</div>
 
-    <button class="cta" disabled title="Checkout is almost ready">Checkout</button>
-    <div class="cta-note">Online checkout is coming shortly — call or stop by and we'll ring it up.</div>
+    {{-- MARKER-PATCH-566 — checkout is live --}}
+    <a class="cta" href="/checkout" style="cursor:pointer;opacity:1;text-decoration:none">Checkout</a>
+    <div class="cta-note">Secure payment · pickup or local delivery</div>
   @endif
 </div>
 </body>

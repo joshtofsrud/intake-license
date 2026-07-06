@@ -136,6 +136,24 @@ class DirectPaymentsWebhookController extends Controller
         $pi = $event->data->object;
         $piId = $pi->id;
 
+        // MARKER-PATCH-566 — online store orders: the browser return leg
+        // usually finalizes first; this is the backstop for closed tabs.
+        // finalize() is lock-guarded idempotent, so double-delivery is safe.
+        if (!empty($pi->metadata->intake_order_id ?? null)) {
+            $order = \App\Models\Tenant\TenantOrder::where('tenant_id', $tenant->id)
+                ->where('id', $pi->metadata->intake_order_id)
+                ->with('items')->first();
+            if ($order && ! $order->sale_id) {
+                try {
+                    $full = (new \App\Services\Tenant\DirectPaymentsService($tenant))->retrievePaymentIntent($piId);
+                    \App\Services\Tenant\OrderService::forTenant($tenant)->finalize($order, $full);
+                } catch (\Throwable $e) {
+                    Log::error('online_order.webhook_finalize_failed', ['order' => $order->id, 'error' => $e->getMessage()]);
+                }
+            }
+            return; // online-order PIs never fall into the register/booking logic
+        }
+
         // MARKER-PATCH-386 — Booking deposit backstop. If the card confirmed but
         // the browser never reached finalize() (closed tab, dropped network), the
         // appointment was never written. The PI carries pending_booking_id in
