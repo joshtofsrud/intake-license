@@ -57,7 +57,7 @@
 <div class="wrap">
   <div class="top">
     <a class="home" href="/">{{ $tname }}</a>
-    <a href="/contact" style="font-size:13.5px;opacity:.6">Contact</a>
+    <a href="/cart" style="font-size:13.5px;font-weight:700">Cart{{ ($cartCount ?? 0) > 0 ? ' (' . $cartCount . ')' : '' }}</a>{{-- MARKER-PATCH-564 --}}
   </div>
 
   <h1>Shop</h1>

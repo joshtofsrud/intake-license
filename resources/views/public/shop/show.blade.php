@@ -54,7 +54,10 @@
 <div class="wrap">
   <div class="top">
     <a class="home" href="/">{{ $tname }}</a>
-    <a href="/shop" style="font-size:13.5px;opacity:.6">← Back to shop</a>
+    <div style="display:flex;gap:16px;align-items:center">
+      <a href="/shop" style="font-size:13.5px;opacity:.6">← Back to shop</a>
+      <a href="/cart" style="font-size:13.5px;font-weight:700">Cart{{ ($cartCount ?? 0) > 0 ? ' (' . $cartCount . ')' : '' }}</a>
+    </div>
   </div>
 
   <div class="crumb">Shop{{ $item->category ? ' · ' . $item->category->name : '' }}</div>
@@ -84,8 +87,13 @@
         {{ $inStock ? 'In stock — ready for pickup' : 'Special order — usually a few days' }}
       </div>
 
-      <button class="cta" disabled title="Online checkout is almost ready">Add to cart</button>
-      <div class="cta-note">Online checkout is coming soon — call or stop by to grab it today.</div>
+      {{-- MARKER-PATCH-564 — the cart is real now --}}
+      <form method="POST" action="/cart/items">
+        @csrf
+        <input type="hidden" name="item_id" value="{{ $item->id }}">
+        <button class="cta" style="cursor:pointer;opacity:1">Add to cart</button>
+      </form>
+      <div class="cta-note">Pickup in store — checkout online is on its way.</div>
 
       @if($item->description)<div class="desc">{{ $item->description }}</div>@endif
 

@@ -66,6 +66,7 @@ class StorefrontController extends Controller
             ->get(['id', 'name']);
 
         return view('public.shop.index', [
+            'cartCount'  => \App\Services\Tenant\CartService::forTenant($tenant)->itemCount(), // MARKER-PATCH-564
             'tenant'     => $tenant,
             'items'      => $items,
             'categories' => $categories,
@@ -96,6 +97,7 @@ class StorefrontController extends Controller
             ->values()->all();
 
         return view('public.shop.show', [
+            'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(), // MARKER-PATCH-564
             'tenant' => tenant(),
             'item'   => $item,
             'images' => $images,

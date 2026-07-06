@@ -137,6 +137,11 @@ $tenantRoutes = function () {
     // MARKER-PATCH-561 — Online Retail Wave 2: read-only storefront
     Route::get('/shop',                  [TenantControllers\StorefrontController::class, 'index'])->name('tenant.shop.index');
     Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
+    // MARKER-PATCH-564 — Online Retail Wave 3: cart
+    Route::get('/cart',                  [TenantControllers\CartController::class, 'show'])->name('tenant.cart.show');
+    Route::post('/cart/items',           [TenantControllers\CartController::class, 'add'])->name('tenant.cart.add');
+    Route::patch('/cart/items/{lineId}', [TenantControllers\CartController::class, 'update'])->name('tenant.cart.update');
+    Route::delete('/cart/items/{lineId}',[TenantControllers\CartController::class, 'remove'])->name('tenant.cart.remove');
     Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
     // MARKER-PATCH-240 — public reservation checkout.
     Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');
