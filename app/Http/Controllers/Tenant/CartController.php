@@ -18,7 +18,8 @@ class CartController extends Controller
     private function guard(): void
     {
         abort_unless(
-            app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'online_store'),
+            app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'online_store')
+            && (bool) ((tenant()->settings['storefront']['enabled'] ?? true)), // MARKER-PATCH-569
             404
         );
     }

@@ -25,6 +25,7 @@
 
 <div class="ia-page-head">
   <div class="ia-page-head-left"><h1 class="ia-page-title">Orders</h1></div>
+  <a class="ia-btn ia-btn--ghost ia-btn--sm" href="{{ route('tenant.storefront.settings') }}">Storefront settings</a>{{-- MARKER-PATCH-569 --}}
 </div>
 
 <div class="od-tabs">

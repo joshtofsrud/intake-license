@@ -24,6 +24,8 @@ class StorefrontController extends Controller
     {
         $ok = app(\App\Services\FeatureAccessService::class)
             ->hasAddon(tenant(), 'online_store');
+        // MARKER-PATCH-569 — tenant master switch on top of the addon gate
+        $ok = $ok && (bool) ((tenant()->settings['storefront']['enabled'] ?? true));
         abort_unless($ok, 404);
     }
 

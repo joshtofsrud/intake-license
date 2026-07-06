@@ -33,6 +33,7 @@ class OrderService
         return [
             'local_delivery'     => (bool) ($s['local_delivery'] ?? false),
             'delivery_fee_cents' => (int) ($s['delivery_fee_cents'] ?? 0),
+            'install_offer'      => (bool) ($s['install_offer'] ?? true), // MARKER-PATCH-569
         ];
     }
 

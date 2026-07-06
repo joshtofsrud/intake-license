@@ -317,7 +317,17 @@
     </div>
 
     <div class="ia-card">
-      <div class="ia-card-head"><span class="ia-card-title">Identity</span></div>
+      <div class="ia-card-head"><span class="ia-card-title">Identity</span>
+        {{-- MARKER-PATCH-569 — per-item storefront publish toggle --}}
+        @if(tenant()->online_store_enabled)
+          <form method="POST" action="{{ route('tenant.storefront.item.toggle', $item->id) }}" style="margin-left:auto">
+            @csrf
+            <button class="ia-btn ia-btn--ghost ia-btn--sm" title="{{ $item->show_online ? 'Visible at /shop — click to remove' : 'Not in your online store — click to publish' }}">
+              {{ $item->show_online ? '● In online store' : '○ Not in store' }}
+            </button>
+          </form>
+        @endif
+      </div>
       <div class="ia-card-body">
         <table class="ia-key-value">
           @if($brand)<tr><td>Brand</td><td>{{ $brand }}</td></tr>@endif

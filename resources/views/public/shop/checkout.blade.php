@@ -91,10 +91,12 @@
           <input type="text" id="f-addr" placeholder="Delivery address" autocomplete="street-address">
         </div>
         <textarea id="f-notes" placeholder="Anything we should know? (optional)"></textarea>
+        @if($config['install_offer'] ?? true)
         <label class="chk">
           <input type="checkbox" id="f-install">
           <span>I'd like this installed — we'll reach out to get it scheduled.</span>
         </label>
+        @else<input type="checkbox" id="f-install" style="display:none">@endif
       </div>
 
       <div class="panel" id="pay-panel">
