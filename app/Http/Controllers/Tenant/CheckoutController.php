@@ -39,7 +39,7 @@ class CheckoutController extends Controller
         $orders = OrderService::forTenant($tenant);
         $pk = (new DirectPaymentsService($tenant))->publishableKey();
 
-        return \\App\\Services\\Tenant\\SiteChromeService::render($tenant, 'shop_checkout', [ // MARKER-PATCH-579
+        return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_checkout', [ // MARKER-PATCH-579
             'tenant'   => $tenant,
             'cart'     => $cart->load('items'),
             'quotePickup'   => $orders->quote($cart, 'pickup'),
@@ -145,7 +145,7 @@ class CheckoutController extends Controller
             ->with('items')
             ->firstOrFail();
 
-        return \\App\\Services\\Tenant\\SiteChromeService::render(tenant(), 'shop_confirmation', [ // MARKER-PATCH-579
+        return \App\Services\Tenant\SiteChromeService::render(tenant(), 'shop_confirmation', [ // MARKER-PATCH-579
             'tenant' => tenant(),
             'order'  => $order,
         ]);
