@@ -57,9 +57,7 @@
       <a href="/cart" style="font-size:13.5px;font-weight:700;text-decoration:none;color:inherit">Cart{{ ($cartCount ?? 0) > 0 ? ' (' . $cartCount . ')' : '' }}</a>
     </div>
 
-  </div>
-
-  <div class="crumb">Shop{{ $item->category ? ' · ' . $item->category->name : '' }}</div>
+    <div class="crumb" style="margin-top:14px">Shop{{ $item->category ? ' · ' . $item->category->name : '' }}</div>
 
   <div class="cols">
     <div class="gal">
