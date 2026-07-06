@@ -220,6 +220,14 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5C4.8 1.5 3 3.3 3 5.5c0 3 4 7 4 7s4-4 4-7c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="7" cy="5.5" r="1.3" stroke="currentColor" stroke-width="1.2"/></svg>',
       'group'  => 'settings',
     ],
+    // MARKER-PATCH-570 — storefront settings (online store control panel)
+    [
+      'route'  => 'tenant.storefront.settings',
+      'label'  => 'Storefront',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5.5L2.8 2.5h8.4L12 5.5M2 5.5v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-6M2 5.5h10M5.5 12.5V9h3v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+      'group'  => 'settings',
+      'gate'   => 'online_store_enabled',
+    ],
     [
       'route'  => 'tenant.booking_modes.index',
       'label'  => 'Booking Mode',
@@ -257,7 +265,7 @@
       'tenant.communication.index', 'tenant.waitlist.index',
       'tenant.campaigns.index', 'tenant.recovery.index',
       // settings
-      'tenant.help.index', 'tenant.locations.index', 'tenant.booking_modes.index',
+      'tenant.help.index', 'tenant.locations.index', 'tenant.storefront.settings', 'tenant.booking_modes.index',
       'tenant.capacity.index', 'tenant.settings.index', 'tenant.feature_addons.index',
     ];
     $navDrop547  = ['tenant.emails.index', 'tenant.suppressions.index', 'tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
