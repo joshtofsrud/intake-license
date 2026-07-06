@@ -76,7 +76,7 @@
       'group'  => null,
       'gate'   => 'retail_enabled',
     ],
-    {{-- MARKER-PATCH-567 — online orders queue --}}
+    // MARKER-PATCH-567/568 — online orders queue
     [
       'route'  => 'tenant.orders.index',
       'label'  => 'Orders',
