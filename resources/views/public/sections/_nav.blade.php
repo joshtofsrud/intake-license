@@ -280,7 +280,7 @@
       <div class="p-nav-end">
         {{-- MARKER-PATCH-582 — instant shop search (store tenants only) --}}
         @php
-          $navSearchTenant = $tenant ?? $currentTenant ?? null;
+          $navSearchTenant = $tenant ?? $currentTenant ?? tenant(); // MARKER-PATCH-584
           $navShopSearch = $navSearchTenant
               && $navSearchTenant->online_store_enabled
               && (bool) (($navSearchTenant->settings['storefront']['enabled'] ?? true));
