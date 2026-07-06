@@ -76,6 +76,14 @@
       'group'  => null,
       'gate'   => 'retail_enabled',
     ],
+    {{-- MARKER-PATCH-567 — online orders queue --}}
+    [
+      'route'  => 'tenant.orders.index',
+      'label'  => 'Orders',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h1.4l1.2 6.2a1 1 0 0 0 1 .8h4.9a1 1 0 0 0 1-.8l.9-4.2H4.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="12" r="0.9" fill="currentColor"/><circle cx="10.6" cy="12" r="0.9" fill="currentColor"/></svg>',
+      'group'  => null,
+      'gate'   => 'online_store_enabled',
+    ],
     [
       // patch-100b transfer-requests nav — between SOs and Vendors
       // since transfer requests are operationally similar to SOs
@@ -230,7 +238,7 @@
     $navOrder547 = [
       // main
       'tenant.dashboard', 'tenant.calendar.index', 'tenant.register.index',
-      'tenant.customers.index', 'tenant.inventory.index', 'tenant.special-orders.index',
+      'tenant.customers.index', 'tenant.inventory.index', 'tenant.special-orders.index', 'tenant.orders.index',
       'tenant.transfer-requests.index', 'tenant.vendors.index',
       'tenant.rentals.desk', 'tenant.classes.sessions', 'tenant.reports.index',
       // manage

@@ -298,6 +298,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/appointment-tray/dismiss', [TenantControllers\RegisterController::class, 'dismissTraySale'])->name('register.appointment-tray.dismiss');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
                 Route::get('/register/item/{id}/info',   [TenantControllers\RegisterController::class, 'itemInfo'])->name('register.item_info'); // MARKER-PATCH-552
+
+                // MARKER-PATCH-567 — Online Retail Wave 5a: orders queue
+                Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
+                Route::get('/orders/{id}',       [TenantControllers\OrdersController::class, 'show'])->name('orders.show');
+                Route::post('/orders/{id}',      [TenantControllers\OrdersController::class, 'update'])->name('orders.update');
                 Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
                 // MARKER-PATCH-170 — Direct Payments hand-keyed card endpoints
                 Route::post('/register/payment-intent',   [TenantControllers\RegisterController::class, 'createPaymentIntent'])->name('register.payment_intent.create');

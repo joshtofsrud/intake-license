@@ -337,6 +337,12 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'extended_reports');
     }
 
+    // MARKER-PATCH-567 — online store gate (nav + blades)
+    public function getOnlineStoreEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'online_store');
+    }
+
     // MARKER-PATCH-HLC7A — distributor catalog/sync addon gate.
     public function getDistributorSyncEnabledAttribute(): bool
     {
