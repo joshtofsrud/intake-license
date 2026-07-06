@@ -126,6 +126,7 @@
 <body>
 @if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
 
+@if(($bk['show_logo'] ?? '1') === '1') {{-- MARKER-PATCH-591 --}}
 <div class="bk-top-bar">
   <div class="bk-top-logo">
     @if($logoUrl)
@@ -136,6 +137,7 @@
   </div>
   <a href="/" class="bk-top-back">← Back to site</a>
 </div>
+@endif {{-- MARKER-PATCH-591 --}}
 
 <div class="bk-progress" id="bk-progress">
   @if($multiAsset)
