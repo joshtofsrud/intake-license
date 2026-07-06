@@ -67,7 +67,7 @@ class StorefrontController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return view('public.shop.index', [
+        return \\App\\Services\\Tenant\\SiteChromeService::render($tenant, 'shop_index', [ // MARKER-PATCH-579
             'cartCount'  => \App\Services\Tenant\CartService::forTenant($tenant)->itemCount(), // MARKER-PATCH-564
             'tenant'     => $tenant,
             'items'      => $items,
@@ -98,7 +98,7 @@ class StorefrontController extends Controller
             ->map(fn ($a) => ['name' => $a['Name'], 'value' => $a['Value']])
             ->values()->all();
 
-        return view('public.shop.show', [
+        return \\App\\Services\\Tenant\\SiteChromeService::render(tenant(), 'shop_show', [ // MARKER-PATCH-579
             'cartCount' => \App\Services\Tenant\CartService::forTenant(tenant())->itemCount(), // MARKER-PATCH-564
             'tenant' => tenant(),
             'item'   => $item,

@@ -28,7 +28,7 @@ class CartController extends Controller
     {
         $this->guard();
         $cart = CartService::forTenant(tenant())->current();
-        return view('public.shop.cart', [
+        return \\App\\Services\\Tenant\\SiteChromeService::render(tenant(), 'shop_cart', [ // MARKER-PATCH-579
             'tenant' => tenant(),
             'cart'   => $cart?->load('items'),
         ]);

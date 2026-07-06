@@ -1,63 +1,53 @@
-<!DOCTYPE html>
-{{-- MARKER-PATCH-566 — Online Retail Wave 4: staged checkout. Contact ->
-     fulfillment -> Stripe Payment Element. Totals re-quote client-side from
-     server-provided numbers; the server is the only price authority. --}}
+{{-- MARKER-PATCH-579 -- chrome-wrapped shop body (checkout); rendered
+     through public.layout via SiteChromeService between the tenant own
+     nav + footer sections. Original standalone blade retired. --}}
 @php
   $accent = $tenant->accent_color ?? '#BEF264';
   $tname  = $tenant->name ?? 'Shop';
   $money  = fn ($c) => '$' . number_format(($c ?? 0) / 100, 2);
 @endphp
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Checkout — {{ $tname }}</title>
 <script src="https://js.stripe.com/v3/"></script>
 <style>
+
   :root { --acc: {{ $accent }}; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; color: #161616; background: #fafafa; line-height: 1.55; -webkit-font-smoothing: antialiased; }
-  a { color: inherit; text-decoration: none; }
-  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 80px; }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-  .top a.home { font-weight: 700; font-size: 16px; }
-  h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin-bottom: 22px; }
-  .cols { display: grid; grid-template-columns: 1fr 340px; gap: 26px; align-items: start; }
+
+  .spg-checkout .wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 80px; }
+  .spg-checkout .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .spg-checkout .top a.home { font-weight: 700; font-size: 16px; }
+  .spg-checkout h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin-bottom: 22px; }
+  .spg-checkout .cols { display: grid; grid-template-columns: 1fr 340px; gap: 26px; align-items: start; }
   @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } }
-  .panel { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
-  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; opacity: .5; font-weight: 700; margin-bottom: 14px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  input[type=text], input[type=email], input[type=tel], textarea { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid rgba(0,0,0,.13); border-radius: 10px; background: #fff; margin-bottom: 10px; }
-  textarea { resize: vertical; min-height: 60px; }
-  .ful { display: flex; gap: 10px; margin-bottom: 12px; }
-  .ful label { flex: 1; border: 1.5px solid rgba(0,0,0,.13); border-radius: 12px; padding: 13px 15px; cursor: pointer; font-size: 13.5px; }
-  .ful label.on { border-color: #161616; background: rgba(0,0,0,.025); }
-  .ful b { display: block; font-size: 14px; }
-  .ful .fee { font-size: 12px; opacity: .55; }
-  .ful input { display: none; }
-  .chk { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; padding: 4px 2px; cursor: pointer; }
-  .chk input { margin-top: 3px; accent-color: #161616; }
-  #addr-wrap { display: none; }
-  .sum-line { display: flex; justify-content: space-between; font-size: 13.5px; padding: 5px 0; }
-  .sum-line.total { font-size: 16px; font-weight: 800; border-top: 1.5px solid rgba(0,0,0,.09); margin-top: 8px; padding-top: 12px; }
-  .mini { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,.05); font-size: 13px; align-items: center; }
-  .mini:last-of-type { border-bottom: 0; margin-bottom: 8px; }
-  .mini img { width: 36px; height: 36px; object-fit: contain; border: 1px solid rgba(0,0,0,.07); border-radius: 7px; }
-  .mini .q { opacity: .5; }
-  .mini .p { margin-left: auto; font-weight: 650; }
-  .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); cursor: pointer; margin-top: 16px; }
-  .pay:disabled { opacity: .5; cursor: wait; }
-  .err { color: #b3261e; font-size: 13px; margin-top: 10px; display: none; }
-  #payment-element { margin-top: 4px; }
-  #pay-panel { display: none; }
+  .spg-checkout .panel { background: #fff; border: 1.5px solid rgba(0,0,0,.09); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  .spg-checkout .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; opacity: .5; font-weight: 700; margin-bottom: 14px; }
+  .spg-checkout .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .spg-checkout input[type=text], input[type=email], input[type=tel], textarea { width: 100%; font: inherit; font-size: 14px; padding: 11px 13px; border: 1.5px solid rgba(0,0,0,.13); border-radius: 10px; background: #fff; margin-bottom: 10px; }
+  .spg-checkout textarea { resize: vertical; min-height: 60px; }
+  .spg-checkout .ful { display: flex; gap: 10px; margin-bottom: 12px; }
+  .spg-checkout .ful label { flex: 1; border: 1.5px solid rgba(0,0,0,.13); border-radius: 12px; padding: 13px 15px; cursor: pointer; font-size: 13.5px; }
+  .spg-checkout .ful label.on { border-color: #161616; background: rgba(0,0,0,.025); }
+  .spg-checkout .ful b { display: block; font-size: 14px; }
+  .spg-checkout .ful .fee { font-size: 12px; opacity: .55; }
+  .spg-checkout .ful input { display: none; }
+  .spg-checkout .chk { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; padding: 4px 2px; cursor: pointer; }
+  .spg-checkout .chk input { margin-top: 3px; accent-color: #161616; }
+  .spg-checkout #addr-wrap { display: none; }
+  .spg-checkout .sum-line { display: flex; justify-content: space-between; font-size: 13.5px; padding: 5px 0; }
+  .spg-checkout .sum-line.total { font-size: 16px; font-weight: 800; border-top: 1.5px solid rgba(0,0,0,.09); margin-top: 8px; padding-top: 12px; }
+  .spg-checkout .mini { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,.05); font-size: 13px; align-items: center; }
+  .spg-checkout .mini:last-of-type { border-bottom: 0; margin-bottom: 8px; }
+  .spg-checkout .mini img { width: 36px; height: 36px; object-fit: contain; border: 1px solid rgba(0,0,0,.07); border-radius: 7px; }
+  .spg-checkout .mini .q { opacity: .5; }
+  .spg-checkout .mini .p { margin-left: auto; font-weight: 650; }
+  .spg-checkout .pay { display: block; width: 100%; text-align: center; font: inherit; font-size: 15px; font-weight: 700; padding: 15px 0; border: 0; border-radius: 12px; background: var(--acc); cursor: pointer; margin-top: 16px; }
+  .spg-checkout .pay:disabled { opacity: .5; cursor: wait; }
+  .spg-checkout .err { color: #b3261e; font-size: 13px; margin-top: 10px; display: none; }
+  .spg-checkout #payment-element { margin-top: 4px; }
+  .spg-checkout #pay-panel { display: none; }
+
 </style>
-</head>
-<body>
-<div class="wrap">
-  <div class="top">
-    <a class="home" href="/">{{ $tname }}</a>
-    <a href="/cart" style="font-size:13.5px;opacity:.6">← Back to cart</a>
-  </div>
+<div class="spg-checkout">
+  <div class="wrap">
+    <div style="padding:14px 0 0"><a href="/cart" style="font-size:13.5px;opacity:.6;text-decoration:none;color:inherit">&larr; Back to cart</a></div>
 
   <h1>Checkout</h1>
 
@@ -123,8 +113,9 @@
       <div class="sum-line total"><span>Total</span><span id="s-total">{{ $money($quotePickup['total_cents']) }}</span></div>
     </div>
   </div>
-</div>
 
+  </div>
+</div>
 <script>
 (function () {
   var PK = @json($stripePk);
@@ -205,5 +196,3 @@
   });
 })();
 </script>
-</body>
-</html>
