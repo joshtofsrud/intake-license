@@ -43,6 +43,14 @@
       <label class="sf-tgl"><input type="checkbox" name="enabled" value="1" @checked($cfg['enabled'])><span></span></label>
     </div>
     <div class="sf-row">
+      <div><div class="t">Category browsing</div>
+        <div class="d">How categories appear on your shop page.</div></div>
+      <select name="browse_layout" style="font:inherit;font-size:13px;padding:8px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text)">
+        <option value="chips" @selected(($cfg['browse_layout'] ?? 'chips') === 'chips')>Chips across the top</option>
+        <option value="sidebar" @selected(($cfg['browse_layout'] ?? 'chips') === 'sidebar')>Sidebar with counts</option>
+      </select>
+    </div>
+    <div class="sf-row">
       <div><div class="t">Offer installation at checkout</div>
         <div class="d">Adds an "I'd like this installed" option — requests show on the order for you to schedule.</div></div>
       <label class="sf-tgl"><input type="checkbox" name="install_offer" value="1" @checked($cfg['install_offer'])><span></span></label>

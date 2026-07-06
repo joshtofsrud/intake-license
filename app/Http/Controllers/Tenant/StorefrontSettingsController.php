@@ -40,6 +40,7 @@ class StorefrontSettingsController extends Controller
                 'local_delivery'     => (bool) ($s['local_delivery'] ?? false),
                 'delivery_fee'       => number_format(((int) ($s['delivery_fee_cents'] ?? 0)) / 100, 2, '.', ''),
                 'install_offer'      => (bool) ($s['install_offer'] ?? true),
+                'browse_layout'      => (string) ($s['browse_layout'] ?? 'chips'), // MARKER-PATCH-583
             ],
             'counts' => [
                 'online'   => (clone $itemBase)->where('show_online', true)->count(),
@@ -57,6 +58,7 @@ class StorefrontSettingsController extends Controller
             'local_delivery' => ['nullable', 'boolean'],
             'delivery_fee'   => ['nullable', 'numeric', 'min:0', 'max:500'],
             'install_offer'  => ['nullable', 'boolean'],
+            'browse_layout'  => ['nullable', 'in:chips,sidebar'], // MARKER-PATCH-583
         ]);
 
         $tenant = tenant();
@@ -66,6 +68,7 @@ class StorefrontSettingsController extends Controller
             'local_delivery'     => $request->boolean('local_delivery'),
             'delivery_fee_cents' => (int) round(((float) ($data['delivery_fee'] ?? 0)) * 100),
             'install_offer'      => $request->boolean('install_offer'),
+            'browse_layout'      => $data['browse_layout'] ?? 'chips', // MARKER-PATCH-583
         ]);
         $tenant->settings = $settings;
         $tenant->save();

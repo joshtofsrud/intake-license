@@ -56,7 +56,15 @@ class StorefrontController extends Controller
                 });
             })
             ->when($cat, fn ($w) => $w->where('category_id', $cat))
-            ->orderBy('name')
+            // MARKER-PATCH-583 — shopper-facing sorts
+            ->when(true, function ($w) use ($request) {
+                match ($request->query('sort', 'featured')) {
+                    'price_asc'  => $w->orderByRaw('COALESCE(shop_sell_price_cents, catalog_msrp_cents) ASC'),
+                    'price_desc' => $w->orderByRaw('COALESCE(shop_sell_price_cents, catalog_msrp_cents) DESC'),
+                    'newest'     => $w->orderByDesc('created_at'),
+                    default      => $w->orderByDesc('computed_stock_count')->orderBy('name'),
+                };
+            })
             ->paginate(24)
             ->withQueryString();
 
@@ -67,7 +75,15 @@ class StorefrontController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // MARKER-PATCH-583 — per-category counts for the sidebar layout
+        $catCounts = $this->visible()
+            ->selectRaw('category_id, COUNT(*) AS n')
+            ->groupBy('category_id')->pluck('n', 'category_id');
+
         return \App\Services\Tenant\SiteChromeService::render($tenant, 'shop_index', [ // MARKER-PATCH-579
+            'browseLayout' => (string) (($tenant->settings['storefront']['browse_layout'] ?? null) ?: 'chips'),
+            'catCounts'    => $catCounts,
+            'sort'         => $request->query('sort', 'featured'),
             'cartCount'  => \App\Services\Tenant\CartService::forTenant($tenant)->itemCount(), // MARKER-PATCH-564
             'tenant'     => $tenant,
             'items'      => $items,

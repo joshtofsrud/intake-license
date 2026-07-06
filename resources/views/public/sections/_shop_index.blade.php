@@ -60,9 +60,34 @@
     @if($activeCat)<input type="hidden" name="category" value="{{ $activeCat }}">@endif
     <input type="search" name="q" value="{{ $q }}" placeholder="Search the shop — brand, part, size…">
     <button>Search</button>
+    {{-- MARKER-PATCH-583 — sort --}}
+    <select name="sort" onchange="this.form.submit()"
+            style="font:inherit;font-size:13.5px;padding:10px 12px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;background:#fff">
+      <option value="featured"   @selected(($sort ?? 'featured') === 'featured')>Featured</option>
+      <option value="price_asc"  @selected(($sort ?? '') === 'price_asc')>Price: low to high</option>
+      <option value="price_desc" @selected(($sort ?? '') === 'price_desc')>Price: high to low</option>
+      <option value="newest"     @selected(($sort ?? '') === 'newest')>Newest</option>
+    </select>
   </form>
 
-  @if($categories->isNotEmpty())
+  {{-- MARKER-PATCH-583 — sidebar layout option --}}
+  @if(($browseLayout ?? 'chips') === 'sidebar' && $categories->isNotEmpty())
+    <div style="display:grid;grid-template-columns:210px 1fr;gap:26px;align-items:start" class="spg-sb">
+      <aside style="position:sticky;top:84px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.45;font-weight:700;margin-bottom:10px">Categories</div>
+        <a href="/shop{{ $q ? '?q=' . urlencode($q) : '' }}" style="display:flex;justify-content:space-between;padding:7px 2px;font-size:13.5px;font-weight:{{ !$activeCat ? 700 : 500 }};text-decoration:none;color:inherit">
+          All <span style="opacity:.45">{{ $catCounts->sum() }}</span>
+        </a>
+        @foreach($categories as $c)
+          <a href="/shop?category={{ $c->id }}{{ $q ? '&q=' . urlencode($q) : '' }}" style="display:flex;justify-content:space-between;gap:10px;padding:7px 2px;font-size:13.5px;font-weight:{{ $activeCat === $c->id ? 700 : 500 }};text-decoration:none;color:inherit;{{ $activeCat === $c->id ? '' : 'opacity:.75' }}">
+            <span>{{ $c->name }}</span> <span style="opacity:.45">{{ $catCounts[$c->id] ?? 0 }}</span>
+          </a>
+        @endforeach
+      </aside>
+      <div>
+  @endif
+
+  @if(($browseLayout ?? 'chips') !== 'sidebar' && $categories->isNotEmpty())
     <div class="cats">
       <a href="/shop{{ $q ? '?q=' . urlencode($q) : '' }}" class="{{ !$activeCat ? 'on' : '' }}">All</a>
       @foreach($categories as $c)
@@ -96,6 +121,12 @@
       @endforeach
     </div>
     <div class="pager">{{ $items->links('pagination::simple-default') }}</div>
+  @endif
+
+  @if(($browseLayout ?? 'chips') === 'sidebar' && $categories->isNotEmpty())
+      </div>
+    </div>
+    <style>@media(max-width:760px){ .spg-index .spg-sb{grid-template-columns:1fr} .spg-index .spg-sb aside{position:static} }</style>
   @endif
 
   </div>
