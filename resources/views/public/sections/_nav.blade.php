@@ -182,6 +182,20 @@
 }
 @endif
 
+/* MARKER-PATCH-582 — nav instant search */
+.{{ $instId }} .p-nav-search { position: relative; display: flex; align-items: center; }
+.{{ $instId }} .p-nav-search-btn { background: none; border: 0; padding: 8px; display: flex; color: inherit; opacity: .75; }
+.{{ $instId }} .p-nav-search-btn:hover { opacity: 1; }
+.{{ $instId }} .p-nav-search-panel { display: none; position: absolute; top: calc(100% + 10px); right: 0; width: min(380px, 86vw); background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.14); padding: 10px; z-index: 300; }
+.{{ $instId }} .p-nav-search.open .p-nav-search-panel { display: block; }
+.{{ $instId }} .p-nav-search-panel input { width: 100%; font: inherit; font-size: 14px; padding: 10px 13px; border: 1.5px solid rgba(0,0,0,.13); border-radius: 9px; }
+.{{ $instId }} .p-nav-search-results a { display: flex; gap: 11px; align-items: center; padding: 9px 6px; border-radius: 9px; text-decoration: none; color: inherit; }
+.{{ $instId }} .p-nav-search-results a:hover { background: rgba(0,0,0,.045); }
+.{{ $instId }} .p-nav-search-results img { width: 38px; height: 38px; object-fit: contain; border: 1px solid rgba(0,0,0,.07); border-radius: 8px; background: #fff; }
+.{{ $instId }} .p-nav-search-results .n { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.{{ $instId }} .p-nav-search-results .m { font-size: 11px; opacity: .55; }
+.{{ $instId }} .p-nav-search-results .pr { margin-left: auto; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.{{ $instId }} .p-nav-search-results .all { display: block; text-align: center; font-size: 12.5px; font-weight: 600; padding: 10px 0 4px; opacity: .65; }
 .{{ $instId }} .p-nav-end {
   display: flex;
   align-items: center;
@@ -264,6 +278,27 @@
       </div>
 
       <div class="p-nav-end">
+        {{-- MARKER-PATCH-582 — instant shop search (store tenants only) --}}
+        @php
+          $navSearchTenant = $tenant ?? $currentTenant ?? null;
+          $navShopSearch = $navSearchTenant
+              && $navSearchTenant->online_store_enabled
+              && (bool) (($navSearchTenant->settings['storefront']['enabled'] ?? true));
+        @endphp
+        @if($navShopSearch)
+          <div class="p-nav-search" id="{{ $instId }}-search">
+            <button type="button" class="p-nav-search-btn" aria-label="Search the shop"
+                    onclick="pNavSearchOpen('{{ $instId }}')">
+              <svg width="17" height="17" viewBox="0 0 17 17" fill="none"><circle cx="7.2" cy="7.2" r="5.4" stroke="currentColor" stroke-width="1.7"/><path d="M11.5 11.5L15.5 15.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </button>
+            <div class="p-nav-search-panel">
+              <input type="search" placeholder="Search the shop…" autocomplete="off"
+                     oninput="pNavSearchType('{{ $instId }}', this.value)"
+                     onkeydown="if(event.key==='Enter'){window.location='/shop?q='+encodeURIComponent(this.value)}">
+              <div class="p-nav-search-results"></div>
+            </div>
+          </div>
+        @endif
         @if($showCta)
           <a href="{{ $ctaUrl }}" class="p-nav-cta p-nav-cta--{{ $ctaStyle }}">
             {{ $ctaLabel }}
@@ -277,3 +312,45 @@
     </div>
   </div>
 </nav>
+
+@if($navShopSearch ?? false)
+@once
+<script>
+/* MARKER-PATCH-582 — nav instant search (shared across nav instances) */
+var pNavSearchTimer;
+function pNavEsc(x) { var d = document.createElement('div'); d.textContent = x || ''; return d.innerHTML; }
+function pNavSearchOpen(id) {
+  var box = document.getElementById(id + '-search');
+  box.classList.toggle('open');
+  if (box.classList.contains('open')) box.querySelector('input').focus();
+}
+function pNavSearchType(id, q) {
+  clearTimeout(pNavSearchTimer);
+  var out = document.querySelector('#' + id + '-search .p-nav-search-results');
+  if ((q || '').trim().length < 2) { out.innerHTML = ''; return; }
+  pNavSearchTimer = setTimeout(function () {
+    fetch('/shop/search.json?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        out.innerHTML = (d.items || []).map(function (i) {
+          return '<a href="' + i.url + '">'
+            + (i.img ? '<img src="' + i.img + '" alt="">' : '<span style="width:38px"></span>')
+            + '<span><span class="n">' + pNavEsc(i.name) + '</span><br><span class="m">'
+            + pNavEsc(i.brand || '') + (i.stock ? ' · in stock' : '') + '</span></span>'
+            + (i.price ? '<span class="pr">' + i.price + '</span>' : '')
+            + '</a>';
+        }).join('')
+        + ((d.items || []).length
+            ? '<a class="all" href="/shop?q=' + encodeURIComponent(q) + '">See all results →</a>'
+            : '<div style="padding:12px 6px;font-size:13px;opacity:.5">Nothing found</div>');
+      }).catch(function () {});
+  }, 220);
+}
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('.p-nav-search.open').forEach(function (b) {
+    if (!b.contains(e.target)) b.classList.remove('open');
+  });
+});
+</script>
+@endonce
+@endif

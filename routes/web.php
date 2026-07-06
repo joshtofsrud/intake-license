@@ -136,6 +136,7 @@ $tenantRoutes = function () {
     // MARKER-PATCH-239 — public rental availability browse.
     // MARKER-PATCH-561 — Online Retail Wave 2: read-only storefront
     Route::get('/shop',                  [TenantControllers\StorefrontController::class, 'index'])->name('tenant.shop.index');
+    Route::get('/shop/search.json',      [TenantControllers\StorefrontController::class, 'searchJson'])->name('tenant.shop.search'); // MARKER-PATCH-582
     Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
     // MARKER-PATCH-564 — Online Retail Wave 3: cart
     Route::get('/cart',                  [TenantControllers\CartController::class, 'show'])->name('tenant.cart.show');

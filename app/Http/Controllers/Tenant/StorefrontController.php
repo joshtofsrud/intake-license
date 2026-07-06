@@ -77,6 +77,45 @@ class StorefrontController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-PATCH-582 — GET /shop/search.json — instant search feed for
+     * the nav type-ahead. Same tokenized match as the grid, minimal
+     * payload, 8 results.
+     */
+    public function searchJson(\Illuminate\Http\Request $request)
+    {
+        $q = trim((string) $request->query('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json(['items' => []]);
+        }
+
+        $items = $this->visible()
+            ->with('distributorCatalog:id,manufacturer,images')
+            ->where(function ($x) use ($q) {
+                foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
+                    $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                }
+            })
+            ->orderByDesc('computed_stock_count')->orderBy('name')
+            ->limit(8)
+            ->get();
+
+        return response()->json(['items' => $items->map(function ($i) {
+            $ims = (array) ($i->distributorCatalog?->images ?? []);
+            $f = $ims[0] ?? null;
+            $img = is_array($f) ? ($f['Url'] ?? $f['url'] ?? $f['src'] ?? null) : (is_string($f) ? $f : null);
+            return [
+                'name'  => $i->name,
+                'brand' => $i->distributorCatalog?->manufacturer,
+                'price' => $i->effectiveSellPriceCents() !== null
+                    ? '$' . number_format($i->effectiveSellPriceCents() / 100, 2) : null,
+                'img'   => $img,
+                'stock' => (int) ($i->computed_stock_count ?? 0) > 0,
+                'url'   => '/shop/' . $i->id,
+            ];
+        })->values()]);
+    }
+
     public function show(string $id): View
     {
         $item = $this->visible()
