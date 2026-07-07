@@ -120,8 +120,10 @@ class BookingFormData
         );
 
         // Seed the pivot once so the builder always shows where the form sits.
-        $hasPivot = $page->sections()->where('section_type', 'booking_embed')->exists();
-        if (! $hasPivot) {
+        // MARKER-PATCH-606 — if the page pre-existed (adopted at slug "book"),
+        // heal it: the pivot must exist AND be visible or the split breaks.
+        $pivot = $page->sections()->where('section_type', 'booking_embed')->first();
+        if (! $pivot) {
             $page->sections()->create([
                 'tenant_id'    => $tenant->id,
                 'section_type' => 'booking_embed',
@@ -129,6 +131,8 @@ class BookingFormData
                 'is_visible'   => true,
                 'sort_order'   => 50,
             ]);
+        } elseif (! $pivot->is_visible) {
+            $pivot->update(['is_visible' => true]);
         }
 
         return $page;

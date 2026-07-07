@@ -611,6 +611,18 @@ class PageBuilderController extends Controller
         $sections = $page->sections()->where('is_visible', true)->get();
         $sections = TenantPageSection::withInheritedChrome($sections, $page->tenant_id, $page->id);
 
+        // MARKER-PATCH-606 — the Booking page's builder preview mirrors /book:
+        // when the booking editor's "Hide CTA band" is on, suppress it on the
+        // inherited footer chrome so preview and live match.
+        if ($page->slug === 'book' && (($tenant->settings['booking_hide_cta'] ?? '0') === '1')) {
+            $sections = $sections->map(function ($sec) {
+                if ($sec->section_type === 'footer') {
+                    $sec->content = array_merge($sec->content ?? [], ['cta_band' => false]);
+                }
+                return $sec;
+            });
+        }
+
         $navItems = TenantNavItem::where('tenant_id', $tenant->id)
             ->orderBy('sort_order')->get();
 
