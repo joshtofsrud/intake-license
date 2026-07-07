@@ -29,7 +29,7 @@ class BookingController extends Controller
         $flow     = request()->query('flow');
 
         if ($flowSvc->showFork($flowMode, $flow)) {
-            return view('public.booking-choice', compact('bk', 'flowMode'));
+            return view('public.booking-choice', compact('bk', 'flowMode', 'bookingSections')); // MARKER-PATCH-604
         }
 
         $simpleServices = $flowSvc->simpleServices($tenant);
@@ -38,7 +38,8 @@ class BookingController extends Controller
         return view($view, compact(
             'catalog', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
-            'bookingMode', 'resources', 'bk', 'simpleServices', 'flowMode'
+            'bookingMode', 'resources', 'bk', 'simpleServices', 'flowMode',
+            'bookingSections' // MARKER-PATCH-604
         ));
     }
 
