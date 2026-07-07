@@ -78,6 +78,16 @@ class SalesProspectResource extends Resource
                     ->label('Channel')
                     ->options(fn () => \App\Models\SalesChannel::query()->orderBy('name')->pluck('name', 'id')->all())
                     ->native(false)->placeholder('— channel —'),
+                Forms\Components\Select::make('agency_id')
+                    ->label('Agency')->live()
+                    ->options(fn () => \App\Models\SalesAgency::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->native(false)->placeholder('— house —'),
+                Forms\Components\Select::make('sales_rep_id')
+                    ->label('Rep')
+                    ->options(fn (\Filament\Forms\Get $get) => $get('agency_id')
+                        ? \App\Models\SalesRep::query()->where('agency_id', $get('agency_id'))->where('status', 'active')->orderBy('name')->pluck('name', 'id')->all()
+                        : [])
+                    ->native(false)->placeholder('— unassigned —'),
                 Forms\Components\TagsInput::make('categories')
                     ->label('Categories handled')
                     ->placeholder('Sales / Rental / Service')
@@ -212,6 +222,10 @@ class SalesProspectResource extends Resource
                     ->label('Score')->sortable()->alignEnd()
                     ->color(fn ($state) => $state >= 100 ? 'success' : ($state >= 70 ? 'info' : 'gray')),
 
+                Tables\Columns\TextColumn::make('rep.name')
+                    ->label('Rep')->toggleable()->placeholder('house')
+                    ->description(fn (SalesProspect $r) => $r->agency?->name),
+
                 Tables\Columns\TextColumn::make('stage')
                     ->badge()
                     ->formatStateUsing(fn ($state) => SalesProspect::STAGES[$state] ?? $state)
@@ -253,6 +267,9 @@ class SalesProspectResource extends Resource
                 Tables\Filters\SelectFilter::make('channel_id')
                     ->label('Channel')
                     ->options(fn () => \App\Models\SalesChannel::query()->orderBy('name')->pluck('name', 'id')->all()),
+                Tables\Filters\SelectFilter::make('agency_id')
+                    ->label('Agency')
+                    ->options(fn () => \App\Models\SalesAgency::query()->orderBy('name')->pluck('name', 'id')->all()),
                 Tables\Filters\SelectFilter::make('loop')->options(SalesProspect::LOOPS),
                 Tables\Filters\SelectFilter::make('state')
                     ->options(fn () => SalesProspect::query()

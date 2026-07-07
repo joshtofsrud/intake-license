@@ -25,6 +25,7 @@ class SalesProspect extends Model
         'stage', 'next_action_on', 'next_action', 'last_contacted_at', 'lost_reason',
         'tenant_id',
         'channel_id', 'categories', 'quote_tier', 'quote_addons', 'quote_monthly',
+        'agency_id', 'sales_rep_id', // MARKER-AGENCIES-ATTR
         'owner_contact', 'phone', 'email', 'website', 'address',
         'best_ask', 'source', 'source_url', 'google_maps_url', 'notes',
         'google_place_id', 'lat', 'lng',
@@ -99,6 +100,16 @@ class SalesProspect extends Model
     public function channel(): BelongsTo
     {
         return $this->belongsTo(SalesChannel::class, 'channel_id');
+    }
+
+    public function agency(): BelongsTo
+    {
+        return $this->belongsTo(SalesAgency::class, 'agency_id');
+    }
+
+    public function rep(): BelongsTo
+    {
+        return $this->belongsTo(SalesRep::class, 'sales_rep_id');
     }
 
     /** Quote = tier base + add-ons, priced from config/sales_quoting.php. */

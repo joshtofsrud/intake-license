@@ -13,6 +13,7 @@ use App\Filament\Resources\PlatformNavItemResource;
 use App\Filament\Resources\SectionLibraryResource;
 use App\Filament\Resources\SiteSettingsResource;
 use App\Filament\Resources\DistributorFieldMapResource;
+use App\Filament\Resources\SalesAgencyResource; // MARKER-AGENCIES-REGISTER
 use App\Filament\Resources\SalesChannelResource; // MARKER-CAMPAIGNS-REGISTER
 use App\Filament\Resources\SalesProspectResource; // MARKER-SALES-REGISTER
 use App\Filament\Resources\TenantResource;
@@ -55,6 +56,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Intake')
             ->resources([
                 SalesChannelResource::class, // MARKER-CAMPAIGNS-REGISTER
+                SalesAgencyResource::class, // MARKER-AGENCIES-REGISTER
                 SalesProspectResource::class, // MARKER-SALES-REGISTER
                 TenantResource::class,
                 TenantDomainResource::class,  // MARKER-PATCH-119
