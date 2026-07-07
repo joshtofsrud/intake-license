@@ -319,6 +319,14 @@ class SalesProspectResource extends Resource
         return [ActivitiesRelationManager::class];
     }
 
+    // MARKER-SALES-WIDGETREG — registers the funnel widget as a Livewire component
+    public static function getWidgets(): array
+    {
+        return [
+            \App\Filament\Resources\SalesProspectResource\Widgets\SalesFunnelWidget::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
