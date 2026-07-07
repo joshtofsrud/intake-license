@@ -1,53 +1,17 @@
+@extends('public._booking-shell')
 @php
-  $bk = $bk ?? [];
-  $bkTheme = $bk['theme'] ?? 'light';
-  $isDark = $bkTheme === 'dark';
-  $bkAccent = ($bk['accent'] ?? null) ?: ($currentTenant->accent_color ?? '#BEF264');
-  $bkText = $isDark
-    ? (($bk['body_text'] ?? null) ?: '#f0f0f0')
-    : (($bk['body_text'] ?? null) ?: ($currentTenant->text_color ?? '#111111'));
-  $bkBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
-  $bkTint = $isDark
-    ? (($bk['bg_tint'] ?? null) ?: '#1a1a1a')
-    : (($bk['bg_tint'] ?? null) ?: '#FFFFFF');
-  $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
-  $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
-  $bookingLogoHeight = (int) ($currentTenant->logo_size_booking ?? 28);
-  $bookingLogoHeight = max(16, min(120, $bookingLogoHeight));
-  $muted = $isDark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.55)';
-  $border = $isDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.12)';
-  $cardBg = $isDark ? 'rgba(255,255,255,.03)' : '#ffffff';
+  // MARKER-PATCH-598 — choice fork now extends _booking-shell. Theme/color vars
+  // come from the shell; keep view-local bits + recompute the theme flag for pushed CSS.
+  $pageTitle = 'Book online';
+  $showBackLink = true;
+  $isDark = (($bk['theme'] ?? 'light') === 'dark'); // .fcard:hover shadow uses it
 @endphp
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  @include('public._funnel_tracker')
-  <title>Book online — {{ $currentTenant->name }}</title>
-  @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --p-accent: {{ $bkAccent }};
-      --p-accent-text: {{ \App\Support\ColorHelper::accentTextColor($bkAccent) }};
-      --p-text: {{ $bkText }};
-      --p-bg: {{ $bkBg }};
-      --p-muted: {{ $muted }};
-      --p-border: {{ $border }};
-      --p-card: {{ $cardBg }};
-      --p-font-heading:'{{ $currentTenant->font_heading ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-font-body:'{{ $currentTenant->font_body ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-r: 10px; --p-r-lg: 16px;
-    }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{ font-family:var(--p-font-body); color:var(--p-text); background:{{ $bkTint }}; min-height:100vh; -webkit-font-smoothing:antialiased; }
+
+@push('styles')
+<style>
+  /* choice fork uses a rounder radius scale than the shell default */
+  :root { --p-r: 10px; --p-r-lg: 16px; }
     .wrap{ max-width:760px; margin:0 auto; padding:32px 20px 60px; }
-    .bk-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:48px; }
-    .bk-logo img{ height:{{ $bookingLogoHeight }}px; width:auto; display:block; }
-    .bk-logo .name{ font-family:var(--p-font-heading); font-weight:700; font-size:18px; }
     .fork-intro{ text-align:center; margin-bottom:34px; }
     .fork-intro h1{ font-family:var(--p-font-heading); font-size:clamp(24px,5vw,32px); font-weight:700; letter-spacing:-.02em; margin-bottom:10px; }
     .fork-intro p{ font-size:15px; color:var(--p-muted); max-width:440px; margin:0 auto; line-height:1.55; }
@@ -63,18 +27,11 @@
     .fgo{ margin-top:18px; display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--p-accent); }
     .fnote{ text-align:center; margin-top:26px; font-size:12.5px; color:var(--p-muted); }
     @media (max-width:560px){ .fork{ flex-direction:column; } }
-  </style>
-</head>
-<body>
-@if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
+</style>
+@endpush
+
+@section('content')
   <div class="wrap">
-@if(($bk['show_logo'] ?? '1') === '1') {{-- MARKER-PATCH-593 --}}
-    <div class="bk-head">
-      <div class="bk-logo">
-        @if($logoUrl)<img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">@else<span class="name">{{ $currentTenant->name }}</span>@endif
-      </div>
-    </div>
-@endif {{-- MARKER-PATCH-593 --}}
 
     <div class="fork-intro">
       <h1>How would you like to book?</h1>
@@ -109,7 +66,9 @@
 
     <div class="fnote">Not sure? Quick booking covers most visits — you can always start over.</div>
   </div>
+@endsection
 
+@push('scripts')
   <script>
     // Record which path the customer chose (anonymous funnel signal).
     document.querySelectorAll('.fcard').forEach(function(el){
@@ -122,6 +81,4 @@
       });
     });
   </script>
-@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif {{-- MARKER-PATCH-592 --}}
-</body>
-</html>
+@endpush
