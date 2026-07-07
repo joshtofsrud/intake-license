@@ -1,23 +1,10 @@
+@extends('public._booking-shell')
 @php
-  $bk = $bk ?? [];
-  $bkTheme = $bk['theme'] ?? 'light';
-  $isDark = $bkTheme === 'dark';
-  $bkAccent = ($bk['accent'] ?? null) ?: ($currentTenant->accent_color ?? '#BEF264');
-  $bkText = $isDark
-    ? (($bk['body_text'] ?? null) ?: '#f0f0f0')
-    : (($bk['body_text'] ?? null) ?: ($currentTenant->text_color ?? '#111111'));
-  $bkBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
-  $bkTint = $isDark
-    ? (($bk['bg_tint'] ?? null) ?: '#1a1a1a')
-    : (($bk['bg_tint'] ?? null) ?: '#FFFFFF');
-  $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
-  $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
-  $bookingLogoHeight = (int) ($currentTenant->logo_size_booking ?? 28);
-  $bookingLogoHeight = max(16, min(120, $bookingLogoHeight));
-  $muted  = $isDark ? 'rgba(255,255,255,.58)' : 'rgba(0,0,0,.52)';
-  $border = $isDark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.12)';
-  $cardBg = $isDark ? 'rgba(255,255,255,.03)' : '#ffffff';
-  $field  = $isDark ? 'rgba(255,255,255,.05)' : '#ffffff';
+  // MARKER-PATCH-597 — simple flow now extends _booking-shell. Theme/color vars
+  // are computed in the shell; keep only view-local derivations here.
+  $pageTitle = 'Book online';
+  $showBackLink = true;
+  $isDark = (($bk['theme'] ?? 'light') === 'dark'); // pushed styles need this locally
   $mode   = $bookingMode ?? 'drop_off';
   $flowMode = $flowMode ?? 'simple';
   $simpleServices = $simpleServices ?? collect();
@@ -25,38 +12,12 @@
   $h2 = $bk['step2_heading'] ?? 'Choose a time';
   $h3 = $bk['step3_heading'] ?? 'Your details';
 @endphp
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  @include('public._funnel_tracker')
-  <title>Book online — {{ $currentTenant->name }}</title>
-  @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
-  @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
-  <style>
-    :root{
-      --p-accent: {{ $bkAccent }};
-      --p-accent-text: {{ \App\Support\ColorHelper::accentTextColor($bkAccent) }};
-      --p-text: {{ $bkText }};
-      --p-bg: {{ $bkBg }};
-      --p-muted: {{ $muted }};
-      --p-border: {{ $border }};
-      --p-card: {{ $cardBg }};
-      --p-field: {{ $field }};
-      --p-font-heading:'{{ $currentTenant->font_heading ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-font-body:'{{ $currentTenant->font_body ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-r: 9px; --p-r-lg: 14px;
-    }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{ font-family:var(--p-font-body); color:var(--p-text); background:{{ $bkTint }}; min-height:100vh; -webkit-font-smoothing:antialiased; }
+
+@push('styles')
+<style>
+  /* simple flow uses a softer radius scale than the shell default */
+  :root { --p-r: 9px; --p-r-lg: 14px; }
     .wrap{ max-width:640px; margin:0 auto; padding:28px 18px 60px; }
-    .bk-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }
-    .bk-logo img{ height:{{ $bookingLogoHeight }}px; width:auto; display:block; }
-    .bk-logo .name{ font-family:var(--p-font-heading); font-weight:700; font-size:18px; }
 
     /* progress */
     #bk-progress{ display:flex; align-items:center; gap:0; margin-bottom:26px; }
@@ -139,19 +100,11 @@
     .switch{ text-align:center; margin-top:20px; font-size:12.5px; color:var(--p-muted); }
     .switch a{ color:var(--p-accent); text-decoration:none; }
     @media (max-width:520px){ .row{ flex-direction:column; gap:0; } .pg-lbl{ display:none; } }
-  </style>
-</head>
-<body>
-@if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
-  <div class="wrap">
-@if(($bk['show_logo'] ?? '1') === '1') {{-- MARKER-PATCH-593 --}}
-    <div class="bk-head">
-      <div class="bk-logo">
-        @if($logoUrl)<img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">@else<span class="name">{{ $currentTenant->name }}</span>@endif
-      </div>
-    </div>
-@endif {{-- MARKER-PATCH-593 --}}
+</style>
+@endpush
 
+@section('content')
+  <div class="wrap">
     <div id="bk-progress">
       <div class="pg on" data-step="1"><span class="pg-num">1</span><span class="pg-lbl">{{ $bk['step1_label'] ?? 'Service' }}</span></div>
       <div class="pg-line"></div>
@@ -274,6 +227,9 @@
     </section>
   </div>
 
+@endsection
+
+@push('scripts')
   <script>
   (function(){
     var CFG = {
@@ -467,6 +423,4 @@
     }
   })();
   </script>
-@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif {{-- MARKER-PATCH-592 --}}
-</body>
-</html>
+@endpush
