@@ -1,5 +1,11 @@
 @extends('public._booking-shell')
-@php $pageTitle = 'Book online'; $showBackLink = true; @endphp
+@php
+  $pageTitle = 'Book online';
+  $showBackLink = true;
+  // MARKER-PATCH-595 — theme flag needed by this view's pushed styles;
+  // pushed stacks don't see the shell's @php locals.
+  $isDark = (($bk['theme'] ?? 'light') === 'dark');
+@endphp
 
 @push('styles')
 <style>
