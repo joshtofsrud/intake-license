@@ -3,8 +3,19 @@
   $pageTitle = 'Book online';
   $showBackLink = true;
   // MARKER-PATCH-595 — theme flag needed by this view's pushed styles;
-  // pushed stacks don't see the shell's @php locals.
+  // pushed stacks don't see the shell's php locals.
   $isDark = (($bk['theme'] ?? 'light') === 'dark');
+  // MARKER-PATCH-596 — view-local derivations restored (were dropped when the
+  // theme block moved to _booking-shell). These feed the stepper + multi-asset flow.
+  $stepLabels = [
+    $bk['step1_label'] ?? 'Services',
+    $bk['step2_label'] ?? 'Schedule',
+    $bk['step3_label'] ?? 'Details',
+    $bk['step4_label'] ?? 'Review',
+  ];
+  $multiAsset = (bool) ($currentTenant->multi_asset_enabled ?? false) && (($bookingMode ?? 'drop_off') === 'drop_off');
+  $assetSingular = $currentTenant->asset_label_singular ?: 'item';
+  $assetPlural   = $currentTenant->asset_label_plural ?: 'items';
 @endphp
 
 @push('styles')
