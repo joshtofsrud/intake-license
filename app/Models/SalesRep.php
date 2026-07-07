@@ -16,6 +16,11 @@ class SalesRep extends Model
 
     protected $fillable = [
         'agency_id', 'name', 'role', 'email', 'phone', 'user_id', 'status',
+        'invite_token', 'invited_at', // MARKER-REPPANEL-INVITE
+    ];
+
+    protected $casts = [
+        'invited_at' => 'datetime',
     ];
 
     public const ROLES = [
@@ -26,6 +31,11 @@ class SalesRep extends Model
     public function agency(): BelongsTo
     {
         return $this->belongsTo(SalesAgency::class, 'agency_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function prospects(): HasMany

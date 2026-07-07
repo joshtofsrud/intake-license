@@ -914,3 +914,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 // ─────────────────────────────────────────────────────────────────────
 Route::middleware(['App\Http\Middleware\ResolveTenant'])
     ->group($tenantRoutes);
+
+
+// MARKER-REPPANEL-SETUP — public rep account setup (tokenized, 7-day expiry)
+Route::get('/rep-setup/{token}', [\App\Http\Controllers\RepSetupController::class, 'show']);
+Route::post('/rep-setup/{token}', [\App\Http\Controllers\RepSetupController::class, 'store']);

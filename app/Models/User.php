@@ -30,8 +30,19 @@ class User extends Authenticatable implements FilamentUser
      *   3. Fallback: allow when the `is_admin` column doesn't exist yet
      *      (safety valve for servers that haven't run the new migration)
      */
+    // MARKER-REPPANEL-GATE — the /rep panel admits linked reps ONLY, and rep
+    // accounts (is_admin=false) can never pass the admin checks below.
+    public function salesRep()
+    {
+        return $this->hasOne(\App\Models\SalesRep::class, 'user_id');
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
+        if ($panel->getId() === 'rep') {
+            return $this->salesRep()->where('status', 'active')->exists();
+        }
+
         // Bootstrap admin from env is always allowed
         $bootstrap = strtolower((string) config('intake.admin_email', '')); // MARKER-PATCH-224B
         if ($bootstrap !== '' && strtolower((string) $this->email) === $bootstrap) {
