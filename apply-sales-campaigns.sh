@@ -2,53 +2,26 @@
 # apply-sales-campaigns.sh — Sales campaigns (channels) + pipeline quoting.
 # Adds the sales_channels (campaigns) resource and the prospect quote engine.
 #
-# PREREQUISITE: the sales-channel package (apply-sales-channel.sh) must already be
-# applied — this script edits files that package created and anchors on lines
-# the base package added to AdminPanelProvider.
+# PRICING SOURCES (no new price list — single source of truth):
+#   tiers   -> config('intake.plan_prices')      (cents; custom/$0 excluded)
+#   add-ons -> `addons` DB table                 (price_cents, included_in_plans)
+# An add-on already included in the chosen tier prices at +$0, mirroring
+# FeatureAccessService logic.
+#
+# PREREQUISITE: apply-sales-channel.sh must already be applied — this script
+# edits files it created and anchors on lines it added to AdminPanelProvider.
 #
 # Run from the repo root:  bash apply-sales-campaigns.sh
-# Idempotent: guarded on MARKER-CAMPAIGNS-QUOTE in config/sales_quoting.php.
+# Idempotent: guarded on MARKER-CAMPAIGNS-QUOTE in app/Models/SalesProspect.php.
 set -euo pipefail
 
 [ -f artisan ] || { echo "ERROR: run from the Laravel repo root (artisan not found)."; exit 1; }
 [ -f app/Models/SalesProspect.php ] || { echo "ERROR: run apply-sales-channel.sh first (base package missing)."; exit 1; }
-if [ -f config/sales_quoting.php ] && grep -q MARKER-CAMPAIGNS-QUOTE config/sales_quoting.php; then
+if grep -q MARKER-CAMPAIGNS-QUOTE app/Models/SalesProspect.php; then
   echo "apply-sales-campaigns.sh: already applied — skipping."; exit 0
 fi
 
 echo "Applying campaigns + quoting …"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# config/sales_quoting.php  (MARKER-CAMPAIGNS-QUOTE)
-# ─────────────────────────────────────────────────────────────────────────────
-mkdir -p config
-cat > config/sales_quoting.php <<'EOF'
-<?php
-// MARKER-CAMPAIGNS-QUOTE — Quote pricing for the sales pipeline.
-// EDIT THESE to your real tiers/add-on prices. Add-on keys deliberately mirror
-// tenant addon slugs (online_store, pos, ...) so a won quote can later drive
-// provisioning/FeatureAccessService gating without a mapping table.
-
-return [
-    'tiers' => [
-        'core'     => ['label' => 'Core',     'monthly' => 249],
-        'standard' => ['label' => 'Standard', 'monthly' => 329],
-        'advanced' => ['label' => 'Advanced', 'monthly' => 389],
-    ],
-
-    'addons' => [
-        'pos'             => ['label' => 'POS register',         'monthly' => 60],
-        'online_store'    => ['label' => 'Online store',         'monthly' => 50],
-        'rentals'         => ['label' => 'Rentals',              'monthly' => 40],
-        'pickup_delivery' => ['label' => 'Pickup & delivery',    'monthly' => 40],
-        'marketing'       => ['label' => 'Marketing & recovery', 'monthly' => 30],
-    ],
-
-    // Reference only for now — commission engine comes with the agencies build.
-    'commission_year1' => 0.25,
-];
-EOF
-echo "  wrote config/sales_quoting.php"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # migration: sales_channels  (MARKER-CAMPAIGNS-CORE)
@@ -99,8 +72,9 @@ echo "  wrote migration create_sales_channels_table"
 cat > database/migrations/2026_07_07_000002_add_channel_and_quote_to_sales_prospects.php <<'EOF'
 <?php
 // MARKER-CAMPAIGNS-QUOTE — Prospects join a channel and carry a built quote.
-// quote_monthly is a snapshot-on-write derived from tier + addons at save time
-// (design principle 13), so list/funnel reads never re-price.
+// quote_monthly is a snapshot-on-write (whole dollars) derived at save time
+// from config('intake.plan_prices') + the addons table (design principle 13),
+// so list/funnel reads never re-price.
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -120,7 +94,7 @@ return new class extends Migration {
                 $t->string('quote_tier', 40)->nullable()->after('lead_score');
             }
             if (! Schema::hasColumn('sales_prospects', 'quote_addons')) {
-                $t->json('quote_addons')->nullable()->after('quote_tier');
+                $t->json('quote_addons')->nullable()->after('quote_tier');   // addon codes
             }
             if (! Schema::hasColumn('sales_prospects', 'quote_monthly')) {
                 $t->unsignedInteger('quote_monthly')->nullable()->after('quote_addons');
@@ -451,8 +425,6 @@ echo "  wrote database/seeders/SalesChannelSeeder.php"
 # Anchored edits: SalesProspect model, SalesProspectResource, AdminPanelProvider
 # ─────────────────────────────────────────────────────────────────────────────
 python3 - <<'PYEOF'
-import sys
-
 def rd(p):
     with open(p, encoding="utf-8") as f: return f.read()
 def wr(p, s):
@@ -463,6 +435,11 @@ def edit(p, old, new):
     wr(p, s.replace(old, new, 1)); print(f"  edited {p}")
 
 M = "app/Models/SalesProspect.php"
+
+# import: DB facade for addon pricing lookups
+edit(M,
+"use Illuminate\\Database\\Eloquent\\Relations\\HasMany;",
+"use Illuminate\\Database\\Eloquent\\Relations\\HasMany;\nuse Illuminate\\Support\\Facades\\DB;")
 
 # fillable: channel + quote fields
 edit(M,
@@ -487,27 +464,48 @@ edit(M,
     }
 
     // MARKER-CAMPAIGNS-QUOTE — channel + quote
+    /** Reference rate until the agencies/commission build owns this. */
+    public const COMMISSION_YEAR1 = 0.25;
+
     public function channel(): BelongsTo
     {
         return $this->belongsTo(SalesChannel::class, 'channel_id');
     }
 
-    /** Quote = tier base + add-ons, priced from config/sales_quoting.php. */
+    /**
+     * Quote = tier base + add-ons, in whole dollars. Prices come from the
+     * platform's real sources: config('intake.plan_prices') (cents) and the
+     * `addons` table. An add-on whose included_in_plans covers the chosen
+     * tier prices at +$0 — same rule FeatureAccessService applies.
+     */
     public function computeQuoteMonthly(): ?int
     {
         if (! $this->quote_tier) {
             return null;
         }
-        $tiers  = config('sales_quoting.tiers', []);
-        $addons = config('sales_quoting.addons', []);
-        $base   = $tiers[$this->quote_tier]['monthly'] ?? null;
-        if ($base === null) {
+        $plans = config('intake.plan_prices', []);
+        if (! isset($plans[$this->quote_tier])) {
             return null;
         }
-        foreach ((array) $this->quote_addons as $key) {
-            $base += $addons[$key]['monthly'] ?? 0;
+        $sum = (int) round(((int) $plans[$this->quote_tier]) / 100);
+
+        $selected = (array) $this->quote_addons;
+        if ($selected !== []) {
+            $rows = DB::table('addons')
+                ->whereIn('code', $selected)
+                ->get(['code', 'price_cents', 'included_in_plans']);
+            foreach ($rows as $a) {
+                $included = in_array(
+                    $this->quote_tier,
+                    (array) json_decode($a->included_in_plans ?? '[]', true),
+                    true
+                );
+                if (! $included) {
+                    $sum += (int) round(((int) $a->price_cents) / 100);
+                }
+            }
         }
-        return (int) $base;
+        return $sum;
     }
 
     protected static function booted(): void
@@ -535,33 +533,57 @@ edit(R,
                 Forms\\Components\\Select::make('stage')
 """)
 
-# form: Quote section before Contact
+# form: Quote section before Contact — priced from plan_prices + addons table
 edit(R,
 "            Forms\\Components\\Section::make('Contact')",
 """            Forms\\Components\\Section::make('Quote')->columns(2)->collapsed()
-                ->description('Proposed subscription \u2014 tier + add-ons. Monthly total snapshots on save from config/sales_quoting.php.')
+                ->description('Proposed subscription \u2014 tier + add-ons. Priced from plan_prices and the addons table; monthly total snapshots on save.')
                 ->schema([
                     Forms\\Components\\Select::make('quote_tier')
                         ->label('Base tier')->live()->native(false)
-                        ->options(collect(config('sales_quoting.tiers', []))->map(fn ($t) => $t['label'] . ' \u2014 $' . $t['monthly'] . '/mo')->all())
+                        ->options(fn () => collect(config('intake.plan_prices', []))
+                            ->filter(fn ($cents) => (int) $cents > 0)
+                            ->map(fn ($cents, $key) => ucfirst($key) . ' \u2014 $' . number_format($cents / 100) . '/mo')
+                            ->all())
                         ->placeholder('\u2014 no quote yet \u2014'),
                     Forms\\Components\\CheckboxList::make('quote_addons')
                         ->label('Add-ons')->live()
-                        ->options(collect(config('sales_quoting.addons', []))->map(fn ($a) => $a['label'] . ' (+$' . $a['monthly'] . ')')->all()),
+                        ->options(function (\\Filament\\Forms\\Get $get) {
+                            $tier = $get('quote_tier');
+                            return \\Illuminate\\Support\\Facades\\DB::table('addons')
+                                ->where('status', 'active')
+                                ->orderBy('sort_order')
+                                ->get(['code', 'name', 'price_cents', 'included_in_plans'])
+                                ->mapWithKeys(function ($a) use ($tier) {
+                                    $included = $tier && in_array($tier, (array) json_decode($a->included_in_plans ?? '[]', true), true);
+                                    $label = $a->name . ($included
+                                        ? ' \u2014 included in tier'
+                                        : ' (+$' . number_format($a->price_cents / 100) . '/mo)');
+                                    return [$a->code => $label];
+                                })->all();
+                        }),
                     Forms\\Components\\Placeholder::make('quote_total')
                         ->label('Proposed monthly')->columnSpanFull()
                         ->content(function (\\Filament\\Forms\\Get $get) {
-                            $tiers  = config('sales_quoting.tiers', []);
-                            $addons = config('sales_quoting.addons', []);
-                            $tier   = $get('quote_tier');
-                            if (! $tier || ! isset($tiers[$tier])) {
+                            $plans = config('intake.plan_prices', []);
+                            $tier  = $get('quote_tier');
+                            if (! $tier || empty($plans[$tier])) {
                                 return '\u2014';
                             }
-                            $sum = $tiers[$tier]['monthly'];
-                            foreach ((array) $get('quote_addons') as $key) {
-                                $sum += $addons[$key]['monthly'] ?? 0;
+                            $sum = (int) round(((int) $plans[$tier]) / 100);
+                            $selected = (array) $get('quote_addons');
+                            if ($selected !== []) {
+                                $rows = \\Illuminate\\Support\\Facades\\DB::table('addons')
+                                    ->whereIn('code', $selected)
+                                    ->get(['code', 'price_cents', 'included_in_plans']);
+                                foreach ($rows as $a) {
+                                    $included = in_array($tier, (array) json_decode($a->included_in_plans ?? '[]', true), true);
+                                    if (! $included) {
+                                        $sum += (int) round(((int) $a->price_cents) / 100);
+                                    }
+                                }
                             }
-                            $rate = (float) config('sales_quoting.commission_year1', 0.25);
+                            $rate = SalesProspect::COMMISSION_YEAR1;
                             return '$' . number_format($sum) . '/mo  \u00b7  yr-1 commission @ ' . ($rate * 100) . '% \u2248 $' . number_format($sum * $rate, 2) . '/mo';
                         }),
                 ]),
