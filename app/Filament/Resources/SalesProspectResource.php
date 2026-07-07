@@ -263,7 +263,7 @@ class SalesProspectResource extends Resource
                     ->label('Business status')->options(SalesProspect::BUSINESS_STATUSES),
                 Tables\Filters\Filter::make('operational')
                     ->label('Hide closed shops')
-                    ->query(fn (Builder $q) => $q->operational())
+                    ->query(fn (Builder $query) => $query->operational()) // MARKER-SALES-QUERYPARAM
                     ->toggle(),
                 Tables\Filters\TernaryFilter::make('verified'),
                 Tables\Filters\TernaryFilter::make('tenant_id')
@@ -273,7 +273,7 @@ class SalesProspectResource extends Resource
                     ->falseLabel('Not yet tenants'),
                 Tables\Filters\Filter::make('due')
                     ->label('Action due')
-                    ->query(fn (Builder $q) => $q->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now()))
+                    ->query(fn (Builder $query) => $query->whereNotNull('next_action_on')->whereDate('next_action_on', '<=', now())) // MARKER-SALES-QUERYPARAM
                     ->toggle(),
             ])
             ->actions([

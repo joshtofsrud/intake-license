@@ -69,7 +69,7 @@ class SalesChannelResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $q) => $q->withCount('prospects'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->withCount('prospects')) // MARKER-SALES-QUERYPARAM
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()->sortable()->weight('semibold')
