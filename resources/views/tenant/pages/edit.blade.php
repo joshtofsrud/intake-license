@@ -3,7 +3,7 @@
   $pageTitle = 'Edit: ' . $page->title;
   // Marketing-aware URL helpers (preserved from v1).
   $isMarketing = $isMarketing ?? false;
-  $isBookingExtras = $isBookingExtras ?? false; {{-- MARKER-PATCH-602 --}}
+  $isBookingExtras = $isBookingExtras ?? false; // MARKER-PATCH-602
   $layoutName  = $isMarketing ? 'layouts.admin.page-editor' : 'layouts.tenant.app';
   $backUrl     = $isBookingExtras
       ? route('tenant.booking-editor.index')
@@ -3689,4 +3689,3 @@
 })();
 </script>
 @endpush
-
