@@ -95,10 +95,13 @@ class BookingFormData
             'step4_sub'      => $s['booking_step4_sub'] ?? 'Confirm everything looks good.',
         ];
 
+        // MARKER-PATCH-601 — marketing sections rendered above/below the form.
+        $bookingSections = is_array($s['booking_sections'] ?? null) ? $s['booking_sections'] : [];
+
         return compact(
             'catalog', 'formSections', 'receivingMethods',
             'stripeEnabled', 'paypalEnabled', 'stripePublishableKey', 'paypalClientId',
-            'bookingMode', 'resources', 'bk'
+            'bookingMode', 'resources', 'bk', 'bookingSections'
         );
     }
 }
