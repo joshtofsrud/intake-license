@@ -287,14 +287,6 @@
     @endforeach
   </div>
 
-    <div class="bke-section-divider"></div>
-    <div class="bke-col-label">Marketing Sections</div>
-    {{-- MARKER-PATCH-602 — opens the real page editor on the hidden booking-extras page --}}
-    <p class="bke-help" style="margin:-4px 0 12px">Add promo content (hero, CTA, feature grid, HTML) above or below the booking form. Edited with the full section builder.</p>
-    <a href="{{ route('tenant.pages.edit', $extrasPageId) }}" class="bke-btn bke-btn-primary" style="display:inline-flex;align-items:center;gap:7px;text-decoration:none">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Edit marketing sections
-    </a>
 
   </div>
 
@@ -449,4 +441,3 @@ function showBkeStatus(msg) {
 
 </script>
 @endpush
-
