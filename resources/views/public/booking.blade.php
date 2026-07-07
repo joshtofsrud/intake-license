@@ -1,78 +1,8 @@
-@php
-  $bk = $bk ?? [];
-  $bkTheme = $bk['theme'] ?? 'light';
-  $isDark = $bkTheme === 'dark';
-  $bkAccent = ($bk['accent'] ?? null) ?: ($currentTenant->accent_color ?? '#BEF264');
-  $bkText = $isDark
-    ? (($bk['body_text'] ?? null) ?: '#f0f0f0')
-    : (($bk['body_text'] ?? null) ?: ($currentTenant->text_color ?? '#111111'));
-  $bkBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
-  $bkTint = $isDark
-    ? (($bk['bg_tint'] ?? null) ?: '#1a1a1a')
-    : (($bk['bg_tint'] ?? null) ?: '#FFFFFF');
-  $bkOpacity = ($bk['bg_opacity'] ?? 100) / 100;
-  $bkProgressBg = ($bk['progress_bg'] ?? null) ?: ($isDark ? '#333333' : '#ABA6A6');
-  $bkProgressText = ($bk['progress_text'] ?? null) ?: ($isDark ? '#f0f0f0' : '#000000');
-  $stepLabels = [
-    $bk['step1_label'] ?? 'Services',
-    $bk['step2_label'] ?? 'Schedule',
-    $bk['step3_label'] ?? 'Details',
-    $bk['step4_label'] ?? 'Review',
-  ];
-  // MARKER-PATCH-214 — multi-asset pre-flow shows only in drop-off mode when enabled
-  $multiAsset = (bool) ($currentTenant->multi_asset_enabled ?? false) && (($bookingMode ?? 'drop_off') === 'drop_off');
-  $assetSingular = $currentTenant->asset_label_singular ?: 'item'; // MARKER-PATCH-215
-  $assetPlural   = $currentTenant->asset_label_plural ?: 'items';
-  $bookingBg = $isDark ? '#111111' : ($currentTenant->bg_color ?? '#ffffff');
-  $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $bookingBg);
+@extends('public._booking-shell')
+@php $pageTitle = 'Book online'; $showBackLink = true; @endphp
 
-  // Booking-page logo height. Clamp defensively to the validated range.
-  $bookingLogoHeight = (int) ($currentTenant->logo_size_booking ?? 28);
-  $bookingLogoHeight = max(16, min(120, $bookingLogoHeight));
-@endphp
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
-  @include('public._funnel_tracker')
-  <title>Book online — {{ $currentTenant->name }}</title>
-  @if($currentTenant->favicon_url)<link rel="icon" href="{{ $currentTenant->favicon_url }}">@endif
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --p-accent:      {{ $bkAccent }};
-      --p-accent-text: {{ \App\Support\ColorHelper::accentTextColor($bkAccent) }};
-      --p-text:        {{ $bkText }};
-      --p-bg:          {{ $bkBg }};
-      --p-font-heading:'{{ $currentTenant->font_heading ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-font-body:   '{{ $currentTenant->font_body ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-r: 8px; --p-r-lg: 12px; --p-max: 1100px;
-      --p-gutter: clamp(16px, 4vw, 48px);
-      --bk-progress-bg: {{ $bkProgressBg }};
-      --bk-progress-text: {{ $bkProgressText }};
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: var(--p-font-body);
-      background: var(--p-bg);
-      color: var(--p-text);
-      -webkit-font-smoothing: antialiased;
-    }
-    @if($bkOpacity < 1)
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: {{ $bkTint }};
-      opacity: {{ $bkOpacity }};
-      z-index: -1;
-      pointer-events: none;
-    }
-    @endif
+@push('styles')
+<style>
     @if($isDark)
     .bk-top-bar { border-bottom-color: rgba(255,255,255,.08) !important; }
     .bk-item-card, .bk-review-card { border-color: rgba(255,255,255,.1) !important; }
@@ -87,14 +17,7 @@
     .bk-service-addon:hover { background: rgba(255,255,255,.05) !important; }
     #bk-stripe-elements { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 13px 14px; }
     @endif
-    a { color: inherit; text-decoration: none; }
-    button { font-family: inherit; }
-    .bk-top-bar { border-bottom: 1px solid rgba(0,0,0,.08); padding: 14px var(--p-gutter); display: flex; align-items: center; justify-content: space-between; max-width: var(--p-max); margin: 0 auto; }
-    .bk-top-logo { font-family: var(--p-font-heading); font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .bk-top-logo img { height: {{ $bookingLogoHeight }}px; width: auto; border-radius: 4px; }
-    .bk-top-back { font-size: 13px; opacity: .5; transition: opacity .12s; }
-    .bk-top-back:hover { opacity: 1; }
-  </style>
+</style>
   <link rel="stylesheet" href="{{ asset('css/booking.css') }}?v={{ filemtime(public_path('css/booking.css')) }}">
 <style>
 .bk-service-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
@@ -122,23 +45,9 @@
 .bk-service-row.is-selected .bk-service-add-btn{background:var(--p-accent,#BEF264);border-color:var(--p-accent,#BEF264);color:#0a0a0a}
 @media (max-width:600px){.bk-service-row{flex-direction:column}.bk-service-actions{width:100%}.bk-service-add-btn{width:100%}}
 </style>
-</head>
-<body>
-@if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
+@endpush
 
-@if(($bk['show_logo'] ?? '1') === '1') {{-- MARKER-PATCH-591 --}}
-<div class="bk-top-bar">
-  <div class="bk-top-logo">
-    @if($logoUrl)
-      <img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">
-    @else
-      {{ $currentTenant->name }}
-    @endif
-  </div>
-  <a href="/" class="bk-top-back">← Back to site</a>
-</div>
-@endif {{-- MARKER-PATCH-591 --}}
-
+@section('content')
 <div class="bk-progress" id="bk-progress">
   @if($multiAsset)
     <div class="bk-step bk-step--pre active" data-pre="intro"><div class="bk-step-dot">1</div><span class="bk-step-label">You</span></div>
@@ -154,6 +63,7 @@
     @if(!$loop->last)<div class="bk-step-line"></div>@endif
   @endforeach
 </div>
+
 
 <div class="bk-body">
 
@@ -499,6 +409,9 @@
 
 </div>{{-- /.bk-body --}}
 
+@endsection
+
+@push('scripts')
 <script>
 window.BkData = {
   csrf:           '{{ csrf_token() }}',
@@ -522,6 +435,4 @@ window.BkData = {
 @if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
 @if($paypalEnabled)<script src="https://www.paypal.com/sdk/js?client-id={{ $paypalClientId }}&currency={{ strtoupper($currentTenant->currency ?? 'USD') }}"></script>@endif
 <script src="{{ asset('js/booking.js') }}?v={{ filemtime(public_path('js/booking.js')) }}"></script>
-@if(($bk['show_footer'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'bottom', 'hideBookingCta' => ($bk['hide_cta'] ?? false)])@endif {{-- MARKER-PATCH-590 --}}
-</body>
-</html>
+@endpush
