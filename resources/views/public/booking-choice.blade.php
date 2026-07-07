@@ -68,11 +68,13 @@
 <body>
 @if(($bk['show_nav'] ?? '1') === '1')@include('public._chrome-inline', ['chromePos' => 'top'])@endif {{-- MARKER-PATCH-589 --}}
   <div class="wrap">
+@if(($bk['show_logo'] ?? '1') === '1') {{-- MARKER-PATCH-593 --}}
     <div class="bk-head">
       <div class="bk-logo">
         @if($logoUrl)<img src="{{ $logoUrl }}" alt="{{ $currentTenant->name }}">@else<span class="name">{{ $currentTenant->name }}</span>@endif
       </div>
     </div>
+@endif {{-- MARKER-PATCH-593 --}}
 
     <div class="fork-intro">
       <h1>How would you like to book?</h1>
