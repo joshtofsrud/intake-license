@@ -586,7 +586,11 @@ class PageBuilderController extends Controller
 
         $brandKit = $this->brandKitFor($tenant);
 
-        return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes', 'availablePages', 'brandKit'));
+        // MARKER-PATCH-602 — editing the hidden booking-extras page filters the
+        // section gallery to marketing types and returns to the booking editor.
+        $isBookingExtras = ($page->slug === '__booking_extras');
+
+        return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes', 'availablePages', 'brandKit', 'isBookingExtras'));
     }
 
     /**
@@ -721,6 +725,8 @@ class PageBuilderController extends Controller
                 // to populate its category filter. Other types pass through
                 // with no extras (keeps the contract minimal).
                 $extras = [];
+                // MARKER-PATCH-602 — booking-extras context enables the slot picker.
+                $extras['isBookingExtras'] = ($page->slug === '__booking_extras');
                 // MARKER-PATCH-239 — rentals showcase editor needs the
                 // rental categories for its filter select.
                 // MARKER-PATCH-576 — products showcase editor needs the
@@ -1009,3 +1015,4 @@ class PageBuilderController extends Controller
         return self::DEFAULTS;
     }
 }
+

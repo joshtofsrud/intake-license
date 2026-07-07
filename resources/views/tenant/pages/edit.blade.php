@@ -3,10 +3,11 @@
   $pageTitle = 'Edit: ' . $page->title;
   // Marketing-aware URL helpers (preserved from v1).
   $isMarketing = $isMarketing ?? false;
+  $isBookingExtras = $isBookingExtras ?? false; {{-- MARKER-PATCH-602 --}}
   $layoutName  = $isMarketing ? 'layouts.admin.page-editor' : 'layouts.tenant.app';
-  $backUrl     = $isMarketing
-      ? url('/admin/marketing-pages')
-      : route('tenant.pages.index');
+  $backUrl     = $isBookingExtras
+      ? route('tenant.booking-editor.index')
+      : ($isMarketing ? url('/admin/marketing-pages') : route('tenant.pages.index'));
   $previewUrl  = $isMarketing
       ? 'https://' . config('intake.domain', 'intake.works') . '/' . ($page->is_home ? '' : $page->slug)
       : tenant_url($page->is_home ? '' : $page->slug);
@@ -1748,9 +1749,11 @@
                each option shown as a card with icon + label + one-line desc.
                Marketing context shows different types than tenant context. --}}
           @php
-            $allowed = $isMarketing
+            $allowed = $isBookingExtras
+              ? ['hero','cta_banner','feature_grid','custom_html'] // MARKER-PATCH-602
+              : ($isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','custom_html']
-              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','products_showcase','custom_html'];
+              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','products_showcase','custom_html']);
           @endphp
 
           <div class="pb2-gallery">
@@ -1827,7 +1830,7 @@
                click path; legacy _section is the fallback for un-migrated types. --}}
           @php $firstPerType = 'tenant.pages.sections._' . $firstSection->section_type; @endphp
           @if(view()->exists($firstPerType))
-            @include($firstPerType, ['section' => $firstSection, 'c' => $firstSection->content ?? [], 'navItems' => $navItems ?? collect(), 'availablePages' => $availablePages ?? collect()])
+            @include($firstPerType, ['section' => $firstSection, 'c' => $firstSection->content ?? [], 'navItems' => $navItems ?? collect(), 'availablePages' => $availablePages ?? collect(), 'isBookingExtras' => $isBookingExtras ?? false])
           @else
             @include('tenant.pages._section', ['section' => $firstSection])
           @endif
@@ -3686,3 +3689,4 @@
 })();
 </script>
 @endpush
+

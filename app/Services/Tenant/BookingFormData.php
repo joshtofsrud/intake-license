@@ -95,8 +95,9 @@ class BookingFormData
             'step4_sub'      => $s['booking_step4_sub'] ?? 'Confirm everything looks good.',
         ];
 
-        // MARKER-PATCH-601 — marketing sections rendered above/below the form.
-        $bookingSections = is_array($s['booking_sections'] ?? null) ? $s['booking_sections'] : [];
+        // MARKER-PATCH-602 — marketing sections are real TenantPageSection rows on
+        // the tenant's hidden "__booking_extras" page (edited via the page editor).
+        $bookingSections = self::extrasSections($tenant);
 
         return compact(
             'catalog', 'formSections', 'receivingMethods',
@@ -104,4 +105,24 @@ class BookingFormData
             'bookingMode', 'resources', 'bk', 'bookingSections'
         );
     }
+
+    /**
+     * MARKER-PATCH-602 — the hidden page that holds booking marketing sections.
+     * Unpublished + not in nav, so it 404s if visited directly but its sections
+     * render in the booking shell's before/after slots. Created lazily.
+     */
+    public static function extrasPage($tenant)
+    {
+        return \App\Models\Tenant\TenantPage::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'slug' => '__booking_extras'],
+            ['title' => 'Booking extras', 'is_home' => false, 'is_published' => false, 'is_in_nav' => false, 'nav_order' => 0]
+        );
+    }
+
+    /** Visible marketing sections for the booking page, ordered. */
+    public static function extrasSections($tenant)
+    {
+        return self::extrasPage($tenant)->sections()->orderBy('sort_order')->get();
+    }
 }
+

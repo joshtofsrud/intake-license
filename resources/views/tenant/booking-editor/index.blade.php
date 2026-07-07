@@ -49,31 +49,6 @@
 .bke-range-row input[type="range"] { flex: 1; }
 .bke-range-val { font-size: 12px; opacity: .5; min-width: 36px; text-align: right; }
 .bke-section-divider { border-top: 0.5px solid var(--ia-border); margin: 18px 0; }
-/* MARKER-PATCH-601 — marketing sections manager */
-.bx-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
-.bx-item { border: 1px solid var(--ia-border); border-radius: 10px; background: var(--ia-surface, #fff); overflow: hidden; }
-.bx-item-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--ia-surface-2, #f7f7f8); cursor: pointer; }
-.bx-item-type { font-weight: 600; font-size: 12.5px; text-transform: capitalize; }
-.bx-item-pos { font-size: 11px; opacity: .55; }
-.bx-item-actions { margin-left: auto; display: flex; gap: 6px; }
-.bx-mini { border: 1px solid var(--ia-border); background: transparent; border-radius: 6px; width: 26px; height: 26px; cursor: pointer; font-size: 13px; line-height: 1; color: inherit; }
-.bx-mini:hover { background: var(--ia-surface-2, #eee); }
-.bx-mini-danger:hover { background: #fdecec; border-color: #f5b5b5; }
-.bx-item-body { padding: 12px; display: none; flex-direction: column; gap: 10px; }
-.bx-item.open .bx-item-body { display: flex; }
-.bx-field { display: flex; flex-direction: column; gap: 4px; }
-.bx-field label { font-size: 11px; font-weight: 600; opacity: .6; }
-.bx-field input[type=text], .bx-field input[type=url], .bx-field textarea, .bx-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--ia-border); border-radius: 7px; font-size: 13px; background: var(--ia-surface, #fff); color: inherit; }
-.bx-field textarea { min-height: 64px; resize: vertical; font-family: inherit; }
-.bx-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.bx-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-.bx-color { display: flex; align-items: center; gap: 6px; }
-.bx-color input[type=color] { width: 34px; height: 30px; border: 1px solid var(--ia-border); border-radius: 6px; padding: 0; background: none; cursor: pointer; }
-.bx-img-tile { display: flex; align-items: center; gap: 10px; }
-.bx-img-thumb { width: 54px; height: 40px; border-radius: 6px; background-size: cover; background-position: center; border: 1px solid var(--ia-border); flex: none; }
-.bx-add-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.bx-feat { border: 1px dashed var(--ia-border); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-.bx-feat-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; opacity: .55; }
 
 .bke-status { position: fixed; bottom: 20px; right: 20px; padding: 8px 16px; border-radius: 8px; font-size: 13px; background: #0a0a0a; color: #BEF264; z-index: 9999; opacity: 0; transition: opacity .3s; pointer-events: none; }
 
@@ -312,25 +287,15 @@
     @endforeach
   </div>
 
-  <div class="bke-section-divider"></div>
+    <div class="bke-section-divider"></div>
+    <div class="bke-col-label">Marketing Sections</div>
+    {{-- MARKER-PATCH-602 — opens the real page editor on the hidden booking-extras page --}}
+    <p class="bke-help" style="margin:-4px 0 12px">Add promo content (hero, CTA, feature grid, HTML) above or below the booking form. Edited with the full section builder.</p>
+    <a href="{{ route('tenant.pages.edit', $extrasPageId) }}" class="bke-btn bke-btn-primary" style="display:inline-flex;align-items:center;gap:7px;text-decoration:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Edit marketing sections
+    </a>
 
-  {{-- MARKER-PATCH-601 — marketing sections manager --}}
-  <div class="bke-block" id="bx-manager">
-    <div class="bke-block-head">
-      <div>
-        <div class="bke-block-title">Marketing sections</div>
-        <div class="bke-block-sub">Add promo content above or below the booking form. Same look as your booking page.</div>
-      </div>
-    </div>
-
-    <div id="bx-list" class="bx-list"></div>
-
-    <div class="bx-add-row">
-      <button type="button" class="bke-btn" data-bx-add="hero">+ Hero</button>
-      <button type="button" class="bke-btn" data-bx-add="cta">+ CTA</button>
-      <button type="button" class="bke-btn" data-bx-add="feature_grid">+ Feature grid</button>
-      <button type="button" class="bke-btn" data-bx-add="custom_html">+ Custom HTML</button>
-    </div>
   </div>
 
 </div>
@@ -444,8 +409,6 @@ function saveBookingSettings() {
       el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value);
   });
 
-  // MARKER-PATCH-601 — marketing sections serialize to a single JSON field
-  try { fd.append('booking_sections', JSON.stringify(BXSections.serialize())); } catch (e) {}
 
   fetch(storeUrl, {
     method: 'POST', body: fd,
@@ -482,246 +445,8 @@ function showBkeStatus(msg) {
   el._t = setTimeout(function() { el.style.opacity = 0; }, 2000);
 }
 
-// ============================================================
-// MARKER-PATCH-601 — Marketing sections manager (BXSections)
-// ============================================================
-var BXSections = (function () {
-  var UPLOAD_URL = @json(url('/admin/uploads'));
-  var initial = @json($bookingSections ?? []);
-  var state = Array.isArray(initial) ? initial.slice() : [];
-  var listEl;
 
-  function uid() { return 'bx_' + Math.random().toString(36).slice(2, 10); }
-
-  var TYPE_LABEL = { hero: 'Hero', cta: 'CTA', feature_grid: 'Feature grid', custom_html: 'Custom HTML' };
-
-  function blank(type) {
-    var base = { id: uid(), type: type, position: 'before', bg_color: '', bg_image_url: '', text_color: '', align: 'center', pad_top: 56, pad_bottom: 56 };
-    if (type === 'custom_html') { base.html = ''; }
-    else if (type === 'feature_grid') { base.headline = ''; base.subtext = ''; base.features = []; }
-    else { base.eyebrow = ''; base.headline = ''; base.subtext = ''; base.btn_label = ''; base.btn_url = ''; base.btn2_label = ''; base.btn2_url = ''; }
-    return base;
-  }
-
-  function esc(v) { return (v == null ? '' : String(v)).replace(/"/g, '&quot;'); }
-
-  function commonFields(s) {
-    return ''
-      + '<div class="bx-field"><label>Placement</label><select data-bx="position">'
-      +   '<option value="before"' + (s.position === 'before' ? ' selected' : '') + '>Above the form</option>'
-      +   '<option value="after"'  + (s.position === 'after'  ? ' selected' : '') + '>Below the form</option>'
-      + '</select></div>'
-      + '<div class="bx-row3">'
-      +   '<div class="bx-field"><label>Background</label><div class="bx-color"><input type="color" data-bx="bg_color" value="' + (s.bg_color || '#ffffff') + '"><input type="text" data-bx="bg_color" value="' + esc(s.bg_color) + '" placeholder="#RRGGBB"></div></div>'
-      +   '<div class="bx-field"><label>Text color</label><div class="bx-color"><input type="color" data-bx="text_color" value="' + (s.text_color || '#111111') + '"><input type="text" data-bx="text_color" value="' + esc(s.text_color) + '" placeholder="#RRGGBB"></div></div>'
-      +   '<div class="bx-field"><label>Align</label><select data-bx="align">'
-      +     ['left','center','right'].map(function(a){ return '<option value="'+a+'"'+(s.align===a?' selected':'')+'>'+a+'</option>'; }).join('')
-      +   '</select></div>'
-      + '</div>'
-      + '<div class="bx-field"><label>Background image</label>' + imgTile(s) + '</div>'
-      + '<div class="bx-row2">'
-      +   '<div class="bx-field"><label>Padding top (px)</label><input type="text" data-bx="pad_top" value="' + esc(s.pad_top) + '"></div>'
-      +   '<div class="bx-field"><label>Padding bottom (px)</label><input type="text" data-bx="pad_bottom" value="' + esc(s.pad_bottom) + '"></div>'
-      + '</div>';
-  }
-
-  function imgTile(s) {
-    if (s.bg_image_url) {
-      return '<div class="bx-img-tile">'
-        + '<div class="bx-img-thumb" style="background-image:url(\'' + esc(s.bg_image_url) + '\')"></div>'
-        + '<button type="button" class="bke-btn" data-bx-upload>Replace</button>'
-        + '<button type="button" class="bke-btn" data-bx-imgclear>Remove</button>'
-        + '<input type="hidden" data-bx="bg_image_url" value="' + esc(s.bg_image_url) + '"></div>';
-    }
-    return '<div class="bx-img-tile">'
-      + '<button type="button" class="bke-btn" data-bx-upload>Upload image</button>'
-      + '<input type="hidden" data-bx="bg_image_url" value=""></div>';
-  }
-
-  function typeFields(s) {
-    if (s.type === 'custom_html') {
-      return '<div class="bx-field"><label>HTML</label><textarea data-bx="html" style="min-height:120px;font-family:monospace">' + (s.html || '') + '</textarea></div>';
-    }
-    if (s.type === 'feature_grid') {
-      return '<div class="bx-field"><label>Heading</label><input type="text" data-bx="headline" value="' + esc(s.headline) + '"></div>'
-        + '<div class="bx-field"><label>Subtext</label><textarea data-bx="subtext">' + (s.subtext || '') + '</textarea></div>'
-        + '<div class="bx-field"><label>Features</label><div data-bx-feats></div>'
-        + '<button type="button" class="bke-btn" data-bx-featadd>+ Feature</button></div>';
-    }
-    // hero | cta
-    return '<div class="bx-field"><label>Eyebrow</label><input type="text" data-bx="eyebrow" value="' + esc(s.eyebrow) + '"></div>'
-      + '<div class="bx-field"><label>Headline</label><input type="text" data-bx="headline" value="' + esc(s.headline) + '"></div>'
-      + '<div class="bx-field"><label>Subtext</label><textarea data-bx="subtext">' + (s.subtext || '') + '</textarea></div>'
-      + '<div class="bx-row2">'
-      +   '<div class="bx-field"><label>Button label</label><input type="text" data-bx="btn_label" value="' + esc(s.btn_label) + '"></div>'
-      +   '<div class="bx-field"><label>Button URL</label><input type="text" data-bx="btn_url" value="' + esc(s.btn_url) + '"></div>'
-      + '</div>'
-      + '<div class="bx-row2">'
-      +   '<div class="bx-field"><label>2nd button label</label><input type="text" data-bx="btn2_label" value="' + esc(s.btn2_label) + '"></div>'
-      +   '<div class="bx-field"><label>2nd button URL</label><input type="text" data-bx="btn2_url" value="' + esc(s.btn2_url) + '"></div>'
-      + '</div>';
-  }
-
-  function featRow(f) {
-    f = f || { icon: '', title: '', text: '' };
-    return '<div class="bx-feat">'
-      + '<div class="bx-feat-head"><span>Feature</span><button type="button" class="bx-mini bx-mini-danger" data-bx-featdel>×</button></div>'
-      + '<div class="bx-row3">'
-      +   '<div class="bx-field"><label>Icon</label><input type="text" data-bxf="icon" value="' + esc(f.icon) + '" placeholder="emoji"></div>'
-      +   '<div class="bx-field" style="grid-column:span 2"><label>Title</label><input type="text" data-bxf="title" value="' + esc(f.title) + '"></div>'
-      + '</div>'
-      + '<div class="bx-field"><label>Text</label><textarea data-bxf="text">' + (f.text || '') + '</textarea></div>'
-      + '</div>';
-  }
-
-  function render() {
-    listEl.innerHTML = '';
-    state.forEach(function (s, idx) {
-      var item = document.createElement('div');
-      item.className = 'bx-item';
-      item.dataset.idx = idx;
-      item.innerHTML =
-        '<div class="bx-item-head" data-bx-toggle>'
-        + '<span class="bx-item-type">' + (TYPE_LABEL[s.type] || s.type) + '</span>'
-        + '<span class="bx-item-pos">' + (s.position === 'after' ? 'below form' : 'above form') + '</span>'
-        + '<span class="bx-item-actions">'
-        +   '<button type="button" class="bx-mini" data-bx-up>↑</button>'
-        +   '<button type="button" class="bx-mini" data-bx-down>↓</button>'
-        +   '<button type="button" class="bx-mini bx-mini-danger" data-bx-del>×</button>'
-        + '</span></div>'
-        + '<div class="bx-item-body">' + typeFields(s) + commonFields(s) + '</div>';
-      listEl.appendChild(item);
-      // populate feature rows
-      if (s.type === 'feature_grid') {
-        var host = item.querySelector('[data-bx-feats]');
-        (s.features || []).forEach(function (f) { host.insertAdjacentHTML('beforeend', featRow(f)); });
-      }
-      wireItem(item, idx);
-    });
-  }
-
-  function pull(idx) {
-    // read DOM back into state[idx]
-    var item = listEl.querySelector('.bx-item[data-idx="' + idx + '"]');
-    if (!item) return;
-    var s = state[idx];
-    item.querySelectorAll('[data-bx]').forEach(function (el) {
-      var k = el.getAttribute('data-bx');
-      // color has two inputs sharing data-bx; take the last non-empty text one
-      s[k] = el.value;
-    });
-    if (s.type === 'feature_grid') {
-      s.features = [];
-      item.querySelectorAll('.bx-feat').forEach(function (fr) {
-        var f = {};
-        fr.querySelectorAll('[data-bxf]').forEach(function (el) { f[el.getAttribute('data-bxf')] = el.value; });
-        s.features.push(f);
-      });
-    }
-  }
-
-  function pullAll() { state.forEach(function (_, i) { pull(i); }); }
-
-  function wireItem(item, idx) {
-    item.querySelector('[data-bx-toggle]').addEventListener('click', function (e) {
-      if (e.target.closest('.bx-item-actions')) return;
-      item.classList.toggle('open');
-    });
-    item.querySelector('[data-bx-del]').addEventListener('click', function () {
-      pullAll(); state.splice(idx, 1); render(); triggerSave();
-    });
-    item.querySelector('[data-bx-up]').addEventListener('click', function () {
-      if (idx === 0) return; pullAll();
-      var t = state[idx - 1]; state[idx - 1] = state[idx]; state[idx] = t; render(); triggerSave();
-    });
-    item.querySelector('[data-bx-down]').addEventListener('click', function () {
-      if (idx === state.length - 1) return; pullAll();
-      var t = state[idx + 1]; state[idx + 1] = state[idx]; state[idx] = t; render(); triggerSave();
-    });
-    // live save on edits
-    item.querySelectorAll('[data-bx],[data-bxf]').forEach(function (el) {
-      el.addEventListener('change', function () { pull(idx); triggerSave(); });
-      // keep the two color inputs in sync
-      if (el.type === 'color') {
-        el.addEventListener('input', function () {
-          var partner = item.querySelector('input[type=text][data-bx="' + el.getAttribute('data-bx') + '"]');
-          if (partner) partner.value = el.value;
-        });
-      }
-    });
-    // pos change updates the little label immediately
-    var posSel = item.querySelector('[data-bx="position"]');
-    if (posSel) posSel.addEventListener('change', function () { pull(idx); render(); });
-    // uploader
-    var upBtn = item.querySelector('[data-bx-upload]');
-    if (upBtn) upBtn.addEventListener('click', function () { uploadFor(item, idx); });
-    var clr = item.querySelector('[data-bx-imgclear]');
-    if (clr) clr.addEventListener('click', function () { state[idx].bg_image_url = ''; render(); triggerSave(); });
-    // feature add/del
-    var fAdd = item.querySelector('[data-bx-featadd]');
-    if (fAdd) fAdd.addEventListener('click', function () {
-      item.querySelector('[data-bx-feats]').insertAdjacentHTML('beforeend', featRow());
-      wireFeatDels(item, idx);
-      pull(idx); triggerSave();
-    });
-    wireFeatDels(item, idx);
-  }
-
-  function wireFeatDels(item, idx) {
-    item.querySelectorAll('[data-bx-featdel]').forEach(function (b) {
-      if (b.dataset.wired) return; b.dataset.wired = '1';
-      b.addEventListener('click', function () { b.closest('.bx-feat').remove(); pull(idx); triggerSave(); });
-    });
-  }
-
-  function uploadFor(item, idx) {
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
-    input.style.display = 'none';
-    document.body.appendChild(input);
-    input.addEventListener('change', function () {
-      var file = input.files && input.files[0];
-      input.remove();
-      if (!file) return;
-      var fd = new FormData();
-      fd.append('_token', csrf);
-      fd.append('file', file);
-      fd.append('type', 'hero');
-      fetch(UPLOAD_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (d && d.ok && d.url) { state[idx].bg_image_url = d.url; render(); triggerSave(); }
-          else showBkeStatus('Upload failed');
-        })
-        .catch(function () { showBkeStatus('Upload failed'); });
-    });
-    input.click();
-  }
-
-  function triggerSave() { if (typeof autoSave === 'function') autoSave(); else if (typeof saveBookingSettings === 'function') saveBookingSettings(); }
-
-  function serialize() { pullAll(); return state; }
-
-  function init() {
-    listEl = document.getElementById('bx-list');
-    if (!listEl) return;
-    render();
-    document.querySelectorAll('[data-bx-add]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        pullAll(); state.push(blank(b.getAttribute('data-bx-add')));
-        render();
-        // open the newly added one
-        var last = listEl.querySelector('.bx-item[data-idx="' + (state.length - 1) + '"]');
-        if (last) last.classList.add('open');
-        triggerSave();
-      });
-    });
-  }
-
-  return { init: init, serialize: serialize };
-})();
-document.addEventListener('DOMContentLoaded', BXSections.init);
 
 </script>
 @endpush
+

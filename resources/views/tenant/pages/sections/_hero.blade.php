@@ -42,6 +42,8 @@
     CONTENT TAB
 ==================================================================--}}
 <div class="pb2-tab-panel" data-tab="content">
+@include('tenant.pages.sections._booking_slot_field') {{-- MARKER-PATCH-602 --}}
+
 
   <div class="pb2-group">
     <div class="pb2-group-title">Text</div>
@@ -424,3 +426,4 @@
   </div>
 
 </div>
+
