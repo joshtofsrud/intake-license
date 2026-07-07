@@ -95,9 +95,9 @@ class BookingFormData
             'step4_sub'      => $s['booking_step4_sub'] ?? 'Confirm everything looks good.',
         ];
 
-        // MARKER-PATCH-602 — marketing sections are real TenantPageSection rows on
-        // the tenant's hidden "__booking_extras" page (edited via the page editor).
-        $bookingSections = self::extrasSections($tenant);
+        // MARKER-PATCH-603 — marketing sections live on the real Booking page,
+        // split around the booking_embed pivot by drag order.
+        $bookingSections = self::bookingPageSections($tenant);
 
         return compact(
             'catalog', 'formSections', 'receivingMethods',
@@ -107,22 +107,48 @@ class BookingFormData
     }
 
     /**
-     * MARKER-PATCH-602 — the hidden page that holds booking marketing sections.
-     * Unpublished + not in nav, so it 404s if visited directly but its sections
-     * render in the booking shell's before/after slots. Created lazily.
+     * MARKER-PATCH-603 — the Booking page: a real page in the builder (slug
+     * "book") holding marketing sections around a booking_embed pivot. The
+     * public /book route renders pre-pivot sections, the live form, then
+     * post-pivot sections. Created lazily with the pivot seeded.
      */
-    public static function extrasPage($tenant)
+    public static function bookingPage($tenant)
     {
-        return \App\Models\Tenant\TenantPage::firstOrCreate(
-            ['tenant_id' => $tenant->id, 'slug' => '__booking_extras'],
-            ['title' => 'Booking extras', 'is_home' => false, 'is_published' => false, 'is_in_nav' => false, 'nav_order' => 0]
+        $page = \App\Models\Tenant\TenantPage::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'slug' => 'book'],
+            ['title' => 'Booking page', 'is_home' => false, 'is_published' => true, 'is_in_nav' => false, 'nav_order' => 99]
         );
+
+        // Seed the pivot once so the builder always shows where the form sits.
+        $hasPivot = $page->sections()->where('section_type', 'booking_embed')->exists();
+        if (! $hasPivot) {
+            $page->sections()->create([
+                'tenant_id'    => $tenant->id,
+                'section_type' => 'booking_embed',
+                'content'      => ['heading' => 'Book online', 'is_pivot' => true],
+                'is_visible'   => true,
+                'sort_order'   => 50,
+            ]);
+        }
+
+        return $page;
     }
 
-    /** Visible marketing sections for the booking page, ordered. */
-    public static function extrasSections($tenant)
+    /**
+     * Marketing sections split around the booking_embed pivot.
+     * Returns ['before' => Collection, 'after' => Collection].
+     */
+    public static function bookingPageSections($tenant): array
     {
-        return self::extrasPage($tenant)->sections()->orderBy('sort_order')->get();
+        $sections = self::bookingPage($tenant)->sections()->orderBy('sort_order')->get();
+        $pivotIdx = $sections->search(fn($s) => $s->section_type === 'booking_embed');
+        if ($pivotIdx === false) {
+            return ['before' => $sections->filter(fn($s) => $s->is_visible)->values(), 'after' => collect()];
+        }
+        return [
+            'before' => $sections->slice(0, $pivotIdx)->filter(fn($s) => $s->is_visible)->values(),
+            'after'  => $sections->slice($pivotIdx + 1)->filter(fn($s) => $s->is_visible)->values(),
+        ];
     }
 }
 

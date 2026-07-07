@@ -70,7 +70,7 @@
           <td style="text-align:right;white-space:nowrap">
             <a href="{{ route('tenant.pages.index', ['edit' => $page->id]) }}"
                class="ia-btn ia-btn--secondary ia-btn--sm">Edit</a>
-            @if(!$page->is_home)
+            @if(!$page->is_home && $page->slug !== 'book')
               <form method="POST" action="{{ route('tenant.pages.store', ['delete' => $page->id]) }}"
                 style="display:inline" data-confirm="Delete '{{ $page->title }}'?">
                 @csrf
@@ -85,3 +85,4 @@
 </div>
 
 @endsection
+

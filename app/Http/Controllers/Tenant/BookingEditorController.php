@@ -57,9 +57,25 @@ class BookingEditorController extends Controller
                 ['name' => 'Background', 'value' => tenant()->bg_color     ?: '#FFFFFF'],
               ];
 
-        // MARKER-PATCH-602 — hidden page that holds booking marketing sections;
-        // the "Edit marketing sections" button opens the real page editor on it.
-        $extrasPageId = \App\Services\Tenant\BookingFormData::extrasPage($tenant)->id;
+        // MARKER-PATCH-603 — the Booking page (a real builder page, slug "book");
+        // the "Edit marketing sections" button opens it in the page builder.
+        $extrasPageId = \App\Services\Tenant\BookingFormData::bookingPage($tenant)->id;
+
+        // One-time migration: fold any sections from the old hidden __booking_extras
+        // page (patch-602 interim) onto the Booking page, then remove it.
+        $legacy = \App\Models\Tenant\TenantPage::where('tenant_id', $tenant->id)
+            ->where('slug', '__booking_extras')->first();
+        if ($legacy) {
+            $pivotSort = 50;
+            foreach ($legacy->sections()->orderBy('sort_order')->get() as $ls) {
+                $slot = ($ls->content['booking_slot'] ?? 'before');
+                $ls->update([
+                    'page_id'    => $extrasPageId,
+                    'sort_order' => $slot === 'after' ? $pivotSort + 10 + $ls->sort_order : max(0, $pivotSort - 10 - $ls->sort_order),
+                ]);
+            }
+            $legacy->delete();
+        }
 
         return view('tenant.booking-editor.index', compact('booking', 'brandKit', 'extrasPageId'));
     }

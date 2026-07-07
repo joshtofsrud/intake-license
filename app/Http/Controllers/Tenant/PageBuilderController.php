@@ -586,9 +586,9 @@ class PageBuilderController extends Controller
 
         $brandKit = $this->brandKitFor($tenant);
 
-        // MARKER-PATCH-602 — editing the hidden booking-extras page filters the
-        // section gallery to marketing types and returns to the booking editor.
-        $isBookingExtras = ($page->slug === '__booking_extras');
+        // MARKER-PATCH-603 — the Booking page (slug "book") gets a marketing-scoped
+        // gallery; its booking_embed pivot is protected in the delete handler.
+        $isBookingExtras = ($page->slug === 'book');
 
         return view('tenant.pages.edit', compact('page', 'sections', 'navItems', 'sectionTypes', 'availablePages', 'brandKit', 'isBookingExtras'));
     }
@@ -726,7 +726,7 @@ class PageBuilderController extends Controller
                 // with no extras (keeps the contract minimal).
                 $extras = [];
                 // MARKER-PATCH-602 — booking-extras context enables the slot picker.
-                $extras['isBookingExtras'] = ($page->slug === '__booking_extras');
+                $extras['isBookingExtras'] = ($page->slug === 'book'); // MARKER-PATCH-603
                 // MARKER-PATCH-239 — rentals showcase editor needs the
                 // rental categories for its filter select.
                 // MARKER-PATCH-576 — products showcase editor needs the
@@ -835,6 +835,7 @@ class PageBuilderController extends Controller
     {
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         if ($page->is_home) return back()->with('error', 'Cannot delete the home page.');
+        if ($page->slug === 'book') return back()->with('error', 'The Booking page cannot be deleted.'); // MARKER-PATCH-603
         $page->delete();
         return redirect()->route('tenant.pages.index')->with('success', 'Page deleted.');
     }
@@ -886,6 +887,14 @@ class PageBuilderController extends Controller
 
         if ($op === 'delete') {
             $sid = $request->input('section_id');
+            // MARKER-PATCH-603 — the booking_embed pivot on the Booking page anchors
+            // the before/after split for /book; it cannot be deleted.
+            if ($page->slug === 'book') {
+                $target = TenantPageSection::where('page_id', $page->id)->where('id', $sid)->first();
+                if ($target && $target->section_type === 'booking_embed') {
+                    return response()->json(['success' => false, 'error' => 'The booking form section cannot be removed from the Booking page.'], 422);
+                }
+            }
             TenantPageSection::where('page_id', $page->id)->where('id', $sid)->delete();
             return response()->json(['success' => true]);
         }

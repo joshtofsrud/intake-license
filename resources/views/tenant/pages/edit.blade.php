@@ -1750,7 +1750,7 @@
                Marketing context shows different types than tenant context. --}}
           @php
             $allowed = $isBookingExtras
-              ? ['hero','cta_banner','feature_grid','custom_html'] // MARKER-PATCH-602
+              ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','custom_html']
               : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','products_showcase','custom_html']);
@@ -3689,3 +3689,4 @@
 })();
 </script>
 @endpush
+
