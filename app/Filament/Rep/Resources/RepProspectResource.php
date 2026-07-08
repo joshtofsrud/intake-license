@@ -85,49 +85,11 @@ class RepProspectResource extends Resource
                             ->map(fn ($cents, $key) => ucfirst($key) . ' — $' . number_format($cents / 100) . '/mo')
                             ->all())
                         ->placeholder('— no quote yet —'),
-                    Forms\Components\CheckboxList::make('quote_addons')
-                        ->label('Add-ons')->live()
-                        ->options(function (\Filament\Forms\Get $get) {
-                            $tier = $get('quote_tier');
-                            return DB::table('addons')
-                                ->where('status', 'active')
-                                ->orderBy('sort_order')
-                                ->get(['code', 'name', 'price_cents', 'included_in_plans'])
-                                ->mapWithKeys(function ($a) use ($tier) {
-                                    $included = $tier && in_array($tier, (array) json_decode($a->included_in_plans ?? '[]', true), true);
-                                    $label = $a->name . ($included
-                                        ? ' — included in tier'
-                                        : ' (+$' . number_format($a->price_cents / 100) . '/mo)');
-                                    return [$a->code => $label];
-                                })->all();
-                        }),
-                    Forms\Components\Placeholder::make('quote_total')
-                        ->label('Proposed monthly')->columnSpanFull()
-                        ->content(function (\Filament\Forms\Get $get) {
-                            $plans = config('intake.plan_prices', []);
-                            $tier  = $get('quote_tier');
-                            if (! $tier || empty($plans[$tier])) {
-                                return '—';
-                            }
-                            $sum = (int) round(((int) $plans[$tier]) / 100);
-                            $selected = (array) $get('quote_addons');
-                            if ($selected !== []) {
-                                $rows = DB::table('addons')
-                                    ->whereIn('code', $selected)
-                                    ->get(['code', 'price_cents', 'included_in_plans']);
-                                foreach ($rows as $a) {
-                                    $included = in_array($tier, (array) json_decode($a->included_in_plans ?? '[]', true), true);
-                                    if (! $included) {
-                                        $sum += (int) round(((int) $a->price_cents) / 100);
-                                    }
-                                }
-                            }
-                            $rep  = static::currentRep();
-                            $rate = $rep?->agency?->commission_year1 !== null
-                                ? (float) $rep->agency->commission_year1
-                                : SalesProspect::COMMISSION_YEAR1;
-                            return '$' . number_format($sum) . '/mo  ·  your yr-1 commission @ ' . rtrim(rtrim(number_format($rate * 100, 2), '0'), '.') . '% ≈ $' . number_format($sum * $rate, 2) . '/mo';
-                        }),
+                    Forms\Components\ViewField::make('quote_addons') // MARKER-QUOTE-GROUPED
+                        ->label('Add-ons')->columnSpanFull()->default([])
+                        ->view('filament.forms.quote-grouped-addons', [
+                            'rateLabel' => 'your yr-1 commission',
+                        ]),
                 ]),
         ]);
     }
