@@ -141,6 +141,17 @@ class StripeWebhookController extends Controller
         Log::info('[StripeWebhook] tenant marked active', [
             'tenant' => $tenant->subdomain,
         ]);
+
+        // MARKER-LEDGER-HOOK — accrue rep commission on collected revenue.
+        // Fail open (principle 15): a ledger error never breaks billing.
+        try {
+            app(\App\Services\CommissionAccrualService::class)->recordInvoicePaid($tenant, $invoice);
+        } catch (\Throwable $e) {
+            Log::warning('[StripeWebhook] commission accrual failed', [
+                'tenant' => $tenant->subdomain,
+                'error'  => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

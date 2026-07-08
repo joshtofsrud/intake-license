@@ -39,6 +39,9 @@ class RepPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
+            ->widgets([
+                \App\Filament\Rep\Widgets\RepBookWidget::class,
+            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

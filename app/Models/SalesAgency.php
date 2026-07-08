@@ -46,6 +46,11 @@ class SalesAgency extends Model
         return $this->hasMany(SalesProspect::class, 'agency_id');
     }
 
+    public function commissionEntries(): HasMany
+    {
+        return $this->hasMany(SalesCommissionEntry::class, 'agency_id');
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $a) {

@@ -61,7 +61,8 @@ class SalesAgencyResource extends Resource
                     'reps',
                     'prospects',
                     'prospects as tenants_count' => fn (Builder $builder) => $builder->whereNotNull('tenant_id'),
-                ]))
+                ])
+                ->withSum(['commissionEntries as unpaid_commission_cents' => fn (Builder $builder) => $builder->where('status', 'accrued')], 'commission_cents'))
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()->sortable()->weight('semibold')
@@ -81,6 +82,10 @@ class SalesAgencyResource extends Resource
                 Tables\Columns\TextColumn::make('tenants_count')
                     ->label('Tenants')->alignEnd()->sortable()
                     ->color('success')->weight('semibold'),
+                Tables\Columns\TextColumn::make('unpaid_commission_cents')
+                    ->label('Unpaid comm')->alignEnd()->sortable()
+                    ->formatStateUsing(fn ($state) => '$' . number_format(((int) $state) / 100, 2))
+                    ->color(fn ($state) => ((int) $state) > 0 ? 'warning' : 'gray'),
                 Tables\Columns\IconColumn::make('deal_registration')
                     ->label('Deal reg')->boolean()->toggleable(),
             ])
@@ -95,6 +100,7 @@ class SalesAgencyResource extends Resource
     {
         return [
             RelationManagers\RepsRelationManager::class,
+            RelationManagers\CommissionsRelationManager::class,
         ];
     }
 
