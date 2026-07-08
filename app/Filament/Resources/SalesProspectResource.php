@@ -109,29 +109,53 @@ class SalesProspectResource extends Resource
             ]),
 
             Forms\Components\Section::make('Quote')->columns(2)->collapsed()
-                ->description('Proposed subscription — tier + add-ons. Monthly total snapshots on save from config/sales_quoting.php.')
+                ->description('Proposed subscription — tier + add-ons. Priced from plan_prices and the addons table; monthly total snapshots on save.')
                 ->schema([
                     Forms\Components\Select::make('quote_tier')
                         ->label('Base tier')->live()->native(false)
-                        ->options(collect(config('sales_quoting.tiers', []))->map(fn ($t) => $t['label'] . ' — $' . $t['monthly'] . '/mo')->all())
+                        ->options(fn () => collect(config('intake.plan_prices', []))
+                            ->filter(fn ($cents) => (int) $cents > 0)
+                            ->map(fn ($cents, $key) => ucfirst($key) . ' — $' . number_format($cents / 100) . '/mo')
+                            ->all())
                         ->placeholder('— no quote yet —'),
                     Forms\Components\CheckboxList::make('quote_addons')
                         ->label('Add-ons')->live()
-                        ->options(collect(config('sales_quoting.addons', []))->map(fn ($a) => $a['label'] . ' (+$' . $a['monthly'] . ')')->all()),
+                        ->options(function (\Filament\Forms\Get $get) {
+                            $tier = $get('quote_tier');
+                            return \Illuminate\Support\Facades\DB::table('addons')
+                                ->where('status', 'active')
+                                ->orderBy('sort_order')
+                                ->get(['code', 'name', 'price_cents', 'included_in_plans'])
+                                ->mapWithKeys(function ($a) use ($tier) {
+                                    $included = $tier && in_array($tier, (array) json_decode($a->included_in_plans ?? '[]', true), true);
+                                    $label = $a->name . ($included
+                                        ? ' — included in tier'
+                                        : ' (+$' . number_format($a->price_cents / 100) . '/mo)');
+                                    return [$a->code => $label];
+                                })->all();
+                        }),
                     Forms\Components\Placeholder::make('quote_total')
                         ->label('Proposed monthly')->columnSpanFull()
                         ->content(function (\Filament\Forms\Get $get) {
-                            $tiers  = config('sales_quoting.tiers', []);
-                            $addons = config('sales_quoting.addons', []);
-                            $tier   = $get('quote_tier');
-                            if (! $tier || ! isset($tiers[$tier])) {
+                            $plans = config('intake.plan_prices', []);
+                            $tier  = $get('quote_tier');
+                            if (! $tier || empty($plans[$tier])) {
                                 return '—';
                             }
-                            $sum = $tiers[$tier]['monthly'];
-                            foreach ((array) $get('quote_addons') as $key) {
-                                $sum += $addons[$key]['monthly'] ?? 0;
+                            $sum = (int) round(((int) $plans[$tier]) / 100);
+                            $selected = (array) $get('quote_addons');
+                            if ($selected !== []) {
+                                $rows = \Illuminate\Support\Facades\DB::table('addons')
+                                    ->whereIn('code', $selected)
+                                    ->get(['code', 'price_cents', 'included_in_plans']);
+                                foreach ($rows as $a) {
+                                    $included = in_array($tier, (array) json_decode($a->included_in_plans ?? '[]', true), true);
+                                    if (! $included) {
+                                        $sum += (int) round(((int) $a->price_cents) / 100);
+                                    }
+                                }
                             }
-                            $rate = (float) config('sales_quoting.commission_year1', 0.25);
+                            $rate = \App\Models\SalesProspect::COMMISSION_YEAR1;
                             return '$' . number_format($sum) . '/mo  ·  yr-1 commission @ ' . ($rate * 100) . '% ≈ $' . number_format($sum * $rate, 2) . '/mo';
                         }),
                 ]),

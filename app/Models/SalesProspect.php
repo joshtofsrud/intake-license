@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A shop you might sell Intake to. Platform-level, lives next to Tenant in the
@@ -112,22 +113,44 @@ class SalesProspect extends Model
         return $this->belongsTo(SalesRep::class, 'sales_rep_id');
     }
 
-    /** Quote = tier base + add-ons, priced from config/sales_quoting.php. */
+    // MARKER-QUOTE-REALPRICING — priced from the platform's real sources.
+    /** Reference rate; per-agency rates on sales_agencies supersede this. */
+    public const COMMISSION_YEAR1 = 0.25;
+
+    /**
+     * Quote = tier base + add-ons, in whole dollars. Tiers come from
+     * config('intake.plan_prices') (cents); add-ons from the `addons` table.
+     * An add-on whose included_in_plans covers the chosen tier prices at +$0
+     * — same rule FeatureAccessService applies.
+     */
     public function computeQuoteMonthly(): ?int
     {
         if (! $this->quote_tier) {
             return null;
         }
-        $tiers  = config('sales_quoting.tiers', []);
-        $addons = config('sales_quoting.addons', []);
-        $base   = $tiers[$this->quote_tier]['monthly'] ?? null;
-        if ($base === null) {
+        $plans = config('intake.plan_prices', []);
+        if (! isset($plans[$this->quote_tier])) {
             return null;
         }
-        foreach ((array) $this->quote_addons as $key) {
-            $base += $addons[$key]['monthly'] ?? 0;
+        $sum = (int) round(((int) $plans[$this->quote_tier]) / 100);
+
+        $selected = (array) $this->quote_addons;
+        if ($selected !== []) {
+            $rows = DB::table('addons')
+                ->whereIn('code', $selected)
+                ->get(['code', 'price_cents', 'included_in_plans']);
+            foreach ($rows as $a) {
+                $included = in_array(
+                    $this->quote_tier,
+                    (array) json_decode($a->included_in_plans ?? '[]', true),
+                    true
+                );
+                if (! $included) {
+                    $sum += (int) round(((int) $a->price_cents) / 100);
+                }
+            }
         }
-        return (int) $base;
+        return $sum;
     }
 
     protected static function booted(): void
