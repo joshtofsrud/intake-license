@@ -456,6 +456,31 @@ class DashboardDataService
             ];
         }
 
+        // MARKER-PATCH-609 — catalog attention: open pricing/MAP/MSRP flags from
+        // distributor sync. Same count as the Catalog attention page header.
+        try {
+            $catalogAttn = \App\Models\Tenant\TenantPricingAttentionFlag::query()
+                ->where('tenant_id', $this->tenant->id)
+                ->where('status', 'open')
+                ->count();
+        } catch (\Throwable $e) {
+            $catalogAttn = 0;
+        }
+
+        if ($catalogAttn > 0) {
+            $cards[] = [
+                'count' => $catalogAttn,
+                'title' => 'Catalog attention',
+                'key'   => 'catalog_attention',
+                'icon'  => '🏷️',
+                'desc'  => $catalogAttn === 1
+                    ? 'Price or MAP change from your distributor needs review'
+                    : 'Price or MAP changes from your distributor need review',
+                'tone'  => 'amber',
+                'link'  => route('tenant.distributors.attention'),
+            ];
+        }
+
         // Win-back: customers lapsed 180+ days (had a delivered appointment
         // but not in 180+ days). Delegates to CustomersReportService for the
         // same definition as the Reports → Customers tab, so the numbers
