@@ -274,9 +274,15 @@ class DeliveriesController extends Controller
         $notify = (bool) $request->input('notify', false);
         $flash  = ucfirst($data['type']) . ' scheduled.';
         if ($notify) {
-            \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
+            // MARKER-PATCH-608 — report what actually went out; disabled channel
+            // toggles or a missing email/phone previously failed silently as "notified".
+            $sent = \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
                 ->sendScheduled($delivery);
-            $flash .= ' Customer notified.';
+            if (!empty($sent)) {
+                $flash .= ' Customer notified via ' . implode(' + ', $sent) . '.';
+            } else {
+                return back()->with('error', $flash . ' But no notification was sent — check delivery notification channels in Settings and that the customer has an email or phone on file.');
+            }
         }
 
         return back()->with('success', $flash);
@@ -390,9 +396,15 @@ class DeliveriesController extends Controller
         $notify = (bool) $request->input('notify', false);
         $flash  = 'Delivery updated.';
         if ($notify) {
-            \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
+            // MARKER-PATCH-608 — report what actually went out; disabled channel
+            // toggles or a missing email/phone previously failed silently as "notified".
+            $sent = \App\Services\Tenant\TenantDeliveryNotificationService::forTenant($tenant)
                 ->sendScheduled($delivery);
-            $flash .= ' Customer notified.';
+            if (!empty($sent)) {
+                $flash .= ' Customer notified via ' . implode(' + ', $sent) . '.';
+            } else {
+                return back()->with('error', $flash . ' But no notification was sent — check delivery notification channels in Settings and that the customer has an email or phone on file.');
+            }
         }
 
         return back()->with('success', $flash);
@@ -459,3 +471,4 @@ class DeliveriesController extends Controller
         ]);
     }
 }
+

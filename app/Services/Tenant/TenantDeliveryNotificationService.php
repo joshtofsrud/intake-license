@@ -43,7 +43,7 @@ class TenantDeliveryNotificationService
      * Safe to call from a controller — catches all internal exceptions
      * so a notification failure never breaks the user-facing save flow.
      */
-    public function sendScheduled(TenantDelivery $delivery, ?array $only = null): void // MARKER-PATCH-534 — optional channel restriction
+    public function sendScheduled(TenantDelivery $delivery, ?array $only = null): array // MARKER-PATCH-608 — returns channels actually sent (was void)
     {
         $allow = fn (string $ch) => $only === null || in_array($ch, $only, true);
         $delivery->loadMissing('customer');
@@ -52,7 +52,7 @@ class TenantDeliveryNotificationService
             Log::warning('TenantDeliveryNotificationService: delivery has no customer', [
                 'delivery_id' => $delivery->id,
             ]);
-            return;
+            return []; // MARKER-PATCH-608
         }
 
         $vars = $this->buildVars($delivery);
@@ -106,6 +106,8 @@ class TenantDeliveryNotificationService
                 'notification_channels' => implode(',', $channels),
             ]);
         }
+
+        return $channels; // MARKER-PATCH-608
     }
 
     /**
@@ -240,3 +242,4 @@ class TenantDeliveryNotificationService
         return "{$shop}: Reminder \u{2014} we'll {$verb} your {$vars['asset_noun']} {$vars['when_sms']} at {$vars['address']}. Reply STOP to opt out."; // MARKER-PATCH-535
     }
 }
+
