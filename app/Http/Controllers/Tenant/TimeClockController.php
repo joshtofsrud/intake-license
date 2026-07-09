@@ -293,6 +293,172 @@ class TimeClockController extends Controller
         return back()->with('success', 'Punch added.');
     }
 
+    /**
+     * MARKER-PATCH-615 — Reports: per-person hours with regular/OT split.
+     * OT is computed PER WEEK (tenant-local) against the threshold, then summed,
+     * so a multi-week range doesn't wrongly treat 41h across two weeks as OT.
+     */
+    public function reports(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows  = $this->hoursByPerson($tenant, $from, $to);
+        $preset = $request->input('preset', 'this_month');
+
+        $totals = [
+            'regular' => array_sum(array_column($rows, 'regular')),
+            'ot'      => array_sum(array_column($rows, 'ot')),
+            'shifts'  => array_sum(array_column($rows, 'shifts')),
+        ];
+
+        return view('tenant.timeclock.reports', compact('rows', 'label', 'preset', 'totals'));
+    }
+
+    /** MARKER-PATCH-615 — CSV of the same summary. */
+    public function reportsCsv(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows = $this->hoursByPerson($tenant, $from, $to);
+
+        $out = fopen('php://temp', 'r+');
+        fputcsv($out, ['Staff', 'Regular (h)', 'Overtime (h)', 'Total (h)', 'Shifts', 'Avg shift (h)']);
+        foreach ($rows as $r) {
+            fputcsv($out, [
+                $r['name'],
+                round($r['regular'] / 60, 2),
+                round($r['ot'] / 60, 2),
+                round(($r['regular'] + $r['ot']) / 60, 2),
+                $r['shifts'],
+                $r['shifts'] ? round((($r['regular'] + $r['ot']) / $r['shifts']) / 60, 2) : 0,
+            ]);
+        }
+        rewind($out);
+        $csv = stream_get_contents($out);
+        fclose($out);
+
+        $fname = 'timesheet-' . str_replace([' ', ','], ['-', ''], strtolower($label)) . '.csv';
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $fname . '"',
+        ]);
+    }
+
+    /** MARKER-PATCH-615 — printable team report (browser print → PDF). */
+    public function reportPrint(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows = $this->hoursByPerson($tenant, $from, $to);
+
+        return view('tenant.timeclock.report-print', [
+            'tenantName' => $tenant->name,
+            'rangeLabel' => $label,
+            'rows'       => $rows,
+            'print'      => true,
+        ]);
+    }
+
+    /** MARKER-PATCH-615 — email the team report through the branded rail. */
+    public function reportEmail(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        $data = $request->validate(['to' => ['required', 'email']]);
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows = $this->hoursByPerson($tenant, $from, $to);
+
+        $html = view('tenant.timeclock.report-print', [
+            'tenantName' => $tenant->name,
+            'rangeLabel' => $label,
+            'rows'       => $rows,
+            'print'      => false,
+        ])->render();
+
+        (new \App\Services\EmailService($tenant))->sendRendered(
+            'timeclock_report', $data['to'], 'Hours report — ' . $label, $html
+        );
+
+        return back()->with('success', 'Report emailed to ' . $data['to'] . '.');
+    }
+
+    /**
+     * Per-person hours over [from,to], regular/OT split by tenant-local week.
+     * Threshold: 40h/week (WA default; becomes a setting in the approvals stage).
+     */
+    private function hoursByPerson($tenant, $fromUtc, $toUtc): array
+    {
+        $otThresholdMin = 40 * 60;
+
+        $punches = TenantTimePunch::with('user:id,name')
+            ->where('tenant_id', $tenant->id)
+            ->where('clock_in_at', '>=', $fromUtc)
+            ->where('clock_in_at', '<=', $toUtc)
+            ->get();
+
+        // person => [weekKey => minutes], plus shift count
+        $acc = [];
+        foreach ($punches as $p) {
+            $uid  = $p->tenant_user_id;
+            $name = $p->user->name ?? 'Staff';
+            $weekKey = tlocal_carbon($p->clock_in_at)->startOfWeek()->format('Y-m-d');
+            if (!isset($acc[$uid])) $acc[$uid] = ['name' => $name, 'weeks' => [], 'shifts' => 0];
+            $acc[$uid]['weeks'][$weekKey] = ($acc[$uid]['weeks'][$weekKey] ?? 0) + $p->minutes();
+            $acc[$uid]['shifts']++;
+        }
+
+        $rows = [];
+        foreach ($acc as $uid => $d) {
+            $regular = 0; $ot = 0;
+            foreach ($d['weeks'] as $mins) {
+                $regular += min($otThresholdMin, $mins);
+                $ot      += max(0, $mins - $otThresholdMin);
+            }
+            $rows[] = ['name' => $d['name'], 'regular' => $regular, 'ot' => $ot, 'shifts' => $d['shifts']];
+        }
+        usort($rows, fn ($a, $b) => strcmp($a['name'], $b['name']));
+        return $rows;
+    }
+
+    /** Report range presets → UTC instants. */
+    private function reportRange(Request $request): array
+    {
+        $tz = tenant()->timezone();
+        $preset = $request->input('preset', 'this_month');
+
+        switch ($preset) {
+            case 'this_week':
+                $from = tnow()->startOfWeek();  $to = tnow()->endOfWeek();
+                $label = 'This week · ' . $from->format('M j') . '–' . $to->format('M j'); break;
+            case 'last_week':
+                $from = tnow()->subWeek()->startOfWeek(); $to = tnow()->subWeek()->endOfWeek();
+                $label = 'Last week · ' . $from->format('M j') . '–' . $to->format('M j'); break;
+            case 'last_month':
+                $from = tnow()->subMonthNoOverflow()->startOfMonth(); $to = tnow()->subMonthNoOverflow()->endOfMonth();
+                $label = $from->format('F Y'); break;
+            case 'custom':
+                $from = \Carbon\Carbon::parse($request->input('from', tnow()->startOfMonth()->toDateString()), $tz)->startOfDay();
+                $to   = \Carbon\Carbon::parse($request->input('to_date', tnow()->toDateString()), $tz)->endOfDay();
+                $label = $from->format('M j') . ' – ' . $to->format('M j, Y'); break;
+            case 'this_month':
+            default:
+                $from = tnow()->startOfMonth(); $to = tnow()->endOfMonth();
+                $label = $from->format('F Y'); break;
+        }
+        return [$from->copy()->utc(), $to->copy()->utc(), $label];
+    }
+
     /** Resolve a tenant-local date range to UTC instants. */
     private function range(Request $request): array
     {

@@ -49,6 +49,7 @@
     <div style="display:flex;gap:20px;border-bottom:.5px solid var(--ia-border);margin-bottom:20px">
       <a href="{{ route('tenant.timeclock.index') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text);border-bottom:2px solid var(--ia-accent);margin-bottom:-.5px;text-decoration:none;font-weight:600">My time</a>
       <a href="{{ route('tenant.timeclock.team') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Team</a>
+      <a href="{{ route('tenant.timeclock.reports') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Reports</a>
     </div>
   @else
     <p style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:20px">Clock in when your shift starts — the lock screen offers it too.</p>
