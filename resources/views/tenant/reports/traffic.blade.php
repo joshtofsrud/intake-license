@@ -342,8 +342,9 @@
 
     {{-- Daily visitors chart --}}
     <div style="margin-top: 22px;">
+      @php $isHourly = (bool) ($dailyVisitors['hourly'] ?? false); /* MARKER-PATCH-619 */ @endphp
       <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ia-text-dim, rgba(255,255,255,.42)); font-weight: 700; margin-bottom: 6px;">
-        Daily visitors
+        {{ $isHourly ? 'Visitors by hour' : 'Daily visitors' }}
       </div>
       @php
         $cur = $dailyVisitors['current'];
@@ -375,14 +376,19 @@
         // MARKER-PATCH-454 — per-point data for hover tooltips
         $points = [];
         foreach ($cur as $i => $v) {
-            $label = isset($dailyStart) ? $dailyStart->addDays($i)->format('M j') : ('Day ' . ($i + 1));
+            // MARKER-PATCH-619 — hour labels for single-day windows (tenant-local)
+            if ($isHourly) {
+                $label = isset($dailyStart) ? tlocal($dailyStart->addHours($i), 'g A') : ('Hour ' . $i);
+            } else {
+                $label = isset($dailyStart) ? $dailyStart->addDays($i)->format('M j') : ('Day ' . ($i + 1));
+            }
             $xPct  = (($padL + $i * $stepX) / $vbW) * 100;
             $yv    = $padT + $h - (($v / $maxVal) * $h);
             $points[] = ['l' => $label, 'c' => (int) $v, 'p' => (int) ($prior[$i] ?? 0), 'x' => round($xPct, 2), 'y' => round(($yv / $vbH) * 100, 2)];
         }
       @endphp
       <div class="rep-chart-wrap" id="rep-chart-wrap">
-      <svg class="rep-chart" viewBox="0 0 {{ $vbW }} {{ $vbH }}" preserveAspectRatio="none" aria-label="Daily visitors line chart">
+      <svg class="rep-chart" viewBox="0 0 {{ $vbW }} {{ $vbH }}" preserveAspectRatio="none" aria-label="{{ $isHourly ? 'Hourly' : 'Daily' }} visitors line chart">
         {{-- Grid --}}
         @foreach($gridYs as $gy)
           <line x1="0" y1="{{ $gy }}" x2="{{ $vbW }}" y2="{{ $gy }}" stroke="rgba(255,255,255,.04)" stroke-width="1" />
@@ -427,8 +433,8 @@
       })();
       </script>
       <div class="rep-chart-legend">
-        <span><i style="background: #BEF264;"></i> Last {{ $window }} · peak {{ number_format(max($cur ?: [0])) }}/day</span>
-        <span><i style="background: rgba(255,255,255,.32);"></i> Prior {{ $window }} · peak {{ number_format(max($prior ?: [0])) }}/day</span>
+        <span><i style="background: #BEF264;"></i> {{ $isHourly ? 'Today' : 'Last ' . $window }} · peak {{ number_format(max($cur ?: [0])) }}{{ $isHourly ? '/hr' : '/day' }}</span>
+        <span><i style="background: rgba(255,255,255,.32);"></i> {{ $isHourly ? 'Yesterday' : 'Prior ' . $window }} · peak {{ number_format(max($prior ?: [0])) }}{{ $isHourly ? '/hr' : '/day' }}</span>
       </div>
     </div>
   </div>
@@ -731,3 +737,4 @@
   @endif
 </div>
 @endsection
+

@@ -164,10 +164,46 @@ class TrafficReportService
      */
     public function dailyVisitors(): array
     {
+        // MARKER-PATCH-619 — a 1-day window renders as a single point on a daily
+        // chart (one dot, empty plot). Bucket single-day windows by HOUR instead:
+        // 24 tenant-local hours, today vs the same hours yesterday.
+        if ($this->days === 1) {
+            return [
+                'current' => $this->hourlySessionSeries($this->curStart, $this->curEnd),
+                'prior'   => $this->hourlySessionSeries($this->prevStart, $this->prevEnd),
+                'hourly'  => true,
+            ];
+        }
+
         return [
             'current' => $this->dailySessionSeries($this->curStart, $this->curEnd),
             'prior'   => $this->dailySessionSeries($this->prevStart, $this->prevEnd),
+            'hourly'  => false,
         ];
+    }
+
+    /**
+     * MARKER-PATCH-619 — per-hour distinct sessions over a single day.
+     * Hour index is computed as offset from the window start (which is
+     * tenant-local midnight stored as UTC), so buckets align to the tenant's
+     * clock without CONVERT_TZ.
+     */
+    protected function hourlySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $rows = TenantFunnelEvent::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('created_at', '>=', $start)
+            ->where('created_at', '<',  $end)
+            ->selectRaw('FLOOR(TIMESTAMPDIFF(MINUTE, ?, created_at) / 60) as h, COUNT(DISTINCT session_id) as n', [$start->toDateTimeString()])
+            ->groupBy('h')
+            ->pluck('n', 'h')
+            ->all();
+
+        $series = [];
+        for ($i = 0; $i < 24; $i++) {
+            $series[] = (int) ($rows[$i] ?? 0);
+        }
+        return $series;
     }
 
     // ------------------------------------------------------------------
@@ -344,7 +380,10 @@ class TrafficReportService
         }
 
         // Stage labels.
-        $labels = ['Opened booking'];
+        // MARKER-PATCH-619 — stage 0 includes booking_page_viewed sessions, so
+        // name it what it is. 'Opened booking' read like the 'Bookings started'
+        // tile (booking_started events) and the two showed different numbers.
+        $labels = ['Viewed booking page'];
         foreach ($stepKeys as $key) {
             $clean = trim(preg_replace('/^\d+\s/', '', $key));
             $labels[] = $clean !== '' ? $clean : $key;
@@ -648,3 +687,4 @@ class TrafficReportService
         ];
     }
 }
+
