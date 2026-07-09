@@ -190,7 +190,7 @@
 
 /* MARKER-PATCH-582 — nav instant search */
 .{{ $instId }} .p-nav-search { position: relative; display: flex; align-items: center; }
-.{{ $instId }} .p-nav-search-btn { background: none; border: 0; padding: 8px; display: flex; color: inherit; opacity: .75; }
+.{{ $instId }} .p-nav-search-btn { background: none; border: 0; padding: 8px; display: flex; color: {{ $linkColor }}; opacity: .75; } /* MARKER-PATCH-620 — match nav link color */
 .{{ $instId }} .p-nav-search-btn:hover { opacity: 1; }
 .{{ $instId }} .p-nav-search-panel { display: none; position: absolute; top: calc(100% + 10px); right: 0; width: min(380px, 86vw); background: #fff; border: 1px solid rgba(0,0,0,.1); border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.14); padding: 10px; z-index: 300; }
 .{{ $instId }} .p-nav-search.open .p-nav-search-panel { display: block; }
