@@ -127,3 +127,12 @@ Schedule::command('timeclock:auto-close')
     ->withoutOverlapping()
     ->runInBackground();
 
+// ----------------------------------------------------------------
+// MARKER-PATCH-622 — rebuild shop-search typo vocabulary nightly,
+// after the distributor syncs (4/5AM) so new catalog words land.
+// ----------------------------------------------------------------
+Schedule::command('search:build-terms')
+    ->dailyAt('05:30')
+    ->withoutOverlapping()
+    ->runInBackground();
+

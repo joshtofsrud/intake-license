@@ -106,20 +106,56 @@ class StorefrontController extends Controller
             return response()->json(['items' => []]);
         }
 
+        // MARKER-PATCH-622 — exact-phrase redirect rules beat product matching.
+        if ($rd = \App\Models\Tenant\TenantSearchRule::redirectFor(tenant()->id, $q)) {
+            \App\Models\Tenant\TenantSearchQuery::log(
+                tenant()->id, mb_substr((string) $request->session()->getId(), 0, 64), $q, 1
+            );
+            return response()->json(['items' => [], 'redirect' => [
+                'label' => $rd->label ?: $rd->to_value,
+                'url'   => $rd->to_value,
+            ]]);
+        }
+
         $tokens = array_values(array_filter(preg_split('/\s+/', mb_strtolower($q)), fn ($t) => mb_strlen($t) >= 2));
+
+        // MARKER-PATCH-622 — synonym expansion (seeds + tenant rules).
+        $synonyms  = \App\Models\Tenant\TenantSearchRule::synonymMap(tenant()->id);
+        $corrected = false;
+        $tokens = array_map(function ($t) use ($synonyms, &$corrected) {
+            if (isset($synonyms[$t])) { $corrected = true; return $synonyms[$t]; }
+            return $t;
+        }, $tokens);
 
         // Same AND-token recall as before, but pull a wider candidate set and
         // rank in PHP — scoring in SQL across 5 fields is unreadable; 60 rows
         // is a trivial in-memory sort even at 10K-item tenants.
-        $candidates = $this->visible()
-            ->with('distributorCatalog:id,manufacturer,images')
-            ->where(function ($x) use ($tokens) {
-                foreach ($tokens as $t) {
-                    $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
-                }
-            })
-            ->limit(60)
-            ->get();
+        $fetch = function (array $toks) {
+            return $this->visible()
+                ->with('distributorCatalog:id,manufacturer,images')
+                ->where(function ($x) use ($toks) {
+                    foreach ($toks as $t) {
+                        $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                    }
+                })
+                ->limit(60)
+                ->get();
+        };
+        $candidates = $fetch($tokens);
+
+        // MARKER-PATCH-622 — typo fallback: zero results → correct each token
+        // against the tenant vocabulary and retry once.
+        if ($candidates->isEmpty()) {
+            $fixed = array_map(function ($t) use (&$corrected) {
+                $c = \App\Models\Tenant\TenantSearchTerm::correct(tenant()->id, $t);
+                if ($c) { $corrected = true; return $c; }
+                return $t;
+            }, $tokens);
+            if ($fixed !== $tokens) {
+                $tokens = $fixed;
+                $candidates = $fetch($tokens);
+            }
+        }
 
         $raw = implode(' ', $tokens);
         $scored = $candidates->map(function ($i) use ($tokens, $raw) {
@@ -157,7 +193,7 @@ class StorefrontController extends Controller
             $scored->count()
         );
 
-        return response()->json(['items' => $scored->map(function ($i) {
+        return response()->json(['corrected' => $corrected && $scored->isNotEmpty() ? implode(' ', $tokens) : null, 'items' => $scored->map(function ($i) {
             $ims = (array) ($i->distributorCatalog?->images ?? []);
             $f = $ims[0] ?? null;
             $img = is_array($f) ? ($f['Url'] ?? $f['url'] ?? $f['src'] ?? null) : (is_string($f) ? $f : null);

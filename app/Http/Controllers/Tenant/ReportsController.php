@@ -322,6 +322,8 @@ class ReportsController extends Controller
             'dailyStart'     => $svc->curStart(),
             'topSearches'    => $svc->topSearches(),      // MARKER-PATCH-621
             'zeroSearches'   => $svc->zeroResultSearches(),
+            'searchRules'    => \App\Models\Tenant\TenantSearchRule::where('tenant_id', tenant()->id)
+                                    ->orderBy('type')->orderBy('from_term')->get(), // MARKER-PATCH-622
             // MARKER-PATCH-151B — additional panels
             'funnel'         => $bf['funnel'],
             'funnelDetail'   => $bf['detail'],

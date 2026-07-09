@@ -587,7 +587,10 @@
       @forelse($zeroSearches as $zs)
         <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:.5px dashed var(--ia-border);font-size:12.5px">
           <span style="color:#f87171">{{ $zs['q'] }}</span>
-          <span style="color:var(--ia-text-muted);font-variant-numeric:tabular-nums">{{ $zs['n'] }} search{{ $zs['n'] > 1 ? 'es' : '' }} · 0 results</span>
+          <span style="color:var(--ia-text-muted);font-variant-numeric:tabular-nums">{{ $zs['n'] }} search{{ $zs['n'] > 1 ? 'es' : '' }} · 0
+            <button type="button" class="rep-rule-act" onclick="repRulePrefill('synonym', @js($zs['q']))">+ synonym</button>
+            <button type="button" class="rep-rule-act" onclick="repRulePrefill('redirect', @js($zs['q']))">+ redirect</button>
+          </span>
         </div>
       @empty
         <div style="padding:16px 0;color:var(--ia-text-muted);font-size:12px">None — every search found something.</div>
@@ -595,6 +598,67 @@
     </div>
   </div>
   @endif
+
+  {{-- MARKER-PATCH-622 — Search rules: synonyms + redirects, managed here --}}
+  <div class="rep-zone" id="rep-search-rules">
+    <div class="rep-zone-head">
+      <div>
+        <div class="rep-zone-title">Search rules</div>
+        <div class="rep-zone-sub">Synonyms and redirects applied instantly to the shop search</div>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ route('tenant.reports.search-rules.store') }}" id="rep-rule-form"
+          style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:4px 0 14px;border-bottom:.5px solid var(--ia-border)">
+      @csrf
+      <select name="type" id="rep-rule-type" class="rep-rule-inp" onchange="repRuleMode()">
+        <option value="synonym">Synonym</option>
+        <option value="redirect">Redirect</option>
+      </select>
+      <input type="text" name="from_term" id="rep-rule-from" required maxlength="120" class="rep-rule-inp" placeholder="customers type…">
+      <span style="color:var(--ia-text-muted);font-size:12px" id="rep-rule-arrow">=</span>
+      <input type="text" name="to_value" id="rep-rule-to" required maxlength="300" class="rep-rule-inp" placeholder="means…">
+      <input type="text" name="label" id="rep-rule-label" maxlength="120" class="rep-rule-inp" placeholder="link label (optional)" style="display:none">
+      <button type="submit" class="rep-rule-act" style="border-color:var(--ia-accent);color:var(--ia-accent)">Add rule</button>
+    </form>
+
+    @forelse($searchRules as $rule)
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:.5px dashed var(--ia-border);font-size:12.5px">
+        <span>
+          <span style="font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-right:8px">{{ $rule->type }}</span>
+          "{{ $rule->from_term }}" <span style="color:var(--ia-text-muted)">{{ $rule->type === 'synonym' ? '=' : '→' }}</span> {{ $rule->to_value }}
+        </span>
+        <span style="color:var(--ia-text-muted);font-variant-numeric:tabular-nums">
+          @if($rule->type === 'redirect'){{ $rule->hits }} use{{ $rule->hits === 1 ? '' : 's' }} · @endif
+          <form method="POST" action="{{ route('tenant.reports.search-rules.delete', $rule->id) }}" style="display:inline">
+            @csrf<button type="submit" class="rep-rule-act" onclick="return confirm('Remove this rule?')">×</button>
+          </form>
+        </span>
+      </div>
+    @empty
+      <div style="padding:14px 0;color:var(--ia-text-muted);font-size:12px">No custom rules yet — bike-domain synonyms (mtb = mountain, derailer = derailleur…) are built in. Add redirects for queries like "financing" or "gift card".</div>
+    @endforelse
+  </div>
+
+  <style>
+    .rep-rule-act { font-size:10.5px;border:.5px solid var(--ia-border-2,rgba(255,255,255,.2));border-radius:999px;padding:2px 9px;cursor:pointer;color:var(--ia-text-muted);background:none;margin-left:5px; }
+    .rep-rule-act:hover { border-color:var(--ia-accent);color:var(--ia-text); }
+    .rep-rule-inp { background:var(--ia-surface-2,#1a1a1a);border:1px solid var(--ia-border);color:var(--ia-text);border-radius:7px;padding:7px 10px;font-size:12px; }
+  </style>
+  <script>
+    function repRuleMode() {
+      var t = document.getElementById('rep-rule-type').value;
+      document.getElementById('rep-rule-arrow').textContent = t === 'synonym' ? '=' : '→';
+      document.getElementById('rep-rule-to').placeholder = t === 'synonym' ? 'means…' : '/page-url';
+      document.getElementById('rep-rule-label').style.display = t === 'redirect' ? '' : 'none';
+    }
+    function repRulePrefill(type, q) {
+      document.getElementById('rep-rule-type').value = type; repRuleMode();
+      document.getElementById('rep-rule-from').value = q;
+      document.getElementById('rep-rule-to').focus();
+      document.getElementById('rep-search-rules').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  </script>
 
   {{-- Two-column row: sources + devices --}}
   <div class="rep-two-col">

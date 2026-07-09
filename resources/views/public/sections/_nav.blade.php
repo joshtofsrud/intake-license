@@ -338,7 +338,14 @@ function pNavSearchType(id, q) {
     fetch('/shop/search.json?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        out.innerHTML = (d.items || []).map(function (i) {
+        if (d.redirect) { // MARKER-PATCH-622 — exact-phrase rule → straight to a page
+          out.innerHTML = '<a href="' + d.redirect.url + '" style="display:flex;gap:11px;align-items:center;padding:11px 8px;font-weight:600">↪ ' + pNavEsc(d.redirect.label) + '</a>';
+          return;
+        }
+        var head = d.corrected
+          ? '<div style="padding:8px 6px;font-size:12px;opacity:.65">Showing results for <strong>' + pNavEsc(d.corrected) + '</strong></div>'
+          : '';
+        out.innerHTML = head + (d.items || []).map(function (i) {
           return '<a href="' + i.url + '">'
             + (i.img ? '<img src="' + i.img + '" alt="">' : '<span style="width:38px"></span>')
             + '<span><span class="n">' + pNavEsc(i.name) + '</span><br><span class="m">'
