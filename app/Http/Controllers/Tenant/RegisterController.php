@@ -1423,6 +1423,11 @@ class RegisterController extends Controller
     {
         $tenant = tenant();
 
+        // MARKER-PATCH-618 — tenant toggle gates NEW payments (refunds untouched).
+        if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
+            return response()->json(['error' => 'Card payments are turned off in Settings → Payments.'], 422);
+        }
+
         $validated = $request->validate([
             'amount_cents'      => 'required|integer|min:50',
             'sale_id'           => 'nullable|uuid',
@@ -1530,6 +1535,11 @@ class RegisterController extends Controller
     public function createCheckoutSession(Request $request): JsonResponse
     {
         $tenant = tenant();
+
+        // MARKER-PATCH-618 — tenant toggle gates NEW payment links (refunds untouched).
+        if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
+            return response()->json(['error' => 'Payment links are turned off in Settings → Payments.'], 422);
+        }
 
         $validated = $request->validate([
             'amount_cents'     => 'required|integer|min:50',
@@ -2319,3 +2329,4 @@ class RegisterController extends Controller
         return response()->json(['ok' => true]);
     }
 }
+

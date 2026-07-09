@@ -271,6 +271,11 @@ class SettingsController extends Controller
         // otherwise the form fields don\'t render and the inputs come back empty,
         // which is fine.
         if ($tenant->direct_payments_enabled) {
+            // MARKER-PATCH-618 — tenant-level on/off for card + payment-link tenders
+            // (master flag stays the capability gate; this is the tenant's switch).
+            $settings['stripe_register_enabled'] = (bool) $request->input('stripe_register_enabled');
+            $settings['square_enabled']          = (bool) $request->input('square_enabled');
+
             $settings['register_payments_mode']           = $request->input('register_payments_mode', 'test');
             $settings['register_payments_test_pk']        = $request->input('register_payments_test_pk', '');
             $settings['register_payments_test_sk']        = $request->input('register_payments_test_sk', '');
@@ -295,6 +300,13 @@ class SettingsController extends Controller
         $settings['paypal_test_secret']    = $request->input('paypal_test_secret', '');
         $settings['paypal_live_client_id'] = $request->input('paypal_live_client_id', '');
         $settings['paypal_live_secret']    = $request->input('paypal_live_secret', '');
+
+        // MARKER-PATCH-618 — Venmo / Cash App manual tenders (peer-to-peer pay links).
+        // Handles are stored bare (no @ / $); the link helper adds the scheme.
+        $settings['venmo_enabled']    = (bool) $request->input('venmo_enabled');
+        $settings['venmo_handle']     = ltrim(trim($request->input('venmo_handle', '')), '@');
+        $settings['cashapp_enabled']  = (bool) $request->input('cashapp_enabled');
+        $settings['cashapp_cashtag']  = ltrim(trim($request->input('cashapp_cashtag', '')), '$');
 
         $tenant->update(['settings' => $settings]);
         return back()->with('success', 'Payment settings saved.');
@@ -358,3 +370,4 @@ class SettingsController extends Controller
         }
     }
 }
+

@@ -946,8 +946,8 @@ const ROUTES = {
   // MARKER-PATCH-162
   multiLocationActive: {{ $multiLocationActive ? 'true' : 'false' }},
   // MARKER-PATCH-170 — Direct Payments
-  directPaymentsEnabled: {{ ($tenant->direct_payments_enabled ?? false) ? 'true' : 'false' }},
-  directPaymentsPk: @json(($tenant->direct_payments_enabled ?? false) ? (($tenant->settings['register_payments_mode'] ?? 'test') === 'live' ? ($tenant->settings['register_payments_live_pk'] ?? '') : ($tenant->settings['register_payments_test_pk'] ?? '')) : ''),
+  directPaymentsEnabled: {{ (($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? 'true' : 'false' }}, {{-- MARKER-PATCH-618 --}}
+  directPaymentsPk: @json((($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? (($tenant->settings['register_payments_mode'] ?? 'test') === 'live' ? ($tenant->settings['register_payments_live_pk'] ?? '') : ($tenant->settings['register_payments_test_pk'] ?? '')) : ''),
   paymentIntentCreate: @json(url('/admin/register/payment-intent')),
   paymentIntentConfirm: @json(url('/admin/register/payment-intent/confirm')),
   // MARKER-PATCH-170B
@@ -3207,10 +3207,11 @@ loadDrafts().then(refreshDraftsBanner);
 })();
 </script>
 
-@if($tenant->direct_payments_enabled ?? false)
+@if(($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true))
 {{-- MARKER-PATCH-170 — Stripe.js for Direct Payments hand-keyed flow --}}
 <script src="https://js.stripe.com/v3/"></script>
 {{-- MARKER-PATCH-172 — QR code library for send-payment-link --}}
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 @endif
 @endpush
+

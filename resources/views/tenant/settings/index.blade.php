@@ -1090,7 +1090,8 @@
          Only renders when master admin flipped direct_payments_enabled on for this tenant.
          Tenant pastes their own Stripe keys here for register card-sales. --}}
     @if($currentTenant->direct_payments_enabled ?? false)
-    <div class="provider-card enabled" id="register-payments-card" style="border-color:var(--ia-accent);background:linear-gradient(0deg,rgba(190,242,100,.03),transparent)">
+    {{-- MARKER-PATCH-618 — toggle-able (default on). Off hides card + payment-link tenders at the register; refunds of past charges still work. --}}
+    <div class="provider-card {{ ($s['stripe_register_enabled'] ?? true) ? 'enabled' : '' }}" id="register-payments-card">
       <div class="provider-header">
         <div>
           <div style="font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px">
@@ -1098,8 +1099,11 @@
           </div>
           <div style="font-size:12px;opacity:.6;margin-top:2px">Hand-key card numbers and send payment links from the register. Paste your own Stripe keys below.</div>
         </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['stripe_register_enabled'] ?? true) ? 'on' : '' }}"
+          id="register-payments-toggle" onclick="toggleProvider('register-payments')"></button>
+        <input type="hidden" name="stripe_register_enabled" id="register-payments-enabled-val" value="{{ ($s['stripe_register_enabled'] ?? true) ? '1' : '0' }}">
       </div>
-      <div class="provider-fields" style="display:block">
+      <div class="provider-fields" id="register-payments-fields">
         <div class="ia-form-group">
           <label class="ia-form-label">Mode</label>
           <select name="register_payments_mode" class="ia-input" style="width:auto">
@@ -1146,14 +1150,17 @@
 
     {{-- MARKER-PATCH-473 — Square (tenant-connected, paste-token). Same master-admin gate as Stripe. --}}
     @if($currentTenant->direct_payments_enabled ?? false)
-    <div class="provider-card enabled" id="square-payments-card" style="border-color:var(--ia-border);margin-top:16px">
+    <div class="provider-card {{ ($s['square_enabled'] ?? true) ? 'enabled' : '' }}" id="square-payments-card" style="margin-top:16px">
       <div class="provider-header">
         <div>
           <div style="font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px">Square card payments</div>
           <div style="font-size:12px;opacity:.6;margin-top:2px">Connect your own Square account as an alternative to Stripe. Paste the credentials from your Square app, save, then test the connection.</div>
         </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['square_enabled'] ?? true) ? 'on' : '' }}"
+          id="square-payments-toggle" onclick="toggleProvider('square-payments')"></button>
+        <input type="hidden" name="square_enabled" id="square-payments-enabled-val" value="{{ ($s['square_enabled'] ?? true) ? '1' : '0' }}">
       </div>
-      <div class="provider-fields" style="display:block">
+      <div class="provider-fields" id="square-payments-fields">
         <div class="ia-form-group">
           <label class="ia-form-label">Mode</label>
           <select name="square_payments_mode" class="ia-input" style="width:auto">
@@ -1274,9 +1281,48 @@
         </div>
       </div>
     </div>
+
+    {{-- MARKER-PATCH-618 — Venmo (manual tender: peer-to-peer link, no API confirm) --}}
+    <div class="provider-card {{ ($s['venmo_enabled'] ?? false) ? 'enabled' : '' }}" id="venmo-card">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500">Venmo</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Manual tender · customer pays your handle, staff marks paid</div>
+        </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['venmo_enabled'] ?? false) ? 'on' : '' }}"
+          id="venmo-toggle" onclick="toggleProvider('venmo')"></button>
+        <input type="hidden" name="venmo_enabled" id="venmo-enabled-val" value="{{ ($s['venmo_enabled'] ?? false) ? '1' : '0' }}">
+      </div>
+      <div class="provider-fields" id="venmo-fields">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Venmo username (without @)</label>
+          <input type="text" name="venmo_handle" class="ia-input ia-mono" placeholder="ground-control" value="{{ $s['venmo_handle'] ?? '' }}">
+          <div style="font-size:11px;opacity:.5;margin-top:5px">Generates a pay link (venmo.com/u/your-handle) that staff can text or email. Venmo has no payment API, so payment isn’t auto-confirmed — the sale stays pending until staff marks it paid.</div>
+        </div>
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-618 — Cash App (manual tender: $cashtag link, amount prefills) --}}
+    <div class="provider-card {{ ($s['cashapp_enabled'] ?? false) ? 'enabled' : '' }}" id="cashapp-card">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500">Cash App</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Manual tender · pays your $cashtag, staff marks paid</div>
+        </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['cashapp_enabled'] ?? false) ? 'on' : '' }}"
+          id="cashapp-toggle" onclick="toggleProvider('cashapp')"></button>
+        <input type="hidden" name="cashapp_enabled" id="cashapp-enabled-val" value="{{ ($s['cashapp_enabled'] ?? false) ? '1' : '0' }}">
+      </div>
+      <div class="provider-fields" id="cashapp-fields">
+        <div class="ia-form-group">
+          <label class="ia-form-label">$Cashtag (without $)</label>
+          <input type="text" name="cashapp_cashtag" class="ia-input ia-mono" placeholder="groundcontrol" value="{{ $s['cashapp_cashtag'] ?? '' }}">
+          <div style="font-size:11px;opacity:.5;margin-top:5px">Generates a pay link (cash.app/$your-tag/amount) with the amount prefilled. Money lands in your Cash App balance, not Stripe. No API confirmation — staff marks the sale paid.</div>
+        </div>
+      </div>
+    </div>
   </form>
 </div>
-
 {{-- MARKER-PATCH-315 — Work-order tag settings --}}
 <div class="set-pane" id="pane-tags" role="tabpanel">
   @php
@@ -1731,3 +1777,4 @@ function toggleProvider(name) {
 }
 </script>
 @endpush
+
