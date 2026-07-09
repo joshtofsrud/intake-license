@@ -14,14 +14,15 @@ class TenantTimePunch extends Model
     protected $table = 'tenant_time_punches';
 
     protected $fillable = [
-        'tenant_id', 'tenant_user_id', 'location_id',
-        'clock_in_at', 'clock_out_at', 'source', 'note',
-        'created_by', 'auto_closed',
+        'tenant_id', 'tenant_user_id', 'location_id', 'pay_period_id',
+        'clock_in_at', 'clock_out_at', 'break_minutes', 'source', 'note',
+        'created_by', 'auto_closed', 'edited_by', 'edit_reason', 'edited_at',
     ];
 
     protected $casts = [
         'clock_in_at'  => 'datetime',
         'clock_out_at' => 'datetime',
+        'edited_at'    => 'datetime',
         'auto_closed'  => 'boolean',
     ];
 
@@ -44,7 +45,8 @@ class TenantTimePunch extends Model
     public function minutes(): int
     {
         $end = $this->clock_out_at ?? now();
-        return max(0, (int) $this->clock_in_at->diffInMinutes($end));
+        $gross = (int) $this->clock_in_at->diffInMinutes($end);
+        return max(0, $gross - (int) ($this->break_minutes ?? 0)); // MARKER-PATCH-612 — net of breaks
     }
 }
 
