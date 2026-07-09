@@ -471,13 +471,19 @@ class TeamController extends Controller
         }
 
         $data = $request->validate([
-            'name'       => ['required', 'string', 'max:60'],
-            'sections'   => ['array'],
-            'sections.*' => ['string'],
+            'name'           => ['required', 'string', 'max:60'],
+            'sections'       => ['array'],
+            'sections.*'     => ['string'],
+            'capabilities'   => ['array'],   // MARKER-PATCH-611
+            'capabilities.*' => ['string'],
         ]);
 
         $registry = \App\Support\SectionRegistry::all();
         $checked  = array_values(array_intersect(array_keys($registry), $data['sections'] ?? []));
+
+        // MARKER-PATCH-611 — granular capabilities, validated against the registry.
+        $capKeys  = \App\Support\CapabilityRegistry::keys();
+        $capsChecked = array_values(array_intersect($capKeys, $data['capabilities'] ?? []));
 
         // Sections whose feature gate is OFF weren't shown in the editor —
         // keep them allowed so enabling a feature later doesn't surprise-hide
@@ -492,7 +498,7 @@ class TeamController extends Controller
             ->where('id', '!=', $role->id)->exists();
         if ($clash) return back()->with('error', 'A role with that name already exists.');
 
-        $role->update(['name' => $data['name'], 'sections' => $checked]);
+        $role->update(['name' => $data['name'], 'sections' => $checked, 'capabilities' => $capsChecked]);
 
         return redirect()->route('tenant.team.roles', ['role' => $role->id])
             ->with('success', 'Role saved.');
@@ -554,3 +560,4 @@ class TeamController extends Controller
         }
     }
 }
+

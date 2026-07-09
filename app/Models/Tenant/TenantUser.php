@@ -32,6 +32,20 @@ class TenantUser extends Authenticatable
         if (!$role) return true;
         return $role->allowsSection($key);
     }
+
+    /**
+     * MARKER-PATCH-611 — granular capability check for the current user.
+     * Owner enum always passes; users without a role fall back to full access
+     * (pre-roles behavior) so nothing locks out unexpectedly.
+     */
+    public function can($key, $arguments = []): bool
+    {
+        if (! is_string($key)) return parent::can($key, $arguments);
+        if ($this->role === 'owner') return true;
+        $role = $this->accessRole;
+        if (!$role) return true;
+        return $role->allowsCapability($key);
+    }
     public function isOwner(): bool     { return $this->role === 'owner'; }
     public function isManager(): bool   { return in_array($this->role, ['owner','manager']); }
 
@@ -57,3 +71,4 @@ class TenantUser extends Authenticatable
         return $this->activeLocations()->where('tenant_locations.id', $id)->first();
     }
 }
+

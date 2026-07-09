@@ -11,6 +11,8 @@
       ? array_values(array_intersect($visibleKeys, $selected->sections))
       : $visibleKeys;
   $selIsOwner = $selected && $selected->is_system && $selected->name === 'Owner';
+  // MARKER-PATCH-611 — selected role's capabilities (null = all).
+  $selCaps = $selected ? $selected->capabilities : null;
 @endphp
 
 @push('styles')
@@ -150,6 +152,21 @@
                 <input type="checkbox" class="ra-tog" name="sections[]" value="{{ $key }}"
                        @checked($on) @if($selIsOwner) disabled @endif>
               </label>
+              {{-- MARKER-PATCH-611 — capabilities nested under their section --}}
+              @php $caps = \App\Support\CapabilityRegistry::forSection($key);
+                   $caps = array_filter($caps, fn($d) => !$d['gate'] || tenant()->{$d['gate']}); @endphp
+              @if(!empty($caps))
+                <div class="ra-caps {{ $on ? '' : 'ra-caps-dim' }}">
+                  @foreach($caps as $ck => $cd)
+                    @php $cOn = $selIsOwner || ($selCaps === null ? true : in_array($ck, $selCaps, true)); @endphp
+                    <label class="ra-cap {{ $cOn ? '' : 'off' }}" title="{{ $cd['desc'] }}">
+                      <span class="cn">↳ {{ $cd['label'] }}</span>
+                      <input type="checkbox" class="ra-tog-cap" name="capabilities[]" value="{{ $ck }}"
+                             @checked($cOn) @if($selIsOwner) disabled @endif>
+                    </label>
+                  @endforeach
+                </div>
+              @endif
             @endforeach
           </div>
         </div>
@@ -253,3 +270,4 @@
 })();
 </script>
 @endsection
+
