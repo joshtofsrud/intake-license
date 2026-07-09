@@ -311,6 +311,7 @@ class TimeClockController extends Controller
         $totals = [
             'regular' => array_sum(array_column($rows, 'regular')),
             'ot'      => array_sum(array_column($rows, 'ot')),
+            'dt'      => array_sum(array_column($rows, 'dt')),
             'shifts'  => array_sum(array_column($rows, 'shifts')),
         ];
 
@@ -328,15 +329,17 @@ class TimeClockController extends Controller
         $rows = $this->hoursByPerson($tenant, $from, $to);
 
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['Staff', 'Regular (h)', 'Overtime (h)', 'Total (h)', 'Shifts', 'Avg shift (h)']);
+        fputcsv($out, ['Staff', 'Regular (h)', 'Overtime (h)', 'Double-time (h)', 'Total (h)', 'Shifts', 'Avg shift (h)']);
         foreach ($rows as $r) {
+            $tot = $r['regular'] + $r['ot'] + ($r['dt'] ?? 0);
             fputcsv($out, [
                 $r['name'],
                 round($r['regular'] / 60, 2),
                 round($r['ot'] / 60, 2),
-                round(($r['regular'] + $r['ot']) / 60, 2),
+                round(($r['dt'] ?? 0) / 60, 2),
+                round($tot / 60, 2),
                 $r['shifts'],
-                $r['shifts'] ? round((($r['regular'] + $r['ot']) / $r['shifts']) / 60, 2) : 0,
+                $r['shifts'] ? round(($tot / $r['shifts']) / 60, 2) : 0,
             ]);
         }
         rewind($out);
@@ -394,12 +397,12 @@ class TimeClockController extends Controller
     }
 
     /**
-     * Per-person hours over [from,to], regular/OT split by tenant-local week.
-     * Threshold: 40h/week (WA default; becomes a setting in the approvals stage).
+     * Per-person hours over [from,to], split regular/ot/dt via the jurisdiction-
+     * aware OvertimeCalculator (daily + weekly + double-time + 7th-day, "greater of").
      */
     private function hoursByPerson($tenant, $fromUtc, $toUtc): array
     {
-        $otThresholdMin = \App\Services\Tenant\PayPeriodService::for($tenant)->otThresholdHours() * 60; // MARKER-PATCH-616
+        $calc = new \App\Services\Tenant\OvertimeCalculator($tenant);
 
         $punches = TenantTimePunch::with('user:id,name')
             ->where('tenant_id', $tenant->id)
@@ -407,25 +410,27 @@ class TimeClockController extends Controller
             ->where('clock_in_at', '<=', $toUtc)
             ->get();
 
-        // person => [weekKey => minutes], plus shift count
+        // person => ['name', days => ['Y-m-d' => minutes], shifts]
         $acc = [];
         foreach ($punches as $p) {
             $uid  = $p->tenant_user_id;
             $name = $p->user->name ?? 'Staff';
-            $weekKey = tlocal_carbon($p->clock_in_at)->startOfWeek()->format('Y-m-d');
-            if (!isset($acc[$uid])) $acc[$uid] = ['name' => $name, 'weeks' => [], 'shifts' => 0];
-            $acc[$uid]['weeks'][$weekKey] = ($acc[$uid]['weeks'][$weekKey] ?? 0) + $p->minutes();
+            $day  = tlocal_carbon($p->clock_in_at)->format('Y-m-d'); // tenant-local calendar day
+            if (!isset($acc[$uid])) $acc[$uid] = ['name' => $name, 'days' => [], 'shifts' => 0];
+            $acc[$uid]['days'][$day] = ($acc[$uid]['days'][$day] ?? 0) + $p->minutes();
             $acc[$uid]['shifts']++;
         }
 
         $rows = [];
         foreach ($acc as $uid => $d) {
-            $regular = 0; $ot = 0;
-            foreach ($d['weeks'] as $mins) {
-                $regular += min($otThresholdMin, $mins);
-                $ot      += max(0, $mins - $otThresholdMin);
-            }
-            $rows[] = ['name' => $d['name'], 'regular' => $regular, 'ot' => $ot, 'shifts' => $d['shifts']];
+            $split = $calc->split($d['days']);
+            $rows[] = [
+                'name'    => $d['name'],
+                'regular' => $split['regular'],
+                'ot'      => $split['ot'],
+                'dt'      => $split['dt'],
+                'shifts'  => $d['shifts'],
+            ];
         }
         usort($rows, fn ($a, $b) => strcmp($a['name'], $b['name']));
         return $rows;
@@ -562,10 +567,16 @@ class TimeClockController extends Controller
         abort_unless($user->can('timeclock.approve'), 403);
 
         $data = $request->validate([
-            'timeclock_pay_cycle'          => ['required', 'in:weekly,biweekly,semi_monthly,monthly'],
-            'timeclock_ot_threshold_hours' => ['required', 'integer', 'min:0', 'max:168'],
-            'timeclock_autoclose_hours'    => ['required', 'integer', 'min:1', 'max:48'],
+            'timeclock_pay_cycle'         => ['required', 'in:weekly,biweekly,semi_monthly,monthly'],
+            'timeclock_ot_weekly_hours'   => ['required', 'integer', 'min:0', 'max:168'],
+            'timeclock_ot_daily_hours'    => ['required', 'integer', 'min:0', 'max:24'],
+            'timeclock_dt_daily_hours'    => ['required', 'integer', 'min:0', 'max:24'],
+            'timeclock_seventh_day_rule'  => ['nullable', 'boolean'],
+            'timeclock_autoclose_hours'   => ['required', 'integer', 'min:1', 'max:48'],
         ]);
+        $data['timeclock_seventh_day_rule'] = $request->boolean('timeclock_seventh_day_rule');
+        // Keep legacy key in sync so anything still reading it stays correct.
+        $data['timeclock_ot_threshold_hours'] = $data['timeclock_ot_weekly_hours'];
 
         $settings = $tenant->settings ?? [];
         foreach ($data as $k => $v) $settings[$k] = $v;

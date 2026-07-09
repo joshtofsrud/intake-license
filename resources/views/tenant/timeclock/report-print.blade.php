@@ -39,30 +39,33 @@
   @else
     @php $tReg=0;$tOt=0;$tSh=0; @endphp
     <table>
-      <thead><tr><th>Staff</th><th class="n">Regular</th><th class="n">Overtime</th><th class="n">Total</th><th class="n">Shifts</th></tr></thead>
+      <thead><tr><th>Staff</th><th class="n">Regular</th><th class="n">OT 1.5×</th><th class="n">DT 2×</th><th class="n">Total</th><th class="n">Shifts</th></tr></thead>
       <tbody>
         @foreach($rows as $r)
-          @php $tot=$r['regular']+$r['ot']; $tReg+=$r['regular'];$tOt+=$r['ot'];$tSh+=$r['shifts']; @endphp
+          @php $dt=$r['dt']??0; $tot=$r['regular']+$r['ot']+$dt; $tReg+=$r['regular'];$tOt+=$r['ot'];$tDt=($tDt??0)+$dt;$tSh+=$r['shifts']; @endphp
           <tr>
             <td>{{ $r['name'] }}</td>
             <td class="n">{{ intdiv($r['regular'],60) }}h {{ $r['regular']%60 }}m</td>
             <td class="n ot">{{ $r['ot'] ? intdiv($r['ot'],60).'h '.($r['ot']%60).'m' : '—' }}</td>
+            <td class="n ot">{{ $dt ? intdiv($dt,60).'h '.($dt%60).'m' : '—' }}</td>
             <td class="n">{{ intdiv($tot,60) }}h {{ $tot%60 }}m</td>
             <td class="n">{{ $r['shifts'] }}</td>
           </tr>
         @endforeach
+        @php $tDt = $tDt ?? 0; $grand = $tReg+$tOt+$tDt; @endphp
         <tr class="tot">
           <td>Total</td>
           <td class="n">{{ intdiv($tReg,60) }}h {{ $tReg%60 }}m</td>
           <td class="n">{{ intdiv($tOt,60) }}h {{ $tOt%60 }}m</td>
-          <td class="n">{{ intdiv($tReg+$tOt,60) }}h {{ ($tReg+$tOt)%60 }}m</td>
+          <td class="n">{{ intdiv($tDt,60) }}h {{ $tDt%60 }}m</td>
+          <td class="n">{{ intdiv($grand,60) }}h {{ $grand%60 }}m</td>
           <td class="n">{{ $tSh }}</td>
         </tr>
       </tbody>
     </table>
   @endif
 
-  <div class="foot">Hours net of recorded breaks. Overtime = hours over 40 per tenant-local week. Times in {{ tenant()->timezone() }}. Record of punches, not an approved payroll document.</div>
+  <div class="foot">Hours net of recorded breaks. Overtime per tenant policy (daily and/or weekly). DT = double-time. Times in {{ tenant()->timezone() }}. Record of punches, not an approved payroll document.</div>
 </div>
 </body>
 </html>

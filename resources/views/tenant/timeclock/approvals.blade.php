@@ -128,15 +128,30 @@
           </select>
         </div>
         <div class="ta-f">
-          <label>Overtime threshold (hours / week)</label>
-          <input type="number" name="timeclock_ot_threshold_hours" min="0" max="168" value="{{ $s['timeclock_ot_threshold_hours'] ?? 40 }}">
-        </div>
-        <div class="ta-f">
           <label>Auto-close open punches after (hours)</label>
           <input type="number" name="timeclock_autoclose_hours" min="1" max="48" value="{{ $s['timeclock_autoclose_hours'] ?? 10 }}">
         </div>
-        <div class="ta-f" style="display:flex;align-items:flex-end">
-          <button class="ta-btn p" type="submit" style="width:100%">Save policy</button>
+        <div class="ta-f">
+          <label>Weekly overtime after (hours) · 0 = off</label>
+          <input type="number" name="timeclock_ot_weekly_hours" min="0" max="168" value="{{ $s['timeclock_ot_weekly_hours'] ?? ($s['timeclock_ot_threshold_hours'] ?? 40) }}">
+        </div>
+        <div class="ta-f">
+          <label>Daily overtime after (hours) · 0 = off</label>
+          <input type="number" name="timeclock_ot_daily_hours" min="0" max="24" value="{{ $s['timeclock_ot_daily_hours'] ?? 0 }}">
+        </div>
+        <div class="ta-f">
+          <label>Daily double-time after (hours) · 0 = off</label>
+          <input type="number" name="timeclock_dt_daily_hours" min="0" max="24" value="{{ $s['timeclock_dt_daily_hours'] ?? 0 }}">
+        </div>
+        <div class="ta-f" style="display:flex;align-items:flex-end;gap:8px">
+          <label style="display:flex;align-items:center;gap:8px;margin:0;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--ia-text)">
+            <input type="checkbox" name="timeclock_seventh_day_rule" value="1" style="width:auto" @checked($s['timeclock_seventh_day_rule'] ?? false)>
+            7th consecutive day rule (CA)
+          </label>
+        </div>
+        <div class="ta-f" style="grid-column:1/-1">
+          <button class="ta-btn p" type="submit" style="width:auto">Save policy</button>
+          <span style="font-size:11px;color:var(--ia-text-muted);margin-left:10px">Defaults (weekly 40, daily/DT off) match federal &amp; Washington. Set daily 8 / DT 12 + 7th-day for California. When both daily and weekly apply, the greater overtime is used.</span>
         </div>
       </div>
     </form>

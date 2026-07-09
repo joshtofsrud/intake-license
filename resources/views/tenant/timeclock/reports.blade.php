@@ -16,7 +16,7 @@
 .tr-card { border:.5px solid var(--ia-border); border-radius:12px; overflow:hidden; background:var(--ia-surface); }
 .tr-h { padding:12px 15px; border-bottom:.5px solid var(--ia-border); display:flex; justify-content:space-between; align-items:center; }
 .tr-h .t { font-weight:700; font-size:13px; }
-.tr-row { display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1fr 1fr; padding:11px 15px; border-bottom:.5px dashed var(--ia-border); font-size:12.5px; font-variant-numeric:tabular-nums; }
+.tr-row { display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr 1fr .8fr 1fr; padding:11px 15px; border-bottom:.5px dashed var(--ia-border); font-size:12.5px; font-variant-numeric:tabular-nums; }
 .tr-row:last-child { border-bottom:none; }
 .tr-row.hd { background:var(--ia-surface-2,#1a1a1a); font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--ia-text-muted); font-weight:600; }
 .tr-row.tot { background:var(--ia-surface-2,#1a1a1a); font-weight:700; }
@@ -71,14 +71,15 @@
     </form>
 
     <div class="tr-row hd">
-      <span>Staff</span><span>Regular</span><span>Overtime</span><span>Total</span><span>Shifts</span><span>Avg shift</span>
+      <span>Staff</span><span>Regular</span><span>OT (1.5×)</span><span>DT (2×)</span><span>Total</span><span>Shifts</span><span>Avg shift</span>
     </div>
     @forelse($rows as $r)
-      @php $total = $r['regular'] + $r['ot']; @endphp
+      @php $dt = $r['dt'] ?? 0; $total = $r['regular'] + $r['ot'] + $dt; @endphp
       <div class="tr-row">
         <span>{{ $r['name'] }}</span>
         <span>{{ tr_hm($r['regular']) }}</span>
         <span class="{{ $r['ot'] ? 'ot' : 'z' }}">{{ $r['ot'] ? tr_hm($r['ot']) : '—' }}</span>
+        <span class="{{ $dt ? 'ot' : 'z' }}">{{ $dt ? tr_hm($dt) : '—' }}</span>
         <span>{{ tr_hm($total) }}</span>
         <span>{{ $r['shifts'] }}</span>
         <span>{{ $r['shifts'] ? tr_hm(intdiv($total, $r['shifts'])) : '—' }}</span>
@@ -87,18 +88,20 @@
       <div class="tr-row"><span style="grid-column:1/-1;color:var(--ia-text-muted);text-align:center;padding:20px">No punches in this range.</span></div>
     @endforelse
     @if(!empty($rows))
+      @php $gt = $totals['regular'] + $totals['ot'] + ($totals['dt'] ?? 0); @endphp
       <div class="tr-row tot">
         <span>Total</span>
         <span>{{ tr_hm($totals['regular']) }}</span>
         <span class="{{ $totals['ot'] ? 'ot' : '' }}">{{ tr_hm($totals['ot']) }}</span>
-        <span>{{ tr_hm($totals['regular'] + $totals['ot']) }}</span>
+        <span class="{{ ($totals['dt'] ?? 0) ? 'ot' : '' }}">{{ tr_hm($totals['dt'] ?? 0) }}</span>
+        <span>{{ tr_hm($gt) }}</span>
         <span>{{ $totals['shifts'] }}</span>
         <span></span>
       </div>
     @endif
   </div>
 
-  <p style="font-size:11px;color:var(--ia-text-muted);margin-top:12px">Overtime is hours over 40 in a tenant-local week. A configurable threshold and pay-period-aligned reports arrive with Approvals.</p>
+  <p style="font-size:11px;color:var(--ia-text-muted);margin-top:12px">Overtime follows your policy (daily and/or weekly, with the greater applied) set under Approvals → Time clock policy.</p>
 </div>
 @endsection
 
