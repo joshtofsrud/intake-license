@@ -59,7 +59,13 @@
   $logoHeight = $logoSizeMap[$c['logo_size'] ?? 'medium'] ?? '30px';
 
   // Colors
-  $textColor = ($c['text_color'] ?? '') ?: '#0a0a0a';
+  // MARKER-PATCH-620 — content-aware default: when the tenant hasn't chosen a
+  // text color, derive black/white from the nav background's luminance so
+  // icons and text stay visible on dark navs. Explicit choices always win.
+  $autoText  = preg_match('/^#?[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/', (string) $bgColor)
+      ? \App\Support\ColorHelper::accentTextColor($bgColor)
+      : '#0a0a0a';
+  $textColor = ($c['text_color'] ?? '') ?: $autoText;
   $linkColor = ($c['link_color'] ?? '') ?: $textColor;
   $activeStyle = $c['active_link_style'] ?? 'underline';
 
@@ -354,3 +360,4 @@ document.addEventListener('click', function (e) {
 </script>
 @endonce
 @endif
+
