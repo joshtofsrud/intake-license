@@ -75,7 +75,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['tenant_id', 'starts_at']);            // week queries
-            $table->index(['tenant_id', 'tenant_user_id', 'starts_at']);
+            $table->index(['tenant_id', 'tenant_user_id', 'starts_at'], 'shift_tenant_user_start_idx');
             $table->index(['tenant_id', 'published_at']);
         });
 
@@ -109,7 +109,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['tenant_id', 'status']);
-            $table->index(['tenant_id', 'tenant_user_id', 'starts_at']);
+            $table->index(['tenant_id', 'tenant_user_id', 'starts_at'], 'toff_tenant_user_start_idx');
         });
 
         // ---- Availability: recurring day-of-week bands --------------------
