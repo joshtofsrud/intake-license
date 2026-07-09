@@ -28,6 +28,14 @@
 .tc-row .dur { font-weight: 600; font-variant-numeric: tabular-nums; }
 .tc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ia-accent); margin-right: 8px; vertical-align: 1px; }
 .tc-empty { padding: 26px 16px; text-align: center; color: var(--ia-text-muted); font-size: 12.5px; }
+.tc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.tc-stat { border: 0.5px solid var(--ia-border); border-radius: 10px; background: var(--ia-surface); padding: 14px 16px; }
+.tc-stat .l { font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ia-text-muted); margin-bottom: 6px; }
+.tc-stat .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tc-mini { padding: 5px 11px; font-size: 11.5px; border: 0.5px solid var(--ia-border-2, rgba(255,255,255,.2)); background: transparent; color: var(--ia-text); border-radius: 6px; cursor: pointer; text-decoration: none; }
+.tc-mini:hover { border-color: var(--ia-accent); }
+.tc-inp { padding: 6px 10px; border-radius: 6px; border: 0.5px solid var(--ia-border); background: var(--ia-input-bg, #0a0a0a); color: var(--ia-text); font-size: 12.5px; }
+@media (max-width: 760px) { .tc-stats { grid-template-columns: 1fr 1fr; } }
 </style>
 @endpush
 
@@ -63,6 +71,13 @@
     </div>
   </div>
 
+  {{-- MARKER-PATCH-613 — rolling totals (pay-period-aware totals arrive with settings) --}}
+  <div class="tc-stats">
+    <div class="tc-stat"><div class="l">This week</div><div class="v">{{ intdiv($weekMinutes, 60) }}h {{ $weekMinutes % 60 }}m</div></div>
+    <div class="tc-stat"><div class="l">This month</div><div class="v">{{ intdiv($monthMinutes, 60) }}h {{ $monthMinutes % 60 }}m</div></div>
+    <div class="tc-stat"><div class="l">Today</div><div class="v">{{ intdiv($todayMinutes, 60) }}h {{ $todayMinutes % 60 }}m</div></div>
+  </div>
+
   <div class="tc-cols">
     {{-- today's shifts --}}
     <div class="tc-card">
@@ -91,6 +106,34 @@
     </div>
   </div>
 
+  {{-- MARKER-PATCH-613 — shift history + email/print timesheet --}}
+  <div class="tc-card" style="margin-top:16px">
+    <div class="tc-card-h">Shift history
+      <span style="display:flex;gap:8px">
+        <a class="tc-mini" href="{{ route('tenant.timeclock.timesheet') }}" target="_blank" rel="noopener">Print timesheet</a>
+        <button class="tc-mini" type="button" onclick="document.getElementById('tc-email').style.display='flex'">Email timesheet</button>
+      </span>
+    </div>
+    <form id="tc-email" method="POST" action="{{ route('tenant.timeclock.timesheet.email') }}" style="display:none;gap:8px;padding:12px 16px;border-bottom:.5px solid var(--ia-border);align-items:center;flex-wrap:wrap">
+      @csrf
+      <input type="email" name="to" required placeholder="send to…" class="tc-inp" value="{{ $authUser->email ?? '' }}">
+      <span style="font-size:11px;color:var(--ia-text-muted)">This month · {{ tlocal_date(tnow()->startOfMonth()) }}–{{ tlocal_date(tnow()->endOfMonth()) }}</span>
+      <button class="tc-mini" type="submit">Send</button>
+    </form>
+    @forelse($history as $p)
+      @php $mins = $p->minutes(); @endphp
+      <div class="tc-row" style="grid-template-columns:120px 1fr 90px">
+        <span class="t">{{ tlocal_date($p->clock_in_at) }}</span>
+        <span class="num">{{ tlocal($p->clock_in_at) }} → {{ $p->clock_out_at ? tlocal($p->clock_out_at) : 'now' }}
+          @if($p->auto_closed)<span style="color:var(--ia-amber,#F59E0B);font-size:10px;text-transform:uppercase;margin-left:6px">auto-closed</span>@endif
+          @if($p->edited_at)<span style="color:var(--ia-text-muted);font-size:10px;margin-left:6px">edited</span>@endif
+        </span>
+        <span class="dur">{{ intdiv($mins,60) }}h {{ $mins % 60 }}m</span>
+      </div>
+    @empty
+      <div class="tc-empty">No punches recorded yet.</div>
+    @endforelse
+  </div>
 </div>
 @endsection
 

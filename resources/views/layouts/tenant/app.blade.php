@@ -114,6 +114,28 @@
       @if(session('success'))
         <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
       @endif
+
+      {{-- MARKER-PATCH-613 — clock-in prompt. Off-the-clock staff get a gentle,
+           dismissible nudge (dismissal is per page-load, not persisted — it
+           reappears next visit so a forgotten clock-in gets caught). --}}
+      @if(!empty($authUser) && empty($pinLockPending))
+        @php
+          $tcOpen = \App\Models\Tenant\TenantTimePunch::openFor($currentTenant->id, $authUser->id);
+        @endphp
+        @if(!$tcOpen)
+          <div class="ia-flash" id="tc-clockin-nudge"
+               style="display:flex;align-items:center;gap:12px;background:color-mix(in srgb,var(--ia-accent) 10%,transparent);border:0.5px solid var(--ia-accent);color:var(--ia-text)">
+            <span style="flex:1">You're not clocked in.</span>
+            <form method="POST" action="{{ route('tenant.timeclock.in') }}" style="margin:0">
+              @csrf<input type="hidden" name="source" value="lock_screen">
+              <button type="submit" style="background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Clock in</button>
+            </form>
+            <button type="button" onclick="sessionStorage.setItem('tc_nudge_dismissed','1');document.getElementById('tc-clockin-nudge').remove()"
+                    style="background:none;border:none;color:var(--ia-text-muted);cursor:pointer;font-size:16px;line-height:1">×</button>
+          </div>
+          <script>if(sessionStorage.getItem('tc_nudge_dismissed')){var n=document.getElementById('tc-clockin-nudge');if(n)n.remove();}</script>
+        @endif
+      @endif
       {{-- MARKER-PATCH-445 — single global flash; per-page success/error banners removed across tenant views --}}
       @if(session('error'))
         @push('scripts')
@@ -194,3 +216,4 @@
 @include('tenant.print._composer') {{-- MARKER-PATCH-337 --}}
 </body>
 </html>
+
