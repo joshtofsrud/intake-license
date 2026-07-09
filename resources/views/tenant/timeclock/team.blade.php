@@ -51,6 +51,7 @@
     <a href="{{ route('tenant.timeclock.index') }}">My time</a>
     <a href="{{ route('tenant.timeclock.team') }}" class="on">Team</a>
     <a href="{{ route('tenant.timeclock.reports') }}">Reports</a>
+    <a href="{{ route('tenant.timeclock.approvals') }}">Approvals</a>
   </div>
 
   <div class="tt-bar">

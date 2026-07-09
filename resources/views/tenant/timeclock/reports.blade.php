@@ -38,6 +38,7 @@
     <a href="{{ route('tenant.timeclock.index') }}">My time</a>
     <a href="{{ route('tenant.timeclock.team') }}">Team</a>
     <a href="{{ route('tenant.timeclock.reports') }}" class="on">Reports</a>
+    <a href="{{ route('tenant.timeclock.approvals') }}">Approvals</a>
   </div>
 
   {{-- range picker --}}

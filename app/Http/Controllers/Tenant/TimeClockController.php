@@ -399,7 +399,7 @@ class TimeClockController extends Controller
      */
     private function hoursByPerson($tenant, $fromUtc, $toUtc): array
     {
-        $otThresholdMin = 40 * 60;
+        $otThresholdMin = \App\Services\Tenant\PayPeriodService::for($tenant)->otThresholdHours() * 60; // MARKER-PATCH-616
 
         $punches = TenantTimePunch::with('user:id,name')
             ->where('tenant_id', $tenant->id)
@@ -429,6 +429,149 @@ class TimeClockController extends Controller
         }
         usort($rows, fn ($a, $b) => strcmp($a['name'], $b['name']));
         return $rows;
+    }
+
+    /**
+     * MARKER-PATCH-616 — Approvals: pick a pay period, sign off per person, lock.
+     * Gated by timeclock.approve. A locked period is the payroll source of truth.
+     */
+    public function approvals(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $svc     = \App\Services\Tenant\PayPeriodService::for($tenant);
+        $periods = $svc->recent(8);
+
+        // Selected period (default: current).
+        $selectedId = $request->input('period');
+        $period = $selectedId
+            ? $periods->firstWhere('id', $selectedId) ?? $svc->current()
+            : $svc->current();
+
+        $approvals = \App\Models\Tenant\TenantTimePunchApproval::where('pay_period_id', $period->id)
+            ->get()->keyBy('tenant_user_id');
+
+        // Open/auto flags per person in this period.
+        $flagRows = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('clock_in_at', '>=', $period->starts_at)
+            ->where('clock_in_at', '<=', $period->ends_at)
+            ->get()
+            ->groupBy('tenant_user_id');
+
+        // Build a uid-keyed view for the template (name + minutes + flags + approved).
+        $people = [];
+        foreach ($flagRows as $uid => $ps) {
+            $mins = $ps->sum(fn ($p) => $p->minutes());
+            $flags = 0;
+            foreach ($ps as $p) { if (!$p->clock_out_at || $p->auto_closed) $flags++; }
+            $people[$uid] = [
+                'name'     => $ps->first()->user->name ?? ($ps->first()->tenant_user_id),
+                'minutes'  => $mins,
+                'flags'    => $flags,
+                'approved' => $approvals->has($uid),
+                'approver' => optional($approvals->get($uid))->approved_at,
+            ];
+        }
+        // Include zero-punch active staff so they can be explicitly approved too.
+        uasort($people, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+        $canApproveCount = collect($people)->reject(fn ($p) => $p['approved'])->count();
+
+        return view('tenant.timeclock.approvals', compact('periods', 'period', 'people', 'canApproveCount'));
+    }
+
+    public function approvePerson(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $data = $request->validate([
+            'pay_period_id'  => ['required', 'uuid'],
+            'tenant_user_id' => ['required', 'uuid'],
+        ]);
+
+        $period = \App\Models\Tenant\TenantPayPeriod::where('tenant_id', $tenant->id)
+            ->where('id', $data['pay_period_id'])->firstOrFail();
+        abort_if($period->isLocked(), 422, 'Period is locked.');
+
+        $mins = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $data['tenant_user_id'])
+            ->where('clock_in_at', '>=', $period->starts_at)
+            ->where('clock_in_at', '<=', $period->ends_at)
+            ->get()->sum(fn ($p) => $p->minutes());
+
+        \App\Models\Tenant\TenantTimePunchApproval::updateOrCreate(
+            ['pay_period_id' => $period->id, 'tenant_user_id' => $data['tenant_user_id']],
+            ['tenant_id' => $tenant->id, 'approved_by' => $user->id, 'approved_at' => now(), 'minutes_at_approval' => $mins]
+        );
+
+        return back()->with('success', 'Approved.');
+    }
+
+    public function lockPeriod(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $period = \App\Models\Tenant\TenantPayPeriod::where('tenant_id', $tenant->id)
+            ->where('id', $request->input('pay_period_id'))->firstOrFail();
+
+        $period->update(['status' => 'locked', 'locked_at' => now(), 'locked_by' => $user->id]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, null, null, $user->id, 'period_locked',
+            'Locked pay period ' . tlocal_date($period->starts_at) . '–' . tlocal_date($period->ends_at)
+        );
+
+        return back()->with('success', 'Pay period locked. It is now the payroll record.');
+    }
+
+    public function reopenPeriod(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $data = $request->validate([
+            'pay_period_id' => ['required', 'uuid'],
+            'reason'        => ['required', 'string', 'max:500'],
+        ]);
+
+        $period = \App\Models\Tenant\TenantPayPeriod::where('tenant_id', $tenant->id)
+            ->where('id', $data['pay_period_id'])->firstOrFail();
+
+        $period->update(['status' => 'open', 'reopen_reason' => $data['reason']]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, null, null, $user->id, 'period_reopened',
+            'Reopened locked period — ' . $data['reason']
+        );
+
+        return back()->with('success', 'Period reopened.');
+    }
+
+    /** MARKER-PATCH-616 — save time-clock policy settings. */
+    public function saveSettings(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $data = $request->validate([
+            'timeclock_pay_cycle'          => ['required', 'in:weekly,biweekly,semi_monthly,monthly'],
+            'timeclock_ot_threshold_hours' => ['required', 'integer', 'min:0', 'max:168'],
+            'timeclock_autoclose_hours'    => ['required', 'integer', 'min:1', 'max:48'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        foreach ($data as $k => $v) $settings[$k] = $v;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Time clock settings saved.');
     }
 
     /** Report range presets → UTC instants. */

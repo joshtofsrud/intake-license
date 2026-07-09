@@ -743,6 +743,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/timeclock/reports/csv',   [TenantControllers\TimeClockController::class, 'reportsCsv'])->name('timeclock.reports.csv');
             Route::get('/timeclock/reports/print', [TenantControllers\TimeClockController::class, 'reportPrint'])->name('timeclock.reports.print');
             Route::post('/timeclock/reports/email',[TenantControllers\TimeClockController::class, 'reportEmail'])->name('timeclock.reports.email');
+            Route::get('/timeclock/approvals',     [TenantControllers\TimeClockController::class, 'approvals'])->name('timeclock.approvals'); // MARKER-PATCH-616
+            Route::post('/timeclock/approve',      [TenantControllers\TimeClockController::class, 'approvePerson'])->name('timeclock.approve');
+            Route::post('/timeclock/period/lock',  [TenantControllers\TimeClockController::class, 'lockPeriod'])->name('timeclock.period.lock');
+            Route::post('/timeclock/period/reopen',[TenantControllers\TimeClockController::class, 'reopenPeriod'])->name('timeclock.period.reopen');
+            Route::post('/timeclock/settings',     [TenantControllers\TimeClockController::class, 'saveSettings'])->name('timeclock.settings');
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 

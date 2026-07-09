@@ -15,16 +15,16 @@ class AutoCloseTimePunches extends Command
 
     public function handle(): int
     {
-        $capHours = (int) $this->option('hours');
-        $cutoff   = now()->subHours($capHours);
+        $defaultCap = (int) $this->option('hours');
 
-        // Open punches whose clock-in is older than the cap.
-        $stale = TenantTimePunch::whereNull('clock_out_at')
-            ->where('clock_in_at', '<=', $cutoff)
-            ->get();
+        // All open punches; each tenant's configured cap wins over the default.
+        $stale = TenantTimePunch::whereNull('clock_out_at')->get();
 
         $count = 0;
         foreach ($stale as $punch) {
+            $tenant  = \App\Models\Tenant::find($punch->tenant_id);
+            $capHours = (int) ($tenant->settings['timeclock_autoclose_hours'] ?? $defaultCap);
+            if ($punch->clock_in_at->gt(now()->subHours($capHours))) continue; // not stale yet
             // Close at cap (clock_in + cap), not now — don't invent hours.
             $closeAt = $punch->clock_in_at->copy()->addHours($capHours);
             $punch->update([
