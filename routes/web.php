@@ -730,6 +730,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/booking-editor',       [TenantControllers\BookingEditorController::class, 'index'])->name('booking-editor.index');
             Route::post('/booking-editor',      [TenantControllers\BookingEditorController::class, 'store'])->name('booking-editor.store');
 
+            // MARKER-PATCH-610 — time clock
+            Route::get('/timeclock',            [TenantControllers\TimeClockController::class, 'index'])->name('timeclock.index');
+            Route::post('/timeclock/in',        [TenantControllers\TimeClockController::class, 'punchIn'])->name('timeclock.in');
+            Route::post('/timeclock/out',       [TenantControllers\TimeClockController::class, 'punchOut'])->name('timeclock.out');
+
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
             // MARKER-PATCH-258 — media library
@@ -915,7 +920,3 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 Route::middleware(['App\Http\Middleware\ResolveTenant'])
     ->group($tenantRoutes);
 
-
-// MARKER-REPPANEL-SETUP — public rep account setup (tokenized, 7-day expiry)
-Route::get('/rep-setup/{token}', [\App\Http\Controllers\RepSetupController::class, 'show']);
-Route::post('/rep-setup/{token}', [\App\Http\Controllers\RepSetupController::class, 'store']);

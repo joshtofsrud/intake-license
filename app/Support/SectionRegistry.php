@@ -18,6 +18,7 @@ class SectionRegistry
     {
         return [
             'dashboard'         => ['label' => 'Dashboard',          'group' => 'main',     'prefixes' => ['tenant.dashboard'],                            'gate' => null],
+            'timeclock'         => ['label' => 'Time clock',         'group' => 'manage',   'prefixes' => ['tenant.timeclock'],                            'gate' => null], // MARKER-PATCH-610
             'register'          => ['label' => 'Register',           'group' => 'main',     'prefixes' => ['tenant.register'],                             'gate' => 'retail_enabled'],
             'schedule'          => ['label' => 'Schedule',           'group' => 'main',     'prefixes' => ['tenant.calendar', 'tenant.appointments'],      'gate' => null],
             'rentals'           => ['label' => 'Rentals',            'group' => 'main',     'prefixes' => ['tenant.rentals'],                              'gate' => 'rentals_visible'],
@@ -84,3 +85,4 @@ class SectionRegistry
         return $best;
     }
 }
+
