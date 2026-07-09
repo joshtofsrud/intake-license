@@ -558,6 +558,44 @@
   </script>
 
 
+  {{-- MARKER-PATCH-621 — shop search analytics: top + zero-result searches --}}
+  @if(!empty($topSearches) || !empty($zeroSearches))
+  <div class="rep-two-col">
+    <div class="rep-zone">
+      <div class="rep-zone-head">
+        <div>
+          <div class="rep-zone-title">Top shop searches</div>
+          <div class="rep-zone-sub">What customers look for · avg results per search</div>
+        </div>
+      </div>
+      @forelse($topSearches as $ts)
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:.5px dashed var(--ia-border);font-size:12.5px">
+          <span>{{ $ts['q'] }}</span>
+          <span style="color:var(--ia-text-muted);font-variant-numeric:tabular-nums">{{ $ts['n'] }} · {{ $ts['avg'] }} results avg</span>
+        </div>
+      @empty
+        <div style="padding:16px 0;color:var(--ia-text-muted);font-size:12px">No shop searches in this range yet.</div>
+      @endforelse
+    </div>
+    <div class="rep-zone">
+      <div class="rep-zone-head">
+        <div>
+          <div class="rep-zone-title">Zero-result searches</div>
+          <div class="rep-zone-sub">Customers wanted these and found nothing — stocking or naming gaps</div>
+        </div>
+      </div>
+      @forelse($zeroSearches as $zs)
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:.5px dashed var(--ia-border);font-size:12.5px">
+          <span style="color:#f87171">{{ $zs['q'] }}</span>
+          <span style="color:var(--ia-text-muted);font-variant-numeric:tabular-nums">{{ $zs['n'] }} search{{ $zs['n'] > 1 ? 'es' : '' }} · 0 results</span>
+        </div>
+      @empty
+        <div style="padding:16px 0;color:var(--ia-text-muted);font-size:12px">None — every search found something.</div>
+      @endforelse
+    </div>
+  </div>
+  @endif
+
   {{-- Two-column row: sources + devices --}}
   <div class="rep-two-col">
     {{-- Top sources --}}

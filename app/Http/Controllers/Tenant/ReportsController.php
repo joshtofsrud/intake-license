@@ -320,6 +320,8 @@ class ReportsController extends Controller
             'topStats'       => $svc->topStats(),
             'dailyVisitors'  => $svc->dailyVisitors(),
             'dailyStart'     => $svc->curStart(),
+            'topSearches'    => $svc->topSearches(),      // MARKER-PATCH-621
+            'zeroSearches'   => $svc->zeroResultSearches(),
             // MARKER-PATCH-151B — additional panels
             'funnel'         => $bf['funnel'],
             'funnelDetail'   => $bf['detail'],
@@ -376,3 +378,4 @@ class ReportsController extends Controller
         ]);
     }
 }
+

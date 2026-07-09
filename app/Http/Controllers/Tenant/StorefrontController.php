@@ -94,9 +94,10 @@ class StorefrontController extends Controller
     }
 
     /**
-     * MARKER-PATCH-582 — GET /shop/search.json — instant search feed for
-     * the nav type-ahead. Same tokenized match as the grid, minimal
-     * payload, 8 results.
+     * MARKER-PATCH-582 / 621 — GET /shop/search.json — instant search feed.
+     * Relevance-scored (exact > name prefix > name word > brand > SKU, with a
+     * gentle in-stock nudge) instead of stock-count-then-alphabetical, and
+     * every query logs to tenant_search_queries for the Traffic report.
      */
     public function searchJson(\Illuminate\Http\Request $request)
     {
@@ -105,18 +106,58 @@ class StorefrontController extends Controller
             return response()->json(['items' => []]);
         }
 
-        $items = $this->visible()
+        $tokens = array_values(array_filter(preg_split('/\s+/', mb_strtolower($q)), fn ($t) => mb_strlen($t) >= 2));
+
+        // Same AND-token recall as before, but pull a wider candidate set and
+        // rank in PHP — scoring in SQL across 5 fields is unreadable; 60 rows
+        // is a trivial in-memory sort even at 10K-item tenants.
+        $candidates = $this->visible()
             ->with('distributorCatalog:id,manufacturer,images')
-            ->where(function ($x) use ($q) {
-                foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
+            ->where(function ($x) use ($tokens) {
+                foreach ($tokens as $t) {
                     $x->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
                 }
             })
-            ->orderByDesc('computed_stock_count')->orderBy('name')
-            ->limit(8)
+            ->limit(60)
             ->get();
 
-        return response()->json(['items' => $items->map(function ($i) {
+        $raw = implode(' ', $tokens);
+        $scored = $candidates->map(function ($i) use ($tokens, $raw) {
+            $name  = mb_strtolower($i->name ?? '');
+            $sub   = mb_strtolower($i->display_subtitle ?? '');
+            $brand = mb_strtolower($i->distributorCatalog?->manufacturer ?? '');
+            $sku   = mb_strtolower(($i->sku ?? '') . ' ' . ($i->catalog_upc ?? ''));
+            $words = preg_split('/[^a-z0-9]+/', $name);
+
+            $s = 0;
+            if ($name === $raw)                     $s += 100; // exact name
+            elseif (str_starts_with($name, $raw))   $s += 60;  // name prefix
+
+            foreach ($tokens as $t) {
+                if (in_array($t, $words, true))          $s += 20; // whole word in name
+                elseif (str_contains($name, $t))         $s += 10; // substring in name
+                elseif (str_contains($brand, $t))        $s += 8;
+                elseif (str_contains($sub, $t))          $s += 7;
+                elseif (str_contains($sku, $t))          $s += 6;
+            }
+
+            if ((int) ($i->computed_stock_count ?? 0) > 0) $s += 3; // nudge, not the sort key
+
+            return ['item' => $i, 'score' => $s];
+        })
+        ->sortBy([['score', 'desc']])
+        ->take(8)
+        ->pluck('item');
+
+        // MARKER-PATCH-621 — analytics: log the query with its result count.
+        \App\Models\Tenant\TenantSearchQuery::log(
+            tenant()->id,
+            mb_substr((string) $request->session()->getId(), 0, 64),
+            $q,
+            $scored->count()
+        );
+
+        return response()->json(['items' => $scored->map(function ($i) {
             $ims = (array) ($i->distributorCatalog?->images ?? []);
             $f = $ims[0] ?? null;
             $img = is_array($f) ? ($f['Url'] ?? $f['url'] ?? $f['src'] ?? null) : (is_string($f) ? $f : null);
@@ -164,3 +205,4 @@ class StorefrontController extends Controller
         ]);
     }
 }
+

@@ -162,6 +162,42 @@ class TrafficReportService
      * Returns ['current' => [int, ...], 'prior' => [int, ...]]
      * Each list has exactly $this->days entries (one per day).
      */
+    /**
+     * MARKER-PATCH-621 — top searches in the current window: query, count,
+     * and average result count (a low avg on a popular query = weak catalog fit).
+     */
+    public function topSearches(int $limit = 8): array
+    {
+        return \App\Models\Tenant\TenantSearchQuery::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('created_at', '>=', $this->curStart)
+            ->where('created_at', '<',  $this->curEnd)
+            ->selectRaw('LOWER(query) as q, COUNT(*) as n, ROUND(AVG(results_count), 1) as avg_results')
+            ->groupBy('q')
+            ->orderByDesc('n')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($r) => ['q' => $r->q, 'n' => (int) $r->n, 'avg' => (float) $r->avg_results])
+            ->all();
+    }
+
+    /** MARKER-PATCH-621 — zero-result searches: what customers wanted and missed. */
+    public function zeroResultSearches(int $limit = 8): array
+    {
+        return \App\Models\Tenant\TenantSearchQuery::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('created_at', '>=', $this->curStart)
+            ->where('created_at', '<',  $this->curEnd)
+            ->where('results_count', 0)
+            ->selectRaw('LOWER(query) as q, COUNT(*) as n')
+            ->groupBy('q')
+            ->orderByDesc('n')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($r) => ['q' => $r->q, 'n' => (int) $r->n])
+            ->all();
+    }
+
     public function dailyVisitors(): array
     {
         // MARKER-PATCH-619 — a 1-day window renders as a single point on a daily
