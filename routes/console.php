@@ -116,3 +116,14 @@ Schedule::command('bookings:reap-holds')
     ->withoutOverlapping()
     ->runInBackground();
 
+
+// ----------------------------------------------------------------
+// MARKER-PATCH-614 — auto-close time punches left open past the cap.
+// Hourly so a forgotten clock-out is capped within the hour rather
+// than billing overnight. auto_closed flag + audit row guard it.
+// ----------------------------------------------------------------
+Schedule::command('timeclock:auto-close')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();
+

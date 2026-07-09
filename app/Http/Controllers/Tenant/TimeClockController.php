@@ -163,6 +163,136 @@ class TimeClockController extends Controller
         return back()->with('success', 'Timesheet emailed to ' . $data['to'] . '.');
     }
 
+    /**
+     * MARKER-PATCH-614 — Team timesheet (manager grid). Gated by timeclock.manage.
+     * Week of staff x days, with per-person totals and open/flag markers.
+     */
+    public function team(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        // Week window (tenant-local), navigable via ?week=YYYY-MM-DD (any day in it).
+        $anchor = $request->filled('week')
+            ? \Carbon\Carbon::parse($request->input('week'), $tenant->timezone())
+            : tnow();
+        $weekStart = $anchor->copy()->startOfWeek();
+        $weekEnd   = $anchor->copy()->endOfWeek();
+        $fromUtc   = $weekStart->copy()->utc();
+        $toUtc     = $weekEnd->copy()->utc();
+
+        $staff = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
+        $punches = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('clock_in_at', '>=', $fromUtc)
+            ->where('clock_in_at', '<=', $toUtc)
+            ->orderBy('clock_in_at')
+            ->get();
+
+        // Group by user, then by tenant-local day index (0..6 from weekStart).
+        $byUser = [];
+        foreach ($staff as $m) {
+            $byUser[$m->id] = ['name' => $m->name, 'role' => $m->role, 'days' => array_fill(0, 7, 0), 'flags' => array_fill(0, 7, null), 'total' => 0];
+        }
+        foreach ($punches as $p) {
+            if (!isset($byUser[$p->tenant_user_id])) continue;
+            $localDay = (int) tlocal_carbon($p->clock_in_at)->startOfDay()->diffInDays($weekStart->copy()->startOfDay());
+            $idx = max(0, min(6, $localDay));
+            $mins = $p->minutes();
+            $byUser[$p->tenant_user_id]['days'][$idx] += $mins;
+            $byUser[$p->tenant_user_id]['total'] += $mins;
+            if (!$p->clock_out_at)   $byUser[$p->tenant_user_id]['flags'][$idx] = 'open';
+            elseif ($p->auto_closed) $byUser[$p->tenant_user_id]['flags'][$idx] = 'auto';
+        }
+
+        $canEdit = $user->can('timeclock.edit');
+        $days = [];
+        for ($i = 0; $i < 7; $i++) $days[] = $weekStart->copy()->addDays($i);
+
+        // Recent audit trail (last 20).
+        $audits = \App\Models\Tenant\TenantTimePunchAudit::with('actor:id,name')
+            ->where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
+        return view('tenant.timeclock.team', compact('byUser', 'days', 'weekStart', 'canEdit', 'audits'));
+    }
+
+    /** MARKER-PATCH-614 — edit a punch (in/out/break) with a required reason. */
+    public function editPunch(Request $request, string $punchId)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.edit'), 403);
+
+        $punch = TenantTimePunch::where('tenant_id', $tenant->id)->where('id', $punchId)->firstOrFail();
+
+        $data = $request->validate([
+            'clock_in_at'   => ['required', 'date'],
+            'clock_out_at'  => ['nullable', 'date'],
+            'break_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
+            'reason'        => ['required', 'string', 'max:500'],
+        ]);
+
+        $tz = $tenant->timezone();
+        $punch->update([
+            'clock_in_at'   => \Carbon\Carbon::parse($data['clock_in_at'], $tz)->utc(),
+            'clock_out_at'  => $data['clock_out_at'] ? \Carbon\Carbon::parse($data['clock_out_at'], $tz)->utc() : null,
+            'break_minutes' => (int) ($data['break_minutes'] ?? 0),
+            'auto_closed'   => false,
+            'edited_by'     => $user->id,
+            'edit_reason'   => $data['reason'],
+            'edited_at'     => now(),
+        ]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, $punch->id, $punch->tenant_user_id, $user->id,
+            'edited', 'Edited punch — ' . $data['reason']
+        );
+
+        return back()->with('success', 'Punch updated.');
+    }
+
+    /** MARKER-PATCH-614 — create a punch for someone (forgotten clock-in). */
+    public function createPunch(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.edit'), 403);
+
+        $data = $request->validate([
+            'tenant_user_id' => ['required', 'uuid'],
+            'clock_in_at'    => ['required', 'date'],
+            'clock_out_at'   => ['nullable', 'date'],
+            'reason'         => ['required', 'string', 'max:500'],
+        ]);
+
+        $tz = $tenant->timezone();
+        $punch = TenantTimePunch::create([
+            'tenant_id'      => $tenant->id,
+            'tenant_user_id' => $data['tenant_user_id'],
+            'clock_in_at'    => \Carbon\Carbon::parse($data['clock_in_at'], $tz)->utc(),
+            'clock_out_at'   => $data['clock_out_at'] ? \Carbon\Carbon::parse($data['clock_out_at'], $tz)->utc() : null,
+            'source'         => 'manual',
+            'created_by'     => $user->id,
+            'edited_by'      => $user->id,
+            'edit_reason'    => $data['reason'],
+            'edited_at'      => now(),
+        ]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, $punch->id, $punch->tenant_user_id, $user->id,
+            'created', 'Added punch manually — ' . $data['reason']
+        );
+
+        return back()->with('success', 'Punch added.');
+    }
+
     /** Resolve a tenant-local date range to UTC instants. */
     private function range(Request $request): array
     {

@@ -736,6 +736,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/timeclock/out',       [TenantControllers\TimeClockController::class, 'punchOut'])->name('timeclock.out');
             Route::get('/timeclock/timesheet',  [TenantControllers\TimeClockController::class, 'timesheet'])->name('timeclock.timesheet'); // MARKER-PATCH-613
             Route::post('/timeclock/timesheet/email', [TenantControllers\TimeClockController::class, 'emailTimesheet'])->name('timeclock.timesheet.email');
+            Route::get('/timeclock/team',       [TenantControllers\TimeClockController::class, 'team'])->name('timeclock.team'); // MARKER-PATCH-614
+            Route::post('/timeclock/punch',     [TenantControllers\TimeClockController::class, 'createPunch'])->name('timeclock.punch.create');
+            Route::post('/timeclock/punch/{punchId}', [TenantControllers\TimeClockController::class, 'editPunch'])->name('timeclock.punch.edit');
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
