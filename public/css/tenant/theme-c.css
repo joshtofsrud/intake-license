@@ -262,3 +262,9 @@ body.ia-theme-c .ia-flash--info    { background: rgba(56,138,221,.15); color: #8
   .ia-sidebar-bottom { display: none; }
   .ia-content { padding: 20px 16px; }
 }
+
+/* MARKER-PATCH-627 — dark form controls: makes the native date/time picker
+   indicator (the calendar icon in date switchers) render light on dark inputs,
+   and the picker popup itself dark. */
+html.ia-theme-c { color-scheme: dark; }
+

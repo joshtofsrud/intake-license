@@ -253,3 +253,21 @@ body.ia-theme-b {
   .ia-sidebar-bottom { display: none; }
   .ia-content { padding: 20px 16px; }
 }
+
+/* MARKER-PATCH-627 — the sidebar stays dark in the light theme, but descendants
+   (search, inbox, alerts bell, borders) use page tokens that flip light. Re-scope
+   the tokens inside the sidebar so anything token-driven renders light-on-dark. */
+.ia-theme-b .ia-sidebar {
+  --ia-text:        #EDF1F6;
+  --ia-text-muted:  rgba(237, 241, 246, .62);
+  --ia-text-dim:    rgba(237, 241, 246, .42);
+  --ia-border:      rgba(255, 255, 255, .10);
+  --ia-border-2:    rgba(255, 255, 255, .22);
+  --ia-surface:     #243447;
+  --ia-surface-2:   #2A3B50;
+  --ia-input-bg:    #1A2635;
+}
+
+/* MARKER-PATCH-627 — light form controls for the light theme. */
+html.ia-theme-b { color-scheme: light; }
+

@@ -252,3 +252,7 @@ body.ia-theme-a {
   .ia-sidebar-bottom { display: none; }
   .ia-content { padding: 20px 16px; }
 }
+
+/* MARKER-PATCH-627 — dark form controls (see theme-c note). */
+html.ia-theme-a { color-scheme: dark; }
+
