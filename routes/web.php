@@ -751,6 +751,17 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/timeclock/period/reopen',[TenantControllers\TimeClockController::class, 'reopenPeriod'])->name('timeclock.period.reopen');
             Route::post('/timeclock/settings',     [TenantControllers\TimeClockController::class, 'saveSettings'])->name('timeclock.settings');
 
+            // MARKER-PATCH-623 — staff scheduling phase 1
+            Route::get('/scheduling',                    [TenantControllers\SchedulingController::class, 'index'])->name('scheduling.index');
+            Route::post('/scheduling/shift',             [TenantControllers\SchedulingController::class, 'storeShift'])->name('scheduling.shift.store');
+            Route::post('/scheduling/shift/{shiftId}/delete', [TenantControllers\SchedulingController::class, 'deleteShift'])->name('scheduling.shift.delete');
+            Route::post('/scheduling/copy-week',         [TenantControllers\SchedulingController::class, 'copyLastWeek'])->name('scheduling.copy-week');
+            Route::post('/scheduling/publish',           [TenantControllers\SchedulingController::class, 'publish'])->name('scheduling.publish');
+            Route::get('/scheduling/timeoff',            [TenantControllers\SchedulingController::class, 'timeOff'])->name('scheduling.timeoff');
+            Route::post('/scheduling/timeoff',           [TenantControllers\SchedulingController::class, 'timeOffStore'])->name('scheduling.timeoff.store');
+            Route::post('/scheduling/timeoff/{requestId}/review', [TenantControllers\SchedulingController::class, 'timeOffReview'])->name('scheduling.timeoff.review');
+            Route::get('/scheduling/mine',               [TenantControllers\SchedulingController::class, 'mine'])->name('scheduling.mine');
+
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
             // MARKER-PATCH-258 — media library

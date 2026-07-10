@@ -107,6 +107,13 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
       'group'  => 'manage',
     ],
+    // MARKER-PATCH-623 — Scheduling
+    [
+      'route'  => 'tenant.scheduling.mine',
+      'label'  => 'Scheduling',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2.5" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5.5h11M4.5 1v3M9.5 1v3" stroke="currentColor" stroke-width="1.2"/></svg>',
+      'group'  => 'manage',
+    ],
     // MARKER-PATCH-129 — Team & Access (consolidated from Team + Security)
     [
       'route'  => 'tenant.team.index',
