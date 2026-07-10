@@ -255,16 +255,19 @@ body.ia-theme-b {
 }
 
 /* MARKER-PATCH-627 — the sidebar stays dark in the light theme, but descendants
-   (search, inbox, alerts bell, borders) use page tokens that flip light. Re-scope
-   the tokens inside the sidebar so anything token-driven renders light-on-dark. */
+   (search, inbox, alerts bell, borders) consume PAGE tokens, which flip light.
+   Re-scope the page tokens inside the sidebar by MAPPING them to the sidebar
+   tokens — so the master-admin Theme Editor's "Sidebar" group governs these
+   components too, with the values below only as the hardcoded fallback layer. */
 .ia-theme-b .ia-sidebar {
-  --ia-text:        #EDF1F6;
-  --ia-text-muted:  rgba(237, 241, 246, .62);
-  --ia-text-dim:    rgba(237, 241, 246, .42);
-  --ia-border:      rgba(255, 255, 255, .10);
+  --ia-text:        var(--ia-side-active-text, #EDF1F6);
+  --ia-text-muted:  var(--ia-side-text, rgba(237, 241, 246, .62));
+  --ia-text-dim:    var(--ia-side-section, rgba(237, 241, 246, .42));
+  --ia-border:      var(--ia-side-border, rgba(255, 255, 255, .10));
   --ia-border-2:    rgba(255, 255, 255, .22);
+  --ia-hover:       var(--ia-side-hover, rgba(255, 255, 255, .05));
   --ia-surface:     #243447;
-  --ia-surface-2:   #2A3B50;
+  --ia-surface-2:   var(--ia-side-active-bg, #2A3B50);
   --ia-input-bg:    #1A2635;
 }
 
