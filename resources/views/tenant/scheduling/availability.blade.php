@@ -35,6 +35,9 @@
     @endif
     <a href="{{ route('tenant.scheduling.availability') }}" class="on">Availability</a>
     <a href="{{ route('tenant.scheduling.mine') }}">My schedule</a>
+    @if(auth('tenant')->user()?->can('scheduling.build'))
+      <a href="{{ route('tenant.scheduling.settings') }}">Settings</a>
+    @endif
   </div>
 
   <p style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:16px">Tap a cell to cycle: <b>available → prefer → unavailable</b>. The builder flags shifts placed on your unavailable times (it doesn't block them).</p>

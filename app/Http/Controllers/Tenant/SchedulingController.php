@@ -262,14 +262,21 @@ class SchedulingController extends Controller
             'created_by'     => $user->id,
         ]);
 
-        // MARKER-PATCH-624 — soft availability check: surfaced, never blocked.
+        // MARKER-PATCH-625 — soft availability check: flag if the shift OVERLAPS
+        // any unavailable band (not just the band it starts in — a 9-5 shift
+        // spans morning AND afternoon). Surfaced, never blocked.
         if ($this->settings($tenant)['availability']) {
-            $hour = (int) $start->format('G');
-            $band = $hour < 12 ? 'morning' : ($hour < 17 ? 'afternoon' : 'evening');
+            $startH = (int) $start->format('G');
+            $endH   = (int) $end->format('G') + ((int) $end->format('i') > 0 ? 1 : 0);
+            if ($end->isSameDay($start) === false) $endH = 24; // overnight: rest of day counts
+            $bands = [];
+            if ($startH < 12 && $endH > 0)  $bands[] = 'morning';    // 00–12
+            if ($startH < 17 && $endH > 12) $bands[] = 'afternoon';  // 12–17
+            if ($endH > 17)                 $bands[] = 'evening';    // 17–24
             $unavail = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
                 ->where('tenant_user_id', $data['tenant_user_id'])
                 ->where('day_of_week', (int) $start->dayOfWeek)
-                ->where('band', $band)
+                ->whereIn('band', $bands ?: ['morning'])
                 ->where('preference', 'unavailable')->exists();
             if ($unavail) {
                 return back()->with('success', 'Shift added — heads up: it falls outside that person\'s stated availability.');
