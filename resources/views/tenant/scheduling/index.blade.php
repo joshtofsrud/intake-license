@@ -27,6 +27,7 @@
 .sc-shift .l { font-size:9px; color:var(--ia-text-muted); }
 .sc-shift .x { position:absolute; top:2px; right:4px; background:none; border:none; color:var(--ia-text-muted); cursor:pointer; font-size:11px; line-height:1; padding:2px; }
 .sc-shift .x:hover { color:#f87171; }
+.sc-warn { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; background:rgba(245,158,11,.2); color:#F59E0B; font-size:9.5px; font-weight:800; margin-left:5px; cursor:help; vertical-align:1px; }
 .sc-off { background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(248,113,113,.08) 5px,rgba(248,113,113,.08) 10px); border:1px dashed rgba(248,113,113,.35); border-radius:6px; padding:5px; font-size:9.5px; color:#f87171; text-align:center; }
 .sc-add { border:1px dashed var(--ia-border-2,rgba(255,255,255,.2)); border-radius:6px; padding:4px; font-size:10px; color:var(--ia-text-muted); text-align:center; cursor:pointer; opacity:0; transition:opacity .12s; background:none; width:100%; }
 .sc-c:hover .sc-add { opacity:1; }
@@ -126,7 +127,7 @@
             @else
               @foreach($cell['shifts'] as $sh)
                 <div class="sc-shift {{ $sh->published_at ? '' : 'draft' }}">
-                  <div class="t">{{ tlocal($sh->starts_at, 'g:ia') }}–{{ tlocal($sh->ends_at, 'g:ia') }}</div>
+                  <div class="t">{{ tlocal($sh->starts_at, 'g:ia') }}–{{ tlocal($sh->ends_at, 'g:ia') }}@if(!empty($sh->avail_conflict))<span class="sc-warn" title="Outside {{ $m->name }}'s stated availability">!</span>@endif</div>
                   @if($sh->label)<div class="l">{{ $sh->label }}</div>@endif
                   <form method="POST" action="{{ route('tenant.scheduling.shift.delete', $sh->id) }}" style="display:inline"
                         onsubmit="return confirm('Remove this shift?')">@csrf<button class="x" type="submit">×</button></form>

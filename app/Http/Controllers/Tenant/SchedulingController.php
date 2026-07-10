@@ -88,14 +88,32 @@ class SchedulingController extends Controller
         $templates = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
             ->orderBy('name')->get(['id', 'name']);
 
-        // Availability map for out-of-availability warnings on the grid (soft).
-        $availability = [];
+        // Availability conflicts: mark each shift chip that overlaps a band the
+        // person marked unavailable (MARKER-PATCH-626 — inline ! with tooltip).
         if ($set['availability']) {
             $availability = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
                 ->where('preference', 'unavailable')
                 ->get()->groupBy('tenant_user_id')
                 ->map(fn ($rows) => $rows->map(fn ($r) => $r->day_of_week . ':' . $r->band)->all())
                 ->all();
+
+            foreach ($grid as $uid => &$cells) {
+                if (empty($availability[$uid])) continue;
+                foreach ($cells as &$cell) {
+                    foreach ($cell['shifts'] as $sh) {
+                        $localStart = tlocal_carbon($sh->starts_at);
+                        $localEnd   = tlocal_carbon($sh->ends_at);
+                        $dow = (int) $localStart->dayOfWeek;
+                        $conflict = false;
+                        foreach ($this->spannedBands($localStart, $localEnd) as $band) {
+                            if (in_array($dow . ':' . $band, $availability[$uid], true)) { $conflict = true; break; }
+                        }
+                        $sh->avail_conflict = $conflict; // transient, view-only
+                    }
+                }
+                unset($cell);
+            }
+            unset($cells);
         }
 
         return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff', 'set', 'demand', 'templates', 'availability'));
@@ -262,27 +280,8 @@ class SchedulingController extends Controller
             'created_by'     => $user->id,
         ]);
 
-        // MARKER-PATCH-625 — soft availability check: flag if the shift OVERLAPS
-        // any unavailable band (not just the band it starts in — a 9-5 shift
-        // spans morning AND afternoon). Surfaced, never blocked.
-        if ($this->settings($tenant)['availability']) {
-            $startH = (int) $start->format('G');
-            $endH   = (int) $end->format('G') + ((int) $end->format('i') > 0 ? 1 : 0);
-            if ($end->isSameDay($start) === false) $endH = 24; // overnight: rest of day counts
-            $bands = [];
-            if ($startH < 12 && $endH > 0)  $bands[] = 'morning';    // 00–12
-            if ($startH < 17 && $endH > 12) $bands[] = 'afternoon';  // 12–17
-            if ($endH > 17)                 $bands[] = 'evening';    // 17–24
-            $unavail = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
-                ->where('tenant_user_id', $data['tenant_user_id'])
-                ->where('day_of_week', (int) $start->dayOfWeek)
-                ->whereIn('band', $bands ?: ['morning'])
-                ->where('preference', 'unavailable')->exists();
-            if ($unavail) {
-                return back()->with('success', 'Shift added — heads up: it falls outside that person\'s stated availability.');
-            }
-        }
-
+        // MARKER-PATCH-626 — conflicts now surface as an inline ! marker on the
+        // shift chip in the grid (see index()), not a flash.
         return back()->with('success', 'Shift added (draft — publish when the week is ready).');
     }
 
@@ -542,6 +541,19 @@ class SchedulingController extends Controller
         $days = [];
         for ($i = 0; $i < 7; $i++) $days[] = $weekStart->copy()->addDays($i);
         return [$weekStart, $days, $weekStart->copy()->utc(), $weekStart->copy()->addWeek()->utc()];
+    }
+
+    /** Bands (morning 0-12 / afternoon 12-17 / evening 17-24) a local shift spans. */
+    private function spannedBands($localStart, $localEnd): array
+    {
+        $startH = (int) $localStart->format('G');
+        $endH   = (int) $localEnd->format('G') + ((int) $localEnd->format('i') > 0 ? 1 : 0);
+        if (! $localEnd->isSameDay($localStart)) $endH = 24; // overnight: rest of day
+        $bands = [];
+        if ($startH < 12 && $endH > 0)  $bands[] = 'morning';
+        if ($startH < 17 && $endH > 12) $bands[] = 'afternoon';
+        if ($endH > 17)                 $bands[] = 'evening';
+        return $bands ?: ['morning'];
     }
 
     private function dayIdx($utcInstant, $weekStart): int
