@@ -34,6 +34,7 @@
 /* modal */
 .sc-mov { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:50; }
 .sc-mov.on { display:flex; }
+#sc-tpl-menu.on { display:block !important; }
 .sc-modal { width:400px; background:var(--ia-bg,#0c0c0c); border:1px solid var(--ia-border-2,rgba(255,255,255,.2)); border-radius:14px; }
 .sc-mh { padding:15px 18px; border-bottom:.5px solid var(--ia-border); font-weight:700; display:flex; justify-content:space-between; }
 .sc-mb { padding:18px; }
@@ -53,7 +54,11 @@
     @if(auth('tenant')->user()?->can('scheduling.timeoff'))
       <a href="{{ route('tenant.scheduling.timeoff') }}">Time off @if($pendingTimeOff > 0)<span class="b">{{ $pendingTimeOff }}</span>@endif</a>
     @endif
+    @if($set['availability'])
+      <a href="{{ route('tenant.scheduling.availability') }}">Availability</a>
+    @endif
     <a href="{{ route('tenant.scheduling.mine') }}">My schedule</a>
+    <a href="{{ route('tenant.scheduling.settings') }}">Settings</a>
   </div>
 
   <div class="sc-bar">
@@ -65,6 +70,24 @@
       <form method="POST" action="{{ route('tenant.scheduling.copy-week', ['week' => $weekStart->toDateString()]) }}">@csrf
         <button class="sc-btn" type="submit">Copy last week</button>
       </form>
+      {{-- MARKER-PATCH-624 — templates --}}
+      <span style="position:relative">
+        <button class="sc-btn" type="button" onclick="document.getElementById('sc-tpl-menu').classList.toggle('on')">Templates ▾</button>
+        <span id="sc-tpl-menu" style="display:none;position:absolute;right:0;top:36px;z-index:20;background:var(--ia-bg,#0c0c0c);border:1px solid var(--ia-border-2,rgba(255,255,255,.2));border-radius:9px;min-width:220px;padding:6px">
+          @forelse($templates as $tpl)
+            <form method="POST" action="{{ route('tenant.scheduling.template.apply', ['templateId' => $tpl->id, 'week' => $weekStart->toDateString()]) }}">@csrf
+              <button type="submit" style="display:block;width:100%;text-align:left;background:none;border:none;color:var(--ia-text);font-size:12.5px;padding:7px 9px;border-radius:6px;cursor:pointer">Apply "{{ $tpl->name }}"</button>
+            </form>
+          @empty
+            <span style="display:block;font-size:11.5px;color:var(--ia-text-muted);padding:7px 9px">No templates yet</span>
+          @endforelse
+          <form method="POST" action="{{ route('tenant.scheduling.template.save', ['week' => $weekStart->toDateString()]) }}" style="border-top:.5px solid var(--ia-border);margin-top:4px;padding:7px 9px;display:flex;gap:6px">
+            @csrf
+            <input type="text" name="name" required maxlength="80" placeholder="save week as…" style="flex:1;background:var(--ia-surface-2,#1a1a1a);border:1px solid var(--ia-border);color:var(--ia-text);border-radius:6px;padding:5px 8px;font-size:11.5px">
+            <button class="sc-btn" type="submit" style="padding:4px 10px;font-size:11px">Save</button>
+          </form>
+        </span>
+      </span>
       <form method="POST" action="{{ route('tenant.scheduling.publish', ['week' => $weekStart->toDateString()]) }}"
             onsubmit="return confirm('Publish this week? Staff will see their shifts and get notified.')">@csrf
         <button class="sc-btn p" type="submit">Publish week →</button>
@@ -73,6 +96,21 @@
   </div>
 
   <div class="sc-grid">
+    @if($set['demand_overlay'] && !empty($demand))
+      {{-- MARKER-PATCH-624 — booking demand from the appointment calendar --}}
+      <div class="sc-row" style="min-height:auto">
+        <div class="sc-c" style="min-height:auto;padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);display:flex;align-items:center">Booking demand</div>
+        @for($i = 0; $i < 7; $i++)
+          <div class="sc-c" style="min-height:auto;padding:5px 8px">
+            <div style="display:flex;align-items:flex-end;gap:2px;height:22px" title="bookings by time of day">
+              @foreach($demand['bands'][$i] as $n)
+                <span style="flex:1;border-radius:1px;background:rgba(96,165,250,.55);height:{{ $n > 0 ? max(15, (int) round($n / $demand['max'] * 100)) : 4 }}%;{{ $n === 0 ? 'opacity:.25;' : '' }}"></span>
+              @endforeach
+            </div>
+          </div>
+        @endfor
+      </div>
+    @endif
     <div class="sc-row">
       <div class="sc-c hd">Staff</div>
       @foreach($days as $d)<div class="sc-c hd">{{ $d->format('D') }} <span style="opacity:.6">{{ $d->format('j') }}</span></div>@endforeach

@@ -62,7 +62,164 @@ class SchedulingController extends Controller
         $pendingTimeOff = TenantTimeOffRequest::where('tenant_id', $tenant->id)
             ->where('status', 'pending')->count();
 
-        return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff'));
+        // MARKER-PATCH-624 — feature settings + demand overlay + templates
+        $set = $this->settings($tenant);
+
+        $demand = [];
+        if ($set['demand_overlay']) {
+            // Booking density per day/band from the appointment calendar.
+            // appointment_date/time are naive tenant-local wall-clock — perfect here.
+            $rows = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+                ->whereBetween('appointment_date', [$weekStart->toDateString(), $weekStart->copy()->addDays(6)->toDateString()])
+                ->whereNotIn('status', ['cancelled'])
+                ->get(['appointment_date', 'appointment_time']);
+            $demand = array_fill(0, 7, [0, 0, 0, 0]); // bands: <10, 10-13, 13-16, 16+
+            $max = 1;
+            foreach ($rows as $a) {
+                $idx  = $this->dayIdx(\Carbon\Carbon::parse($a->appointment_date->format('Y-m-d'), $tenant->timezone())->utc(), $weekStart);
+                $hour = (int) substr((string) $a->appointment_time, 0, 2);
+                $band = $hour < 10 ? 0 : ($hour < 13 ? 1 : ($hour < 16 ? 2 : 3));
+                $demand[$idx][$band]++;
+                $max = max($max, $demand[$idx][$band]);
+            }
+            $demand = ['bands' => $demand, 'max' => $max];
+        }
+
+        $templates = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
+            ->orderBy('name')->get(['id', 'name']);
+
+        // Availability map for out-of-availability warnings on the grid (soft).
+        $availability = [];
+        if ($set['availability']) {
+            $availability = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
+                ->where('preference', 'unavailable')
+                ->get()->groupBy('tenant_user_id')
+                ->map(fn ($rows) => $rows->map(fn ($r) => $r->day_of_week . ':' . $r->band)->all())
+                ->all();
+        }
+
+        return view('tenant.scheduling.index', compact('staff', 'grid', 'days', 'weekStart', 'draftCount', 'pendingTimeOff', 'set', 'demand', 'templates', 'availability'));
+    }
+
+    /** MARKER-PATCH-624 — scheduling feature settings with defaults. */
+    private function settings($tenant): array
+    {
+        $s = $tenant->settings ?? [];
+        return [
+            'demand_overlay'      => (bool) ($s['scheduling_demand_overlay'] ?? true),
+            'availability'        => (bool) ($s['scheduling_availability'] ?? true),
+            'notify_publish'      => (bool) ($s['scheduling_notify_publish'] ?? true),
+            'timeoff_notice_days' => (int) ($s['scheduling_timeoff_notice_days'] ?? 0),
+        ];
+    }
+
+    /** MARKER-PATCH-624 — settings page. */
+    public function settingsPage(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('scheduling.build'), 403);
+        return view('tenant.scheduling.settings', ['set' => $this->settings($tenant)]);
+    }
+
+    /** MARKER-PATCH-624 — save scheduling settings (Settings tab). */
+    public function saveSettings(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('scheduling.build'), 403);
+
+        $data = $request->validate([
+            'scheduling_timeoff_notice_days' => ['required', 'integer', 'min:0', 'max:60'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $settings['scheduling_demand_overlay'] = (bool) $request->input('scheduling_demand_overlay');
+        $settings['scheduling_availability']   = (bool) $request->input('scheduling_availability');
+        $settings['scheduling_notify_publish'] = (bool) $request->input('scheduling_notify_publish');
+        $settings['scheduling_timeoff_notice_days'] = $data['scheduling_timeoff_notice_days'];
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Scheduling settings saved.');
+    }
+
+    /** MARKER-PATCH-624 — save this week's shifts as a named template. */
+    public function saveTemplate(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('scheduling.build'), 403);
+
+        $data = $request->validate(['name' => ['required', 'string', 'max:80']]);
+        [$weekStart, , $fromUtc, $toUtc] = $this->week($request);
+
+        $shifts = TenantShift::where('tenant_id', $tenant->id)
+            ->where('starts_at', '>=', $fromUtc)->where('starts_at', '<', $toUtc)->get();
+        if ($shifts->isEmpty()) {
+            return back()->with('error', 'Nothing to save — this week has no shifts.');
+        }
+
+        $tz = $tenant->timezone();
+        $pattern = $shifts->map(function ($sh) use ($weekStart, $tz) {
+            return [
+                'day_of_week' => (int) tlocal_carbon($sh->starts_at)->dayOfWeek,
+                'day_offset'  => $this->dayIdx($sh->starts_at, $weekStart),
+                'start'       => tlocal($sh->starts_at, 'H:i'),
+                'end'         => tlocal($sh->ends_at, 'H:i'),
+                'user_id'     => $sh->tenant_user_id,
+                'label'       => $sh->label,
+            ];
+        })->values()->all();
+
+        \App\Models\Tenant\TenantShiftTemplate::updateOrCreate(
+            ['tenant_id' => $tenant->id, 'name' => trim($data['name'])],
+            ['pattern' => $pattern, 'created_by' => $user->id]
+        );
+
+        return back()->with('success', 'Template "' . $data['name'] . '" saved (' . count($pattern) . ' shifts).');
+    }
+
+    /** MARKER-PATCH-624 — apply a template onto the current week (skips conflicts). */
+    public function applyTemplate(Request $request, string $templateId)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('scheduling.build'), 403);
+
+        $tpl = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
+            ->where('id', $templateId)->firstOrFail();
+        [$weekStart] = $this->week($request);
+        $tz = $tenant->timezone();
+
+        $added = 0;
+        foreach ((array) $tpl->pattern as $p) {
+            $day   = $weekStart->copy()->addDays((int) ($p['day_offset'] ?? 0));
+            $start = \Carbon\Carbon::parse($day->toDateString() . ' ' . $p['start'], $tz);
+            $end   = \Carbon\Carbon::parse($day->toDateString() . ' ' . $p['end'], $tz);
+            if ($end->lte($start)) $end->addDay();
+
+            $dupe = TenantShift::where('tenant_id', $tenant->id)
+                ->where('tenant_user_id', $p['user_id'])
+                ->where('starts_at', $start->copy()->utc())->exists();
+            $off = TenantTimeOffRequest::where('tenant_id', $tenant->id)
+                ->where('tenant_user_id', $p['user_id'])
+                ->where('status', 'approved')
+                ->where('starts_at', '<', $end->copy()->utc())->where('ends_at', '>', $start->copy()->utc())->exists();
+            $exists = TenantUser::where('tenant_id', $tenant->id)->where('id', $p['user_id'])->where('is_active', true)->exists();
+            if ($dupe || $off || !$exists) continue;
+
+            TenantShift::create([
+                'tenant_id'      => $tenant->id,
+                'tenant_user_id' => $p['user_id'],
+                'starts_at'      => $start->utc(),
+                'ends_at'        => $end->utc(),
+                'label'          => $p['label'] ?? null,
+                'created_by'     => $user->id,
+            ]);
+            $added++;
+        }
+
+        return back()->with('success', 'Applied "' . $tpl->name . '" — ' . $added . ' shift(s) added (conflicts skipped).');
     }
 
     public function storeShift(Request $request)
@@ -104,6 +261,20 @@ class SchedulingController extends Controller
             'label'          => $data['label'] ?? null,
             'created_by'     => $user->id,
         ]);
+
+        // MARKER-PATCH-624 — soft availability check: surfaced, never blocked.
+        if ($this->settings($tenant)['availability']) {
+            $hour = (int) $start->format('G');
+            $band = $hour < 12 ? 'morning' : ($hour < 17 ? 'afternoon' : 'evening');
+            $unavail = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
+                ->where('tenant_user_id', $data['tenant_user_id'])
+                ->where('day_of_week', (int) $start->dayOfWeek)
+                ->where('band', $band)
+                ->where('preference', 'unavailable')->exists();
+            if ($unavail) {
+                return back()->with('success', 'Shift added — heads up: it falls outside that person\'s stated availability.');
+            }
+        }
 
         return back()->with('success', 'Shift added (draft — publish when the week is ready).');
     }
@@ -180,7 +351,11 @@ class SchedulingController extends Controller
 
         TenantShift::whereIn('id', $drafts->pluck('id'))->update(['published_at' => now()]);
 
-        // Notify each affected person over the branded rail (best-effort).
+        // Notify each affected person over the branded rail (best-effort),
+        // unless publishing notifications are turned off in settings.
+        if (! $this->settings($tenant)['notify_publish']) {
+            return back()->with('success', 'Week published — ' . $drafts->count() . ' shift(s) visible to staff.');
+        }
         $emailer = new \App\Services\EmailService($tenant);
         foreach ($drafts->groupBy('tenant_user_id') as $userShifts) {
             $member = $userShifts->first()->user;
@@ -231,6 +406,13 @@ class SchedulingController extends Controller
         ]);
 
         $tz = $tenant->timezone();
+
+        // MARKER-PATCH-624 — minimum-notice policy (0 = off).
+        $notice = $this->settings($tenant)['timeoff_notice_days'];
+        if ($notice > 0 && \Carbon\Carbon::parse($data['starts_on'], $tz)->lt(tnow()->addDays($notice)->startOfDay())) {
+            return back()->with('error', "Time-off requests need at least {$notice} days' notice.");
+        }
+
         TenantTimeOffRequest::create([
             'tenant_id'      => $tenant->id,
             'tenant_user_id' => $user->id,
@@ -288,6 +470,56 @@ class SchedulingController extends Controller
         $weekMinutes = $shifts->sum(fn ($s) => $s->minutes());
 
         return view('tenant.scheduling.mine', compact('shifts', 'requests', 'days', 'weekStart', 'weekMinutes'));
+    }
+
+    /* ---------------------------------------------------------- availability */
+
+    /** MARKER-PATCH-624 — staff paint their recurring day/band availability. */
+    public function availability(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($this->settings($tenant)['availability'], 404);
+
+        $rows = \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)->get();
+
+        // map["{day}:{band}"] = preference (default 'available')
+        $map = [];
+        foreach ($rows as $r) $map[$r->day_of_week . ':' . $r->band] = $r->preference;
+
+        return view('tenant.scheduling.availability', ['map' => $map, 'set' => $this->settings($tenant)]);
+    }
+
+    public function availabilityStore(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($this->settings($tenant)['availability'], 404);
+
+        $data = $request->validate(['cells' => ['nullable', 'string', 'max:4000']]);
+        // cells = comma list of "day:band:preference"
+        $seen = [];
+        foreach (array_filter(explode(',', (string) ($data['cells'] ?? ''))) as $cell) {
+            [$day, $band, $pref] = array_pad(explode(':', $cell), 3, null);
+            if (!in_array((int) $day, range(0, 6), true)) continue;
+            if (!in_array($band, ['morning', 'afternoon', 'evening'], true)) continue;
+            if (!in_array($pref, ['available', 'prefer', 'unavailable'], true)) continue;
+            \App\Models\Tenant\TenantAvailability::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'tenant_user_id' => $user->id, 'day_of_week' => (int) $day, 'band' => $band],
+                ['preference' => $pref]
+            );
+            $seen[] = (int) $day . ':' . $band;
+        }
+        // anything not sent reverts to default available
+        \App\Models\Tenant\TenantAvailability::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->get()
+            ->each(function ($r) use ($seen) {
+                if (!in_array($r->day_of_week . ':' . $r->band, $seen, true)) $r->delete();
+            });
+
+        return back()->with('success', 'Availability saved — the builder will flag conflicts.');
     }
 
     /* ---------------------------------------------------------- helpers */

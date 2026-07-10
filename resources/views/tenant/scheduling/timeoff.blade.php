@@ -31,7 +31,13 @@
       <a href="{{ route('tenant.scheduling.index') }}">Schedule builder</a>
     @endif
     <a href="{{ route('tenant.scheduling.timeoff') }}" class="on">Time off</a>
+    @if((tenant()->settings['scheduling_availability'] ?? true))
+      <a href="{{ route('tenant.scheduling.availability') }}">Availability</a>
+    @endif
     <a href="{{ route('tenant.scheduling.mine') }}">My schedule</a>
+    @if(auth('tenant')->user()?->can('scheduling.build'))
+      <a href="{{ route('tenant.scheduling.settings') }}">Settings</a>
+    @endif
   </div>
 
   <div class="to-card">

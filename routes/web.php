@@ -761,6 +761,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/scheduling/timeoff',           [TenantControllers\SchedulingController::class, 'timeOffStore'])->name('scheduling.timeoff.store');
             Route::post('/scheduling/timeoff/{requestId}/review', [TenantControllers\SchedulingController::class, 'timeOffReview'])->name('scheduling.timeoff.review');
             Route::get('/scheduling/mine',               [TenantControllers\SchedulingController::class, 'mine'])->name('scheduling.mine');
+            Route::get('/scheduling/availability',       [TenantControllers\SchedulingController::class, 'availability'])->name('scheduling.availability'); // MARKER-PATCH-624
+            Route::post('/scheduling/availability',      [TenantControllers\SchedulingController::class, 'availabilityStore'])->name('scheduling.availability.store');
+            Route::get('/scheduling/settings',           [TenantControllers\SchedulingController::class, 'settingsPage'])->name('scheduling.settings');
+            Route::post('/scheduling/settings',          [TenantControllers\SchedulingController::class, 'saveSettings'])->name('scheduling.settings.save');
+            Route::post('/scheduling/template',          [TenantControllers\SchedulingController::class, 'saveTemplate'])->name('scheduling.template.save');
+            Route::post('/scheduling/template/{templateId}/apply', [TenantControllers\SchedulingController::class, 'applyTemplate'])->name('scheduling.template.apply');
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
