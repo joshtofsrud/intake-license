@@ -30,7 +30,8 @@ class SettingsController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('tenant.settings.index', compact('receivingMethods'));
+        $paymentMethods = \App\Models\Tenant\TenantPaymentMethod::bootstrapFor($tenant); // MARKER-PATCH-629
+        return view('tenant.settings.index', compact('receivingMethods', 'paymentMethods'));
     }
 
     public function update(Request $request)
@@ -303,10 +304,8 @@ class SettingsController extends Controller
 
         // MARKER-PATCH-618 — Venmo / Cash App manual tenders (peer-to-peer pay links).
         // Handles are stored bare (no @ / $); the link helper adds the scheme.
-        $settings['venmo_enabled']    = (bool) $request->input('venmo_enabled');
-        $settings['venmo_handle']     = ltrim(trim($request->input('venmo_handle', '')), '@');
-        $settings['cashapp_enabled']  = (bool) $request->input('cashapp_enabled');
-        $settings['cashapp_cashtag']  = ltrim(trim($request->input('cashapp_cashtag', '')), '$');
+        // MARKER-PATCH-629 — venmo/cashapp keys retired here: owned by
+        // tenant_payment_methods and written back via syncLegacyKeys().
 
         $tenant->update(['settings' => $settings]);
         return back()->with('success', 'Payment settings saved.');

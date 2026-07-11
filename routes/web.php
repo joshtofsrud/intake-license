@@ -852,6 +852,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
             Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
+            // MARKER-PATCH-629 — unified payment methods
+            Route::post('/settings/payment-methods',                    [TenantControllers\PaymentMethodsController::class, 'storeCustom'])->name('settings.payment-methods.store');
+            Route::post('/settings/payment-methods/{methodId}',         [TenantControllers\PaymentMethodsController::class, 'update'])->name('settings.payment-methods.update');
+            Route::post('/settings/payment-methods/{methodId}/delete',  [TenantControllers\PaymentMethodsController::class, 'destroyCustom'])->name('settings.payment-methods.delete');
 
             // MARKER-PATCH-473 — verify a tenant's Square connection
             Route::post('/settings/square/verify', [TenantControllers\SettingsController::class, 'verifySquareConnection'])->name('settings.square.verify');
