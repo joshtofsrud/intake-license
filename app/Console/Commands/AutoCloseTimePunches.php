@@ -23,7 +23,7 @@ class AutoCloseTimePunches extends Command
         $count = 0;
         foreach ($stale as $punch) {
             $tenant  = \App\Models\Tenant::find($punch->tenant_id);
-            $capHours = (int) ($tenant->settings['timeclock_autoclose_hours'] ?? $defaultCap);
+            $capHours = (int) ($tenant?->settings['timeclock_autoclose_hours'] ?? $defaultCap);
             if ($punch->clock_in_at->gt(now()->subHours($capHours))) continue; // not stale yet
             // Close at cap (clock_in + cap), not now — don't invent hours.
             $closeAt = $punch->clock_in_at->copy()->addHours($capHours);
@@ -39,7 +39,9 @@ class AutoCloseTimePunches extends Command
             $count++;
         }
 
-        $this->info("Auto-closed {$count} open punch(es) past {$capHours}h.");
+        // MARKER-PATCH-628 — $capHours only exists inside the loop; with zero
+        // open punches this line fataled every hour since ship.
+        $this->info("Auto-closed {$count} open punch(es).");
         return self::SUCCESS;
     }
 }
