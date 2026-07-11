@@ -266,5 +266,9 @@ body.ia-theme-c .ia-flash--info    { background: rgba(56,138,221,.15); color: #8
 /* MARKER-PATCH-627 — dark form controls: makes the native date/time picker
    indicator (the calendar icon in date switchers) render light on dark inputs,
    and the picker popup itself dark. */
-html.ia-theme-c { color-scheme: dark; }
+html.ia-theme-c input[type="date"]::-webkit-calendar-picker-indicator,
+html.ia-theme-c input[type="time"]::-webkit-calendar-picker-indicator,
+html.ia-theme-c input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(.7);
+}
 

@@ -254,5 +254,9 @@ body.ia-theme-a {
 }
 
 /* MARKER-PATCH-627 — dark form controls (see theme-c note). */
-html.ia-theme-a { color-scheme: dark; }
+html.ia-theme-a input[type="date"]::-webkit-calendar-picker-indicator,
+html.ia-theme-a input[type="time"]::-webkit-calendar-picker-indicator,
+html.ia-theme-a input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(.7);
+}
 

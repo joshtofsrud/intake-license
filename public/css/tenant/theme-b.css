@@ -271,6 +271,3 @@ body.ia-theme-b {
   --ia-input-bg:    #1A2635;
 }
 
-/* MARKER-PATCH-627 — light form controls for the light theme. */
-html.ia-theme-b { color-scheme: light; }
-
