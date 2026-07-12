@@ -134,6 +134,95 @@ class DailyOpsController extends Controller
         return view('tenant.reports.daily-print', ['day' => $day, 'n' => $n, 'drawer' => $drawer, 'tenant' => $tenant]);
     }
 
+    /* ------------------------------------------------------------ reconciliation (MARKER-PATCH-635) */
+
+    public function reconciliation(Request $request)
+    {
+        $tenant = tenant();
+        $tz = $tenant->timezone();
+        $week = $request->filled('week')
+            ? \Carbon\Carbon::parse($request->input('week'), $tz)->startOfWeek()
+            : tnow()->startOfWeek();
+        $fromUtc = $week->copy()->utc();
+        $toUtc   = $week->copy()->addWeek()->utc();
+
+        $svc = new \App\Services\Tenant\PayoutReconService($tenant);
+
+        $payouts = \App\Models\Tenant\TenantStripePayout::where('tenant_id', $tenant->id)
+            ->whereBetween('arrived_on', [$week->toDateString(), $week->copy()->addDays(6)->toDateString()])
+            ->orderByDesc('arrived_on')->get();
+
+        // flat unmatched list across the week's payouts
+        $unmatched = [];
+        foreach ($payouts as $po) {
+            foreach ((array) $po->items as $it) {
+                if (! ($it['matched'] ?? false)) {
+                    $unmatched[] = ['payout' => $po->payout_id, 'charge' => $it['charge'] ?? '', 'pi' => $it['pi'] ?? null,
+                                    'amount' => (int) ($it['amount'] ?? 0), 'created' => (int) ($it['created'] ?? 0)];
+                }
+            }
+        }
+
+        // cash week from closed drawer days
+        $cashWeek = \App\Models\Tenant\TenantDrawerDay::where('tenant_id', $tenant->id)
+            ->whereBetween('day', [$week->toDateString(), $week->copy()->addDays(6)->toDateString()])
+            ->orderBy('day')->get();
+
+        return view('tenant.reports.daily-recon', [
+            'week'      => $week,
+            'payouts'   => $payouts,
+            'unmatched' => $unmatched,
+            'cashWeek'  => $cashWeek,
+            'available' => $svc->available(),
+            'lastFetch' => $payouts->max('fetched_at'),
+        ]);
+    }
+
+    public function reconciliationRefresh(Request $request)
+    {
+        $tenant = tenant();
+        $tz = $tenant->timezone();
+        $week = $request->filled('week')
+            ? \Carbon\Carbon::parse($request->input('week'), $tz)->startOfWeek()
+            : tnow()->startOfWeek();
+
+        try {
+            $n = (new \App\Services\Tenant\PayoutReconService($tenant))
+                ->refreshRange($week->copy()->utc(), $week->copy()->addWeek()->utc());
+        } catch (\Throwable $e) {
+            logger()->warning('payout recon refresh failed', ['err' => $e->getMessage()]);
+            return back()->with('error', 'Stripe fetch failed — check your Stripe keys and try again.');
+        }
+
+        return back()->with('success', $n . ' payout(s) fetched and matched.');
+    }
+
+    /** MARKER-PATCH-635 — Xero bank statement CSV from cached payouts. */
+    public function exportXero(Request $request)
+    {
+        $tenant = tenant();
+        [$from, $to, $label] = $this->rangeWindow($request);
+
+        $payouts = \App\Models\Tenant\TenantStripePayout::where('tenant_id', $tenant->id)
+            ->whereBetween('arrived_on', [tlocal_carbon($from)->toDateString(), tlocal_carbon($to)->toDateString()])
+            ->orderBy('arrived_on')->get();
+
+        return response()->streamDownload(function () use ($payouts) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Date', 'Amount', 'Payee', 'Description', 'Reference']);
+            foreach ($payouts as $po) {
+                fputcsv($out, [
+                    $po->arrived_on->format('d/m/Y'),
+                    number_format($po->net_cents / 100, 2, '.', ''),
+                    'Stripe',
+                    'Stripe payout — gross ' . number_format($po->gross_cents / 100, 2) . ', fees ' . number_format($po->fee_cents / 100, 2),
+                    $po->payout_id,
+                ]);
+            }
+            fclose($out);
+        }, 'xero-statement-' . $label . '.csv', ['Content-Type' => 'text/csv']);
+    }
+
     /* ------------------------------------------------------------ exports (MARKER-PATCH-634) */
 
     public function exports(Request $request)

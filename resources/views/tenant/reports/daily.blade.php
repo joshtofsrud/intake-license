@@ -41,6 +41,7 @@
   {{-- MARKER-PATCH-634 — daily ops inner subnav --}}
   <div style="display:flex;gap:18px;border-bottom:.5px solid var(--ia-border);margin-bottom:16px">
     <a href="{{ route('tenant.reports.daily') }}" style="padding:10px 2px;font-size:12.5px;color:var(--ia-text);border-bottom:2px solid var(--ia-accent);margin-bottom:-.5px;text-decoration:none;font-weight:600">End of day</a>
+    <a href="{{ route('tenant.reports.daily.recon') }}" style="padding:10px 2px;font-size:12.5px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Reconciliation</a>
     <a href="{{ route('tenant.reports.daily.exports') }}" style="padding:10px 2px;font-size:12.5px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Bookkeeping exports</a>
   </div>
 

@@ -32,6 +32,7 @@
 
   <div class="ex-sub">
     <a href="{{ route('tenant.reports.daily') }}">End of day</a>
+    <a href="{{ route('tenant.reports.daily.recon') }}">Reconciliation</a>
     <a href="{{ route('tenant.reports.daily.exports') }}" class="on">Bookkeeping exports</a>
   </div>
 
@@ -68,11 +69,11 @@
       <a class="ex-btn" href="{{ route('tenant.reports.daily.export.tax') . $qs }}">Generate export</a>
     </div>
 
-    <div class="ex-card soon">
+    <div class="ex-card">
       <div class="t">Xero bank statement</div>
-      <div class="d">Payout-level lines matching your bank feed for one-click reconciliation in Xero. Arrives with Stripe payout reconciliation (next stage) — it's built from payout data.</div>
+      <div class="d">Payout-level lines matching your bank feed for one-click reconciliation in Xero. Built from cached payouts — fetch the weeks you need on the Reconciliation tab first.</div>
       <div class="f">CSV · Xero statement</div>
-      <span class="ex-btn">Coming with reconciliation</span>
+      <a class="ex-btn" href="{{ route('tenant.reports.daily.export.xero') . $qs }}">Generate export</a>
     </div>
   </div>
 </div>
