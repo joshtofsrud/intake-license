@@ -134,6 +134,151 @@ class DailyOpsController extends Controller
         return view('tenant.reports.daily-print', ['day' => $day, 'n' => $n, 'drawer' => $drawer, 'tenant' => $tenant]);
     }
 
+    /* ------------------------------------------------------------ exports (MARKER-PATCH-634) */
+
+    public function exports(Request $request)
+    {
+        [$from, $to, $label] = $this->rangeWindow($request);
+        return view('tenant.reports.daily-exports', ['from' => $from, 'to' => $to, 'label' => $label]);
+    }
+
+    /**
+     * QuickBooks Online journal CSV — one balanced journal entry per day.
+     * Debits: per-method collected (net of that method's refunds) into its
+     * deposit account. Credits: sales income (derived), tax payable, tips.
+     * Income = collected − tax − tips, so debits always equal credits.
+     * Account names come from each method's QB mapping when set (stage 4),
+     * with sensible defaults until then.
+     */
+    public function exportQbJournal(Request $request)
+    {
+        $tenant = tenant();
+        [$from, $to, $label] = $this->rangeWindow($request);
+
+        $qbMap = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $tenant->id)->get()
+            ->keyBy('method_key')->map(fn ($m) => $m->qb['deposit_account'] ?? null);
+
+        $days = $this->dailyBreakdown($from, $to);
+
+        return response()->streamDownload(function () use ($days, $qbMap) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['JournalNo', 'JournalDate', 'AccountName', 'Debits', 'Credits', 'Description']);
+            $no = 1;
+            foreach ($days as $d) {
+                if ($d['collected'] === 0 && $d['refunds'] === 0) continue;
+                $date = $d['date'];
+                $desc = 'Daily sales ' . $date;
+                foreach ($d['by_method'] as $bm) {
+                    $net = $bm['collected'] - $bm['refunded'];
+                    if ($net === 0) continue;
+                    $acct = $qbMap[$bm['method']] ?? ($bm['method'] === 'card' ? 'Stripe Clearing' : 'Undeposited Funds');
+                    if ($net > 0) fputcsv($out, [$no, $date, $acct, number_format($net / 100, 2, '.', ''), '', $desc . ' — ' . $bm['label']]);
+                    else          fputcsv($out, [$no, $date, $acct, '', number_format(abs($net) / 100, 2, '.', ''), $desc . ' — ' . $bm['label'] . ' (net refund)']);
+                }
+                $netCollected = $d['collected'] - $d['refunds'];
+                $income = $netCollected - $d['tax'] - $d['tips'];
+                if ($income !== 0) fputcsv($out, [$no, $date, 'Sales', $income < 0 ? number_format(abs($income) / 100, 2, '.', '') : '', $income > 0 ? number_format($income / 100, 2, '.', '') : '', $desc . ' — income']);
+                if ($d['tax'] > 0)  fputcsv($out, [$no, $date, 'Sales Tax Payable', '', number_format($d['tax'] / 100, 2, '.', ''), $desc . ' — sales tax']);
+                if ($d['tips'] > 0) fputcsv($out, [$no, $date, 'Tips Payable', '', number_format($d['tips'] / 100, 2, '.', ''), $desc . ' — tips']);
+                $no++;
+            }
+            fclose($out);
+        }, 'quickbooks-journal-' . $label . '.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /** Every payment row with sale context — the everything file. */
+    public function exportDetail(Request $request)
+    {
+        $tenant = tenant();
+        [$from, $to, $label] = $this->rangeWindow($request);
+
+        return response()->streamDownload(function () use ($tenant, $from, $to) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Recorded (local)', 'Kind', 'Method', 'Amount', 'Sale total', 'Tax', 'Tip', 'Customer', 'Source', 'Reference']);
+            TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+                ->where('recorded_at', '>=', $from)->where('recorded_at', '<', $to)
+                ->leftJoin('tenant_sales', 'tenant_sales.id', '=', 'tenant_sale_payments.sale_id')
+                ->leftJoin('tenant_customers', 'tenant_customers.id', '=', 'tenant_sale_payments.customer_id')
+                ->orderBy('recorded_at')
+                ->select(['tenant_sale_payments.*',
+                          'tenant_sales.total_cents as s_total', 'tenant_sales.tax_cents as s_tax', 'tenant_sales.tip_cents as s_tip',
+                          'tenant_customers.first_name as c_first', 'tenant_customers.last_name as c_last'])
+                ->chunk(500, function ($rows) use ($out) {
+                    foreach ($rows as $r) {
+                        $sign = in_array($r->kind, ['refund', 'overage_refund'], true) ? -1 : 1;
+                        fputcsv($out, [
+                            tlocal($r->recorded_at, 'Y-m-d H:i'),
+                            $r->kind,
+                            tender_label($r->method),
+                            number_format($sign * abs($r->amount_cents) / 100, 2, '.', ''),
+                            $r->s_total !== null ? number_format($r->s_total / 100, 2, '.', '') : '',
+                            $r->s_tax !== null ? number_format($r->s_tax / 100, 2, '.', '') : '',
+                            $r->s_tip !== null ? number_format($r->s_tip / 100, 2, '.', '') : '',
+                            trim(($r->c_first ?? '') . ' ' . ($r->c_last ?? '')),
+                            $r->source,
+                            $r->external_reference,
+                        ]);
+                    }
+                });
+            fclose($out);
+        }, 'sales-payments-detail-' . $label . '.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /** Tax by day — gross, taxable, tax collected. Shaped for the WA excise return. */
+    public function exportTax(Request $request)
+    {
+        [$from, $to, $label] = $this->rangeWindow($request);
+        $days = $this->dailyBreakdown($from, $to);
+
+        return response()->streamDownload(function () use ($days) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Date', 'Sales', 'Gross', 'Taxable (gross − tax)', 'Tax collected']);
+            $tg = $tt = 0;
+            foreach ($days as $d) {
+                if ($d['gross'] === 0 && $d['tax'] === 0) continue;
+                fputcsv($out, [$d['date'], $d['sale_count'],
+                    number_format($d['gross'] / 100, 2, '.', ''),
+                    number_format(($d['gross'] - $d['tax']) / 100, 2, '.', ''),
+                    number_format($d['tax'] / 100, 2, '.', '')]);
+                $tg += $d['gross']; $tt += $d['tax'];
+            }
+            fputcsv($out, ['TOTAL', '', number_format($tg / 100, 2, '.', ''), number_format(($tg - $tt) / 100, 2, '.', ''), number_format($tt / 100, 2, '.', '')]);
+            fclose($out);
+        }, 'tax-summary-' . $label . '.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /** Per-tenant-local-day numbers across a range (reuses numbersFor per day). */
+    private function dailyBreakdown($fromUtc, $toUtc): array
+    {
+        $tenant = tenant();
+        $days = [];
+        $cursor = tlocal_carbon($fromUtc)->startOfDay();
+        $endLocal = tlocal_carbon($toUtc);
+        while ($cursor->lt($endLocal)) {
+            $dFrom = $cursor->copy()->utc();
+            $dTo   = $cursor->copy()->addDay()->utc();
+            $n = $this->numbersFor($dFrom, $dTo);
+            $n['date'] = $cursor->toDateString();
+            $days[] = $n;
+            $cursor->addDay();
+        }
+        return $days;
+    }
+
+    /** [fromUtc, toUtc, filenameLabel] from ?from=&to= (defaults: current month). */
+    private function rangeWindow(Request $request): array
+    {
+        $tenant = tenant();
+        $tz = $tenant->timezone();
+        $from = $request->filled('from')
+            ? \Carbon\Carbon::parse($request->input('from'), $tz)->startOfDay()
+            : tnow()->startOfMonth();
+        $to = $request->filled('to')
+            ? \Carbon\Carbon::parse($request->input('to'), $tz)->endOfDay()
+            : tnow()->endOfDay();
+        return [$from->copy()->utc(), $to->copy()->utc(), $from->format('Y-m-d') . '_' . $to->format('Y-m-d')];
+    }
+
     /* ------------------------------------------------------------ numbers */
 
     private function numbersFor($fromUtc, $toUtc): array
