@@ -139,3 +139,32 @@ if (! function_exists('debug_log')) {
         return app(\App\Services\DebugLogService::class);
     }
 }
+
+if (! function_exists('tender_label')) {
+    /**
+     * MARKER-PATCH-630 — human label for a payment_method key.
+     * 'cash_app' → 'Cash App', 'custom_house_account' → 'House account'.
+     * Prefers the tenant's configured method name when available.
+     */
+    function tender_label(?string $key): string
+    {
+        if (!$key) return '';
+        static $cache = [];
+        $tid = function_exists('tenant') && app()->bound('tenant') && tenant() ? tenant()->id : null;
+        $ck = ($tid ?? '-') . ':' . $key;
+        if (isset($cache[$ck])) return $cache[$ck];
+
+        $name = null;
+        if ($tid) {
+            try {
+                $name = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $tid)
+                    ->where('method_key', $key)->value('name');
+            } catch (\Throwable $e) { /* table may not exist yet */ }
+        }
+        if (!$name) {
+            $name = ucfirst(str_replace('_', ' ', preg_replace('/^custom_/', '', $key)));
+        }
+        return $cache[$ck] = $name;
+    }
+}
+

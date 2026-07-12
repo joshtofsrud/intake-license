@@ -103,6 +103,45 @@ class TenantPaymentMethod extends Model
         $tenant->update(['settings' => $s]);
     }
 
+    /**
+     * MARKER-PATCH-630 — manual tenders for the register beyond the built-in
+     * buttons: venmo, cash_app (manual mode only), and custom methods that are
+     * enabled with the register surface on.
+     */
+    public static function registerManualTenders(Tenant $tenant): array
+    {
+        return static::where('tenant_id', $tenant->id)
+            ->where('enabled', true)
+            ->where('kind', 'manual')
+            ->whereNotIn('method_key', ['cash', 'check', 'store_credit'])
+            ->orderBy('sort')
+            ->get()
+            ->filter(fn ($m) => $m->enabledOn('register'))
+            ->reject(fn ($m) => $m->method_key === 'cash_app' && $m->mode === 'stripe')
+            ->map(fn ($m) => [
+                'key'          => $m->method_key,
+                'name'         => $m->name,
+                'hint'         => $m->hintFor('register'),
+                'instructions' => $m->instructions,
+                'linktpl'      => $m->linkTemplate(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /** Payment link template with {amount} placeholder, or null. */
+    public function linkTemplate(): ?string
+    {
+        if (! $this->link_qr || ! $this->handle) return null;
+        $h = ltrim(trim($this->handle), '@$');
+        if ($h === '') return null;
+        return match ($this->method_key) {
+            'venmo'    => 'https://venmo.com/u/' . rawurlencode($h) . '?txn=pay&amount={amount}',
+            'cash_app' => 'https://cash.app/$' . rawurlencode($h) . '/{amount}',
+            default    => null,
+        };
+    }
+
     /** Is this method live on a surface? */
     public function enabledOn(string $surface): bool
     {

@@ -505,11 +505,33 @@
       </button>
       <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
+      {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
+      @foreach(($manualTenders ?? []) as $mt)
+        <button type="button" class="reg-tender-btn" data-tender="{{ $mt['key'] }}"
+                data-manual="1" data-name="{{ $mt['name'] }}"
+                @if($mt['linktpl']) data-linktpl="{{ $mt['linktpl'] }}" @endif
+                @if($mt['instructions']) data-instructions="{{ $mt['instructions'] }}" @endif>
+          {{ $mt['name'] }}
+          @if($mt['hint'])<div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">{{ $mt['hint'] }}</div>@endif
+        </button>
+      @endforeach
       <button type="button" class="reg-tender-btn" data-tender="mark_paid">No tender (already paid)</button>
     </div>
     <div id="tenderRefRow" style="display:none;margin-bottom:14px">
       <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
       <input type="text" id="tenderRefInput" placeholder="Check #, last 4 of card, etc.">
+    </div>
+    {{-- MARKER-PATCH-630 — manual payment link (Venmo / Cash App) --}}
+    <div id="tenderManualRow" style="display:none;margin-bottom:14px">
+      <div id="tenderManualInstr" style="font-size:12px;color:var(--ia-text-muted);margin-bottom:8px"></div>
+      <div id="tenderManualLinkWrap" style="display:none">
+        <div id="tenderManualLink" style="font-size:12px;background:var(--ia-surface-2,#1a1a1a);border:1px solid var(--ia-border);border-radius:8px;padding:9px 11px;color:var(--ia-accent);word-break:break-all;margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="reg-btn-secondary" id="tenderManualCopy" style="font-size:12px;padding:7px 13px">Copy link</button>
+          <a class="reg-btn-secondary" id="tenderManualSms" style="font-size:12px;padding:7px 13px;text-decoration:none" href="#">Text to customer</a>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
     </div>
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
@@ -1833,6 +1855,7 @@ document.getElementById('payBtn').addEventListener('click', () => {
   cart.payment_method = null;
   cart.payment_reference = null;
   document.getElementById('tenderRefRow').style.display = 'none';
+  document.getElementById('tenderManualRow').style.display = 'none'; // MARKER-PATCH-630
   document.getElementById('tenderRefInput').value = '';
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
@@ -1867,8 +1890,33 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
     // the field was always low-value friction).
     const showRef = ['check'].includes(cart.payment_method);
     document.getElementById('tenderRefRow').style.display = showRef ? '' : 'none';
+
+    // MARKER-PATCH-630 — manual tenders: show instructions + amount-prefilled link
+    const manualRow = document.getElementById('tenderManualRow');
+    if (btn.dataset.manual) {
+      const total = ((calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents) - (calcRefundSubtotal() + calcRefundTax())) / 100;
+      document.getElementById('tenderManualInstr').textContent = btn.dataset.instructions || '';
+      const wrap = document.getElementById('tenderManualLinkWrap');
+      if (btn.dataset.linktpl && total > 0) {
+        const link = btn.dataset.linktpl.replace('{amount}', total.toFixed(2));
+        document.getElementById('tenderManualLink').textContent = link;
+        document.getElementById('tenderManualSms').href = 'sms:?&body=' + encodeURIComponent('Pay ' + btn.dataset.name + ': ' + link);
+        wrap.style.display = '';
+      } else {
+        wrap.style.display = 'none';
+      }
+      manualRow.style.display = '';
+    } else {
+      manualRow.style.display = 'none';
+    }
     renderTotals();
   });
+});
+
+// MARKER-PATCH-630 — copy the manual payment link
+document.getElementById('tenderManualCopy').addEventListener('click', function () {
+  const t = document.getElementById('tenderManualLink').textContent;
+  navigator.clipboard.writeText(t).then(() => { this.textContent = 'Copied ✓'; setTimeout(() => { this.textContent = 'Copy link'; }, 1400); });
 });
 
 // MARKER-PATCH-170 — Direct Payments hand-keyed card flow

@@ -54,6 +54,7 @@ class RegisterController extends Controller
 
         return view('tenant.register.index', [
             'tenant'     => $tenant,
+            'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant), // MARKER-PATCH-630
             'preAttachCustomer' => $preAttachCustomer,
             'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
             'taxLabel'   => $this->taxLabel($tenant),
@@ -260,7 +261,7 @@ class RegisterController extends Controller
             'notes'            => 'nullable|string',
             'tip_cents'        => 'nullable|integer|min:0',
             'discount_cents'   => 'nullable|integer|min:0',
-            'payment_method'   => 'required|string|in:cash,card,check,store_credit,mark_paid,split',
+            'payment_method'   => $this->allowedTenders(), // MARKER-PATCH-630
             'payment_reference'=> 'nullable|string',
             'items'            => 'required|array|min:1',
             'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
@@ -598,7 +599,7 @@ class RegisterController extends Controller
         $tenant = tenant();
 
         $validated = $request->validate([
-            'payment_method'    => 'required|string|in:cash,card,check,store_credit,mark_paid,split',
+            'payment_method'    => $this->allowedTenders(), // MARKER-PATCH-630
             'payment_reference' => 'nullable|string',
             'tip_cents'         => 'nullable|integer|min:0',
             'customer_id'       => 'nullable|uuid',
@@ -805,7 +806,7 @@ class RegisterController extends Controller
         $validated = $request->validate([
             'customer_id'      => 'nullable|uuid',
             'tip_cents'        => 'nullable|integer|min:0',
-            'payment_method'   => 'required|string|in:cash,card,check,store_credit,mark_paid,split,even_exchange',
+            'payment_method'   => $this->allowedTenders(['even_exchange']), // MARKER-PATCH-630
             'payment_reference'=> 'nullable|string',
             'items'            => 'nullable|array',
             'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
@@ -2085,6 +2086,20 @@ class RegisterController extends Controller
             'overage_cents'    => $newOverage,
             'stripe_refund_id' => $stripeRefundId,
         ]);
+    }
+
+
+    /**
+     * MARKER-PATCH-630 — allowed payment_method values: built-ins plus any
+     * enabled manual method keys from tenant_payment_methods.
+     */
+    protected function allowedTenders(array $extra = []): string
+    {
+        $manual = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', tenant()->id)
+            ->where('enabled', true)->where('kind', 'manual')
+            ->pluck('method_key')->all();
+        $all = array_unique(array_merge(['cash', 'card', 'check', 'store_credit', 'mark_paid', 'split'], $extra, $manual));
+        return 'required|string|in:' . implode(',', $all);
     }
 
     protected function taxLabel($tenant): string
