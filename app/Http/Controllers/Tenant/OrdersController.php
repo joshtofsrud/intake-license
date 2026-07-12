@@ -71,9 +71,16 @@ class OrdersController extends Controller
             ->findOrFail($id);
 
         $data = $request->validate([
-            'op'          => ['required', 'in:advance,cancel'],
+            'op'          => ['required', 'in:advance,cancel,mark_paid'],
             'notify_text' => ['nullable', 'boolean'],
         ]);
+
+        // MARKER-PATCH-631 — staff confirm a manual payment landed (Venmo etc.)
+        if ($data['op'] === 'mark_paid') {
+            abort_unless($order->status === TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method, 422);
+            \App\Services\Tenant\OrderService::forTenant($tenant)->finalizeManual($order, \Illuminate\Support\Facades\Auth::guard('tenant')->id());
+            return back()->with('success', 'Payment confirmed — order is paid and in the queue.');
+        }
 
         if ($data['op'] === 'cancel') {
             abort_unless(in_array($order->status, [TenantOrder::STATUS_PAID, TenantOrder::STATUS_FULFILLING]), 422);
@@ -111,3 +118,4 @@ class OrdersController extends Controller
         return back()->with('success', 'Order is now ' . str_replace('_', ' ', $next) . '.');
     }
 }
+

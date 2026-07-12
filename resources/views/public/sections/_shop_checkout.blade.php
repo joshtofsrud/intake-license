@@ -89,6 +89,31 @@
         @else<input type="checkbox" id="f-install" style="display:none">@endif
       </div>
 
+      {{-- MARKER-PATCH-631 — payment method selection (settings-driven) --}}
+      @php
+        $onlineMethods = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $tenant->id)
+            ->where('enabled', true)->where('kind', 'manual')
+            ->orderBy('sort')->get()
+            ->filter(fn ($m) => $m->enabledOn('online'))
+            ->reject(fn ($m) => $m->method_key === 'cash_app' && $m->mode === 'stripe')
+            ->values();
+      @endphp
+      @if($onlineMethods->isNotEmpty())
+      <div class="panel">
+        <h2>Pay with</h2>
+        <label class="pm-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
+          <input type="radio" name="pm" value="card" checked style="accent-color:#111"> Card
+          <span style="font-size:11px;color:#888;font-weight:400">Instant</span>
+        </label>
+        @foreach($onlineMethods as $om)
+          <label class="pm-opt" style="display:flex;align-items:center;gap:10px;border:1.5px solid rgba(0,0,0,.12);border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="radio" name="pm" value="{{ $om->method_key }}" style="accent-color:#111"> {{ $om->name }}
+            @if($om->hintFor('online'))<span style="font-size:11px;color:#888;font-weight:400">{{ $om->hintFor('online') }}</span>@endif
+          </label>
+        @endforeach
+      </div>
+      @endif
+
       <div class="panel" id="pay-panel">
         <h2>Payment</h2>
         <div id="payment-element"></div>
@@ -160,7 +185,10 @@
       };
       if (!body.first_name || !body.last_name || !body.email) return fail('Name and email are required.');
       if (ful === 'local_delivery' && !body.address) return fail('Delivery needs an address.');
-      if (!PK) return fail('Online payments are not enabled yet — call us and we\'ll take care of it.');
+      // MARKER-PATCH-631 — manual methods don't need Stripe
+      var pmEl = document.querySelector('input[name="pm"]:checked');
+      body.payment_method = pmEl ? pmEl.value : 'card';
+      if (body.payment_method === 'card' && !PK) return fail('Online payments are not enabled yet — call us and we\'ll take care of it.');
 
       var res, data;
       try {
@@ -173,6 +201,9 @@
         data = await res.json();
       } catch (e) { return fail('Network hiccup — try again.'); }
       if (!data || !data.ok) return fail((data && data.message) || 'Could not start payment.');
+
+      // MARKER-PATCH-631 — manual method: order placed pending, go to instructions
+      if (data.manual && data.redirect) { window.location = data.redirect; return; }
 
       stripe = Stripe(PK);
       elements = stripe.elements({ clientSecret: data.client_secret });
@@ -196,3 +227,4 @@
   });
 })();
 </script>
+

@@ -64,7 +64,22 @@ class CheckoutController extends Controller
             'address'          => ['nullable', 'string', 'max:300'],
             'notes'            => ['nullable', 'string', 'max:500'],
             'wants_install'    => ['nullable', 'boolean'],
+            'payment_method'   => ['nullable', 'string', 'max:40'], // MARKER-PATCH-631
         ]);
+
+        // MARKER-PATCH-631 — manual methods: validate against the tenant's
+        // enabled online methods; anything else falls through to card.
+        $manualMethod = null;
+        $pmKey = $data['payment_method'] ?? 'card';
+        if ($pmKey !== 'card') {
+            $pm = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $tenant->id)
+                ->where('method_key', $pmKey)
+                ->where('enabled', true)
+                ->where('kind', 'manual')
+                ->first();
+            abort_unless($pm && $pm->enabledOn('online') && !($pm->method_key === 'cash_app' && $pm->mode === 'stripe'), 422, 'That payment method is not available.');
+            $manualMethod = $pm->method_key;
+        }
 
         if ($data['fulfillment_type'] === 'local_delivery') {
             abort_unless(OrderService::forTenant($tenant)->config()['local_delivery'], 422, 'Delivery is not available.');
@@ -89,10 +104,18 @@ class CheckoutController extends Controller
                 'address'       => filled($data['address'] ?? null) ? ['line' => $data['address']] : null,
                 'notes'         => $data['notes'] ?? null,
                 'wants_install' => (bool) ($data['wants_install'] ?? false),
-            ]);
+            ], $manualMethod); // MARKER-PATCH-631
         } catch (\Throwable $e) {
             Log::error('checkout.place_failed', ['tenant' => $tenant->id, 'error' => $e->getMessage()]);
             return response()->json(['ok' => false, 'message' => 'Could not start payment — try again or give us a call.'], 500);
+        }
+
+        if ($manualMethod !== null) { // MARKER-PATCH-631 — no Stripe leg; straight to confirmation
+            return response()->json([
+                'ok'       => true,
+                'manual'   => true,
+                'redirect' => route('tenant.order.confirmation', ['token' => $order->token]),
+            ]);
         }
 
         return response()->json([
@@ -151,3 +174,4 @@ class CheckoutController extends Controller
         ]);
     }
 }
+

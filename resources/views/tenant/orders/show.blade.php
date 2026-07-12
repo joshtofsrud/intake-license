@@ -89,7 +89,19 @@
       <div class="od-card">
         <h3>Move it along</h3>
         @if($advance)
-          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
+          @if($order->status === \App\Models\Tenant\TenantOrder::STATUS_PENDING_PAYMENT && $order->payment_method)
+          {{-- MARKER-PATCH-631 — manual payment confirmation --}}
+          <div style="border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12.5px">
+            Awaiting <b>{{ tender_label($order->payment_method) }}</b> — {{ number_format($order->total_cents / 100, 2) }} expected with note "{{ $order->order_number }}".
+          </div>
+          <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}" style="margin-bottom:10px"
+                onsubmit="return confirm('Confirm the {{ tender_label($order->payment_method) }} payment arrived? This builds the sale and marks the order paid.')">
+            @csrf
+            <input type="hidden" name="op" value="mark_paid">
+            <button class="ia-btn ia-btn--primary" style="width:100%">Payment received — mark paid</button>
+          </form>
+        @endif
+        <form method="POST" action="{{ route('tenant.orders.update', $order->id) }}">
             @csrf
             <input type="hidden" name="op" value="advance">
             <button class="ia-btn ia-btn--primary" style="width:100%">{{ $advance[1] }}</button>
@@ -133,3 +145,4 @@
   </div>
 </div>
 @endsection
+

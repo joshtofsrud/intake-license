@@ -74,7 +74,7 @@ class OrderService
      * Cart -> pending_payment order with a PaymentIntent.
      * Returns [order, client_secret].
      */
-    public function place(TenantOrder $cart, array $contact, array $fulfillment): array
+    public function place(TenantOrder $cart, array $contact, array $fulfillment, ?string $manualMethod = null): array
     {
         abort_if($cart->items->isEmpty(), 422, 'Cart is empty.');
 
@@ -104,9 +104,17 @@ class OrderService
                 'tax_cents'           => $quote['tax_cents'],
                 'shipping_cents'      => $quote['shipping_cents'],
                 'total_cents'         => $quote['total_cents'],
+                'payment_method'      => $manualMethod, // MARKER-PATCH-631 — null for card
             ])->save();
             return $cart;
         });
+
+        // MARKER-PATCH-631 — manual methods skip Stripe entirely: the order
+        // stays pending_payment with instructions; staff mark it paid when
+        // the money lands. No PaymentIntent, no client secret.
+        if ($manualMethod !== null) {
+            return [$order, null];
+        }
 
         $pi = (new DirectPaymentsService($this->tenant))->createPaymentIntent(
             $order->total_cents,
@@ -123,6 +131,68 @@ class OrderService
      * Verified-succeeded PI -> sale -> paid order. Idempotent: the first
      * caller (browser return or webhook) does the work; repeats no-op.
      */
+    /**
+     * MARKER-PATCH-631 — staff-confirmed manual payment (Venmo/Cash App/custom):
+     * build the sale and mark the order paid, same shape as finalize() minus
+     * the PaymentIntent. Idempotent under lock like finalize().
+     */
+    public function finalizeManual(TenantOrder $order, ?string $staffUserId = null): TenantOrder
+    {
+        abort_if($order->payment_method === null, 422, 'Not a manual-payment order.');
+
+        return DB::transaction(function () use ($order, $staffUserId) {
+            $fresh = TenantOrder::query()->whereKey($order->id)->lockForUpdate()->first();
+            if ($fresh->sale_id) return $fresh;
+
+            $customer = $fresh->customer_id
+                ? TenantCustomer::find($fresh->customer_id)
+                : TenantCustomer::query()
+                    ->where('tenant_id', $this->tenant->id)
+                    ->where('email', $fresh->contact_email)
+                    ->first();
+            if (! $customer) {
+                $customer = TenantCustomer::create([
+                    'tenant_id'  => $this->tenant->id,
+                    'first_name' => $fresh->contact_first_name,
+                    'last_name'  => $fresh->contact_last_name,
+                    'email'      => $fresh->contact_email,
+                    'phone'      => $fresh->contact_phone,
+                ]);
+            }
+
+            $sale = app(SaleService::class)->createSale([
+                'tenant_id'          => $this->tenant->id,
+                'rang_up_by_user_id' => $staffUserId,
+                'location_id'        => $fresh->location_id ?? $this->tenant->defaultLocation?->id,
+                'customer_id'        => $customer->id,
+                'status'             => 'completed',
+                'payment_status'     => 'paid',
+                'payment_method'     => $fresh->payment_method,
+                'paid_at'            => now(),
+                'notes'              => 'Online order ' . $fresh->order_number
+                    . ' — paid by ' . tender_label($fresh->payment_method) . ', confirmed by staff'
+                    . ($fresh->wants_install ? ' — customer requested installation' : ''),
+                'items'              => $fresh->items->map(fn ($l) => [
+                    'type'              => 'product',
+                    'inventory_item_id' => $l->inventory_item_id,
+                    'name'              => $l->name_snapshot,
+                    'quantity'          => (float) $l->quantity,
+                    'unit_price_cents'  => $l->unit_price_cents,
+                ])->values()->all(),
+            ]);
+
+            $fresh->forceFill([
+                'customer_id'    => $customer->id,
+                'sale_id'        => $sale->id,
+                'status'         => TenantOrder::STATUS_PAID,
+                'payment_status' => 'paid',
+                'paid_at'        => now(),
+            ])->save();
+
+            return $fresh;
+        });
+    }
+
     public function finalize(TenantOrder $order, \Stripe\PaymentIntent $pi): TenantOrder
     {
         if ($order->sale_id) return $order; // already finalized
@@ -234,3 +304,4 @@ class OrderService
         return $result;
     }
 }
+

@@ -39,7 +39,7 @@ class TenantOrder extends Model
     ];
 
     protected $fillable = [
-        'tenant_id', 'order_number', 'token', 'status', 'customer_id',
+        'tenant_id', 'order_number', 'token', 'status', 'payment_method', 'customer_id',
         'contact_first_name', 'contact_last_name', 'contact_email', 'contact_phone',
         'fulfillment_type', 'fulfillment_address', 'fulfillment_notes', 'wants_install',
         'location_id', 'sale_id',
@@ -99,3 +99,4 @@ class TenantOrder extends Model
         return $prefix . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
     }
 }
+

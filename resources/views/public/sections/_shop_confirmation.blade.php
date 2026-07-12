@@ -7,7 +7,7 @@
   $money  = fn ($c) => '$' . number_format(($c ?? 0) / 100, 2);
   $paid   = in_array($order->status, ['paid', 'fulfilling', 'fulfilled', 'completed']);
 @endphp
-@unless(in_array($order->status, ['paid', 'fulfilling', 'fulfilled', 'completed']))
+@unless(in_array($order->status, ['paid', 'fulfilling', 'fulfilled', 'completed']) || $order->payment_method)
 <script>setTimeout(function () { window.location.reload(); }, 6000);</script>
 @endunless
 <style>
@@ -43,12 +43,38 @@
       <div class="ic">✓</div>
       <h1>Order confirmed</h1>
       <div class="sub">{{ $order->order_number }} · a receipt is on its way to {{ $order->contact_email }}</div>
+    @elseif($order->payment_method)
+      {{-- MARKER-PATCH-631 — manual payment: order received, show how to pay --}}
+      <div class="ic" style="background:rgba(0,0,0,.07)">⏳</div>
+      <h1>Order received — one step left</h1>
+      <div class="sub">{{ $order->order_number }} · we'll confirm as soon as your payment lands</div>
     @else
       <div class="ic" style="background:rgba(0,0,0,.07)">⋯</div>
       <h1>Finishing up…</h1>
       <div class="sub">We're confirming your payment — this page refreshes itself.</div>
     @endif
   </div>
+
+  @if(!$paid && $order->payment_method)
+    @php
+      $pmRow = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', $order->tenant_id)
+          ->where('method_key', $order->payment_method)->first();
+      $payLink = $pmRow?->linkTemplate()
+          ? str_replace('{amount}', number_format($order->total_cents / 100, 2, '.', ''), $pmRow->linkTemplate())
+          : null;
+    @endphp
+    <div class="card" style="padding:16px 20px;border-color:rgba(180,140,0,.35);background:#fffbe9">
+      <b style="font-size:14px">Pay {{ $money($order->total_cents) }} with {{ $pmRow?->name ?? tender_label($order->payment_method) }}</b>
+      <div style="font-size:13px;line-height:1.6;margin-top:6px">
+        @if($pmRow?->instructions){{ $pmRow->instructions }}@endif
+        Include <b>{{ $order->order_number }}</b> in the note so we can match it fast.
+      </div>
+      @if($payLink)
+        <a href="{{ $payLink }}" style="display:inline-block;margin-top:12px;background:#111;color:#fff;font-weight:700;font-size:13px;border-radius:10px;padding:11px 18px;text-decoration:none">Pay now →</a>
+        <div style="font-size:11px;opacity:.55;margin-top:8px;word-break:break-all">{{ $payLink }}</div>
+      @endif
+    </div>
+  @endif
 
   <div class="card">
     @foreach($order->items as $l)
@@ -87,3 +113,4 @@
 
   </div>
 </div>
+
