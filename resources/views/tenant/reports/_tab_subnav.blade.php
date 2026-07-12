@@ -12,6 +12,7 @@
     ['key' => 'services',   'label' => 'Services',   'url' => route('tenant.reports.services')],
     ['key' => 'retail',     'label' => 'Retail',     'url' => route('tenant.reports.retail')],
     ['key' => 'money',      'label' => 'Money',      'url' => route('tenant.reports.money')],
+    ['key' => 'daily',      'label' => 'Daily ops',  'url' => route('tenant.reports.daily')], // MARKER-PATCH-633
     ['key' => 'staff',      'label' => 'Staff',      'url' => route('tenant.reports.staff')],
   ];
   $repActive = $active ?? '';
@@ -34,3 +35,4 @@
     @endforeach
   </select>
 </div>
+

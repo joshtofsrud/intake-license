@@ -533,6 +533,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
             // MARKER-PATCH-151A — Traffic tab
             Route::get('/reports/traffic',      [TenantControllers\ReportsController::class, 'traffic'])->name('reports.traffic');
+            // MARKER-PATCH-633 — Daily ops (end of day)
+            Route::get('/reports/daily',                 [TenantControllers\DailyOpsController::class, 'endOfDay'])->name('reports.daily');
+            Route::post('/reports/daily/drawer',         [TenantControllers\DailyOpsController::class, 'saveDrawer'])->name('reports.daily.drawer');
+            Route::post('/reports/daily/close',          [TenantControllers\DailyOpsController::class, 'closeDay'])->name('reports.daily.close');
+            Route::post('/reports/daily/reopen',         [TenantControllers\DailyOpsController::class, 'reopenDay'])->name('reports.daily.reopen');
+            Route::get('/reports/daily/print',           [TenantControllers\DailyOpsController::class, 'printDay'])->name('reports.daily.print');
             Route::post('/reports/search-rules',            [TenantControllers\SearchRulesController::class, 'store'])->name('reports.search-rules.store'); // MARKER-PATCH-622
             Route::post('/reports/search-rules/{ruleId}/delete', [TenantControllers\SearchRulesController::class, 'destroy'])->name('reports.search-rules.delete');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
