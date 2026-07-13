@@ -100,6 +100,12 @@
           </div>
         @endif
 
+        {{-- MARKER-PATCH-636 — QB mapping: where this method's money deposits --}}
+        <div class="pmx-row"><label>QB deposit account</label>
+          <input class="pmx-inp" type="text" name="qb_deposit_account" maxlength="120"
+                 value="{{ $pm->qb['deposit_account'] ?? '' }}"
+                 placeholder="{{ $pm->method_key === 'card_stripe' ? 'Stripe Clearing' : 'Undeposited Funds' }} (default)"></div>
+
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
           <button class="pmx-save" type="submit">Save {{ $pm->name }}</button>
           <span></span>
@@ -124,4 +130,27 @@
     <button class="pmx-save" type="submit">Add</button>
   </form>
 </details>
+
+{{-- MARKER-PATCH-636 — global QuickBooks accounts (the journal's credit side) --}}
+<div class="pmx" style="margin-top:14px">
+  <div class="pmx-h" onclick="this.parentNode.classList.toggle('open')">
+    <div class="pmx-ic">QB</div>
+    <div>
+      <div class="nm">QuickBooks accounts</div>
+      <div class="k">Journal export account names — deposit accounts are set per method above</div>
+    </div>
+    <span style="color:var(--ia-text-muted);font-size:11px;margin-left:auto">▾</span>
+  </div>
+  <div class="pmx-b">
+    <form method="POST" action="{{ route('tenant.settings.payment-methods.qb') }}">
+      @csrf
+      @php $qs = tenant()->settings ?? []; @endphp
+      <div class="pmx-row"><label>Sales income</label><input class="pmx-inp" type="text" name="qb_income_account" maxlength="120" value="{{ $qs['qb_income_account'] ?? '' }}" placeholder="Sales (default)"></div>
+      <div class="pmx-row"><label>Sales tax payable</label><input class="pmx-inp" type="text" name="qb_tax_account" maxlength="120" value="{{ $qs['qb_tax_account'] ?? '' }}" placeholder="Sales Tax Payable (default)"></div>
+      <div class="pmx-row"><label>Tips payable</label><input class="pmx-inp" type="text" name="qb_tips_account" maxlength="120" value="{{ $qs['qb_tips_account'] ?? '' }}" placeholder="Tips Payable (default)"></div>
+      <div class="pmx-row"><label>&nbsp;</label><div style="font-size:10.5px;color:var(--ia-text-dim,rgba(255,255,255,.4));line-height:1.5">Names must match your QuickBooks chart of accounts exactly — the journal import matches by name. Tax and tips credit one account each; per-method splits happen on the debit side.</div></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:4px"><button class="pmx-save" type="submit">Save QB accounts</button></div>
+    </form>
+  </div>
+</div>
 

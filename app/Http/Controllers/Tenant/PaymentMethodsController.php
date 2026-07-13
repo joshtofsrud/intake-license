@@ -32,7 +32,12 @@ class PaymentMethodsController extends Controller
             ];
         }
 
+        // MARKER-PATCH-636 — QB deposit account mapping
+        $qb = $m->qb ?? [];
+        $qb['deposit_account'] = trim((string) $request->input('qb_deposit_account', '')) ?: null;
+
         $m->update([
+            'qb'           => $qb,
             'name'         => $m->is_custom ? ($data['name'] ?? $m->name) : $m->name,
             'enabled'      => (bool) $request->input('enabled'),
             'handle'       => $data['handle'] ?? null,
@@ -79,6 +84,23 @@ class PaymentMethodsController extends Controller
         ]);
 
         return back()->with('success', '"' . $data['name'] . '" added — configure where it shows.')->withFragment('payments');
+    }
+
+    /** MARKER-PATCH-636 — global QB credit accounts (income / tax / tips). */
+    public function saveQbAccounts(Request $request)
+    {
+        $tenant = tenant();
+        $data = $request->validate([
+            'qb_income_account' => ['nullable', 'string', 'max:120'],
+            'qb_tax_account'    => ['nullable', 'string', 'max:120'],
+            'qb_tips_account'   => ['nullable', 'string', 'max:120'],
+        ]);
+        $settings = $tenant->settings ?? [];
+        foreach (['qb_income_account', 'qb_tax_account', 'qb_tips_account'] as $k) {
+            $settings[$k] = trim((string) ($data[$k] ?? '')) ?: null;
+        }
+        $tenant->update(['settings' => $settings]);
+        return back()->with('success', 'QuickBooks accounts saved.')->withFragment('payments');
     }
 
     public function destroyCustom(Request $request, string $methodId)

@@ -249,7 +249,13 @@ class DailyOpsController extends Controller
 
         $days = $this->dailyBreakdown($from, $to);
 
-        return response()->streamDownload(function () use ($days, $qbMap) {
+        // MARKER-PATCH-636 — global credit accounts from settings
+        $st = $tenant->settings ?? [];
+        $acctIncome = $st['qb_income_account'] ?? 'Sales';
+        $acctTax    = $st['qb_tax_account'] ?? 'Sales Tax Payable';
+        $acctTips   = $st['qb_tips_account'] ?? 'Tips Payable';
+
+        return response()->streamDownload(function () use ($days, $qbMap, $acctIncome, $acctTax, $acctTips) {
             $out = fopen('php://output', 'w');
             fputcsv($out, ['JournalNo', 'JournalDate', 'AccountName', 'Debits', 'Credits', 'Description']);
             $no = 1;
@@ -266,9 +272,9 @@ class DailyOpsController extends Controller
                 }
                 $netCollected = $d['collected'] - $d['refunds'];
                 $income = $netCollected - $d['tax'] - $d['tips'];
-                if ($income !== 0) fputcsv($out, [$no, $date, 'Sales', $income < 0 ? number_format(abs($income) / 100, 2, '.', '') : '', $income > 0 ? number_format($income / 100, 2, '.', '') : '', $desc . ' — income']);
-                if ($d['tax'] > 0)  fputcsv($out, [$no, $date, 'Sales Tax Payable', '', number_format($d['tax'] / 100, 2, '.', ''), $desc . ' — sales tax']);
-                if ($d['tips'] > 0) fputcsv($out, [$no, $date, 'Tips Payable', '', number_format($d['tips'] / 100, 2, '.', ''), $desc . ' — tips']);
+                if ($income !== 0) fputcsv($out, [$no, $date, $acctIncome, $income < 0 ? number_format(abs($income) / 100, 2, '.', '') : '', $income > 0 ? number_format($income / 100, 2, '.', '') : '', $desc . ' — income']);
+                if ($d['tax'] > 0)  fputcsv($out, [$no, $date, $acctTax, '', number_format($d['tax'] / 100, 2, '.', ''), $desc . ' — sales tax']);
+                if ($d['tips'] > 0) fputcsv($out, [$no, $date, $acctTips, '', number_format($d['tips'] / 100, 2, '.', ''), $desc . ' — tips']);
                 $no++;
             }
             fclose($out);
