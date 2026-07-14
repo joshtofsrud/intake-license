@@ -1,3 +1,8 @@
+#!/bin/bash
+# register-recon-display hotfix 3 — tenant ids are UUID strings, not ints.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+cat > app/Models/Tenant/TenantRegister.php <<'RRD_H3_EOF'
 <?php
 
 namespace App\Models\Tenant;
@@ -38,3 +43,5 @@ class TenantRegister extends Model
         return (int) static::where('tenant_id', $tenantId)->max('number') + 1;
     }
 }
+RRD_H3_EOF
+echo "hotfix 3 applied"
