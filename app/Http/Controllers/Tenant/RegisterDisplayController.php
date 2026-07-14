@@ -52,6 +52,18 @@ class RegisterDisplayController extends Controller
         return back()->with('status', 'Register added.');
     }
 
+    public function updateRegister(Request $request, int $id): RedirectResponse
+    {
+        $tenant = app('tenant');
+        $register = TenantRegister::where('tenant_id', $tenant->id)->findOrFail($id);
+        $data = $request->validate([
+            'display_logo' => ['required', 'in:auto,main,light,none'],
+        ]);
+        $register->update($data);
+
+        return back()->with('status', 'Register updated.');
+    }
+
     public function regenerateToken(Request $request, int $id): RedirectResponse
     {
         $tenant = app('tenant');

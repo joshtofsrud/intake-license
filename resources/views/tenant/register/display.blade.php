@@ -52,6 +52,19 @@
 
   <div class="main">
     <div class="idle" id="vIdle" style="display:flex">
+      {{-- MARKER-REGISTER-RECON-DISPLAY — Brand Kit logo (light variant for dark screen) --}}
+      @php
+        $displayLogo = match ($register->display_logo ?? 'auto') {
+            'none'  => null,
+            'main'  => $tenant->logo_url,
+            'light' => $tenant->logo_light_url ?: $tenant->logo_url,
+            default => $tenant->logo_light_url ?: $tenant->logo_url,
+        };
+      @endphp
+      @if ($displayLogo)
+        <img src="{{ $displayLogo }}" alt="{{ $tenant->business_name }}"
+             style="max-width:min(60vw,420px);max-height:26vh;object-fit:contain;margin-bottom:10px">
+      @endif
       <div class="hello">Welcome to {{ $tenant->business_name }}</div>
       <div class="sub">Your order will appear here.</div>
     </div>

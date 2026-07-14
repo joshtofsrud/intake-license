@@ -15,7 +15,7 @@ class TenantRegister extends Model
 
     protected $fillable = [
         'tenant_id', 'location_id', 'number', 'name',
-        'display_token', 'display_cart', 'cart_updated_at', 'is_active',
+        'display_token', 'display_logo', 'display_cart', 'cart_updated_at', 'is_active',
     ];
 
     protected $casts = [

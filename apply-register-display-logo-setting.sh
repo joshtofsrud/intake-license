@@ -1,3 +1,270 @@
+#!/bin/bash
+# register-display-logo-setting — per-register welcome-screen logo choice
+# (Auto / Light / Main / None) on the Registers page.
+# NOTE: full-file writes below include the fullscreen-button and idle-logo
+# edits made manually on July 14 — safe to apply over them.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "display_logo" app/Models/Tenant/TenantRegister.php; then
+  echo "register-display-logo-setting already applied — aborting."; exit 1
+fi
+if ! grep -q "fsBtn" resources/views/tenant/register/display.blade.php; then
+  echo "WARNING: display.blade.php is missing the manual fullscreen edit this script expects."
+  echo "Aborting rather than overwriting an unknown version. Tell Claude."
+  exit 1
+fi
+
+cat > 'database/migrations/2026_07_14_000002_add_display_logo_to_tenant_registers.php' <<'RDL_0_EOF'
+<?php
+
+// MARKER-REGISTER-RECON-DISPLAY — per-register display logo choice.
+// auto = light logo, falling back to main; main/light force one; none hides it.
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('tenant_registers', function (Blueprint $t) {
+            $t->string('display_logo', 10)->default('auto')->after('display_token');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tenant_registers', function (Blueprint $t) {
+            $t->dropColumn('display_logo');
+        });
+    }
+};
+RDL_0_EOF
+
+cat > 'app/Models/Tenant/TenantRegister.php' <<'RDL_1_EOF'
+<?php
+
+namespace App\Models\Tenant;
+
+// MARKER-REGISTER-RECON-DISPLAY
+
+use App\Models\Tenant;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
+
+class TenantRegister extends Model
+{
+    protected $table = 'tenant_registers';
+
+    protected $fillable = [
+        'tenant_id', 'location_id', 'number', 'name',
+        'display_token', 'display_logo', 'display_cart', 'cart_updated_at', 'is_active',
+    ];
+
+    protected $casts = [
+        'display_cart'    => 'array',
+        'cart_updated_at' => 'datetime',
+        'is_active'       => 'boolean',
+    ];
+
+    public function tenant(): BelongsTo   { return $this->belongsTo(Tenant::class); }
+    public function location(): BelongsTo { return $this->belongsTo(TenantLocation::class, 'location_id'); }
+
+    public static function freshToken(): string
+    {
+        return Str::random(48);
+    }
+
+    /** Next register number for a tenant (1, 2, 3, …). */
+    public static function nextNumber(string $tenantId): int // tenant ids are UUIDs
+    {
+        return (int) static::where('tenant_id', $tenantId)->max('number') + 1;
+    }
+}
+RDL_1_EOF
+
+cat > 'app/Http/Controllers/Tenant/RegisterDisplayController.php' <<'RDL_2_EOF'
+<?php
+
+namespace App\Http\Controllers\Tenant;
+
+// MARKER-REGISTER-RECON-DISPLAY — register management + customer-facing pay displays.
+//
+// Admin side (authed, register-guarded):
+//   registers()        — manage page: list, pairing QR per register
+//   storeRegister()    — create a register (number auto-assigned)
+//   regenerateToken()  — rotate a register's display token (unpairs screens)
+//   selectRegister()   — bind this staff session to a register (current_register_id)
+//   displayState()     — receive debounced cart snapshots from the POS page
+//
+// Public side (tenant-resolved by host, token is the credential):
+//   display()          — full-screen customer display bound to one register
+//   displayPoll()      — JSON snapshot the display polls (~1.5s)
+
+use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantRegister;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+
+class RegisterDisplayController extends Controller
+{
+    // ---------------------------------------------------------------- admin
+
+    public function registers(Request $request)
+    {
+        $tenant = app('tenant');
+
+        return view('tenant.register.registers', [
+            'tenant'    => $tenant,
+            'registers' => TenantRegister::where('tenant_id', $tenant->id)
+                             ->orderBy('number')->get(),
+            'currentRegisterId' => (int) $request->session()->get('current_register_id', 0),
+        ]);
+    }
+
+    public function storeRegister(Request $request): RedirectResponse
+    {
+        $tenant = app('tenant');
+        $data = $request->validate(['name' => ['required', 'string', 'max:80']]);
+
+        TenantRegister::create([
+            'tenant_id'     => $tenant->id,
+            'number'        => TenantRegister::nextNumber($tenant->id),
+            'name'          => $data['name'],
+            'display_token' => TenantRegister::freshToken(),
+        ]);
+
+        return back()->with('status', 'Register added.');
+    }
+
+    public function updateRegister(Request $request, int $id): RedirectResponse
+    {
+        $tenant = app('tenant');
+        $register = TenantRegister::where('tenant_id', $tenant->id)->findOrFail($id);
+        $data = $request->validate([
+            'display_logo' => ['required', 'in:auto,main,light,none'],
+        ]);
+        $register->update($data);
+
+        return back()->with('status', 'Register updated.');
+    }
+
+    public function regenerateToken(Request $request, int $id): RedirectResponse
+    {
+        $tenant = app('tenant');
+        $register = TenantRegister::where('tenant_id', $tenant->id)->findOrFail($id);
+        $register->update([
+            'display_token' => TenantRegister::freshToken(),
+            'display_cart'  => null,
+        ]);
+
+        return back()->with('status', 'Pairing link regenerated — previously paired screens are disconnected.');
+    }
+
+    public function selectRegister(Request $request): JsonResponse
+    {
+        $tenant = app('tenant');
+        $data = $request->validate(['register_id' => ['required', 'integer']]);
+
+        // 0 = no register (clears the binding)
+        if ((int) $data['register_id'] === 0) {
+            $request->session()->forget('current_register_id');
+            return response()->json(['ok' => true, 'register_id' => null]);
+        }
+
+        $register = TenantRegister::where('tenant_id', $tenant->id)
+                      ->where('is_active', true)
+                      ->findOrFail((int) $data['register_id']);
+
+        $request->session()->put('current_register_id', $register->id);
+
+        return response()->json(['ok' => true, 'register_id' => $register->id]);
+    }
+
+    public function displayState(Request $request): JsonResponse
+    {
+        $tenant = app('tenant');
+        $registerId = (int) $request->session()->get('current_register_id', 0);
+        if ($registerId === 0) {
+            return response()->json(['ok' => false, 'reason' => 'no_register'], 200);
+        }
+
+        $register = TenantRegister::where('tenant_id', $tenant->id)->find($registerId);
+        if (! $register) {
+            $request->session()->forget('current_register_id');
+            return response()->json(['ok' => false, 'reason' => 'gone'], 200);
+        }
+
+        // Snapshot is display-only data; whitelist the shape rather than
+        // trusting the client blob wholesale.
+        $snap = $request->validate([
+            'state'                 => ['required', 'in:idle,cart,pay'],
+            'items'                 => ['array', 'max:200'],
+            'items.*.name'          => ['required_with:items', 'string', 'max:160'],
+            'items.*.qty'           => ['required_with:items', 'numeric'],
+            'items.*.line_cents'    => ['required_with:items', 'integer'],
+            'items.*.refund'        => ['sometimes', 'boolean'],
+            'subtotal_cents'        => ['integer'],
+            'discount_cents'        => ['integer'],
+            'tax_cents'             => ['integer'],
+            'tax_label'             => ['nullable', 'string', 'max:40'],
+            'surcharge_cents'       => ['integer'],
+            'tip_cents'             => ['integer'],
+            'total_cents'           => ['integer'],
+            'pay_url'               => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $register->update([
+            'display_cart'    => $snap,
+            'cart_updated_at' => now(),
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    // --------------------------------------------------------------- public
+
+    public function display(string $token)
+    {
+        $tenant = app('tenant');
+        $register = TenantRegister::where('tenant_id', $tenant->id)
+                      ->where('display_token', $token)
+                      ->where('is_active', true)
+                      ->firstOrFail();
+
+        return view('tenant.register.display', [
+            'tenant'   => $tenant,
+            'register' => $register,
+        ]);
+    }
+
+    public function displayPoll(string $token): JsonResponse
+    {
+        $tenant = app('tenant');
+        $register = TenantRegister::where('tenant_id', $tenant->id)
+                      ->where('display_token', $token)
+                      ->where('is_active', true)
+                      ->firstOrFail();
+
+        $snap = $register->display_cart;
+
+        // A snapshot older than 90s means the POS page is gone — fall back
+        // to idle instead of showing a stale cart to the next customer.
+        $stale = $register->cart_updated_at === null
+              || $register->cart_updated_at->lt(now()->subSeconds(90));
+
+        return response()->json([
+            'state' => $stale ? 'idle' : ($snap['state'] ?? 'idle'),
+            'snap'  => $stale ? null : $snap,
+        ]);
+    }
+}
+RDL_2_EOF
+
+cat > 'routes/web.php' <<'RDL_3_EOF'
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -967,3 +1234,269 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 Route::middleware(['App\Http\Middleware\ResolveTenant'])
     ->group($tenantRoutes);
 
+RDL_3_EOF
+
+cat > 'resources/views/tenant/register/registers.blade.php' <<'RDL_4_EOF'
+@extends('layouts.tenant.app')
+
+{{-- MARKER-REGISTER-RECON-DISPLAY — manage physical registers + pair customer displays --}}
+
+@php $pageTitle = 'Registers'; @endphp
+
+@section('content')
+<div style="max-width:860px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <h1 style="font-size:22px;font-weight:800;letter-spacing:-.02em">Registers &amp; pay displays</h1>
+    <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn-ghost">← Back to register</a>
+  </div>
+  <p style="color:var(--ia-muted);font-size:13.5px;margin-bottom:20px">
+    Each register is a physical pay station. Pair an iPad or phone once by scanning its QR code —
+    the screen then mirrors that register's cart automatically for every sale.
+  </p>
+
+  @if (session('status'))
+    <div class="ia-alert ia-alert-success" style="margin-bottom:16px">{{ session('status') }}</div>
+  @endif
+
+  @foreach ($registers as $r)
+    <div style="background:var(--ia-panel);border:1px solid var(--ia-border);border-radius:12px;padding:18px;margin-bottom:12px;display:flex;gap:20px;align-items:flex-start">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-weight:800;font-size:16px">#{{ $r->number }} — {{ $r->name }}</span>
+          @if ($currentRegisterId === $r->id)
+            <span style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:var(--ia-accent);color:#0B0B0B;border-radius:100px;padding:3px 9px">This device</span>
+          @endif
+        </div>
+        <div style="font-size:12.5px;color:var(--ia-muted);margin-bottom:12px;word-break:break-all">
+          Display link: {{ url('/pay-display/' . $r->display_token) }}
+        </div>
+        {{-- MARKER-REGISTER-RECON-DISPLAY — welcome-screen logo choice --}}
+        <form method="POST" action="{{ route('tenant.register.registers.update', ['id' => $r->id]) }}"
+              style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          @csrf
+          <label style="font-size:12.5px;color:var(--ia-muted)">Welcome-screen logo</label>
+          <select name="display_logo" class="ia-input" style="max-width:210px;font-size:13px"
+                  onchange="this.form.submit()">
+            <option value="auto"  @selected($r->display_logo === 'auto')>Auto (light, then main)</option>
+            <option value="light" @selected($r->display_logo === 'light')>Light logo</option>
+            <option value="main"  @selected($r->display_logo === 'main')>Main logo</option>
+            <option value="none"  @selected($r->display_logo === 'none')>No logo</option>
+          </select>
+        </form>
+        <div style="display:flex;gap:8px">
+          <button class="ia-btn ia-btn-ghost" onclick="toggleQr({{ $r->id }})">Show pairing QR</button>
+          <form method="POST" action="{{ route('tenant.register.registers.regenerate', ['id' => $r->id]) }}"
+                onsubmit="return confirm('Regenerate the pairing link? All screens paired to this register will disconnect.');">
+            @csrf
+            <button class="ia-btn ia-btn-ghost" type="submit">Regenerate link</button>
+          </form>
+        </div>
+      </div>
+      <div id="qr-{{ $r->id }}" data-url="{{ url('/pay-display/' . $r->display_token) }}"
+           style="display:none;background:#fff;border-radius:10px;padding:12px;width:170px;height:170px"></div>
+    </div>
+  @endforeach
+
+  <form method="POST" action="{{ route('tenant.register.registers.store') }}"
+        style="display:flex;gap:10px;margin-top:18px">
+    @csrf
+    <input name="name" required maxlength="80" placeholder="Register name — e.g. Front Counter"
+           class="ia-input" style="flex:1">
+    <button class="ia-btn ia-btn-primary" type="submit">Add register</button>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+function toggleQr(id) {
+  const el = document.getElementById('qr-' + id);
+  if (el.style.display === 'none') {
+    if (!el.dataset.done && typeof qrcode === 'function') {
+      const qr = qrcode(0, 'M');
+      qr.addData(el.dataset.url);
+      qr.make();
+      el.innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+      el.querySelector('svg').style.cssText = 'width:100%;height:100%';
+      el.dataset.done = '1';
+    }
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+</script>
+@endsection
+RDL_4_EOF
+
+cat > 'resources/views/tenant/register/display.blade.php' <<'RDL_5_EOF'
+<!DOCTYPE html>
+{{-- MARKER-REGISTER-RECON-DISPLAY — full-screen customer display for one register.
+     Token in the URL is the credential; page is read-only and polls for state. --}}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>{{ $tenant->business_name }} — Register {{ $register->number }}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none }
+  html,body { height:100% }
+  body {
+    font-family: -apple-system, 'Inter', system-ui, sans-serif;
+    background:#0B0B0B; color:#EDEDED; display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  .top { display:flex; justify-content:space-between; align-items:center; padding:22px 30px; border-bottom:1px solid #1E1E1E }
+  .biz { font-size:19px; font-weight:800; letter-spacing:-.02em }
+  .reg { font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#8A8A8A }
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden }
+
+  /* idle */
+  .idle { flex:1; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; text-align:center; padding:30px }
+  .idle .hello { font-size:clamp(30px,5vw,52px); font-weight:800; letter-spacing:-.03em }
+  .idle .sub { color:#8A8A8A; font-size:16px }
+
+  /* cart */
+  .cart { flex:1; display:none; flex-direction:column; overflow:hidden }
+  .lines { flex:1; overflow-y:auto; padding:18px 30px }
+  .line { display:flex; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid #181818; font-size:19px }
+  .line .n { flex:1 }
+  .line .q { color:#8A8A8A; font-size:15px }
+  .line.refund { color:#F09595 }
+  .totals { border-top:1px solid #242424; padding:16px 30px 22px; background:#101010 }
+  .trow { display:flex; justify-content:space-between; padding:4px 0; font-size:16px; color:#B9B9B9 }
+  .trow.grand { font-size:clamp(26px,4vw,38px); font-weight:800; color:#fff; padding-top:10px }
+  .trow.grand .v { color:#BEF264 }
+
+  /* pay */
+  .pay { flex:1; display:none; align-items:center; justify-content:center; flex-direction:column; gap:20px; padding:30px; text-align:center }
+  .pay .amt { font-size:clamp(34px,6vw,56px); font-weight:800; letter-spacing:-.03em }
+  .pay .amt span { color:#BEF264 }
+  #payQr { background:#fff; border-radius:16px; padding:16px; width:min(46vh,300px); height:min(46vh,300px) }
+  .pay .hint { color:#8A8A8A; font-size:15px }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="biz">{{ $tenant->business_name }}</div>
+    <div class="reg">Register {{ $register->number }} · {{ $register->name }}</div>
+  </div>
+
+  <div class="main">
+    <div class="idle" id="vIdle" style="display:flex">
+      {{-- MARKER-REGISTER-RECON-DISPLAY — Brand Kit logo (light variant for dark screen) --}}
+      @php
+        $displayLogo = match ($register->display_logo ?? 'auto') {
+            'none'  => null,
+            'main'  => $tenant->logo_url,
+            'light' => $tenant->logo_light_url ?: $tenant->logo_url,
+            default => $tenant->logo_light_url ?: $tenant->logo_url,
+        };
+      @endphp
+      @if ($displayLogo)
+        <img src="{{ $displayLogo }}" alt="{{ $tenant->business_name }}"
+             style="max-width:min(60vw,420px);max-height:26vh;object-fit:contain;margin-bottom:10px">
+      @endif
+      <div class="hello">Welcome to {{ $tenant->business_name }}</div>
+      <div class="sub">Your order will appear here.</div>
+    </div>
+
+    <div class="cart" id="vCart">
+      <div class="lines" id="cartLines"></div>
+      <div class="totals" id="cartTotals"></div>
+    </div>
+
+    <div class="pay" id="vPay">
+      <div class="amt">Total due <span id="payAmt"></span></div>
+      <div id="payQr"></div>
+      <div class="hint">Scan with your phone camera to pay</div>
+    </div>
+  </div>
+
+{{-- MARKER-REGISTER-RECON-DISPLAY — fullscreen toggle --}}
+<button id="fsBtn" style="position:fixed;bottom:18px;right:18px;z-index:10;background:#1E1E1E;color:#BEF264;border:1px solid #333;border-radius:10px;padding:10px 16px;font:600 14px -apple-system,'Inter',sans-serif;cursor:pointer">&#x26F6; Full screen</button>
+<script>
+(function () {
+  const btn = document.getElementById('fsBtn');
+  const el = document.documentElement;
+  btn.addEventListener('click', () => {
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  });
+  const sync = () => {
+    btn.style.display = (document.fullscreenElement || document.webkitFullscreenElement) ? 'none' : 'block';
+  };
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+const POLL_URL = @json(route('tenant.pay_display.poll', ['token' => $register->display_token]));
+const fmt = c => '$' + ((c || 0) / 100).toFixed(2);
+let lastPayUrl = null;
+
+function show(which) {
+  for (const id of ['vIdle', 'vCart', 'vPay']) {
+    document.getElementById(id).style.display = (id === which) ? 'flex' : 'none';
+  }
+}
+
+function render(data) {
+  const snap = data.snap;
+  if (data.state === 'idle' || !snap || !(snap.items || []).length) { show('vIdle'); return; }
+
+  if (data.state === 'pay' && snap.pay_url) {
+    document.getElementById('payAmt').textContent = fmt(snap.total_cents);
+    if (snap.pay_url !== lastPayUrl && typeof qrcode === 'function') {
+      const qr = qrcode(0, 'M');
+      qr.addData(snap.pay_url); qr.make();
+      const el = document.getElementById('payQr');
+      el.innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+      el.querySelector('svg').style.cssText = 'width:100%;height:100%';
+      lastPayUrl = snap.pay_url;
+    }
+    show('vPay'); return;
+  }
+
+  let html = '';
+  for (const i of snap.items) {
+    html += '<div class="line' + (i.refund ? ' refund' : '') + '">'
+          + '<div class="n">' + esc(i.name) + ' <span class="q">× ' + i.qty + '</span></div>'
+          + '<div>' + (i.refund ? '-' : '') + fmt(Math.abs(i.line_cents)) + '</div></div>';
+  }
+  document.getElementById('cartLines').innerHTML = html;
+
+  let t = '';
+  t += trow('Subtotal', fmt(snap.subtotal_cents));
+  if (snap.discount_cents)  t += trow('Discount', '-' + fmt(snap.discount_cents));
+  if (snap.tax_cents)       t += trow(snap.tax_label || 'Tax', fmt(snap.tax_cents));
+  if (snap.surcharge_cents) t += trow('Card surcharge', fmt(snap.surcharge_cents));
+  if (snap.tip_cents)       t += trow('Tip', fmt(snap.tip_cents));
+  t += '<div class="trow grand"><div>Total</div><div class="v">' + fmt(snap.total_cents) + '</div></div>';
+  document.getElementById('cartTotals').innerHTML = t;
+  show('vCart');
+}
+
+const trow = (l, v) => '<div class="trow"><div>' + l + '</div><div>' + v + '</div></div>';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function poll() {
+  try {
+    const r = await fetch(POLL_URL, { cache: 'no-store' });
+    if (r.ok) render(await r.json());
+  } catch (e) { /* keep last state; retry next tick */ }
+}
+poll();
+setInterval(poll, 1500);
+// Keep the screen awake where supported
+if ('wakeLock' in navigator) {
+  const lock = () => navigator.wakeLock.request('screen').catch(() => {});
+  lock();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) lock(); });
+}
+</script>
+</body>
+</html>
+RDL_5_EOF
+
+echo "register-display-logo-setting applied — run migrate + view:clear + route:clear on the server"

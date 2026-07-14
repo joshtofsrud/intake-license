@@ -31,6 +31,19 @@
         <div style="font-size:12.5px;color:var(--ia-muted);margin-bottom:12px;word-break:break-all">
           Display link: {{ url('/pay-display/' . $r->display_token) }}
         </div>
+        {{-- MARKER-REGISTER-RECON-DISPLAY — welcome-screen logo choice --}}
+        <form method="POST" action="{{ route('tenant.register.registers.update', ['id' => $r->id]) }}"
+              style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          @csrf
+          <label style="font-size:12.5px;color:var(--ia-muted)">Welcome-screen logo</label>
+          <select name="display_logo" class="ia-input" style="max-width:210px;font-size:13px"
+                  onchange="this.form.submit()">
+            <option value="auto"  @selected($r->display_logo === 'auto')>Auto (light, then main)</option>
+            <option value="light" @selected($r->display_logo === 'light')>Light logo</option>
+            <option value="main"  @selected($r->display_logo === 'main')>Main logo</option>
+            <option value="none"  @selected($r->display_logo === 'none')>No logo</option>
+          </select>
+        </form>
         <div style="display:flex;gap:8px">
           <button class="ia-btn ia-btn-ghost" onclick="toggleQr({{ $r->id }})">Show pairing QR</button>
           <form method="POST" action="{{ route('tenant.register.registers.regenerate', ['id' => $r->id]) }}"
