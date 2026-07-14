@@ -8,7 +8,7 @@
 <div style="max-width:860px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
     <h1 style="font-size:22px;font-weight:800;letter-spacing:-.02em">Registers &amp; pay displays</h1>
-    <a href="{{ route('register.index') }}" class="ia-btn ia-btn-ghost">← Back to register</a>
+    <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn-ghost">← Back to register</a>
   </div>
   <p style="color:var(--ia-muted);font-size:13.5px;margin-bottom:20px">
     Each register is a physical pay station. Pair an iPad or phone once by scanning its QR code —
@@ -33,7 +33,7 @@
         </div>
         <div style="display:flex;gap:8px">
           <button class="ia-btn ia-btn-ghost" onclick="toggleQr({{ $r->id }})">Show pairing QR</button>
-          <form method="POST" action="{{ route('register.registers.regenerate', ['id' => $r->id]) }}"
+          <form method="POST" action="{{ route('tenant.register.registers.regenerate', ['id' => $r->id]) }}"
                 onsubmit="return confirm('Regenerate the pairing link? All screens paired to this register will disconnect.');">
             @csrf
             <button class="ia-btn ia-btn-ghost" type="submit">Regenerate link</button>
@@ -45,7 +45,7 @@
     </div>
   @endforeach
 
-  <form method="POST" action="{{ route('register.registers.store') }}"
+  <form method="POST" action="{{ route('tenant.register.registers.store') }}"
         style="display:flex;gap:10px;margin-top:18px">
     @csrf
     <input name="name" required maxlength="80" placeholder="Register name — e.g. Front Counter"
