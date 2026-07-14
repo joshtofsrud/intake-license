@@ -60,6 +60,7 @@ class TenantSale extends Model
     public function assignedStaff(): BelongsTo { return $this->belongsTo(TenantUser::class, 'assigned_staff_id'); }
     public function appointment(): BelongsTo   { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
     public function location(): BelongsTo      { return $this->belongsTo(TenantLocation::class, 'location_id'); }
+    public function register(): BelongsTo      { return $this->belongsTo(TenantRegister::class, 'register_id'); } // MARKER-REGISTER-RECON-DISPLAY
     public function rangUpBy(): BelongsTo      { return $this->belongsTo(TenantUser::class, 'rang_up_by_user_id'); }
     public function refundOf(): BelongsTo      { return $this->belongsTo(TenantSale::class, 'refund_of_sale_id'); }
     public function refunds(): HasMany         { return $this->hasMany(TenantSale::class, 'refund_of_sale_id'); }

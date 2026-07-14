@@ -127,6 +127,9 @@ $tenantRoutes = function () {
     Route::post('/d/{token}',            [TenantControllers\DeliveryConfirmController::class, 'confirm'])->name('tenant.delivery_confirm.save');
     // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
     Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
+    // MARKER-REGISTER-RECON-DISPLAY — customer pay display (token is the credential)
+    Route::get('/pay-display/{token}',            [TenantControllers\RegisterDisplayController::class, 'display'])->name('tenant.pay_display.show');
+    Route::get('/pay-display/{token}/state.json', [TenantControllers\RegisterDisplayController::class, 'displayPoll'])->name('tenant.pay_display.poll');
     Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
@@ -299,6 +302,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/appointment-tray/dismiss', [TenantControllers\RegisterController::class, 'dismissTraySale'])->name('register.appointment-tray.dismiss');
                 Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
                 Route::get('/register/item/{id}/info',   [TenantControllers\RegisterController::class, 'itemInfo'])->name('register.item_info'); // MARKER-PATCH-552
+                // MARKER-REGISTER-RECON-DISPLAY — register management + display mirroring
+                Route::get('/register/registers',                  [TenantControllers\RegisterDisplayController::class, 'registers'])->name('register.registers');
+                Route::post('/register/registers',                 [TenantControllers\RegisterDisplayController::class, 'storeRegister'])->name('register.registers.store');
+                Route::post('/register/registers/{id}/regenerate', [TenantControllers\RegisterDisplayController::class, 'regenerateToken'])->name('register.registers.regenerate');
+                Route::post('/register/select',                    [TenantControllers\RegisterDisplayController::class, 'selectRegister'])->name('register.select');
+                Route::post('/register/display-state',             [TenantControllers\RegisterDisplayController::class, 'displayState'])->name('register.display_state');
 
                 // MARKER-PATCH-567 — Online Retail Wave 5a: orders queue
                 Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
@@ -533,19 +542,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
             // MARKER-PATCH-151A — Traffic tab
             Route::get('/reports/traffic',      [TenantControllers\ReportsController::class, 'traffic'])->name('reports.traffic');
-            // MARKER-PATCH-633 — Daily ops (end of day)
-            Route::get('/reports/daily',                 [TenantControllers\DailyOpsController::class, 'endOfDay'])->name('reports.daily');
-            Route::post('/reports/daily/drawer',         [TenantControllers\DailyOpsController::class, 'saveDrawer'])->name('reports.daily.drawer');
-            Route::post('/reports/daily/close',          [TenantControllers\DailyOpsController::class, 'closeDay'])->name('reports.daily.close');
-            Route::post('/reports/daily/reopen',         [TenantControllers\DailyOpsController::class, 'reopenDay'])->name('reports.daily.reopen');
-            Route::get('/reports/daily/print',           [TenantControllers\DailyOpsController::class, 'printDay'])->name('reports.daily.print');
-            Route::get('/reports/daily/exports',         [TenantControllers\DailyOpsController::class, 'exports'])->name('reports.daily.exports'); // MARKER-PATCH-634
-            Route::get('/reports/daily/export/qb',       [TenantControllers\DailyOpsController::class, 'exportQbJournal'])->name('reports.daily.export.qb');
-            Route::get('/reports/daily/export/detail',   [TenantControllers\DailyOpsController::class, 'exportDetail'])->name('reports.daily.export.detail');
-            Route::get('/reports/daily/export/tax',      [TenantControllers\DailyOpsController::class, 'exportTax'])->name('reports.daily.export.tax');
-            Route::get('/reports/daily/recon',           [TenantControllers\DailyOpsController::class, 'reconciliation'])->name('reports.daily.recon'); // MARKER-PATCH-635
-            Route::post('/reports/daily/recon/refresh',  [TenantControllers\DailyOpsController::class, 'reconciliationRefresh'])->name('reports.daily.recon.refresh');
-            Route::get('/reports/daily/export/xero',     [TenantControllers\DailyOpsController::class, 'exportXero'])->name('reports.daily.export.xero');
             Route::post('/reports/search-rules',            [TenantControllers\SearchRulesController::class, 'store'])->name('reports.search-rules.store'); // MARKER-PATCH-622
             Route::post('/reports/search-rules/{ruleId}/delete', [TenantControllers\SearchRulesController::class, 'destroy'])->name('reports.search-rules.delete');
             Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
@@ -869,7 +865,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/settings/payment-methods',                    [TenantControllers\PaymentMethodsController::class, 'storeCustom'])->name('settings.payment-methods.store');
             Route::post('/settings/payment-methods/{methodId}',         [TenantControllers\PaymentMethodsController::class, 'update'])->name('settings.payment-methods.update');
             Route::post('/settings/payment-methods/{methodId}/delete',  [TenantControllers\PaymentMethodsController::class, 'destroyCustom'])->name('settings.payment-methods.delete');
-            Route::post('/settings/payment-methods-qb',                 [TenantControllers\PaymentMethodsController::class, 'saveQbAccounts'])->name('settings.payment-methods.qb'); // MARKER-PATCH-636
 
             // MARKER-PATCH-473 — verify a tenant's Square connection
             Route::post('/settings/square/verify', [TenantControllers\SettingsController::class, 'verifySquareConnection'])->name('settings.square.verify');

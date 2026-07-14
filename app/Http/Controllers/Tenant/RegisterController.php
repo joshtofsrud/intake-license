@@ -54,6 +54,8 @@ class RegisterController extends Controller
 
         return view('tenant.register.index', [
             'tenant'     => $tenant,
+            'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
+            'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
             'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant), // MARKER-PATCH-630
             'preAttachCustomer' => $preAttachCustomer,
             'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
@@ -283,6 +285,7 @@ class RegisterController extends Controller
                 'tenant_id'          => $tenant->id,
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
+                'register_id'        => $request->session()->get('current_register_id'), // MARKER-REGISTER-RECON-DISPLAY
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => 'completed',
                 'payment_status'     => 'paid',

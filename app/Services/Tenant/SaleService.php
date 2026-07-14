@@ -91,6 +91,7 @@ class SaleService
                 'appointment_id'     => $data['appointment_id'] ?? null,
                 'rang_up_by_user_id' => $data['rang_up_by_user_id'],
                 'location_id'        => $data['location_id'],
+                'register_id'        => $data['register_id'] ?? null, // MARKER-REGISTER-RECON-DISPLAY
                 'payment_method'     => $data['payment_method'] ?? null,
                 'payment_reference'  => $data['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments card metadata

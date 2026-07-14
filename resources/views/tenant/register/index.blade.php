@@ -392,6 +392,17 @@
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
+  <a href="{{ route('register.registers') }}" class="reg-tab-link">Registers</a> {{-- MARKER-REGISTER-RECON-DISPLAY --}}
+  {{-- MARKER-REGISTER-RECON-DISPLAY — register picker (only when registers exist) --}}
+  @if (($registers ?? collect())->isNotEmpty())
+    <select id="registerPicker" class="ia-input" style="margin-left:auto;max-width:220px;font-size:13px"
+            title="Pay-station display this device drives">
+      <option value="0">No register / display</option>
+      @foreach ($registers as $r)
+        <option value="{{ $r->id }}" @selected(($currentRegisterId ?? 0) === $r->id)>#{{ $r->number }} — {{ $r->name }}</option>
+      @endforeach
+    </select>
+  @endif
 </div>
 
 @if(($appointmentTrayCount ?? 0) > 0)
@@ -983,6 +994,64 @@ const ROUTES = {
   checkoutSessionCancel: @json(url('/admin/register/checkout-session/cancel')),
 };
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
+
+// MARKER-REGISTER-RECON-DISPLAY — customer display mirroring.
+// Debounced snapshots of the cart are pushed to the currently selected
+// register; a paired iPad polls that register's snapshot and renders it.
+const DisplayMirror = {
+  enabled: {{ ($currentRegisterId ?? 0) > 0 ? 'true' : 'false' }},
+  payUrl: null,
+  timer: null,
+  stateUrl: @json(route('register.display_state')),
+  selectUrl: @json(route('register.select')),
+};
+function displaySnapshot() {
+  const items = [];
+  for (const i of cart.items) items.push({ name: i.name, qty: i.qty, line_cents: Math.round(i.price_cents * i.qty) });
+  for (const r of cart.refund_lines) items.push({ name: r.name, qty: r.qty, line_cents: Math.round(r.price_cents * r.qty), refund: true });
+  const sub = calcSubtotal() - calcRefundSubtotal();
+  const tax = calcTax();
+  const surch = calcSurcharge();
+  const total = (calcSubtotal() - cart.discountCents + tax + surch + cart.tipCents) - (calcRefundSubtotal());
+  return {
+    state: DisplayMirror.payUrl ? 'pay' : (items.length ? 'cart' : 'idle'),
+    items,
+    subtotal_cents: sub,
+    discount_cents: cart.discountCents,
+    tax_cents: tax,
+    tax_label: CFG.taxLabel || null,
+    surcharge_cents: surch,
+    tip_cents: cart.tipCents,
+    total_cents: Math.max(0, Math.round(total)),
+    pay_url: DisplayMirror.payUrl,
+  };
+}
+function queueDisplayMirror(immediate = false) {
+  if (!DisplayMirror.enabled) return;
+  clearTimeout(DisplayMirror.timer);
+  DisplayMirror.timer = setTimeout(() => {
+    fetch(DisplayMirror.stateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify(displaySnapshot()),
+    }).catch(() => {});
+  }, immediate ? 0 : 400);
+}
+const registerPickerEl = document.getElementById('registerPicker');
+if (registerPickerEl) {
+  registerPickerEl.addEventListener('change', async () => {
+    const id = parseInt(registerPickerEl.value, 10) || 0;
+    try {
+      await fetch(DisplayMirror.selectUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify({ register_id: id }),
+      });
+      DisplayMirror.enabled = id > 0;
+      queueDisplayMirror(true);
+    } catch (e) {}
+  });
+}
 const CFG = {
   taxRate:        {{ $taxRate ?? 0 }},
   taxLabel:       @json($taxLabel ?? ''),
@@ -1653,6 +1722,7 @@ function renderTotals() {
   else { document.getElementById('surchargeRow').style.display = 'none'; }
   if (tip > 0) { document.getElementById('tipRow').style.display = ''; document.getElementById('tipVal').textContent = fmt(tip); }
   else { document.getElementById('tipRow').style.display = 'none'; }
+  queueDisplayMirror(); // MARKER-REGISTER-RECON-DISPLAY
 }
 
 document.getElementById('addOpenItemBtn').addEventListener('click', () => {
@@ -2224,7 +2294,7 @@ async function openPaymentLinkModal() {
     resp = await res.json();
     if (!resp.ok) throw new Error(resp.error || 'Could not create payment link.');
   } catch (e) {
-    closeModal('paymentLinkModal');
+    closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
     showError(e.message);
     return;
   }
@@ -2232,6 +2302,8 @@ async function openPaymentLinkModal() {
   PaymentLink.saleId = resp.sale_id;
   PaymentLink.sessionId = resp.session_id;
   PaymentLink.checkoutUrl = resp.checkout_url;
+  DisplayMirror.payUrl = resp.checkout_url; // MARKER-REGISTER-RECON-DISPLAY
+  queueDisplayMirror(true);
 
   // Render QR code
   const qrEl = document.getElementById('paymentLinkQR');
@@ -2279,7 +2351,7 @@ async function checkPaymentLinkStatus() {
 
     if (data.status === 'succeeded') {
       stopPaymentLinkPolling();
-      closeModal('paymentLinkModal');
+      closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
       // Show the receipt screen using the existing flow
       showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents, sale_id: data.sale_id }); // MARKER-PATCH-322
       // Clear cart since the sale completed
@@ -2332,7 +2404,7 @@ document.getElementById('paymentLinkCancelBtn').addEventListener('click', async 
   PaymentLink.saleId = null;
   PaymentLink.sessionId = null;
   PaymentLink.checkoutUrl = null;
-  closeModal('paymentLinkModal');
+  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
 });
 
 // MARKER-PATCH-192 — "Done — keep link live": the operator steps away while the
@@ -2345,7 +2417,7 @@ document.getElementById('paymentLinkDoneBtn').addEventListener('click', () => {
   PaymentLink.saleId = null;
   PaymentLink.sessionId = null;
   PaymentLink.checkoutUrl = null;
-  closeModal('paymentLinkModal');
+  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
 });
 
 function openTipModal() {
