@@ -68,6 +68,23 @@
     </div>
   </div>
 
+{{-- MARKER-REGISTER-RECON-DISPLAY — fullscreen toggle --}}
+<button id="fsBtn" style="position:fixed;bottom:18px;right:18px;z-index:10;background:#1E1E1E;color:#BEF264;border:1px solid #333;border-radius:10px;padding:10px 16px;font:600 14px -apple-system,'Inter',sans-serif;cursor:pointer">&#x26F6; Full screen</button>
+<script>
+(function () {
+  const btn = document.getElementById('fsBtn');
+  const el = document.documentElement;
+  btn.addEventListener('click', () => {
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  });
+  const sync = () => {
+    btn.style.display = (document.fullscreenElement || document.webkitFullscreenElement) ? 'none' : 'block';
+  };
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+})();
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
 const POLL_URL = @json(route('tenant.pay_display.poll', ['token' => $register->display_token]));
