@@ -1,3 +1,10 @@
+#!/bin/bash
+# register-recon-display hotfix — tenants/tenant_locations use UUID primary keys;
+# the registers migration used bigint FKs and failed. This rewrites the migration
+# with foreignUuid columns and a dropIfExists guard for the half-created table.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+cat > database/migrations/2026_07_14_000001_create_tenant_registers_table.php <<'RRD_FIX_EOF'
 <?php
 
 // MARKER-REGISTER-RECON-DISPLAY — physical register entities + customer displays.
@@ -54,3 +61,5 @@ return new class extends Migration
         Schema::dropIfExists('tenant_registers');
     }
 };
+RRD_FIX_EOF
+echo "hotfix applied — commit, push, then migrate on the server"
