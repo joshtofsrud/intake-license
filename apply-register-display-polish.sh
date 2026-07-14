@@ -1,3 +1,12 @@
+#!/bin/bash
+# register-display polish — logo-only welcome screen; fix blank shop name
+# ($tenant->name, not business_name) in the header and page title.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if ! grep -q "display_logo" resources/views/tenant/register/display.blade.php; then
+  echo "expects the logo-setting patch to be applied first — aborting."; exit 1
+fi
+cat > resources/views/tenant/register/display.blade.php <<'RDP_EOF'
 <!DOCTYPE html>
 {{-- MARKER-REGISTER-RECON-DISPLAY — full-screen customer display for one register.
      Token in the URL is the credential; page is read-only and polls for state. --}}
@@ -167,3 +176,5 @@ if ('wakeLock' in navigator) {
 </script>
 </body>
 </html>
+RDP_EOF
+echo "display polish applied"
