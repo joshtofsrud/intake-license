@@ -147,64 +147,90 @@
     }
   }
 
-  // ------------------------------------------------------------ pill + popover UI
-  function el(tag, css, html) {
-    const e = document.createElement(tag);
-    if (css) e.style.cssText = css;
-    if (html !== undefined) e.innerHTML = html;
-    return e;
-  }
-  let pill, panel;
-  function renderPill() {
+  // ------------------------------------------------------------ status UI (stage 4)
+  // No floating elements. Status renders into mounts that live in the page
+  // flow: #ioMountSidebar (desktop nav, above the profile block) and
+  // #ioMountMobile (mobile header). The gear opens the settings popover
+  // anchored to whichever gear was tapped.
+  let panel = null;
+  function renderPill() { renderMounts(); }
+  function renderMounts() {
     if (!IO.enabled) return;
-    if (!pill) {
-      // Mobile: docks into the header's empty right side. Desktop: bottom-right,
-      // clear of the dashboard action buttons and toasts stack above it.
-      const wide = window.matchMedia('(min-width: 900px)').matches;
-      pill = el('div',
-        'position:fixed;' + (wide ? 'bottom:16px;right:16px;' : 'top:12px;right:14px;') + 'z-index:8900;display:flex;align-items:center;gap:8px;' +
-        'background:var(--ia-panel,#141414);border:1px solid var(--ia-border,#2a2a2a);border-radius:100px;' +
-        'padding:6px 6px 6px 13px;font:600 12px Inter,-apple-system,sans-serif;color:var(--ia-text,#ededed);' +
-        'box-shadow:0 4px 18px rgba(0,0,0,.35)');
-      pill.id = 'ioPill';
-      pill.innerHTML =
-        '<span id="ioDot" style="width:8px;height:8px;border-radius:50%;background:#7FD98F;flex:none"></span>' +
-        '<span id="ioLbl">Online</span>' +
-        '<span id="ioQ" style="display:none;background:rgba(245,197,107,.14);border:1px solid rgba(245,197,107,.4);color:#F5C56B;border-radius:100px;padding:2px 8px;font-size:11px"></span>' +
-        '<button id="ioGear" title="Offline sync settings" style="border:none;background:var(--ia-bg,#0b0b0b);color:var(--ia-muted,#9c9c9c);border-radius:100px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1">⚙</button>';
-      document.body.appendChild(pill);
-      pill.querySelector('#ioGear').addEventListener('click', togglePanel);
-    }
-    const dot = pill.querySelector('#ioDot'), lbl = pill.querySelector('#ioLbl'), q = pill.querySelector('#ioQ');
-    if (IO.paused) { dot.style.background = '#6E6E6E'; lbl.textContent = 'Offline sync paused'; }
-    else if (!IO.online) { dot.style.background = '#F5C56B'; dot.style.animation = 'ioPulse 1.6s infinite'; lbl.textContent = 'Offline'; }
-    else if (IO.phase === 'syncing') { dot.style.background = '#BEF264'; dot.style.animation = ''; lbl.textContent = 'Syncing…'; }
-    else { dot.style.background = '#7FD98F'; dot.style.animation = ''; lbl.textContent = 'Online'; }
-    q.style.display = IO.queued ? 'inline-block' : 'none';
-    q.textContent = IO.queued + ' queued';
-    if (!document.getElementById('ioPulseKf')) {
-      const st = document.createElement('style'); st.id = 'ioPulseKf';
-      st.textContent = '@keyframes ioPulse{0%,100%{opacity:1}50%{opacity:.35}}';
-      document.head.appendChild(st);
-    }
+    renderSidebarBlock(document.getElementById('ioMountSidebar'));
+    renderMobilePill(document.getElementById('ioMountMobile'));
   }
-  function togglePanel() {
+  function stateBits() {
+    if (IO.paused) return { dot: '#6E6E6E', label: 'Paused', off: false };
+    if (!IO.online) return { dot: '#F5C56B', label: 'Offline', off: true };
+    if (IO.phase === 'syncing') return { dot: '#BEF264', label: 'Syncing…', off: false };
+    return { dot: '#7FD98F', label: 'Online', off: false };
+  }
+  function gearBtn(id) {
+    return '<button id="' + id + '" title="Offline sync settings" aria-label="Offline sync settings" ' +
+      'style="border:none;background:var(--ia-bg,#0b0b0b);color:var(--ia-muted,#9c9c9c);border-radius:100px;' +
+      'width:24px;height:24px;cursor:pointer;font-size:12px;line-height:1;flex:none">⚙</button>';
+  }
+  function renderSidebarBlock(mount) {
+    if (!mount) return;
+    const b = stateBits();
+    mount.innerHTML =
+      '<div style="margin:10px 12px 6px;border:1px solid ' + (b.off ? 'rgba(245,197,107,.4)' : 'var(--ia-border,#2a2a2a)') + ';' +
+      'background:' + (b.off ? 'rgba(245,197,107,.06)' : 'transparent') + ';border-radius:10px;padding:9px 11px;' +
+      'display:flex;align-items:center;gap:8px;font:600 12px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : 'var(--ia-text,#ededed)') + '">' +
+        '<span style="width:8px;height:8px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
+        '<span style="line-height:1.3">' + b.label +
+          (IO.queued ? '<br><span style="font-size:10.5px;font-weight:700;color:#F5C56B">' + IO.queued + ' sale' + (IO.queued > 1 ? 's' : '') + ' queued</span>' : '') +
+        '</span>' +
+        '<span style="margin-left:auto;display:inline-flex">' + gearBtn('ioGearSide') + '</span>' +
+      '</div>';
+    const g = mount.querySelector('#ioGearSide');
+    if (g) g.addEventListener('click', e => togglePanel(e.currentTarget));
+    ensureKeyframes();
+  }
+  function renderMobilePill(mount) {
+    if (!mount) return;
+    const b = stateBits();
+    mount.innerHTML =
+      '<span style="display:inline-flex;align-items:center;gap:7px;border:1px solid ' + (b.off ? 'rgba(245,197,107,.45)' : 'var(--ia-border,#2a2a2a)') + ';' +
+      'background:' + (b.off ? 'rgba(245,197,107,.07)' : 'var(--ia-panel,#141414)') + ';border-radius:100px;' +
+      'padding:4px 5px 4px 10px;font:600 11.5px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : 'var(--ia-text,#ededed)') + '">' +
+        '<span style="width:7px;height:7px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
+        b.label + (IO.queued ? ' · ' + IO.queued : '') +
+        gearBtn('ioGearMob') +
+      '</span>';
+    const g = mount.querySelector('#ioGearMob');
+    if (g) g.addEventListener('click', e => togglePanel(e.currentTarget));
+    ensureKeyframes();
+  }
+  function ensureKeyframes() {
+    if (document.getElementById('ioPulseKf')) return;
+    const st = document.createElement('style'); st.id = 'ioPulseKf';
+    st.textContent = '@keyframes ioPulse{0%,100%{opacity:1}50%{opacity:.35}}';
+    document.head.appendChild(st);
+  }
+  function togglePanel(anchor) {
     if (panel && panel.parentNode) { panel.remove(); panel = null; return; }
-    renderPanel(true);
+    renderPanel(true, anchor);
   }
-  function renderPanel(create) {
+  function renderPanel(create, anchor) {
     if (!panel && !create) return;
     const info = IO.snapshotInfo();
     const limit = localStorage.getItem(LIMIT_KEY) || '500';
     const fresh = info ? new Date(info.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—';
     if (!panel) {
-      const wideP = window.matchMedia('(min-width: 900px)').matches;
       panel = el('div',
-        'position:fixed;' + (wideP ? 'bottom:58px;right:16px;' : 'top:52px;right:14px;') + 'z-index:8901;width:300px;background:var(--ia-panel,#141414);' +
+        'position:fixed;z-index:9500;width:300px;background:var(--ia-panel,#141414);' +
         'border:1px solid var(--ia-border,#2a2a2a);border-radius:14px;padding:16px;' +
         'font:400 13px Inter,-apple-system,sans-serif;color:var(--ia-text,#ededed);box-shadow:0 10px 34px rgba(0,0,0,.5)');
       panel.id = 'ioPanel';
       document.body.appendChild(panel);
+      // anchor beside the gear that was tapped, clamped to the viewport
+      const r = anchor.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight, pw = 300, ph = 250;
+      let left = Math.min(Math.max(10, r.left - pw + r.width), vw - pw - 10);
+      let top = (r.top > vh / 2) ? Math.max(10, r.top - ph - 10) : Math.min(vh - ph - 10, r.bottom + 10);
+      panel.style.left = left + 'px';
+      panel.style.top = top + 'px';
     }
     panel.innerHTML =
       '<div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-muted,#9c9c9c);margin-bottom:10px">Offline sync — this device</div>' +
@@ -242,19 +268,22 @@
     });
   }
   document.addEventListener('click', e => {
-    if (panel && !panel.contains(e.target) && !(pill && pill.contains(e.target))) { panel.remove(); panel = null; }
+    if (panel && !panel.contains(e.target) && !e.target.closest('#ioMountSidebar') && !e.target.closest('#ioMountMobile')) {
+      panel.remove(); panel = null;
+    }
   });
 
   // ------------------------------------------------------------ boot
   if (!IO.enabled) { syncServiceWorker(); return; }
   syncServiceWorker();
-  renderPill();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderMounts);
+  else renderMounts();
   openDb().then(async db => {
     IO.db = db;
     await refreshCount();
     IO.refreshSnapshot(false);   // background — throttled to 10 min
     IO.replay();                 // background — drains any queue from any page
-  }).catch(() => { IO.enabled = false; if (pill) pill.remove(); });
+  }).catch(() => { IO.enabled = false; });
   window.addEventListener('online', () => { IO.online = true; emit(); IO.replay(); IO.refreshSnapshot(false); });
   window.addEventListener('offline', () => { IO.online = false; emit(); });
 })();
