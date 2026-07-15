@@ -1,3 +1,16 @@
+#!/bin/bash
+# offline-stamp-removal — cuts the floating "Offline — showing your
+# last-loaded view" bubble; redundant with the status pill and off-brand.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if ! grep -q "osStamp" resources/views/layouts/tenant/app.blade.php; then
+  echo "stamp already removed — aborting."; exit 1
+fi
+if ! grep -q "v=nogear2" resources/views/layouts/tenant/app.blade.php; then
+  echo "root-cause fix not applied — aborting."; exit 1
+fi
+
+cat > 'resources/views/layouts/tenant/app.blade.php' <<'STAMPCUT_EOF'
 <!DOCTYPE html>
 <html lang="en" class="ia-theme-{{ $adminTheme }}">
 <head>
@@ -235,3 +248,6 @@ window.IntakeOfflineConfig = {
 </body>
 </html>
 
+STAMPCUT_EOF
+
+echo "stamp removed — view:clear on server"
