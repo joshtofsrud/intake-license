@@ -170,7 +170,7 @@
     const b = stateBits();
     const quiet = !b.off && IO.phase !== 'syncing' && !IO.queued;
     mount.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;padding:8px 16px 4px;' +
+      '<div style="display:flex;align-items:center;gap:8px;padding:6px 16px 10px" ' +
       'font:600 11.5px Inter,-apple-system,sans-serif;color:' + (quiet ? 'var(--ia-dim,#6e6e6e)' : (b.off ? '#F5C56B' : 'var(--ia-muted,#9c9c9c)')) + '">' +
         '<span style="width:7px;height:7px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
         '<span style="line-height:1.35">' + b.label +
@@ -188,18 +188,21 @@
     const b = stateBits();
     const quiet = !b.off && IO.phase !== 'syncing' && !IO.queued;
     if (quiet) {
-      // Online: just the dot and the gear — no box, no words.
+      // Online: dot + gear sized and centered to match the header bell.
       mount.innerHTML =
-        '<span style="display:inline-flex;align-items:center;gap:8px">' +
-          '<span title="Online — offline sync ready" style="width:8px;height:8px;border-radius:50%;background:' + b.dot + ';flex:none"></span>' +
+        '<span style="display:inline-flex;align-items:center;gap:12px;height:40px">' +
+          '<span title="Online — offline sync ready" style="width:8px;height:8px;border-radius:50%;background:' + b.dot + ';flex:none;display:block"></span>' +
           '<button id="ioGearMob" title="Offline sync settings" aria-label="Offline sync settings" ' +
-            'style="border:none;background:transparent;color:var(--ia-dim,#6e6e6e);cursor:pointer;font-size:15px;line-height:1;padding:3px">⚙</button>' +
+            'style="border:none;background:transparent;color:var(--ia-muted,#9c9c9c);cursor:pointer;padding:0;width:24px;height:40px;display:inline-flex;align-items:center;justify-content:center">' +
+            '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
+            '</svg></button>' +
         '</span>';
     } else {
       mount.innerHTML =
         '<span style="display:inline-flex;align-items:center;gap:7px;border:1px solid ' + (b.off ? 'rgba(245,197,107,.45)' : 'rgba(190,242,100,.35)') + ';' +
         'background:' + (b.off ? 'rgba(245,197,107,.07)' : 'rgba(190,242,100,.06)') + ';border-radius:100px;' +
-        'padding:4px 5px 4px 10px;font:600 11.5px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : '#BEF264') + '">' +
+        'padding:4px 5px 4px 10px;height:28px;font:600 11.5px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : '#BEF264') + '">' +
           '<span style="width:7px;height:7px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
           b.label + (IO.queued ? ' · ' + IO.queued : '') +
           '<button id="ioGearMob" title="Offline sync settings" aria-label="Offline sync settings" ' +

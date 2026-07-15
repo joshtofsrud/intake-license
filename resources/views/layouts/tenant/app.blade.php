@@ -224,7 +224,7 @@ window.IntakeOfflineConfig = {
   csrf: document.querySelector('meta[name=csrf-token]')?.content || '',
 };
 </script>
-<script src="{{ asset('js/offline-sync.js') }}?v=stage5"></script>
+<script src="{{ asset('js/offline-sync.js') }}?v=stage6"></script>
 
 {{-- MARKER-OFFLINE-SYNC stage 2 — when a SW-cached page is shown offline,
      stamp it so nobody trusts stale data blindly. --}}

@@ -89,6 +89,9 @@
       </div>
     </details>
 
+    {{-- MARKER-OFFLINE-SYNC stage 6 — status row just below the user block --}}
+    <div id="ioMountSidebar"></div>
+
     {{-- Location row: rendered as the same partial used elsewhere, but
          styled as a sidebar row instead of a floating pill. The partial
          checks $userLocations->count() >= 2 before rendering anything. --}}
@@ -99,9 +102,6 @@
 
   {{-- Primary nav --}}
   @include('layouts.tenant._nav-items')
-
-  {{-- MARKER-OFFLINE-SYNC stage 5 — quiet status footer row (filled by /js/offline-sync.js) --}}
-  <div id="ioMountSidebar"></div>
 
   {{-- Bottom: brand footer (respects show_intake_branding) --}}
   <div class="ia-sidebar-bottom">
