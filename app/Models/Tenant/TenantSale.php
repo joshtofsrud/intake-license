@@ -15,7 +15,7 @@ class TenantSale extends Model
     protected $table = 'tenant_sales';
 
     protected $fillable = [
-        'tenant_id', 'sale_number', 'sale_date',
+        'tenant_id', 'sale_number', 'client_uuid', 'sale_date', // MARKER-OFFLINE-SYNC client_uuid
         'status', 'payment_status',
         'customer_id', 'assigned_staff_id', 'appointment_id',
         'rental_id', // MARKER-PATCH-219B — sales-as-money for rentals

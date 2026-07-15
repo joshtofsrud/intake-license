@@ -966,6 +966,8 @@ function rimSwap(el) {
 const ROUTES = {
   search:      @json(route('tenant.register.search')),
   storeSale:   @json(route('tenant.register.sales.store')),
+  offlineCatalog: @json(route('tenant.register.offline_catalog')), // MARKER-OFFLINE-SYNC
+  offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }}, // MARKER-OFFLINE-SYNC
   storeDraft:  @json(route('tenant.register.drafts.store')),
   listDrafts:  @json(route('tenant.register.drafts.index')),
   draftBase:   @json(url('/admin/register/drafts')),
@@ -1037,6 +1039,177 @@ function queueDisplayMirror(immediate = false) {
     }).catch(() => {});
   }, immediate ? 0 : 400);
 }
+
+// MARKER-OFFLINE-SYNC — stage 1: the open register survives an outage.
+// Catalog snapshot (localStorage) + IndexedDB outbox + replay with
+// client_uuid idempotency. Gated by the offline_sync add-on.
+const OfflineSync = {
+  enabled: ROUTES.offlineSyncEnabled === true,
+  db: null, online: navigator.onLine, queueCount: 0,
+  SNAP_KEY: 'ia_offline_catalog',
+};
+function osUuid(){
+  return (crypto.randomUUID) ? crypto.randomUUID() :
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);
+    });
+}
+function osOpenDb(){
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open('intake-offline', 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('outbox', { keyPath: 'uuid' });
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function osQueueSale(payload){
+  const rec = { uuid: payload.client_uuid, payload, created_at: Date.now() };
+  await new Promise((res, rej) => {
+    const tx = OfflineSync.db.transaction('outbox', 'readwrite');
+    tx.objectStore('outbox').put(rec);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+  await osRefreshCount();
+}
+async function osAll(){
+  return new Promise((res, rej) => {
+    const rq = OfflineSync.db.transaction('outbox').objectStore('outbox').getAll();
+    rq.onsuccess = () => res(rq.result || []); rq.onerror = () => rej(rq.error);
+  });
+}
+async function osRemove(uuid){
+  await new Promise((res) => {
+    const tx = OfflineSync.db.transaction('outbox', 'readwrite');
+    tx.objectStore('outbox').delete(uuid);
+    tx.oncomplete = res; tx.onerror = res;
+  });
+}
+async function osRefreshCount(){
+  const all = OfflineSync.db ? await osAll() : [];
+  OfflineSync.queueCount = all.length;
+  osRenderBanner();
+}
+function osRenderBanner(){
+  let el = document.getElementById('osBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'osBanner';
+    el.style.cssText = 'display:none;align-items:center;gap:10px;background:rgba(245,197,107,.10);border:0.5px solid rgba(245,197,107,.35);border-radius:var(--ia-r-md);padding:11px 15px;margin:0 0 14px;font-size:13px;color:#F5C56B';
+    const bar = document.querySelector('.reg-tabs-bar');
+    if (bar && bar.parentNode) bar.parentNode.insertBefore(el, bar.nextSibling);
+  }
+  if (!OfflineSync.enabled) { el.style.display = 'none'; return; }
+  if (!OfflineSync.online) {
+    el.style.display = 'flex';
+    el.innerHTML = '<b style="color:#FBDCA8">You\'re offline.</b> The register keeps working — sales save to this device and sync automatically. Card payments and payment links are paused.'
+      + (OfflineSync.queueCount ? ' <b style="color:#FBDCA8">' + OfflineSync.queueCount + ' sale' + (OfflineSync.queueCount>1?'s':'') + ' queued.</b>' : '');
+  } else if (OfflineSync.queueCount) {
+    el.style.display = 'flex';
+    el.style.color = '#BEF264'; el.style.background = 'rgba(190,242,100,.07)'; el.style.borderColor = 'rgba(190,242,100,.3)';
+    el.innerHTML = 'Back online — syncing ' + OfflineSync.queueCount + ' queued sale' + (OfflineSync.queueCount>1?'s':'') + '…';
+  } else {
+    el.style.display = 'none';
+    el.style.color = '#F5C56B'; el.style.background = 'rgba(245,197,107,.10)'; el.style.borderColor = 'rgba(245,197,107,.35)';
+  }
+  osToggleTenders();
+}
+function osToggleTenders(){
+  // Card + payment link need the network. Cash / check / store credit /
+  // manual tenders stay available offline.
+  document.querySelectorAll('.reg-tender-btn').forEach(b => {
+    const t = b.dataset.tender || b.dataset.refundTender;
+    if (t === 'card' || t === 'payment_link') {
+      const block = !OfflineSync.online && OfflineSync.enabled;
+      b.disabled = block;
+      b.style.opacity = block ? '.35' : '';
+      b.title = block ? 'Unavailable offline' : '';
+    }
+  });
+}
+async function osRefreshSnapshot(){
+  if (!OfflineSync.enabled || !navigator.onLine) return;
+  try {
+    const r = await fetch(ROUTES.offlineCatalog, { headers: { 'Accept': 'application/json' } });
+    const d = await r.json();
+    if (d.ok) localStorage.setItem(OfflineSync.SNAP_KEY, JSON.stringify(d));
+  } catch (e) { /* snapshot refresh is best-effort */ }
+}
+function osSearchSnapshot(q){
+  try {
+    const snap = JSON.parse(localStorage.getItem(OfflineSync.SNAP_KEY) || 'null');
+    if (!snap) return null;
+    const needle = q.toLowerCase();
+    const hit = t => (t || '').toLowerCase().includes(needle);
+    return {
+      products: (snap.products || []).filter(p => hit(p.name) || hit(p.sku)).slice(0, 15),
+      services: (snap.services || []).filter(sv => hit(sv.name)).slice(0, 15),
+      _snapshot_at: snap.captured_at,
+    };
+  } catch (e) { return null; }
+}
+function osBuildSalePayload(){
+  return {
+    client_uuid: osUuid(),
+    customer_id: cart.customer ? cart.customer.id : null,
+    tip_cents: cart.tipCents,
+    discount_cents: cart.discountCents,
+    payment_method: cart.payment_method,
+    payment_reference: cart.payment_reference,
+    items: cart.items.map(serializeLine),
+    skip_receipt: cart.skipReceipt ? 1 : 0,
+  };
+}
+async function osTryQueueCommit(){
+  // Only pure sales with network-free tenders queue offline.
+  if (!OfflineSync.enabled || !OfflineSync.db) return false;
+  if (cart.refund_lines.length > 0) return false;
+  if (cart.stripe_payment_intent_id) return false;
+  if (cart.payment_method === 'card' || cart.payment_method === 'payment_link') return false;
+  if (!cart.items.length) return false;
+  await osQueueSale(osBuildSalePayload());
+  OfflineSync.online = false; osRenderBanner();
+  // Reset the cart like a committed sale.
+  cart.items = []; cart.refund_lines = []; cart.refund_meta = null;
+  cart.customer = null; cart.tipCents = 0; cart.discountCents = 0;
+  cart.payment_method = null; cart.payment_reference = null;
+  cart.draft_id = null; cart.skipReceipt = false;
+  renderCart();
+  showError('Saved offline — this sale will sync automatically when the connection returns.');
+  return true;
+}
+async function osReplay(){
+  if (!OfflineSync.enabled || !OfflineSync.db) return;
+  const all = await osAll();
+  if (!all.length) { osRenderBanner(); return; }
+  for (const rec of all.sort((a,b) => a.created_at - b.created_at)) {
+    try {
+      const res = await fetch(ROUTES.storeSale, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify(rec.payload),
+      });
+      const data = await res.json();
+      if (data.ok) await osRemove(rec.uuid);
+      else if (res.status === 422) await osRemove(rec.uuid); // permanently invalid — drop, don't loop forever
+    } catch (e) { break; } // still offline — try again on next online event
+  }
+  await osRefreshCount();
+  if (!OfflineSync.queueCount) {
+    const el = document.getElementById('osBanner');
+    if (el) { el.innerHTML = 'All queued sales synced.'; setTimeout(() => { if (!OfflineSync.queueCount && OfflineSync.online) el.style.display = 'none'; }, 3500); }
+  }
+}
+if (OfflineSync.enabled) {
+  osOpenDb().then(async db => {
+    OfflineSync.db = db;
+    await osRefreshCount();
+    osRefreshSnapshot();
+    if (navigator.onLine) osReplay();
+  }).catch(() => { OfflineSync.enabled = false; });
+  window.addEventListener('online',  () => { OfflineSync.online = true;  osRenderBanner(); osReplay(); osRefreshSnapshot(); });
+  window.addEventListener('offline', () => { OfflineSync.online = false; osRenderBanner(); });
+}
+
 const registerPickerEl = document.getElementById('registerPicker');
 if (registerPickerEl) {
   registerPickerEl.addEventListener('change', async () => {
@@ -1252,7 +1425,16 @@ async function runSearch() {
     const data = await res.json();
     renderResults(data, refundResult);
   } catch (e) {
-    resultsArea.innerHTML = '<div class="reg-empty">Search failed.</div>';
+    // MARKER-OFFLINE-SYNC — offline: search the cached catalog snapshot.
+    const snap = OfflineSync.enabled ? osSearchSnapshot(q) : null;
+    if (snap && (snap.products.length || snap.services.length)) {
+      OfflineSync.online = false; osRenderBanner();
+      renderResults(snap, null);
+      resultsArea.insertAdjacentHTML('afterbegin',
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#F5C56B;margin-bottom:8px">Offline — cached catalog snapshot</div>');
+    } else {
+      resultsArea.innerHTML = '<div class="reg-empty">' + (OfflineSync.enabled && !navigator.onLine ? 'Offline — no cached matches.' : 'Search failed.') + '</div>';
+    }
   }
 }
 
@@ -2558,6 +2740,8 @@ async function commitTransaction(opts = {}) {
     }
     showReceipt(data);
   } catch (e) {
+    // MARKER-OFFLINE-SYNC — network failure: queue the sale on-device when eligible.
+    if (await osTryQueueCommit()) return;
     showError('Network error. Please try again.');
   } finally {
     document.getElementById('payBtn').disabled = (cart.items.length === 0 && cart.refund_lines.length === 0);

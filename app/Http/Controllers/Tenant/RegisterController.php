@@ -54,6 +54,7 @@ class RegisterController extends Controller
 
         return view('tenant.register.index', [
             'tenant'     => $tenant,
+            'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
             'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
             'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
             'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant), // MARKER-PATCH-630
@@ -278,7 +279,28 @@ class RegisterController extends Controller
             'items.*.notes'            => 'nullable|string',
             // MARKER-PATCH-161 — per-sale receipt skip
             'skip_receipt'             => 'nullable|boolean',
+            // MARKER-OFFLINE-SYNC — idempotency key for offline replay
+            'client_uuid'              => 'nullable|uuid',
         ]);
+
+        // MARKER-OFFLINE-SYNC — replay dedupe: an offline queue may POST the
+        // same sale more than once (retries, multiple tabs). Same client_uuid
+        // returns the already-committed sale instead of double-selling.
+        if (! empty($validated['client_uuid'])) {
+            $existing = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('client_uuid', $validated['client_uuid'])
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'ok'          => true,
+                    'sale_id'     => $existing->id,
+                    'sale_number' => $existing->sale_number,
+                    'total_cents' => $existing->total_cents,
+                    'redirect'    => route('tenant.register.index'),
+                    'replayed'    => true,
+                ]);
+            }
+        }
 
         try {
             $sale = $this->sales->createSale([
@@ -286,6 +308,7 @@ class RegisterController extends Controller
                 'rang_up_by_user_id' => auth('tenant')->id(),
                 'location_id'        => $locationId,
                 'register_id'        => $request->session()->get('current_register_id'), // MARKER-REGISTER-RECON-DISPLAY
+                'client_uuid'        => $validated['client_uuid'] ?? null, // MARKER-OFFLINE-SYNC
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => 'completed',
                 'payment_status'     => 'paid',
@@ -2346,5 +2369,58 @@ class RegisterController extends Controller
 
         return response()->json(['ok' => true]);
     }
-}
 
+    /**
+     * MARKER-OFFLINE-SYNC — catalog snapshot for offline register search.
+     * Top products by 90-day sale frequency plus all active services, shaped
+     * like the live /register/search response so the offline path reuses
+     * renderResults() unchanged.
+     */
+    public function offlineCatalog(Request $request): JsonResponse
+    {
+        $tenant = app('tenant');
+
+        $topProductIds = \Illuminate\Support\Facades\DB::table('tenant_sale_items')
+            ->join('tenant_sales', 'tenant_sales.id', '=', 'tenant_sale_items.sale_id')
+            ->where('tenant_sales.tenant_id', $tenant->id)
+            ->where('tenant_sales.sale_date', '>=', now()->subDays(90)->toDateString())
+            ->whereNotNull('tenant_sale_items.inventory_item_id')
+            ->groupBy('tenant_sale_items.inventory_item_id')
+            ->orderByRaw('COUNT(*) DESC')
+            ->limit(500)
+            ->pluck('tenant_sale_items.inventory_item_id')
+            ->all();
+
+        $products = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->whereIn('id', $topProductIds)
+            ->get()
+            ->map(fn ($p) => [
+                'id'                     => $p->id,
+                'name'                   => $p->name ?? '',
+                'subtitle'               => $p->display_subtitle ?? '',
+                'sku'                    => $p->sku ?? '',
+                'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
+                'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
+                'allow_oversell'         => (bool) $p->allow_oversell,
+                'current_location_stock' => 0,
+                'current_location_name'  => null,
+            ])->values();
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', 1)
+            ->get()
+            ->map(fn ($sv) => [
+                'id'               => $sv->id,
+                'name'             => $sv->name,
+                'price_cents'      => (int) ($sv->price_cents ?? 0),
+                'duration_minutes' => (int) ($sv->duration_minutes ?? 0),
+            ])->values();
+
+        return response()->json([
+            'ok'          => true,
+            'captured_at' => now()->toIso8601String(),
+            'products'    => $products,
+            'services'    => $services,
+        ]);
+    }
+}

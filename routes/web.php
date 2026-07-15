@@ -309,6 +309,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/registers/{id}/update',     [TenantControllers\RegisterDisplayController::class, 'updateRegister'])->name('register.registers.update');
                 Route::post('/register/select',                    [TenantControllers\RegisterDisplayController::class, 'selectRegister'])->name('register.select');
                 Route::post('/register/display-state',             [TenantControllers\RegisterDisplayController::class, 'displayState'])->name('register.display_state');
+                Route::get('/register/offline-catalog.json',       [TenantControllers\RegisterController::class, 'offlineCatalog'])->name('register.offline_catalog'); // MARKER-OFFLINE-SYNC
 
                 // MARKER-PATCH-567 — Online Retail Wave 5a: orders queue
                 Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
