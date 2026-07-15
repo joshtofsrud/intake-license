@@ -1,3 +1,9 @@
+#!/bin/bash
+# offline-sync pill position fix — mobile keeps the header-docked top-right
+# spot; desktop moves to bottom-right, clear of dashboard action buttons.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+cat > public/js/offline-sync.js <<'OFS3B_EOF'
 /* MARKER-OFFLINE-SYNC stage 3 — global offline module.
  * Loaded on EVERY tenant admin page when the offline_sync add-on is active.
  * No arming ritual: the service worker installs, the catalog snapshot
@@ -258,3 +264,5 @@
   window.addEventListener('online', () => { IO.online = true; emit(); IO.replay(); IO.refreshSnapshot(false); });
   window.addEventListener('offline', () => { IO.online = false; emit(); });
 })();
+OFS3B_EOF
+echo "pill position fix applied"
