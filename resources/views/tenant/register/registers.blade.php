@@ -4,6 +4,19 @@
 
 @php $pageTitle = 'Registers'; @endphp
 
+@push('styles')
+<style>
+  {{-- MARKER-OFFLINE-SYNC stage 3b — mobile-friendly registers page --}}
+  @media (max-width: 760px) {
+    .rr-card{flex-direction:column}
+    .rr-card > div[id^="qr-"]{align-self:center;width:200px !important;height:200px !important}
+    .rr-card .ia-btn{flex:1}
+    .rr-add{flex-direction:column}
+    .rr-add .ia-btn{width:100%}
+  }
+</style>
+@endpush
+
 @section('content')
 <div style="max-width:860px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -20,7 +33,7 @@
   @endif
 
   @foreach ($registers as $r)
-    <div style="background:var(--ia-panel);border:1px solid var(--ia-border);border-radius:12px;padding:18px;margin-bottom:12px;display:flex;gap:20px;align-items:flex-start">
+    <div class="rr-card" style="background:var(--ia-panel);border:1px solid var(--ia-border);border-radius:12px;padding:18px;margin-bottom:12px;display:flex;gap:20px;align-items:flex-start">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <span style="font-weight:800;font-size:16px">#{{ $r->number }} — {{ $r->name }}</span>
@@ -59,7 +72,7 @@
   @endforeach
 
   <form method="POST" action="{{ route('tenant.register.registers.store') }}"
-        style="display:flex;gap:10px;margin-top:18px">
+        class="rr-add" style="display:flex;gap:10px;margin-top:18px">
     @csrf
     <input name="name" required maxlength="80" placeholder="Register name — e.g. Front Counter"
            class="ia-input" style="flex:1">
