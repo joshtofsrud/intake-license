@@ -54,7 +54,8 @@ self.addEventListener('fetch', (e) => {
     e.respondWith((async () => {
       try {
         const fresh = await fetch(req);
-        if (fresh.ok && isWhitelistedPage(url)) {
+        // MARKER-OFFLINE-SYNC-PIN — never cache a page rendered behind the PIN lock.
+        if (fresh.ok && isWhitelistedPage(url) && fresh.headers.get('X-Pin-Locked') !== '1') {
           const c = await caches.open(PAGE_CACHE);
           c.put(req, fresh.clone());
         }
