@@ -1,0 +1,8519 @@
+#!/bin/bash
+# offline-sync-stage-2 — the rest of the offline suite.
+#   · service worker: network-first page cache for register / calendar /
+#     timeclock, branded /offline-fallback for everything else under /admin
+#   · SW registered when the add-on is on, unregistered + caches cleared when off
+#   · generic "offline — last-loaded view" stamp on any cached page
+#   · time clock: punches queue on-device, replay with ORIGINAL timestamps
+#     (client_uuid dedupe, source=offline_sync)
+#   · Registers page: per-device settings card — snapshot size (250/500/1000),
+#     freshness, refresh now, clear device cache
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "offline-sw.js" resources/views/tenant/register/index.blade.php 2>/dev/null; then
+  echo "offline-sync-stage-2 already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-OFFLINE-SYNC" routes/web.php; then
+  echo "stage 1 not applied — aborting. Run apply-offline-sync-stage1.sh first."; exit 1
+fi
+if ! grep -q "payment-methods.qb" routes/web.php; then
+  echo "routes/web.php is missing patch-636 — wrong base, aborting. Tell Claude."; exit 1
+fi
+
+cat > 'public/offline-sw.js' <<'OFS2_0_EOF'
+/* MARKER-OFFLINE-SYNC — stage 2 service worker.
+ * Network-first HTML caching for a whitelist of admin pages so an already-
+ * visited register / calendar / time clock still opens during an outage,
+ * plus a branded fallback for every other admin navigation.
+ * Registered only when the offline_sync add-on is active; the register page
+ * unregisters it (and clears caches) when the add-on is off.
+ */
+const VERSION   = 'ia-offline-v1';
+const PAGE_CACHE  = VERSION + '-pages';
+const ASSET_CACHE = VERSION + '-assets';
+const FALLBACK    = '/offline-fallback';
+
+// Admin pages worth serving stale during an outage.
+const PAGE_WHITELIST = [
+  '/admin/register',
+  '/admin/calendar',
+  '/admin/timeclock',
+];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(PAGE_CACHE)
+      .then(c => c.add(new Request(FALLBACK, { credentials: 'same-origin' })))
+      .catch(() => {}) // fallback precache is best-effort
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => !k.startsWith(VERSION)).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+function isWhitelistedPage(url) {
+  return PAGE_WHITELIST.some(p => url.pathname === p || url.pathname.startsWith(p + '/'))
+      && !url.pathname.endsWith('.json');
+}
+
+function isStaticAsset(url) {
+  return /\.(css|js|woff2?|png|svg|jpe?g|webp|ico)$/.test(url.pathname);
+}
+
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Admin page navigations: network-first, cache good copies, fall back.
+  if (req.mode === 'navigate' && url.pathname.startsWith('/admin')) {
+    e.respondWith((async () => {
+      try {
+        const fresh = await fetch(req);
+        if (fresh.ok && isWhitelistedPage(url)) {
+          const c = await caches.open(PAGE_CACHE);
+          c.put(req, fresh.clone());
+        }
+        return fresh;
+      } catch (err) {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        const fb = await caches.match(FALLBACK);
+        if (fb) return fb;
+        throw err;
+      }
+    })());
+    return;
+  }
+
+  // Static assets: stale-while-revalidate.
+  if (isStaticAsset(url)) {
+    e.respondWith((async () => {
+      const c = await caches.open(ASSET_CACHE);
+      const cached = await c.match(req);
+      const network = fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; }).catch(() => null);
+      return cached || (await network) || Response.error();
+    })());
+  }
+});
+OFS2_0_EOF
+
+cat > 'resources/views/tenant/offline-fallback.blade.php' <<'OFS2_1_EOF'
+<!DOCTYPE html>
+{{-- MARKER-OFFLINE-SYNC — branded offline fallback, precached by the service
+     worker and served for any admin navigation that isn't cached. --}}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline — Intake</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:#0B0B0B;color:#EDEDED;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{max-width:480px;text-align:center;background:#141414;border:1px solid #242424;border-radius:16px;padding:44px 32px}
+  .logomark{width:44px;height:44px;background:#BEF264;border-radius:12px;position:relative;display:inline-block;margin-bottom:18px}
+  .logomark i{position:absolute;left:9px;height:4.4px;background:#0B0B0B;border-radius:3px}
+  .logomark i:nth-child(1){top:9px;width:25px}
+  .logomark i:nth-child(2){top:19px;width:20px}
+  .logomark i:nth-child(3){top:29px;width:15px}
+  h1{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+  p{font-size:13.5px;color:#9C9C9C;line-height:1.6;margin-bottom:20px}
+  p b{color:#F5C56B}
+  .btn{display:inline-block;background:#BEF264;color:#0B0B0B;font-weight:700;font-size:14px;border:none;border-radius:10px;padding:12px 22px;cursor:pointer;text-decoration:none;font-family:inherit;margin:0 4px}
+  .btn.ghost{background:transparent;color:#EDEDED;border:1px solid #333}
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="logomark"><i></i><i></i><i></i></span>
+    <h1>This page needs a connection</h1>
+    <p>You're offline. Your register, calendar, and time clock keep working from their last-loaded state<span id="qnote"></span>. Everything queued syncs the moment the connection returns.</p>
+    <a class="btn" href="/admin/register">← Back to register</a>
+    <button class="btn ghost" onclick="location.reload()">Retry</button>
+  </div>
+<script>
+// Show queued-sale count from the outbox, best-effort.
+try {
+  const rq = indexedDB.open('intake-offline', 1);
+  rq.onsuccess = () => {
+    try {
+      const c = rq.result.transaction('outbox').objectStore('outbox').count();
+      c.onsuccess = () => {
+        if (c.result > 0) document.getElementById('qnote').textContent =
+          ' — ' + c.result + ' queued sale' + (c.result > 1 ? 's' : '') + ' waiting to sync';
+      };
+    } catch (e) {}
+  };
+} catch (e) {}
+</script>
+</body>
+</html>
+OFS2_1_EOF
+
+cat > 'database/migrations/2026_07_14_000004_offline_sync_stage2.php' <<'OFS2_2_EOF'
+<?php
+
+// MARKER-OFFLINE-SYNC — stage 2: idempotent time-clock punch replay.
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('tenant_time_punches', function (Blueprint $t) {
+            $t->uuid('client_uuid')->nullable()->after('source');
+            $t->unique(['tenant_id', 'client_uuid']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tenant_time_punches', function (Blueprint $t) {
+            $t->dropUnique(['tenant_id', 'client_uuid']);
+            $t->dropColumn('client_uuid');
+        });
+    }
+};
+OFS2_2_EOF
+
+cat > 'app/Models/Tenant/TenantTimePunch.php' <<'OFS2_3_EOF'
+<?php
+// MARKER-PATCH-610 — time clock punch model.
+
+namespace App\Models\Tenant;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class TenantTimePunch extends Model
+{
+    use HasUuids;
+
+    protected $table = 'tenant_time_punches';
+
+    protected $fillable = [
+        'tenant_id', 'tenant_user_id', 'location_id', 'pay_period_id',
+        'clock_in_at', 'clock_out_at', 'break_minutes', 'source', 'note',
+        'client_uuid', // MARKER-OFFLINE-SYNC
+        'created_by', 'auto_closed', 'edited_by', 'edit_reason', 'edited_at',
+    ];
+
+    protected $casts = [
+        'clock_in_at'  => 'datetime',
+        'clock_out_at' => 'datetime',
+        'edited_at'    => 'datetime',
+        'auto_closed'  => 'boolean',
+    ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(TenantUser::class, 'tenant_user_id');
+    }
+
+    /** Open punch for a user, if any. */
+    public static function openFor(string $tenantId, string $userId): ?self
+    {
+        return static::where('tenant_id', $tenantId)
+            ->where('tenant_user_id', $userId)
+            ->whereNull('clock_out_at')
+            ->latest('clock_in_at')
+            ->first();
+    }
+
+    /** Duration in minutes (open punches measure to now). */
+    public function minutes(): int
+    {
+        $end = $this->clock_out_at ?? now();
+        $gross = (int) $this->clock_in_at->diffInMinutes($end);
+        return max(0, $gross - (int) ($this->break_minutes ?? 0)); // MARKER-PATCH-612 — net of breaks
+    }
+}
+
+OFS2_3_EOF
+
+cat > 'app/Http/Controllers/Tenant/TimeClockController.php' <<'OFS2_4_EOF'
+<?php
+// MARKER-PATCH-610 / 613 — time clock: clock in/out, My Time history, print/email.
+
+namespace App\Http\Controllers\Tenant;
+
+use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantTimePunch;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class TimeClockController extends Controller
+{
+    public function index(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        $open = TenantTimePunch::openFor($tenant->id, $user->id);
+
+        // Today's punches (tenant-local day via tnow()).
+        $dayStart = tnow()->startOfDay()->utc();
+        $mine = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->where('clock_in_at', '>=', $dayStart)
+            ->orderByDesc('clock_in_at')
+            ->get();
+
+        // Roster: everyone on the clock now (a wall clock — visible to all).
+        $onClock = TenantTimePunch::with('user:id,name')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('clock_out_at')
+            ->orderBy('clock_in_at')
+            ->get();
+
+        $todayMinutes = $mine->sum(fn ($p) => $p->minutes());
+
+        // MARKER-PATCH-613 — My Time: history + rolling totals (pay-period-aware
+        // totals arrive with the pay-period settings in a later stage).
+        $weekStart  = tnow()->startOfWeek()->utc();
+        $monthStart = tnow()->startOfMonth()->utc();
+
+        $history = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->orderByDesc('clock_in_at')
+            ->limit(60)
+            ->get();
+
+        $weekMinutes  = $history->where('clock_in_at', '>=', $weekStart)->sum(fn ($p) => $p->minutes());
+        $monthMinutes = $history->where('clock_in_at', '>=', $monthStart)->sum(fn ($p) => $p->minutes());
+
+        return view('tenant.timeclock.index', compact(
+            'open', 'mine', 'onClock', 'todayMinutes',
+            'history', 'weekMinutes', 'monthMinutes'
+        ))->with('offlineSyncEnabled', app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'offline_sync')); // MARKER-OFFLINE-SYNC
+    }
+
+    /**
+     * MARKER-OFFLINE-SYNC — replay endpoint for punches queued offline.
+     * Accepts the original punch time and a client_uuid; replaying the same
+     * uuid is a no-op. Direction "in" opens a shift at punched_at; "out"
+     * closes the open shift at punched_at.
+     */
+    public function punchSync(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        $data = $request->validate([
+            'client_uuid' => ['required', 'uuid'],
+            'direction'   => ['required', 'in:in,out'],
+            'punched_at'  => ['required', 'date'],
+        ]);
+
+        $already = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('client_uuid', $data['client_uuid'])
+            ->exists();
+        if ($already) {
+            return response()->json(['ok' => true, 'replayed' => true]);
+        }
+
+        $at = \Carbon\Carbon::parse($data['punched_at']);
+
+        if ($data['direction'] === 'in') {
+            if (TenantTimePunch::openFor($tenant->id, $user->id)) {
+                return response()->json(['ok' => true, 'skipped' => 'already_open']);
+            }
+            TenantTimePunch::create([
+                'tenant_id'      => $tenant->id,
+                'tenant_user_id' => $user->id,
+                'location_id'    => session('current_location_id'),
+                'clock_in_at'    => $at,
+                'source'         => 'offline_sync',
+                'client_uuid'    => $data['client_uuid'],
+                'created_by'     => $user->id,
+            ]);
+            return response()->json(['ok' => true]);
+        }
+
+        $open = TenantTimePunch::openFor($tenant->id, $user->id);
+        if (! $open) {
+            return response()->json(['ok' => true, 'skipped' => 'not_open']);
+        }
+        $open->update(['clock_out_at' => $at, 'client_uuid' => $data['client_uuid']]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function punchIn(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        if (TenantTimePunch::openFor($tenant->id, $user->id)) {
+            return back()->with('error', 'You are already clocked in.');
+        }
+
+        TenantTimePunch::create([
+            'tenant_id'      => $tenant->id,
+            'tenant_user_id' => $user->id,
+            'location_id'    => session('current_location_id'),
+            'clock_in_at'    => now(),
+            'source'         => $request->input('source', 'page'),
+            'created_by'     => $user->id,
+        ]);
+
+        return back()->with('success', 'Clocked in — have a good shift.');
+    }
+
+    public function punchOut(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        $open = TenantTimePunch::openFor($tenant->id, $user->id);
+        if (! $open) {
+            return back()->with('error', 'You are not clocked in.');
+        }
+
+        $open->update(['clock_out_at' => now()]);
+
+        $mins = $open->minutes();
+        return back()->with('success', 'Clocked out — ' . intdiv($mins, 60) . 'h ' . ($mins % 60) . 'm this shift.');
+    }
+
+    /**
+     * MARKER-PATCH-613 — printable timesheet (browser print → PDF).
+     * Range defaults to the current month; ?from=&to= override (tenant-local dates).
+     */
+    public function timesheet(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        [$from, $to, $label] = $this->range($request);
+
+        $punches = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->where('clock_in_at', '>=', $from)
+            ->where('clock_in_at', '<=', $to)
+            ->orderBy('clock_in_at')
+            ->get();
+
+        $totalMinutes = $punches->sum(fn ($p) => $p->minutes());
+
+        return view('tenant.timeclock.timesheet', [
+            'staffName'    => $user->name,
+            'tenantName'   => $tenant->name,
+            'rangeLabel'   => $label,
+            'punches'      => $punches,
+            'totalMinutes' => $totalMinutes,
+            'print'        => true,
+        ]);
+    }
+
+    /** MARKER-PATCH-613 — email my timesheet through the branded Postmark rail. */
+    public function emailTimesheet(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        $data = $request->validate([
+            'to'   => ['required', 'email'],
+            'from' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
+        ]);
+
+        [$from, $to, $label] = $this->range($request);
+
+        $punches = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $user->id)
+            ->where('clock_in_at', '>=', $from)
+            ->where('clock_in_at', '<=', $to)
+            ->orderBy('clock_in_at')
+            ->get();
+
+        $totalMinutes = $punches->sum(fn ($p) => $p->minutes());
+
+        $html = view('tenant.timeclock.timesheet', [
+            'staffName'    => $user->name,
+            'tenantName'   => $tenant->name,
+            'rangeLabel'   => $label,
+            'punches'      => $punches,
+            'totalMinutes' => $totalMinutes,
+            'print'        => false,
+        ])->render();
+
+        (new \App\Services\EmailService($tenant))->sendRendered(
+            'timesheet',
+            $data['to'],
+            'Timesheet — ' . $user->name . ' — ' . $label,
+            $html
+        );
+
+        return back()->with('success', 'Timesheet emailed to ' . $data['to'] . '.');
+    }
+
+    /**
+     * MARKER-PATCH-614 — Team timesheet (manager grid). Gated by timeclock.manage.
+     * Week of staff x days, with per-person totals and open/flag markers.
+     */
+    public function team(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        // Week window (tenant-local), navigable via ?week=YYYY-MM-DD (any day in it).
+        $anchor = $request->filled('week')
+            ? \Carbon\Carbon::parse($request->input('week'), $tenant->timezone())
+            : tnow();
+        $weekStart = $anchor->copy()->startOfWeek();
+        $weekEnd   = $anchor->copy()->endOfWeek();
+        $fromUtc   = $weekStart->copy()->utc();
+        $toUtc     = $weekEnd->copy()->utc();
+
+        $staff = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'role']);
+
+        $punches = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('clock_in_at', '>=', $fromUtc)
+            ->where('clock_in_at', '<=', $toUtc)
+            ->orderBy('clock_in_at')
+            ->get();
+
+        // Group by user, then by tenant-local day index (0..6 from weekStart).
+        $byUser = [];
+        foreach ($staff as $m) {
+            $byUser[$m->id] = ['name' => $m->name, 'role' => $m->role, 'days' => array_fill(0, 7, 0), 'flags' => array_fill(0, 7, null), 'total' => 0];
+        }
+        foreach ($punches as $p) {
+            if (!isset($byUser[$p->tenant_user_id])) continue;
+            $localDay = (int) tlocal_carbon($p->clock_in_at)->startOfDay()->diffInDays($weekStart->copy()->startOfDay());
+            $idx = max(0, min(6, $localDay));
+            $mins = $p->minutes();
+            $byUser[$p->tenant_user_id]['days'][$idx] += $mins;
+            $byUser[$p->tenant_user_id]['total'] += $mins;
+            if (!$p->clock_out_at)   $byUser[$p->tenant_user_id]['flags'][$idx] = 'open';
+            elseif ($p->auto_closed) $byUser[$p->tenant_user_id]['flags'][$idx] = 'auto';
+        }
+
+        $canEdit = $user->can('timeclock.edit');
+        $days = [];
+        for ($i = 0; $i < 7; $i++) $days[] = $weekStart->copy()->addDays($i);
+
+        // Recent audit trail (last 20).
+        $audits = \App\Models\Tenant\TenantTimePunchAudit::with('actor:id,name')
+            ->where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
+        return view('tenant.timeclock.team', compact('byUser', 'days', 'weekStart', 'canEdit', 'audits'));
+    }
+
+    /** MARKER-PATCH-614 — edit a punch (in/out/break) with a required reason. */
+    public function editPunch(Request $request, string $punchId)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.edit'), 403);
+
+        $punch = TenantTimePunch::where('tenant_id', $tenant->id)->where('id', $punchId)->firstOrFail();
+
+        $data = $request->validate([
+            'clock_in_at'   => ['required', 'date'],
+            'clock_out_at'  => ['nullable', 'date'],
+            'break_minutes' => ['nullable', 'integer', 'min:0', 'max:1440'],
+            'reason'        => ['required', 'string', 'max:500'],
+        ]);
+
+        $tz = $tenant->timezone();
+        $punch->update([
+            'clock_in_at'   => \Carbon\Carbon::parse($data['clock_in_at'], $tz)->utc(),
+            'clock_out_at'  => $data['clock_out_at'] ? \Carbon\Carbon::parse($data['clock_out_at'], $tz)->utc() : null,
+            'break_minutes' => (int) ($data['break_minutes'] ?? 0),
+            'auto_closed'   => false,
+            'edited_by'     => $user->id,
+            'edit_reason'   => $data['reason'],
+            'edited_at'     => now(),
+        ]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, $punch->id, $punch->tenant_user_id, $user->id,
+            'edited', 'Edited punch — ' . $data['reason']
+        );
+
+        return back()->with('success', 'Punch updated.');
+    }
+
+    /** MARKER-PATCH-614 — create a punch for someone (forgotten clock-in). */
+    public function createPunch(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.edit'), 403);
+
+        $data = $request->validate([
+            'tenant_user_id' => ['required', 'uuid'],
+            'clock_in_at'    => ['required', 'date'],
+            'clock_out_at'   => ['nullable', 'date'],
+            'reason'         => ['required', 'string', 'max:500'],
+        ]);
+
+        $tz = $tenant->timezone();
+        $punch = TenantTimePunch::create([
+            'tenant_id'      => $tenant->id,
+            'tenant_user_id' => $data['tenant_user_id'],
+            'clock_in_at'    => \Carbon\Carbon::parse($data['clock_in_at'], $tz)->utc(),
+            'clock_out_at'   => $data['clock_out_at'] ? \Carbon\Carbon::parse($data['clock_out_at'], $tz)->utc() : null,
+            'source'         => 'manual',
+            'created_by'     => $user->id,
+            'edited_by'      => $user->id,
+            'edit_reason'    => $data['reason'],
+            'edited_at'      => now(),
+        ]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, $punch->id, $punch->tenant_user_id, $user->id,
+            'created', 'Added punch manually — ' . $data['reason']
+        );
+
+        return back()->with('success', 'Punch added.');
+    }
+
+    /**
+     * MARKER-PATCH-615 — Reports: per-person hours with regular/OT split.
+     * OT is computed PER WEEK (tenant-local) against the threshold, then summed,
+     * so a multi-week range doesn't wrongly treat 41h across two weeks as OT.
+     */
+    public function reports(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows  = $this->hoursByPerson($tenant, $from, $to);
+        $preset = $request->input('preset', 'this_month');
+
+        $totals = [
+            'regular' => array_sum(array_column($rows, 'regular')),
+            'ot'      => array_sum(array_column($rows, 'ot')),
+            'dt'      => array_sum(array_column($rows, 'dt')),
+            'shifts'  => array_sum(array_column($rows, 'shifts')),
+        ];
+
+        return view('tenant.timeclock.reports', compact('rows', 'label', 'preset', 'totals'));
+    }
+
+    /** MARKER-PATCH-615 — CSV of the same summary. */
+    public function reportsCsv(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows = $this->hoursByPerson($tenant, $from, $to);
+
+        $out = fopen('php://temp', 'r+');
+        fputcsv($out, ['Staff', 'Regular (h)', 'Overtime (h)', 'Double-time (h)', 'Total (h)', 'Shifts', 'Avg shift (h)']);
+        foreach ($rows as $r) {
+            $tot = $r['regular'] + $r['ot'] + ($r['dt'] ?? 0);
+            fputcsv($out, [
+                $r['name'],
+                round($r['regular'] / 60, 2),
+                round($r['ot'] / 60, 2),
+                round(($r['dt'] ?? 0) / 60, 2),
+                round($tot / 60, 2),
+                $r['shifts'],
+                $r['shifts'] ? round(($tot / $r['shifts']) / 60, 2) : 0,
+            ]);
+        }
+        rewind($out);
+        $csv = stream_get_contents($out);
+        fclose($out);
+
+        $fname = 'timesheet-' . str_replace([' ', ','], ['-', ''], strtolower($label)) . '.csv';
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $fname . '"',
+        ]);
+    }
+
+    /** MARKER-PATCH-615 — printable team report (browser print → PDF). */
+    public function reportPrint(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows = $this->hoursByPerson($tenant, $from, $to);
+
+        return view('tenant.timeclock.report-print', [
+            'tenantName' => $tenant->name,
+            'rangeLabel' => $label,
+            'rows'       => $rows,
+            'print'      => true,
+        ]);
+    }
+
+    /** MARKER-PATCH-615 — email the team report through the branded rail. */
+    public function reportEmail(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.manage'), 403);
+
+        $data = $request->validate(['to' => ['required', 'email']]);
+        [$from, $to, $label] = $this->reportRange($request);
+        $rows = $this->hoursByPerson($tenant, $from, $to);
+
+        $html = view('tenant.timeclock.report-print', [
+            'tenantName' => $tenant->name,
+            'rangeLabel' => $label,
+            'rows'       => $rows,
+            'print'      => false,
+        ])->render();
+
+        (new \App\Services\EmailService($tenant))->sendRendered(
+            'timeclock_report', $data['to'], 'Hours report — ' . $label, $html
+        );
+
+        return back()->with('success', 'Report emailed to ' . $data['to'] . '.');
+    }
+
+    /**
+     * Per-person hours over [from,to], split regular/ot/dt via the jurisdiction-
+     * aware OvertimeCalculator (daily + weekly + double-time + 7th-day, "greater of").
+     */
+    private function hoursByPerson($tenant, $fromUtc, $toUtc): array
+    {
+        $calc = new \App\Services\Tenant\OvertimeCalculator($tenant);
+
+        $punches = TenantTimePunch::with('user:id,name')
+            ->where('tenant_id', $tenant->id)
+            ->where('clock_in_at', '>=', $fromUtc)
+            ->where('clock_in_at', '<=', $toUtc)
+            ->get();
+
+        // person => ['name', days => ['Y-m-d' => minutes], shifts]
+        $acc = [];
+        foreach ($punches as $p) {
+            $uid  = $p->tenant_user_id;
+            $name = $p->user->name ?? 'Staff';
+            $day  = tlocal_carbon($p->clock_in_at)->format('Y-m-d'); // tenant-local calendar day
+            if (!isset($acc[$uid])) $acc[$uid] = ['name' => $name, 'days' => [], 'shifts' => 0];
+            $acc[$uid]['days'][$day] = ($acc[$uid]['days'][$day] ?? 0) + $p->minutes();
+            $acc[$uid]['shifts']++;
+        }
+
+        $rows = [];
+        foreach ($acc as $uid => $d) {
+            $split = $calc->split($d['days']);
+            $rows[] = [
+                'name'    => $d['name'],
+                'regular' => $split['regular'],
+                'ot'      => $split['ot'],
+                'dt'      => $split['dt'],
+                'shifts'  => $d['shifts'],
+            ];
+        }
+        usort($rows, fn ($a, $b) => strcmp($a['name'], $b['name']));
+        return $rows;
+    }
+
+    /**
+     * MARKER-PATCH-616 — Approvals: pick a pay period, sign off per person, lock.
+     * Gated by timeclock.approve. A locked period is the payroll source of truth.
+     */
+    public function approvals(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $svc     = \App\Services\Tenant\PayPeriodService::for($tenant);
+        $periods = $svc->recent(8);
+
+        // Selected period (default: current).
+        $selectedId = $request->input('period');
+        $period = $selectedId
+            ? $periods->firstWhere('id', $selectedId) ?? $svc->current()
+            : $svc->current();
+
+        $approvals = \App\Models\Tenant\TenantTimePunchApproval::where('pay_period_id', $period->id)
+            ->get()->keyBy('tenant_user_id');
+
+        // Open/auto flags per person in this period.
+        $flagRows = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('clock_in_at', '>=', $period->starts_at)
+            ->where('clock_in_at', '<=', $period->ends_at)
+            ->get()
+            ->groupBy('tenant_user_id');
+
+        // Build a uid-keyed view for the template (name + minutes + flags + approved).
+        $people = [];
+        foreach ($flagRows as $uid => $ps) {
+            $mins = $ps->sum(fn ($p) => $p->minutes());
+            $flags = 0;
+            foreach ($ps as $p) { if (!$p->clock_out_at || $p->auto_closed) $flags++; }
+            $people[$uid] = [
+                'name'     => $ps->first()->user->name ?? ($ps->first()->tenant_user_id),
+                'minutes'  => $mins,
+                'flags'    => $flags,
+                'approved' => $approvals->has($uid),
+                'approver' => optional($approvals->get($uid))->approved_at,
+            ];
+        }
+        // Include zero-punch active staff so they can be explicitly approved too.
+        uasort($people, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+        $canApproveCount = collect($people)->reject(fn ($p) => $p['approved'])->count();
+
+        return view('tenant.timeclock.approvals', compact('periods', 'period', 'people', 'canApproveCount'));
+    }
+
+    public function approvePerson(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $data = $request->validate([
+            'pay_period_id'  => ['required', 'uuid'],
+            'tenant_user_id' => ['required', 'uuid'],
+        ]);
+
+        $period = \App\Models\Tenant\TenantPayPeriod::where('tenant_id', $tenant->id)
+            ->where('id', $data['pay_period_id'])->firstOrFail();
+        abort_if($period->isLocked(), 422, 'Period is locked.');
+
+        $mins = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('tenant_user_id', $data['tenant_user_id'])
+            ->where('clock_in_at', '>=', $period->starts_at)
+            ->where('clock_in_at', '<=', $period->ends_at)
+            ->get()->sum(fn ($p) => $p->minutes());
+
+        \App\Models\Tenant\TenantTimePunchApproval::updateOrCreate(
+            ['pay_period_id' => $period->id, 'tenant_user_id' => $data['tenant_user_id']],
+            ['tenant_id' => $tenant->id, 'approved_by' => $user->id, 'approved_at' => now(), 'minutes_at_approval' => $mins]
+        );
+
+        return back()->with('success', 'Approved.');
+    }
+
+    public function lockPeriod(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $period = \App\Models\Tenant\TenantPayPeriod::where('tenant_id', $tenant->id)
+            ->where('id', $request->input('pay_period_id'))->firstOrFail();
+
+        $period->update(['status' => 'locked', 'locked_at' => now(), 'locked_by' => $user->id]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, null, null, $user->id, 'period_locked',
+            'Locked pay period ' . tlocal_date($period->starts_at) . '–' . tlocal_date($period->ends_at)
+        );
+
+        return back()->with('success', 'Pay period locked. It is now the payroll record.');
+    }
+
+    public function reopenPeriod(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $data = $request->validate([
+            'pay_period_id' => ['required', 'uuid'],
+            'reason'        => ['required', 'string', 'max:500'],
+        ]);
+
+        $period = \App\Models\Tenant\TenantPayPeriod::where('tenant_id', $tenant->id)
+            ->where('id', $data['pay_period_id'])->firstOrFail();
+
+        $period->update(['status' => 'open', 'reopen_reason' => $data['reason']]);
+
+        \App\Models\Tenant\TenantTimePunchAudit::log(
+            $tenant->id, null, null, $user->id, 'period_reopened',
+            'Reopened locked period — ' . $data['reason']
+        );
+
+        return back()->with('success', 'Period reopened.');
+    }
+
+    /** MARKER-PATCH-616 — save time-clock policy settings. */
+    public function saveSettings(Request $request)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('timeclock.approve'), 403);
+
+        $data = $request->validate([
+            'timeclock_pay_cycle'         => ['required', 'in:weekly,biweekly,semi_monthly,monthly'],
+            'timeclock_ot_weekly_hours'   => ['required', 'integer', 'min:0', 'max:168'],
+            'timeclock_ot_daily_hours'    => ['required', 'integer', 'min:0', 'max:24'],
+            'timeclock_dt_daily_hours'    => ['required', 'integer', 'min:0', 'max:24'],
+            'timeclock_seventh_day_rule'  => ['nullable', 'boolean'],
+            'timeclock_autoclose_hours'   => ['required', 'integer', 'min:1', 'max:48'],
+        ]);
+        $data['timeclock_seventh_day_rule'] = $request->boolean('timeclock_seventh_day_rule');
+        // Keep legacy key in sync so anything still reading it stays correct.
+        $data['timeclock_ot_threshold_hours'] = $data['timeclock_ot_weekly_hours'];
+
+        $settings = $tenant->settings ?? [];
+        foreach ($data as $k => $v) $settings[$k] = $v;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Time clock settings saved.');
+    }
+
+    /** Report range presets → UTC instants. */
+    private function reportRange(Request $request): array
+    {
+        $tz = tenant()->timezone();
+        $preset = $request->input('preset', 'this_month');
+
+        switch ($preset) {
+            case 'this_week':
+                $from = tnow()->startOfWeek();  $to = tnow()->endOfWeek();
+                $label = 'This week · ' . $from->format('M j') . '–' . $to->format('M j'); break;
+            case 'last_week':
+                $from = tnow()->subWeek()->startOfWeek(); $to = tnow()->subWeek()->endOfWeek();
+                $label = 'Last week · ' . $from->format('M j') . '–' . $to->format('M j'); break;
+            case 'last_month':
+                $from = tnow()->subMonthNoOverflow()->startOfMonth(); $to = tnow()->subMonthNoOverflow()->endOfMonth();
+                $label = $from->format('F Y'); break;
+            case 'custom':
+                $from = \Carbon\Carbon::parse($request->input('from', tnow()->startOfMonth()->toDateString()), $tz)->startOfDay();
+                $to   = \Carbon\Carbon::parse($request->input('to_date', tnow()->toDateString()), $tz)->endOfDay();
+                $label = $from->format('M j') . ' – ' . $to->format('M j, Y'); break;
+            case 'this_month':
+            default:
+                $from = tnow()->startOfMonth(); $to = tnow()->endOfMonth();
+                $label = $from->format('F Y'); break;
+        }
+        return [$from->copy()->utc(), $to->copy()->utc(), $label];
+    }
+
+    /** Resolve a tenant-local date range to UTC instants. */
+    private function range(Request $request): array
+    {
+        $tz = tenant()->timezone();
+
+        if ($request->filled('from') && $request->filled('to_date')) {
+            $from  = \Carbon\Carbon::parse($request->input('from'), $tz)->startOfDay();
+            $to    = \Carbon\Carbon::parse($request->input('to_date'), $tz)->endOfDay();
+            $label = $from->format('M j') . ' – ' . $to->format('M j, Y');
+        } else {
+            $from  = tnow()->startOfMonth();
+            $to    = tnow()->endOfMonth();
+            $label = $from->format('F Y');
+        }
+
+        return [$from->copy()->utc(), $to->copy()->utc(), $label];
+    }
+}
+
+OFS2_4_EOF
+
+cat > 'app/Http/Controllers/Tenant/RegisterController.php' <<'OFS2_5_EOF'
+<?php
+
+namespace App\Http\Controllers\Tenant;
+
+use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantSale;
+use App\Models\Tenant\TenantInventoryItem;
+use App\Models\Tenant\TenantInventoryItemLocation;
+use App\Models\Tenant\TenantServiceItem;
+use App\Models\Tenant\TenantCustomer;
+use App\Services\Tenant\SaleService;
+use App\Services\Tenant\SaleValidationException;
+use App\Services\Tenant\InventoryStockException;
+use App\Services\Tenant\DirectPaymentsService;  // MARKER-PATCH-170
+use Illuminate\Support\Facades\Log;  // MARKER-PATCH-172B — missing import broke patches 170/170b/171/172
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
+
+class RegisterController extends Controller
+{
+    public function __construct(protected SaleService $sales) {}
+
+    public function index(Request $request)
+    {
+        $tenant = tenant();
+
+        // Count of appointment-sourced drafts ready for checkout. Used to
+        // render the "X ready for checkout" banner on the register page.
+        $appointmentTrayCount = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->count();
+
+        // Patch 46: pre-attach customer from query param (walk-in flow).
+        $preAttachCustomer = null;
+        $preCustId = $request->query('customer_id');
+        if ($preCustId) {
+            $cust = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $preCustId)
+                ->first(['id', 'first_name', 'last_name', 'email', 'phone']);
+            if ($cust) {
+                $preAttachCustomer = [
+                    'id'         => $cust->id,
+                    'first_name' => $cust->first_name,
+                    'last_name'  => $cust->last_name,
+                    'name'       => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')),
+                    'email'      => $cust->email,
+                    'phone'      => $cust->phone,
+                ];
+            }
+        }
+
+        return view('tenant.register.index', [
+            'tenant'     => $tenant,
+            'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
+            'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
+            'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
+            'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant), // MARKER-PATCH-630
+            'preAttachCustomer' => $preAttachCustomer,
+            'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
+            'taxLabel'   => $this->taxLabel($tenant),
+            'appointmentTrayCount' => $appointmentTrayCount,
+            // MARKER-PATCH-162 — hide "Request transfer" button on oversell rows for single-location tenants
+            'multiLocationActive' => (bool) $tenant->multi_location_active,
+            'tipsConfig' => [
+                'enabled'      => (bool) $tenant->tips_enabled,
+                'method'       => $tenant->tip_default_method,
+                'options'      => is_array($tenant->tip_default_options)
+                                    ? $tenant->tip_default_options
+                                    : (json_decode($tenant->tip_default_options ?? '[]', true) ?: []),
+                'allow_custom' => (bool) $tenant->tip_allow_custom,
+                'attributable' => (bool) $tenant->tip_attributable,
+            ],
+            'surchargeConfig' => [
+                'enabled' => (bool) $tenant->passthrough_card_fees,
+                'percent' => (float) ($tenant->card_surcharge_percent ?? 0),
+                'label'   => $tenant->card_surcharge_label ?? 'Card processing fee',
+            ],
+        ]);
+    }
+
+    /**
+     * List of appointment-sourced sales ready for checkout. Used by the
+     * Register's "Ready for checkout" tray on the register home and by the
+     * dedicated tray page.
+     */
+    public function appointmentTray(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $sales = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->with(['customer', 'appointment'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'ok' => true,
+            'sales' => $sales->map(function ($s) {
+                $appt = $s->appointment;
+                return [
+                    'id'              => $s->id,
+                    'sale_number'     => $s->sale_number,
+                    'total_cents'     => (int) $s->total_cents,
+                    'total_display'   => format_money((int) $s->total_cents),
+                    'customer_name'   => $s->customer
+                        ? trim(($s->customer->first_name ?? '') . ' ' . ($s->customer->last_name ?? ''))
+                        : ($appt ? trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? '')) : 'Walk-in'),
+                    'appointment_id'  => $appt?->id,
+                    'ra_number'       => $appt?->ra_number,
+                    'created_at'      => $s->created_at?->toIso8601String(),
+                    'item_count'      => (int) \DB::table('tenant_sale_items')->where('sale_id', $s->id)->count(),
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-180 — dismiss a parked appointment draft sale from the
+     * register tray. Voids the DRAFT sale (status=cancelled) so it leaves the
+     * "ready for checkout" list. Non-destructive: only unpaid draft sales are
+     * eligible; the appointment itself is untouched. The sale can be recreated
+     * later from the appointment if needed.
+     */
+    public function dismissTraySale(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found or not dismissible.'], 404);
+        }
+
+        $sale->status = 'cancelled';
+        $sale->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $q = trim((string) $request->input('q', ''));
+        $type = $request->input('type', 'all');
+
+        if ($q === '' || mb_strlen($q) < 2) {
+            return response()->json(['products' => [], 'services' => [], 'customers' => []]);
+        }
+
+        $products = [];
+        $services = [];
+        $customers = [];
+
+        if ($type === 'all' || $type === 'product') {
+            // patch-96 location stock — enrich each product with its on-hand
+            // count at the CURRENT register location, so the cart can show an
+            // oversell badge when qty exceeds that.
+            $registerLocationId = $request->session()->get('current_location_id');
+            $registerLocationName = null;
+            if ($registerLocationId) {
+                $loc = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)
+                    ->where('id', $registerLocationId)
+                    ->first();
+                $registerLocationName = $loc?->name;
+            }
+
+            $productItems = TenantInventoryItem::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                // MARKER-PATCH-552 — every word must hit SOMEWHERE across the
+                // item's text: "Centerline Rotor 200mm" matches name+subtitle.
+                ->where(function ($w) use ($q) {
+                    foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
+                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                    }
+                })
+                ->limit(15)
+                ->get();
+
+            // One join to fetch all per-location counts for the matched items
+            $stockByItem = [];
+            if ($registerLocationId && $productItems->isNotEmpty()) {
+                $stockByItem = \App\Models\Tenant\TenantInventoryItemLocation::whereIn(
+                        'inventory_item_id', $productItems->pluck('id')
+                    )
+                    ->where('location_id', $registerLocationId)
+                    ->pluck('computed_stock_count', 'inventory_item_id')
+                    ->toArray();
+            }
+
+            $products = $productItems->map(fn ($p) => [
+                'id'                     => $p->id,
+                'name'                   => $p->name ?? '',
+                'subtitle'               => $p->display_subtitle ?? '',
+                'sku'                    => $p->sku ?? '',
+                'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
+                'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
+                'allow_oversell'         => (bool) $p->allow_oversell,
+                'current_location_stock' => (int) ($stockByItem[$p->id] ?? 0),
+                'current_location_name'  => $registerLocationName,
+            ])->toArray();
+        }
+
+        if ($type === 'all' || $type === 'service') {
+            $services = TenantServiceItem::where('tenant_id', $tenant->id)
+                ->where('is_active', 1)
+                ->where('name', 'like', "%{$q}%")
+                ->limit(15)
+                ->get()
+                ->map(fn ($s) => [
+                    'id'               => $s->id,
+                    'name'             => $s->name,
+                    'price_cents'      => (int) ($s->price_cents ?? 0),
+                    'duration_minutes' => (int) ($s->duration_minutes ?? 0),
+                ])
+                ->toArray();
+        }
+
+        if ($type === 'all' || $type === 'customer') {
+            $customers = TenantCustomer::where('tenant_id', $tenant->id)
+                ->where(function ($w) use ($q) {
+                    $w->where('first_name', 'like', "%{$q}%")
+                      ->orWhere('last_name', 'like', "%{$q}%")
+                      ->orWhere('email', 'like', "%{$q}%")
+                      ->orWhere('phone', 'like', "%{$q}%");
+                })
+                ->limit(10)
+                ->get()
+                ->map(fn ($c) => [
+                    'id'    => $c->id,
+                    'name'  => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')),
+                    'email' => $c->email ?? '',
+                    'phone' => $c->phone ?? '',
+                ])
+                ->toArray();
+        }
+
+        return response()->json(compact('products', 'services', 'customers'));
+    }
+
+    public function storeSale(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'      => 'nullable|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'discount_cents'   => 'nullable|integer|min:0',
+            'payment_method'   => $this->allowedTenders(), // MARKER-PATCH-630
+            'payment_reference'=> 'nullable|string',
+            'items'            => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+            // MARKER-PATCH-161 — per-sale receipt skip
+            'skip_receipt'             => 'nullable|boolean',
+            // MARKER-OFFLINE-SYNC — idempotency key for offline replay
+            'client_uuid'              => 'nullable|uuid',
+        ]);
+
+        // MARKER-OFFLINE-SYNC — replay dedupe: an offline queue may POST the
+        // same sale more than once (retries, multiple tabs). Same client_uuid
+        // returns the already-committed sale instead of double-selling.
+        if (! empty($validated['client_uuid'])) {
+            $existing = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('client_uuid', $validated['client_uuid'])
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'ok'          => true,
+                    'sale_id'     => $existing->id,
+                    'sale_number' => $existing->sale_number,
+                    'total_cents' => $existing->total_cents,
+                    'redirect'    => route('tenant.register.index'),
+                    'replayed'    => true,
+                ]);
+            }
+        }
+
+        try {
+            $sale = $this->sales->createSale([
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'register_id'        => $request->session()->get('current_register_id'), // MARKER-REGISTER-RECON-DISPLAY
+                'client_uuid'        => $validated['client_uuid'] ?? null, // MARKER-OFFLINE-SYNC
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'status'             => 'completed',
+                'payment_status'     => 'paid',
+                'payment_method'     => $validated['payment_method'],
+                'payment_reference'  => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
+                'paid_at'            => Carbon::now(),
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                'items'              => $validated['items'],
+            ]);
+
+            if ($validated['payment_method'] === 'card' && $tenant->passthrough_card_fees) {
+                $surcharge = (int) round($sale->subtotal_cents * (($tenant->card_surcharge_percent ?? 0) / 100));
+                if ($surcharge > 0) {
+                    $sale->update(['surcharge_cents' => $surcharge]);
+                    $sale = $this->sales->recalculate($sale->fresh('items'));
+                }
+            }
+
+            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
+            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            if (! $request->boolean('skip_receipt')) {
+                \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            }
+
+            return response()->json([
+                'ok'          => true,
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+                'redirect'    => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Save (or update) a draft cart.
+     * Called on every cart change with debounce. First call creates,
+     * subsequent calls include 'id' and update.
+     */
+    public function storeDraft(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'id'               => 'nullable|uuid',
+            'customer_id'      => 'nullable|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'metadata'         => 'nullable|array',
+            'items'            => 'nullable|array',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        try {
+            $draft = $this->sales->saveDraft([
+                'id'                 => $validated['id'] ?? null,
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'metadata'           => $validated['metadata'] ?? null,
+                'items'              => $validated['items'] ?? [],
+            ]);
+
+            return response()->json([
+                'ok'             => true,
+                'draft_id'       => $draft->id,
+                'subtotal_cents' => $draft->subtotal_cents,
+                'tax_cents'      => $draft->tax_cents,
+                'total_cents'    => $draft->total_cents,
+                'updated_at'     => $draft->updated_at?->toIso8601String(),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * List open drafts at the current location.
+     * Used by the resume banner on register load.
+     */
+    /**
+     * patch-100a oversell actions — register cart "Request transfer" button.
+     * Creates a pending TenantTransferRequest scoped to the current
+     * register location. Returns the new request's id so the cart UI
+     * can swap the button for a confirmation pill.
+     */
+    public function storeOversellTransferRequest(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        // MARKER-PATCH-162 — single-location tenants have nowhere to transfer FROM.
+        // Defense in depth against stale tabs or URL fuzzing. Client UI already
+        // hides the button, so a normal user can't hit this branch.
+        if (! $tenant->multi_location_active) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Transfer requests require at least two active locations.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'inventory_item_id' => 'required|uuid|exists:tenant_inventory_items,id',
+            'quantity'          => 'nullable|integer|min:1',
+            'sale_id'           => 'nullable|uuid',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $svc = app(\App\Services\Tenant\TransferRequestService::class);
+            $tr = $svc->create([
+                'tenant_id'            => $tenant->id,
+                'inventory_item_id'    => $validated['inventory_item_id'],
+                'to_location_id'       => $locationId,
+                'quantity'             => $validated['quantity'] ?? 1,
+                'requested_by_user_id' => auth('tenant')->id(),
+                'sale_id'              => $validated['sale_id'] ?? null,
+                'notes'                => $validated['notes'] ?? null,
+            ]);
+
+            $fromLocName = $tr->fromLocation?->name;
+            return response()->json([
+                'ok'                  => true,
+                'transfer_request_id' => $tr->id,
+                'from_location_name'  => $fromLocName,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * patch-100a oversell actions — register cart "Add to order" button.
+     * Creates a status=needed special order for the item, optionally
+     * attached to a customer (if the cart has one). Returns the new
+     * SO's id + number for confirmation display.
+     */
+    public function storeOversellSpecialOrder(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'inventory_item_id' => 'required|uuid|exists:tenant_inventory_items,id',
+            'quantity'          => 'nullable|integer|min:1',
+            'customer_id'       => 'nullable|uuid',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('id', $validated['inventory_item_id'])
+            ->first();
+
+        if (!$item) {
+            return response()->json(['ok' => false, 'error' => 'Item not found.'], 404);
+        }
+
+        try {
+            $svc = app(\App\Services\Tenant\SpecialOrderService::class);
+            $so = $svc->create([
+                'tenant_id'          => $tenant->id,
+                'inventory_item_id'  => $item->id,
+                'item_name_snapshot' => $item->name,
+                'quantity'           => $validated['quantity'] ?? 1,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'status'             => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
+                'created_from'       => 'register',
+                'notes'              => $validated['notes'] ?? null,
+            ]);
+
+            return response()->json([
+                'ok'                => true,
+                'special_order_id'  => $so->id,
+                'so_number'         => $so->so_number,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function listDrafts(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['drafts' => []]);
+        }
+
+        $drafts = TenantSale::where('tenant_id', $tenant->id)
+            ->where('location_id', $locationId)
+            ->drafts()
+            ->with(['customer', 'rangUpBy', 'items'])
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get()
+            ->map(function ($d) {
+                return [
+                    'id'           => $d->id,
+                    'item_count'   => $d->items->count(),
+                    'total_cents'  => $d->total_cents,
+                    'customer'     => $d->customer
+                        ? trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? ''))
+                        : null,
+                    'started_by'   => $d->rangUpBy
+                        ? trim(($d->rangUpBy->first_name ?? '') . ' ' . ($d->rangUpBy->last_name ?? ''))
+                        : null,
+                    'updated_at'   => $d->updated_at?->toIso8601String(),
+                ];
+            });
+
+        return response()->json(['drafts' => $drafts]);
+    }
+
+    /**
+     * Fetch a single draft with full line items, for resume into cart.
+     */
+    public function showDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $draft = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->with(['customer', 'items'])
+            ->first();
+
+        if (!$draft) {
+            return response()->json(['ok' => false, 'error' => 'Draft not found.'], 404);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'draft' => [
+                'id'          => $draft->id,
+                'customer'    => $draft->customer ? [
+                    'id'    => $draft->customer->id,
+                    'name'  => trim(($draft->customer->first_name ?? '') . ' ' . ($draft->customer->last_name ?? '')),
+                    'email' => $draft->customer->email ?? '',
+                    'phone' => $draft->customer->phone ?? '',
+                ] : null,
+                'tip_cents'   => $draft->tip_cents,
+                'notes'       => $draft->notes,
+                'tax_locked'  => (bool) $draft->tax_locked,
+                'tax_cents'   => (int) $draft->tax_cents,
+                'items'       => $draft->items->map(fn ($i) => [
+                    'type'              => $i->type,
+                    'source_id'         => $i->service_id ?? $i->inventory_item_id,
+                    'inventory_item_id' => $i->inventory_item_id,
+                    'service_id'        => $i->service_id,
+                    'name'              => $i->name_snapshot,
+                    'price_cents'       => $i->unit_price_cents,
+                    'qty'               => (float) $i->quantity,
+                    'is_taxable'        => (bool) $i->is_taxable,
+                    'tax_cents'         => (int) $i->tax_cents,
+                    'tax_rate_snapshot' => $i->tax_rate_snapshot,
+                ])->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Permanently discard a draft.
+     */
+    public function discardDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        try {
+            $this->sales->discardDraft($tenant->id, $id);
+            return response()->json(['ok' => true]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 404);
+        }
+    }
+
+    /**
+     * Promote a draft to a paid sale. Replaces storeSale for draft-backed flow.
+     */
+    public function commitDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'payment_method'    => $this->allowedTenders(), // MARKER-PATCH-630
+            'payment_reference' => 'nullable|string',
+            'tip_cents'         => 'nullable|integer|min:0',
+            'customer_id'       => 'nullable|uuid',
+            'notes'             => 'nullable|string',
+            // MARKER-PATCH-161 — per-sale receipt skip
+            'skip_receipt'      => 'nullable|boolean',
+        ]);
+
+        try {
+            $sale = $this->sales->commitDraft($tenant->id, $id, [
+                'payment_status'    => 'paid',
+                'payment_method'    => $validated['payment_method'],
+                'payment_reference' => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
+                'paid_at'           => Carbon::now(),
+                'tip_cents'         => $validated['tip_cents'] ?? null,
+                'customer_id'       => $validated['customer_id'] ?? null,
+                'notes'             => $validated['notes'] ?? null,
+            ]);
+
+            // Apply card surcharge same as storeSale path.
+            if ($validated['payment_method'] === 'card' && $tenant->passthrough_card_fees) {
+                $surcharge = (int) round($sale->subtotal_cents * (($tenant->card_surcharge_percent ?? 0) / 100));
+                if ($surcharge > 0) {
+                    $sale->update(['surcharge_cents' => $surcharge]);
+                    $sale = $this->sales->recalculate($sale->fresh('items'));
+                }
+            }
+
+            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
+            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            if (! $request->boolean('skip_receipt')) {
+                \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            }
+
+            return response()->json([
+                'ok'          => true,
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+                'redirect'    => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Look up a past sale by sale_number for the refund picker.
+     * Returns the sale's line items with refundable quantities.
+     */
+    public function lookupSaleForRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $saleNumber = trim((string) $request->input('sale_number', ''));
+
+        if ($saleNumber === '') {
+            return response()->json(['ok' => false, 'error' => 'Sale number required.'], 422);
+        }
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('sale_number', $saleNumber)
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->whereNull('refund_of_sale_id')
+            ->with(['customer', 'items', 'refunds.items'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found or not refundable.'], 404);
+        }
+
+        // For each original line, compute quantity already refunded across all
+        // prior refund rows. Refundable_qty = original_qty - already_refunded_qty.
+        $refundedByOrigItem = [];
+        foreach ($sale->refunds as $refund) {
+            foreach ($refund->items as $rline) {
+                // Refund lines snapshot the same product/service/etc.
+                // We match by (type, source_id, name_snapshot) since refund lines
+                // don't carry a back-reference to the original line.
+                $key = $rline->type . '|'
+                    . ($rline->inventory_item_id ?? $rline->service_id ?? '')
+                    . '|' . $rline->name_snapshot;
+                $refundedByOrigItem[$key] = ($refundedByOrigItem[$key] ?? 0) + (float) $rline->quantity;
+            }
+        }
+
+        $items = $sale->items->map(function ($i) use ($refundedByOrigItem) {
+            $key = $i->type . '|'
+                . ($i->inventory_item_id ?? $i->service_id ?? '')
+                . '|' . $i->name_snapshot;
+            $already = $refundedByOrigItem[$key] ?? 0;
+            $remaining = max(0, (float) $i->quantity - $already);
+            return [
+                'id'                => $i->id,
+                'type'              => $i->type,
+                'name'              => $i->name_snapshot,
+                'quantity'          => (float) $i->quantity,
+                'already_refunded'  => $already,
+                'remaining'         => $remaining,
+                'unit_price_cents'  => $i->unit_price_cents,
+                'line_total_cents'  => $i->line_total_cents,
+                'tax_cents'         => (int) $i->tax_cents,
+                'is_taxable'        => (bool) $i->is_taxable,
+            ];
+        })->values();
+
+        return response()->json([
+            'ok'   => true,
+            'sale' => [
+                'id'             => $sale->id,
+                'sale_number'    => $sale->sale_number,
+                'sale_date'      => $sale->sale_date?->toDateString(),
+                'paid_at'        => $sale->paid_at?->toDateTimeString(),
+                'total_cents'    => $sale->total_cents,
+                'tender'         => $sale->payment_method,
+                'customer'       => $sale->customer
+                    ? trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? ''))
+                    : null,
+                'items'          => $items,
+            ],
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-177 — Standalone refund: money out with NO sale attached.
+     *
+     * For refunds that aren't tied to a past sale in the system — e.g. refunding
+     * a fee charged before Intake existed. Always carries a customer; sale_id is
+     * null. Writes one negative row directly through the sale-payment ledger so
+     * it shows in "money out" / Payments Received reporting alongside everything
+     * else. Uncapped (there is no sale total to cap against — the operator types
+     * the amount). Line-item refunds against an existing sale keep using the
+     * existing storeTransaction flow; this is the no-sale path only.
+     */
+    public function storeStandaloneRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'   => 'required|uuid',
+            'amount_cents'  => 'required|integer|min:1',
+            'refund_method' => 'required|string|in:cash,card,check,store_credit,mark_paid',
+            'reason'        => 'required|string|max:500',
+        ]);
+
+        // Customer must belong to this tenant (defense against cross-tenant ids).
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $validated['customer_id'])
+            ->first();
+        if (!$customer) {
+            return response()->json(['ok' => false, 'error' => 'Customer not found.'], 404);
+        }
+
+        try {
+            $payment = app(\App\Services\Tenant\SalePaymentService::class)->recordStandaloneRefund(
+                tenantId:    $tenant->id,
+                customerId:  $customer->id,
+                amountCents: (int) $validated['amount_cents'],
+                method:      $validated['refund_method'],
+                reason:      $validated['reason'],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Standalone refund failed', [
+                'tenant_id'   => $tenant->id,
+                'customer_id' => $customer->id,
+                'error'       => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Could not record refund.'], 500);
+        }
+
+        return response()->json([
+            'ok'            => true,
+            'payment_id'    => $payment->id,
+            'amount_cents'  => abs($payment->amount_cents),
+            'customer'      => trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')),
+            'method'        => $validated['refund_method'],
+        ]);
+    }
+
+    /**
+     * Commit a multi-row transaction (mixed sale + refund, or pure refund).
+     * Pure sales still use storeSale or commitDraft.
+     */
+    public function storeTransaction(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'      => 'nullable|uuid',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'payment_method'   => $this->allowedTenders(['even_exchange']), // MARKER-PATCH-630
+            'payment_reference'=> 'nullable|string',
+            'items'            => 'nullable|array',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'refund'                       => 'required|array',
+            'refund.original_sale_id'      => 'required|uuid',
+            'refund.item_ids'              => 'required|array|min:1',
+            'refund.item_ids.*'            => 'uuid',
+            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange',
+        ]);
+
+        try {
+            $result = $this->sales->createTransaction([
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'payment_method'     => $validated['payment_method'],
+                'payment_reference'  => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
+                'items'              => $validated['items'] ?? [],
+                'refund'             => $validated['refund'],
+            ]);
+
+            // Build a unified receipt response.
+            $sale = $result['sale'];
+            $refund = $result['refund'];
+
+            // MARKER-PATCH-171 — fire Stripe refund if refund half exists and
+            // refund_method=card. Mirrors storeRefund behavior for the mixed path.
+            $stripeRefundError = null;
+            if ($refund && ($validated['refund']['refund_method'] ?? null) === 'card') {
+                $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
+            }
+
+            return response()->json([
+                'ok'             => true,
+                'transaction_id' => $result['transaction_id'],
+                'sale_id'        => $sale?->id,
+                'sale_number'    => $sale?->sale_number ?? $refund?->sale_number,
+                'total_cents'    => ($sale?->total_cents ?? 0) - ($refund?->total_cents ?? 0),
+                'sale_total'     => $sale?->total_cents ?? 0,
+                'refund_total'   => $refund?->total_cents ?? 0,
+                // MARKER-PATCH-171 — Stripe refund outcome
+                'stripe_refund_error' => $stripeRefundError ?? null,
+                'stripe_refund_id'    => $refund?->fresh()?->stripe_refund_id,
+                'redirect'       => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Transaction History — list view of every tenant_sales row,
+     * including drafts/quotes/paid/partial/refunded.
+     * Filtered and sorted client-side by the page JS.
+     */
+    public function historyIndex(Request $request)
+    {
+        $tenant = tenant();
+
+        $rows = TenantSale::where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'location'])
+            ->orderByDesc('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'id'             => $r->id,
+                    'sale_number'    => $r->sale_number,
+                    'payment_status' => $r->payment_status,
+                    'item_count'     => $r->items->count(),
+                    'total_cents'    => $r->total_cents,
+                    'transaction_id' => $r->transaction_id,
+                    'customer'       => $r->customer
+                        ? trim(($r->customer->first_name ?? '') . ' ' . ($r->customer->last_name ?? ''))
+                        : null,
+                    'customer_email' => $r->customer->email ?? null,
+                    'started_by'     => $r->rangUpBy
+                        ? trim(($r->rangUpBy->first_name ?? '') . ' ' . ($r->rangUpBy->last_name ?? ''))
+                        : null,
+                    'location_name'  => $r->location->name ?? null,
+                    'is_refund'      => $r->refund_of_sale_id !== null,
+                    'refund_of_sale_number' => $r->refund_of_sale_id
+                        ? \App\Models\Tenant\TenantSale::where('id', $r->refund_of_sale_id)->value('sale_number')
+                        : null,
+                    'updated_at'     => $r->updated_at?->toIso8601String(),
+                    'paid_at'        => $r->paid_at?->toIso8601String(),
+                    'sale_date'      => $r->sale_date?->toDateString(),
+                ];
+            });
+
+        return view('tenant.register.history', [
+            'tenant' => $tenant,
+            'rows'   => $rows,
+        ]);
+    }
+
+    /**
+     * Return a single sale as JSON for the sale-detail modal.
+     * Read-only. Used by the history page and customer activity timeline.
+     */
+    /**
+     * MARKER-PATCH-231A — sale detail PAGE (the JSON sibling feeds the
+     * register modal; this is a linkable page for search + history).
+     */
+    public function showSalePage(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number', 'appointment:id,ra_number'])
+            ->firstOrFail();
+
+        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('created_at')
+            ->get(['id', 'sale_number', 'total_cents', 'created_at']);
+
+        // MARKER-PATCH-231 — linked context (rental/lease the sale belongs to).
+        $linkedRental = $sale->rental_id
+            ? \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->find($sale->rental_id, ['id', 'rental_number'])
+            : null;
+        $linkedLease = $sale->lease_id
+            ? \App\Models\Tenant\Lease::where('tenant_id', $tenant->id)->find($sale->lease_id, ['id', 'lease_number'])
+            : null;
+
+        return view('tenant.register.sale-show', [
+            'sale'         => $sale,
+            'refunds'      => $refunds,
+            'linkedRental' => $linkedRental,
+            'linkedLease'  => $linkedLease,
+        ]);
+    }
+
+    // MARKER-PATCH-319 — render the printable 80mm sales receipt.
+    public function printReceipt(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'items', 'payments'])
+            ->firstOrFail();
+
+        $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
+        $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
+        $embed = $request->boolean('embed');
+
+        return view('tenant.register.receipt', compact('tenant', 'sale', 'print', 'embed'));
+    }
+
+    public function showSaleJson(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'location', 'refundOf:id,sale_number'])
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Load related refunds (children) so the modal can summarize them.
+        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('created_at')
+            ->get(['id', 'sale_number', 'total_cents', 'paid_at', 'created_at'])
+            ->map(fn ($r) => [
+                'id'          => $r->id,
+                'sale_number' => $r->sale_number,
+                'total_cents' => (int) $r->total_cents,
+                'paid_at'     => $r->paid_at?->toIso8601String() ?? $r->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        $items = $sale->items
+            ->sortBy(fn ($i) => $i->position ?? 0)
+            ->values()
+            ->map(fn ($i) => [
+                'type'             => $i->type,
+                'name'             => $i->name_snapshot,
+                'description'      => $i->description_snapshot,
+                'quantity'         => (float) $i->quantity,
+                'unit_price_cents' => (int) $i->unit_price_cents,
+                'discount_cents'   => (int) $i->discount_cents,
+                'tax_cents'        => (int) $i->tax_cents,
+                'is_taxable'       => (bool) $i->is_taxable,
+                'line_total_cents' => (int) $i->line_total_cents,
+            ]);
+
+        // MARKER-PATCH-191 — the payment ledger for this sale (each deposit /
+        // balance / payment / refund row), so the modal shows exactly what was
+        // paid, how, and when — not just the sale total.
+        $payments = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->orderBy('recorded_at')
+            ->get()
+            ->map(fn ($p) => [
+                'id'           => $p->id, // MARKER-PATCH-198 — targets delete
+                'amount_cents' => (int) $p->amount_cents,
+                'kind'         => $p->kind,
+                'method'       => $p->method,
+                'method_label' => method_exists($p, 'methodLabel') ? $p->methodLabel() : $p->method,
+                'source'       => $p->source,
+                'reference'    => $p->external_reference,
+                'notes'        => $p->notes,
+                'recorded_at'  => $p->recorded_at?->toIso8601String(),
+                'is_refund'    => $p->amount_cents < 0,
+            ])
+            ->values();
+        $paidCents = (int) $payments->sum('amount_cents');
+
+        // MARKER-PATCH-161 — email send log for this sale.
+        $sendLog = \App\Models\Tenant\TenantNotificationLog::where('tenant_id', $tenant->id)
+            ->where('related_type', 'sale')
+            ->where('related_id', $sale->id)
+            ->where('channel', 'email')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['event_type','recipient','status','error_message','template_key','created_at'])
+            ->map(fn ($r) => [
+                'event_type'   => $r->event_type,
+                'recipient'    => $r->recipient,
+                'status'       => $r->status,
+                'error'        => $r->error_message,
+                'template_key' => $r->template_key,
+                'created_at'   => $r->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json([
+            'ok'   => true,
+            'sale' => [
+                'id'             => $sale->id,
+                'sale_number'    => $sale->sale_number,
+                'status'         => $sale->status,
+                'payment_status' => $sale->payment_status,
+                'is_refund'      => $sale->refund_of_sale_id !== null,
+                'is_quote'       => $sale->payment_status === 'quote',
+                'is_draft'       => $sale->payment_status === 'draft',
+                'sale_date'      => $sale->sale_date?->toDateString(),
+                'paid_at'        => $sale->paid_at?->toIso8601String(),
+                'created_at'     => $sale->created_at?->toIso8601String(),
+                'updated_at'     => $sale->updated_at?->toIso8601String(),
+                'transaction_id' => $sale->transaction_id,
+                'payment_method' => $sale->payment_method,
+                'payment_reference' => $sale->payment_reference,
+                'notes'          => $sale->notes,
+                'subtotal_cents' => (int) $sale->subtotal_cents,
+                'discount_cents' => (int) $sale->discount_cents,
+                'tax_cents'      => (int) $sale->tax_cents,
+                'surcharge_cents'=> (int) $sale->surcharge_cents,
+                'tip_cents'      => (int) $sale->tip_cents,
+                'total_cents'    => (int) $sale->total_cents,
+                'customer'       => $sale->customer ? [
+                    'id'    => $sale->customer->id,
+                    'name'  => trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? '')),
+                    'email' => $sale->customer->email,
+                    'phone' => $sale->customer->phone,
+                ] : null,
+                'rang_up_by'     => $sale->rangUpBy
+                    ? trim(($sale->rangUpBy->first_name ?? '') . ' ' . ($sale->rangUpBy->last_name ?? ''))
+                    : null,
+                'location_name'  => $sale->location->name ?? null,
+                'refund_of'      => $sale->refundOf ? [
+                    'id'          => $sale->refundOf->id,
+                    'sale_number' => $sale->refundOf->sale_number,
+                ] : null,
+                'refunds'        => $refunds,
+                'items'          => $items,
+                'send_log'       => $sendLog,
+                'payments'       => $payments,
+                'paid_cents'     => $paidCents,
+                // MARKER-PATCH-195 — checkout link fields for the status view.
+                'checkout_session_id' => $sale->checkout_session_id,
+                'sale_status'    => $sale->status,
+                'appointment_id' => $sale->appointment_id,
+            ],
+        ]);
+    }
+
+    /**
+     * Quotes list with dashboard metrics on top.
+     * Cards: open quotes, aging (>14 days), new this week, recently converted.
+     */
+    public function quotesIndex(Request $request)
+    {
+        $tenant = tenant();
+        $now = Carbon::now();
+        $agingThreshold = $now->copy()->subDays(14);
+        $oneWeekAgo = $now->copy()->subDays(7);
+        $thirtyDaysAgo = $now->copy()->subDays(30);
+
+        // Open quotes: total count + dollar value.
+        $openQuotesQuery = TenantSale::where('tenant_id', $tenant->id)->quotes();
+        $openCount = (clone $openQuotesQuery)->count();
+        $openValueCents = (clone $openQuotesQuery)->sum('total_cents');
+
+        // Aging: quotes where updated_at < 14 days ago.
+        $agingQuery = (clone $openQuotesQuery)->where('updated_at', '<', $agingThreshold);
+        $agingCount = (clone $agingQuery)->count();
+        $agingValueCents = (clone $agingQuery)->sum('total_cents');
+        $oldestAging = (clone $agingQuery)->orderBy('updated_at')->value('updated_at');
+        $oldestAgingDays = $oldestAging
+            ? (int) Carbon::parse($oldestAging)->diffInDays($now)
+            : 0;
+
+        // New this week: quotes created (created_at) in last 7 days.
+        $newThisWeekQuery = (clone $openQuotesQuery)->where('created_at', '>=', $oneWeekAgo);
+        $newThisWeekCount = (clone $newThisWeekQuery)->count();
+        $newThisWeekValueCents = (clone $newThisWeekQuery)->sum('total_cents');
+
+        // Recently converted: paid sales with was_quote=true in last 30 days.
+        $convertedQuery = TenantSale::where('tenant_id', $tenant->id)
+            ->where('was_quote', true)
+            ->where('payment_status', 'paid')
+            ->where('paid_at', '>=', $thirtyDaysAgo);
+        $convertedCount = (clone $convertedQuery)->count();
+        $convertedValueCents = (clone $convertedQuery)->sum('total_cents');
+
+        // Conversion rate: of all quotes created in last 30 days, what fraction are now converted?
+        $quotesCreated30d = TenantSale::where('tenant_id', $tenant->id)
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->where(function ($q) {
+                // Either currently a quote, or was one and is now paid.
+                $q->where('payment_status', 'quote')
+                  ->orWhere(function ($qq) {
+                      $qq->where('was_quote', true)->where('payment_status', 'paid');
+                  });
+            })
+            ->count();
+        $conversionRate = $quotesCreated30d > 0
+            ? round(($convertedCount / $quotesCreated30d) * 100)
+            : null;
+
+        $dashboard = [
+            'open' => [
+                'count' => $openCount,
+                'value_cents' => (int) $openValueCents,
+            ],
+            'aging' => [
+                'count' => $agingCount,
+                'value_cents' => (int) $agingValueCents,
+                'oldest_days' => $oldestAgingDays,
+            ],
+            'new_this_week' => [
+                'count' => $newThisWeekCount,
+                'value_cents' => (int) $newThisWeekValueCents,
+            ],
+            'converted' => [
+                'count' => $convertedCount,
+                'value_cents' => (int) $convertedValueCents,
+                'rate_pct' => $conversionRate,
+            ],
+            'aging_threshold_days' => 14,
+        ];
+
+        $quotes = TenantSale::where('tenant_id', $tenant->id)
+            ->quotes()
+            ->with(['customer', 'rangUpBy', 'items', 'location'])
+            ->orderByDesc('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(function ($q) {
+                return [
+                    'id'           => $q->id,
+                    'item_count'   => $q->items->count(),
+                    'total_cents'  => $q->total_cents,
+                    'customer'     => $q->customer
+                        ? trim(($q->customer->first_name ?? '') . ' ' . ($q->customer->last_name ?? ''))
+                        : null,
+                    'customer_email' => $q->customer->email ?? null,
+                    'started_by'   => $q->rangUpBy
+                        ? trim(($q->rangUpBy->first_name ?? '') . ' ' . ($q->rangUpBy->last_name ?? ''))
+                        : null,
+                    'location_name' => $q->location->name ?? null,
+                    'notes'        => $q->notes,
+                    'updated_at'   => $q->updated_at?->toIso8601String(),
+                    'created_at'   => $q->created_at?->toIso8601String(),
+                ];
+            });
+
+        return view('tenant.register.quotes', [
+            'tenant'    => $tenant,
+            'quotes'    => $quotes,
+            'dashboard' => $dashboard,
+        ]);
+    }
+
+    /**
+     * Save the current cart as a quote.
+     * Customer is required (the modal enforces it client-side too).
+     */
+    public function storeQuote(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'id'               => 'nullable|uuid',
+            'customer_id'      => 'required|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'items'            => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        try {
+            $quote = $this->sales->saveQuote([
+                'id'                 => $validated['id'] ?? null,
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'],
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'items'              => $validated['items'],
+            ]);
+
+            return response()->json([
+                'ok'          => true,
+                'quote_id'    => $quote->id,
+                'total_cents' => $quote->total_cents,
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * GET /register/item/{id}/info — MARKER-PATCH-552
+     * Everything staff want to see about an item mid-sale: identity,
+     * price, per-location stock, and the catalog image when linked.
+     */
+    public function itemInfo(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $item = TenantInventoryItem::with(['category', 'distributorCatalog'])
+            ->where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $stock = \App\Models\Tenant\TenantInventoryItemLocation::query()
+            ->where('inventory_item_id', $item->id)
+            ->get()
+            ->map(function ($row) use ($tenant) {
+                $loc = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->where('id', $row->location_id)->first();
+                return ['location' => $loc?->name ?? '—', 'count' => (int) $row->computed_stock_count];
+            })->values();
+
+        // MARKER-PATCH-553 — HLC stores images as objects; pull usable URLs.
+        $images = collect((array) ($item->distributorCatalog?->images ?? []))
+            ->map(function ($im) {
+                if (is_string($im)) return $im;
+                if (is_array($im)) return $im['Url'] ?? $im['url'] ?? $im['src'] ?? null;
+                return null;
+            })->filter()->values()->all();
+
+        // Specs from canonical attributes
+        $attrs = collect((array) ($item->distributorCatalog?->attributes ?? []))
+            ->filter(fn ($a) => is_array($a) && !empty($a['Name']) && trim((string) ($a['Value'] ?? '')) !== '')
+            ->map(fn ($a) => ['name' => $a['Name'], 'value' => $a['Value']])
+            ->values()->all();
+
+        // Sold in the last 30 days (real sales only)
+        $sold30 = (float) \App\Models\Tenant\TenantSaleItem::query()
+            ->where('inventory_item_id', $item->id)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereHas('sale', fn ($q) => $q->where('tenant_id', $tenant->id)
+                ->whereNotIn('payment_status', ['draft', 'quote']))
+            ->sum('quantity');
+
+        // MARKER-PATCH-553 — cost/margin only for roles with the capability
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user(); // MARKER-PATCH-554
+        $costPayload = null;
+        if ($user && $user->canAccessSection('cost_margins')) {
+            $cost  = (int) ($item->effectiveCostCents() ?? 0);
+            $price = (int) ($item->effectiveSellPriceCents() ?? 0);
+            $costPayload = [
+                'cost_cents' => $cost,
+                'margin_pct' => ($price > 0 && $cost > 0) ? round((($price - $cost) / $price) * 100, 1) : null,
+            ];
+        }
+
+        return response()->json([
+            'ok'          => true,
+            'name'        => $item->name,
+            'brand'       => $item->distributorCatalog?->manufacturer,
+            'subtitle'    => $item->display_subtitle,
+            'description' => $item->description,
+            'sku'         => $item->sku,
+            'upc'         => $item->catalog_upc,
+            'category'    => $item->category?->name,
+            'price_cents' => (int) ($item->effectiveSellPriceCents() ?? 0),
+            'taxable'     => (($item->tax_class_code ?? null) !== 'exempt'),
+            'images'      => array_slice($images, 0, 4),
+            'attrs'       => $attrs,
+            'sold_30d'    => $sold30,
+            'cost'        => $costPayload,
+            'edit_url'    => route('tenant.inventory.edit', $item->id),
+            'stock'       => $stock,
+        ]);
+    }
+
+    public function searchRefundables(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $q = trim((string) $request->input('q', ''));
+
+        if ($q === '' || mb_strlen($q) < 2) {
+            return response()->json(['sales' => []]);
+        }
+
+        $sales = TenantSale::where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->whereNull('refund_of_sale_id')
+            ->where(function ($w) use ($q) {
+                $w->where('sale_number', 'like', "%{$q}%")
+                  ->orWhereHas('customer', function ($c) use ($q) {
+                      $c->where('first_name', 'like', "%{$q}%")
+                        ->orWhere('last_name', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                  });
+            })
+            ->orderByDesc('paid_at')
+            ->limit(20)
+            ->with(['customer', 'items'])
+            ->get()
+            ->map(function ($s) {
+                return [
+                    'id'          => $s->id,
+                    'sale_number' => $s->sale_number,
+                    'sale_date'   => $s->sale_date?->toDateString(),
+                    'paid_at'     => $s->paid_at?->toDateTimeString(),
+                    'total_cents' => $s->total_cents,
+                    'tender'      => $s->payment_method,
+                    'customer'    => $s->customer
+                        ? trim(($s->customer->first_name ?? '') . ' ' . ($s->customer->last_name ?? ''))
+                        : null,
+                    'items'       => $s->items->map(fn ($i) => [
+                        'id'               => $i->id,
+                        'name'             => $i->name_snapshot,
+                        'quantity'         => $i->quantity,
+                        'line_total_cents' => $i->line_total_cents,
+                        'type'             => $i->type,
+                    ])->toArray(),
+                ];
+            });
+
+        return response()->json(['sales' => $sales]);
+    }
+
+    // MARKER-PATCH-160 — re-send (or send to another email) a sale receipt
+    public function resendReceipt(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->first();
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Optional override — "send to another email" on the sale-detail card.
+        $override = trim((string) $request->input('email', ''));
+        if ($override !== '' && !filter_var($override, FILTER_VALIDATE_EMAIL)) {
+            return response()->json(['ok' => false, 'error' => 'Invalid email address.'], 422);
+        }
+
+        \App\Jobs\SendSaleReceiptJob::dispatch($sale->id, $override ?: null, 'manual_resend');
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-PATCH-170 — Direct Payments Session 2A.
+     *
+     * Create a Stripe PaymentIntent for a cart. Returns the client_secret
+     * which the front-end uses with Stripe.js to confirm the card.
+     *
+     * This is called BEFORE the sale is committed. After Stripe confirms
+     * the payment client-side, the front-end POSTs to /register/sales (or
+     * /register/drafts/{id}/commit) with payment_method=card AND the
+     * stripe_payment_intent_id so the controller can verify + record.
+     */
+    public function createPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        // MARKER-PATCH-618 — tenant toggle gates NEW payments (refunds untouched).
+        if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
+            return response()->json(['error' => 'Card payments are turned off in Settings → Payments.'], 422);
+        }
+
+        $validated = $request->validate([
+            'amount_cents'      => 'required|integer|min:50',
+            'sale_id'           => 'nullable|uuid',
+            // MARKER-PATCH-170B — preflight payload so we can validate before charging
+            'customer_id'       => 'nullable|uuid',
+            'has_service_line'  => 'nullable|boolean',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Card payments are not enabled for this tenant.',
+            ], 422);
+        }
+
+        // MARKER-PATCH-170B — pre-charge cart validation. Mirrors SaleService
+        // checks so we never authorize a card for a sale that won\'t commit.
+        if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Customer is required when the sale has any service line.',
+            ], 422);
+        }
+
+        try {
+            $pi = $direct->createPaymentIntent($validated['amount_cents'], 'usd', array_filter([
+                'intake_sale_id' => $validated['sale_id'] ?? null,
+            ]));
+            return response()->json([
+                'ok'             => true,
+                'client_secret'  => $pi->client_secret,
+                'payment_intent' => $pi->id,
+                'publishable_key' => $direct->publishableKey(),
+                'mode'           => $direct->mode(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.create_pi_failed', [
+                'tenant_id' => $tenant->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok' => false,
+                'error' => 'Could not initialize card payment. Verify your Stripe keys are correct.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify a PaymentIntent's final state with Stripe. Returns the card
+     * details if succeeded so the front-end can include them in the
+     * subsequent commit call (which writes them to the sale row).
+     */
+    public function confirmPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        try {
+            $pi = $direct->retrievePaymentIntent($validated['payment_intent']);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.retrieve_pi_failed', [
+                'tenant_id' => $tenant->id,
+                'pi'        => $validated['payment_intent'],
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Could not verify payment.'], 500);
+        }
+
+        if ($pi->status !== 'succeeded') {
+            return response()->json([
+                'ok'     => false,
+                'status' => $pi->status,
+                'error'  => 'Payment is not in a succeeded state (status: ' . $pi->status . ').',
+            ], 409);
+        }
+
+        $card = $direct->extractCardDetails($pi);
+        return response()->json([
+            'ok'                       => true,
+            'payment_intent'           => $pi->id,
+            'stripe_charge_id'         => $card['charge_id'],
+            'card_brand'               => $card['brand'],
+            'card_last4'               => $card['last4'],
+            'card_funding'             => $card['funding'],
+            'amount_received_cents'    => $pi->amount_received,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Create a Stripe Checkout Session and a matching
+     * DRAFT sale that\'s waiting for the customer to pay remotely.
+     *
+     * Returns the Checkout URL (for QR + copy/share) and the draft sale ID
+     * (which the frontend polls until the webhook fires).
+     */
+    public function createCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        // MARKER-PATCH-618 — tenant toggle gates NEW payment links (refunds untouched).
+        if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
+            return response()->json(['error' => 'Payment links are turned off in Settings → Payments.'], 422);
+        }
+
+        $validated = $request->validate([
+            'amount_cents'     => 'required|integer|min:50',
+            'customer_id'      => 'nullable|uuid',
+            'has_service_line' => 'nullable|boolean',
+            'description'      => 'nullable|string|max:255',
+            // MARKER-PATCH-178B — when present, bind the link to THIS existing
+            // sale instead of minting a new (appointment-less) one. This is the
+            // resumed parked sale's id (cart.draft_id on the frontend).
+            'sale_id'          => 'nullable|uuid',
+            'items'            => 'required|array|min:1',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'discount_cents'   => 'nullable|integer|min:0',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        // Same pre-check as createPaymentIntent (defense in depth).
+        if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Customer is required when the sale has any service line.',
+            ], 422);
+        }
+
+        // Resolve customer email for receipt (Stripe Checkout will pre-fill it).
+        $customerEmail = null;
+        if (! empty($validated['customer_id'])) {
+            $customerEmail = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $validated['customer_id'])
+                ->value('email');
+        }
+
+        // Create the Checkout Session first — if Stripe fails, no draft sale orphan.
+        $description = $validated['description'] ?: ($tenant->name . ' — purchase');
+        try {
+            $session = $direct->createCheckoutSession(
+                $validated['amount_cents'],
+                $description,
+                array_filter([
+                    'customer_email' => $customerEmail,
+                ])
+            );
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.checkout_session_failed', [
+                'tenant_id' => $tenant->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Could not create payment link. Verify your Stripe keys.',
+            ], 500);
+        }
+
+        // MARKER-PATCH-178B — bind the session to an EXISTING sale when sale_id
+        // is given (resumed parked/appointment sale), instead of minting a new
+        // appointment-less sale. This was the link-detach bug: link-paid
+        // appointments stayed unpaid because the charge landed on a separate
+        // sale. If no sale_id, fall back to creating a draft as before.
+        $locationId = $request->session()->get('current_location_id');
+        try {
+            if (!empty($validated['sale_id'])) {
+                $draftSale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                    ->where('id', $validated['sale_id'])
+                    ->whereNotIn('status', ['cancelled', 'closed'])
+                    ->first();
+                if (!$draftSale) {
+                    return response()->json(['ok' => false, 'error' => 'Sale not found to attach the link.'], 404);
+                }
+                $draftSale->checkout_session_id = $session->id;
+                if (in_array($draftSale->payment_status, ['draft'], true)) {
+                    $draftSale->payment_status = 'unpaid';
+                }
+                $draftSale->payment_method    = $draftSale->payment_method ?: 'card';
+                $draftSale->payment_reference = $draftSale->payment_reference ?: 'Awaiting payment link';
+                $draftSale->save();
+            } else {
+                $draftSale = $this->sales->createSale([
+                    'tenant_id'          => $tenant->id,
+                    'rang_up_by_user_id' => auth('tenant')->id(),
+                    'location_id'        => $locationId,
+                    'customer_id'        => $validated['customer_id'] ?? null,
+                    'status'             => 'pending',
+                    'payment_status'     => 'unpaid',
+                    'payment_method'     => 'card',
+                    'payment_reference'  => 'Awaiting payment link',
+                    'paid_at'            => null,
+                    'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                    'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                    'items'              => $validated['items'],
+                    'checkout_session_id' => $session->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // If draft creation fails, expire the Stripe session immediately so
+            // the link can\'t be paid (we have nothing to attach it to).
+            try {
+                $direct->client = null; // ignore typing — best-effort
+            } catch (\Throwable $_) {}
+            Log::error('direct_payments.draft_sale_failed', [
+                'tenant_id'  => $tenant->id,
+                'session_id' => $session->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Could not stage the sale. ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'sale_id'      => $draftSale->id,
+            'session_id'   => $session->id,
+            'checkout_url' => $session->url,
+            'expires_at'   => $session->expires_at,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Poll status of a Checkout Session. Frontend calls
+     * this every ~3 seconds while the payment-link modal is open.
+     *
+     * Returns one of: pending (still waiting), succeeded (payment_status
+     * went paid via webhook), expired, or cancelled.
+     */
+    public function checkCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Primary check: the webhook handler updates payment_status=paid when
+        // checkout.session.completed fires. Read DB first to avoid hitting Stripe.
+        if ($sale->payment_status === 'paid') {
+            return response()->json([
+                'ok'          => true,
+                'status'      => 'succeeded',
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+            ]);
+        }
+
+        // Fallback: hit Stripe directly in case webhook is delayed/dropped.
+        $direct = new DirectPaymentsService($tenant);
+        if ($sale->checkout_session_id) {
+            try {
+                $session = $direct->retrieveCheckoutSession($sale->checkout_session_id);
+                if ($session->payment_status === 'paid' && $session->status === 'complete') {
+                    // Webhook hasn\'t fired yet. We could promote here, but
+                    // it\'s cleaner to let the webhook be the source of truth.
+                    // Just report pending for now; the next poll should see it.
+                }
+                if ($session->status === 'expired') {
+                    return response()->json(['ok' => true, 'status' => 'expired']);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('direct_payments.poll_failed', [
+                    'tenant_id' => $tenant->id,
+                    'session'   => $sale->checkout_session_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json(['ok' => true, 'status' => 'pending']);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Cancel a pending Checkout-Session-backed sale.
+     * Used when the operator closes the payment-link modal manually.
+     */
+    public function cancelCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->where('payment_status', 'unpaid')  // MARKER-PATCH-172C
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => true, 'status' => 'already_resolved']);
+        }
+
+        // Expire the Stripe session (best-effort) and mark the sale cancelled.
+        if ($sale->checkout_session_id) {
+            try {
+                $direct = new DirectPaymentsService($tenant);
+                $direct->retrieveCheckoutSession($sale->checkout_session_id); // ensure exists
+                // Stripe Checkout sessions don\'t have a direct cancel API,
+                // but expire is achievable via the expire endpoint.
+                // Use stripe SDK's expire method.
+                // NOTE: stripe-php exposes this as $client->checkout->sessions->expire($id)
+                // (added in newer versions). If unavailable, the session will
+                // simply expire after 24h naturally.
+                // We swallow errors here — they're non-fatal.
+                $client = new \Stripe\StripeClient(['api_key' => $tenant->settings['register_payments_' . ($tenant->settings['register_payments_mode'] ?? 'test') . '_sk'] ?? null]);
+                try {
+                    $client->checkout->sessions->expire($sale->checkout_session_id);
+                } catch (\Throwable $_) {
+                    // expire may not be available on older SDK versions — ignore.
+                }
+            } catch (\Throwable $e) {
+                // Best-effort cleanup.
+                Log::info('direct_payments.session_expire_skipped', [
+                    'tenant_id' => $tenant->id,
+                    'session'   => $sale->checkout_session_id,
+                ]);
+            }
+        }
+
+        // MARKER-PATCH-172C — payment_status enum doesn't have 'cancelled'.
+        // status column already has 'cancelled'. payment_status stays 'unpaid'
+        // (customer didn't pay; was never going to from this aborted attempt).
+        $sale->status = 'cancelled';
+        $sale->save();
+
+        return response()->json(['ok' => true, 'status' => 'cancelled']);
+    }
+
+    /**
+     * MARKER-PATCH-173 — Customer-facing landing page after a successful
+     * Stripe Checkout payment (send-payment-link flow). PUBLIC route: the
+     * paying customer is anonymous on their own device. Tenant is resolved by
+     * ResolveTenant middleware and $currentTenant is shared to the view.
+     *
+     * No money depends on this page — the webhook has already promoted the
+     * sale to paid by the time Stripe redirects here. total_cents is set on
+     * the draft sale at link-creation time, so we show the amount without any
+     * synchronous Stripe round-trip.
+     */
+    public function checkoutSuccess(Request $request)
+    {
+        $tenant    = tenant();
+        $sessionId = (string) $request->query('session_id', '');
+
+        $sale = null;
+        if ($sessionId !== '') {
+            $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('checkout_session_id', $sessionId)
+                ->first();
+        }
+
+        return view('tenant.register.checkout-success', [
+            'amountCents' => $sale?->total_cents,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-173 — Customer-facing landing page when the customer backs
+     * out of the Stripe Checkout page. Nothing was charged. PUBLIC route.
+     */
+    public function checkoutCancel(Request $request)
+    {
+        return view('tenant.register.checkout-cancel');
+    }
+
+    /**
+     * MARKER-PATCH-170B — auto-refund a PaymentIntent. Called by the client
+     * when commitTransaction fails after a charge already authorized.
+     *
+     * Idempotent: if the PI was already refunded, Stripe returns the existing
+     * refund instead of erroring.
+     */
+    public function autoRefundPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+            'reason'         => 'nullable|string|max:255',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        $refund = $direct->refundPaymentIntent(
+            $validated['payment_intent'],
+            $validated['reason'] ?? 'sale_commit_failed'
+        );
+
+        if (! $refund) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Refund failed. Charge may still be live in Stripe — check the Stripe dashboard.',
+            ], 500);
+        }
+
+        return response()->json([
+            'ok'        => true,
+            'refund_id' => $refund->id,
+            'amount'    => $refund->amount,
+        ]);
+    }
+
+    public function storeRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'original_sale_id' => 'required|uuid',
+            'refund_method'    => 'required|string|in:cash,card,check,store_credit,mark_paid',
+            'reason'           => 'nullable|string|max:500',
+            'notes'            => 'nullable|string',
+            'item_ids'         => 'required|array|min:1',
+            'item_ids.*'       => 'uuid',
+        ]);
+
+        try {
+            $refund = $this->sales->createRefund([
+                'tenant_id'          => $tenant->id,
+                'original_sale_id'   => $validated['original_sale_id'],
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'refund_method'      => $validated['refund_method'],
+                'reason'             => $validated['reason'] ?? null,
+                'notes'              => $validated['notes'] ?? null,
+                'item_ids'           => $validated['item_ids'],
+            ]);
+
+            // MARKER-PATCH-171 — fire a Stripe refund when the refund is to card
+            // AND the original sale was paid via direct-payments Stripe flow.
+            // Failure here is REPORTED but doesn\'t roll back the Intake refund row —
+            // the operator can retry from sale detail (or via Stripe dashboard).
+            $stripeRefundError = null;
+            if ($validated['refund_method'] === 'card') {
+                $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
+            }
+
+            return response()->json([
+                'ok'                  => true,
+                'refund_id'           => $refund->id,
+                'sale_number'         => $refund->sale_number,
+                'total_cents'         => $refund->total_cents,
+                'stripe_refund_error' => $stripeRefundError,
+                'stripe_refund_id'    => $refund->fresh()->stripe_refund_id,
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * MARKER-PATCH-171 — shared helper to fire a Stripe refund for a refund row.
+     * Returns null on success, or an error message string on failure.
+     *
+     * The refund row\'s own stripe_payment_intent_id is copied from the original
+     * sale in SaleService::createRefund via the existing snapshot machinery —
+     * but to be safe and explicit, we read the original sale fresh from the DB
+     * and use ITS stripe_payment_intent_id (the refund row may not have one set
+     * depending on snapshot config).
+     */
+    protected function fireStripeRefund(\App\Models\Tenant $tenant, \App\Models\Tenant\TenantSale $refundRow): ?string
+    {
+        if (! $tenant->direct_payments_enabled) {
+            // Not an error — just nothing to do.
+            return null;
+        }
+
+        $original = \App\Models\Tenant\TenantSale::find($refundRow->refund_of_sale_id);
+        if (! $original || ! $original->stripe_payment_intent_id) {
+            // Original wasn\'t paid via Stripe; nothing to refund there.
+            return null;
+        }
+
+        try {
+            $direct = new DirectPaymentsService($tenant);
+            $stripeRefund = $direct->refundCharge(
+                $original->stripe_payment_intent_id,
+                (int) $refundRow->total_cents,
+                [
+                    'intake_refund_sale_id'   => $refundRow->id,
+                    'intake_original_sale_id' => $original->id,
+                ]
+            );
+            $refundRow->stripe_refund_id = $stripeRefund->id;
+            $refundRow->save();
+            return null;
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.refund_failed', [
+                'tenant_id'        => $tenant->id,
+                'refund_sale_id'   => $refundRow->id,
+                'original_sale_id' => $original->id,
+                'pi'               => $original->stripe_payment_intent_id,
+                'error'            => $e->getMessage(),
+            ]);
+            return $e->getMessage();
+        }
+    }
+
+    /**
+     * MARKER-PATCH-461 — Record an overage refund against an appointment.
+     *
+     * paid_cents > total_cents means the customer overpaid. This returns the
+     * difference (or a portion of it): it writes a negative overage_refund row
+     * on the appointment's money-bearing sale, which cascades the appointment
+     * paid cache + payment_status centrally via SalePaymentService::recalcStatus().
+     * 'card' fires a real Stripe partial refund when the sale has a charge to
+     * reverse; otherwise card records a manual refund like the other methods.
+     */
+    public function recordAppointmentOverageRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'appointment_id' => 'required|uuid',
+            'amount_cents'   => 'required|integer|min:1',
+            'method'         => 'required|string|in:cash,check,store_credit,mark_paid,card',
+            'notes'          => 'nullable|string|max:500',
+        ]);
+
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $validated['appointment_id'])
+            ->first();
+        if (! $appointment) {
+            return response()->json(['ok' => false, 'error' => 'Appointment not found.'], 404);
+        }
+
+        // Authoritative overage from the ledger, not the cached column.
+        $appointment->load('payments');
+        $paid    = $appointment->paidCentsFromLedger();
+        $total   = (int) $appointment->total_cents;
+        $overage = $paid - $total;
+
+        if ($overage <= 0) {
+            return response()->json(['ok' => false, 'error' => 'This appointment has no overage to refund.'], 422);
+        }
+        if ((int) $validated['amount_cents'] > $overage) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Refund exceeds the overage of $' . number_format($overage / 100, 2) . '.',
+            ], 422);
+        }
+
+        // The sale holding the money: highest net-paid, non-cancelled.
+        $paymentSvc = app(\App\Services\Tenant\SalePaymentService::class);
+        $sale = $appointment->sales()
+            ->where('status', '!=', 'cancelled')
+            ->get()
+            ->sortByDesc(fn ($s) => $paymentSvc->paidCents($s))
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'No sale found to refund against.'], 422);
+        }
+
+        // MARKER-PATCH-462 — card refund: fire a real Stripe refund when the sale
+        // has a charge to reverse; otherwise fall through and record a manual
+        // 'card' refund (operator returned it out-of-band — terminal, manual key).
+        $stripeRefundId = null;
+        if ($validated['method'] === 'card'
+            && $tenant->direct_payments_enabled
+            && $sale->stripe_payment_intent_id) {
+            try {
+                $direct = new DirectPaymentsService($tenant);
+                $stripeRefund = $direct->refundCharge(
+                    $sale->stripe_payment_intent_id,
+                    (int) $validated['amount_cents'],
+                    [
+                        'intake_overage_refund_appointment_id' => $appointment->id,
+                        'intake_sale_id'                       => $sale->id,
+                    ]
+                );
+                $stripeRefundId = $stripeRefund->id;
+            } catch (\Throwable $e) {
+                Log::error('overage_refund.stripe_failed', [
+                    'tenant_id'      => $tenant->id,
+                    'appointment_id' => $appointment->id,
+                    'sale_id'        => $sale->id,
+                    'error'          => $e->getMessage(),
+                ]);
+                return response()->json(['ok' => false, 'error' => 'Stripe refund failed: ' . $e->getMessage()], 422);
+            }
+        }
+
+        // Refund chain: point at the most recent inbound payment on this sale.
+        $referencePaymentId = \App\Models\Tenant\TenantSalePayment::where('sale_id', $sale->id)
+            ->where('amount_cents', '>', 0)
+            ->orderByDesc('recorded_at')
+            ->value('id');
+
+        try {
+            $payment = $paymentSvc->record(
+                $sale,
+                -1 * (int) $validated['amount_cents'],
+                \App\Models\Tenant\TenantSalePayment::KIND_OVERAGE_REFUND,
+                \App\Models\Tenant\TenantSalePayment::SOURCE_MANUAL_ENTRY,
+                $validated['method'],
+                $referencePaymentId,
+                $stripeRefundId,
+                $validated['notes'] ?? null,
+            );
+        } catch (\Throwable $e) {
+            Log::error('overage_refund.record_failed', [
+                'tenant_id'        => $tenant->id,
+                'appointment_id'   => $appointment->id,
+                'sale_id'          => $sale->id,
+                'stripe_refund_id' => $stripeRefundId,
+                'error'            => $e->getMessage(),
+            ]);
+            $tail = $stripeRefundId
+                ? ' (Stripe refund ' . $stripeRefundId . ' DID fire — reconcile manually)'
+                : '';
+            return response()->json(['ok' => false, 'error' => 'Could not record the refund' . $tail . ': ' . $e->getMessage()], 500);
+        }
+
+        $appointment->refresh()->load('payments');
+        $newPaid    = $appointment->paidCentsFromLedger();
+        $newOverage = max(0, $newPaid - $total);
+
+        Log::info('overage_refund.recorded', [
+            'tenant_id'      => $tenant->id,
+            'appointment_id' => $appointment->id,
+            'sale_id'        => $sale->id,
+            'amount_cents'   => (int) $validated['amount_cents'],
+            'method'         => $validated['method'],
+            'stripe_refund'  => $stripeRefundId,
+            'by'             => auth('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'               => true,
+            'payment_id'       => $payment->id,
+            'paid_cents'       => $newPaid,
+            'overage_cents'    => $newOverage,
+            'stripe_refund_id' => $stripeRefundId,
+        ]);
+    }
+
+
+    /**
+     * MARKER-PATCH-630 — allowed payment_method values: built-ins plus any
+     * enabled manual method keys from tenant_payment_methods.
+     */
+    protected function allowedTenders(array $extra = []): string
+    {
+        $manual = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', tenant()->id)
+            ->where('enabled', true)->where('kind', 'manual')
+            ->pluck('method_key')->all();
+        $all = array_unique(array_merge(['cash', 'card', 'check', 'store_credit', 'mark_paid', 'split'], $extra, $manual));
+        return 'required|string|in:' . implode(',', $all);
+    }
+
+    protected function taxLabel($tenant): string
+    {
+        $rate = $tenant->default_tax_rate;
+        if ($rate === null || (float) $rate === 0.0) {
+            return 'No tax configured';
+        }
+        return 'Tax · ' . rtrim(rtrim(number_format((float) $rate, 3), '0'), '.') . '%';
+    }
+
+    /**
+     * MARKER-PATCH-197 — Stripe-vs-ledger reconciliation report. Lists succeeded
+     * Stripe payments with no matching ledger row ("paid in Stripe, unpaid in
+     * Intake"). The safety net for any payment that slips past the webhook.
+     */
+    public function reconciliation(\Illuminate\Http\Request $request)
+    {
+        $tenant = tenant();
+        $days = (int) $request->query('days', 30);
+        $days = max(1, min($days, 90));
+
+        $svc = new \App\Services\Tenant\PaymentReconciliationService($tenant);
+        $result = $svc->unmatchedPayments($days);
+
+        return view('tenant.register.reconciliation', [
+            'days'      => $days,
+            'scanned'   => $result['scanned'],
+            'unmatched' => $result['unmatched'],
+            'error'     => $result['error'],
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-197 — Reconcile a stranded Stripe payment by recording it
+     * against a sale through the ledger. Requires an explicit sale_id (the
+     * operator picks the candidate) and the PI id. Idempotent: refuses if a
+     * ledger row for this PI already exists.
+     */
+    public function reconcilePayment(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+            'sale_id'        => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Idempotency: never double-record a PI.
+        $already = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('external_reference', $validated['payment_intent'])
+            ->exists();
+        if ($already) {
+            return response()->json(['ok' => false, 'error' => 'This payment is already recorded in the ledger.'], 409);
+        }
+
+        // Verify the PI with Stripe before recording — don't trust the request.
+        $direct = new DirectPaymentsService($tenant);
+        try {
+            $pi = $direct->retrievePaymentIntent($validated['payment_intent']);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not verify payment with Stripe.'], 422);
+        }
+        if (($pi->status ?? null) !== 'succeeded' || (int) ($pi->amount_received ?? 0) <= 0) {
+            return response()->json(['ok' => false, 'error' => 'That Stripe payment is not a completed charge.'], 422);
+        }
+
+        $amountCents = (int) $pi->amount_received;
+        $details = [];
+        try { $details = $direct->extractCardDetails($pi); } catch (\Throwable $e) {}
+
+        try {
+            $hasPrior = $sale->payments()->count() > 0;
+            app(\App\Services\Tenant\SalePaymentService::class)->record(
+                sale:               $sale,
+                amountCents:        $amountCents,
+                kind:               $hasPrior
+                    ? \App\Models\Tenant\TenantSalePayment::KIND_BALANCE
+                    : ($sale->appointment_id
+                        ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                        : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT),
+                source:             \App\Models\Tenant\TenantSalePayment::SOURCE_DIRECT_PAYMENT_LINK,
+                method:             'card',
+                externalReference:  $pi->id,
+                notes:              'Reconciled from Stripe (was not recorded by webhook).',
+            );
+
+            // Stamp the sale's Stripe fields + un-cancel if it was cancelled.
+            $sale->stripe_payment_intent_id = $pi->id;
+            if (!empty($details['charge_id'])) $sale->stripe_charge_id = $details['charge_id'];
+            if (!empty($details['brand']))     $sale->card_brand       = $details['brand'];
+            if (!empty($details['last4']))     $sale->card_last4       = $details['last4'];
+            if (!empty($details['funding']))   $sale->card_funding     = $details['funding'];
+            if ($sale->status === 'cancelled') $sale->status = 'completed';
+            $sale->save();
+
+            // MARKER-PATCH-219C — appointment paid cache cascades
+            // centrally in SalePaymentService::recalcStatus().
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not record the payment: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'amount_cents' => $amountCents, 'sale_number' => $sale->sale_number]);
+    }
+
+    /**
+     * MARKER-PATCH-198 — Hard-delete a single payment row from a sale's ledger.
+     * For correcting bad data (e.g. a duplicate deposit). After deletion the
+     * sale's payment_status + paid_at and the linked appointment's paid_cents
+     * are recomputed so totals stay consistent. Double-confirmed in the UI.
+     */
+    public function deleteSalePayment(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id'    => 'required|uuid',
+            'payment_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        $payment = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('id', $validated['payment_id'])
+            ->where('sale_id', $sale->id)
+            ->first();
+        if (! $payment) {
+            return response()->json(['ok' => false, 'error' => 'Payment not found on this sale.'], 404);
+        }
+
+        $deletedCents = (int) $payment->amount_cents;
+        $payment->delete();
+
+        // Recompute the sale's derived payment state from the remaining ledger.
+        $svc = app(\App\Services\Tenant\SalePaymentService::class);
+        $svc->recalcStatus($sale);
+        $sale->refresh();
+
+        // MARKER-PATCH-219C — appointment paid cache cascades centrally in
+        // SalePaymentService::recalcStatus() (called via recalcStatus above).
+
+        \Illuminate\Support\Facades\Log::info('sale_payment.deleted', [
+            'tenant_id'  => $tenant->id,
+            'sale_id'    => $sale->id,
+            'payment_id' => $validated['payment_id'],
+            'amount'     => $deletedCents,
+            'by'         => auth('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'             => true,
+            'paid_cents'     => $svc->paidCents($sale),
+            'payment_status' => $sale->payment_status,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-199 — Delete an empty sale (data correction for stray
+     * deposit-sales left after their payment was removed). REFUSES if the sale
+     * still has any ledger payments — you must clear those first (patch-198).
+     * Hard-deletes the sale + its line items, then refreshes the linked
+     * appointment's paid cache. Double-confirmed in the UI.
+     */
+    public function deleteSale(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Guard: never delete a sale that still carries money. The operator must
+        // remove the payments first (so the deletion can't silently lose a
+        // recorded payment).
+        $payCount = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->count();
+        if ($payCount > 0) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'This sale still has ' . $payCount . ' payment(s). Delete those first, then delete the sale.',
+            ], 409);
+        }
+
+        // Guard: never delete a refund record this way.
+        if ($sale->refund_of_sale_id) {
+            return response()->json(['ok' => false, 'error' => 'Refund records cannot be deleted here.'], 422);
+        }
+
+        $apptId = $sale->appointment_id;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $sale) {
+            \App\Models\Tenant\TenantSaleItem::where('tenant_id', $tenant->id)
+                ->where('sale_id', $sale->id)
+                ->delete();
+            $sale->delete();
+        });
+
+        // Recompute the linked appointment's paid cache from the remaining ledger.
+        // MARKER-PATCH-219C — this block stays MANUAL by necessity: the sale
+        // row was just deleted, so SalePaymentService::recalcStatus() can
+        // never run for it. Every other site cascades centrally.
+        if ($apptId) {
+            $appt = \App\Models\Tenant\TenantAppointment::find($apptId);
+            if ($appt) {
+                $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                $total = (int) $appt->total_cents;
+                if ($total > 0 && $appt->paid_cents >= $total) {
+                    $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
+                } elseif ($appt->paid_cents > 0) {
+                    $appt->payment_status = 'partial';
+                } else {
+                    $appt->payment_status = 'unpaid';
+                }
+                $appt->save();
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('sale.deleted', [
+            'tenant_id'   => $tenant->id,
+            'sale_id'     => $validated['sale_id'],
+            'sale_number' => $sale->sale_number,
+            'by'          => auth('tenant')->id(),
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-OFFLINE-SYNC — catalog snapshot for offline register search.
+     * Top products by 90-day sale frequency plus all active services, shaped
+     * like the live /register/search response so the offline path reuses
+     * renderResults() unchanged.
+     */
+    public function offlineCatalog(Request $request): JsonResponse
+    {
+        $tenant = app('tenant');
+
+        $topProductIds = \Illuminate\Support\Facades\DB::table('tenant_sale_items')
+            ->join('tenant_sales', 'tenant_sales.id', '=', 'tenant_sale_items.sale_id')
+            ->where('tenant_sales.tenant_id', $tenant->id)
+            ->where('tenant_sales.sale_date', '>=', now()->subDays(90)->toDateString())
+            ->whereNotNull('tenant_sale_items.inventory_item_id')
+            ->groupBy('tenant_sale_items.inventory_item_id')
+            ->orderByRaw('COUNT(*) DESC')
+            ->limit(min(1000, max(100, (int) $request->query('limit', 500)))) // MARKER-OFFLINE-SYNC stage 2
+            ->pluck('tenant_sale_items.inventory_item_id')
+            ->all();
+
+        $products = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->whereIn('id', $topProductIds)
+            ->get()
+            ->map(fn ($p) => [
+                'id'                     => $p->id,
+                'name'                   => $p->name ?? '',
+                'subtitle'               => $p->display_subtitle ?? '',
+                'sku'                    => $p->sku ?? '',
+                'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
+                'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
+                'allow_oversell'         => (bool) $p->allow_oversell,
+                'current_location_stock' => 0,
+                'current_location_name'  => null,
+            ])->values();
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', 1)
+            ->get()
+            ->map(fn ($sv) => [
+                'id'               => $sv->id,
+                'name'             => $sv->name,
+                'price_cents'      => (int) ($sv->price_cents ?? 0),
+                'duration_minutes' => (int) ($sv->duration_minutes ?? 0),
+            ])->values();
+
+        return response()->json([
+            'ok'          => true,
+            'captured_at' => now()->toIso8601String(),
+            'products'    => $products,
+            'services'    => $services,
+        ]);
+    }
+}
+OFS2_5_EOF
+
+cat > 'routes/web.php' <<'OFS2_6_EOF'
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Platform;
+use App\Http\Controllers\Tenant as TenantControllers;
+
+$domain = config('intake.domain', 'intake.works');
+// =========================================================================
+// Platform routes — intake.works
+// =========================================================================
+
+Route::domain($domain)->group(function () {
+
+    Route::get('/health', function () {
+        try {
+            \Illuminate\Support\Facades\DB::select('SELECT 1');
+            $db = 'ok';
+        } catch (\Exception $e) {
+            $db = 'error';
+        }
+        return response()->json([
+            'status'   => $db === 'ok' ? 'ok' : 'degraded',
+            'database' => $db,
+        ], $db === 'ok' ? 200 : 503);
+    });
+
+    // --- Stripe subscription webhooks (addon framework + plan billing) ---
+    // Separate from tenant-scoped /webhooks/stripe which handles booking deposits.
+    // Stripe signs the request; CSRF exempted via VerifyCsrfToken::$except.
+    Route::post('/webhooks/stripe/subscriptions',
+        [\App\Http\Controllers\Webhooks\StripeWebhookController::class, 'handle']
+    )->name('webhooks.stripe.subscriptions');
+
+    // --- Plan quiz analytics (marketing funnel) ---
+    // Client-side quiz POSTs here on completion. CSRF exempted so the quiz
+    // can run on any cached marketing page without needing a fresh token.
+    Route::post('/api/plan-quiz/complete',
+        [Platform\PlanQuizController::class, 'complete']
+    )->name('platform.plan-quiz.complete');
+
+    // --- Fixed marketing pages (backed by platform tenant's TenantPages) ---
+    Route::get('/',         [Platform\MarketingController::class, 'home'])->name('marketing.home');
+    Route::get('/pricing',  [Platform\MarketingController::class, 'pricing'])->name('marketing.pricing');
+    Route::get('/changelog', [Platform\MarketingController::class, 'changelog'])->name('marketing.changelog');
+    Route::get('/roadmap',   [Platform\MarketingController::class, 'roadmap'])->name('marketing.roadmap');
+    Route::get('/features', [Platform\MarketingController::class, 'features'])->name('marketing.features');
+    Route::get('/why-intake', [Platform\MarketingController::class, 'whyIntake'])->name('marketing.why-intake');
+    Route::get('/docs',     [Platform\MarketingController::class, 'docs'])->name('marketing.docs');
+    Route::get('/contact',  [Platform\MarketingController::class, 'contact'])->name('marketing.contact');
+    Route::get('/invest',   [Platform\MarketingController::class, 'invest'])->name('marketing.invest');
+    Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
+
+    // --- Industry landing pages: /for/bike-shops, /for/massage-therapy, etc. ---
+    Route::get('/for/{industry}', [Platform\MarketingController::class, 'forIndustry'])
+        ->where('industry', '[a-z0-9-]+')
+        ->name('marketing.industry');
+
+    // --- Impersonation (admin only) ---
+    Route::middleware(['auth'])->group(function () {
+        Route::post('/admin/impersonate/{tenantId}', [\App\Http\Controllers\Admin\ImpersonationController::class, 'impersonate'])->name('admin.impersonate');
+        Route::get('/admin/impersonate/stop',         [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
+    });
+
+    // --- Marketing page editor bridge (admin only) ---
+    // GET hands off to the tenant page builder view with platform tenant bound.
+    // POST handles auto-save (section content, nav, page meta).
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/admin/marketing-pages/{pageId}/edit-content',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'editContent']
+        )->name('admin.marketing-pages.edit-content');
+
+        Route::post('/admin/marketing-pages/store',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'store']
+        )->name('admin.marketing-pages.store');
+    });
+
+    // --- Generic slug fallback: /{slug} → custom marketing pages ---
+    // Must be registered last so it doesn't shadow the named routes above.
+    Route::get('/{slug}', [Platform\MarketingController::class, 'show'])
+        ->where('slug', '^(?!admin|api|up|health|for)[a-z0-9][a-z0-9-]*$')
+        ->name('marketing.show');
+
+});
+
+// =========================================================================
+// Platform routes — app.intake.works
+// =========================================================================
+
+Route::domain('app.' . $domain)->group(function () {
+
+    Route::get('/',         [Platform\OnboardingController::class, 'index'])->name('platform.home');
+    Route::get('/signup',   [Platform\OnboardingController::class, 'signup'])->name('platform.signup');
+    Route::post('/signup',  [Platform\OnboardingController::class, 'processSignup'])->name('platform.signup.process');
+    Route::get('/signup/payment',  [Platform\OnboardingController::class, 'paymentStep'])->name('platform.signup.payment');
+    Route::post('/signup/complete', [Platform\OnboardingController::class, 'completeSignup'])->name('platform.signup.complete');
+    Route::get('/checkout', [Platform\OnboardingController::class, 'checkout'])->name('platform.checkout');
+    Route::post('/subdomain/check', [Platform\OnboardingController::class, 'checkSubdomain'])->name('platform.subdomain.check');
+
+    Route::get('/login',    [Platform\OnboardingController::class, 'login'])->name('platform.login');
+
+});
+
+// =========================================================================
+// Tenant routes (MARKER-PATCH-123)
+//
+// Tenant-facing routes live inside the $tenantRoutes closure and are
+// registered once under the ResolveTenant middleware. The middleware
+// identifies the tenant from the request host:
+//
+//   - {slug}.intake.works  → tenants.subdomain lookup
+//   - any other host       → tenant_domains.hostname lookup (active rows)
+//
+// Unknown hosts 404 via middleware abort. No {subdomain} placeholder is
+// declared on the routes themselves, so route() URLs render relative;
+// in a tenant request the current host is used naturally.
+// =========================================================================
+
+$tenantRoutes = function () {
+
+    Route::get('/',        [TenantControllers\PublicController::class, 'home'])->name('tenant.home');
+    Route::get('/confirm', [TenantControllers\PublicController::class, 'confirm'])->name('tenant.confirm');
+    Route::get('/contact', [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact');
+
+    Route::get('/book',                  [TenantControllers\BookingController::class, 'index'])->name('tenant.booking');
+    // MARKER-PATCH-528 — public delivery-window confirm page (token is the credential)
+    Route::get('/d/{token}',             [TenantControllers\DeliveryConfirmController::class, 'show'])->name('tenant.delivery_confirm.show');
+    Route::post('/d/{token}',            [TenantControllers\DeliveryConfirmController::class, 'confirm'])->name('tenant.delivery_confirm.save');
+    // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
+    Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
+    // MARKER-REGISTER-RECON-DISPLAY — customer pay display (token is the credential)
+    // MARKER-OFFLINE-SYNC stage 2 — branded offline fallback, precached by the SW
+    Route::get('/offline-fallback', fn () => view('tenant.offline-fallback'))->name('tenant.offline_fallback');
+    Route::get('/pay-display/{token}',            [TenantControllers\RegisterDisplayController::class, 'display'])->name('tenant.pay_display.show');
+    Route::get('/pay-display/{token}/state.json', [TenantControllers\RegisterDisplayController::class, 'displayPoll'])->name('tenant.pay_display.poll');
+    Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
+    Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
+    Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
+    Route::post('/book/finalize',        [TenantControllers\BookingController::class, 'finalize'])->name('tenant.booking.finalize'); // MARKER-PATCH-385
+    // MARKER-PATCH-213 — returning-customer lookup (pre-fills the Bikes step)
+    Route::post('/book/customer-lookup', [TenantControllers\BookingLookupController::class, 'lookup'])->name('tenant.booking.customer-lookup');
+    // MARKER-PATCH-239 — public rental availability browse.
+    // MARKER-PATCH-561 — Online Retail Wave 2: read-only storefront
+    Route::get('/shop',                  [TenantControllers\StorefrontController::class, 'index'])->name('tenant.shop.index');
+    Route::get('/shop/search.json',      [TenantControllers\StorefrontController::class, 'searchJson'])->name('tenant.shop.search'); // MARKER-PATCH-582
+    Route::get('/shop/{id}',             [TenantControllers\StorefrontController::class, 'show'])->name('tenant.shop.show');
+    // MARKER-PATCH-564 — Online Retail Wave 3: cart
+    Route::get('/cart',                  [TenantControllers\CartController::class, 'show'])->name('tenant.cart.show');
+    Route::post('/cart/items',           [TenantControllers\CartController::class, 'add'])->name('tenant.cart.add');
+    Route::patch('/cart/items/{lineId}', [TenantControllers\CartController::class, 'update'])->name('tenant.cart.update');
+    Route::delete('/cart/items/{lineId}',[TenantControllers\CartController::class, 'remove'])->name('tenant.cart.remove');
+    // MARKER-PATCH-566 — Online Retail Wave 4: checkout + confirmation
+    Route::get('/checkout',              [TenantControllers\CheckoutController::class, 'show'])->name('tenant.checkout.show');
+    Route::post('/checkout/place',       [TenantControllers\CheckoutController::class, 'place'])->name('tenant.checkout.place');
+    Route::get('/checkout/return',       [TenantControllers\CheckoutController::class, 'returnLeg'])->name('tenant.checkout.return');
+    Route::get('/order/{token}',         [TenantControllers\CheckoutController::class, 'confirmation'])->name('tenant.order.confirmation');
+    Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
+    // MARKER-PATCH-240 — public reservation checkout.
+    Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');
+    Route::post('/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'store'])->name('tenant.rentals.reserve.store');
+    Route::post('/rentals/reserve/confirm',  [TenantControllers\RentalReserveController::class, 'confirm'])->name('tenant.rentals.reserve.confirm');
+    Route::get( '/rentals/reserved',         [TenantControllers\RentalReserveController::class, 'confirmation'])->name('tenant.rentals.reserved');
+
+    Route::get('/waitlist/join',               [TenantControllers\WaitlistPublicController::class, 'join'])->name('tenant.waitlist.join');
+    Route::post('/waitlist/join',              [TenantControllers\WaitlistPublicController::class, 'submitJoin'])->name('tenant.waitlist.submit');
+    Route::get('/waitlist/my',                 [TenantControllers\WaitlistPublicController::class, 'myEntries'])->name('tenant.waitlist.my');
+    Route::post('/waitlist/remove',            [TenantControllers\WaitlistPublicController::class, 'removeEntry'])->name('tenant.waitlist.remove');
+    Route::get('/waitlist/offer/{token}',      [TenantControllers\WaitlistOfferController::class, 'show'])->name('tenant.waitlist.offer.show');
+    Route::post('/waitlist/offer/{token}/accept', [TenantControllers\WaitlistOfferController::class, 'accept'])->name('tenant.waitlist.offer.accept');
+    Route::get('/waitlist/offer/{token}/confirmed', [TenantControllers\WaitlistOfferController::class, 'confirmed'])->name('tenant.waitlist.offer.confirmed');
+    Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
+
+    // Customer account — register, login, logout, forgot, reset, portal
+    Route::get('/account/register',      [TenantControllers\CustomerAccountController::class, 'showRegister'])->name('tenant.customer.register');
+    Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit');
+    Route::get('/account/login',         [TenantControllers\CustomerAccountController::class, 'showLogin'])->name('tenant.customer.login');
+    Route::post('/account/login',        [TenantControllers\CustomerAccountController::class, 'login'])->name('tenant.customer.login.submit');
+    Route::post('/account/logout',       [TenantControllers\CustomerAccountController::class, 'logout'])->name('tenant.customer.logout');
+    Route::get('/account/forgot',        [TenantControllers\CustomerAccountController::class, 'showForgot'])->name('tenant.customer.forgot');
+    Route::post('/account/forgot',       [TenantControllers\CustomerAccountController::class, 'sendReset'])->name('tenant.customer.forgot.submit');
+    Route::get('/account/reset',         [TenantControllers\CustomerAccountController::class, 'showReset'])->name('tenant.customer.reset');
+    Route::post('/account/reset',        [TenantControllers\CustomerAccountController::class, 'resetPassword'])->name('tenant.customer.reset.submit');
+    Route::get('/account',               [TenantControllers\CustomerAccountController::class, 'portal'])->name('tenant.customer.portal');
+
+    // Customer-facing class booking
+    Route::get('/classes',                          [TenantControllers\CustomerClassController::class, 'index'])->name('tenant.customer.classes');
+    Route::get('/classes/{id}',                     [TenantControllers\CustomerClassController::class, 'show'])->name('tenant.customer.classes.show');
+    Route::post('/classes/{id}/register',           [TenantControllers\CustomerClassController::class, 'register'])->name('tenant.customer.classes.register');
+    Route::get('/classes/confirm/{id}',             [TenantControllers\CustomerClassController::class, 'confirm'])->name('tenant.customer.classes.confirm');
+    Route::post('/classes/registrations/{id}/cancel', [TenantControllers\CustomerClassController::class, 'cancelRegistration'])->name('tenant.customer.classes.cancel');
+
+// MARKER-PATCH-118 - Cloudflare custom-hostname webhook
+Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWebhookController::class, 'handle'])
+    ->name('webhooks.cloudflare');
+
+// MARKER-PATCH-168 - Stripe Connect events (account.updated, etc.). Separate
+// from platform-billing webhooks; different signing secret.
+Route::post('webhooks/stripe-connect',
+    [\App\Http\Controllers\Webhooks\StripeConnectWebhookController::class, 'handle']
+)->name('webhooks.stripe-connect');
+
+// MARKER-PATCH-170 - Direct Payments webhook (per-tenant, path-scoped).
+// Each tenant has their own Stripe account so we route by tenant_id in the
+// URL and verify against that tenant\'s webhook signing secret.
+Route::post('webhooks/stripe-direct/{tenantId}',
+    [\App\Http\Controllers\Webhooks\DirectPaymentsWebhookController::class, 'handle']
+)->name('webhooks.stripe-direct');
+
+// MARKER-PATCH-146 — SES bounce/complaint webhook (signature-verified, public)
+Route::post('webhooks/ses-bounce', [\App\Http\Controllers\Webhooks\SesBounceController::class, 'handle'])
+    ->name('webhooks.ses-bounce');
+
+// MARKER-PATCH-201 — Postmark bounce / spam-complaint webhook (replaces SES path).
+Route::post('webhooks/postmark', [\App\Http\Controllers\Webhooks\PostmarkWebhookController::class, 'handle'])
+    ->name('webhooks.postmark');
+
+// MARKER-PATCH-403 — Postmark inbound email -> unified inbox. Routes by the
+// per-thread token carried in MailboxHash. Fail-open posture (always 2xx);
+// unroutable mail is logged and dropped. CSRF-exempt (external POST).
+Route::post('webhooks/postmark/inbound', [\App\Http\Controllers\Webhooks\PostmarkInboundController::class, 'handle'])
+    ->name('webhooks.postmark.inbound');
+
+// MARKER-PATCH-221 — Twilio inbound SMS (unified inbox). Signature-validated,
+// always answers 2xx (fail-open posture; unprocessable requests are skipped).
+Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInboundController::class, 'handle'])
+    ->name('webhooks.twilio.inbound');
+
+    Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
+
+    Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
+
+    Route::prefix('admin')
+        ->name('tenant.')
+        ->group(function () {
+
+        Route::get('/login',            [TenantControllers\AuthController::class, 'showLogin'])->name('login');
+        Route::post('/login',           [TenantControllers\AuthController::class, 'login'])->name('login.submit');
+        Route::get('/forgot-password',  [TenantControllers\AuthController::class, 'showForgot'])->name('forgot');
+        Route::post('/forgot-password', [TenantControllers\AuthController::class, 'sendReset'])->name('forgot.submit');
+        Route::get('/reset-password',   [TenantControllers\AuthController::class, 'showReset'])->name('reset');
+        Route::post('/reset-password',  [TenantControllers\AuthController::class, 'resetPassword'])->name('reset.submit');
+        // MARKER-PATCH-478 — team-member invite setup (public, tenant-resolved, token-gated)
+        Route::get('/team/setup',       [TenantControllers\TeamController::class, 'setupForm'])->name('team.setup');
+        Route::post('/team/setup',      [TenantControllers\TeamController::class, 'completeSetup'])->name('team.setup.complete');
+        Route::post('/logout',          [TenantControllers\AuthController::class, 'logout'])->name('logout');
+
+        // MARKER-PATCH-173 — Customer-facing return pages for the send-payment-
+        // link (Stripe Checkout) flow. PUBLIC: the paying customer is anonymous
+        // on their own phone, so these must sit OUTSIDE the auth middleware
+        // sub-group below. Paths match the success_url/cancel_url baked into
+        // DirectPaymentsService so links already issued also resolve.
+        Route::get('/register/checkout-success', [TenantControllers\RegisterController::class, 'checkoutSuccess'])->name('register.checkout_success');
+        Route::get('/register/checkout-cancel',  [TenantControllers\RegisterController::class, 'checkoutCancel'])->name('register.checkout_cancel');
+
+        // Staff switcher tier — requires trusted device, not signed-in user.
+        // Lives between device auth (Layer 1) and user auth (Layer 2 PIN).
+        Route::middleware([
+            'App\Http\Middleware\EnsureTrustedDevice',
+            'App\Http\Middleware\ApplyTenantTheme',
+        ])->group(function () {
+            Route::get('/switch',             [TenantControllers\StaffSwitchController::class, 'index'])->name('switch');
+            Route::post('/pin/verify',        [TenantControllers\StaffSwitchController::class, 'verifyPin'])->name('pin.verify');
+            Route::post('/pin/set',           [TenantControllers\StaffSwitchController::class, 'setInitialPin'])->name('pin.set');
+            Route::post('/pin/reset-request', [TenantControllers\StaffSwitchController::class, 'requestReset'])->name('pin.reset-request');
+        });
+
+        Route::middleware([
+            'App\Http\Middleware\ConsumeOnboardingToken',
+            'App\Http\Middleware\EnsureTrustedDevice',
+            'App\Http\Middleware\RequireTenantAuth',
+            // MARKER-PATCH-492 — per-section role enforcement (Roles & access)
+            'App\Http\Middleware\EnforceSectionAccess',
+            'App\Http\Middleware\EnsurePinFresh',
+            'App\Http\Middleware\ApplyTenantTheme',
+        ])->group(function () {
+
+            // Multi-location: picker + switch (no RequireCurrentLocation gate; chicken/egg)
+            Route::get('/select-location',   [TenantControllers\AuthController::class, 'showLocationPicker'])->name('select-location');
+            Route::post('/select-location',  [TenantControllers\AuthController::class, 'selectLocation'])->name('select-location.store');
+            Route::post('/switch-location',  [TenantControllers\AuthController::class, 'switchLocation'])->name('switch-location');
+
+            // PIN gate endpoints (chunk 6) - whitelisted by EnsurePinFresh
+            // so they work even when the lock overlay is pending.
+            Route::post('/pin/heartbeat',    [TenantControllers\PinGateController::class, 'heartbeat'])->name('pin.heartbeat');
+            Route::post('/pin/unlock',       [TenantControllers\PinGateController::class, 'unlock'])->name('pin.unlock');
+            Route::get('/pin/context',       [TenantControllers\PinGateController::class, 'context'])->name('pin.context'); // MARKER-PATCH-545
+            // MARKER-PATCH-480 — first-time PIN setup from the lock overlay
+            Route::post('/pin/setup',        [TenantControllers\PinGateController::class, 'setupPin'])->name('pin.setup');
+
+            // Everything below requires a current_location_id set in session.
+            // Picker routes above are exempt (chicken/egg).
+            Route::middleware([\App\Http\Middleware\RequireCurrentLocation::class])->group(function () {
+
+            Route::get('/',                 [TenantControllers\DashboardController::class, 'index'])->name('dashboard');
+
+            // Walk-in screen — quick-actions launcher; open to all tiers.
+            // The 'Ring up sale' option inside is gated separately in the view.
+            Route::get('/register/walk-in',          [TenantControllers\WalkInController::class, 'index'])->name('register.walk-in');
+
+            Route::middleware([\App\Http\Middleware\RequireRetailCapability::class])->group(function () {
+                    // Register (POS) — walk-in retail + service jobs
+                Route::get('/register',                  [TenantControllers\RegisterController::class, 'index'])->name('register.index');
+                Route::get('/register/appointment-tray', [TenantControllers\RegisterController::class, 'appointmentTray'])->name('register.appointment-tray');
+                // MARKER-PATCH-180 — dismiss a parked appointment draft from the tray
+                Route::post('/register/appointment-tray/dismiss', [TenantControllers\RegisterController::class, 'dismissTraySale'])->name('register.appointment-tray.dismiss');
+                Route::get('/register/search',           [TenantControllers\RegisterController::class, 'search'])->name('register.search');
+                Route::get('/register/item/{id}/info',   [TenantControllers\RegisterController::class, 'itemInfo'])->name('register.item_info'); // MARKER-PATCH-552
+                // MARKER-REGISTER-RECON-DISPLAY — register management + display mirroring
+                Route::get('/register/registers',                  [TenantControllers\RegisterDisplayController::class, 'registers'])->name('register.registers');
+                Route::post('/register/registers',                 [TenantControllers\RegisterDisplayController::class, 'storeRegister'])->name('register.registers.store');
+                Route::post('/register/registers/{id}/regenerate', [TenantControllers\RegisterDisplayController::class, 'regenerateToken'])->name('register.registers.regenerate');
+                Route::post('/register/registers/{id}/update',     [TenantControllers\RegisterDisplayController::class, 'updateRegister'])->name('register.registers.update');
+                Route::post('/register/select',                    [TenantControllers\RegisterDisplayController::class, 'selectRegister'])->name('register.select');
+                Route::post('/register/display-state',             [TenantControllers\RegisterDisplayController::class, 'displayState'])->name('register.display_state');
+                Route::get('/register/offline-catalog.json',       [TenantControllers\RegisterController::class, 'offlineCatalog'])->name('register.offline_catalog'); // MARKER-OFFLINE-SYNC
+                Route::post('/timeclock/sync', [TenantControllers\TimeClockController::class, 'punchSync'])->name('timeclock.sync'); // MARKER-OFFLINE-SYNC stage 2
+
+                // MARKER-PATCH-567 — Online Retail Wave 5a: orders queue
+                Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');
+                Route::get('/orders/{id}',       [TenantControllers\OrdersController::class, 'show'])->name('orders.show');
+                Route::post('/orders/{id}',      [TenantControllers\OrdersController::class, 'update'])->name('orders.update');
+
+                // MARKER-PATCH-569 — Online Retail Wave 5b: storefront settings
+                Route::get('/storefront',        [TenantControllers\StorefrontSettingsController::class, 'show'])->name('storefront.settings');
+                Route::post('/storefront',       [TenantControllers\StorefrontSettingsController::class, 'update'])->name('storefront.settings.update');
+                Route::post('/storefront/bulk',  [TenantControllers\StorefrontSettingsController::class, 'bulk'])->name('storefront.settings.bulk');
+                Route::post('/storefront/item/{id}', [TenantControllers\StorefrontSettingsController::class, 'toggleItem'])->name('storefront.item.toggle'); // MARKER-PATCH-569
+                Route::post('/register/sales',           [TenantControllers\RegisterController::class, 'storeSale'])->name('register.sales.store');
+                // MARKER-PATCH-170 — Direct Payments hand-keyed card endpoints
+                Route::post('/register/payment-intent',   [TenantControllers\RegisterController::class, 'createPaymentIntent'])->name('register.payment_intent.create');
+                Route::post('/register/payment-intent/confirm', [TenantControllers\RegisterController::class, 'confirmPaymentIntent'])->name('register.payment_intent.confirm');
+                // MARKER-PATCH-170B — auto-refund when commit fails after charge succeeds
+                Route::post('/register/payment-intent/auto-refund', [TenantControllers\RegisterController::class, 'autoRefundPaymentIntent'])->name('register.payment_intent.auto_refund');
+                // MARKER-PATCH-172 — send-payment-link (Stripe Checkout)
+                Route::post('/register/checkout-session',         [TenantControllers\RegisterController::class, 'createCheckoutSession'])->name('register.checkout_session.create');
+                Route::post('/register/checkout-session/check',   [TenantControllers\RegisterController::class, 'checkCheckoutSession'])->name('register.checkout_session.check');
+                Route::post('/register/checkout-session/cancel',  [TenantControllers\RegisterController::class, 'cancelCheckoutSession'])->name('register.checkout_session.cancel');
+                Route::get('/register/drafts',            [TenantControllers\RegisterController::class, 'listDrafts'])->name('register.drafts.index');
+                Route::post('/register/drafts',           [TenantControllers\RegisterController::class, 'storeDraft'])->name('register.drafts.store');
+                Route::get('/register/drafts/{id}',        [TenantControllers\RegisterController::class, 'showDraft'])->name('register.drafts.show');
+                Route::delete('/register/drafts/{id}',     [TenantControllers\RegisterController::class, 'discardDraft'])->name('register.drafts.destroy');
+                Route::post('/register/drafts/{id}/commit',[TenantControllers\RegisterController::class, 'commitDraft'])->name('register.drafts.commit');
+                Route::get('/register/quotes',           [TenantControllers\RegisterController::class, 'quotesIndex'])->name('register.quotes.index');
+                Route::post('/register/quotes',          [TenantControllers\RegisterController::class, 'storeQuote'])->name('register.quotes.store');
+                Route::get('/register/lookup-sale',       [TenantControllers\RegisterController::class, 'lookupSaleForRefund'])->name('register.lookup-sale');
+                Route::post('/register/transactions',     [TenantControllers\RegisterController::class, 'storeTransaction'])->name('register.transactions.store');
+                Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
+                Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
+                // MARKER-PATCH-319 — printable 80mm sales receipt
+                Route::get('/register/sales/{id}/receipt', [TenantControllers\RegisterController::class, 'printReceipt'])->name('register.sales.receipt');
+                Route::get('/register/sales/{id}/view',  [TenantControllers\RegisterController::class, 'showSalePage'])->name('register.sales.page'); // MARKER-PATCH-231A
+                // MARKER-PATCH-197 — Stripe-vs-ledger reconciliation.
+                Route::get('/register/reconciliation',   [TenantControllers\RegisterController::class, 'reconciliation'])->name('register.reconciliation');
+                Route::post('/register/reconciliation/record', [TenantControllers\RegisterController::class, 'reconcilePayment'])->name('register.reconciliation.record');
+                // MARKER-PATCH-198 — delete a single ledger payment (data correction).
+                Route::post('/register/sales/payment/delete', [TenantControllers\RegisterController::class, 'deleteSalePayment'])->name('register.sales.payment.delete');
+                // MARKER-PATCH-199 — delete an empty sale (data correction).
+                Route::post('/register/sales/delete', [TenantControllers\RegisterController::class, 'deleteSale'])->name('register.sales.delete');
+                Route::get('/register/refunds/search',   [TenantControllers\RegisterController::class, 'searchRefundables'])->name('register.refunds.search');
+                Route::post('/register/refunds',         [TenantControllers\RegisterController::class, 'storeRefund'])->name('register.refunds.store');
+                // MARKER-PATCH-177 — standalone refund (customer + amount, no sale)
+                Route::post('/register/refunds/standalone', [TenantControllers\RegisterController::class, 'storeStandaloneRefund'])->name('register.refunds.standalone');
+
+                // MARKER-PATCH-461 — record an appointment overage refund (overage_refund ledger row + paid-cache cascade)
+                Route::post('/register/appointment-overage-refund', [TenantControllers\RegisterController::class, 'recordAppointmentOverageRefund'])->name('register.appointment-overage-refund');
+
+                // patch-100a oversell actions — register cart buttons that
+                // create a transfer request or a special order when staff
+                // rings up a line that exceeds available stock at the
+                // current location.
+                Route::post('/register/oversell/transfer-request', [TenantControllers\RegisterController::class, 'storeOversellTransferRequest'])->name('register.oversell.transfer-request');
+                Route::post('/register/oversell/special-order',    [TenantControllers\RegisterController::class, 'storeOversellSpecialOrder'])->name('register.oversell.special-order');
+
+                // patch-100b transfer-requests — admin UI for browsing and acting on
+                // transfer requests created by the register cart (patch-100a).
+                Route::get( '/transfer-requests',                   [TenantControllers\TransferRequestController::class, 'index'])->name('transfer-requests.index');
+                Route::get( '/transfer-requests/{id}',              [TenantControllers\TransferRequestController::class, 'show'])->name('transfer-requests.show');
+                Route::post('/transfer-requests/{id}/fulfill',      [TenantControllers\TransferRequestController::class, 'fulfill'])->name('transfer-requests.fulfill');
+                // patch-102 transfer send/receive — three-stage flow
+                Route::post('/transfer-requests/{id}/send',          [TenantControllers\TransferRequestController::class, 'send'])->name('transfer-requests.send');
+                Route::post('/transfer-requests/{id}/receive',       [TenantControllers\TransferRequestController::class, 'receive'])->name('transfer-requests.receive');
+                Route::post('/transfer-requests/{id}/cancel',       [TenantControllers\TransferRequestController::class, 'cancel'])->name('transfer-requests.cancel');
+            }); // close RequireRetailCapability group
+
+            // MARKER-PATCH-217 — Rentals. Always a la carte (never tier-
+            // included), tier floor branded. Group-level gate: every rental
+            // route added inside inherits it by construction.
+            Route::middleware([\App\Http\Middleware\RequireRentalCapability::class])->group(function () {
+                Route::get('/rentals', [TenantControllers\RentalDeskController::class, 'index'])->name('rentals.desk');
+
+                // MARKER-PATCH-218 — Fleet admin (categories, units,
+                // condition templates). Inline-edit protocol: PATCH with
+                // JSON {field, value}; archives, never hard-deletes.
+                Route::get('/rentals/fleet',                            [TenantControllers\RentalFleetController::class, 'index'])->name('rentals.fleet');
+                Route::post('/rentals/fleet/categories',                [TenantControllers\RentalFleetController::class, 'storeCategory'])->name('rentals.fleet.categories.store');
+                Route::patch('/rentals/fleet/categories/{id}',          [TenantControllers\RentalFleetController::class, 'updateCategory'])->name('rentals.fleet.categories.update');
+                Route::delete('/rentals/fleet/categories/{id}',         [TenantControllers\RentalFleetController::class, 'destroyCategory'])->name('rentals.fleet.categories.destroy');
+                Route::post('/rentals/fleet/units',                     [TenantControllers\RentalFleetController::class, 'storeUnit'])->name('rentals.fleet.units.store');
+                Route::patch('/rentals/fleet/units/{id}',               [TenantControllers\RentalFleetController::class, 'updateUnit'])->name('rentals.fleet.units.update');
+                Route::delete('/rentals/fleet/units/{id}',              [TenantControllers\RentalFleetController::class, 'destroyUnit'])->name('rentals.fleet.units.destroy');
+                // MARKER-PATCH-235 — unit detail page ('/detail' keeps clear of the inline-edit PATCH/DELETE URLs).
+                Route::get('/rentals/fleet/units/{id}/detail',          [TenantControllers\RentalFleetController::class, 'showUnit'])->name('rentals.fleet.units.show');
+                Route::post('/rentals/fleet/condition-templates',       [TenantControllers\RentalFleetController::class, 'storeConditionTemplate'])->name('rentals.fleet.ct.store');
+                Route::patch('/rentals/fleet/condition-templates/{id}', [TenantControllers\RentalFleetController::class, 'updateConditionTemplate'])->name('rentals.fleet.ct.update');
+                Route::delete('/rentals/fleet/condition-templates/{id}',[TenantControllers\RentalFleetController::class, 'destroyConditionTemplate'])->name('rentals.fleet.ct.destroy');
+                // MARKER-PATCH-227 — model layer + bulk add.
+                Route::post('/rentals/fleet/models',           [TenantControllers\RentalFleetController::class, 'storeModel'])->name('rentals.fleet.models.store');
+                Route::patch('/rentals/fleet/models/{id}',     [TenantControllers\RentalFleetController::class, 'updateModel'])->name('rentals.fleet.models.update');
+                Route::delete('/rentals/fleet/models/{id}',    [TenantControllers\RentalFleetController::class, 'destroyModel'])->name('rentals.fleet.models.destroy');
+                Route::post('/rentals/fleet/units/bulk',       [TenantControllers\RentalFleetController::class, 'bulkAddUnits'])->name('rentals.fleet.units.bulk');
+
+                // MARKER-PATCH-219 — rental bookings. store/check-out/
+                // check-in/cancel mutate under the tenant rental write lock.
+                // MARKER-PATCH-228 — rentals settings (season window + leasing toggle).
+                Route::get('/rentals/settings',  [TenantControllers\RentalSettingsController::class, 'index'])->name('rentals.settings');
+                Route::post('/rentals/settings', [TenantControllers\RentalSettingsController::class, 'save'])->name('rentals.settings.save');
+                // MARKER-PATCH-237 — versioned agreement templates (publish-only).
+                Route::post('/rentals/settings/agreement-templates', [TenantControllers\RentalSettingsController::class, 'storeAgreementTemplate'])->name('rentals.settings.agreements.store');
+
+                // MARKER-PATCH-229 — lease packages (the tier builder). Gated
+                // in-controller on leases_enabled.
+                Route::get( '/rentals/leases/packages',                 [TenantControllers\LeasePackageController::class, 'index'])->name('rentals.leases.packages');
+                Route::post('/rentals/leases/packages',                 [TenantControllers\LeasePackageController::class, 'store'])->name('rentals.leases.packages.store');
+                Route::patch('/rentals/leases/packages/{id}',           [TenantControllers\LeasePackageController::class, 'update'])->name('rentals.leases.packages.update');
+                Route::delete('/rentals/leases/packages/{id}',          [TenantControllers\LeasePackageController::class, 'destroy'])->name('rentals.leases.packages.destroy');
+                Route::post('/rentals/leases/packages/{id}/slots',      [TenantControllers\LeasePackageController::class, 'addSlot'])->name('rentals.leases.packages.slots.add');
+                Route::delete('/rentals/leases/packages/{id}/slots/{slotId}', [TenantControllers\LeasePackageController::class, 'removeSlot'])->name('rentals.leases.packages.slots.remove');
+
+                // MARKER-PATCH-230 — lease transactions + fulfillment.
+                Route::get( '/rentals/leases',            [TenantControllers\LeaseController::class, 'index'])->name('rentals.leases.index');
+                Route::get( '/rentals/leases/new',        [TenantControllers\LeaseController::class, 'create'])->name('rentals.leases.create');
+                Route::post('/rentals/leases',            [TenantControllers\LeaseController::class, 'store'])->name('rentals.leases.store');
+                Route::get( '/rentals/leases/{id}',       [TenantControllers\LeaseController::class, 'show'])->name('rentals.leases.show');
+
+                // MARKER-PATCH-223 — fleet-wide availability timeline.
+                Route::get('/rentals/availability-timeline',     [TenantControllers\RentalAvailabilityTimelineController::class, 'index'])->name('rentals.availability.timeline');
+                Route::get('/rentals/bookings',                  [TenantControllers\RentalBookingController::class, 'index'])->name('rentals.bookings.index');
+                Route::get('/rentals/bookings/new',              [TenantControllers\RentalBookingController::class, 'create'])->name('rentals.bookings.create');
+                Route::post('/rentals/bookings',                 [TenantControllers\RentalBookingController::class, 'store'])->name('rentals.bookings.store');
+                Route::get('/rentals/availability-check',        [TenantControllers\RentalBookingController::class, 'availability'])->name('rentals.availability');
+                Route::get('/rentals/bookings/{id}',             [TenantControllers\RentalBookingController::class, 'show'])->name('rentals.bookings.show');
+                Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
+                // MARKER-PATCH-232 — guided check-out flow.
+                Route::get( '/rentals/bookings/{id}/check-out-flow',   [TenantControllers\RentalBookingController::class, 'checkOutFlow'])->name('rentals.bookings.checkout.flow');
+                Route::post('/rentals/bookings/{id}/agreement/sign',   [TenantControllers\RentalBookingController::class, 'signAgreement'])->name('rentals.bookings.agreement.sign');
+                Route::post('/rentals/bookings/{id}/condition-check',  [TenantControllers\RentalBookingController::class, 'storeConditionCheck'])->name('rentals.bookings.condition.store');
+                Route::post('/rentals/bookings/{id}/check-out-complete', [TenantControllers\RentalBookingController::class, 'completeCheckOut'])->name('rentals.bookings.checkout.complete');
+                // MARKER-PATCH-233 — guided return flow.
+                Route::get( '/rentals/bookings/{id}/return-flow',     [TenantControllers\RentalBookingController::class, 'returnFlow'])->name('rentals.bookings.return.flow');
+                Route::post('/rentals/bookings/{id}/return-charges',  [TenantControllers\RentalBookingController::class, 'addReturnCharges'])->name('rentals.bookings.return.charges');
+                Route::post('/rentals/bookings/{id}/return-complete', [TenantControllers\RentalBookingController::class, 'completeReturn'])->name('rentals.bookings.return.complete');
+                Route::post('/rentals/bookings/{id}/check-in',   [TenantControllers\RentalBookingController::class, 'checkIn'])->name('rentals.bookings.checkin');
+                Route::post('/rentals/bookings/{id}/cancel',     [TenantControllers\RentalBookingController::class, 'cancel'])->name('rentals.bookings.cancel');
+                Route::post('/rentals/bookings/{id}/collect-payment', [TenantControllers\RentalBookingController::class, 'collectPayment'])->name('rentals.bookings.collect');
+                // MARKER-PATCH-220 — deposit holds (manual-capture intents).
+                Route::post('/rentals/bookings/{id}/deposit/intent',  [TenantControllers\RentalBookingController::class, 'createDepositIntent'])->name('rentals.bookings.deposit.intent');
+                Route::post('/rentals/bookings/{id}/deposit/confirm', [TenantControllers\RentalBookingController::class, 'confirmDepositIntent'])->name('rentals.bookings.deposit.confirm');
+                Route::post('/rentals/bookings/{id}/deposit/release', [TenantControllers\RentalBookingController::class, 'releaseDeposit'])->name('rentals.bookings.deposit.release');
+                Route::post('/rentals/bookings/{id}/deposit/capture', [TenantControllers\RentalBookingController::class, 'captureDeposit'])->name('rentals.bookings.deposit.capture');
+            }); // close RequireRentalCapability group
+
+            // MARKER-PATCH-231 — global search.
+            Route::get('/search', [TenantControllers\GlobalSearchController::class, 'search'])->name('search');
+
+            // MARKER-PATCH-231 — notifications full page.
+            Route::get('/notifications', [TenantControllers\StaffAlertController::class, 'page'])->name('notifications');
+
+            // MARKER-PATCH-225 — staff alerts: bell feed + per-user prefs.
+            Route::get('/alerts/feed',           [TenantControllers\StaffAlertController::class, 'feed'])->name('alerts.feed');
+            Route::post('/alerts/{id}/read',     [TenantControllers\StaffAlertController::class, 'markRead'])->name('alerts.read');
+            Route::post('/alerts/read-all',      [TenantControllers\StaffAlertController::class, 'markAllRead'])->name('alerts.read-all');
+            // MARKER-PATCH-280 — shop-wide announcement send.
+            Route::post('/alerts/broadcasts',    [TenantControllers\StaffAlertController::class, 'storeBroadcast'])->name('alerts.broadcasts.store');
+            Route::post('/alerts/broadcasts/{id}/dismiss', [TenantControllers\StaffAlertController::class, 'dismissBroadcast'])->name('alerts.broadcasts.dismiss');
+            Route::get('/settings/alerts',       [TenantControllers\StaffAlertController::class, 'prefs'])->name('alerts.prefs');
+            Route::post('/settings/alerts',      [TenantControllers\StaffAlertController::class, 'savePrefs'])->name('alerts.prefs.save');
+
+            // MARKER-PATCH-221 — unified inbox. Gated in the controller on
+            // the unified_inbox addon (403 + nav hidden when absent).
+            Route::get('/inbox',                        [TenantControllers\InboxController::class, 'index'])->name('inbox.index');
+            Route::post('/inbox/start',                 [TenantControllers\InboxController::class, 'start'])->name('inbox.start');
+            Route::post('/inbox/threads/{id}/messages', [TenantControllers\InboxController::class, 'send'])->name('inbox.send');
+            Route::post('/inbox/threads/{id}/status',   [TenantControllers\InboxController::class, 'toggleStatus'])->name('inbox.status');
+            Route::post('/inbox/messages/{id}/delete',  [TenantControllers\InboxController::class, 'deleteMessage'])->name('inbox.message.delete'); // MARKER-PATCH-401
+
+            Route::post('/onboarding/branding', [TenantControllers\OnboardingModalController::class, 'saveBranding'])->name('onboarding.branding');
+            Route::post('/onboarding/services', [TenantControllers\OnboardingModalController::class, 'saveServices'])->name('onboarding.services');
+            Route::post('/onboarding/hours',    [TenantControllers\OnboardingModalController::class, 'saveHours'])->name('onboarding.hours');
+            Route::post('/onboarding/dismiss',  [TenantControllers\OnboardingModalController::class, 'dismiss'])->name('onboarding.dismiss');
+            Route::post('/onboarding/complete', [TenantControllers\OnboardingModalController::class, 'complete'])->name('onboarding.complete');
+
+            // 8-step onboarding wizard (replaces the modal for new tenants).
+            // Per-step submit: GET shows the screen, POST saves + bumps
+            // tenant.onboarding_step + returns JSON with next_url.
+            // Gated by RequireOnboardingIncomplete: completed tenants get
+            // bounced to the dashboard so they can't re-run the wizard and
+            // clobber their data via idempotent saves.
+            Route::middleware('App\Http\Middleware\RequireOnboardingIncomplete')
+                ->prefix('onboarding/wizard')
+                ->name('onboarding.wizard.')
+                ->group(function () {
+                Route::get('/industry',    [TenantControllers\OnboardingWizardController::class, 'showIndustry'])->name('industry');
+                Route::post('/industry',   [TenantControllers\OnboardingWizardController::class, 'saveIndustry'])->name('industry.save');
+                Route::get('/identity',    [TenantControllers\OnboardingWizardController::class, 'showIdentity'])->name('identity');
+                Route::post('/identity',   [TenantControllers\OnboardingWizardController::class, 'saveIdentity'])->name('identity.save');
+                Route::get('/booking',     [TenantControllers\OnboardingWizardController::class, 'showBooking'])->name('booking');
+                Route::post('/booking',    [TenantControllers\OnboardingWizardController::class, 'saveBooking'])->name('booking.save');
+                Route::get('/hours',       [TenantControllers\OnboardingWizardController::class, 'showHours'])->name('hours');
+                Route::post('/hours',      [TenantControllers\OnboardingWizardController::class, 'saveHours'])->name('hours.save');
+                Route::get('/services',    [TenantControllers\OnboardingWizardController::class, 'showServices'])->name('services');
+                Route::post('/services',   [TenantControllers\OnboardingWizardController::class, 'saveServices'])->name('services.save');
+                Route::get('/team',        [TenantControllers\OnboardingWizardController::class, 'showTeam'])->name('team');
+                Route::post('/team',       [TenantControllers\OnboardingWizardController::class, 'saveTeam'])->name('team.save');
+                Route::get('/payment',     [TenantControllers\OnboardingWizardController::class, 'showPayment'])->name('payment');
+                Route::post('/payment',    [TenantControllers\OnboardingWizardController::class, 'savePayment'])->name('payment.save');
+                Route::get('/done',        [TenantControllers\OnboardingWizardController::class, 'showDone'])->name('done');
+                Route::post('/done',       [TenantControllers\OnboardingWizardController::class, 'complete'])->name('complete');
+                Route::post('/ai-prefill', [TenantControllers\OnboardingWizardController::class, 'saveAiPrefill'])->name('ai-prefill');
+            });
+
+            // Calendar (admin) — day/week/month views of the tenant's schedule.
+            Route::get('/calendar',             [TenantControllers\CalendarController::class, 'index'])->name('calendar.index');
+
+            // MARKER-PATCH-152A — Deliveries (internal pickup/dropoff schedule)
+            Route::get('/deliveries',                           [TenantControllers\DeliveriesController::class, 'index'])->name('deliveries.index');
+            // MARKER-PATCH-321 — printable 80mm pickup/delivery slips for a day
+            Route::get('/deliveries/slips',                     [TenantControllers\DeliveriesController::class, 'printSlips'])->name('deliveries.slips');
+            Route::get('/deliveries/customer-assets',           [TenantControllers\DeliveriesController::class, 'customerAssets'])->name('deliveries.customer-assets'); // MARKER-PATCH-427
+            // MARKER-PATCH-329 — single delivery receipt
+            Route::get('/deliveries/{id}/slip',                 [TenantControllers\DeliveriesController::class, 'printSlip'])->name('deliveries.slip');
+            // MARKER-PATCH-152B — create + edit + complete + cancel
+            Route::post('/deliveries',                           [TenantControllers\DeliveriesController::class, 'store'])->name('deliveries.store');
+            Route::patch('/deliveries/{id}',                     [TenantControllers\DeliveriesController::class, 'update'])->name('deliveries.update');
+            Route::patch('/deliveries/{id}/complete',            [TenantControllers\DeliveriesController::class, 'complete'])->name('deliveries.complete');
+            // MARKER-PATCH-515 — schedule the return leg from the appointment
+            Route::post('/deliveries/schedule-return/{appointmentId}', [TenantControllers\DeliveriesController::class, 'scheduleReturn'])->name('deliveries.schedule_return');
+            Route::patch('/deliveries/{id}/cancel',              [TenantControllers\DeliveriesController::class, 'cancel'])->name('deliveries.cancel');
+            Route::get('/deliveries/resources',                 [TenantControllers\DeliveryResourcesController::class, 'index'])->name('deliveries.resources.index');
+            Route::post('/deliveries/resources',                [TenantControllers\DeliveryResourcesController::class, 'store'])->name('deliveries.resources.store');
+            Route::patch('/deliveries/resources/{id}',          [TenantControllers\DeliveryResourcesController::class, 'update'])->name('deliveries.resources.update');
+            Route::delete('/deliveries/resources/{id}',         [TenantControllers\DeliveryResourcesController::class, 'destroy'])->name('deliveries.resources.destroy');
+
+            Route::get('/reports',              [TenantControllers\ReportsController::class, 'index'])->name('reports.index');
+            Route::get('/reports/customers',    [TenantControllers\ReportsController::class, 'customers'])->name('reports.customers');
+            Route::get('/reports/services',     [TenantControllers\ReportsController::class, 'services'])->name('reports.services');
+            Route::get('/reports/retail',       [TenantControllers\ReportsController::class, 'retail'])->name('reports.retail');
+            Route::get('/reports/money',        [TenantControllers\ReportsController::class, 'money'])->name('reports.money');
+            Route::get('/reports/staff',        [TenantControllers\ReportsController::class, 'staff'])->name('reports.staff');
+            // MARKER-PATCH-151A — Traffic tab
+            Route::get('/reports/traffic',      [TenantControllers\ReportsController::class, 'traffic'])->name('reports.traffic');
+            Route::post('/reports/search-rules',            [TenantControllers\SearchRulesController::class, 'store'])->name('reports.search-rules.store'); // MARKER-PATCH-622
+            Route::post('/reports/search-rules/{ruleId}/delete', [TenantControllers\SearchRulesController::class, 'destroy'])->name('reports.search-rules.delete');
+            Route::post('/calendar/dropoff/reschedule', [TenantControllers\CalendarController::class, 'dropOffReschedule'])->name('calendar.dropoff.reschedule');
+            Route::get('/calendar/quick-book',  [TenantControllers\QuickBookController::class, 'picker'])->name('calendar.quick-book.picker');
+            Route::post('/calendar/quick-book', [TenantControllers\QuickBookController::class, 'store'])->name('calendar.quick-book.store');
+            Route::post('/calendar/breaks',     [TenantControllers\QuickBookController::class, 'storeBreak'])->name('calendar.breaks.store');
+            Route::delete('/calendar/breaks/{id}', [TenantControllers\QuickBookController::class, 'destroyBreak'])->name('calendar.breaks.destroy');
+            Route::delete('/calendar/holds/{id}',  [TenantControllers\QuickBookController::class, 'destroyHold'])->name('calendar.holds.destroy');
+
+            // Resources (staff / benches / spaces) — calendar's column source
+            Route::get('/resources',            [TenantControllers\ResourceController::class, 'index'])->name('resources.index');
+            Route::post('/resources',           [TenantControllers\ResourceController::class, 'store'])->name('resources.store');
+            Route::patch('/resources/{id}',     [TenantControllers\ResourceController::class, 'update'])->name('resources.update');
+            Route::delete('/resources/{id}',    [TenantControllers\ResourceController::class, 'destroy'])->name('resources.destroy');
+            Route::post('/resources/reorder',   [TenantControllers\ResourceController::class, 'reorder'])->name('resources.reorder');
+
+            Route::get('/receiving-methods',          [TenantControllers\ReceivingMethodController::class, 'index'])->name('receiving-methods.index');
+            Route::post('/receiving-methods',         [TenantControllers\ReceivingMethodController::class, 'store'])->name('receiving-methods.store');
+            Route::patch('/receiving-methods/{id}',   [TenantControllers\ReceivingMethodController::class, 'update'])->name('receiving-methods.update');
+            Route::delete('/receiving-methods/{id}',  [TenantControllers\ReceivingMethodController::class, 'destroy'])->name('receiving-methods.destroy');
+            Route::post('/receiving-methods/reorder', [TenantControllers\ReceivingMethodController::class, 'reorder'])->name('receiving-methods.reorder');
+
+            Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
+            Route::get('/appointments/picker-data', [TenantControllers\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');
+            Route::get('/appointments/day-strip',   [TenantControllers\AppointmentController::class, 'dayStrip'])->name('appointments.day-strip');
+            // SEQUENTIAL-PICKER-ROUTES v1
+            Route::get('/appointments/eligible-resources', [TenantControllers\AppointmentController::class, 'eligibleResources'])->name('appointments.eligible-resources');
+            Route::get('/appointments/week-times',         [TenantControllers\AppointmentController::class, 'weekTimes'])->name('appointments.week-times');
+            Route::get('/appointments/day-times',   [TenantControllers\AppointmentController::class, 'dayTimes'])->name('appointments.day-times');
+            Route::get('/appointments/resolve-resource', [TenantControllers\AppointmentController::class, 'resolveResource'])->name('appointments.resolve-resource');
+            Route::post('/appointments',        [TenantControllers\AppointmentController::class, 'store'])->name('appointments.store');
+            Route::get('/appointments/{id}',    [TenantControllers\AppointmentController::class, 'show'])->name('appointments.show');
+            Route::patch('/appointments/{id}',  [TenantControllers\AppointmentController::class, 'update'])->name('appointments.update');
+            Route::get('/appointments/{id}/drawer', [TenantControllers\AppointmentController::class, 'drawer'])->name('appointments.drawer');
+            // MARKER-PATCH-313 — printable work-order service tag (80mm thermal)
+            Route::get('/appointments/{id}/tag', [TenantControllers\AppointmentController::class, 'printTag'])->name('appointments.tag');
+            // MARKER-PATCH-336 — unified print (parallel path)
+            Route::get('/print/appointment/{id}', [TenantControllers\PrintController::class, 'appointment'])->name('print.appointment');
+            Route::get('/print/sale/{id}',        [TenantControllers\PrintController::class, 'sale'])->name('print.sale');
+            Route::get('/print/{source}/{id}/meta', [TenantControllers\PrintController::class, 'meta'])->name('print.meta');
+            Route::post('/print/{source}/{id}/email', [TenantControllers\PrintController::class, 'email'])->name('print.email');
+            // MARKER-PATCH-204 — work-order invoice export (PDF print + email)
+            Route::match(['get','post'], '/appointments/{id}/invoice/preview',  [TenantControllers\InvoiceExportController::class, 'preview'])->name('appointments.invoice.preview');
+            Route::match(['get','post'], '/appointments/{id}/invoice/download', [TenantControllers\InvoiceExportController::class, 'download'])->name('appointments.invoice.download');
+            Route::post('/appointments/{id}/invoice/email',                     [TenantControllers\InvoiceExportController::class, 'email'])->name('appointments.invoice.email');
+            // MARKER-PATCH-206 — live HTML preview for the composer pane (no PDF, no DB write)
+            Route::match(['get','post'], '/appointments/{id}/invoice/preview-html', [TenantControllers\InvoiceExportController::class, 'previewHtml'])->name('appointments.invoice.preview-html');
+            Route::get('/appointments-inventory-search', [TenantControllers\AppointmentController::class, 'searchInventoryItems'])->name('appointments.inventory-search');
+
+            Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
+            Route::get('/customers/search',     [TenantControllers\CustomerController::class, 'search'])->name('customers.search');
+            Route::get('/customers/{id}',       [TenantControllers\CustomerController::class, 'show'])->name('customers.show');
+            Route::post('/customers',           [TenantControllers\CustomerController::class, 'store'])->name('customers.store');
+            Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');
+
+            // MARKER-PATCH-158-C — customer asset CRUD (gated by multi_asset_enabled in controller)
+            Route::post('/customers/{customerId}/assets',                  [TenantControllers\CustomerAssetsController::class, 'store'])->name('customers.assets.store');
+            Route::patch('/customers/{customerId}/assets/{id}',            [TenantControllers\CustomerAssetsController::class, 'update'])->name('customers.assets.update');
+            Route::post('/customers/{customerId}/assets/{id}/archive',     [TenantControllers\CustomerAssetsController::class, 'archive'])->name('customers.assets.archive');
+            Route::post('/customers/{customerId}/assets/{id}/unarchive',   [TenantControllers\CustomerAssetsController::class, 'unarchive'])->name('customers.assets.unarchive');
+
+            // Inventory (POS Phase 1) — gated by `retail` capability via FeatureAccessService
+            Route::prefix('inventory')->name('inventory.')->group(function () {
+                Route::get('/',                  [TenantControllers\InventoryController::class, 'index'])->name('index');
+                Route::get('/create',            [TenantControllers\InventoryController::class, 'create'])->name('create');
+                Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
+                Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');
+                Route::post('/categories',       [TenantControllers\InventoryCategoryController::class, 'store'])->name('categories.store');
+                Route::post('/categories/quick',        [TenantControllers\InventoryCategoryController::class, 'quickStore'])->name('categories.quick');
+                Route::patch('/categories/{id}/parent', [TenantControllers\InventoryCategoryController::class, 'reparent'])->name('categories.reparent');
+                Route::get('/uncategorized',         [TenantControllers\InventoryController::class, 'uncategorized'])->name('uncategorized');
+                Route::post('/uncategorized/assign', [TenantControllers\InventoryController::class, 'uncategorizedAssign'])->name('uncategorized.assign');
+// Receiving — POS Phase 1, gated by retail capability
+                Route::prefix('receiving')->name('receiving.')->group(function () {
+                    Route::get('/',                              [TenantControllers\ReceiveShipmentController::class, 'index'])->name('index');
+                    Route::post('/create',                       [TenantControllers\ReceiveShipmentController::class, 'create'])->name('create');
+                    Route::post('/',                             [TenantControllers\ReceiveShipmentController::class, 'store'])->name('store');
+                    Route::get('/{id}',                          [TenantControllers\ReceiveShipmentController::class, 'show'])->name('show');
+                    Route::get('/{id}/edit',                     [TenantControllers\ReceiveShipmentController::class, 'edit'])->name('edit');
+                    Route::patch('/{id}',                        [TenantControllers\ReceiveShipmentController::class, 'update'])->name('update');
+                    Route::delete('/{id}',                       [TenantControllers\ReceiveShipmentController::class, 'destroy'])->name('destroy');
+                    Route::post('/{id}/items',                   [TenantControllers\ReceiveShipmentController::class, 'addItem'])->name('items.store');
+                    Route::patch('/{id}/items/{itemId}',         [TenantControllers\ReceiveShipmentController::class, 'updateItem'])->name('items.update');
+                    Route::delete('/{id}/items/{itemId}',        [TenantControllers\ReceiveShipmentController::class, 'removeItem'])->name('items.destroy');
+                    Route::post('/{id}/commit',                  [TenantControllers\ReceiveShipmentController::class, 'commit'])->name('commit');
+                    Route::post('/{id}/items/new-inventory-item', [TenantControllers\ReceiveShipmentController::class, 'quickCreateItem'])->name('items.quick.create');
+                    Route::get('/items/{id}/quick',     [TenantControllers\ReceiveShipmentController::class, 'quickShowItem'])->name('items.quick.show');
+                    Route::patch('/items/{id}/quick',   [TenantControllers\ReceiveShipmentController::class, 'quickUpdateItem'])->name('items.quick.update');
+                    Route::get('/categories/list',      [TenantControllers\ReceiveShipmentController::class, 'categoriesForModal'])->name('categories.list');
+                });
+
+                // Item search (used by receiving line-add modal, will be reused by register UI)
+                Route::get('/items/search', [TenantControllers\ReceiveShipmentController::class, 'searchItems'])->name('items.search');
+
+
+                Route::get('/{id}',              [TenantControllers\InventoryController::class, 'show'])->name('show');
+                Route::get('/{id}/edit',         [TenantControllers\InventoryController::class, 'edit'])->name('edit');
+                Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
+                Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
+                Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
+            });
+
+            // Vendors — added in patch 86 (Special Orders Stage 4a).
+            // Tenant-scoped vendor catalog. Distinct from
+            // platform_distributor_catalogs which is the global sync source.
+            Route::prefix('vendors')->name('vendors.')->group(function () {
+                Route::get('/',           [TenantControllers\VendorController::class, 'index'])->name('index');
+                Route::post('/',          [TenantControllers\VendorController::class, 'store'])->name('store');
+                Route::get('/{id}',       [TenantControllers\VendorController::class, 'show'])->name('show');
+                Route::get('/{id}/edit',  [TenantControllers\VendorController::class, 'edit'])->name('edit');
+                Route::patch('/{id}',     [TenantControllers\VendorController::class, 'update'])->name('update');
+                Route::delete('/{id}',    [TenantControllers\VendorController::class, 'destroy'])->name('destroy');
+            });
+
+            // Special Orders — added in patch 87 (Stage 4b).
+            // Reads + writes scoped to tenant. State transitions go
+            // through SpecialOrderService for validation + audit notes.
+            Route::prefix('special-orders')->name('special-orders.')->group(function () {
+                Route::get('/',                                    [TenantControllers\SpecialOrderController::class, 'index'])->name('index');
+                Route::post('/',                                   [TenantControllers\SpecialOrderController::class, 'store'])->name('store');
+                Route::get('/appointments-for-customer',           [TenantControllers\SpecialOrderController::class, 'appointmentsForCustomer'])->name('appointments-for-customer');
+                Route::get('/{id}',                                [TenantControllers\SpecialOrderController::class, 'show'])->name('show');
+                Route::post('/{id}/mark-ordered',                  [TenantControllers\SpecialOrderController::class, 'markOrdered'])->name('mark-ordered');
+                Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');
+                Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
+                Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
+                Route::post('/{id}/notes',                         [TenantControllers\SpecialOrderController::class, 'addNote'])->name('notes.store');
+            });
+
+            Route::get('/waitlist',                    [TenantControllers\WaitlistAdminController::class, 'index'])->name('waitlist.index');
+            Route::get('/waitlist/settings',           [TenantControllers\WaitlistAdminController::class, 'settings'])->name('waitlist.settings');
+            Route::patch('/waitlist/settings',         [TenantControllers\WaitlistAdminController::class, 'updateSettings'])->name('waitlist.settings.update');
+            Route::post('/waitlist/similar',           [TenantControllers\WaitlistAdminController::class, 'addSimilarMapping'])->name('waitlist.similar.add');
+            Route::delete('/waitlist/similar/{id}',    [TenantControllers\WaitlistAdminController::class, 'removeSimilarMapping'])->name('waitlist.similar.remove');
+            Route::delete('/waitlist/entries/{id}',    [TenantControllers\WaitlistAdminController::class, 'cancelEntry'])->name('waitlist.cancel');
+            // Feature-addon catalog (tenant-facing purchase + manage).
+            // Classes — templates, sessions, registrations, memberships, packs
+            Route::get('/classes/templates',                    [TenantControllers\ClassController::class, 'templates'])->name('classes.templates');
+            Route::post('/classes/templates',                   [TenantControllers\ClassController::class, 'storeTemplate'])->name('classes.templates.store');
+            Route::patch('/classes/templates/{id}',             [TenantControllers\ClassController::class, 'updateTemplate'])->name('classes.templates.update');
+            Route::delete('/classes/templates/{id}',            [TenantControllers\ClassController::class, 'destroyTemplate'])->name('classes.templates.destroy');
+
+            Route::get('/classes/sessions',                     [TenantControllers\ClassController::class, 'sessions'])->name('classes.sessions');
+            Route::post('/classes/sessions',                    [TenantControllers\ClassController::class, 'storeSession'])->name('classes.sessions.store');
+            Route::get('/classes/sessions/{id}',                [TenantControllers\ClassController::class, 'showSession'])->name('classes.sessions.show');
+            Route::patch('/classes/sessions/{id}',              [TenantControllers\ClassController::class, 'updateSession'])->name('classes.sessions.update');
+            Route::delete('/classes/sessions/{id}',             [TenantControllers\ClassController::class, 'destroySession'])->name('classes.sessions.destroy');
+
+            Route::post('/classes/sessions/{id}/register',      [TenantControllers\ClassController::class, 'registerCustomer'])->name('classes.sessions.register');
+            Route::post('/classes/registrations/{id}/cancel',   [TenantControllers\ClassController::class, 'cancelRegistration'])->name('classes.registrations.cancel');
+            Route::post('/classes/registrations/{id}/checkin',  [TenantControllers\ClassController::class, 'checkIn'])->name('classes.registrations.checkin');
+            Route::post('/classes/registrations/{id}/noshow',   [TenantControllers\ClassController::class, 'markNoShow'])->name('classes.registrations.noshow');
+
+            Route::get('/classes/memberships',                  [TenantControllers\ClassController::class, 'membershipProducts'])->name('classes.memberships');
+            Route::post('/classes/memberships',                 [TenantControllers\ClassController::class, 'storeMembershipProduct'])->name('classes.memberships.store');
+            Route::patch('/classes/memberships/{id}',           [TenantControllers\ClassController::class, 'updateMembershipProduct'])->name('classes.memberships.update');
+
+            Route::get('/classes/packs',                        [TenantControllers\ClassController::class, 'packProducts'])->name('classes.packs');
+            Route::post('/classes/packs',                       [TenantControllers\ClassController::class, 'storePackProduct'])->name('classes.packs.store');
+            Route::patch('/classes/packs/{id}',                 [TenantControllers\ClassController::class, 'updatePackProduct'])->name('classes.packs.update');
+
+            // Customer-side grant/revoke for memberships and packs. Comp/manual
+            // for v1 — Stripe purchase flow comes later. Endpoints are POST
+            // (create) and DELETE (cancel). Routed under /customers/{id}/...
+            // so they appear naturally on the customer detail page.
+            Route::post('/customers/{customerId}/memberships',                [TenantControllers\ClassController::class, 'grantCustomerMembership'])->name('customers.memberships.grant');
+            Route::delete('/customers/{customerId}/memberships/{id}',         [TenantControllers\ClassController::class, 'revokeCustomerMembership'])->name('customers.memberships.revoke');
+            Route::post('/customers/{customerId}/packs',                      [TenantControllers\ClassController::class, 'grantCustomerPack'])->name('customers.packs.grant');
+            Route::delete('/customers/{customerId}/packs/{id}',               [TenantControllers\ClassController::class, 'revokeCustomerPack'])->name('customers.packs.revoke');
+
+            // Classes reports — panel page + CSV exports per panel
+            Route::get('/classes/reports',                                    [TenantControllers\ClassController::class, 'reports'])->name('classes.reports');
+            Route::get('/classes/reports/export/{panel}',                     [TenantControllers\ClassController::class, 'reportExport'])->name('classes.reports.export');
+
+            // Note: 'feature-addons' path avoids collision with existing service-addon routes below.
+            Route::get('/feature-addons',             [TenantControllers\AddonCatalogController::class, 'index'])->name('feature_addons.index');
+            Route::post('/feature-addons/activate',   [TenantControllers\AddonCatalogController::class, 'activate'])->name('feature_addons.activate');
+            Route::post('/feature-addons/cancel',     [TenantControllers\AddonCatalogController::class, 'cancel'])->name('feature_addons.cancel');
+            Route::get('/services',             [TenantControllers\ServiceController::class, 'index'])->name('services.index');
+            Route::post('/services',            [TenantControllers\ServiceController::class, 'store'])->name('services.store');
+            Route::patch('/services/{id}',      [TenantControllers\ServiceController::class, 'update'])->name('services.update');
+            Route::delete('/services/{id}',     [TenantControllers\ServiceController::class, 'destroy'])->name('services.destroy');
+            Route::get('/work-order-fields',             [TenantControllers\WorkOrderFieldsController::class, 'index'])->name('work-order-fields.index');
+            Route::post('/work-order-fields',            [TenantControllers\WorkOrderFieldsController::class, 'store'])->name('work-order-fields.store');
+            Route::patch('/work-order-fields/{id}',      [TenantControllers\WorkOrderFieldsController::class, 'update'])->name('work-order-fields.update');
+            Route::delete('/work-order-fields/{id}',     [TenantControllers\WorkOrderFieldsController::class, 'destroy'])->name('work-order-fields.destroy');
+            Route::post('/dashboard/wof-banner/dismiss', [TenantControllers\DashboardController::class, 'dismissWorkOrderBanner'])->name('dashboard.wof-banner.dismiss');
+            Route::get('/dashboard/day.json', [TenantControllers\DashboardController::class, 'dayJson'])->name('dashboard.day');
+
+            Route::post('/addons',              [TenantControllers\AddonController::class, 'store'])->name('addons.store');
+            Route::patch('/addons/{id}',        [TenantControllers\AddonController::class, 'update'])->name('addons.update');
+            Route::delete('/addons/{id}',       [TenantControllers\AddonController::class, 'destroy'])->name('addons.destroy');
+
+            Route::get('/capacity',             [TenantControllers\CapacityController::class, 'index'])->name('capacity.index');
+            Route::post('/capacity',            [TenantControllers\CapacityController::class, 'store'])->name('capacity.store');
+
+            Route::get('/booking-editor',       [TenantControllers\BookingEditorController::class, 'index'])->name('booking-editor.index');
+            Route::post('/booking-editor',      [TenantControllers\BookingEditorController::class, 'store'])->name('booking-editor.store');
+
+            // MARKER-PATCH-610 — time clock
+            Route::get('/timeclock',            [TenantControllers\TimeClockController::class, 'index'])->name('timeclock.index');
+            Route::post('/timeclock/in',        [TenantControllers\TimeClockController::class, 'punchIn'])->name('timeclock.in');
+            Route::post('/timeclock/out',       [TenantControllers\TimeClockController::class, 'punchOut'])->name('timeclock.out');
+            Route::get('/timeclock/timesheet',  [TenantControllers\TimeClockController::class, 'timesheet'])->name('timeclock.timesheet'); // MARKER-PATCH-613
+            Route::post('/timeclock/timesheet/email', [TenantControllers\TimeClockController::class, 'emailTimesheet'])->name('timeclock.timesheet.email');
+            Route::get('/timeclock/team',       [TenantControllers\TimeClockController::class, 'team'])->name('timeclock.team'); // MARKER-PATCH-614
+            Route::post('/timeclock/punch',     [TenantControllers\TimeClockController::class, 'createPunch'])->name('timeclock.punch.create');
+            Route::post('/timeclock/punch/{punchId}', [TenantControllers\TimeClockController::class, 'editPunch'])->name('timeclock.punch.edit');
+            Route::get('/timeclock/reports',       [TenantControllers\TimeClockController::class, 'reports'])->name('timeclock.reports'); // MARKER-PATCH-615
+            Route::get('/timeclock/reports/csv',   [TenantControllers\TimeClockController::class, 'reportsCsv'])->name('timeclock.reports.csv');
+            Route::get('/timeclock/reports/print', [TenantControllers\TimeClockController::class, 'reportPrint'])->name('timeclock.reports.print');
+            Route::post('/timeclock/reports/email',[TenantControllers\TimeClockController::class, 'reportEmail'])->name('timeclock.reports.email');
+            Route::get('/timeclock/approvals',     [TenantControllers\TimeClockController::class, 'approvals'])->name('timeclock.approvals'); // MARKER-PATCH-616
+            Route::post('/timeclock/approve',      [TenantControllers\TimeClockController::class, 'approvePerson'])->name('timeclock.approve');
+            Route::post('/timeclock/period/lock',  [TenantControllers\TimeClockController::class, 'lockPeriod'])->name('timeclock.period.lock');
+            Route::post('/timeclock/period/reopen',[TenantControllers\TimeClockController::class, 'reopenPeriod'])->name('timeclock.period.reopen');
+            Route::post('/timeclock/settings',     [TenantControllers\TimeClockController::class, 'saveSettings'])->name('timeclock.settings');
+
+            // MARKER-PATCH-623 — staff scheduling phase 1
+            Route::get('/scheduling',                    [TenantControllers\SchedulingController::class, 'index'])->name('scheduling.index');
+            Route::post('/scheduling/shift',             [TenantControllers\SchedulingController::class, 'storeShift'])->name('scheduling.shift.store');
+            Route::post('/scheduling/shift/{shiftId}/delete', [TenantControllers\SchedulingController::class, 'deleteShift'])->name('scheduling.shift.delete');
+            Route::post('/scheduling/copy-week',         [TenantControllers\SchedulingController::class, 'copyLastWeek'])->name('scheduling.copy-week');
+            Route::post('/scheduling/publish',           [TenantControllers\SchedulingController::class, 'publish'])->name('scheduling.publish');
+            Route::get('/scheduling/timeoff',            [TenantControllers\SchedulingController::class, 'timeOff'])->name('scheduling.timeoff');
+            Route::post('/scheduling/timeoff',           [TenantControllers\SchedulingController::class, 'timeOffStore'])->name('scheduling.timeoff.store');
+            Route::post('/scheduling/timeoff/{requestId}/review', [TenantControllers\SchedulingController::class, 'timeOffReview'])->name('scheduling.timeoff.review');
+            Route::get('/scheduling/mine',               [TenantControllers\SchedulingController::class, 'mine'])->name('scheduling.mine');
+            Route::get('/scheduling/availability',       [TenantControllers\SchedulingController::class, 'availability'])->name('scheduling.availability'); // MARKER-PATCH-624
+            Route::post('/scheduling/availability',      [TenantControllers\SchedulingController::class, 'availabilityStore'])->name('scheduling.availability.store');
+            Route::get('/scheduling/settings',           [TenantControllers\SchedulingController::class, 'settingsPage'])->name('scheduling.settings');
+            Route::post('/scheduling/settings',          [TenantControllers\SchedulingController::class, 'saveSettings'])->name('scheduling.settings.save');
+            Route::post('/scheduling/template',          [TenantControllers\SchedulingController::class, 'saveTemplate'])->name('scheduling.template.save');
+            Route::post('/scheduling/template/{templateId}/apply', [TenantControllers\SchedulingController::class, 'applyTemplate'])->name('scheduling.template.apply');
+
+            Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
+
+            // MARKER-PATCH-258 — media library
+            Route::get('/media',            [TenantControllers\MediaLibraryController::class, 'index'])->name('media.index');
+            Route::get('/media/feed',       [TenantControllers\MediaLibraryController::class, 'feed'])->name('media.feed');
+            Route::post('/media/{id}/archive', [TenantControllers\MediaLibraryController::class, 'archive'])->name('media.archive');
+
+            Route::get('/help', [TenantControllers\HelpController::class, 'index'])->name('help.index');
+
+            Route::get('/whats-new', [TenantControllers\WhatsNewController::class, 'changelog'])->name('whats_new.changelog');
+            Route::get('/whats-coming', [TenantControllers\WhatsNewController::class, 'roadmap'])->name('whats_new.roadmap');
+
+            Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
+            Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');
+            Route::get('/pages/{id}/preview',   [TenantControllers\PageBuilderController::class, 'preview'])->name('pages.preview'); // MARKER-PATCH-267
+            Route::post('/pages',               [TenantControllers\PageBuilderController::class, 'store'])->name('pages.store');
+            Route::post('/pages/brand-kit',     [TenantControllers\PageBuilderController::class, 'saveBrandKit'])->name('pages.brand-kit.save'); // MARKER-PATCH-302
+            Route::patch('/pages/{id}',         [TenantControllers\PageBuilderController::class, 'update'])->name('pages.update');
+            Route::delete('/pages/{id}',        [TenantControllers\PageBuilderController::class, 'destroy'])->name('pages.destroy');
+            Route::post('/pages/{id}/sections',           [TenantControllers\PageBuilderController::class, 'addSection'])->name('pages.sections.add');
+            Route::patch('/pages/{id}/sections/{sid}',    [TenantControllers\PageBuilderController::class, 'updateSection'])->name('pages.sections.update');
+            Route::delete('/pages/{id}/sections/{sid}',   [TenantControllers\PageBuilderController::class, 'deleteSection'])->name('pages.sections.delete');
+            Route::post('/pages/{id}/sections/reorder',   [TenantControllers\PageBuilderController::class, 'reorderSections'])->name('pages.sections.reorder');
+
+            // MARKER-PATCH-261 — site template gallery
+            Route::get('/website/templates',               [TenantControllers\SiteTemplateController::class, 'index'])->name('templates.index');
+            Route::post('/website/templates/revert',       [TenantControllers\SiteTemplateController::class, 'revert'])->name('templates.revert');
+            Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
+
+            Route::get('/emails',               [TenantControllers\EmailController::class, 'index'])->name('emails.index');
+            // MARKER-PATCH-404 — Communication Center (unified comms surface)
+            Route::get('/communication',        [TenantControllers\CommunicationController::class, 'index'])->name('communication.index');
+            Route::patch('/communication',      [TenantControllers\CommunicationController::class, 'updateToggles'])->name('communication.toggles');
+            Route::patch('/communication/template/{type}', [TenantControllers\CommunicationController::class, 'saveTemplate'])->name('communication.template'); // MARKER-PATCH-405
+            Route::post('/communication/test/{type}', [TenantControllers\CommunicationController::class, 'sendTest'])->name('communication.test'); // MARKER-PATCH-409
+            Route::patch('/emails/{type}',      [TenantControllers\EmailController::class, 'update'])->name('emails.update');
+            // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
+            Route::post('/sales/{id}/resend-receipt',
+                [TenantControllers\RegisterController::class, 'resendReceipt'])
+                ->name('sales.resend_receipt');
+            // MARKER-PATCH-407 — emails.settings.update route removed (receipt options in Communication Center)
+            Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
+            Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
+            Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
+            Route::patch('/campaigns/{id}',     [TenantControllers\CampaignController::class, 'update'])->name('campaigns.update');
+            Route::post('/campaigns/{id}/send', [TenantControllers\CampaignController::class, 'send'])->name('campaigns.send');
+            Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
+
+            // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking worklist + funnel)
+            Route::get('/recovery',         [TenantControllers\RecoveryController::class, 'index'])->name('recovery.index');
+            // MARKER-PATCH-486 — settings PATCH before the {id} PATCH so it matches first.
+            Route::patch('/recovery/settings', [TenantControllers\RecoveryController::class, 'updateSettings'])->name('recovery.settings.update');
+            Route::patch('/recovery/{id}',  [TenantControllers\RecoveryController::class, 'updateStatus'])->name('recovery.update');
+
+            // MARKER-FLOW-6 — Booking Mode admin (flow mode + Simple-menu curation)
+            Route::get('/booking-modes',  [TenantControllers\BookingModesController::class, 'index'])->name('booking_modes.index');
+            Route::post('/booking-modes', [TenantControllers\BookingModesController::class, 'save'])->name('booking_modes.save');
+            // MARKER-PATCH-510 — Pickup & delivery: route windows + knobs
+            Route::post('/booking-modes/route-windows',              [TenantControllers\RouteWindowsController::class, 'store'])->name('route_windows.store');
+            Route::patch('/booking-modes/route-windows/settings',    [TenantControllers\RouteWindowsController::class, 'saveSettings'])->name('route_windows.settings');
+            Route::patch('/booking-modes/route-windows/{id}',        [TenantControllers\RouteWindowsController::class, 'update'])->name('route_windows.update');
+            Route::delete('/booking-modes/route-windows/{id}',       [TenantControllers\RouteWindowsController::class, 'destroy'])->name('route_windows.destroy');
+
+            // Campaign image library
+            Route::get('/campaign-images',           [TenantControllers\CampaignImageController::class, 'index'])->name('campaign-images.index');
+            Route::get('/campaign-images/usage',     [TenantControllers\CampaignImageController::class, 'usage'])->name('campaign-images.usage');
+            Route::post('/campaign-images',          [TenantControllers\CampaignImageController::class, 'upload'])->name('campaign-images.upload');
+            Route::delete('/campaign-images/{id}',   [TenantControllers\CampaignImageController::class, 'destroy'])->name('campaign-images.destroy');
+
+            // MARKER-PATCH-HLC7A — tenant distributor surface
+            Route::prefix('distributors')->name('distributors.')->group(function () {
+                Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
+                Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
+                Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
+                Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync'); // MARKER-PATCH-555
+                Route::post('/import/run',        [TenantControllers\DistributorController::class, 'importRun'])->name('import.run');
+                Route::get('/connection',         [TenantControllers\DistributorController::class, 'connection'])->name('connection');
+                Route::post('/connection/key',    [TenantControllers\DistributorController::class, 'saveKey'])->name('connection.key');
+                Route::post('/connection/test',   [TenantControllers\DistributorController::class, 'testConnection'])->name('connection.test');
+                Route::post('/connection/refresh',[TenantControllers\DistributorController::class, 'refreshSync'])->name('connection.refresh');
+            });
+
+            Route::get('/settings',             [TenantControllers\SettingsController::class, 'index'])->name('settings.index');
+            Route::patch('/settings',           [TenantControllers\SettingsController::class, 'update'])->name('settings.update');
+            // MARKER-PATCH-629 — unified payment methods
+            Route::post('/settings/payment-methods',                    [TenantControllers\PaymentMethodsController::class, 'storeCustom'])->name('settings.payment-methods.store');
+            Route::post('/settings/payment-methods/{methodId}',         [TenantControllers\PaymentMethodsController::class, 'update'])->name('settings.payment-methods.update');
+            Route::post('/settings/payment-methods/{methodId}/delete',  [TenantControllers\PaymentMethodsController::class, 'destroyCustom'])->name('settings.payment-methods.delete');
+            Route::post('/settings/payment-methods-qb',                 [TenantControllers\PaymentMethodsController::class, 'saveQbAccounts'])->name('settings.payment-methods.qb'); // MARKER-PATCH-636
+
+            // MARKER-PATCH-473 — verify a tenant's Square connection
+            Route::post('/settings/square/verify', [TenantControllers\SettingsController::class, 'verifySquareConnection'])->name('settings.square.verify');
+
+            // MARKER-PATCH-468 — toggle asset tracking from the Services-page banner
+            Route::patch('/services/asset-tracking', [TenantControllers\SettingsController::class, 'toggleAssetTracking'])->name('services.asset-tracking.toggle');
+
+            // MARKER-PATCH-168 — Stripe Connect Session A: tenant payments settings
+            // MARKER-PATCH-224 — Settings -> Messaging (owns all tenant SMS config).
+            Route::get( '/settings/messaging',               [TenantControllers\Settings\MessagingController::class, 'index'])->name('settings.messaging');
+            Route::post('/settings/messaging/search',        [TenantControllers\Settings\MessagingController::class, 'search'])->name('settings.messaging.search');
+            Route::post('/settings/messaging/claim',         [TenantControllers\Settings\MessagingController::class, 'claim'])->name('settings.messaging.claim');
+            Route::post('/settings/messaging/byo',           [TenantControllers\Settings\MessagingController::class, 'saveByo'])->name('settings.messaging.byo');
+            Route::post('/settings/messaging/sync-webhook',  [TenantControllers\Settings\MessagingController::class, 'syncWebhook'])->name('settings.messaging.sync');
+            Route::get( '/settings/payments',            [TenantControllers\Settings\PaymentsController::class, 'index'])->name('settings.payments.index');
+            Route::post('/settings/payments/connect',    [TenantControllers\Settings\PaymentsController::class, 'connect'])->name('settings.payments.connect');
+            Route::post('/settings/payments/resume',     [TenantControllers\Settings\PaymentsController::class, 'resume'])->name('settings.payments.resume');
+            Route::post('/settings/payments/disconnect', [TenantControllers\Settings\PaymentsController::class, 'disconnect'])->name('settings.payments.disconnect');
+
+            // MARKER-PATCH-120 - Custom domain management
+            Route::get('/settings/domains',                [TenantControllers\DomainController::class, 'index'])->name('domains.index');
+            Route::post('/settings/domains',               [TenantControllers\DomainController::class, 'store'])->name('domains.store');
+            Route::get('/settings/domains/{id}',           [TenantControllers\DomainController::class, 'show'])->name('domains.show');
+            Route::delete('/settings/domains/{id}',        [TenantControllers\DomainController::class, 'destroy'])->name('domains.destroy');
+            Route::post('/settings/domains/{id}/sync',     [TenantControllers\DomainController::class, 'sync'])->name('domains.sync');
+
+            // Sign-in security admin (chunk 8) — owner-only enforced in the controller.
+            // Locations admin (patch 109) — owner-only enforced in controller.
+            Route::get('/locations',                      [TenantControllers\LocationController::class, 'index'])->name('locations.index');
+            Route::post('/locations',                     [TenantControllers\LocationController::class, 'store'])->name('locations.store');
+            Route::patch('/locations/{id}',               [TenantControllers\LocationController::class, 'update'])->name('locations.update');
+            Route::post('/locations/{id}/set-default',    [TenantControllers\LocationController::class, 'setDefault'])->name('locations.set-default');
+            Route::post('/locations/{id}/toggle-active',  [TenantControllers\LocationController::class, 'toggleActive'])->name('locations.toggle-active');
+            Route::delete('/locations/{id}',              [TenantControllers\LocationController::class, 'destroy'])->name('locations.destroy');
+
+            // MARKER-PATCH-129 — old /admin/security/* URLs redirect to /admin/team/*
+            Route::get('/security',                  fn() => redirect()->route('tenant.team.index'))->name('security.index');
+            Route::get('/security/devices',          fn() => redirect()->route('tenant.team.devices'));
+            Route::get('/security/policy',           fn() => redirect()->route('tenant.team.policy'));
+            Route::post('/settings/test-sms',   [TenantControllers\SettingsController::class, 'sendTestSms'])->name('settings.test-sms');
+
+            // MARKER-PATCH-129 — consolidated Team & Access
+            Route::get('/team',                            [TenantControllers\TeamController::class, 'index'])->name('team.index');
+            Route::post('/team',                           [TenantControllers\TeamController::class, 'store'])->name('team.store');
+            Route::get('/team/devices',                    [TenantControllers\TeamController::class, 'devices'])->name('team.devices');
+            Route::post('/team/devices/{id}/revoke',       [TenantControllers\TeamController::class, 'revokeDevice'])->name('team.devices.revoke');
+            Route::post('/team/devices/revoke-all',        [TenantControllers\TeamController::class, 'revokeAllDevices'])->name('team.devices.revoke-all');
+            Route::get('/team/policy',                     [TenantControllers\TeamController::class, 'policy'])->name('team.policy');
+            Route::patch('/team/policy',                   [TenantControllers\TeamController::class, 'updatePolicy'])->name('team.policy.update');
+            // MARKER-PATCH-494 — Roles & access (custom named roles). Must sit
+            // BEFORE /team/{id} or 'roles' gets swallowed as a member id.
+            Route::get('/team/roles',                      [TenantControllers\TeamController::class, 'rolesIndex'])->name('team.roles');
+            Route::post('/team/roles',                     [TenantControllers\TeamController::class, 'storeRole'])->name('team.roles.store');
+            Route::patch('/team/roles/{roleId}',           [TenantControllers\TeamController::class, 'updateRole'])->name('team.roles.update');
+            Route::delete('/team/roles/{roleId}',          [TenantControllers\TeamController::class, 'destroyRole'])->name('team.roles.destroy');
+            Route::get('/team/{id}',                       [TenantControllers\TeamController::class, 'show'])->name('team.show');
+            Route::patch('/team/{id}',                     [TenantControllers\TeamController::class, 'update'])->name('team.update');
+            Route::delete('/team/{id}',                    [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
+
+            // MARKER-PATCH-143 — Test email send endpoint (settings card)
+            Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
+            // MARKER-PATCH-150 — Web analytics settings (GA-4 etc)
+            Route::post('/settings/analytics', [TenantControllers\AnalyticsSettingsController::class, 'update'])->name('settings.analytics.update');
+
+            // MARKER-PATCH-147 — Tenant suppression list
+            Route::get('/email/suppressions',         [TenantControllers\SuppressionController::class, 'index'])->name('suppressions.index');
+            Route::post('/email/suppressions',        [TenantControllers\SuppressionController::class, 'store'])->name('suppressions.store');
+            Route::delete('/email/suppressions/{id}', [TenantControllers\SuppressionController::class, 'destroy'])->name('suppressions.destroy');
+
+            // Self-service account surfaces (current user only)
+            Route::get('/account',                         [TenantControllers\AccountController::class, 'index'])->name('account.index');
+            Route::patch('/account/name',                  [TenantControllers\AccountController::class, 'updateName'])->name('account.name');
+            Route::patch('/account/password',              [TenantControllers\AccountController::class, 'updatePassword'])->name('account.password');
+            Route::patch('/account/pin',                   [TenantControllers\AccountController::class, 'setPin'])->name('account.pin');
+            Route::patch('/account/pin/clear',             [TenantControllers\AccountController::class, 'clearPin'])->name('account.pin.clear');
+            // MARKER-PATCH-130 — per-user device + sign-out-everywhere routes removed
+
+            // Stripe billing portal (card update, invoices, cancel).
+            // Plan changes happen in-app, not via the portal.
+            Route::get('/billing/portal',       [TenantControllers\BillingController::class, 'portal'])->name('billing.portal');
+
+            }); // close RequireCurrentLocation group
+
+        });
+
+    });
+
+    Route::get('/{slug}', [TenantControllers\PublicController::class, 'page'])->name('tenant.page');
+
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// MARKER-PATCH-123 — Single tenant route registration. ResolveTenant
+// middleware identifies the tenant from the request host, supporting
+// both {slug}.intake.works subdomains and custom domains (Cloudflare
+// for SaaS). Routes carry no {subdomain} placeholder; controllers
+// resolve the current tenant via the tenant() helper / app('tenant').
+// ─────────────────────────────────────────────────────────────────────
+Route::middleware(['App\Http\Middleware\ResolveTenant'])
+    ->group($tenantRoutes);
+
+OFS2_6_EOF
+
+cat > 'resources/views/layouts/tenant/app.blade.php' <<'OFS2_7_EOF'
+<!DOCTYPE html>
+<html lang="en" class="ia-theme-{{ $adminTheme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{{ $pageTitle ?? 'Dashboard' }} — {{ $currentTenant->name }}</title>
+
+  {{-- Fonts --}}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  {{-- Favicon --}}
+  @if($currentTenant->favicon_url)
+    <link rel="icon" href="{{ $currentTenant->favicon_url }}">
+  @endif
+
+  {{-- Base + theme CSS --}}
+  <link rel="stylesheet" href="{{ asset('css/tenant/base.css') }}?v={{ filemtime(public_path('css/tenant/base.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/theme-' . $adminTheme . '.css') }}?v={{ filemtime(public_path('css/tenant/theme-' . $adminTheme . '.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}?v={{ filemtime(public_path('css/tenant/mobile-nav.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-schedule.css') }}?v={{ filemtime(public_path('css/tenant/mobile-schedule.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-forms.css') }}?v={{ filemtime(public_path('css/tenant/mobile-forms.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/toast.css') }}?v={{ filemtime(public_path('css/tenant/toast.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/toggle.css') }}?v={{ filemtime(public_path('css/tenant/toggle.css')) }}">
+
+  {{-- Master-admin theme overrides (theme_settings table) --}}
+  {!! \App\Support\ThemeOverrideHelper::styleTag() !!}
+
+  {{-- Tenant accent color injected at runtime --}}
+  <style>
+    body {
+      --ia-accent: {{ $currentTenant->accent_color ?? '#3B5A78' }};
+      --ia-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#3B5A78') }};
+      --ia-accent-soft: {{ \App\Support\ColorHelper::accentSoft($currentTenant->accent_color ?? '#3B5A78') }};
+    }
+  </style>
+
+  @stack('styles')
+</head>
+
+<body class="ia-theme-{{ $adminTheme }}">
+{{-- MARKER-PATCH-498 — invite setup success: check draws, circle wraps it, dashboard fades in --}}
+@if(session('setup_complete'))
+<div id="ia-setup-success" aria-hidden="true">
+  <svg viewBox="0 0 72 72" width="88" height="88">
+    <circle cx="36" cy="36" r="32" fill="none" stroke="var(--ia-accent)" stroke-width="3"
+            stroke-linecap="round" stroke-dasharray="202" stroke-dashoffset="202"
+            transform="rotate(-90 36 36)" class="iss-circle"/>
+    <path d="M23 37l9 9 17-19" fill="none" stroke="var(--ia-accent)" stroke-width="4"
+          stroke-linecap="round" stroke-linejoin="round"
+          stroke-dasharray="40" stroke-dashoffset="40" class="iss-check"/>
+  </svg>
+  <div class="iss-label">You're in</div>
+</div>
+<style>
+#ia-setup-success{position:fixed;inset:0;z-index:9999;background:var(--ia-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:iss-fade .5s ease 1.6s forwards}
+#ia-setup-success .iss-check{animation:iss-draw .35s ease-out .15s forwards}
+#ia-setup-success .iss-circle{animation:iss-draw .55s ease-in-out .45s forwards}
+#ia-setup-success .iss-label{font-size:14px;font-weight:600;color:var(--ia-text);opacity:0;animation:iss-in .3s ease .9s forwards}
+@keyframes iss-draw{to{stroke-dashoffset:0}}
+@keyframes iss-in{to{opacity:1}}
+@keyframes iss-fade{to{opacity:0;visibility:hidden}}
+</style>
+<script>setTimeout(function(){var el=document.getElementById('ia-setup-success');if(el)el.remove();},2300);</script>
+@endif
+
+@include('layouts.tenant._mobile-header')
+
+<div class="ia-shell">
+
+  {{-- ================================================================
+       Sidebar — rendered on both themes (B = Light Premium, C = Dark Premium).
+       Both share the same sidebar layout; theme CSS handles the palette.
+       ================================================================ --}}
+  @include('layouts.tenant._sidebar')
+
+  {{-- ================================================================
+       Main area
+       ================================================================ --}}
+  <div class="ia-main">
+
+    {{-- Impersonation banner --}}
+    @if(session('impersonating_from'))
+      <div style="background:#854F0B;color:#fff;padding:8px 20px;font-size:13px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
+        <span>⚠ You are impersonating this tenant as an admin.</span>
+        <a href="{{ config('app.url') }}/admin/impersonate/stop" style="color:#FCD34D;font-weight:600">Stop impersonating →</a>
+      </div>
+    @endif
+
+    {{-- Page content --}}
+    <main class="ia-content">
+
+      {{-- Impersonation banner --}}
+      @if(session('impersonating_tenant_name') || session()->has('impersonating_from'))
+        <div style="background:#854F0B;color:#FAEEDA;padding:10px 16px;border-radius:var(--ia-r-md);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+          <span>
+            👤 You are impersonating <strong>{{ session('impersonating_tenant_name', 'this tenant') }}</strong>.
+            All actions you take are real.
+          </span>
+          <a href="{{ config('app.url') }}/admin/impersonate/stop"
+             style="background:rgba(0,0,0,.2);color:#FAEEDA;padding:5px 14px;border-radius:6px;font-weight:600;font-size:12px">
+            Stop impersonating →
+          </a>
+        </div>
+      @endif
+
+      {{-- Flash messages.
+           Success → inline green banner (non-blocking, just confirms an action).
+           Error   → IntakeConfirm.alert() modal (blocks until acknowledged so
+           it can't be missed when the page is long, e.g. class session list). --}}
+      @if(session('success'))
+        <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
+      @endif
+
+      {{-- MARKER-PATCH-613 — clock-in prompt. Off-the-clock staff get a gentle,
+           dismissible nudge (dismissal is per page-load, not persisted — it
+           reappears next visit so a forgotten clock-in gets caught). --}}
+      @if(!empty($authUser) && empty($pinLockPending))
+        @php
+          $tcOpen = \App\Models\Tenant\TenantTimePunch::openFor($currentTenant->id, $authUser->id);
+        @endphp
+        @if(!$tcOpen)
+          <div class="ia-flash" id="tc-clockin-nudge"
+               style="display:flex;align-items:center;gap:12px;background:color-mix(in srgb,var(--ia-accent) 10%,transparent);border:0.5px solid var(--ia-accent);color:var(--ia-text)">
+            <span style="flex:1">You're not clocked in.</span>
+            <form method="POST" action="{{ route('tenant.timeclock.in') }}" style="margin:0">
+              @csrf<input type="hidden" name="source" value="lock_screen">
+              <button type="submit" style="background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Clock in</button>
+            </form>
+            <button type="button" onclick="sessionStorage.setItem('tc_nudge_dismissed','1');document.getElementById('tc-clockin-nudge').remove()"
+                    style="background:none;border:none;color:var(--ia-text-muted);cursor:pointer;font-size:16px;line-height:1">×</button>
+          </div>
+          <script>if(sessionStorage.getItem('tc_nudge_dismissed')){var n=document.getElementById('tc-clockin-nudge');if(n)n.remove();}</script>
+        @endif
+      @endif
+      {{-- MARKER-PATCH-445 — single global flash; per-page success/error banners removed across tenant views --}}
+      @if(session('error'))
+        @push('scripts')
+        <script>
+          (function () {
+            function pop() {
+              if (window.IntakeConfirm && typeof window.IntakeConfirm.alert === 'function') {
+                window.IntakeConfirm.alert({
+                  title:   'Couldn\'t do that',
+                  message: @json(session('error')),
+                });
+              } else {
+                // Fallback if confirm.js hasn't loaded for some reason. Same
+                // visual pattern as the inline banner — never silently swallow.
+                var d = document.createElement('div');
+                d.className = 'ia-flash ia-flash--error';
+                d.textContent = @json(session('error'));
+                document.body.insertBefore(d, document.body.firstChild);
+              }
+            }
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', pop);
+            } else {
+              pop();
+            }
+          })();
+        </script>
+        @endpush
+      @endif
+
+      @include('layouts.tenant._staff-broadcast-banner')
+      @yield('content')
+
+    </main>
+  </div>
+</div>
+
+{{-- ================================================================
+     Mobile-only nav (bottom tab bar + drawer)
+     Hidden on desktop via CSS; always rendered in markup.
+     ================================================================ --}}
+@include('layouts.tenant._mobile-nav')
+@include('layouts.tenant._more-drawer')
+@include('layouts.tenant._mobile-fab')
+
+{{-- Detail modal (appointments, customers) --}}
+@include('tenant._detail_modal')
+
+{{-- Global JS --}}
+<script>
+  window.IntakeAdmin = {
+    tenantId:   '{{ $currentTenant->id }}',
+    csrfToken:  '{{ csrf_token() }}',
+    theme:      '{{ $adminTheme }}',
+    currency:   '{{ $currentTenant->currency_symbol ?? "$" }}',
+    ajaxUrl:    '{{ url("/admin/ajax") }}',
+    pinIdleThresholdSec:    {{ (int) config('intake.auth.pin_idle_threshold_sec', 120) }},
+    pinHeartbeatIntervalSec:{{ (int) config('intake.auth.pin_heartbeat_interval_sec', 60) }},
+  };
+</script>
+
+<script src="{{ asset('js/tenant/toast.js') }}?v={{ filemtime(public_path('js/tenant/toast.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/admin.js') }}?v={{ filemtime(public_path('js/tenant/admin.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
+
+@include('layouts.tenant._lock-overlay')
+@include('layouts.tenant._action-gate-modal')
+@include('layouts.tenant._location-welcome')
+
+{{-- MARKER-OFFLINE-SYNC stage 2 — when a SW-cached page is shown offline,
+     stamp it so nobody trusts stale data blindly. --}}
+<script>
+(function () {
+  function osStamp() {
+    if (navigator.onLine || document.getElementById('osPageStamp')) return;
+    var el = document.createElement('div');
+    el.id = 'osPageStamp';
+    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;'
+      + 'background:rgba(245,197,107,.12);border:1px solid rgba(245,197,107,.4);color:#F5C56B;'
+      + 'font:600 12.5px Inter,-apple-system,sans-serif;border-radius:100px;padding:8px 16px;backdrop-filter:blur(6px)';
+    el.textContent = 'Offline — showing your last-loaded view. Changes are paused until you reconnect.';
+    document.body.appendChild(el);
+  }
+  function osUnstamp() {
+    var el = document.getElementById('osPageStamp');
+    if (el) el.remove();
+  }
+  window.addEventListener('offline', osStamp);
+  window.addEventListener('online', osUnstamp);
+  if (!navigator.onLine) osStamp();
+})();
+</script>
+@stack('scripts')
+
+@include('tenant._onboarding_modal')
+
+  <script defer src="{{ asset('js/tenant/cl-subnav-hint.js') }}"></script>
+@include('tenant.print._composer') {{-- MARKER-PATCH-337 --}}
+</body>
+</html>
+
+OFS2_7_EOF
+
+cat > 'resources/views/tenant/timeclock/index.blade.php' <<'OFS2_8_EOF'
+@extends('layouts.tenant.app')
+
+{{-- MARKER-PATCH-610 — Time clock. Clock in/out + today's shifts + who's on. --}}
+
+@section('title', 'Time clock')
+
+@push('styles')
+<style>
+.tc-wrap { max-width: 860px; }
+.tc-hero { border: 0.5px solid var(--ia-border); border-radius: 14px; background: var(--ia-surface); padding: 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.tc-hero.on { border-color: var(--ia-accent); background: linear-gradient(135deg, color-mix(in srgb, var(--ia-accent) 6%, transparent), transparent 55%), var(--ia-surface); }
+.tc-state { font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--ia-text-muted); margin-bottom: 6px; font-weight: 600; }
+.tc-hero.on .tc-state { color: var(--ia-accent); }
+.tc-big { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.tc-sub { font-size: 12.5px; color: var(--ia-text-muted); margin-top: 5px; }
+.tc-btn { padding: 14px 30px; border-radius: 10px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; }
+.tc-btn--in { background: var(--ia-accent); color: #0a0a0a; }
+.tc-btn--out { background: transparent; border: 1.5px solid var(--ia-border-2, rgba(255,255,255,.2)); color: var(--ia-text); }
+.tc-btn:hover { filter: brightness(1.06); }
+.tc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .tc-cols { grid-template-columns: 1fr; } .tc-hero { flex-direction: column; text-align: center; } }
+.tc-card { border: 0.5px solid var(--ia-border); border-radius: 12px; background: var(--ia-surface); }
+.tc-card-h { padding: 13px 16px; border-bottom: 0.5px solid var(--ia-border); font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.tc-card-h .m { font-size: 11px; color: var(--ia-text-muted); font-weight: 500; }
+.tc-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; border-bottom: 0.5px dashed var(--ia-border); font-size: 13px; }
+.tc-row:last-child { border-bottom: none; }
+.tc-row .t { color: var(--ia-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tc-row .dur { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ia-accent); margin-right: 8px; vertical-align: 1px; }
+.tc-empty { padding: 26px 16px; text-align: center; color: var(--ia-text-muted); font-size: 12.5px; }
+.tc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.tc-stat { border: 0.5px solid var(--ia-border); border-radius: 10px; background: var(--ia-surface); padding: 14px 16px; }
+.tc-stat .l { font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ia-text-muted); margin-bottom: 6px; }
+.tc-stat .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tc-mini { padding: 5px 11px; font-size: 11.5px; border: 0.5px solid var(--ia-border-2, rgba(255,255,255,.2)); background: transparent; color: var(--ia-text); border-radius: 6px; cursor: pointer; text-decoration: none; }
+.tc-mini:hover { border-color: var(--ia-accent); }
+.tc-inp { padding: 6px 10px; border-radius: 6px; border: 0.5px solid var(--ia-border); background: var(--ia-input-bg, #0a0a0a); color: var(--ia-text); font-size: 12.5px; }
+@media (max-width: 760px) { .tc-stats { grid-template-columns: 1fr 1fr; } }
+</style>
+@endpush
+
+@section('content')
+<div class="tc-wrap">
+
+  <h1 style="font-size:19px;font-weight:700;margin-bottom:4px">Time clock</h1>
+
+  {{-- MARKER-PATCH-614 — subnav; Team only for managers --}}
+  @if(auth('tenant')->user()?->can('timeclock.manage'))
+    <div style="display:flex;gap:20px;border-bottom:.5px solid var(--ia-border);margin-bottom:20px">
+      <a href="{{ route('tenant.timeclock.index') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text);border-bottom:2px solid var(--ia-accent);margin-bottom:-.5px;text-decoration:none;font-weight:600">My time</a>
+      <a href="{{ route('tenant.timeclock.team') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Team</a>
+      <a href="{{ route('tenant.timeclock.reports') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Reports</a>
+      <a href="{{ route('tenant.timeclock.approvals') }}" style="padding:11px 2px;font-size:13px;color:var(--ia-text-muted);border-bottom:2px solid transparent;margin-bottom:-.5px;text-decoration:none">Approvals</a>
+    </div>
+  @else
+    <p style="font-size:12.5px;color:var(--ia-text-muted);margin-bottom:20px">Clock in when your shift starts — the lock screen offers it too.</p>
+  @endif
+
+  {{-- status hero --}}
+  <div class="tc-hero {{ $open ? 'on' : '' }}">
+    <div>
+      @if($open)
+        <div class="tc-state">On the clock</div>
+        <div class="tc-big" id="tc-timer" data-in="{{ $open->clock_in_at->timestamp }}">--:--</div>
+        <div class="tc-sub">since {{ tlocal($open->clock_in_at) }}</div>
+      @else
+        <div class="tc-state">Off the clock</div>
+        <div class="tc-big">{{ intdiv($todayMinutes, 60) }}h {{ $todayMinutes % 60 }}m</div>
+        <div class="tc-sub">worked today</div>
+      @endif
+    </div>
+    <div>
+      @if($open)
+        <form method="POST" action="{{ route('tenant.timeclock.out') }}" data-os-punch="out">@csrf
+          <button class="tc-btn tc-btn--out" type="submit">Clock out</button>
+        </form>
+      @else
+        <form method="POST" action="{{ route('tenant.timeclock.in') }}" data-os-punch="in">@csrf
+          <button class="tc-btn tc-btn--in" type="submit">Clock in</button>
+        </form>
+      @endif
+      <div id="osPunchNote" style="display:none;margin-top:10px;font-size:12.5px;color:#F5C56B"></div>
+    </div>
+  </div>
+
+  {{-- MARKER-PATCH-613 — rolling totals (pay-period-aware totals arrive with settings) --}}
+  <div class="tc-stats">
+    <div class="tc-stat"><div class="l">This week</div><div class="v">{{ intdiv($weekMinutes, 60) }}h {{ $weekMinutes % 60 }}m</div></div>
+    <div class="tc-stat"><div class="l">This month</div><div class="v">{{ intdiv($monthMinutes, 60) }}h {{ $monthMinutes % 60 }}m</div></div>
+    <div class="tc-stat"><div class="l">Today</div><div class="v">{{ intdiv($todayMinutes, 60) }}h {{ $todayMinutes % 60 }}m</div></div>
+  </div>
+
+  <div class="tc-cols">
+    {{-- today's shifts --}}
+    <div class="tc-card">
+      <div class="tc-card-h">Your shifts today <span class="m">{{ tlocal_date(tnow()) }}</span></div>
+      @forelse($mine as $p)
+        <div class="tc-row">
+          <span class="t">{{ tlocal($p->clock_in_at) }} → {{ $p->clock_out_at ? tlocal($p->clock_out_at) : 'now' }}</span>
+          <span class="dur">{{ intdiv($p->minutes(), 60) }}h {{ $p->minutes() % 60 }}m</span>
+        </div>
+      @empty
+        <div class="tc-empty">No punches yet today.</div>
+      @endforelse
+    </div>
+
+    {{-- who's on --}}
+    <div class="tc-card">
+      <div class="tc-card-h">On the clock now <span class="m">{{ $onClock->count() }}</span></div>
+      @forelse($onClock as $p)
+        <div class="tc-row">
+          <span><span class="tc-dot"></span>{{ $p->user->name ?? 'Staff' }}</span>
+          <span class="t">since {{ tlocal($p->clock_in_at) }}</span>
+        </div>
+      @empty
+        <div class="tc-empty">Nobody clocked in.</div>
+      @endforelse
+    </div>
+  </div>
+
+  {{-- MARKER-PATCH-613 — shift history + email/print timesheet --}}
+  <div class="tc-card" style="margin-top:16px">
+    <div class="tc-card-h">Shift history
+      <span style="display:flex;gap:8px">
+        <a class="tc-mini" href="{{ route('tenant.timeclock.timesheet') }}" target="_blank" rel="noopener">Print timesheet</a>
+        <button class="tc-mini" type="button" onclick="document.getElementById('tc-email').style.display='flex'">Email timesheet</button>
+      </span>
+    </div>
+    <form id="tc-email" method="POST" action="{{ route('tenant.timeclock.timesheet.email') }}" style="display:none;gap:8px;padding:12px 16px;border-bottom:.5px solid var(--ia-border);align-items:center;flex-wrap:wrap">
+      @csrf
+      <input type="email" name="to" required placeholder="send to…" class="tc-inp" value="{{ $authUser->email ?? '' }}">
+      <span style="font-size:11px;color:var(--ia-text-muted)">This month · {{ tlocal_date(tnow()->startOfMonth()) }}–{{ tlocal_date(tnow()->endOfMonth()) }}</span>
+      <button class="tc-mini" type="submit">Send</button>
+    </form>
+    @forelse($history as $p)
+      @php $mins = $p->minutes(); @endphp
+      <div class="tc-row" style="grid-template-columns:120px 1fr 90px">
+        <span class="t">{{ tlocal_date($p->clock_in_at) }}</span>
+        <span class="num">{{ tlocal($p->clock_in_at) }} → {{ $p->clock_out_at ? tlocal($p->clock_out_at) : 'now' }}
+          @if($p->auto_closed)<span style="color:var(--ia-amber,#F59E0B);font-size:10px;text-transform:uppercase;margin-left:6px">auto-closed</span>@endif
+          @if($p->edited_at)<span style="color:var(--ia-text-muted);font-size:10px;margin-left:6px">edited</span>@endif
+        </span>
+        <span class="dur">{{ intdiv($mins,60) }}h {{ $mins % 60 }}m</span>
+      </div>
+    @empty
+      <div class="tc-empty">No punches recorded yet.</div>
+    @endforelse
+  </div>
+</div>
+@endsection
+
+@push('scripts')
+{{-- MARKER-OFFLINE-SYNC stage 2 — punches queue on-device when offline and
+     replay with their ORIGINAL timestamps. Gated by the offline_sync add-on. --}}
+@if ($offlineSyncEnabled ?? false)
+<script>
+(function () {
+  const SYNC_URL = @json(route('tenant.timeclock.sync'));
+  const CSRF = document.querySelector('meta[name=csrf-token]').content;
+  const uuid = () => (crypto.randomUUID) ? crypto.randomUUID() :
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);
+    });
+
+  function db() {
+    return new Promise((res, rej) => {
+      const rq = indexedDB.open('intake-offline-punches', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('punches', { keyPath: 'client_uuid' });
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    });
+  }
+  async function queuePunch(direction) {
+    const d = await db();
+    const rec = { client_uuid: uuid(), direction, punched_at: new Date().toISOString() };
+    await new Promise(res => {
+      const tx = d.transaction('punches', 'readwrite');
+      tx.objectStore('punches').put(rec);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+    const note = document.getElementById('osPunchNote');
+    note.style.display = 'block';
+    note.textContent = 'You\'re offline — punch saved at ' +
+      new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
+      ' and will sync with its original time.';
+  }
+  async function replay() {
+    if (!navigator.onLine) return;
+    const d = await db();
+    const all = await new Promise(res => {
+      const rq = d.transaction('punches').objectStore('punches').getAll();
+      rq.onsuccess = () => res(rq.result || []); rq.onerror = () => res([]);
+    });
+    if (!all.length) return;
+    let synced = 0;
+    for (const rec of all.sort((a, b) => a.punched_at.localeCompare(b.punched_at))) {
+      try {
+        const r = await fetch(SYNC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+          body: JSON.stringify(rec),
+        });
+        const j = await r.json();
+        if (j.ok || r.status === 422) {
+          await new Promise(res => {
+            const tx = d.transaction('punches', 'readwrite');
+            tx.objectStore('punches').delete(rec.client_uuid);
+            tx.oncomplete = res; tx.onerror = res;
+          });
+          if (j.ok) synced++;
+        }
+      } catch (e) { return; } // still offline
+    }
+    if (synced) location.reload(); // reflect the punch state
+  }
+  document.querySelectorAll('form[data-os-punch]').forEach(f => {
+    f.addEventListener('submit', (e) => {
+      if (navigator.onLine) return; // normal form post
+      e.preventDefault();
+      queuePunch(f.dataset.osPunch);
+    });
+  });
+  window.addEventListener('online', replay);
+  replay();
+})();
+</script>
+@endif
+<script>
+// Live elapsed timer while on the clock.
+(function () {
+  var el = document.getElementById('tc-timer');
+  if (!el) return;
+  var start = parseInt(el.dataset.in, 10) * 1000;
+  function tick() {
+    var mins = Math.max(0, Math.floor((Date.now() - start) / 60000));
+    el.textContent = Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+  }
+  tick(); setInterval(tick, 30000);
+})();
+</script>
+@endpush
+
+OFS2_8_EOF
+
+cat > 'resources/views/tenant/register/registers.blade.php' <<'OFS2_9_EOF'
+@extends('layouts.tenant.app')
+
+{{-- MARKER-REGISTER-RECON-DISPLAY — manage physical registers + pair customer displays --}}
+
+@php $pageTitle = 'Registers'; @endphp
+
+@section('content')
+<div style="max-width:860px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <h1 style="font-size:22px;font-weight:800;letter-spacing:-.02em">Registers &amp; pay displays</h1>
+    <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn-ghost">← Back to register</a>
+  </div>
+  <p style="color:var(--ia-muted);font-size:13.5px;margin-bottom:20px">
+    Each register is a physical pay station. Pair an iPad or phone once by scanning its QR code —
+    the screen then mirrors that register's cart automatically for every sale.
+  </p>
+
+  @if (session('status'))
+    <div class="ia-alert ia-alert-success" style="margin-bottom:16px">{{ session('status') }}</div>
+  @endif
+
+  @foreach ($registers as $r)
+    <div style="background:var(--ia-panel);border:1px solid var(--ia-border);border-radius:12px;padding:18px;margin-bottom:12px;display:flex;gap:20px;align-items:flex-start">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-weight:800;font-size:16px">#{{ $r->number }} — {{ $r->name }}</span>
+          @if ($currentRegisterId === $r->id)
+            <span style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:var(--ia-accent);color:#0B0B0B;border-radius:100px;padding:3px 9px">This device</span>
+          @endif
+        </div>
+        <div style="font-size:12.5px;color:var(--ia-muted);margin-bottom:12px;word-break:break-all">
+          Display link: {{ url('/pay-display/' . $r->display_token) }}
+        </div>
+        {{-- MARKER-REGISTER-RECON-DISPLAY — welcome-screen logo choice --}}
+        <form method="POST" action="{{ route('tenant.register.registers.update', ['id' => $r->id]) }}"
+              style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          @csrf
+          <label style="font-size:12.5px;color:var(--ia-muted)">Welcome-screen logo</label>
+          <select name="display_logo" class="ia-input" style="max-width:210px;font-size:13px"
+                  onchange="this.form.submit()">
+            <option value="auto"  @selected($r->display_logo === 'auto')>Auto (light, then main)</option>
+            <option value="light" @selected($r->display_logo === 'light')>Light logo</option>
+            <option value="main"  @selected($r->display_logo === 'main')>Main logo</option>
+            <option value="none"  @selected($r->display_logo === 'none')>No logo</option>
+          </select>
+        </form>
+        <div style="display:flex;gap:8px">
+          <button class="ia-btn ia-btn-ghost" onclick="toggleQr({{ $r->id }})">Show pairing QR</button>
+          <form method="POST" action="{{ route('tenant.register.registers.regenerate', ['id' => $r->id]) }}"
+                onsubmit="return confirm('Regenerate the pairing link? All screens paired to this register will disconnect.');">
+            @csrf
+            <button class="ia-btn ia-btn-ghost" type="submit">Regenerate link</button>
+          </form>
+        </div>
+      </div>
+      <div id="qr-{{ $r->id }}" data-url="{{ url('/pay-display/' . $r->display_token) }}"
+           style="display:none;background:#fff;border-radius:10px;padding:12px;width:170px;height:170px"></div>
+    </div>
+  @endforeach
+
+  <form method="POST" action="{{ route('tenant.register.registers.store') }}"
+        style="display:flex;gap:10px;margin-top:18px">
+    @csrf
+    <input name="name" required maxlength="80" placeholder="Register name — e.g. Front Counter"
+           class="ia-input" style="flex:1">
+    <button class="ia-btn ia-btn-primary" type="submit">Add register</button>
+  </form>
+</div>
+
+{{-- MARKER-OFFLINE-SYNC stage 2 — per-device offline settings. Everything in
+     this card lives on THIS device (localStorage / caches), not the server. --}}
+@php $osEnabled = app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync'); @endphp
+@if ($osEnabled)
+<div style="background:var(--ia-panel);border:1px solid var(--ia-border);border-radius:12px;padding:18px;margin-top:22px">
+  <div style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-muted);margin-bottom:4px">Offline sync — this device</div>
+  <div style="font-size:12.5px;color:var(--ia-muted);margin-bottom:14px">The register on this device keeps selling through outages. Snapshot and queue live on-device.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:12px">
+    <label style="font-size:13px">Catalog snapshot
+      <select id="osSnapSize" class="ia-input" style="margin-left:8px;font-size:13px">
+        <option value="250">Top 250 items</option>
+        <option value="500" selected>Top 500 items</option>
+        <option value="1000">Top 1,000 items</option>
+      </select>
+    </label>
+    <span style="font-size:12.5px;color:var(--ia-muted)" id="osSnapInfo">Snapshot: checking…</span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="ia-btn ia-btn-ghost" onclick="osRefreshNow()">Refresh snapshot now</button>
+    <button class="ia-btn ia-btn-ghost" onclick="osClearDevice()">Clear device cache</button>
+  </div>
+</div>
+<script>
+(function () {
+  const KEY = 'ia_offline_catalog', SIZE_KEY = 'ia_offline_snap_size';
+  const sel = document.getElementById('osSnapSize');
+  sel.value = localStorage.getItem(SIZE_KEY) || '500';
+  sel.addEventListener('change', () => { localStorage.setItem(SIZE_KEY, sel.value); osRefreshNow(); });
+  function info() {
+    try {
+      const snap = JSON.parse(localStorage.getItem(KEY) || 'null');
+      const el = document.getElementById('osSnapInfo');
+      if (!snap) { el.textContent = 'Snapshot: none yet — open the register while online.'; return; }
+      const n = (snap.products || []).length + (snap.services || []).length;
+      el.textContent = 'Snapshot: ' + n + ' items · ' + new Date(snap.captured_at).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(e => {
+          if (e.usage) el.textContent += ' · ' + (e.usage / 1048576).toFixed(1) + ' MB on device';
+        });
+      }
+    } catch (e) {}
+  }
+  window.osRefreshNow = async function () {
+    try {
+      const url = new URL(@json(route('tenant.register.offline_catalog')), window.location.origin);
+      url.searchParams.set('limit', sel.value);
+      const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const d = await r.json();
+      if (d.ok) { localStorage.setItem(KEY, JSON.stringify(d)); info(); }
+    } catch (e) { alert('Could not refresh — are you online?'); }
+  };
+  window.osClearDevice = async function () {
+    localStorage.removeItem(KEY);
+    try { indexedDB.deleteDatabase('intake-offline'); indexedDB.deleteDatabase('intake-offline-punches'); } catch (e) {}
+    if (window.caches) (await caches.keys()).forEach(k => { if (k.startsWith('ia-offline')) caches.delete(k); });
+    info();
+  };
+  info();
+})();
+</script>
+@endif
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+function toggleQr(id) {
+  const el = document.getElementById('qr-' + id);
+  if (el.style.display === 'none') {
+    if (!el.dataset.done && typeof qrcode === 'function') {
+      const qr = qrcode(0, 'M');
+      qr.addData(el.dataset.url);
+      qr.make();
+      el.innerHTML = qr.createSvgTag({ scalable: true, margin: 0 });
+      el.querySelector('svg').style.cssText = 'width:100%;height:100%';
+      el.dataset.done = '1';
+    }
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+</script>
+@endsection
+OFS2_9_EOF
+
+cat > 'resources/views/tenant/register/index.blade.php' <<'OFS2_10_EOF'
+@extends('layouts.tenant.app')
+
+@php $pageTitle = 'Register'; @endphp
+
+@push('styles')
+<style>
+  .reg-page { --reg-danger: #F09595; --reg-danger-bg: rgba(226,75,74,.15); }
+
+  .reg-tabs-bar{
+    display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
+    flex-wrap:wrap
+  }
+  .reg-tab-link{
+    padding:10px 18px;font-size:13px;font-weight:500;color:var(--ia-text-dim);
+    text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-0.5px;
+    transition:color var(--ia-t),border-color var(--ia-t)
+  }
+  .reg-tab-link:hover{color:var(--ia-text)}
+  .reg-tab-link.active{color:var(--ia-text);border-bottom-color:var(--ia-accent)}
+
+  /* patch-96 layout — 50/50 split between item search and cart */
+  .reg-grid {
+    display:grid;grid-template-columns:1fr 1fr;gap:18px;
+  }
+  @media(max-width:1200px){ .reg-grid{grid-template-columns:1fr} }
+
+  /* patch-100a oversell-actions — action row below oversold cart lines */
+  .reg-oversell-actions {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 6px; flex-wrap: wrap;
+  }
+  .reg-oversell-btn {
+    font-size: 11px; padding: 3px 10px;
+    background: transparent;
+    color: var(--ia-text);
+    border: 0.5px solid var(--ia-border);
+    border-radius: var(--ia-r-xs);
+    cursor: pointer; transition: background 120ms ease;
+  }
+  .reg-oversell-btn:hover { background: var(--ia-hover); }
+  .reg-oversell-pill {
+    display: inline-block;
+    font-size: 11px; padding: 3px 10px;
+    background: rgba(99,153,34,0.12);
+    color: #639922;
+    border: 0.5px solid rgba(99,153,34,0.35);
+    border-radius: var(--ia-r-xs);
+    font-weight: 500;
+  }
+  /* patch-96 oversell-badge — small amber inline marker on cart lines */
+  .reg-oversell-badge {
+    display:inline-block; margin-left:8px;
+    padding:2px 7px;
+    background:rgba(245,158,11,0.12);
+    color:#F59E0B;
+    border:0.5px solid rgba(245,158,11,0.35);
+    border-radius:var(--ia-r-xs);
+    font-size:10.5px; font-weight:600;
+    letter-spacing:0.02em;
+    vertical-align:middle;
+    white-space:nowrap;
+  }
+  .reg-panel{
+    background:var(--ia-surface);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-lg);padding:18px
+  }
+
+  .reg-search{
+    width:100%;padding:12px 14px;background:var(--ia-input-bg);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);
+    color:var(--ia-text);font-size:14px;font-family:inherit
+  }
+  .reg-search:focus{outline:none;border-color:var(--ia-accent)}
+
+  .reg-tabs{display:flex;gap:6px;margin:12px 0 14px}
+  .reg-tab{
+    padding:6px 12px;background:transparent;border:0.5px solid var(--ia-border);
+    border-radius:99px;color:var(--ia-text-dim);font-size:12px;font-family:inherit;cursor:pointer
+  }
+  .reg-tab.active{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
+
+  .reg-results-section{margin-top:14px}
+  .reg-results-section h3{
+    font-size:11px;font-weight:600;color:var(--ia-text-dim);
+    text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px
+  }
+  .reg-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:10px 12px;border-radius:var(--ia-r-md);cursor:pointer;transition:background var(--ia-t)
+  }
+  .reg-row:hover{background:var(--ia-hover)}
+  .reg-row.highlighted{background:var(--ia-hover)}
+  .reg-results-section.mouse-active .reg-row.highlighted:not(:hover){background:transparent}
+  .reg-row .name{font-weight:500;font-size:14px}
+  .reg-row .meta{font-size:12px;color:var(--ia-text-dim)}
+  .reg-row .price{font-size:14px;font-weight:600;color:var(--ia-text);white-space:nowrap}
+
+  .reg-hint{
+    display:flex;gap:14px;align-items:center;
+    font-size:11px;color:var(--ia-text-dim);
+    margin:8px 4px 6px;padding:0 4px
+  }
+  .reg-hint kbd{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:18px;height:18px;padding:0 5px;
+    background:var(--ia-surface-2);
+    border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-sm);
+    font-family:var(--ia-font-mono);
+    font-size:10px;color:var(--ia-text-muted);
+    margin:0 2px
+  }
+
+  .reg-open-item{
+    width:100%;margin-top:10px;padding:10px 14px;
+    background:transparent;border:0.5px dashed var(--ia-border-strong);
+    border-radius:var(--ia-r-md);color:var(--ia-text-muted);
+    font-size:13px;font-family:inherit;cursor:pointer;transition:all var(--ia-t)
+  }
+  .reg-open-item:hover{border-color:var(--ia-accent);color:var(--ia-text)}
+
+  .reg-cust{
+    display:flex;flex-direction:column;gap:6px;
+    padding:12px 14px;background:var(--ia-surface-2);border-radius:var(--ia-r-md);
+    margin-bottom:14px;font-size:13px
+  }
+  .reg-cust .head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .reg-cust .name{font-weight:500;font-size:14px}
+  .reg-cust .meta{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--ia-text-dim)}
+  .reg-cust .meta a{color:var(--ia-text-dim);text-decoration:none}
+  .reg-cust .meta a:hover{color:var(--ia-text);text-decoration:underline}
+  .reg-cust .actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;padding-top:8px;border-top:0.5px solid var(--ia-border)}
+  .reg-cust .profile-link{font-size:12px;color:var(--ia-accent);text-decoration:none}
+  .reg-cust .profile-link:hover{text-decoration:underline}
+  .reg-cust .clear{color:var(--ia-text-dim);cursor:pointer;font-size:11px}
+  .reg-cust .clear:hover{color:var(--reg-danger)}
+
+  .reg-attach{
+    width:100%;padding:10px;background:transparent;border:0.5px dashed var(--ia-border-strong);
+    border-radius:var(--ia-r-md);color:var(--ia-text-muted);font-size:13px;
+    font-family:inherit;cursor:pointer;transition:all var(--ia-t);margin-bottom:14px
+  }
+  .reg-attach:hover{border-color:var(--ia-accent);color:var(--ia-text)}
+
+  .reg-lines{
+    max-height:340px;overflow-y:auto;margin:0 -4px 14px;padding:0 4px;
+    border-bottom:0.5px solid var(--ia-border);padding-bottom:14px
+  }
+  .reg-line{
+    display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 4px
+  }
+  .reg-line .name{font-size:13px;font-weight:500;line-height:1.3}
+  .reg-line .meta{font-size:11px;color:var(--ia-text-dim);margin-top:2px}
+  .reg-line .qty{
+    width:50px;padding:5px 8px;background:var(--ia-input-bg);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
+    color:var(--ia-text);font-size:13px;font-family:inherit;text-align:center
+  }
+  .reg-line .qty:focus{outline:none;border-color:var(--ia-accent)}
+  .reg-line .total{font-size:13px;font-weight:600;text-align:right;min-width:62px}
+  .reg-line .remove{background:transparent;border:none;color:var(--ia-text-dim);font-size:16px;cursor:pointer;padding:0 4px;line-height:1}
+  .reg-line .remove:hover{color:var(--reg-danger)}
+  .reg-empty{padding:30px 0;text-align:center;color:var(--ia-text-dim);font-size:13px}
+
+  .reg-totals{font-size:13px}
+  .reg-totals-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--ia-text-muted)}
+  .reg-totals-row.grand{font-size:18px;font-weight:600;color:var(--ia-text);padding-top:10px;margin-top:6px;border-top:0.5px solid var(--ia-border)}
+
+  .reg-pay-row{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:16px}
+  .reg-pay{
+    padding:14px;background:var(--ia-accent);color:var(--ia-accent-text);
+    border:none;border-radius:var(--ia-r-md);font-size:15px;font-weight:600;
+    font-family:inherit;cursor:pointer;transition:filter var(--ia-t)
+  }
+  .reg-pay:hover:not(:disabled){filter:brightness(.93)}
+  .reg-pay:disabled{opacity:.4;cursor:not-allowed}
+
+  .reg-quote-btn{
+    padding:14px;background:rgba(var(--ia-accent-rgb,255,255,255),.10);
+    border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:14px;font-weight:500;
+    font-family:inherit;cursor:pointer;transition:all var(--ia-t)
+  }
+  .reg-quote-btn:hover:not(:disabled){border-color:var(--ia-accent);background:var(--ia-accent-soft)}
+  .reg-quote-btn:disabled{opacity:.4;cursor:not-allowed}
+
+  .reg-cust.warning{
+    background:var(--reg-danger-bg);
+    border:0.5px solid var(--reg-danger);
+  }
+  /* MARKER-PATCH-161 — receipt indicator */
+  .reg-cust-receipt{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    padding:8px 12px;
+    margin-top:8px;
+    background:rgba(190,242,100,.06);
+    border:0.5px solid rgba(190,242,100,.2);
+    border-radius:var(--ia-r-sm);
+    font-size:12px;
+    flex-wrap:wrap;
+  }
+  .reg-cust-receipt--none{
+    background:var(--ia-surface);
+    border-color:var(--ia-border);
+    color:var(--ia-text-dim);
+  }
+  .reg-cust-receipt-status{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+  .reg-cust-receipt-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--ia-accent);
+    box-shadow:0 0 0 3px rgba(190,242,100,.15);flex-shrink:0;
+  }
+  .reg-cust-receipt-skip{
+    display:flex;align-items:center;gap:6px;cursor:pointer;
+    font-size:11.5px;color:var(--ia-text-dim);user-select:none;flex-shrink:0;
+  }
+  .reg-cust-receipt-skip input{width:14px;height:14px;accent-color:var(--ia-accent)}
+
+  .reg-attach.warning{
+    border:0.5px dashed var(--reg-danger);
+    color:var(--reg-danger)
+  }
+
+  .reg-err{background:var(--reg-danger-bg);color:var(--reg-danger);border-radius:var(--ia-r-sm);padding:10px 12px;font-size:13px;margin-bottom:12px;border:0.5px solid rgba(248,113,113,.30)}
+  /* MARKER-PATCH-170C — shake animation for errors. Triggered by toggling .reg-err--shake. */
+  @keyframes reg-shake {
+    0%,100% { transform: translateX(0); }
+    15%     { transform: translateX(-6px); }
+    30%     { transform: translateX(5px); }
+    45%     { transform: translateX(-4px); }
+    60%     { transform: translateX(3px); }
+    75%     { transform: translateX(-2px); }
+    90%     { transform: translateX(1px); }
+  }
+  .reg-err--shake { animation: reg-shake 0.55s ease-out; }
+
+  /* Pre-flight blocker modal — uses the same surfaces as other reg-modals
+     but with a danger-tinged accent on the title. */
+  .reg-preflight-icon {
+    width: 44px; height: 44px;
+    background: rgba(248,113,113,.10);
+    border: 0.5px solid rgba(248,113,113,.25);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #f87171;
+    margin: 0 auto 14px;
+  }
+  .reg-preflight h2 { text-align: center; }
+  .reg-preflight .lede { text-align: center; }
+
+  .reg-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+  .reg-modal-bg.open{display:flex}
+  .reg-modal{
+    background:var(--ia-surface);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-xl);padding:24px;width:100%;max-width:420px
+  }
+  .reg-modal h2{font-size:18px;font-weight:600;margin-bottom:8px;color:var(--ia-text)}
+  .reg-modal .lede{color:var(--ia-text-dim);font-size:13px;margin-bottom:18px}
+
+  .reg-tender-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .reg-tender-btn{
+    padding:14px 12px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;font-weight:500;
+    font-family:inherit;cursor:pointer;transition:all var(--ia-t);text-align:left
+  }
+  .reg-tender-btn:hover{border-color:var(--ia-accent)}
+  .reg-tender-btn.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
+
+  .reg-tip-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+  .reg-tip-btn{
+    padding:12px 10px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;font-family:inherit;cursor:pointer;transition:all var(--ia-t)
+  }
+  .reg-tip-btn:hover{border-color:var(--ia-accent)}
+  .reg-tip-btn.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
+
+  .reg-tip-custom{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .reg-tip-custom input{flex:1;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
+  .reg-tip-custom input:focus{outline:none;border-color:var(--ia-accent)}
+
+  .reg-modal-actions{display:flex;gap:8px;margin-top:18px}
+  .reg-btn-secondary{flex:1;padding:11px;background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all var(--ia-t)}
+  .reg-btn-secondary:hover{border-color:var(--ia-border-strong)}
+  .reg-btn-primary{flex:1;padding:11px;background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:var(--ia-r-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:filter var(--ia-t)}
+  .reg-btn-primary:hover:not(:disabled){filter:brightness(.93)}
+  .reg-btn-primary:disabled{opacity:.4;cursor:not-allowed}
+
+  .reg-modal input[type=text]{width:100%;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
+  .reg-modal input[type=text]:focus{outline:none;border-color:var(--ia-accent)}
+
+  .reg-receipt{text-align:center}
+  .reg-receipt h2{font-size:24px;margin-bottom:6px}
+  .reg-receipt .num{font-size:13px;color:var(--ia-text-dim);margin-bottom:18px;font-family:var(--ia-font-mono)}
+  .reg-receipt .total{font-size:36px;font-weight:700;margin:14px 0}
+  /* MARKER-PATCH-187 — auto-reset countdown line */
+  .reg-receipt-auto{margin-top:14px;font-size:12px;color:var(--ia-text-dim)}
+  .reg-receipt-auto span{font-variant-numeric:tabular-nums;color:var(--ia-text)}
+
+  .reg-cust-results{position:absolute;top:100%;left:0;right:0;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);margin-top:4px;max-height:240px;overflow-y:auto;z-index:10}
+
+  .reg-refund-result{
+    padding:12px;background:rgba(190,242,100,.04);
+    border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-md);
+    margin-bottom:10px;cursor:pointer;transition:filter var(--ia-t)
+  }
+  .reg-refund-result:hover{filter:brightness(1.1)}
+  .reg-refund-result .label{font-size:11px;color:var(--ia-accent);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:4px}
+  .reg-refund-result .name{font-size:14px;font-weight:500}
+  .reg-refund-result .meta{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+
+  .reg-refund-list{max-height:380px;overflow-y:auto;margin:-4px 0 14px;padding:4px 0}
+  .reg-refund-row{
+    display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;
+    padding:10px 12px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);
+    margin-bottom:6px
+  }
+  .reg-refund-row.disabled{opacity:.4}
+  .reg-refund-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--ia-accent)}
+  .reg-refund-row .name{font-size:13px;font-weight:500}
+  .reg-refund-row .meta{font-size:11px;color:var(--ia-text-dim);margin-top:2px}
+  .reg-refund-row .qty-input{
+    width:60px;padding:5px 8px;background:var(--ia-input-bg);
+    border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);
+    color:var(--ia-text);font-size:13px;font-family:inherit;text-align:center
+  }
+  .reg-refund-row .qty-input:focus{outline:none;border-color:var(--ia-accent)}
+  .reg-refund-row .qty-input:disabled{opacity:.4;cursor:not-allowed}
+  .reg-refund-row .total{font-size:13px;font-weight:600;text-align:right;min-width:70px}
+
+  .reg-cart-section-label{
+    font-size:10px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.08em;
+    font-weight:600;padding:8px 4px 4px;border-top:0.5px solid var(--ia-border);
+    margin-top:8px
+  }
+  .reg-cart-section-label:first-child{border-top:none;margin-top:0}
+  .reg-cart-section-label.refund{color:#F09595}
+
+  .reg-line.refund-line{background:rgba(226,75,74,.04)}
+  .reg-line.refund-line .total{color:#F09595}
+  .reg-line.refund-line .meta{color:#F09595;opacity:.7}
+  .reg-cust-results .row{padding:10px 12px;cursor:pointer;border-bottom:0.5px solid var(--ia-border)}
+  .reg-cust-results .row:hover{background:var(--ia-hover)}
+  .reg-cust-results .row:last-child{border-bottom:none}
+
+  .reg-drafts-banner{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:11px 14px 11px 13px;
+    background:var(--ia-accent-soft);
+    border:0.5px solid var(--ia-border);
+    border-left:3px solid var(--ia-accent);
+    border-radius:var(--ia-r-md);margin-bottom:14px;font-size:13px;cursor:pointer;
+    transition:filter var(--ia-t)
+  }
+  .reg-drafts-banner:hover{filter:brightness(1.08)}
+  .reg-drafts-banner .label{color:var(--ia-text);font-weight:500}
+  .reg-drafts-banner .cta{font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em;font-weight:500}
+
+  .reg-save-status{
+    font-size:11px;color:var(--ia-text-dim);text-transform:uppercase;letter-spacing:.05em;
+    margin-bottom:8px;height:14px;line-height:14px;
+    transition:opacity var(--ia-t);opacity:0
+  }
+  .reg-save-status.visible{opacity:1}
+
+  .reg-drafts-list{max-height:380px;overflow-y:auto;margin:-4px -4px 14px;padding:4px}
+  .reg-draft-row{
+    display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;
+    padding:12px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);margin-bottom:8px
+  }
+  .reg-draft-row .meta-line{font-size:12px;color:var(--ia-text-dim);margin-top:2px}
+  .reg-draft-row .total{font-size:14px;font-weight:600;text-align:right;min-width:62px}
+  .reg-draft-row .actions{display:flex;gap:6px}
+  .reg-draft-row .btn-resume{padding:6px 12px;background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:var(--ia-r-sm);font-size:12px;font-weight:500;font-family:inherit;cursor:pointer}
+  .reg-draft-row .btn-resume:hover{filter:brightness(.93)}
+  .reg-draft-row .btn-discard{padding:6px 10px;background:transparent;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text-dim);font-size:12px;font-family:inherit;cursor:pointer}
+  .reg-draft-row .btn-discard:hover{color:var(--reg-danger);border-color:var(--reg-danger)}
+</style>
+@endpush
+
+@section('content')
+
+<div class="ia-page-head">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">Register</h1>
+    <p class="ia-page-subtitle">Walk-in sales and retail checkouts.</p>
+  </div>
+</div>
+
+<div class="reg-tabs-bar">
+  <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Transaction</a>
+  <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
+  <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
+  <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a> {{-- MARKER-REGISTER-RECON-DISPLAY --}}
+  {{-- MARKER-REGISTER-RECON-DISPLAY — register picker (only when registers exist) --}}
+  @if (($registers ?? collect())->isNotEmpty())
+    <select id="registerPicker" class="ia-input" style="margin-left:auto;max-width:220px;font-size:13px"
+            title="Pay-station display this device drives">
+      <option value="0">No register / display</option>
+      @foreach ($registers as $r)
+        <option value="{{ $r->id }}" @selected(($currentRegisterId ?? 0) === $r->id)>#{{ $r->number }} — {{ $r->name }}</option>
+      @endforeach
+    </select>
+  @endif
+</div>
+
+@if(($appointmentTrayCount ?? 0) > 0)
+  {{-- Appointment-sourced sales waiting for payment. Auto-created when staff
+       marked an appointment Completed. We surface them prominently so staff
+       can't miss a parked sale. --}}
+  <div id="appointment-tray-banner" style="background:rgba(21,112,205,.07);border:0.5px solid rgba(21,112,205,.30);border-radius:var(--ia-r-md);padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px">
+    <div style="display:flex;align-items:center;gap:12px;flex:1">
+      <span style="font-size:20px">💳</span>
+      <div>
+        <div style="font-weight:500;font-size:14px;color:var(--ia-text)">{{ $appointmentTrayCount }} {{ $appointmentTrayCount === 1 ? 'appointment is' : 'appointments are' }} ready for checkout</div>
+        <div style="font-size:12px;color:var(--ia-text-muted);margin-top:2px">From recently completed appointments. Click to take payment.</div>
+      </div>
+    </div>
+    <button type="button" id="appointment-tray-toggle" class="ia-btn ia-btn--primary ia-btn--sm">View list</button>
+  </div>
+  <div id="appointment-tray-list" style="display:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:8px;margin-bottom:18px"></div>
+@endif
+
+<div class="reg-page">
+
+  <div class="reg-grid">
+
+    <div class="reg-panel">
+      <input type="text" class="reg-search" id="searchInput" placeholder="Search products and services…" autocomplete="off">
+
+      <div class="reg-tabs">
+        <button type="button" class="reg-tab active" data-type="all">All</button>
+        <button type="button" class="reg-tab" data-type="product">Products</button>
+        <button type="button" class="reg-tab" data-type="service">Services</button>
+      </div>
+
+      <div class="reg-hint" id="regHint" style="display:none">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> add</span>
+        <span><kbd>esc</kbd> clear</span>
+      </div>
+
+      <div id="resultsArea">
+        <div class="reg-empty">Type to search products and services.</div>
+      </div>
+
+      <button type="button" class="reg-open-item" id="addOpenItemBtn">+ Add custom item</button>
+    </div>
+
+    <div class="reg-panel">
+      <div id="errBanner" class="reg-err" style="display:none"></div>
+
+      <div id="saveStatus" class="reg-save-status"></div>
+
+      <div id="draftsBanner" class="reg-drafts-banner" style="display:none">
+        <span class="label" id="draftsBannerLabel"></span>
+        <span class="cta">View →</span>
+      </div>
+
+      <div id="customerSlot">
+        <button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>
+      </div>
+
+      <div class="reg-lines" id="cartLines">
+        <div class="reg-empty">Cart is empty.</div>
+      </div>
+
+      <div class="reg-totals">
+        <div class="reg-totals-row"><span>Subtotal</span><span id="subVal">$0.00</span></div>
+        <div class="reg-totals-row" id="discountRow" style="display:none"><span>Discount</span><span id="discVal">-$0.00</span></div>
+        <div class="reg-totals-row"><span>Tax</span><span id="taxVal">$0.00</span></div>
+        <div class="reg-totals-row" id="surchargeRow" style="display:none"><span id="surchLabel">Surcharge</span><span id="surchVal">$0.00</span></div>
+        <div class="reg-totals-row" id="tipRow" style="display:none"><span>Tip</span><span id="tipVal">$0.00</span></div>
+        <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
+      </div>
+
+      <div class="reg-pay-row">
+        <button type="button" class="reg-quote-btn" id="quoteBtn" disabled>Save quote</button>
+        <button type="button" class="reg-pay" id="payBtn" disabled>Collect payment</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="reg-modal-bg" id="refundTenderModal">
+  <div class="reg-modal">
+    <h2>Refund to customer</h2>
+    <div class="lede" id="refundTenderLede">How is the refund being given?</div>
+    <div class="reg-tender-grid">
+      <button type="button" class="reg-tender-btn" data-refund-tender="card">Refund to card</button>
+      <button type="button" class="reg-tender-btn" data-refund-tender="cash">Cash from drawer</button>
+      <button type="button" class="reg-tender-btn" data-refund-tender="check">Check</button>
+      <button type="button" class="reg-tender-btn" data-refund-tender="store_credit">Store credit</button>
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="refundTenderModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="refundTenderConfirmBtn" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="tenderModal">
+  <div class="reg-modal">
+    <h2>Choose tender</h2>
+    <div class="lede">How is the customer paying?</div>
+    <div class="reg-tender-grid">
+      <button type="button" class="reg-tender-btn" data-tender="cash">Cash</button>
+      <button type="button" class="reg-tender-btn" data-tender="card">Card</button>
+      {{-- MARKER-PATCH-172 — payment-link tender (hidden when direct payments off) --}}
+      <button type="button" class="reg-tender-btn" data-tender="payment_link" id="tenderPaymentLinkBtn" style="display:none">
+        Send payment link
+        <div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">Customer pays from their phone</div>
+      </button>
+      <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
+      <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
+      {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
+      @foreach(($manualTenders ?? []) as $mt)
+        <button type="button" class="reg-tender-btn" data-tender="{{ $mt['key'] }}"
+                data-manual="1" data-name="{{ $mt['name'] }}"
+                @if($mt['linktpl']) data-linktpl="{{ $mt['linktpl'] }}" @endif
+                @if($mt['instructions']) data-instructions="{{ $mt['instructions'] }}" @endif>
+          {{ $mt['name'] }}
+          @if($mt['hint'])<div style="font-size:11px;opacity:.55;font-weight:400;margin-top:2px">{{ $mt['hint'] }}</div>@endif
+        </button>
+      @endforeach
+      <button type="button" class="reg-tender-btn" data-tender="mark_paid">No tender (already paid)</button>
+    </div>
+    <div id="tenderRefRow" style="display:none;margin-bottom:14px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
+      <input type="text" id="tenderRefInput" placeholder="Check #, last 4 of card, etc.">
+    </div>
+    {{-- MARKER-PATCH-630 — manual payment link (Venmo / Cash App) --}}
+    <div id="tenderManualRow" style="display:none;margin-bottom:14px">
+      <div id="tenderManualInstr" style="font-size:12px;color:var(--ia-text-muted);margin-bottom:8px"></div>
+      <div id="tenderManualLinkWrap" style="display:none">
+        <div id="tenderManualLink" style="font-size:12px;background:var(--ia-surface-2,#1a1a1a);border:1px solid var(--ia-border);border-radius:8px;padding:9px 11px;color:var(--ia-accent);word-break:break-all;margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="reg-btn-secondary" id="tenderManualCopy" style="font-size:12px;padding:7px 13px">Copy link</button>
+          <a class="reg-btn-secondary" id="tenderManualSms" style="font-size:12px;padding:7px 13px;text-decoration:none" href="#">Text to customer</a>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+{{-- MARKER-PATCH-170C — Pre-flight blocker modal. Shown when the Charge
+     button is pressed but the cart isn't commit-able. Replaces hidden inline
+     errors that were easy to miss. --}}
+<div class="reg-modal-bg" id="preflightModal">
+  <div class="reg-modal reg-preflight">
+    <div class="reg-preflight-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <h2 id="preflightTitle">Add a customer</h2>
+    <div class="lede" id="preflightLede">A customer is required when the sale includes a service.</div>
+    <div class="reg-modal-actions" style="justify-content:center;gap:10px">
+      <button type="button" class="reg-btn-secondary" data-close-modal="preflightModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="preflightActionBtn">Add customer →</button>
+    </div>
+  </div>
+</div>
+
+{{-- MARKER-PATCH-170 — Direct Payments card-entry modal --}}
+<div class="reg-modal-bg" id="cardPaymentModal">
+  <div class="reg-modal">
+    <h2>Card payment</h2>
+    <div class="lede">Enter card details. Powered by Stripe.</div>
+
+    <div id="cardPaymentSummary" style="background:var(--ia-surface-2);border-radius:var(--ia-r-md);padding:14px;margin-bottom:14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;font-weight:600;font-size:15px"><span>Charge</span><span id="cardPaymentAmount">$0.00</span></div>
+    </div>
+
+    <div id="card-payment-element" style="background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:16px;margin-bottom:14px;min-height:60px"></div>
+
+    <div id="cardPaymentError" style="display:none;padding:12px 14px;background:rgba(248,113,113,.10);border:0.5px solid rgba(248,113,113,.25);border-radius:var(--ia-r-md);font-size:12.5px;color:#f87171;margin-bottom:14px"></div>
+
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="cardPaymentCancelBtn">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="cardPaymentChargeBtn" disabled>
+        <span id="cardPaymentChargeLabel">Charge</span>
+        <span id="cardPaymentSpinner" style="display:none;margin-left:8px">…</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+{{-- MARKER-PATCH-172 — Send-payment-link modal --}}
+<div class="reg-modal-bg" id="paymentLinkModal">
+  <div class="reg-modal" style="max-width:520px">
+    <h2>Send payment link</h2>
+    <div class="lede">Share this link with your customer. They'll pay from their device.</div>
+
+    <div id="paymentLinkAmount" style="background:var(--ia-surface-2);border-radius:var(--ia-r-md);padding:14px;margin-bottom:14px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;font-weight:600;font-size:15px"><span>Charge</span><span id="paymentLinkAmountValue">$0.00</span></div>
+    </div>
+
+    <div id="paymentLinkQRContainer" style="background:white;border-radius:var(--ia-r-md);padding:18px;margin-bottom:14px;display:flex;justify-content:center;align-items:center;min-height:240px">
+      <div id="paymentLinkQR"></div>
+    </div>
+
+    <div style="background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <code id="paymentLinkUrl" style="flex:1;font-size:11px;color:var(--ia-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></code>
+      <button type="button" class="reg-btn-secondary" id="paymentLinkCopyBtn" style="padding:6px 10px;font-size:11.5px">Copy</button>
+    </div>
+
+    <div id="paymentLinkStatus" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--ia-accent-soft);border:0.5px solid rgba(190,242,100,.25);border-radius:var(--ia-r-md);font-size:12.5px;color:var(--ia-text);margin-bottom:14px">
+      <span class="stripe-spinner" style="width:14px;height:14px;border:2px solid rgba(190,242,100,.2);border-top-color:var(--ia-accent);border-radius:50%;animation:spin 0.8s linear infinite"></span>
+      <span id="paymentLinkStatusText">Waiting for customer to pay…</span>
+    </div>
+
+    {{-- MARKER-PATCH-192 — two distinct actions: "Done" keeps the link live
+         (sale stays pending, trackable from the appointment); "Cancel link" is
+         the explicit destructive action that expires the Stripe session. --}}
+    <div class="reg-modal-actions" style="display:flex;gap:10px;justify-content:space-between">
+      <button type="button" class="reg-btn-secondary" id="paymentLinkCancelBtn" style="color:var(--ia-red,#F87171)">Cancel link</button>
+      <button type="button" class="reg-btn-primary" id="paymentLinkDoneBtn">Done — keep link live</button>
+    </div>
+  </div>
+</div>
+
+{{-- MARKER-PATCH-195 — Payment-link status view. Opened from the appointment
+     banner (?status=<sale_id>) to show a live picture of an outstanding link. --}}
+<div class="reg-modal-bg" id="linkStatusModal">
+  <div class="reg-modal" style="max-width:560px">
+    <h2 style="display:flex;align-items:center;gap:10px">Payment link status <span id="lsStatusPill" class="ls-pill"></span></h2>
+    <div class="lede" id="lsHeader">Loading…</div>
+
+    <div id="lsBody" style="margin-top:14px">
+      <div class="ls-timeline" id="lsTimeline"></div>
+    </div>
+
+    <div class="ls-actions" id="lsActions" style="display:none;flex-direction:column;gap:8px;margin-top:16px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="lsUrl" readonly style="flex:1;font-size:11px;font-family:var(--ia-font-mono);background:var(--ia-surface-2);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);padding:8px 10px;color:var(--ia-text-muted)">
+        <button type="button" class="reg-btn-secondary" id="lsCopyBtn" style="padding:6px 12px;font-size:12px">Copy</button>
+      </div>
+    </div>
+
+    <div class="reg-modal-actions" style="margin-top:18px;display:flex;justify-content:space-between;gap:10px">
+      <button type="button" class="reg-btn-secondary" id="lsCancelLinkBtn" style="color:var(--ia-red,#F87171);display:none">Cancel link</button>
+      <button type="button" class="reg-btn-primary" id="lsCloseBtn" style="margin-left:auto">Close</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ls-pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px}
+  .ls-pill.pending{background:rgba(96,165,250,.12);color:#60A5FA}
+  .ls-pill.paid{background:rgba(132,204,22,.12);color:#84CC16}
+  .ls-pill.expired{background:rgba(251,191,36,.12);color:#FBBF24}
+  .ls-timeline{position:relative;padding-left:22px}
+  .ls-timeline:before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:1.5px;background:var(--ia-border)}
+  .ls-te{position:relative;padding:7px 0}
+  .ls-te:before{content:'';position:absolute;left:-21px;top:11px;width:9px;height:9px;border-radius:50%;background:var(--ia-surface);border:2px solid var(--ia-text-dim)}
+  .ls-te.done:before{background:#84CC16;border-color:#84CC16}
+  .ls-te.now:before{background:#60A5FA;border-color:#60A5FA}
+  .ls-te .tt{font-size:13px;font-weight:500}
+  .ls-te .td{font-size:11.5px;color:var(--ia-text-dim);font-family:var(--ia-font-mono);margin-top:1px}
+</style>
+
+<div class="reg-modal-bg" id="tipModal">
+  <div class="reg-modal">
+    <h2>Add tip?</h2>
+    <div class="lede">Optional. Choose an amount or skip.</div>
+    <div class="reg-tip-grid" id="tipGrid"></div>
+    <div class="reg-tip-custom">
+      <input type="text" id="tipCustomInput" placeholder="Custom amount">
+      <button type="button" class="reg-btn-secondary" id="tipClearBtn" style="padding:10px 14px;flex:0">Clear</button>
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="tipSkipBtn">Skip tip</button>
+      <button type="button" class="reg-btn-primary" id="tipConfirmBtn">Add tip & continue</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="openItemModal">
+  <div class="reg-modal">
+    <h2>Custom item</h2>
+    <div class="lede">For one-off items not in inventory.</div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Description</label>
+      <input type="text" id="openItemName" placeholder="What is it?">
+    </div>
+    <div style="margin-bottom:6px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Price</label>
+      <input type="text" id="openItemPrice" placeholder="0.00" inputmode="decimal">
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="openItemModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="openItemAddBtn">Add to cart</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="customerModal">
+  <div class="reg-modal">
+    <h2>Attach customer</h2>
+    <div style="margin-bottom:12px;position:relative">
+      <input type="text" id="customerSearchInput" placeholder="Name, email, or phone" autocomplete="off">
+      <div class="reg-cust-results" id="customerResults" style="display:none"></div>
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="customerModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="confirmModal" style="z-index:1100">
+  <div class="reg-modal" style="max-width:380px">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <div class="lede" id="confirmMessage"></div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="draftsModal">
+  <div class="reg-modal" style="max-width:560px">
+    <h2>Open drafts</h2>
+    <div class="lede">Carts saved at this location.</div>
+    <div class="reg-drafts-list" id="draftsList"></div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="draftsModal" style="flex:1">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="quoteModal">
+  <div class="reg-modal">
+    <h2>Save as quote</h2>
+    <div class="lede">The customer can come back later to pick up where they left off.</div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Notes (optional)</label>
+      <input type="text" id="quoteNotesInput" placeholder="Anything the customer should know">
+    </div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="quoteModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="quoteSaveBtn">Save quote</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="refundModal">
+  <div class="reg-modal" style="max-width:600px">
+    <h2>Add refund items</h2>
+    <div class="lede" id="refundModalLede">Select items to refund.</div>
+    <div class="reg-refund-list" id="refundList"></div>
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="refundModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="refundAddBtn" disabled>Add to transaction</button>
+    </div>
+  </div>
+</div>
+
+<div class="reg-modal-bg" id="receiptModal">
+  <div class="reg-modal reg-receipt">
+    <h2>Sale complete</h2>
+    <div class="num" id="receiptNum"></div>
+    <div class="total" id="receiptTotal"></div>
+    {{-- MARKER-PATCH-322 — print + email the receipt for this sale --}}
+    <div class="reg-receipt-actions" style="display:flex;gap:8px;justify-content:center;margin:6px 0 2px">
+      <button type="button" class="reg-btn-secondary" id="receiptPrintBtn">Print receipt</button>
+      <button type="button" class="reg-btn-secondary" id="receiptEmailBtn">Email receipt</button>
+    </div>
+    <div id="receiptEmailPrompt" style="display:none;gap:6px;justify-content:center;align-items:center;margin:8px 0 2px">
+      <input type="email" id="receiptEmailInput" placeholder="customer@email.com"
+        style="background:var(--ia-input-bg,#0a0a0a);border:0.5px solid var(--ia-border,rgba(255,255,255,.13));border-radius:8px;color:var(--ia-text,#f0f0f0);font-size:13px;padding:8px 11px;font-family:inherit;width:210px">
+      <button type="button" class="reg-btn-primary" id="receiptEmailSend">Send</button>
+    </div>
+    <div id="receiptEmailMsg" style="display:none;text-align:center;font-size:12px;margin-top:6px;color:var(--ia-text-dim)"></div>
+    <div class="reg-modal-actions">
+      {{-- MARKER-PATCH-232B — shown only when the register was opened with a return_to. --}}
+      <a id="receiptBackTo" class="reg-btn-primary" style="display:none;text-decoration:none" href="#">Back</a>
+      <button type="button" class="reg-btn-primary" id="receiptNewSale">New sale</button>
+    </div>
+    {{-- MARKER-PATCH-187 — auto-reset countdown --}}
+    <div class="reg-receipt-auto" id="receiptAutoReset">Returning to a fresh register in <span id="receiptCountdown">45</span>s</div>
+  </div>
+</div>
+
+
+@if(!empty($preAttachCustomer))
+<script>
+  // Patch 46: pre-attach customer from walk-in flow query param.
+  // Runs after the register page's cart JS has initialized.
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof cart !== 'undefined' && cart) {
+      cart.customer = @json($preAttachCustomer);
+      if (typeof renderCart === 'function') renderCart();
+      if (typeof queueDraftSave === 'function') queueDraftSave();
+    }
+  });
+</script>
+@endif
+
+{{-- MARKER-PATCH-553 — item detail modal v2 (supersedes the 552 modal):
+     gallery, brand header, permissioned cost/margin, badges, specs grid,
+     stock table, action footer. --}}
+<style>
+  .reg-info-btn{flex:none;width:22px;height:22px;border-radius:50%;border:0.5px solid var(--ia-border);background:none;color:var(--ia-text-muted);font:italic 700 11px Georgia,serif;cursor:pointer;margin:0 10px;align-self:center}
+  .reg-info-btn:hover{border-color:var(--ia-accent);color:var(--ia-accent)}
+  #rim .rim-box{background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:16px;width:min(680px,calc(100vw - 28px));max-height:88vh;overflow-y:auto}
+  #rim .rim-head{display:flex;gap:18px;padding:22px 24px 18px;border-bottom:0.5px solid var(--ia-border)}
+  #rim .rim-gal{flex:none;width:150px}
+  #rim .rim-main{width:150px;height:150px;background:#fff;border-radius:12px;object-fit:contain;display:none}
+  #rim .rim-main.ph{display:grid;place-items:center;color:#999;font-size:11px;background:var(--ia-surface-2,#222)}
+  #rim .rim-thumbs{display:flex;gap:6px;margin-top:8px}
+  #rim .rim-thumbs img{width:33px;height:33px;background:#fff;border-radius:7px;object-fit:contain;opacity:.55;cursor:pointer;border:1.5px solid transparent}
+  #rim .rim-thumbs img.on{opacity:1;border-color:var(--ia-accent)}
+  #rim .rim-brand{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-accent);font-weight:700}
+  #rim h2{font-size:17px;line-height:1.35;margin:3px 0 4px;font-weight:700}
+  #rim .rim-sub{font-size:12.5px;color:var(--ia-text-muted)}
+  #rim .rim-price-row{display:flex;align-items:baseline;gap:14px;margin-top:12px;flex-wrap:wrap}
+  #rim .rim-price{font:700 22px inherit;color:var(--ia-accent)}
+  #rim .rim-cost{font-size:12px;color:var(--ia-text-muted)}
+  #rim .rim-cost b{color:#8FD14F;font-weight:600}
+  #rim .rim-badges{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  #rim .rim-badge{font-size:10.5px;border:0.5px solid var(--ia-border);border-radius:99px;padding:2px 9px;color:var(--ia-text-muted)}
+  #rim .rim-badge.ok{color:#8FD14F;border-color:#8FD14F}
+  #rim .rim-body{padding:6px 24px 8px}
+  #rim .rim-sec{padding:14px 0;border-bottom:0.5px solid var(--ia-border)}
+  #rim .rim-sec:last-child{border-bottom:0}
+  #rim .rim-sec h3{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:9px;font-weight:600}
+  #rim .rim-attrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 22px;font-size:12.5px}
+  #rim .rim-attrs .k{color:var(--ia-text-muted)}
+  #rim table{width:100%;border-collapse:collapse;font-size:12.5px}
+  #rim td{padding:5px 0;vertical-align:top}
+  #rim td.k{color:var(--ia-text-muted);width:130px}
+  #rim td.n{text-align:right;font-variant-numeric:tabular-nums}
+  #rim .rim-foot{display:flex;gap:10px;padding:16px 24px 20px;border-top:0.5px solid var(--ia-border);position:sticky;bottom:0;background:var(--ia-surface)}
+  #rim .rim-foot .grow{flex:1}
+</style>
+<div id="rim" style="display:none;position:fixed;inset:0;z-index:210;align-items:center;justify-content:center;background:rgba(0,0,0,.6)" onclick="if(event.target===this)this.style.display='none'">
+  <div class="rim-box">
+    <div class="rim-head">
+      <div class="rim-gal">
+        <img class="rim-main" id="rim-main" alt="">
+        <div class="rim-main ph" id="rim-ph">no image</div>
+        <div class="rim-thumbs" id="rim-thumbs"></div>
+      </div>
+      <div style="min-width:0">
+        <div class="rim-brand" id="rim-brand"></div>
+        <h2 id="rim-name"></h2>
+        <div class="rim-sub" id="rim-sub"></div>
+        <div class="rim-price-row">
+          <span class="rim-price" id="rim-price"></span>
+          <span class="rim-cost" id="rim-cost"></span>
+        </div>
+        <div class="rim-badges" id="rim-badges"></div>
+      </div>
+    </div>
+    <div class="rim-body">
+      <div class="rim-sec" id="rim-sec-desc" style="display:none"><h3>Description</h3><div id="rim-desc" style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.55"></div></div>
+      <div class="rim-sec" id="rim-sec-attrs" style="display:none"><h3>Specs</h3><div class="rim-attrs" id="rim-attrs"></div></div>
+      <div class="rim-sec"><h3>Stock &amp; identifiers</h3><table id="rim-table"></table></div>
+    </div>
+    <div class="rim-foot">
+      <a class="ia-btn ia-btn--ghost" id="rim-edit" href="#" style="text-decoration:none">Edit item</a>
+      <button type="button" class="ia-btn ia-btn--ghost" onclick="document.getElementById('rim').style.display='none'">Close</button>
+      <button type="button" class="ia-btn ia-btn--primary grow" id="rim-add">Add to sale</button>
+    </div>
+  </div>
+</div>
+<script>
+// MARKER-PATCH-553
+let rimItem = null;
+async function openItemInfo(id) {
+  const m = document.getElementById('rim');
+  m.style.display = 'flex';
+  rimItem = null;
+  document.getElementById('rim-name').textContent = 'Loading…';
+  ['rim-brand','rim-sub','rim-price','rim-cost','rim-desc'].forEach(x => document.getElementById(x).textContent = '');
+  document.getElementById('rim-badges').innerHTML = '';
+  document.getElementById('rim-attrs').innerHTML = '';
+  document.getElementById('rim-table').innerHTML = '';
+  document.getElementById('rim-thumbs').innerHTML = '';
+  document.getElementById('rim-main').style.display = 'none';
+  document.getElementById('rim-ph').style.display = 'grid';
+  document.getElementById('rim-sec-desc').style.display = 'none';
+  document.getElementById('rim-sec-attrs').style.display = 'none';
+  try {
+    const r = await fetch('/admin/register/item/' + encodeURIComponent(id) + '/info', { headers: { 'Accept': 'application/json' } });
+    const d = await r.json();
+    if (!d || !d.ok) throw new Error();
+    rimItem = { type: 'product', source_id: id, name: d.name, price_cents: d.price_cents, is_taxable: d.taxable };
+
+    document.getElementById('rim-brand').textContent = d.brand || '';
+    document.getElementById('rim-name').textContent  = d.name || '';
+    document.getElementById('rim-sub').textContent   = d.subtitle || '';
+    document.getElementById('rim-price').textContent = fmt(d.price_cents);
+    if (d.cost && d.cost.cost_cents) {
+      document.getElementById('rim-cost').innerHTML = 'cost ' + fmt(d.cost.cost_cents)
+        + (d.cost.margin_pct !== null ? ' · margin <b>' + d.cost.margin_pct + '%</b>' : '');
+    }
+
+    const imgs = d.images || [];
+    if (imgs.length) {
+      const main = document.getElementById('rim-main');
+      main.src = imgs[0]; main.style.display = 'block';
+      document.getElementById('rim-ph').style.display = 'none';
+      if (imgs.length > 1) {
+        document.getElementById('rim-thumbs').innerHTML = imgs.map((u, i) =>
+          '<img src="' + u + '" class="' + (i === 0 ? 'on' : '') + '" onclick="rimSwap(this)">').join('');
+      }
+    }
+
+    const here = (d.stock || []).reduce((a, s2) => a + (s2.count || 0), 0);
+    const badges = [];
+    badges.push('<span class="rim-badge ' + (here > 0 ? 'ok' : '') + '">' + here + ' in stock</span>');
+    badges.push('<span class="rim-badge">' + (d.taxable ? 'taxable' : 'tax exempt') + '</span>');
+    if (d.sold_30d > 0) badges.push('<span class="rim-badge">sold ' + (+d.sold_30d).toFixed(0) + ' in 30d</span>');
+    document.getElementById('rim-badges').innerHTML = badges.join('');
+
+    if (d.description) { document.getElementById('rim-desc').textContent = d.description; document.getElementById('rim-sec-desc').style.display = ''; }
+    if (d.attrs && d.attrs.length) {
+      document.getElementById('rim-attrs').innerHTML = d.attrs.map(a =>
+        '<span class="k">' + escapeHtml(a.name) + '</span><span>' + escapeHtml(a.value) + '</span>').join('');
+      document.getElementById('rim-sec-attrs').style.display = '';
+    }
+
+    const rows = [];
+    (d.stock || []).forEach(s2 => rows.push(['<td class="k">' + escapeHtml(s2.location) + '</td>', '<td class="n">' + s2.count + '</td>']));
+    if (d.sku)      rows.push(['<td class="k">SKU</td>', '<td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + escapeHtml(d.sku) + '</td>']);
+    if (d.upc)      rows.push(['<td class="k">UPC</td>', '<td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + escapeHtml(d.upc) + '</td>']);
+    if (d.category) rows.push(['<td class="k">Category</td>', '<td class="n">' + escapeHtml(d.category) + '</td>']);
+    document.getElementById('rim-table').innerHTML = rows.map(r2 =>
+      '<tr style="border-top:0.5px solid var(--ia-border)">' + r2.join('') + '</tr>').join('');
+
+    document.getElementById('rim-edit').href = d.edit_url || '#';
+    const add = document.getElementById('rim-add');
+    add.textContent = 'Add to sale — ' + fmt(d.price_cents);
+    add.onclick = () => {
+      if (rimItem) addToCart(rimItem);
+      document.getElementById('rim').style.display = 'none';
+    };
+  } catch (e) {
+    document.getElementById('rim-name').textContent = 'Could not load item.';
+  }
+}
+function rimSwap(el) {
+  document.getElementById('rim-main').src = el.src;
+  document.querySelectorAll('#rim-thumbs img').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+}
+</script>
+
+@endsection
+
+@push('scripts')
+<script>
+const ROUTES = {
+  search:      @json(route('tenant.register.search')),
+  storeSale:   @json(route('tenant.register.sales.store')),
+  offlineCatalog: @json(route('tenant.register.offline_catalog')), // MARKER-OFFLINE-SYNC
+  offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }}, // MARKER-OFFLINE-SYNC
+  storeDraft:  @json(route('tenant.register.drafts.store')),
+  listDrafts:  @json(route('tenant.register.drafts.index')),
+  draftBase:   @json(url('/admin/register/drafts')),
+  commitDraft: @json(url('/admin/register/drafts')),
+  storeQuote:  @json(route('tenant.register.quotes.store')),
+  quotesIndex: @json(route('tenant.register.quotes.index')),
+  lookupSale:  @json(route('tenant.register.lookup-sale')),
+  commitTxn:   @json(route('tenant.register.transactions.store')),
+  // MARKER-PATCH-161
+  customerBase: @json(url('/admin/customers')),
+  // MARKER-PATCH-162
+  multiLocationActive: {{ $multiLocationActive ? 'true' : 'false' }},
+  // MARKER-PATCH-170 — Direct Payments
+  directPaymentsEnabled: {{ (($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? 'true' : 'false' }}, {{-- MARKER-PATCH-618 --}}
+  directPaymentsPk: @json((($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true)) ? (($tenant->settings['register_payments_mode'] ?? 'test') === 'live' ? ($tenant->settings['register_payments_live_pk'] ?? '') : ($tenant->settings['register_payments_test_pk'] ?? '')) : ''),
+  paymentIntentCreate: @json(url('/admin/register/payment-intent')),
+  paymentIntentConfirm: @json(url('/admin/register/payment-intent/confirm')),
+  // MARKER-PATCH-170B
+  paymentIntentAutoRefund: @json(url('/admin/register/payment-intent/auto-refund')),
+  // MARKER-PATCH-172
+  checkoutSessionCreate: @json(url('/admin/register/checkout-session')),
+  checkoutSessionCheck:  @json(url('/admin/register/checkout-session/check')),
+  saleShow:              @json(route('tenant.register.sales.show', ['id' => '__ID__'])), {{-- MARKER-PATCH-195 --}}
+  saleReceipt:           @json(route('tenant.register.sales.receipt', ['id' => '__ID__'])), {{-- MARKER-PATCH-322 --}}
+  resendReceipt:         @json(route('tenant.sales.resend_receipt', ['id' => '__ID__'])), {{-- MARKER-PATCH-322 --}}
+  checkoutSessionCancel: @json(url('/admin/register/checkout-session/cancel')),
+};
+const CSRF = document.querySelector('meta[name=csrf-token]').content;
+
+// MARKER-REGISTER-RECON-DISPLAY — customer display mirroring.
+// Debounced snapshots of the cart are pushed to the currently selected
+// register; a paired iPad polls that register's snapshot and renders it.
+const DisplayMirror = {
+  enabled: {{ ($currentRegisterId ?? 0) > 0 ? 'true' : 'false' }},
+  payUrl: null,
+  timer: null,
+  stateUrl: @json(route('tenant.register.display_state')),
+  selectUrl: @json(route('tenant.register.select')),
+};
+function displaySnapshot() {
+  const items = [];
+  for (const i of cart.items) items.push({ name: i.name, qty: i.qty, line_cents: Math.round(i.price_cents * i.qty) });
+  for (const r of cart.refund_lines) items.push({ name: r.name, qty: r.qty, line_cents: Math.round(r.price_cents * r.qty), refund: true });
+  const sub = calcSubtotal() - calcRefundSubtotal();
+  const tax = calcTax();
+  const surch = calcSurcharge();
+  const total = (calcSubtotal() - cart.discountCents + tax + surch + cart.tipCents) - (calcRefundSubtotal());
+  return {
+    state: DisplayMirror.payUrl ? 'pay' : (items.length ? 'cart' : 'idle'),
+    items,
+    subtotal_cents: sub,
+    discount_cents: cart.discountCents,
+    tax_cents: tax,
+    tax_label: CFG.taxLabel || null,
+    surcharge_cents: surch,
+    tip_cents: cart.tipCents,
+    total_cents: Math.max(0, Math.round(total)),
+    pay_url: DisplayMirror.payUrl,
+  };
+}
+function queueDisplayMirror(immediate = false) {
+  if (!DisplayMirror.enabled) return;
+  clearTimeout(DisplayMirror.timer);
+  DisplayMirror.timer = setTimeout(() => {
+    fetch(DisplayMirror.stateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify(displaySnapshot()),
+    }).catch(() => {});
+  }, immediate ? 0 : 400);
+}
+
+// MARKER-OFFLINE-SYNC — stage 1: the open register survives an outage.
+// Catalog snapshot (localStorage) + IndexedDB outbox + replay with
+// client_uuid idempotency. Gated by the offline_sync add-on.
+const OfflineSync = {
+  enabled: ROUTES.offlineSyncEnabled === true,
+  db: null, online: navigator.onLine, queueCount: 0,
+  SNAP_KEY: 'ia_offline_catalog',
+};
+function osUuid(){
+  return (crypto.randomUUID) ? crypto.randomUUID() :
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);
+    });
+}
+function osOpenDb(){
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open('intake-offline', 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore('outbox', { keyPath: 'uuid' });
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function osQueueSale(payload){
+  const rec = { uuid: payload.client_uuid, payload, created_at: Date.now() };
+  await new Promise((res, rej) => {
+    const tx = OfflineSync.db.transaction('outbox', 'readwrite');
+    tx.objectStore('outbox').put(rec);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+  await osRefreshCount();
+}
+async function osAll(){
+  return new Promise((res, rej) => {
+    const rq = OfflineSync.db.transaction('outbox').objectStore('outbox').getAll();
+    rq.onsuccess = () => res(rq.result || []); rq.onerror = () => rej(rq.error);
+  });
+}
+async function osRemove(uuid){
+  await new Promise((res) => {
+    const tx = OfflineSync.db.transaction('outbox', 'readwrite');
+    tx.objectStore('outbox').delete(uuid);
+    tx.oncomplete = res; tx.onerror = res;
+  });
+}
+async function osRefreshCount(){
+  const all = OfflineSync.db ? await osAll() : [];
+  OfflineSync.queueCount = all.length;
+  osRenderBanner();
+}
+function osRenderBanner(){
+  let el = document.getElementById('osBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'osBanner';
+    el.style.cssText = 'display:none;align-items:center;gap:10px;background:rgba(245,197,107,.10);border:0.5px solid rgba(245,197,107,.35);border-radius:var(--ia-r-md);padding:11px 15px;margin:0 0 14px;font-size:13px;color:#F5C56B';
+    const bar = document.querySelector('.reg-tabs-bar');
+    if (bar && bar.parentNode) bar.parentNode.insertBefore(el, bar.nextSibling);
+  }
+  if (!OfflineSync.enabled) { el.style.display = 'none'; return; }
+  if (!OfflineSync.online) {
+    el.style.display = 'flex';
+    el.innerHTML = '<b style="color:#FBDCA8">You\'re offline.</b> The register keeps working — sales save to this device and sync automatically. Card payments and payment links are paused.'
+      + (OfflineSync.queueCount ? ' <b style="color:#FBDCA8">' + OfflineSync.queueCount + ' sale' + (OfflineSync.queueCount>1?'s':'') + ' queued.</b>' : '');
+  } else if (OfflineSync.queueCount) {
+    el.style.display = 'flex';
+    el.style.color = '#BEF264'; el.style.background = 'rgba(190,242,100,.07)'; el.style.borderColor = 'rgba(190,242,100,.3)';
+    el.innerHTML = 'Back online — syncing ' + OfflineSync.queueCount + ' queued sale' + (OfflineSync.queueCount>1?'s':'') + '…';
+  } else {
+    el.style.display = 'none';
+    el.style.color = '#F5C56B'; el.style.background = 'rgba(245,197,107,.10)'; el.style.borderColor = 'rgba(245,197,107,.35)';
+  }
+  osToggleTenders();
+}
+function osToggleTenders(){
+  // Card + payment link need the network. Cash / check / store credit /
+  // manual tenders stay available offline.
+  document.querySelectorAll('.reg-tender-btn').forEach(b => {
+    const t = b.dataset.tender || b.dataset.refundTender;
+    if (t === 'card' || t === 'payment_link') {
+      const block = !OfflineSync.online && OfflineSync.enabled;
+      b.disabled = block;
+      b.style.opacity = block ? '.35' : '';
+      b.title = block ? 'Unavailable offline' : '';
+    }
+  });
+}
+async function osRefreshSnapshot(){
+  if (!OfflineSync.enabled || !navigator.onLine) return;
+  try {
+    const u = new URL(ROUTES.offlineCatalog, window.location.origin);
+    u.searchParams.set('limit', localStorage.getItem('ia_offline_snap_size') || '500'); // MARKER-OFFLINE-SYNC stage 2
+    const r = await fetch(u, { headers: { 'Accept': 'application/json' } });
+    const d = await r.json();
+    if (d.ok) localStorage.setItem(OfflineSync.SNAP_KEY, JSON.stringify(d));
+  } catch (e) { /* snapshot refresh is best-effort */ }
+}
+function osSearchSnapshot(q){
+  try {
+    const snap = JSON.parse(localStorage.getItem(OfflineSync.SNAP_KEY) || 'null');
+    if (!snap) return null;
+    const needle = q.toLowerCase();
+    const hit = t => (t || '').toLowerCase().includes(needle);
+    return {
+      products: (snap.products || []).filter(p => hit(p.name) || hit(p.sku)).slice(0, 15),
+      services: (snap.services || []).filter(sv => hit(sv.name)).slice(0, 15),
+      _snapshot_at: snap.captured_at,
+    };
+  } catch (e) { return null; }
+}
+function osBuildSalePayload(){
+  return {
+    client_uuid: osUuid(),
+    customer_id: cart.customer ? cart.customer.id : null,
+    tip_cents: cart.tipCents,
+    discount_cents: cart.discountCents,
+    payment_method: cart.payment_method,
+    payment_reference: cart.payment_reference,
+    items: cart.items.map(serializeLine),
+    skip_receipt: cart.skipReceipt ? 1 : 0,
+  };
+}
+async function osTryQueueCommit(){
+  // Only pure sales with network-free tenders queue offline.
+  if (!OfflineSync.enabled || !OfflineSync.db) return false;
+  if (cart.refund_lines.length > 0) return false;
+  if (cart.stripe_payment_intent_id) return false;
+  if (cart.payment_method === 'card' || cart.payment_method === 'payment_link') return false;
+  if (!cart.items.length) return false;
+  await osQueueSale(osBuildSalePayload());
+  OfflineSync.online = false; osRenderBanner();
+  // Reset the cart like a committed sale.
+  cart.items = []; cart.refund_lines = []; cart.refund_meta = null;
+  cart.customer = null; cart.tipCents = 0; cart.discountCents = 0;
+  cart.payment_method = null; cart.payment_reference = null;
+  cart.draft_id = null; cart.skipReceipt = false;
+  renderCart();
+  showError('Saved offline — this sale will sync automatically when the connection returns.');
+  return true;
+}
+async function osReplay(){
+  if (!OfflineSync.enabled || !OfflineSync.db) return;
+  const all = await osAll();
+  if (!all.length) { osRenderBanner(); return; }
+  for (const rec of all.sort((a,b) => a.created_at - b.created_at)) {
+    try {
+      const res = await fetch(ROUTES.storeSale, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify(rec.payload),
+      });
+      const data = await res.json();
+      if (data.ok) await osRemove(rec.uuid);
+      else if (res.status === 422) await osRemove(rec.uuid); // permanently invalid — drop, don't loop forever
+    } catch (e) { break; } // still offline — try again on next online event
+  }
+  await osRefreshCount();
+  if (!OfflineSync.queueCount) {
+    const el = document.getElementById('osBanner');
+    if (el) { el.innerHTML = 'All queued sales synced.'; setTimeout(() => { if (!OfflineSync.queueCount && OfflineSync.online) el.style.display = 'none'; }, 3500); }
+  }
+}
+// MARKER-OFFLINE-SYNC stage 2 — service worker lifecycle. Registered when the
+// add-on is on (network-first page cache + offline fallback for /admin);
+// unregistered and caches cleared when it's off.
+if ('serviceWorker' in navigator) {
+  if (ROUTES.offlineSyncEnabled === true) {
+    navigator.serviceWorker.register('/offline-sw.js', { scope: '/' }).catch(() => {});
+  } else {
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+    if (window.caches) caches.keys().then(ks => ks.forEach(k => { if (k.startsWith('ia-offline')) caches.delete(k); }));
+  }
+}
+if (OfflineSync.enabled) {
+  osOpenDb().then(async db => {
+    OfflineSync.db = db;
+    await osRefreshCount();
+    osRefreshSnapshot();
+    if (navigator.onLine) osReplay();
+  }).catch(() => { OfflineSync.enabled = false; });
+  window.addEventListener('online',  () => { OfflineSync.online = true;  osRenderBanner(); osReplay(); osRefreshSnapshot(); });
+  window.addEventListener('offline', () => { OfflineSync.online = false; osRenderBanner(); });
+}
+
+const registerPickerEl = document.getElementById('registerPicker');
+if (registerPickerEl) {
+  registerPickerEl.addEventListener('change', async () => {
+    const id = parseInt(registerPickerEl.value, 10) || 0;
+    try {
+      await fetch(DisplayMirror.selectUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify({ register_id: id }),
+      });
+      DisplayMirror.enabled = id > 0;
+      queueDisplayMirror(true);
+    } catch (e) {}
+  });
+}
+const CFG = {
+  taxRate:        {{ $taxRate ?? 0 }},
+  taxLabel:       @json($taxLabel ?? ''),
+  tipsEnabled:    {{ $tipsConfig['enabled'] ? 'true' : 'false' }},
+  tipMethod:      @json($tipsConfig['method'] ?? null),
+  tipOptions:     @json($tipsConfig['options'] ?? []),
+  tipAllowCustom: {{ $tipsConfig['allow_custom'] ? 'true' : 'false' }},
+  surchargeOn:    {{ $surchargeConfig['enabled'] ? 'true' : 'false' }},
+  surchargePct:   {{ $surchargeConfig['percent'] ?? 0 }},
+  surchargeLabel: @json($surchargeConfig['label'] ?? 'Surcharge'),
+};
+
+// Reusable confirm dialog. Returns a promise that resolves true/false.
+// Usage: const ok = await confirmDialog('Replace cart?', 'Replace');
+function confirmDialog(message, confirmLabel = 'Confirm', title = 'Are you sure?') {
+  return new Promise(resolve => {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    const okBtn = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+    okBtn.textContent = confirmLabel;
+    const cleanup = (result) => {
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      closeModal('confirmModal');
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    openModal('confirmModal');
+  });
+}
+
+const cart = {
+  draft_id: null,
+  customer: null,
+  items: [],            // new-sale lines
+  refund_lines: [],     // refund lines, each: {key, original_sale_id, original_item_id, name, qty, price_cents, type}
+  refund_meta: null,    // {original_sale_id, original_sale_number, refund_method} — set when first refund line added
+  tipCents: 0, discountCents: 0,
+  payment_method: null, payment_reference: null,
+  tax_locked: false,    // when true, calcTax sums per-line tax_cents instead of computing from rate
+  skipReceipt: false,   // MARKER-PATCH-161 — cashier opted out of receipt for this sale
+};
+const fmt = (cents) => '$' + (cents / 100).toFixed(2);
+const fmtNeg = (cents) => '-$' + (cents / 100).toFixed(2);
+let lineKey = 0;
+
+// --- Draft auto-save infrastructure ---
+// Cart changes debounce a save to /register/drafts. First save creates the
+// draft and stores its id on cart.draft_id. Subsequent saves include the id
+// to update in place. Mark Paid awaits any pending save, then commits.
+const DRAFT_DEBOUNCE_MS = 1500;
+let draftSaveTimer = null;
+let draftSaveInFlight = null; // Promise of currently-firing save, or null.
+
+function buildDraftPayload() {
+  return {
+    id: cart.draft_id,
+    customer_id: cart.customer ? cart.customer.id : null,
+    tip_cents: cart.tipCents,
+    items: cart.items.map(i => {
+      const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+      // Round-trip per-line tax for tax_locked sales so recalc preserves it.
+      if (cart.tax_locked) {
+        out.tax_cents = i.tax_cents || 0;
+        if (i.tax_rate_snapshot != null) out.tax_rate_snapshot = i.tax_rate_snapshot;
+      }
+      if (i.type === 'product') out.inventory_item_id = i.source_id;
+      if (i.type === 'service') out.service_id = i.source_id;
+      if (i.type === 'open_item') {
+        out.name_snapshot = i.name;
+        out.unit_price_cents = i.price_cents;
+      }
+      return out;
+    }),
+  };
+}
+
+async function fireDraftSave() {
+  // If a save is already in flight, wait for it and re-queue this one.
+  // Last-write-wins: the next save will include the latest cart state.
+  if (draftSaveInFlight) {
+    await draftSaveInFlight;
+  }
+  const payload = buildDraftPayload();
+  draftSaveInFlight = (async () => {
+    try {
+      const res = await fetch(ROUTES.storeDraft, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.ok && data.draft_id) {
+        cart.draft_id = data.draft_id;
+        setSaveStatus('saved');
+      }
+    } catch (e) {
+      // Silent failure on auto-save. Cart still works locally; commit will
+      // fall back to the storeSale path if draft_id is still null.
+      console.warn('[draft] save failed', e);
+      setSaveStatus('idle');
+    } finally {
+      draftSaveInFlight = null;
+    }
+  })();
+  return draftSaveInFlight;
+}
+
+function queueDraftSave() {
+  // Empty cart with no existing draft — nothing to save.
+  if (!cart.items.length && !cart.draft_id) return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(fireDraftSave, DRAFT_DEBOUNCE_MS);
+  setSaveStatus('pending');
+}
+
+let saveStatusTimer = null;
+function setSaveStatus(state) {
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  clearTimeout(saveStatusTimer);
+  if (state === 'pending' || state === 'saving') {
+    el.textContent = 'Saving…';
+    el.classList.add('visible');
+  } else if (state === 'saved') {
+    el.textContent = 'Saved';
+    el.classList.add('visible');
+    saveStatusTimer = setTimeout(() => el.classList.remove('visible'), 1500);
+  } else {
+    el.classList.remove('visible');
+  }
+}
+
+async function flushDraftSave() {
+  // Cancel any pending debounce, fire immediately, await any in-flight save.
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = null;
+  if (cart.items.length || cart.draft_id) {
+    await fireDraftSave();
+  }
+  if (draftSaveInFlight) await draftSaveInFlight;
+}
+
+const searchInput = document.getElementById('searchInput');
+const resultsArea = document.getElementById('resultsArea');
+let searchType = 'all';
+let searchTimer = null;
+
+document.querySelectorAll('.reg-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.reg-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    searchType = tab.dataset.type;
+    runSearch();
+  });
+});
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 250);
+});
+
+// Detect sale-number pattern: S-YYYYMMDD-NNN (case-insensitive, optional spaces around dashes)
+function looksLikeSaleNumber(q) {
+  return /^s[\s-]*\d{8}[\s-]*\d{1,4}$/i.test(q.trim());
+}
+function normalizeSaleNumber(q) {
+  return q.trim().toUpperCase().replace(/\s+/g, '').replace(/^S(\d)/, 'S-$1').replace(/(\d{8})(\d)/, '$1-$2');
+}
+
+async function runSearch() {
+  const q = searchInput.value.trim();
+  if (q.length < 2) {
+    resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+    return;
+  }
+
+  // Sale-number lookup runs in parallel with regular search.
+  let refundResult = null;
+  if (looksLikeSaleNumber(q)) {
+    try {
+      const lookupUrl = new URL(ROUTES.lookupSale, window.location.origin);
+      lookupUrl.searchParams.set('sale_number', normalizeSaleNumber(q));
+      const r = await fetch(lookupUrl, {headers: {'Accept': 'application/json'}});
+      const d = await r.json();
+      if (d.ok) refundResult = d.sale;
+    } catch (e) { /* silent — fall through to regular search */ }
+  }
+
+  try {
+    const url = new URL(ROUTES.search, window.location.origin);
+    url.searchParams.set('q', q);
+    url.searchParams.set('type', searchType);
+    const res = await fetch(url, {headers: {'Accept': 'application/json'}});
+    const data = await res.json();
+    renderResults(data, refundResult);
+  } catch (e) {
+    // MARKER-OFFLINE-SYNC — offline: search the cached catalog snapshot.
+    const snap = OfflineSync.enabled ? osSearchSnapshot(q) : null;
+    if (snap && (snap.products.length || snap.services.length)) {
+      OfflineSync.online = false; osRenderBanner();
+      renderResults(snap, null);
+      resultsArea.insertAdjacentHTML('afterbegin',
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#F5C56B;margin-bottom:8px">Offline — cached catalog snapshot</div>');
+    } else {
+      resultsArea.innerHTML = '<div class="reg-empty">' + (OfflineSync.enabled && !navigator.onLine ? 'Offline — no cached matches.' : 'Search failed.') + '</div>';
+    }
+  }
+}
+
+// Keyboard nav state
+let highlighted = 0;
+let visibleResults = [];
+
+function renderResults(data, refundResult) {
+  let html = '';
+  visibleResults = [];
+
+  // If a refund-eligible sale was matched, render it first as a distinctive card.
+  if (refundResult) {
+    html += '<div class="reg-refund-result" data-refund-sale="' + refundResult.id + '">';
+    html +=   '<div class="label">Refund from sale</div>';
+    html +=   '<div class="name">#' + escapeHtml(refundResult.sale_number) + '</div>';
+    html +=   '<div class="meta">' + (refundResult.customer ? escapeHtml(refundResult.customer) + ' · ' : '');
+    html +=     fmt(refundResult.total_cents) + ' · ' + (refundResult.items.length) + ' items</div>';
+    html += '</div>';
+  }
+
+  if (data.products && data.products.length) {
+    html += '<div class="reg-results-section"><h3>Products</h3>';
+    data.products.forEach(p => {
+      visibleResults.push({type:'product',source_id:p.id,name:p.name,price_cents:p.price_cents,is_taxable:p.is_taxable,current_location_stock:p.current_location_stock,current_location_name:p.current_location_name});
+      const idx = visibleResults.length - 1;
+      html += `<div class="reg-row" data-i="${idx}">
+        <div><div class="name">${escapeHtml(p.name)}</div><div class="meta">${escapeHtml(p.subtitle || p.sku || '')}</div></div>
+        <button type="button" class="reg-info-btn" data-item-id="${p.id}" title="Item details" aria-label="Item details">i</button>
+        <div class="price">${fmt(p.price_cents)}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  if (data.services && data.services.length) {
+    html += '<div class="reg-results-section mouse-defer"><h3>Services</h3>';
+    data.services.forEach(s => {
+      visibleResults.push({type:'service',source_id:s.id,name:s.name,price_cents:s.price_cents,is_taxable:true});
+      const idx = visibleResults.length - 1;
+      html += `<div class="reg-row" data-i="${idx}">
+        <div><div class="name">${escapeHtml(s.name)}</div><div class="meta">${s.duration_minutes || 0} min</div></div>
+        <div class="price">${fmt(s.price_cents)}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  if (!html) html = '<div class="reg-empty">No matches.</div>';
+  resultsArea.innerHTML = html;
+
+  // Show/hide keyboard hint based on whether results exist
+  const hint = document.getElementById('regHint');
+  hint.style.display = visibleResults.length ? '' : 'none';
+
+  // Reset highlight to first row
+  if (highlighted >= visibleResults.length) highlighted = 0;
+  applyHighlight();
+
+  // MARKER-PATCH-552 — info buttons open the item modal; stop the row's add-to-cart
+  resultsArea.querySelectorAll('.reg-info-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openItemInfo(btn.dataset.itemId);
+    });
+  });
+
+  // Click handler — add the row's item, then clear search and refocus (same as Enter)
+  resultsArea.querySelectorAll('[data-i]').forEach(row => {
+    row.addEventListener('click', () => {
+      const i = parseInt(row.dataset.i, 10);
+      addToCart(visibleResults[i]);
+      searchInput.value = '';
+      visibleResults = [];
+      highlighted = 0;
+      resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+      document.getElementById('regHint').style.display = 'none';
+      searchInput.focus();
+    });
+  });
+
+  // Wire refund-result click → open picker modal.
+  const refundEl = resultsArea.querySelector('[data-refund-sale]');
+  if (refundEl) {
+    // Stash the refund result on the element via dataset for the click handler.
+    refundEl.addEventListener('click', () => {
+      // Re-fetch the sale to get fresh refundable quantities (in case anything changed).
+      const saleId = refundEl.dataset.refundSale;
+      openRefundPicker(saleId);
+    });
+  }
+
+  // Wire mouse-active class to the search panel's results sections
+  resultsArea.querySelectorAll('.reg-results-section').forEach(section => {
+    section.addEventListener('mouseenter', () => section.classList.add('mouse-active'));
+    section.addEventListener('mouseleave', () => section.classList.remove('mouse-active'));
+  });
+}
+
+function applyHighlight() {
+  resultsArea.querySelectorAll('.reg-row').forEach((row, i) => {
+    if (parseInt(row.dataset.i, 10) === highlighted) {
+      row.classList.add('highlighted');
+    } else {
+      row.classList.remove('highlighted');
+    }
+  });
+}
+
+// Keyboard navigation on the search input
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (highlighted < visibleResults.length - 1) { highlighted++; applyHighlight(); }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (highlighted > 0) { highlighted--; applyHighlight(); }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (visibleResults[highlighted]) {
+      addToCart(visibleResults[highlighted]);
+      // Clear search and refocus for next item
+      searchInput.value = '';
+      visibleResults = [];
+      highlighted = 0;
+      resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+      document.getElementById('regHint').style.display = 'none';
+      searchInput.focus();
+    }
+  } else if (e.key === 'Escape') {
+    searchInput.value = '';
+    visibleResults = [];
+    highlighted = 0;
+    resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+    document.getElementById('regHint').style.display = 'none';
+  }
+});
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s || '';
+  return div.innerHTML;
+}
+
+function addToCart(item) {
+  // patch-96 cart-meta + patch-100a oversell-actions — store stock data
+  // and any action-state (transfer / SO) on the cart line so it persists
+  // through re-renders and draft saves.
+  cart.items.push({
+    key: ++lineKey, type: item.type, source_id: item.source_id,
+    name: item.name, price_cents: item.price_cents, qty: 1,
+    is_taxable: item.is_taxable !== false,
+    current_location_stock: (typeof item.current_location_stock === 'number')
+      ? item.current_location_stock : null,
+    current_location_name: item.current_location_name || null,
+    transfer_request_id: null,
+    transfer_request_from: null,
+    special_order_id: null,
+    so_number: null,
+  });
+  renderCart();
+  queueDraftSave();
+}
+
+// patch-100a oversell-actions — handlers for the two action buttons.
+// Both find the cart line, POST to the endpoint, then mutate the line's
+// state fields so the next renderCart() swaps button for pill.
+
+function requestTransferForLine(key) {
+  const line = cart.items.find(i => i.key === key);
+  if (!line || line.transfer_request_id) return;
+  fetch('{{ route('tenant.register.oversell.transfer-request') }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      inventory_item_id: line.source_id,
+      quantity: Math.max(1, Math.ceil(line.qty)),
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      line.transfer_request_id = data.transfer_request_id;
+      line.transfer_request_from = data.from_location_name || null;
+      renderCart();
+      queueDraftSave();
+    } else {
+      alert('Transfer request failed: ' + (data.error || 'unknown error'));
+    }
+  })
+  .catch(err => alert('Transfer request error: ' + err.message));
+}
+
+function addToOrderForLine(key) {
+  const line = cart.items.find(i => i.key === key);
+  if (!line || line.special_order_id) return;
+  fetch('{{ route('tenant.register.oversell.special-order') }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      inventory_item_id: line.source_id,
+      quantity: Math.max(1, Math.ceil(line.qty)),
+      customer_id: cart.customer_id || null,
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      line.special_order_id = data.special_order_id;
+      line.so_number = data.so_number;
+      renderCart();
+      queueDraftSave();
+    } else {
+      alert('Add to order failed: ' + (data.error || 'unknown error'));
+    }
+  })
+  .catch(err => alert('Add to order error: ' + err.message));
+}
+
+function removeLine(key) {
+  cart.items = cart.items.filter(i => i.key !== key);
+  renderCart();
+  queueDraftSave();
+}
+function updateQty(key, qty) {
+  const n = parseFloat(qty);
+  if (isNaN(n) || n <= 0) { removeLine(key); return; }
+  const line = cart.items.find(i => i.key === key);
+  if (line) line.qty = n;
+  renderCart();
+  queueDraftSave();
+}
+
+function renderCart() {
+  const lines = document.getElementById('cartLines');
+  const totalCount = cart.items.length + cart.refund_lines.length;
+  if (totalCount === 0) {
+    lines.innerHTML = '<div class="reg-empty">Cart is empty.</div>';
+    document.getElementById('payBtn').disabled = true;
+    document.getElementById('quoteBtn').disabled = true;
+  } else {
+    let html = '';
+
+    // Refund section — render first (visually on top) when present.
+    if (cart.refund_lines.length > 0) {
+      html += '<div class="reg-cart-section-label refund">Returning to customer · sale #' +
+        escapeHtml(cart.refund_meta?.original_sale_number ?? '') + '</div>';
+      html += cart.refund_lines.map(r => `
+        <div class="reg-line refund-line">
+          <div>
+            <div class="name">${escapeHtml(r.name)}</div>
+            <div class="meta">refund · ${r.qty} × ${fmt(r.price_cents)}</div>
+          </div>
+          <div></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="total">-${fmt(Math.round(r.price_cents * r.qty))}</span>
+            <button type="button" class="remove" data-remove-refund="${r.key}">×</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // New-sale section
+    if (cart.items.length > 0) {
+      if (cart.refund_lines.length > 0) {
+        html += '<div class="reg-cart-section-label">Adding to cart</div>';
+      }
+      html += cart.items.map(i => {
+        // patch-96 oversell-badge + patch-100a oversell-actions — show badge
+        // and an action row below the line when the qty exceeds local stock.
+        let badge = '';
+        let actionRow = '';
+        const isOversold = typeof i.current_location_stock === 'number'
+                           && i.qty > i.current_location_stock;
+        if (isOversold) {
+          const overBy = i.qty - i.current_location_stock;
+          const locLabel = i.current_location_name ? ' at ' + escapeHtml(i.current_location_name) : '';
+          badge = `<span class="reg-oversell-badge" title="Stock will go to ${i.current_location_stock - i.qty}${locLabel}">⚠ short ${overBy}${locLabel}</span>`;
+
+          // Action row: each button is either active (button) or already-fired (pill).
+          // MARKER-PATCH-162 — transfer button only renders when the tenant
+          // has 2+ active locations to move stock between. Single-location
+          // tenants still see the pill if a transfer was previously created
+          // (orphan rows pre-patch), but can't create new ones.
+          let transferBtn = '';
+          if (i.transfer_request_id) {
+            const fromLabel = i.transfer_request_from ? ' from ' + escapeHtml(i.transfer_request_from) : '';
+            transferBtn = `<span class="reg-oversell-pill">✓ Transfer requested${fromLabel}</span>`;
+          } else if (ROUTES.multiLocationActive && i.type === 'product' && i.source_id) {
+            transferBtn = `<button type="button" class="reg-oversell-btn" data-action="transfer" data-key="${i.key}">Request transfer</button>`;
+          }
+
+          let soBtn = '';
+          if (i.special_order_id) {
+            soBtn = `<span class="reg-oversell-pill">✓ ${escapeHtml(i.so_number || 'SO created')}</span>`;
+          } else if (i.type === 'product' && i.source_id) {
+            soBtn = `<button type="button" class="reg-oversell-btn" data-action="so" data-key="${i.key}">Add to order</button>`;
+          }
+
+          if (transferBtn || soBtn) {
+            actionRow = `<div class="reg-oversell-actions">${transferBtn}${soBtn}</div>`;
+          }
+        }
+
+        return `
+        <div class="reg-line">
+          <div>
+            <div class="name">${escapeHtml(i.name)} ${badge}</div>
+            <div class="meta">${fmt(i.price_cents)} · ${i.type}</div>
+            ${actionRow}
+          </div>
+          <input type="text" class="qty" value="${i.qty}" data-key="${i.key}" inputmode="decimal">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="total">${fmt(Math.round(i.price_cents * i.qty))}</span>
+            <button type="button" class="remove" data-remove="${i.key}">×</button>
+          </div>
+        </div>
+      `;
+      }).join('');
+    }
+
+    lines.innerHTML = html;
+    document.getElementById('payBtn').disabled = false;
+    document.getElementById('quoteBtn').disabled = false;
+  }
+  lines.querySelectorAll('[data-key]').forEach(input => {
+    input.addEventListener('change', () => updateQty(parseInt(input.dataset.key, 10), input.value));
+  });
+  lines.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.remove, 10)));
+  });
+  // patch-100a oversell-actions — wire the action buttons
+  lines.querySelectorAll('[data-action="transfer"]').forEach(btn => {
+    btn.addEventListener('click', () => requestTransferForLine(parseInt(btn.dataset.key, 10)));
+  });
+  lines.querySelectorAll('[data-action="so"]').forEach(btn => {
+    btn.addEventListener('click', () => addToOrderForLine(parseInt(btn.dataset.key, 10)));
+  });
+  lines.querySelectorAll('[data-remove-refund]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = parseInt(btn.dataset.removeRefund, 10);
+      cart.refund_lines = cart.refund_lines.filter(r => r.key !== key);
+      if (cart.refund_lines.length === 0) cart.refund_meta = null;
+      renderCart();
+    });
+  });
+
+  const slot = document.getElementById('customerSlot');
+  if (cart.customer) {
+    const c = cart.customer;
+    const profileUrl = ROUTES.customerBase + '/' + encodeURIComponent(c.id);
+    const emailRow = c.email
+      ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>`
+      : '';
+    const phoneRow = c.phone
+      ? `<a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a>`
+      : '';
+    const metaInner = (emailRow || phoneRow)
+      ? `<div class="meta">${emailRow}${phoneRow}</div>`
+      : '';
+    // MARKER-PATCH-161 — receipt indicator
+    const hasEmail = !!c.email;
+    const skipChecked = cart.skipReceipt ? 'checked' : '';
+    const receiptRow = hasEmail
+      ? `<div class="reg-cust-receipt">
+           <span class="reg-cust-receipt-status">
+             <span class="reg-cust-receipt-dot"></span>
+             Receipt will email to <b>${escapeHtml(c.email)}</b>
+           </span>
+           <label class="reg-cust-receipt-skip">
+             <input type="checkbox" id="skipReceiptChk" ${skipChecked}>
+             Skip receipt
+           </label>
+         </div>`
+      : `<div class="reg-cust-receipt reg-cust-receipt--none">
+           <span class="reg-cust-receipt-status">No email on file — no receipt will send</span>
+         </div>`;
+
+    slot.innerHTML = `
+      <div class="reg-cust">
+        <div class="head">
+          <span class="name">${escapeHtml(c.name || '(no name)')}</span>
+        </div>
+        ${metaInner}
+        ${receiptRow}
+        <div class="actions">
+          <a class="profile-link" href="${profileUrl}" target="_blank" rel="noopener">View profile →</a>
+          <span class="clear" id="clearCust">Remove</span>
+        </div>
+      </div>`;
+    var skipChk = document.getElementById('skipReceiptChk');
+    if (skipChk) {
+      skipChk.addEventListener('change', function(){
+        cart.skipReceipt = !!skipChk.checked;
+      });
+    }
+    document.getElementById('clearCust').addEventListener('click', () => {
+      cart.customer = null;
+      cart.skipReceipt = false; // MARKER-PATCH-161
+      renderCart();
+      queueDraftSave();
+    });
+    // Customer is now attached — clear any prior warning.
+    if (customerWarningActive) applyCustomerWarning(false);
+  } else {
+    slot.innerHTML = `<button type="button" class="reg-attach" id="attachCustBtn">+ Attach customer</button>`;
+    document.getElementById('attachCustBtn').addEventListener('click', openCustomerModal);
+    // Re-apply warning class if a prior quote attempt set it.
+    if (customerWarningActive) applyCustomerWarning(true);
+  }
+  renderTotals();
+}
+
+function calcSubtotal() { return cart.items.reduce((sum, i) => sum + Math.round(i.price_cents * i.qty), 0); }
+function calcRefundSubtotal() {
+  return cart.refund_lines.reduce((sum, r) => sum + Math.round(r.price_cents * r.qty), 0);
+}
+// Refund-line tax: snapshot from the original sale, summed across refund lines.
+// Always honor the snapshot — refunds preserve historical tax even if rate changed.
+function calcRefundTax() {
+  return cart.refund_lines.reduce((s, r) => s + (r.tax_cents || 0), 0);
+}
+function calcTax() {
+  // tax_locked: per-line tax was set externally (e.g. by the appointment bridge).
+  if (cart.tax_locked) {
+    return cart.items.reduce((s, i) => s + (i.tax_cents || 0), 0);
+  }
+  if (!CFG.taxRate) return 0;
+  let taxable = 0;
+  cart.items.forEach(i => { if (i.is_taxable) taxable += Math.round(i.price_cents * i.qty); });
+  return Math.round(taxable * (CFG.taxRate / 100));
+}
+function calcSurcharge() {
+  if (!CFG.surchargeOn) return 0;
+  if (cart.payment_method !== 'card') return 0;
+  return Math.round(calcSubtotal() * (CFG.surchargePct / 100));
+}
+
+function renderTotals() {
+  const sub = calcSubtotal();
+  const refundSub = calcRefundSubtotal();
+  const tax = calcTax();
+  const refundTax = calcRefundTax();
+  const surch = calcSurcharge();
+  const tip = cart.tipCents;
+  const disc = cart.discountCents;
+
+  // Display values reflect the NET cart (new lines minus refund lines).
+  // Total = (subtotal - discount + tax + surcharge + tip) - (refund subtotal + refund tax).
+  const netSub   = sub - refundSub;
+  const netTax   = tax - refundTax;
+  const total    = (sub - disc + tax + surch + tip) - (refundSub + refundTax);
+
+  document.getElementById('subVal').textContent = fmt(netSub);
+  document.getElementById('taxVal').textContent = fmt(netTax);
+  document.getElementById('totalVal').textContent = fmt(total);
+
+  if (disc > 0) { document.getElementById('discountRow').style.display = ''; document.getElementById('discVal').textContent = fmtNeg(disc); }
+  else { document.getElementById('discountRow').style.display = 'none'; }
+  if (surch > 0) { document.getElementById('surchargeRow').style.display = ''; document.getElementById('surchLabel').textContent = CFG.surchargeLabel; document.getElementById('surchVal').textContent = fmt(surch); }
+  else { document.getElementById('surchargeRow').style.display = 'none'; }
+  if (tip > 0) { document.getElementById('tipRow').style.display = ''; document.getElementById('tipVal').textContent = fmt(tip); }
+  else { document.getElementById('tipRow').style.display = 'none'; }
+  queueDisplayMirror(); // MARKER-REGISTER-RECON-DISPLAY
+}
+
+document.getElementById('addOpenItemBtn').addEventListener('click', () => {
+  document.getElementById('openItemName').value = '';
+  document.getElementById('openItemPrice').value = '';
+  openModal('openItemModal');
+});
+document.getElementById('openItemAddBtn').addEventListener('click', () => {
+  const name = document.getElementById('openItemName').value.trim();
+  const priceStr = document.getElementById('openItemPrice').value.trim();
+  const priceFloat = parseFloat(priceStr);
+  if (!name || isNaN(priceFloat) || priceFloat < 0) return;
+  const cents = Math.round(priceFloat * 100);
+  addToCart({type:'open_item', source_id:null, name, price_cents:cents, is_taxable:true});
+  closeModal('openItemModal');
+});
+
+function openCustomerModal() {
+  document.getElementById('customerSearchInput').value = '';
+  document.getElementById('customerResults').style.display = 'none';
+  openModal('customerModal');
+  setTimeout(() => document.getElementById('customerSearchInput').focus(), 50);
+}
+let custTimer = null;
+document.getElementById('customerSearchInput').addEventListener('input', () => {
+  clearTimeout(custTimer);
+  custTimer = setTimeout(searchCustomers, 250);
+});
+async function searchCustomers() {
+  const q = document.getElementById('customerSearchInput').value.trim();
+  const box = document.getElementById('customerResults');
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  const url = new URL(ROUTES.search, window.location.origin);
+  url.searchParams.set('q', q);
+  url.searchParams.set('type', 'customer');
+  try {
+    const res = await fetch(url, {headers:{'Accept':'application/json'}});
+    const data = await res.json();
+    if (!data.customers || !data.customers.length) {
+      box.innerHTML = '<div class="row" style="color:var(--ia-text-dim)">No matches.</div>';
+      box.style.display = '';
+      return;
+    }
+    box.innerHTML = data.customers.map(c => `
+      <div class="row" data-cust='${JSON.stringify(c)}'>
+        <div style="font-weight:500">${escapeHtml(c.name || '(no name)')}</div>
+        <div style="font-size:11px;color:var(--ia-text-dim)">${escapeHtml(c.email || c.phone || '')}</div>
+      </div>
+    `).join('');
+    box.querySelectorAll('[data-cust]').forEach(row => {
+      row.addEventListener('click', () => {
+        cart.customer = JSON.parse(row.dataset.cust);
+        closeModal('customerModal');
+        renderCart();
+        queueDraftSave();
+      });
+    });
+    box.style.display = '';
+  } catch (e) {
+    box.innerHTML = '<div class="row" style="color:#F09595">Search failed.</div>';
+    box.style.display = '';
+  }
+}
+
+// --- Save as Quote flow ---
+let customerWarningActive = false;
+
+function applyCustomerWarning(on) {
+  customerWarningActive = on;
+  const slot = document.getElementById('customerSlot');
+  const cust = slot.querySelector('.reg-cust');
+  const attach = slot.querySelector('.reg-attach');
+  if (on) {
+    if (cust) cust.classList.add('warning');
+    if (attach) attach.classList.add('warning');
+  } else {
+    if (cust) cust.classList.remove('warning');
+    if (attach) attach.classList.remove('warning');
+  }
+}
+
+document.getElementById('quoteBtn').addEventListener('click', async () => {
+  if (cart.refund_lines.length > 0) {
+    showError('Quotes can\'t include refund items. Remove the refund lines or commit the transaction.');
+    return;
+  }
+  if (!cart.customer) {
+    applyCustomerWarning(true);
+    const ok = await confirmDialog(
+      'Quotes need a customer attached so you can find and follow up later.',
+      'Attach customer',
+      'Customer required'
+    );
+    if (ok) openCustomerModal();
+    return;
+  }
+  // Customer is attached — clear any prior warning state and open quote modal.
+  applyCustomerWarning(false);
+  document.getElementById('quoteNotesInput').value = '';
+  openModal('quoteModal');
+  setTimeout(() => document.getElementById('quoteNotesInput').focus(), 50);
+});
+
+document.getElementById('quoteSaveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('quoteSaveBtn');
+  btn.disabled = true;
+
+  // Make sure any pending draft save lands first — same flush pattern as commit.
+  await flushDraftSave();
+
+  const payload = {
+    id: cart.draft_id,
+    customer_id: cart.customer.id,
+    notes: document.getElementById('quoteNotesInput').value.trim() || null,
+    tip_cents: cart.tipCents,
+    items: cart.items.map(i => {
+      const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+      if (i.type === 'product') out.inventory_item_id = i.source_id;
+      if (i.type === 'service') out.service_id = i.source_id;
+      if (i.type === 'open_item') {
+        out.name_snapshot = i.name;
+        out.unit_price_cents = i.price_cents;
+      }
+      return out;
+    }),
+  };
+
+  try {
+    const res = await fetch(ROUTES.storeQuote, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showError(data.error || 'Could not save the quote.');
+      closeModal('quoteModal');
+      return;
+    }
+    // Success — clear the cart so register is ready for the next sale.
+    closeModal('quoteModal');
+    cart.draft_id = null;
+    cart.customer = null;
+    cart.items = [];
+    cart.tipCents = 0;
+    cart.discountCents = 0;
+    cart.payment_method = null;
+    cart.payment_reference = null;
+    renderCart();
+    refreshDraftsBanner(await loadDrafts());
+  } catch (e) {
+    showError('Network error saving quote.');
+    closeModal('quoteModal');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('payBtn').addEventListener('click', () => {
+  // MARKER-PATCH-170C — pre-flight validation FIRST. If the cart can't
+  // be committed (e.g. service line without customer), block the tender
+  // modal entirely and show a focused dialog explaining what to fix.
+  const blocker = preflightCheck();
+  if (blocker) {
+    openPreflightModal(blocker);
+    return;
+  }
+
+  // Net total decides which path we take.
+  const sub = calcSubtotal();
+  const refundSub = calcRefundSubtotal();
+  const tax = calcTax();
+  const surch = calcSurcharge();
+  const tip = cart.tipCents;
+  const disc = cart.discountCents;
+  const net = (sub - disc + tax + surch + tip) - refundSub;
+
+  if (net === 0 && cart.refund_lines.length > 0) {
+    // Even exchange — skip tender, commit immediately.
+    // No money changes hands, but the payload still requires a payment method
+    // for the validator. 'even_exchange' is a sentinel that the controller treats
+    // the same as 'mark_paid' (no actual tender).
+    cart.payment_method = 'even_exchange';
+    commitTransaction({ even_exchange: true });
+    return;
+  }
+
+  if (net < 0) {
+    // Refund-direction transaction.
+    cart.payment_method = null;
+    document.getElementById('refundTenderConfirmBtn').disabled = true;
+    document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('refundTenderLede').textContent =
+      'Customer is owed ' + fmt(Math.abs(net)) + '. How is the refund being given?';
+    openModal('refundTenderModal');
+    return;
+  }
+
+  // Standard sale-direction tender flow (net > 0).
+  cart.payment_method = null;
+  cart.payment_reference = null;
+  document.getElementById('tenderRefRow').style.display = 'none';
+  document.getElementById('tenderManualRow').style.display = 'none'; // MARKER-PATCH-630
+  document.getElementById('tenderRefInput').value = '';
+  document.getElementById('tenderConfirmBtn').disabled = true;
+  document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  openModal('tenderModal');
+});
+
+// Refund-tender modal handlers
+document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    cart.payment_method = btn.dataset.refundTender;
+    document.getElementById('refundTenderConfirmBtn').disabled = false;
+  });
+});
+
+document.getElementById('refundTenderConfirmBtn').addEventListener('click', () => {
+  closeModal('refundTenderModal');
+  // Refund-direction commits skip the tip step entirely.
+  commitTransaction({});
+});
+
+document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    cart.payment_method = btn.dataset.tender;
+    document.getElementById('tenderConfirmBtn').disabled = false;
+    // MARKER-PATCH-170C — reference field only meaningful for checks now.
+    // Card no longer needs a hand-typed reference (with direct payments the
+    // brand+last4 becomes the reference automatically; without direct payments
+    // the field was always low-value friction).
+    const showRef = ['check'].includes(cart.payment_method);
+    document.getElementById('tenderRefRow').style.display = showRef ? '' : 'none';
+
+    // MARKER-PATCH-630 — manual tenders: show instructions + amount-prefilled link
+    const manualRow = document.getElementById('tenderManualRow');
+    if (btn.dataset.manual) {
+      const total = ((calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents) - (calcRefundSubtotal() + calcRefundTax())) / 100;
+      document.getElementById('tenderManualInstr').textContent = btn.dataset.instructions || '';
+      const wrap = document.getElementById('tenderManualLinkWrap');
+      if (btn.dataset.linktpl && total > 0) {
+        const link = btn.dataset.linktpl.replace('{amount}', total.toFixed(2));
+        document.getElementById('tenderManualLink').textContent = link;
+        document.getElementById('tenderManualSms').href = 'sms:?&body=' + encodeURIComponent('Pay ' + btn.dataset.name + ': ' + link);
+        wrap.style.display = '';
+      } else {
+        wrap.style.display = 'none';
+      }
+      manualRow.style.display = '';
+    } else {
+      manualRow.style.display = 'none';
+    }
+    renderTotals();
+  });
+});
+
+// MARKER-PATCH-630 — copy the manual payment link
+document.getElementById('tenderManualCopy').addEventListener('click', function () {
+  const t = document.getElementById('tenderManualLink').textContent;
+  navigator.clipboard.writeText(t).then(() => { this.textContent = 'Copied ✓'; setTimeout(() => { this.textContent = 'Copy link'; }, 1400); });
+});
+
+// MARKER-PATCH-170 — Direct Payments hand-keyed card flow
+// When the card tender is selected AND the tenant has direct payments
+// enabled, intercept to run the Stripe Payment Element BEFORE commit.
+// Other tender types (cash, check, etc.) flow unchanged.
+let DirectPay = {
+  stripe: null,
+  elements: null,
+  paymentElement: null,
+  clientSecret: null,
+  paymentIntentId: null,
+  inFlight: false,
+};
+
+// MARKER-PATCH-172 — Send-payment-link state
+let PaymentLink = {
+  saleId: null,
+  sessionId: null,
+  checkoutUrl: null,
+  pollHandle: null,
+};
+
+// Show the Send-payment-link tender button when direct payments are enabled.
+if (ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+  const btn = document.getElementById('tenderPaymentLinkBtn');
+  if (btn) btn.style.display = '';
+}
+
+async function openCardPaymentModal() {
+  // MARKER-PATCH-170B + 170C — pre-charge validation. The Charge button
+  // pre-flight modal already catches this upstream, but defense-in-depth
+  // in case openCardPaymentModal is reached via some other path.
+  const hasServiceLine = cart.items.some(i => i.type === 'service');
+  if (hasServiceLine && !cart.customer) {
+    closeModal('tenderModal');
+    openPreflightModal({
+      title: 'Add a customer',
+      message: 'A customer is required when the sale includes a service.',
+      actionLabel: 'Add customer →',
+      actionFn: () => { closeModal('preflightModal'); openCustomerModal(); },
+    });
+    return;
+  }
+
+  const errBox = document.getElementById('cardPaymentError');
+  errBox.style.display = 'none';
+  errBox.textContent = '';
+  document.getElementById('cardPaymentChargeBtn').disabled = true;
+  document.getElementById('cardPaymentSpinner').style.display = 'none';
+
+  const totals = computeTotalsForCommit();
+  const amountCents = totals.total_cents + (cart.tipCents || 0);
+  document.getElementById('cardPaymentAmount').textContent = fmt(amountCents);
+  document.getElementById('cardPaymentChargeLabel').textContent = 'Charge ' + fmt(amountCents);
+
+  openModal('cardPaymentModal');
+
+  // Reset Stripe.js elements between opens
+  if (DirectPay.paymentElement) {
+    try { DirectPay.paymentElement.unmount(); } catch (e) {}
+  }
+  DirectPay.elements = null;
+  DirectPay.paymentElement = null;
+  DirectPay.clientSecret = null;
+  DirectPay.paymentIntentId = null;
+
+  // Create the PaymentIntent
+  let intent;
+  try {
+    const res = await fetch(ROUTES.paymentIntentCreate, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({
+        amount_cents: amountCents,
+        // MARKER-PATCH-170B — preflight context
+        customer_id: cart.customer ? cart.customer.id : null,
+        has_service_line: cart.items.some(i => i.type === 'service'),
+      }),
+    });
+    intent = await res.json();
+    if (!intent.ok) throw new Error(intent.error || 'Could not initialize card payment.');
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = '';
+    return;
+  }
+
+  DirectPay.clientSecret = intent.client_secret;
+  DirectPay.paymentIntentId = intent.payment_intent;
+
+  // Lazy-init Stripe.js with the tenant\'s publishable key
+  if (!DirectPay.stripe) {
+    DirectPay.stripe = Stripe(intent.publishable_key);
+  }
+
+  DirectPay.elements = DirectPay.stripe.elements({
+    clientSecret: DirectPay.clientSecret,
+    appearance: {
+      theme: 'night',
+      variables: {
+        colorPrimary: '#BEF264',
+        colorBackground: '#1c1c1c',
+        colorText: '#f0f0f0',
+        colorDanger: '#f87171',
+        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        borderRadius: '6px',
+      },
+    },
+  });
+  DirectPay.paymentElement = DirectPay.elements.create('payment', {
+    layout: 'tabs',
+  });
+  DirectPay.paymentElement.mount('#card-payment-element');
+  DirectPay.paymentElement.on('ready', () => {
+    document.getElementById('cardPaymentChargeBtn').disabled = false;
+  });
+  DirectPay.paymentElement.on('change', (ev) => {
+    document.getElementById('cardPaymentChargeBtn').disabled = !!ev.empty;
+    if (ev.error) {
+      errBox.textContent = ev.error.message;
+      errBox.style.display = '';
+    } else {
+      errBox.style.display = 'none';
+    }
+  });
+}
+
+async function confirmCardPayment() {
+  if (DirectPay.inFlight) return;
+  DirectPay.inFlight = true;
+
+  const errBox = document.getElementById('cardPaymentError');
+  errBox.style.display = 'none';
+  const chargeBtn = document.getElementById('cardPaymentChargeBtn');
+  chargeBtn.disabled = true;
+  document.getElementById('cardPaymentSpinner').style.display = '';
+
+  let result;
+  try {
+    result = await DirectPay.stripe.confirmPayment({
+      elements: DirectPay.elements,
+      redirect: 'if_required',
+    });
+  } catch (e) {
+    errBox.textContent = e.message || 'Payment failed.';
+    errBox.style.display = '';
+    chargeBtn.disabled = false;
+    document.getElementById('cardPaymentSpinner').style.display = 'none';
+    DirectPay.inFlight = false;
+    return;
+  }
+
+  if (result.error) {
+    errBox.textContent = result.error.message;
+    errBox.style.display = '';
+    chargeBtn.disabled = false;
+    document.getElementById('cardPaymentSpinner').style.display = 'none';
+    DirectPay.inFlight = false;
+    return;
+  }
+
+  // Verify with our server (Stripe is source of truth, not the client)
+  let conf;
+  try {
+    const res = await fetch(ROUTES.paymentIntentConfirm, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ payment_intent: DirectPay.paymentIntentId }),
+    });
+    conf = await res.json();
+    if (!conf.ok) throw new Error(conf.error || 'Could not verify payment.');
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = '';
+    chargeBtn.disabled = false;
+    document.getElementById('cardPaymentSpinner').style.display = 'none';
+    DirectPay.inFlight = false;
+    return;
+  }
+
+  // Stash Stripe metadata for the sale commit
+  cart.stripe_payment_intent_id = conf.payment_intent;
+  cart.stripe_charge_id         = conf.stripe_charge_id;
+  cart.card_brand               = conf.card_brand;
+  cart.card_last4               = conf.card_last4;
+  cart.card_funding             = conf.card_funding;
+  cart.payment_reference        = (conf.card_brand && conf.card_last4)
+    ? (conf.card_brand + ' ····' + conf.card_last4)
+    : null;
+
+  // Close modal and run the existing commit pipeline.
+  // MARKER-PATCH-170B — wrap commit in our own try; if commitTransaction
+  // shows the failure banner, we still hold the PI in cart.stripe_payment_intent_id.
+  // commitTransaction itself calls autoRefundOnCommitFailure() if its commit fails.
+  closeModal('cardPaymentModal');
+  DirectPay.inFlight = false;
+  if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
+}
+
+// MARKER-PATCH-170B — called by commitTransaction's error path when the
+// charge has already authorized but the commit step failed. Refunds the
+// PaymentIntent server-side and clears the Stripe metadata from the cart
+// so the user doesn\'t double-charge.
+async function autoRefundOnCommitFailure(reason) {
+  if (!cart.stripe_payment_intent_id) return;
+  const pi = cart.stripe_payment_intent_id;
+  // Optimistically clear from cart so a retry doesn\'t re-send the stale PI
+  cart.stripe_payment_intent_id = null;
+  cart.stripe_charge_id = null;
+  cart.card_brand = null;
+  cart.card_last4 = null;
+  cart.card_funding = null;
+  cart.payment_reference = null;
+
+  try {
+    const res = await fetch(ROUTES.paymentIntentAutoRefund, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ payment_intent: pi, reason: reason || 'commit_failed' }),
+    });
+    const data = await res.json();
+    const banner = document.getElementById('errBanner');
+    if (data.ok) {
+      banner.textContent = (banner.textContent || '') + ' The card charge was automatically refunded.';
+    } else {
+      banner.textContent = (banner.textContent || '') + ' WARNING: card was charged but refund failed — check Stripe dashboard for payment intent ' + pi;
+    }
+    banner.style.display = '';
+  } catch (e) {
+    const banner = document.getElementById('errBanner');
+    banner.textContent = 'Card was charged but refund attempt failed. Stripe payment intent: ' + pi + '. Please refund manually in Stripe dashboard.';
+    banner.style.display = '';
+  }
+}
+
+document.getElementById('cardPaymentCancelBtn').addEventListener('click', () => {
+  if (DirectPay.paymentElement) {
+    try { DirectPay.paymentElement.unmount(); } catch (e) {}
+  }
+  DirectPay.inFlight = false;
+  closeModal('cardPaymentModal');
+});
+document.getElementById('cardPaymentChargeBtn').addEventListener('click', confirmCardPayment);
+
+// Helper used by openCardPaymentModal to compute the current charge total.
+// Mirrors the math in commitTransaction\'s totals without firing a save.
+function computeTotalsForCommit() {
+  const sub = calcSubtotal();
+  const tax = Math.round(sub * (CFG.taxRate || 0));
+  const total = sub + tax - (cart.discountCents || 0);
+  return { subtotal_cents: sub, tax_cents: tax, total_cents: Math.max(0, total) };
+}
+
+document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
+  cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
+
+  // MARKER-PATCH-170 — Direct Payments path
+  if (cart.payment_method === 'card' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+    closeModal('tenderModal');
+    openCardPaymentModal();
+    return;
+  }
+
+  // MARKER-PATCH-172 — Send-payment-link path
+  if (cart.payment_method === 'payment_link' && ROUTES.directPaymentsEnabled && ROUTES.directPaymentsPk) {
+    closeModal('tenderModal');
+    openPaymentLinkModal();
+    return;
+  }
+
+  // Default path (cash, check, store_credit, mark_paid, or card-without-Stripe)
+  closeModal('tenderModal');
+  if (CFG.tipsEnabled) openTipModal(); else commitTransaction({});
+});
+
+// MARKER-PATCH-172 — Send-payment-link modal flow
+async function openPaymentLinkModal() {
+  const statusText = document.getElementById('paymentLinkStatusText');
+  statusText.textContent = 'Creating payment link…';
+  document.getElementById('paymentLinkQR').innerHTML = '';
+  document.getElementById('paymentLinkUrl').textContent = '';
+  openModal('paymentLinkModal');
+
+  const totals = computeTotalsForCommit();
+  const amountCents = totals.total_cents + (cart.tipCents || 0);
+  document.getElementById('paymentLinkAmountValue').textContent = fmt(amountCents);
+
+  let resp;
+  try {
+    const res = await fetch(ROUTES.checkoutSessionCreate, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({
+        amount_cents: amountCents,
+        customer_id: cart.customer ? cart.customer.id : null,
+        has_service_line: cart.items.some(i => i.type === 'service'),
+        description: 'Purchase at ' + document.title,
+        items: cart.items.map(serializeLine),
+        tip_cents: cart.tipCents || 0,
+        discount_cents: cart.discountCents || 0,
+        sale_id: cart.draft_id || null,
+      }),
+    });
+    resp = await res.json();
+    if (!resp.ok) throw new Error(resp.error || 'Could not create payment link.');
+  } catch (e) {
+    closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+    showError(e.message);
+    return;
+  }
+
+  PaymentLink.saleId = resp.sale_id;
+  PaymentLink.sessionId = resp.session_id;
+  PaymentLink.checkoutUrl = resp.checkout_url;
+  DisplayMirror.payUrl = resp.checkout_url; // MARKER-REGISTER-RECON-DISPLAY
+  queueDisplayMirror(true);
+
+  // Render QR code
+  const qrEl = document.getElementById('paymentLinkQR');
+  qrEl.innerHTML = '';
+  if (typeof qrcode === 'function') {
+    const qr = qrcode(0, 'L');
+    qr.addData(resp.checkout_url);
+    qr.make();
+    qrEl.innerHTML = qr.createSvgTag({ scalable: true, margin: 2 });
+    // Constrain SVG size
+    const svg = qrEl.querySelector('svg');
+    if (svg) { svg.style.width = '200px'; svg.style.height = '200px'; }
+  } else {
+    qrEl.textContent = '(QR library failed to load. Use the URL below.)';
+  }
+
+  document.getElementById('paymentLinkUrl').textContent = resp.checkout_url;
+  document.getElementById('paymentLinkStatusText').textContent = 'Waiting for customer to pay…';
+
+  // Start polling
+  startPaymentLinkPolling();
+}
+
+function startPaymentLinkPolling() {
+  stopPaymentLinkPolling();
+  PaymentLink.pollHandle = setInterval(checkPaymentLinkStatus, 3000);
+}
+function stopPaymentLinkPolling() {
+  if (PaymentLink.pollHandle) {
+    clearInterval(PaymentLink.pollHandle);
+    PaymentLink.pollHandle = null;
+  }
+}
+
+async function checkPaymentLinkStatus() {
+  if (!PaymentLink.saleId) return;
+  try {
+    const res = await fetch(ROUTES.checkoutSessionCheck, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ sale_id: PaymentLink.saleId }),
+    });
+    const data = await res.json();
+    if (!data.ok) return;
+
+    if (data.status === 'succeeded') {
+      stopPaymentLinkPolling();
+      closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+      // Show the receipt screen using the existing flow
+      showReceipt({ sale_number: data.sale_number, total_cents: data.total_cents, sale_id: data.sale_id }); // MARKER-PATCH-322
+      // Clear cart since the sale completed
+      cart.draft_id = null;
+      cart.customer = null;
+      cart.items = [];
+      cart.refund_lines = [];
+      cart.tipCents = 0;
+      cart.discountCents = 0;
+      renderAll();
+      PaymentLink.saleId = null;
+      PaymentLink.sessionId = null;
+      PaymentLink.checkoutUrl = null;
+      return;
+    }
+
+    if (data.status === 'expired') {
+      stopPaymentLinkPolling();
+      document.getElementById('paymentLinkStatusText').textContent = 'Link expired. Cancel and try again.';
+    }
+  } catch (e) {
+    // Transient network errors — keep polling.
+  }
+}
+
+document.getElementById('paymentLinkCopyBtn').addEventListener('click', () => {
+  if (!PaymentLink.checkoutUrl) return;
+  navigator.clipboard.writeText(PaymentLink.checkoutUrl).then(() => {
+    const btn = document.getElementById('paymentLinkCopyBtn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+});
+
+// MARKER-PATCH-192 — "Cancel link": explicit destructive action. Expires the
+// Stripe session and marks the sale cancelled. Only fires on deliberate click.
+document.getElementById('paymentLinkCancelBtn').addEventListener('click', async () => {
+  if (!confirm('Cancel this payment link? The customer will no longer be able to pay it.')) return;
+  stopPaymentLinkPolling();
+  if (PaymentLink.saleId) {
+    try {
+      await fetch(ROUTES.checkoutSessionCancel, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify({ sale_id: PaymentLink.saleId }),
+      });
+    } catch (e) {}
+  }
+  PaymentLink.saleId = null;
+  PaymentLink.sessionId = null;
+  PaymentLink.checkoutUrl = null;
+  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+});
+
+// MARKER-PATCH-192 — "Done — keep link live": the operator steps away while the
+// customer pays on their own time. Stops the foreground poll and closes the
+// modal, but leaves the sale PENDING and the Stripe session active. The webhook
+// will promote it when the customer pays; the appointment surfaces the pending
+// state so it's never lost. Does NOT cancel anything.
+document.getElementById('paymentLinkDoneBtn').addEventListener('click', () => {
+  stopPaymentLinkPolling();
+  PaymentLink.saleId = null;
+  PaymentLink.sessionId = null;
+  PaymentLink.checkoutUrl = null;
+  closeModal('paymentLinkModal'); DisplayMirror.payUrl = null; queueDisplayMirror(true); // MARKER-REGISTER-RECON-DISPLAY
+});
+
+function openTipModal() {
+  cart.tipCents = 0;
+  document.getElementById('tipCustomInput').value = '';
+  const grid = document.getElementById('tipGrid');
+  grid.innerHTML = '';
+  const sub = calcSubtotal();
+  (CFG.tipOptions || []).forEach(opt => {
+    let cents, label;
+    if (CFG.tipMethod === 'percent') {
+      cents = Math.round(sub * (parseFloat(opt) / 100));
+      label = `${opt}% (${fmt(cents)})`;
+    } else {
+      cents = Math.round(parseFloat(opt) * 100);
+      label = fmt(cents);
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'reg-tip-btn';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.reg-tip-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      cart.tipCents = cents;
+      document.getElementById('tipCustomInput').value = '';
+    });
+    grid.appendChild(btn);
+  });
+  openModal('tipModal');
+}
+
+document.getElementById('tipCustomInput').addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('tipCustomInput').value);
+  if (!isNaN(v) && v >= 0) {
+    cart.tipCents = Math.round(v * 100);
+    document.querySelectorAll('.reg-tip-btn').forEach(b => b.classList.remove('selected'));
+  }
+});
+document.getElementById('tipClearBtn').addEventListener('click', () => {
+  cart.tipCents = 0;
+  document.getElementById('tipCustomInput').value = '';
+  document.querySelectorAll('.reg-tip-btn').forEach(b => b.classList.remove('selected'));
+});
+document.getElementById('tipSkipBtn').addEventListener('click', () => {
+  cart.tipCents = 0;
+  closeModal('tipModal');
+  commitTransaction({});
+});
+document.getElementById('tipConfirmBtn').addEventListener('click', () => {
+  closeModal('tipModal');
+  commitTransaction({});
+});
+
+async function commitTransaction(opts = {}) {
+  document.getElementById('payBtn').disabled = true;
+  document.getElementById('errBanner').style.display = 'none';
+
+  // Make sure any pending or in-flight draft save lands before commit.
+  await flushDraftSave();
+
+  const hasRefund = cart.refund_lines.length > 0;
+  const hasNewSale = cart.items.length > 0;
+
+  try {
+    let url, payload;
+
+    if (hasRefund) {
+      // Mixed or pure-refund transaction — use the new endpoint that handles both.
+      url = ROUTES.commitTxn;
+      payload = {
+        customer_id: cart.customer ? cart.customer.id : null,
+        tip_cents: cart.tipCents,
+        payment_method: cart.payment_method,
+        payment_reference: cart.payment_reference,
+        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
+        stripe_charge_id: cart.stripe_charge_id || null,
+        card_brand: cart.card_brand || null,
+        card_last4: cart.card_last4 || null,
+        card_funding: cart.card_funding || null,
+        items: hasNewSale ? cart.items.map(serializeLine) : [],
+        refund: {
+          original_sale_id: cart.refund_meta.original_sale_id,
+          item_ids: cart.refund_lines.map(r => r.original_item_id),
+          refund_method: cart.payment_method,
+        },
+      };
+    } else if (cart.draft_id) {
+      // Draft-backed pure sale — promote draft to paid (existing path).
+      url = ROUTES.commitDraft + '/' + cart.draft_id + '/commit';
+      payload = {
+        payment_method: cart.payment_method,
+        payment_reference: cart.payment_reference,
+        tip_cents: cart.tipCents,
+        customer_id: cart.customer ? cart.customer.id : null,
+        skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
+        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
+        stripe_charge_id: cart.stripe_charge_id || null,
+        card_brand: cart.card_brand || null,
+        card_last4: cart.card_last4 || null,
+        card_funding: cart.card_funding || null,
+      };
+    } else {
+      // Fallback path — pure sale, no draft, send full cart.
+      url = ROUTES.storeSale;
+      payload = {
+        customer_id: cart.customer ? cart.customer.id : null,
+        tip_cents: cart.tipCents,
+        discount_cents: cart.discountCents,
+        payment_method: cart.payment_method,
+        payment_reference: cart.payment_reference,
+        items: cart.items.map(serializeLine),
+        skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161
+        // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
+        stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
+        stripe_charge_id: cart.stripe_charge_id || null,
+        card_brand: cart.card_brand || null,
+        card_last4: cart.card_last4 || null,
+        card_funding: cart.card_funding || null,
+      };
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      // MARKER-PATCH-170B — auto-refund the card if we authorized one
+      if (cart.stripe_payment_intent_id) {
+        await autoRefundOnCommitFailure(data.error || 'commit_failed');
+      }
+      showError(data.error || 'Could not complete the transaction.');
+      return;
+    }
+    showReceipt(data);
+  } catch (e) {
+    // MARKER-OFFLINE-SYNC — network failure: queue the sale on-device when eligible.
+    if (await osTryQueueCommit()) return;
+    showError('Network error. Please try again.');
+  } finally {
+    document.getElementById('payBtn').disabled = (cart.items.length === 0 && cart.refund_lines.length === 0);
+  }
+}
+
+function serializeLine(i) {
+  const out = { type: i.type, quantity: i.qty, is_taxable: i.is_taxable };
+  if (i.type === 'product') out.inventory_item_id = i.source_id;
+  if (i.type === 'service') out.service_id = i.source_id;
+  if (i.type === 'open_item') {
+    out.name_snapshot = i.name;
+    out.unit_price_cents = i.price_cents;
+  }
+  return out;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errBanner');
+  el.textContent = msg;
+  el.style.display = '';
+  // MARKER-PATCH-170C — shake to draw attention, even on repeat errors.
+  // Re-trigger by removing then re-adding the class on the next frame.
+  el.classList.remove('reg-err--shake');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { el.classList.add('reg-err--shake'); });
+  });
+}
+
+// MARKER-PATCH-170C — pre-flight cart validation.
+// Returns null if the cart is commit-able, or a blocker object
+// { title, message, actionLabel, actionFn } describing what's wrong.
+// Order matters: surface the most-actionable problem first.
+function preflightCheck() {
+  // Service-line-without-customer is the only blocker we know about today.
+  // More can be added (e.g. price-zero items, missing location) without
+  // changing the call site.
+  const hasServiceLine = cart.items.some(i => i.type === 'service');
+  if (hasServiceLine && !cart.customer) {
+    return {
+      title: 'Add a customer',
+      message: 'A customer is required when the sale includes a service. Attach a customer and we\'ll continue.',
+      actionLabel: 'Add customer →',
+      actionFn: () => {
+        closeModal('preflightModal');
+        openCustomerModal();
+      },
+    };
+  }
+  return null;
+}
+
+function openPreflightModal(blocker) {
+  document.getElementById('preflightTitle').textContent = blocker.title;
+  document.getElementById('preflightLede').textContent  = blocker.message;
+  const btn = document.getElementById('preflightActionBtn');
+  btn.textContent = blocker.actionLabel;
+  // Replace previous click handler — clone the node to drop bound listeners.
+  const fresh = btn.cloneNode(true);
+  btn.parentNode.replaceChild(fresh, btn);
+  fresh.addEventListener('click', blocker.actionFn);
+  openModal('preflightModal');
+}
+// MARKER-PATCH-187 — after a completed sale the receipt sits briefly, then the
+// register auto-resets to a fresh state. A visible countdown shows it coming;
+// clicking "New sale" (or any cart interaction) resets immediately and cancels
+// the timer.
+const RECEIPT_AUTO_RESET_SECONDS = 45;
+let receiptResetTimer = null;
+let receiptCountdownTimer = null;
+let receiptSaleId = null;        // MARKER-PATCH-322
+let receiptCustomerEmail = null; // MARKER-PATCH-322
+
+function clearReceiptTimers() {
+  if (receiptResetTimer) { clearTimeout(receiptResetTimer); receiptResetTimer = null; }
+  if (receiptCountdownTimer) { clearInterval(receiptCountdownTimer); receiptCountdownTimer = null; }
+}
+
+async function resetRegisterToFresh() {
+  clearReceiptTimers();
+  cart.draft_id = null;
+  cart.customer = null;
+  cart.items = [];
+  cart.refund_lines = [];
+  cart.refund_meta = null;
+  cart.tipCents = 0; cart.discountCents = 0;
+  cart.payment_method = null; cart.payment_reference = null;
+  closeModal('receiptModal');
+  renderCart();
+  searchInput.value = '';
+  resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+  refreshDraftsBanner(await loadDrafts());
+}
+
+function showReceipt(data) {
+  document.getElementById('receiptNum').textContent = data.sale_number;
+  document.getElementById('receiptTotal').textContent = fmt(data.total_cents);
+  openModal('receiptModal');
+
+  // MARKER-PATCH-322 — capture the sale for print/email before the cart clears.
+  receiptSaleId = data.sale_id || null;
+  receiptCustomerEmail = (typeof cart !== 'undefined' && cart && cart.customer && cart.customer.email) ? cart.customer.email : null;
+  var _rPrint = document.getElementById('receiptPrintBtn');
+  var _rEmail = document.getElementById('receiptEmailBtn');
+  var _rPrompt = document.getElementById('receiptEmailPrompt');
+  var _rMsg = document.getElementById('receiptEmailMsg');
+  if (_rPrint) _rPrint.style.display = receiptSaleId ? '' : 'none';
+  if (_rEmail) _rEmail.style.display = receiptSaleId ? '' : 'none';
+  if (_rPrompt) _rPrompt.style.display = 'none';
+  if (_rMsg) { _rMsg.style.display = 'none'; _rMsg.textContent = ''; }
+
+  // MARKER-PATCH-232B — round-trip receipts: when the register was opened
+  // with a return_to, the receipt offers (and the countdown takes) the way
+  // back instead of resetting to a fresh register.
+  const backBtn = document.getElementById('receiptBackTo');
+  if (backBtn) {
+    if (window.registerReturnTo) {
+      backBtn.href = window.registerReturnTo;
+      backBtn.style.display = '';
+      backBtn.textContent = 'Back to where you were →';
+      const autoEl = document.getElementById('receiptAutoReset');
+      if (autoEl) autoEl.innerHTML = 'Heading back in <span id="receiptCountdown">45</span>s';
+    } else {
+      backBtn.style.display = 'none';
+    }
+  }
+
+  // Start the auto-reset countdown.
+  clearReceiptTimers();
+  let remaining = RECEIPT_AUTO_RESET_SECONDS;
+  const countdownEl = document.getElementById('receiptCountdown');
+  if (countdownEl) countdownEl.textContent = remaining;
+  receiptCountdownTimer = setInterval(() => {
+    remaining -= 1;
+    if (countdownEl) countdownEl.textContent = Math.max(0, remaining);
+    if (remaining <= 0) clearInterval(receiptCountdownTimer);
+  }, 1000);
+  receiptResetTimer = setTimeout(() => {
+    if (window.registerReturnTo) { window.location.href = window.registerReturnTo; return; }
+    resetRegisterToFresh();
+  }, RECEIPT_AUTO_RESET_SECONDS * 1000);
+}
+
+document.getElementById('receiptNewSale').addEventListener('click', () => { resetRegisterToFresh(); });
+
+// MARKER-PATCH-322 — print + email the just-completed receipt.
+(function () {
+  var printBtn = document.getElementById('receiptPrintBtn');
+  var emailBtn = document.getElementById('receiptEmailBtn');
+  var promptEl = document.getElementById('receiptEmailPrompt');
+  var inputEl  = document.getElementById('receiptEmailInput');
+  var sendEl   = document.getElementById('receiptEmailSend');
+  var msgEl    = document.getElementById('receiptEmailMsg');
+
+  // Stop the auto-reset countdown once the cashier interacts here.
+  function holdReset() {
+    try { clearReceiptTimers(); } catch (e) {}
+    var a = document.getElementById('receiptAutoReset');
+    if (a) a.style.display = 'none';
+  }
+
+  if (printBtn) printBtn.addEventListener('click', function () {
+    if (!receiptSaleId) return;
+    holdReset();
+    if (window.openPrintComposer) { window.openPrintComposer('sale', receiptSaleId, { type: 'receipt', format: 't80' }); return; } // MARKER-PATCH-338
+    if (!ROUTES.saleReceipt) return;
+    var url = ROUTES.saleReceipt.replace('__ID__', encodeURIComponent(receiptSaleId)) + '?embed=1';
+    var f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    f.src = url;
+    f.onload = function () {
+      try { f.contentWindow.focus(); f.contentWindow.print(); }
+      catch (e) { window.open(url.replace('?embed=1', ''), '_blank'); }
+      setTimeout(function () { f.remove(); }, 2000);
+    };
+    document.body.appendChild(f);
+  });
+
+  function sendReceipt(email) {
+    if (!receiptSaleId || !ROUTES.resendReceipt) return;
+    var url = ROUTES.resendReceipt.replace('__ID__', encodeURIComponent(receiptSaleId));
+    var token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (sendEl) sendEl.disabled = true;
+    fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+      body: email ? ('email=' + encodeURIComponent(email)) : ''
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (sendEl) sendEl.disabled = false;
+      if (d && d.ok) {
+        var to = email || receiptCustomerEmail;
+        if (msgEl) { msgEl.style.display = ''; msgEl.textContent = 'Receipt sent' + (to ? ' to ' + to : '') + '.'; }
+        if (promptEl) promptEl.style.display = 'none';
+      } else if (msgEl) {
+        msgEl.style.display = ''; msgEl.textContent = (d && d.error) || 'Could not send receipt.';
+      }
+    })
+    .catch(function () { if (sendEl) sendEl.disabled = false; if (msgEl) { msgEl.style.display = ''; msgEl.textContent = 'Could not send receipt.'; } });
+  }
+
+  if (emailBtn) emailBtn.addEventListener('click', function () {
+    if (!receiptSaleId) return;
+    holdReset();
+    if (receiptCustomerEmail) { sendReceipt(null); }
+    else { if (promptEl) promptEl.style.display = 'flex'; if (inputEl) inputEl.focus(); }
+  });
+  if (sendEl) sendEl.addEventListener('click', function () {
+    var v = ((inputEl && inputEl.value) || '').trim();
+    if (!v || v.indexOf('@') < 0) { if (inputEl) inputEl.focus(); return; }
+    sendReceipt(v);
+  });
+  if (inputEl) inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (sendEl) sendEl.click(); } });
+})();
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('[data-close-modal]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+});
+
+// --- Drafts banner / resume / discard ---
+async function loadDrafts() {
+  try {
+    const res = await fetch(ROUTES.listDrafts, {headers:{'Accept':'application/json'}});
+    const data = await res.json();
+    return data.drafts || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function refreshDraftsBanner(drafts) {
+  const banner = document.getElementById('draftsBanner');
+  // Filter out the current cart's own draft from the count.
+  const others = drafts.filter(d => d.id !== cart.draft_id);
+  if (!others.length) { banner.style.display = 'none'; return; }
+  const word = others.length === 1 ? 'draft' : 'drafts';
+  document.getElementById('draftsBannerLabel').textContent =
+    others.length + ' open ' + word + ' at this location';
+  banner.style.display = '';
+}
+
+function fmtAge(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const mins = Math.floor((now - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+function renderDraftsList(drafts) {
+  const list = document.getElementById('draftsList');
+  const others = drafts.filter(d => d.id !== cart.draft_id);
+  if (!others.length) {
+    list.innerHTML = '<div class="reg-empty">No other open drafts.</div>';
+    return;
+  }
+  list.innerHTML = others.map(d => {
+    const itemWord = d.item_count === 1 ? 'item' : 'items';
+    const meta = [
+      d.item_count + ' ' + itemWord,
+      d.customer || 'no customer',
+      d.started_by ? 'by ' + d.started_by : null,
+      fmtAge(d.updated_at),
+    ].filter(Boolean).join(' · ');
+    return '<div class="reg-draft-row" data-id="' + d.id + '">' +
+      '<div>' +
+        '<div style="font-weight:500">' + escapeHtml(d.customer || 'Walk-in') + '</div>' +
+        '<div class="meta-line">' + escapeHtml(meta) + '</div>' +
+      '</div>' +
+      '<div class="total">' + fmt(d.total_cents) + '</div>' +
+      '<div class="actions">' +
+        '<button type="button" class="btn-resume" data-resume="' + d.id + '">Resume</button>' +
+        '<button type="button" class="btn-discard" data-discard="' + d.id + '">Discard</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  list.querySelectorAll('[data-resume]').forEach(btn => {
+    btn.addEventListener('click', () => resumeDraft(btn.dataset.resume));
+  });
+  list.querySelectorAll('[data-discard]').forEach(btn => {
+    btn.addEventListener('click', () => discardDraftFromList(btn.dataset.discard));
+  });
+}
+
+document.getElementById('draftsBanner').addEventListener('click', async () => {
+  const drafts = await loadDrafts();
+  renderDraftsList(drafts);
+  openModal('draftsModal');
+});
+
+async function resumeDraft(id) {
+  if (cart.items.length > 0) {
+    const ok = await confirmDialog(
+      'Your current cart will be replaced with this draft.',
+      'Replace cart',
+      'Replace current cart?'
+    );
+    if (!ok) return;
+  }
+  try {
+    const res = await fetch(ROUTES.draftBase + '/' + id, {headers:{'Accept':'application/json'}});
+    const data = await res.json();
+    if (!data.ok) { showError(data.error || 'Could not load draft.'); closeModal('draftsModal'); return; }
+    // Cancel any pending save for the OLD cart before we overwrite state.
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+    cart.draft_id = data.draft.id;
+    cart.customer = data.draft.customer;
+    cart.tipCents = data.draft.tip_cents || 0;
+    cart.tax_locked = !!data.draft.tax_locked;
+    cart.items = (data.draft.items || []).map(i => ({
+      key: ++lineKey,
+      type: i.type,
+      source_id: i.source_id,
+      name: i.name,
+      price_cents: i.price_cents,
+      qty: i.qty,
+      is_taxable: i.is_taxable,
+      tax_cents: i.tax_cents || 0,
+      tax_rate_snapshot: i.tax_rate_snapshot,
+    }));
+    closeModal('draftsModal');
+    renderCart();
+    refreshDraftsBanner(await loadDrafts());
+  } catch (e) {
+    showError('Network error loading draft.');
+    closeModal('draftsModal');
+  }
+}
+
+async function discardDraftFromList(id) {
+  const ok = await confirmDialog(
+    'This draft will be permanently deleted.',
+    'Discard draft',
+    'Discard this draft?'
+  );
+  if (!ok) return;
+  try {
+    const res = await fetch(ROUTES.draftBase + '/' + id, {
+      method: 'DELETE',
+      headers: {'Accept':'application/json', 'X-CSRF-TOKEN': CSRF},
+    });
+    const data = await res.json();
+    if (!data.ok) { showError(data.error || 'Could not discard draft.'); return; }
+    // If we just discarded the cart's own draft, clear it too.
+    if (cart.draft_id === id) {
+      cart.draft_id = null;
+      cart.items = [];
+      cart.customer = null;
+      cart.tipCents = 0;
+      renderCart();
+    }
+    const drafts = await loadDrafts();
+    renderDraftsList(drafts);
+    refreshDraftsBanner(drafts);
+  } catch (e) {
+    showError('Network error discarding draft.');
+  }
+}
+
+renderCart();
+
+// Auto-load a draft from ?draft=X in the URL. Used by the cash-pays-for-class
+// flow in ClassController::registerViaCash, which prepares a drop-in cart and
+// redirects here so the admin can take payment. Removes the param after load
+// so a refresh doesn't re-trigger.
+(function autoloadDraftFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const draftId = params.get('draft');
+  if (!draftId) return;
+  // Strip the param so this only fires once.
+  params.delete('draft');
+  const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  window.history.replaceState({}, '', cleanUrl);
+  resumeDraft(draftId);
+})();
+
+// MARKER-PATCH-195 — Payment-link status view. Opened from the appointment
+// "Payment link sent" banner via ?status=<sale_id>. Shows a live timeline of
+// the outstanding link, polls for resolution, and offers copy / cancel.
+const LinkStatus = { saleId: null, sessionId: null, url: null, poll: null };
+
+function lsRenderTimeline(sale, liveStatus) {
+  const paid = (liveStatus === 'succeeded') || sale.payment_status === 'paid' || (sale.paid_cents > 0);
+  const expired = (liveStatus === 'expired') || sale.sale_status === 'cancelled';
+  const created = sale.created_at ? lsFmtDate(sale.created_at) : '';
+  const rows = [];
+  rows.push(['done', 'Link created', created]);
+  rows.push(['done', 'Link sent to customer', sale.customer && sale.customer.email ? sale.customer.email : '']);
+  if (paid) {
+    rows.push(['done', 'Payment received', sale.paid_at ? lsFmtDate(sale.paid_at) : '']);
+    rows.push(['done', 'Recorded to ledger', sale.payments && sale.payments.length ? (sale.payments[0].method_label || 'card') : '']);
+  } else if (expired) {
+    rows.push(['', 'Link expired without payment', '']);
+  } else {
+    rows.push(['now', 'Awaiting payment', 'checking automatically…']);
+    rows.push(['', 'Payment received', '— pending —']);
+    rows.push(['', 'Recorded to ledger', '— pending —']);
+  }
+  return rows.map(r =>
+    '<div class="ls-te ' + r[0] + '"><div class="tt">' + esc(r[1]) + '</div>' +
+    (r[2] ? '<div class="td">' + esc(r[2]) + '</div>' : '') + '</div>'
+  ).join('');
+}
+
+function lsSetPill(status) {
+  const el = document.getElementById('lsStatusPill');
+  if (status === 'succeeded' || status === 'paid') { el.className = 'ls-pill paid'; el.textContent = 'Paid'; }
+  else if (status === 'expired') { el.className = 'ls-pill expired'; el.textContent = 'Expired'; }
+  else { el.className = 'ls-pill pending'; el.textContent = 'Awaiting payment'; }
+}
+
+function lsFmtDate(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d.getTime())) return iso; return d.toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+function esc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function openLinkStatus(saleId) {
+  if (!saleId) return;
+  LinkStatus.saleId = saleId;
+  openModal('linkStatusModal');
+  document.getElementById('lsHeader').textContent = 'Loading…';
+  document.getElementById('lsTimeline').innerHTML = '';
+  // Fetch the sale detail (showSaleJson — includes checkout + payments).
+  let sale = null;
+  try {
+    const showUrl = ROUTES.saleShow ? ROUTES.saleShow.replace('__ID__', encodeURIComponent(saleId)) : null;
+    if (showUrl) {
+      const r = await fetch(showUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+      const d = await r.json();
+      if (d.ok) sale = d.sale;
+    }
+  } catch (e) {}
+  if (!sale) { document.getElementById('lsHeader').textContent = 'Could not load this sale.'; return; }
+
+  const status = (sale.payment_status === 'paid' || sale.paid_cents > 0) ? 'paid'
+               : (sale.sale_status === 'cancelled' ? 'expired' : 'pending');
+  lsSetPill(status);
+  document.getElementById('lsHeader').innerHTML =
+    fmt(sale.total_cents) + ' · ' + esc(sale.customer ? sale.customer.name : 'No customer') +
+    (sale.sale_number ? ' · <span style="font-family:var(--ia-font-mono);font-size:11px">' + esc(sale.sale_number) + '</span>' : '');
+  document.getElementById('lsTimeline').innerHTML = lsRenderTimeline(sale, status === 'paid' ? 'succeeded' : (status === 'expired' ? 'expired' : 'pending'));
+
+  // Cancel-link action only while still pending.
+  const cancelBtn = document.getElementById('lsCancelLinkBtn');
+  cancelBtn.style.display = (status === 'pending') ? '' : 'none';
+
+  // Poll for resolution while pending.
+  if (LinkStatus.poll) clearInterval(LinkStatus.poll);
+  if (status === 'pending') {
+    LinkStatus.poll = setInterval(async () => {
+      try {
+        const res = await fetch(ROUTES.checkoutSessionCheck, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+          body: JSON.stringify({ sale_id: saleId }),
+        });
+        const d = await res.json();
+        if (!d.ok) return;
+        if (d.status === 'succeeded' || d.status === 'expired') {
+          clearInterval(LinkStatus.poll); LinkStatus.poll = null;
+          openLinkStatus(saleId); // re-render terminal state
+        }
+      } catch (e) {}
+    }, 4000);
+  }
+}
+
+function lsClose() {
+  if (LinkStatus.poll) { clearInterval(LinkStatus.poll); LinkStatus.poll = null; }
+  closeModal('linkStatusModal');
+}
+
+document.getElementById('lsCloseBtn').addEventListener('click', lsClose);
+document.getElementById('lsCancelLinkBtn').addEventListener('click', async () => {
+  if (!LinkStatus.saleId) return;
+  if (!confirm('Cancel this payment link? The customer will no longer be able to pay it.')) return;
+  try {
+    await fetch(ROUTES.checkoutSessionCancel, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ sale_id: LinkStatus.saleId }),
+    });
+  } catch (e) {}
+  lsClose();
+});
+
+// Autoload from ?status=<sale_id> (from the appointment banner).
+(function autoloadStatusFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get('status');
+  if (!sid) return;
+  params.delete('status');
+  const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  window.history.replaceState({}, '', cleanUrl);
+  openLinkStatus(sid);
+})();
+
+// --- Refund picker ---
+let refundPickerSale = null;  // the full sale object from lookupSale, kept while modal is open
+
+async function openRefundPicker(saleId) {
+  // We don't have a per-id endpoint yet; the sale_number-based lookup is what we have.
+  // Re-trigger the search to get fresh data (cheap — last query is still in input).
+  const q = searchInput.value.trim();
+  if (!q || !looksLikeSaleNumber(q)) {
+    showError('Could not load sale. Try searching the sale number again.');
+    return;
+  }
+  try {
+    const url = new URL(ROUTES.lookupSale, window.location.origin);
+    url.searchParams.set('sale_number', normalizeSaleNumber(q));
+    const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+    const d = await r.json();
+    if (!d.ok) { showError(d.error || 'Sale not found.'); return; }
+    refundPickerSale = d.sale;
+    renderRefundPicker();
+    openModal('refundModal');
+  } catch (e) {
+    showError('Network error loading sale.');
+  }
+}
+
+// Auto-open the refund picker when arriving from the sale-detail modal's
+// "Refund this sale" button (?refund=SALE_NUMBER). Looks the sale up by
+// number directly so it doesn't depend on the search input being populated.
+(function autoloadRefundFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const saleNumber = params.get('refund');
+  if (!saleNumber) return;
+  // Strip the param so a refresh doesn't re-trigger.
+  params.delete('refund');
+  const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  window.history.replaceState({}, '', cleanUrl);
+
+  (async () => {
+    try {
+      const url = new URL(ROUTES.lookupSale, window.location.origin);
+      url.searchParams.set('sale_number', saleNumber);
+      const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+      const d = await r.json();
+      if (!d.ok) { showError(d.error || 'Sale not found.'); return; }
+      refundPickerSale = d.sale;
+      renderRefundPicker();
+      openModal('refundModal');
+    } catch (e) {
+      showError('Network error loading sale.');
+    }
+  })();
+})();
+
+function renderRefundPicker() {
+  const sale = refundPickerSale;
+  if (!sale) return;
+  document.getElementById('refundModalLede').textContent =
+    'Sale #' + sale.sale_number + (sale.customer ? ' · ' + sale.customer : '') + ' · ' + fmt(sale.total_cents);
+
+  const list = document.getElementById('refundList');
+  if (!sale.items.length) {
+    list.innerHTML = '<div class="reg-empty">No items on this sale.</div>';
+    return;
+  }
+  list.innerHTML = sale.items.map((it, idx) => {
+    const disabled = it.remaining <= 0;
+    const meta = disabled
+      ? 'fully refunded'
+      : (it.already_refunded > 0 ? it.already_refunded + ' of ' + it.quantity + ' already refunded · ' + it.remaining + ' available' : it.quantity + ' available');
+    return '<div class="reg-refund-row ' + (disabled ? 'disabled' : '') + '" data-idx="' + idx + '">' +
+      '<input type="checkbox" data-pick="' + idx + '" ' + (disabled ? 'disabled' : '') + '>' +
+      '<div>' +
+        '<div class="name">' + escapeHtml(it.name) + '</div>' +
+        '<div class="meta">' + escapeHtml(meta) + '</div>' +
+      '</div>' +
+      '<input type="number" class="qty-input" data-qty="' + idx + '" min="0" max="' + it.remaining + '" step="1" value="' + it.remaining + '" ' + (disabled ? 'disabled' : '') + '>' +
+      '<div class="total">' + fmt(it.unit_price_cents) + '</div>' +
+    '</div>';
+  }).join('');
+
+  // Wire checkbox + qty change to update the Add button state.
+  list.querySelectorAll('[data-pick]').forEach(cb => cb.addEventListener('change', updateRefundAddBtn));
+  list.querySelectorAll('[data-qty]').forEach(inp => inp.addEventListener('input', updateRefundAddBtn));
+  updateRefundAddBtn();
+}
+
+function updateRefundAddBtn() {
+  const list = document.getElementById('refundList');
+  let anyChecked = false;
+  list.querySelectorAll('[data-pick]:checked').forEach(cb => {
+    const idx = cb.dataset.pick;
+    const qty = parseFloat(list.querySelector('[data-qty="' + idx + '"]').value);
+    if (qty > 0) anyChecked = true;
+  });
+  document.getElementById('refundAddBtn').disabled = !anyChecked;
+}
+
+document.getElementById('refundAddBtn').addEventListener('click', () => {
+  const sale = refundPickerSale;
+  if (!sale) return;
+  const list = document.getElementById('refundList');
+
+  // If cart already has refund lines from a different sale, block.
+  if (cart.refund_meta && cart.refund_meta.original_sale_id !== sale.id) {
+    showError('Cart already has refund lines from a different sale. Discard or commit those first.');
+    return;
+  }
+
+  list.querySelectorAll('[data-pick]:checked').forEach(cb => {
+    const idx = parseInt(cb.dataset.pick, 10);
+    const item = sale.items[idx];
+    const qty = parseFloat(list.querySelector('[data-qty="' + idx + '"]').value);
+    if (!qty || qty <= 0) return;
+    // Tax on a partial refund is a proportional share of original line tax.
+    const fullQty = item.quantity || 1;
+    const taxShare = item.tax_cents
+      ? Math.round((item.tax_cents * qty) / fullQty)
+      : 0;
+    cart.refund_lines.push({
+      key: ++lineKey,
+      original_sale_id:  sale.id,
+      original_item_id:  item.id,
+      type:              item.type,
+      name:              item.name,
+      qty:               qty,
+      price_cents:       item.unit_price_cents,
+      tax_cents:         taxShare,
+      is_taxable:        !!item.is_taxable,
+    });
+  });
+
+  if (cart.refund_lines.length > 0 && !cart.refund_meta) {
+    cart.refund_meta = {
+      original_sale_id:    sale.id,
+      original_sale_number: sale.sale_number,
+      refund_method:       null,  // resolved at tender time
+    };
+  }
+
+  closeModal('refundModal');
+  refundPickerSale = null;
+  searchInput.value = '';
+  resultsArea.innerHTML = '<div class="reg-empty">Type to search products and services.</div>';
+  renderCart();
+  searchInput.focus();
+});
+
+// On page load, populate the banner.
+loadDrafts().then(refreshDraftsBanner);
+
+// If we were redirected here from the Quotes page with ?resume=<id>,
+// load that quote into the cart automatically.
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  // MARKER-PATCH-232B — capture return_to BEFORE replaceState wipes the
+  // query string. Local paths only; anything else is ignored.
+  const rawReturnTo = params.get('return_to') || '';
+  window.registerReturnTo = (rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')) ? rawReturnTo : null;
+  const resumeId = params.get('resume');
+  if (!resumeId) return;
+  // Strip the param from the URL so a refresh doesn't re-trigger.
+  const cleanUrl = window.location.pathname;
+  window.history.replaceState({}, '', cleanUrl);
+  // Reuse the existing resumeDraft path — it handles drafts and quotes both.
+  resumeDraft(resumeId);
+})();
+
+/* ===================================================================
+   Appointment tray — lazy-loads on click. Lists every pending sale
+   that came from a completed appointment, lets staff jump to one.
+   =================================================================== */
+(function () {
+  var toggle = document.getElementById('appointment-tray-toggle');
+  var listEl = document.getElementById('appointment-tray-list');
+  if (!toggle || !listEl) return;
+
+  var loaded = false;
+  var open = false;
+
+  toggle.addEventListener('click', function () {
+    if (!loaded) {
+      fetch('{{ route("tenant.register.appointment-tray", ["subdomain" => tenant()->subdomain]) }}', {
+        headers: { 'Accept': 'application/json' }
+      }).then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok || !data.sales || !data.sales.length) {
+            listEl.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--ia-text-dim);text-align:center">No pending appointment sales.</div>';
+            return;
+          }
+          listEl.innerHTML = data.sales.map(function (s) {
+            // MARKER-PATCH-180 — row carries data-sale-id; a × dismiss button
+            // removes the parked draft from the tray. Resume happens on the
+            // row body (not the buttons), wired via delegation below.
+            return '<div class="appt-tray-row" data-sale-id="' + escapeHtml(s.id) + '" style="display:grid;grid-template-columns:1fr auto auto auto;gap:14px;align-items:center;padding:10px 12px;background:var(--ia-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin:4px 0">'
+                 + '<div class="appt-tray-resume" style="cursor:pointer">'
+                 + '<div style="font-weight:500;font-size:13px">' + escapeHtml(s.customer_name) + (s.ra_number ? ' — Appt ' + escapeHtml(s.ra_number) : '') + '</div>'
+                 + '<div style="font-size:11px;color:var(--ia-text-dim);margin-top:2px">' + escapeHtml(s.sale_number) + ' · ' + s.item_count + ' line' + (s.item_count === 1 ? '' : 's') + '</div>'
+                 + '</div>'
+                 + '<div style="font-weight:500;font-size:14px">' + escapeHtml(s.total_display) + '</div>'
+                 + '<button type="button" class="ia-btn ia-btn--primary ia-btn--sm appt-tray-pay">Take payment →</button>'
+                 + '<button type="button" class="appt-tray-dismiss" aria-label="Remove from list" title="Remove from list" style="background:none;border:none;color:var(--ia-text-dim);font-size:18px;line-height:1;cursor:pointer;padding:4px 8px">×</button>'
+                 + '</div>';
+          }).join('');
+          loaded = true;
+          wireTrayRowActions();
+        });
+    }
+    open = !open;
+    listEl.style.display = open ? 'block' : 'none';
+    toggle.textContent = open ? 'Hide list' : 'View list';
+  });
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // MARKER-PATCH-180 — wire resume/pay/dismiss on tray rows.
+  function wireTrayRowActions() {
+    listEl.querySelectorAll('.appt-tray-row').forEach(function (row) {
+      var saleId = row.getAttribute('data-sale-id');
+      var resume = function () { window.location.href = '?resume=' + saleId; };
+      var body = row.querySelector('.appt-tray-resume');
+      var pay  = row.querySelector('.appt-tray-pay');
+      if (body) body.addEventListener('click', resume);
+      if (pay)  pay.addEventListener('click', function (e) { e.stopPropagation(); resume(); });
+      var dismiss = row.querySelector('.appt-tray-dismiss');
+      if (dismiss) dismiss.addEventListener('click', async function (e) {
+        e.stopPropagation();
+        dismiss.disabled = true;
+        try {
+          var res = await fetch('{{ route("tenant.register.appointment-tray.dismiss", ["subdomain" => tenant()->subdomain]) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            body: JSON.stringify({ sale_id: saleId }),
+            credentials: 'same-origin',
+          });
+          var data = await res.json();
+          if (!data.ok) { dismiss.disabled = false; if (window.IntakeToast) IntakeToast.error(data.error || 'Could not remove.'); return; }
+          row.style.transition = 'opacity .2s ease';
+          row.style.opacity = '0';
+          setTimeout(function () {
+            row.remove();
+            // Decrement the banner count; hide the whole banner if empty.
+            var countEl = document.querySelector('#appointment-tray-banner div[style*="font-weight:500"]');
+            var banner = document.getElementById('appointment-tray-banner');
+            if (!listEl.querySelector('.appt-tray-row')) {
+              if (banner) banner.style.display = 'none';
+              listEl.style.display = 'none';
+            } else if (countEl) {
+              var n = (listEl.querySelectorAll('.appt-tray-row').length);
+              countEl.textContent = n + (n === 1 ? ' appointment is' : ' appointments are') + ' ready for checkout';
+            }
+          }, 210);
+        } catch (err) {
+          dismiss.disabled = false;
+          if (window.IntakeToast) IntakeToast.error('Network error.');
+        }
+      });
+    });
+  }
+})();
+</script>
+
+@if(($tenant->direct_payments_enabled ?? false) && ($tenant->settings['stripe_register_enabled'] ?? true))
+{{-- MARKER-PATCH-170 — Stripe.js for Direct Payments hand-keyed flow --}}
+<script src="https://js.stripe.com/v3/"></script>
+{{-- MARKER-PATCH-172 — QR code library for send-payment-link --}}
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+@endif
+@endpush
+
+OFS2_10_EOF
+
+echo "offline-sync-stage-2 applied — server needs: migrate --force, view:clear, route:clear + route:cache"

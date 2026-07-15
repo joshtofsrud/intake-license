@@ -128,6 +128,8 @@ $tenantRoutes = function () {
     // MARKER-PATCH-149 — anonymous funnel event tracking from public pages
     Route::post('/funnel/track',         [TenantControllers\FunnelTrackController::class, 'store'])->name('tenant.funnel.track');
     // MARKER-REGISTER-RECON-DISPLAY — customer pay display (token is the credential)
+    // MARKER-OFFLINE-SYNC stage 2 — branded offline fallback, precached by the SW
+    Route::get('/offline-fallback', fn () => view('tenant.offline-fallback'))->name('tenant.offline_fallback');
     Route::get('/pay-display/{token}',            [TenantControllers\RegisterDisplayController::class, 'display'])->name('tenant.pay_display.show');
     Route::get('/pay-display/{token}/state.json', [TenantControllers\RegisterDisplayController::class, 'displayPoll'])->name('tenant.pay_display.poll');
     Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
@@ -310,6 +312,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/select',                    [TenantControllers\RegisterDisplayController::class, 'selectRegister'])->name('register.select');
                 Route::post('/register/display-state',             [TenantControllers\RegisterDisplayController::class, 'displayState'])->name('register.display_state');
                 Route::get('/register/offline-catalog.json',       [TenantControllers\RegisterController::class, 'offlineCatalog'])->name('register.offline_catalog'); // MARKER-OFFLINE-SYNC
+                Route::post('/timeclock/sync', [TenantControllers\TimeClockController::class, 'punchSync'])->name('timeclock.sync'); // MARKER-OFFLINE-SYNC stage 2
 
                 // MARKER-PATCH-567 — Online Retail Wave 5a: orders queue
                 Route::get('/orders',            [TenantControllers\OrdersController::class, 'index'])->name('orders.index');

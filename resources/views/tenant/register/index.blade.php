@@ -1129,7 +1129,9 @@ function osToggleTenders(){
 async function osRefreshSnapshot(){
   if (!OfflineSync.enabled || !navigator.onLine) return;
   try {
-    const r = await fetch(ROUTES.offlineCatalog, { headers: { 'Accept': 'application/json' } });
+    const u = new URL(ROUTES.offlineCatalog, window.location.origin);
+    u.searchParams.set('limit', localStorage.getItem('ia_offline_snap_size') || '500'); // MARKER-OFFLINE-SYNC stage 2
+    const r = await fetch(u, { headers: { 'Accept': 'application/json' } });
     const d = await r.json();
     if (d.ok) localStorage.setItem(OfflineSync.SNAP_KEY, JSON.stringify(d));
   } catch (e) { /* snapshot refresh is best-effort */ }
@@ -1197,6 +1199,17 @@ async function osReplay(){
   if (!OfflineSync.queueCount) {
     const el = document.getElementById('osBanner');
     if (el) { el.innerHTML = 'All queued sales synced.'; setTimeout(() => { if (!OfflineSync.queueCount && OfflineSync.online) el.style.display = 'none'; }, 3500); }
+  }
+}
+// MARKER-OFFLINE-SYNC stage 2 — service worker lifecycle. Registered when the
+// add-on is on (network-first page cache + offline fallback for /admin);
+// unregistered and caches cleared when it's off.
+if ('serviceWorker' in navigator) {
+  if (ROUTES.offlineSyncEnabled === true) {
+    navigator.serviceWorker.register('/offline-sw.js', { scope: '/' }).catch(() => {});
+  } else {
+    navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+    if (window.caches) caches.keys().then(ks => ks.forEach(k => { if (k.startsWith('ia-offline')) caches.delete(k); }));
   }
 }
 if (OfflineSync.enabled) {

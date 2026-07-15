@@ -51,7 +51,58 @@ class TimeClockController extends Controller
         return view('tenant.timeclock.index', compact(
             'open', 'mine', 'onClock', 'todayMinutes',
             'history', 'weekMinutes', 'monthMinutes'
-        ));
+        ))->with('offlineSyncEnabled', app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'offline_sync')); // MARKER-OFFLINE-SYNC
+    }
+
+    /**
+     * MARKER-OFFLINE-SYNC — replay endpoint for punches queued offline.
+     * Accepts the original punch time and a client_uuid; replaying the same
+     * uuid is a no-op. Direction "in" opens a shift at punched_at; "out"
+     * closes the open shift at punched_at.
+     */
+    public function punchSync(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+
+        $data = $request->validate([
+            'client_uuid' => ['required', 'uuid'],
+            'direction'   => ['required', 'in:in,out'],
+            'punched_at'  => ['required', 'date'],
+        ]);
+
+        $already = TenantTimePunch::where('tenant_id', $tenant->id)
+            ->where('client_uuid', $data['client_uuid'])
+            ->exists();
+        if ($already) {
+            return response()->json(['ok' => true, 'replayed' => true]);
+        }
+
+        $at = \Carbon\Carbon::parse($data['punched_at']);
+
+        if ($data['direction'] === 'in') {
+            if (TenantTimePunch::openFor($tenant->id, $user->id)) {
+                return response()->json(['ok' => true, 'skipped' => 'already_open']);
+            }
+            TenantTimePunch::create([
+                'tenant_id'      => $tenant->id,
+                'tenant_user_id' => $user->id,
+                'location_id'    => session('current_location_id'),
+                'clock_in_at'    => $at,
+                'source'         => 'offline_sync',
+                'client_uuid'    => $data['client_uuid'],
+                'created_by'     => $user->id,
+            ]);
+            return response()->json(['ok' => true]);
+        }
+
+        $open = TenantTimePunch::openFor($tenant->id, $user->id);
+        if (! $open) {
+            return response()->json(['ok' => true, 'skipped' => 'not_open']);
+        }
+        $open->update(['clock_out_at' => $at, 'client_uuid' => $data['client_uuid']]);
+
+        return response()->json(['ok' => true]);
     }
 
     public function punchIn(Request $request)

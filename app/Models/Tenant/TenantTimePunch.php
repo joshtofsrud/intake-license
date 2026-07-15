@@ -16,6 +16,7 @@ class TenantTimePunch extends Model
     protected $fillable = [
         'tenant_id', 'tenant_user_id', 'location_id', 'pay_period_id',
         'clock_in_at', 'clock_out_at', 'break_minutes', 'source', 'note',
+        'client_uuid', // MARKER-OFFLINE-SYNC
         'created_by', 'auto_closed', 'edited_by', 'edit_reason', 'edited_at',
     ];
 

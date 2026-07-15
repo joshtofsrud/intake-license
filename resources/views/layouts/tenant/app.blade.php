@@ -208,6 +208,29 @@
 @include('layouts.tenant._action-gate-modal')
 @include('layouts.tenant._location-welcome')
 
+{{-- MARKER-OFFLINE-SYNC stage 2 — when a SW-cached page is shown offline,
+     stamp it so nobody trusts stale data blindly. --}}
+<script>
+(function () {
+  function osStamp() {
+    if (navigator.onLine || document.getElementById('osPageStamp')) return;
+    var el = document.createElement('div');
+    el.id = 'osPageStamp';
+    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;'
+      + 'background:rgba(245,197,107,.12);border:1px solid rgba(245,197,107,.4);color:#F5C56B;'
+      + 'font:600 12.5px Inter,-apple-system,sans-serif;border-radius:100px;padding:8px 16px;backdrop-filter:blur(6px)';
+    el.textContent = 'Offline — showing your last-loaded view. Changes are paused until you reconnect.';
+    document.body.appendChild(el);
+  }
+  function osUnstamp() {
+    var el = document.getElementById('osPageStamp');
+    if (el) el.remove();
+  }
+  window.addEventListener('offline', osStamp);
+  window.addEventListener('online', osUnstamp);
+  if (!navigator.onLine) osStamp();
+})();
+</script>
 @stack('scripts')
 
 @include('tenant._onboarding_modal')

@@ -71,14 +71,15 @@
     </div>
     <div>
       @if($open)
-        <form method="POST" action="{{ route('tenant.timeclock.out') }}">@csrf
+        <form method="POST" action="{{ route('tenant.timeclock.out') }}" data-os-punch="out">@csrf
           <button class="tc-btn tc-btn--out" type="submit">Clock out</button>
         </form>
       @else
-        <form method="POST" action="{{ route('tenant.timeclock.in') }}">@csrf
+        <form method="POST" action="{{ route('tenant.timeclock.in') }}" data-os-punch="in">@csrf
           <button class="tc-btn tc-btn--in" type="submit">Clock in</button>
         </form>
       @endif
+      <div id="osPunchNote" style="display:none;margin-top:10px;font-size:12.5px;color:#F5C56B"></div>
     </div>
   </div>
 
@@ -149,6 +150,81 @@
 @endsection
 
 @push('scripts')
+{{-- MARKER-OFFLINE-SYNC stage 2 — punches queue on-device when offline and
+     replay with their ORIGINAL timestamps. Gated by the offline_sync add-on. --}}
+@if ($offlineSyncEnabled ?? false)
+<script>
+(function () {
+  const SYNC_URL = @json(route('tenant.timeclock.sync'));
+  const CSRF = document.querySelector('meta[name=csrf-token]').content;
+  const uuid = () => (crypto.randomUUID) ? crypto.randomUUID() :
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16);
+    });
+
+  function db() {
+    return new Promise((res, rej) => {
+      const rq = indexedDB.open('intake-offline-punches', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('punches', { keyPath: 'client_uuid' });
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    });
+  }
+  async function queuePunch(direction) {
+    const d = await db();
+    const rec = { client_uuid: uuid(), direction, punched_at: new Date().toISOString() };
+    await new Promise(res => {
+      const tx = d.transaction('punches', 'readwrite');
+      tx.objectStore('punches').put(rec);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+    const note = document.getElementById('osPunchNote');
+    note.style.display = 'block';
+    note.textContent = 'You\'re offline — punch saved at ' +
+      new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
+      ' and will sync with its original time.';
+  }
+  async function replay() {
+    if (!navigator.onLine) return;
+    const d = await db();
+    const all = await new Promise(res => {
+      const rq = d.transaction('punches').objectStore('punches').getAll();
+      rq.onsuccess = () => res(rq.result || []); rq.onerror = () => res([]);
+    });
+    if (!all.length) return;
+    let synced = 0;
+    for (const rec of all.sort((a, b) => a.punched_at.localeCompare(b.punched_at))) {
+      try {
+        const r = await fetch(SYNC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+          body: JSON.stringify(rec),
+        });
+        const j = await r.json();
+        if (j.ok || r.status === 422) {
+          await new Promise(res => {
+            const tx = d.transaction('punches', 'readwrite');
+            tx.objectStore('punches').delete(rec.client_uuid);
+            tx.oncomplete = res; tx.onerror = res;
+          });
+          if (j.ok) synced++;
+        }
+      } catch (e) { return; } // still offline
+    }
+    if (synced) location.reload(); // reflect the punch state
+  }
+  document.querySelectorAll('form[data-os-punch]').forEach(f => {
+    f.addEventListener('submit', (e) => {
+      if (navigator.onLine) return; // normal form post
+      e.preventDefault();
+      queuePunch(f.dataset.osPunch);
+    });
+  });
+  window.addEventListener('online', replay);
+  replay();
+})();
+</script>
+@endif
 <script>
 // Live elapsed timer while on the clock.
 (function () {

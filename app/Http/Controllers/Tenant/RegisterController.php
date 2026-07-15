@@ -2387,7 +2387,7 @@ class RegisterController extends Controller
             ->whereNotNull('tenant_sale_items.inventory_item_id')
             ->groupBy('tenant_sale_items.inventory_item_id')
             ->orderByRaw('COUNT(*) DESC')
-            ->limit(500)
+            ->limit(min(1000, max(100, (int) $request->query('limit', 500)))) // MARKER-OFFLINE-SYNC stage 2
             ->pluck('tenant_sale_items.inventory_item_id')
             ->all();
 

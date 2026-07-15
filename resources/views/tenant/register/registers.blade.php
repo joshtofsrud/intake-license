@@ -67,6 +67,67 @@
   </form>
 </div>
 
+{{-- MARKER-OFFLINE-SYNC stage 2 — per-device offline settings. Everything in
+     this card lives on THIS device (localStorage / caches), not the server. --}}
+@php $osEnabled = app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync'); @endphp
+@if ($osEnabled)
+<div style="background:var(--ia-panel);border:1px solid var(--ia-border);border-radius:12px;padding:18px;margin-top:22px">
+  <div style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-muted);margin-bottom:4px">Offline sync — this device</div>
+  <div style="font-size:12.5px;color:var(--ia-muted);margin-bottom:14px">The register on this device keeps selling through outages. Snapshot and queue live on-device.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:12px">
+    <label style="font-size:13px">Catalog snapshot
+      <select id="osSnapSize" class="ia-input" style="margin-left:8px;font-size:13px">
+        <option value="250">Top 250 items</option>
+        <option value="500" selected>Top 500 items</option>
+        <option value="1000">Top 1,000 items</option>
+      </select>
+    </label>
+    <span style="font-size:12.5px;color:var(--ia-muted)" id="osSnapInfo">Snapshot: checking…</span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="ia-btn ia-btn-ghost" onclick="osRefreshNow()">Refresh snapshot now</button>
+    <button class="ia-btn ia-btn-ghost" onclick="osClearDevice()">Clear device cache</button>
+  </div>
+</div>
+<script>
+(function () {
+  const KEY = 'ia_offline_catalog', SIZE_KEY = 'ia_offline_snap_size';
+  const sel = document.getElementById('osSnapSize');
+  sel.value = localStorage.getItem(SIZE_KEY) || '500';
+  sel.addEventListener('change', () => { localStorage.setItem(SIZE_KEY, sel.value); osRefreshNow(); });
+  function info() {
+    try {
+      const snap = JSON.parse(localStorage.getItem(KEY) || 'null');
+      const el = document.getElementById('osSnapInfo');
+      if (!snap) { el.textContent = 'Snapshot: none yet — open the register while online.'; return; }
+      const n = (snap.products || []).length + (snap.services || []).length;
+      el.textContent = 'Snapshot: ' + n + ' items · ' + new Date(snap.captured_at).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(e => {
+          if (e.usage) el.textContent += ' · ' + (e.usage / 1048576).toFixed(1) + ' MB on device';
+        });
+      }
+    } catch (e) {}
+  }
+  window.osRefreshNow = async function () {
+    try {
+      const url = new URL(@json(route('tenant.register.offline_catalog')), window.location.origin);
+      url.searchParams.set('limit', sel.value);
+      const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const d = await r.json();
+      if (d.ok) { localStorage.setItem(KEY, JSON.stringify(d)); info(); }
+    } catch (e) { alert('Could not refresh — are you online?'); }
+  };
+  window.osClearDevice = async function () {
+    localStorage.removeItem(KEY);
+    try { indexedDB.deleteDatabase('intake-offline'); indexedDB.deleteDatabase('intake-offline-punches'); } catch (e) {}
+    if (window.caches) (await caches.keys()).forEach(k => { if (k.startsWith('ia-offline')) caches.delete(k); });
+    info();
+  };
+  info();
+})();
+</script>
+@endif
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
 function toggleQr(id) {
