@@ -23,8 +23,6 @@
        Identity block — top of sidebar, below logo, above nav.
        User row (always visible) + location row (only when 2+ locations).
        ================================================================ --}}
-  {{-- MARKER-OFFLINE-SYNC stage 4 — status block mount (filled by /js/offline-sync.js when the add-on is active) --}}
-  <div id="ioMountSidebar"></div>
   <div class="ia-sidebar-identity" data-identity-block>
     @include('layouts.tenant._attention-row')
     {{-- User row: click opens a menu with Sign out (and later Switch staff). --}}
@@ -101,6 +99,9 @@
 
   {{-- Primary nav --}}
   @include('layouts.tenant._nav-items')
+
+  {{-- MARKER-OFFLINE-SYNC stage 5 — quiet status footer row (filled by /js/offline-sync.js) --}}
+  <div id="ioMountSidebar"></div>
 
   {{-- Bottom: brand footer (respects show_intake_branding) --}}
   <div class="ia-sidebar-bottom">

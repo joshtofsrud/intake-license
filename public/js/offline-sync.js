@@ -165,23 +165,19 @@
     if (IO.phase === 'syncing') return { dot: '#BEF264', label: 'Syncing…', off: false };
     return { dot: '#7FD98F', label: 'Online', off: false };
   }
-  function gearBtn(id) {
-    return '<button id="' + id + '" title="Offline sync settings" aria-label="Offline sync settings" ' +
-      'style="border:none;background:var(--ia-bg,#0b0b0b);color:var(--ia-muted,#9c9c9c);border-radius:100px;' +
-      'width:24px;height:24px;cursor:pointer;font-size:12px;line-height:1;flex:none">⚙</button>';
-  }
   function renderSidebarBlock(mount) {
     if (!mount) return;
     const b = stateBits();
+    const quiet = !b.off && IO.phase !== 'syncing' && !IO.queued;
     mount.innerHTML =
-      '<div style="margin:10px 12px 6px;border:1px solid ' + (b.off ? 'rgba(245,197,107,.4)' : 'var(--ia-border,#2a2a2a)') + ';' +
-      'background:' + (b.off ? 'rgba(245,197,107,.06)' : 'transparent') + ';border-radius:10px;padding:9px 11px;' +
-      'display:flex;align-items:center;gap:8px;font:600 12px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : 'var(--ia-text,#ededed)') + '">' +
-        '<span style="width:8px;height:8px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
-        '<span style="line-height:1.3">' + b.label +
+      '<div style="display:flex;align-items:center;gap:8px;padding:8px 16px 4px;' +
+      'font:600 11.5px Inter,-apple-system,sans-serif;color:' + (quiet ? 'var(--ia-dim,#6e6e6e)' : (b.off ? '#F5C56B' : 'var(--ia-muted,#9c9c9c)')) + '">' +
+        '<span style="width:7px;height:7px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
+        '<span style="line-height:1.35">' + b.label +
           (IO.queued ? '<br><span style="font-size:10.5px;font-weight:700;color:#F5C56B">' + IO.queued + ' sale' + (IO.queued > 1 ? 's' : '') + ' queued</span>' : '') +
         '</span>' +
-        '<span style="margin-left:auto;display:inline-flex">' + gearBtn('ioGearSide') + '</span>' +
+        '<button id="ioGearSide" title="Offline sync settings" aria-label="Offline sync settings" ' +
+          'style="margin-left:auto;border:none;background:transparent;color:var(--ia-dim,#6e6e6e);cursor:pointer;font-size:13px;line-height:1;padding:2px">⚙</button>' +
       '</div>';
     const g = mount.querySelector('#ioGearSide');
     if (g) g.addEventListener('click', e => togglePanel(e.currentTarget));
@@ -190,14 +186,26 @@
   function renderMobilePill(mount) {
     if (!mount) return;
     const b = stateBits();
-    mount.innerHTML =
-      '<span style="display:inline-flex;align-items:center;gap:7px;border:1px solid ' + (b.off ? 'rgba(245,197,107,.45)' : 'var(--ia-border,#2a2a2a)') + ';' +
-      'background:' + (b.off ? 'rgba(245,197,107,.07)' : 'var(--ia-panel,#141414)') + ';border-radius:100px;' +
-      'padding:4px 5px 4px 10px;font:600 11.5px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : 'var(--ia-text,#ededed)') + '">' +
-        '<span style="width:7px;height:7px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
-        b.label + (IO.queued ? ' · ' + IO.queued : '') +
-        gearBtn('ioGearMob') +
-      '</span>';
+    const quiet = !b.off && IO.phase !== 'syncing' && !IO.queued;
+    if (quiet) {
+      // Online: just the dot and the gear — no box, no words.
+      mount.innerHTML =
+        '<span style="display:inline-flex;align-items:center;gap:8px">' +
+          '<span title="Online — offline sync ready" style="width:8px;height:8px;border-radius:50%;background:' + b.dot + ';flex:none"></span>' +
+          '<button id="ioGearMob" title="Offline sync settings" aria-label="Offline sync settings" ' +
+            'style="border:none;background:transparent;color:var(--ia-dim,#6e6e6e);cursor:pointer;font-size:15px;line-height:1;padding:3px">⚙</button>' +
+        '</span>';
+    } else {
+      mount.innerHTML =
+        '<span style="display:inline-flex;align-items:center;gap:7px;border:1px solid ' + (b.off ? 'rgba(245,197,107,.45)' : 'rgba(190,242,100,.35)') + ';' +
+        'background:' + (b.off ? 'rgba(245,197,107,.07)' : 'rgba(190,242,100,.06)') + ';border-radius:100px;' +
+        'padding:4px 5px 4px 10px;font:600 11.5px Inter,-apple-system,sans-serif;color:' + (b.off ? '#F5C56B' : '#BEF264') + '">' +
+          '<span style="width:7px;height:7px;border-radius:50%;background:' + b.dot + ';flex:none;' + (b.off ? 'animation:ioPulse 1.6s infinite' : '') + '"></span>' +
+          b.label + (IO.queued ? ' · ' + IO.queued : '') +
+          '<button id="ioGearMob" title="Offline sync settings" aria-label="Offline sync settings" ' +
+            'style="border:none;background:rgba(0,0,0,.35);color:inherit;border-radius:100px;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:1;flex:none">⚙</button>' +
+        '</span>';
+    }
     const g = mount.querySelector('#ioGearMob');
     if (g) g.addEventListener('click', e => togglePanel(e.currentTarget));
     ensureKeyframes();

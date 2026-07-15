@@ -60,7 +60,7 @@
     @include('layouts.tenant._location-switcher')
 
     {{-- MARKER-OFFLINE-SYNC stage 4 — status pill mount, in the header flow --}}
-    <span id="ioMountMobile" style="display:inline-flex;align-items:center;margin-left:auto;margin-right:8px"></span>
+    <span id="ioMountMobile" style="display:inline-flex;align-items:center;margin-left:auto;margin-right:14px"></span>
     {{-- MARKER-PATCH-363 — alerts bell -> full notifications page, with unread badge --}}
     <a href="{{ route('tenant.notifications') }}" class="ia-mobile-header-bell"
        aria-label="Notifications{{ $mhdrAlertsUnread > 0 ? ' — '.$mhdrAlertsUnread.' unread' : '' }}">
