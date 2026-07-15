@@ -87,7 +87,9 @@
   }
 
   function load() {
-    fetch(feedUrl, { headers: { 'Accept': 'application/json' } })
+    // MARKER-OFFLINE-SYNC-PIN — the 60s poll is not human activity; without
+    // this flag it kept the idle PIN lock from ever engaging server-side.
+    fetch(feedUrl, { headers: { 'Accept': 'application/json', 'X-Intake-Background': '1' } })
       .then(function (r) { return r.json(); }).then(render).catch(function () {});
   }
 

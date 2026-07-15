@@ -152,6 +152,12 @@
   // flow: #ioMountSidebar (desktop nav, above the profile block) and
   // #ioMountMobile (mobile header). The gear opens the settings popover
   // anchored to whichever gear was tapped.
+  function el(tag, css, html) {
+    const e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
   let panel = null;
   function renderPill() { renderMounts(); }
   function renderMounts() {

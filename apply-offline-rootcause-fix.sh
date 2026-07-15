@@ -1,0 +1,734 @@
+#!/bin/bash
+# offline-sync root-cause fixes.
+#   · settings popover: stage 4 accidentally deleted the el() DOM helper the
+#     popover builder calls — every click since threw ReferenceError. Restored.
+#   · PIN bypass: the alerts bell polls notifications every 60s; that authed
+#     request refreshed last_pin_activity_at forever. Poll is now flagged
+#     X-Intake-Background (mark-read clicks still count as real activity).
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "v=nogear2" resources/views/layouts/tenant/app.blade.php; then
+  echo "root-cause fixes already applied — aborting."; exit 1
+fi
+if ! grep -q "v=nogear1" resources/views/layouts/tenant/app.blade.php; then
+  echo "status-click patch not applied — aborting."; exit 1
+fi
+
+cat > 'public/js/offline-sync.js' <<'RCFIX_0_EOF'
+/* MARKER-OFFLINE-SYNC stage 3 — global offline module.
+ * Loaded on EVERY tenant admin page when the offline_sync add-on is active.
+ * No arming ritual: the service worker installs, the catalog snapshot
+ * refreshes, and any queued work replays in the background from whatever
+ * page loads first. A fixed status pill (online/offline + queue count) with
+ * a gear popover gives per-device control everywhere.
+ *
+ * Config injected by the layout:
+ *   window.IntakeOfflineConfig = { enabled, catalogUrl, storeSaleUrl, csrf }
+ * Page modules (register) call window.IntakeOffline directly and listen for
+ * the 'intake-offline-status' CustomEvent: {online, queued, phase}.
+ */
+(function () {
+  const CFG = window.IntakeOfflineConfig || {};
+  const SNAP_KEY = 'ia_offline_catalog';
+  const LIMIT_KEY = 'ia_off_snap_limit';
+  const PAUSE_KEY = 'ia_off_paused';
+  const SNAP_TTL_MS = 10 * 60 * 1000; // background refresh at most every 10 min
+
+  const IO = window.IntakeOffline = {
+    enabled: CFG.enabled === true,
+    paused: localStorage.getItem(PAUSE_KEY) === '1',
+    online: navigator.onLine,
+    db: null,
+    queued: 0,
+    phase: 'idle', // idle | syncing
+  };
+  const active = () => IO.enabled && !IO.paused;
+
+  // ------------------------------------------------------------ utils
+  IO.uuid = function () {
+    return (crypto.randomUUID) ? crypto.randomUUID() :
+      'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+  };
+  function emit() {
+    document.dispatchEvent(new CustomEvent('intake-offline-status', {
+      detail: { online: IO.online, queued: IO.queued, phase: IO.phase, paused: IO.paused },
+    }));
+    renderPill();
+  }
+
+  // ------------------------------------------------------------ outbox
+  function openDb() {
+    return new Promise((res, rej) => {
+      const rq = indexedDB.open('intake-offline', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('outbox', { keyPath: 'uuid' });
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => rej(rq.error);
+    });
+  }
+  IO.all = function () {
+    return new Promise((res, rej) => {
+      if (!IO.db) return res([]);
+      const rq = IO.db.transaction('outbox').objectStore('outbox').getAll();
+      rq.onsuccess = () => res(rq.result || []); rq.onerror = () => rej(rq.error);
+    });
+  };
+  IO.remove = function (uuid) {
+    return new Promise((res) => {
+      const tx = IO.db.transaction('outbox', 'readwrite');
+      tx.objectStore('outbox').delete(uuid);
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  };
+  IO.queueSale = async function (payload) {
+    await new Promise((res, rej) => {
+      const tx = IO.db.transaction('outbox', 'readwrite');
+      tx.objectStore('outbox').put({ uuid: payload.client_uuid, payload, created_at: Date.now() });
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+    await refreshCount();
+  };
+  async function refreshCount() {
+    IO.queued = IO.db ? (await IO.all()).length : 0;
+    emit();
+  }
+
+  // ------------------------------------------------------------ replay
+  let replayTimer = null;
+  IO.replay = async function () {
+    if (!active() || !IO.db || !navigator.onLine) return;
+    const all = await IO.all();
+    if (!all.length) { IO.phase = 'idle'; emit(); return; }
+    IO.phase = 'syncing'; emit();
+    for (const rec of all.sort((a, b) => a.created_at - b.created_at)) {
+      try {
+        const res = await fetch(CFG.storeSaleUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CFG.csrf, 'X-Intake-Background': '1' },
+          body: JSON.stringify(rec.payload),
+        });
+        const data = await res.json();
+        if (data.ok) await IO.remove(rec.uuid);
+        else if (res.status === 422) await IO.remove(rec.uuid); // permanently invalid — drop
+      } catch (e) { break; } // still offline — retry on next tick
+    }
+    IO.phase = 'idle';
+    await refreshCount();
+    scheduleRetry();
+  };
+  function scheduleRetry() {
+    clearTimeout(replayTimer);
+    if (IO.queued > 0) replayTimer = setTimeout(() => IO.replay(), 30000);
+  }
+
+  // ------------------------------------------------------------ snapshot
+  IO.snapshotInfo = function () {
+    try { const s = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null');
+      return s ? { at: s.captured_at, products: (s.products || []).length, services: (s.services || []).length } : null;
+    } catch (e) { return null; }
+  };
+  IO.refreshSnapshot = async function (force) {
+    if (!active() || !navigator.onLine || !CFG.catalogUrl) return;
+    const info = IO.snapshotInfo();
+    if (!force && info && (Date.now() - Date.parse(info.at)) < SNAP_TTL_MS) return;
+    try {
+      const limit = localStorage.getItem(LIMIT_KEY) || '500';
+      const r = await fetch(CFG.catalogUrl + '?limit=' + limit, { headers: { 'Accept': 'application/json', 'X-Intake-Background': '1' } });
+      const d = await r.json();
+      if (d.ok) { localStorage.setItem(SNAP_KEY, JSON.stringify(d)); renderPanel(); }
+    } catch (e) { /* best-effort */ }
+  };
+  IO.snapshotSearch = function (q) {
+    try {
+      const snap = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null');
+      if (!snap) return null;
+      const needle = q.toLowerCase();
+      const hit = t => (t || '').toLowerCase().includes(needle);
+      return {
+        products: (snap.products || []).filter(p => hit(p.name) || hit(p.sku)).slice(0, 15),
+        services: (snap.services || []).filter(sv => hit(sv.name)).slice(0, 15),
+        _snapshot_at: snap.captured_at,
+      };
+    } catch (e) { return null; }
+  };
+
+  // ------------------------------------------------------------ service worker
+  function syncServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    if (active()) {
+      navigator.serviceWorker.register('/offline-sw.js', { scope: '/' }).catch(() => {});
+    } else {
+      navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+      if (window.caches) caches.keys().then(ks => ks.forEach(k => { if (k.startsWith('ia-offline')) caches.delete(k); }));
+    }
+  }
+
+  // ------------------------------------------------------------ status UI (stage 4)
+  // No floating elements. Status renders into mounts that live in the page
+  // flow: #ioMountSidebar (desktop nav, above the profile block) and
+  // #ioMountMobile (mobile header). The gear opens the settings popover
+  // anchored to whichever gear was tapped.
+  function el(tag, css, html) {
+    const e = document.createElement(tag);
+    if (css) e.style.cssText = css;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+  let panel = null;
+  function renderPill() { renderMounts(); }
+  function renderMounts() {
+    if (!IO.enabled) return;
+    renderSidebarBlock(document.getElementById('ioMountSidebar'));
+    renderMobilePill(document.getElementById('ioMountMobile'));
+  }
+  function stateBits() {
+    if (IO.paused) return { dot: '#6E6E6E', label: 'Paused', off: false };
+    if (!IO.online) return { dot: '#F5C56B', label: 'Offline', off: true };
+    if (IO.phase === 'syncing') return { dot: '#BEF264', label: 'Syncing…', off: false };
+    return { dot: '#7FD98F', label: 'Online', off: false };
+  }
+  function injectStyles() {
+    if (document.getElementById('ioStyles')) return;
+    const st = document.createElement('style'); st.id = 'ioStyles';
+    st.textContent =
+      '@keyframes ioFlash{0%,100%{opacity:1}50%{opacity:.25}}' +
+      '.io-status{cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}' +
+      '.io-srow{position:relative;display:flex;align-items:center;gap:9px;margin:2px 10px 8px;padding:8px 10px;border-radius:9px;' +
+        'font:600 12px Inter,-apple-system,sans-serif;color:var(--ia-dim,#6e6e6e)}' +
+      '.io-srow:hover{background:rgba(127,127,127,.09);color:var(--ia-muted,#9c9c9c)}' +
+      '.io-srow.io-off{color:#F5C56B;background:rgba(245,197,107,.06)}' +
+      '.io-srow.io-sync{color:#BEF264}' +
+      '.io-srow .io-chev{margin-left:auto;font-size:10px;color:var(--ia-dim,#6e6e6e)}' +
+      '.io-dot{width:8px;height:8px;border-radius:50%;background:#7FD98F;flex:none}' +
+      '.io-off .io-dot{background:#F5C56B;animation:ioFlash 1.1s infinite}' +
+      '.io-sync .io-dot{background:#BEF264;animation:ioFlash 1.1s infinite}' +
+      '.io-paused .io-dot{background:#6E6E6E}' +
+      '.io-bubble{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;border-radius:100px;background:#E5484D;' +
+        'color:#fff;font:800 10px Inter,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;' +
+        'padding:0 4px;border:2px solid var(--ia-bg,#0b0b0b)}' +
+      '.io-mstat{position:relative;display:inline-flex;align-items:center;gap:7px;padding:9px 6px}' +
+      '.io-mstat.io-loud{border:1px solid rgba(245,197,107,.45);background:rgba(245,197,107,.07);border-radius:100px;' +
+        'padding:5px 12px;font:700 11.5px Inter,-apple-system,sans-serif;color:#F5C56B}' +
+      '.io-mstat.io-loud.io-sync{border-color:rgba(190,242,100,.4);background:rgba(190,242,100,.06);color:#BEF264}';
+    document.head.appendChild(st);
+  }
+  function stateClass() {
+    if (IO.paused) return 'io-paused';
+    if (!IO.online) return 'io-off';
+    if (IO.phase === 'syncing' || IO.queued) return 'io-sync';
+    return '';
+  }
+  function renderSidebarBlock(mount) {
+    if (!mount) return;
+    injectStyles();
+    const b = stateBits();
+    mount.innerHTML =
+      '<div class="io-status io-srow ' + stateClass() + '" role="button" tabindex="0" aria-label="Offline sync status and settings">' +
+        '<span class="io-dot"></span>' +
+        '<span>' + b.label + '</span>' +
+        '<span class="io-chev">\u25BE</span>' +
+        (IO.queued ? '<span class="io-bubble">' + IO.queued + '</span>' : '') +
+      '</div>';
+  }
+  function renderMobilePill(mount) {
+    if (!mount) return;
+    injectStyles();
+    const b = stateBits();
+    const loud = stateClass() !== '' && !IO.paused;
+    mount.innerHTML =
+      '<span class="io-status io-mstat ' + (loud ? 'io-loud ' : '') + stateClass() + '" role="button" tabindex="0" aria-label="Offline sync status and settings">' +
+        '<span class="io-dot"></span>' +
+        (loud ? '<span>' + b.label + '</span>' : '') +
+        (IO.queued ? '<span class="io-bubble">' + IO.queued + '</span>' : '') +
+      '</span>';
+  }
+  function togglePanel(anchor) {
+    if (panel && panel.parentNode) { panel.remove(); panel = null; return; }
+    renderPanel(true, anchor);
+  }
+  function renderPanel(create, anchor) {
+    if (!panel && !create) return;
+    const info = IO.snapshotInfo();
+    const limit = localStorage.getItem(LIMIT_KEY) || '500';
+    const fresh = info ? new Date(info.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—';
+    if (!panel) {
+      panel = el('div',
+        'position:fixed;z-index:99999;width:300px;background:var(--ia-panel,#141414);' +
+        'border:1px solid var(--ia-border,#2a2a2a);border-radius:14px;padding:16px;' +
+        'font:400 13px Inter,-apple-system,sans-serif;color:var(--ia-text,#ededed);box-shadow:0 10px 34px rgba(0,0,0,.5)');
+      panel.id = 'ioPanel';
+      document.body.appendChild(panel);
+      // anchor beside the gear that was tapped, clamped to the viewport
+      const r = anchor.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight, pw = 300, ph = 250;
+      let left = Math.min(Math.max(10, r.left - pw + r.width), vw - pw - 10);
+      let top = (r.top > vh / 2) ? Math.max(10, r.top - ph - 10) : Math.min(vh - ph - 10, r.bottom + 10);
+      panel.style.left = left + 'px';
+      panel.style.top = top + 'px';
+    }
+    panel.innerHTML =
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-muted,#9c9c9c);margin-bottom:10px">Offline sync — this device</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+        '<span>Pause on this device</span>' +
+        '<button id="ioPause" style="border:1px solid var(--ia-border,#2a2a2a);background:' + (IO.paused ? '#2a2a2a' : '#BEF264') + ';color:' + (IO.paused ? '#ededed' : '#0b0b0b') + ';border-radius:100px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer">' + (IO.paused ? 'Paused' : 'Active') + '</button>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+        '<span>Catalog snapshot</span>' +
+        '<select id="ioLimit" style="background:var(--ia-bg,#0b0b0b);color:var(--ia-text,#ededed);border:1px solid var(--ia-border,#2a2a2a);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:12px">' +
+          ['250', '500', '1000'].map(v => '<option value="' + v + '"' + (v === limit ? ' selected' : '') + '>Top ' + v + '</option>').join('') +
+        '</select>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--ia-muted,#9c9c9c);margin-bottom:12px">' +
+        (info ? 'Snapshot: ' + info.products + ' products · ' + info.services + ' services · updated ' + fresh : 'No snapshot on this device yet.') +
+        (IO.queued ? '<br><b style="color:#F5C56B">' + IO.queued + ' queued sale' + (IO.queued > 1 ? 's' : '') + '</b> waiting to sync.' : '') +
+      '</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button id="ioRefresh" style="flex:1;border:1px solid var(--ia-border,#2a2a2a);background:transparent;color:var(--ia-text,#ededed);border-radius:9px;padding:8px;font-weight:600;font-size:12px;cursor:pointer">Refresh snapshot</button>' +
+        '<button id="ioClear" style="flex:1;border:1px solid var(--ia-border,#2a2a2a);background:transparent;color:var(--ia-muted,#9c9c9c);border-radius:9px;padding:8px;font-weight:600;font-size:12px;cursor:pointer">Clear snapshot</button>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--ia-dim,#6e6e6e);margin-top:10px">Queued sales are never cleared from here — they sync automatically.</div>';
+    panel.querySelector('#ioPause').addEventListener('click', () => {
+      IO.paused = !IO.paused;
+      localStorage.setItem(PAUSE_KEY, IO.paused ? '1' : '0');
+      syncServiceWorker(); emit(); renderPanel();
+    });
+    panel.querySelector('#ioLimit').addEventListener('change', e => {
+      localStorage.setItem(LIMIT_KEY, e.target.value);
+      IO.refreshSnapshot(true);
+    });
+    panel.querySelector('#ioRefresh').addEventListener('click', () => IO.refreshSnapshot(true));
+    panel.querySelector('#ioClear').addEventListener('click', () => {
+      localStorage.removeItem(SNAP_KEY); renderPanel();
+    });
+  }
+  // Capture-phase so nothing else in the page can swallow the status click.
+  document.addEventListener('click', e => {
+    const st = e.target.closest && e.target.closest('.io-status');
+    if (st) { e.preventDefault(); e.stopPropagation(); togglePanel(st); }
+  }, true);
+  document.addEventListener('click', e => {
+    if (panel && !panel.contains(e.target) && !e.target.closest('.io-status')) {
+      panel.remove(); panel = null;
+    }
+  });
+
+  // ------------------------------------------------------------ boot
+  if (!IO.enabled) { syncServiceWorker(); return; }
+  syncServiceWorker();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderMounts);
+  else renderMounts();
+  openDb().then(async db => {
+    IO.db = db;
+    await refreshCount();
+    IO.refreshSnapshot(false);   // background — throttled to 10 min
+    IO.replay();                 // background — drains any queue from any page
+  }).catch(() => { IO.enabled = false; });
+  window.addEventListener('online', () => { IO.online = true; emit(); IO.replay(); IO.refreshSnapshot(false); });
+  window.addEventListener('offline', () => { IO.online = false; emit(); });
+})();
+RCFIX_0_EOF
+
+cat > 'resources/views/layouts/tenant/_staff-alerts-bell.blade.php' <<'RCFIX_1_EOF'
+{{-- MARKER-PATCH-225 — staff alerts bell. In-app alerts always render the
+     bell (critical events reach even non-addon tenants); the feed itself
+     is empty when nothing has been emitted. --}}
+<div class="sa-bell" data-sa-bell>
+  <button type="button" class="sa-bell-btn" data-sa-toggle aria-label="Notifications">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+    <span class="sa-bell-badge" data-sa-badge hidden>0</span>
+  </button>
+  <div class="sa-panel" data-sa-panel hidden>
+    <div class="sa-panel-head">
+      <span>Notifications</span>
+      <button type="button" class="sa-mark-all" data-sa-mark-all>Mark all read</button>
+    </div>
+    <div class="sa-panel-list" data-sa-list>
+      <div class="sa-empty">You're all caught up.</div>
+    </div>
+    <a href="{{ route('tenant.notifications') }}" class="sa-panel-foot">See all notifications</a>
+  </div>
+</div>
+
+<style>
+  .sa-bell { position:relative; }
+  .sa-bell-btn { position:relative; width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+                 background:transparent; border:none; cursor:pointer; color:var(--ia-text); opacity:.55;
+                 transition:opacity .15s ease, background .15s ease; }
+  .sa-bell-btn:hover { opacity:1; background:rgba(127,127,127,.09); }
+  .sa-bell-btn:focus { outline:none; }
+  .sa-bell-btn:focus-visible { outline:none; opacity:1; background:rgba(127,127,127,.12); }
+  .sa-bell-badge { position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+                   background:#A32D2D; color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .sa-panel { position:fixed; width:300px; z-index:9000; background:var(--ia-surface, #fff); border-radius:12px;
+              box-shadow:0 8px 30px rgba(0,0,0,.18), inset 0 0 0 .5px var(--ia-border); overflow:hidden; }
+  .sa-panel-head { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:.5px solid var(--ia-border); font-size:12px; font-weight:600; }
+  .sa-mark-all { background:none; border:none; cursor:pointer; font-size:11px; opacity:.6; color:inherit; }
+  .sa-mark-all:hover { opacity:1; }
+  .sa-panel-list { max-height:340px; overflow-y:auto; }
+  .sa-item { display:block; padding:10px 14px; border-bottom:.5px solid var(--ia-border); text-decoration:none; color:inherit; }
+  .sa-item:hover { background:rgba(127,127,127,.06); }
+  .sa-item.unread { background:rgba(120,160,240,.07); }
+  .sa-item.critical .sa-item-title { color:#A32D2D; }
+  .sa-item-title { font-size:12.5px; font-weight:600; }
+  .sa-item-body { font-size:11.5px; opacity:.6; margin-top:2px; }
+  .sa-item-ago { font-size:10.5px; opacity:.4; margin-top:3px; }
+  .sa-empty { padding:24px 14px; text-align:center; font-size:12px; opacity:.5; }
+  .sa-panel-foot { display:block; padding:9px 14px; text-align:center; font-size:11.5px; border-top:.5px solid var(--ia-border); text-decoration:none; color:inherit; opacity:.7; }
+  .sa-panel-foot:hover { opacity:1; }
+</style>
+
+<script>
+(function () {
+  var root = document.querySelector('[data-sa-bell]');
+  if (!root || root.dataset.saInit) return;
+  root.dataset.saInit = '1';
+
+  var toggle = root.querySelector('[data-sa-toggle]');
+  var panel  = root.querySelector('[data-sa-panel]');
+  var badge  = root.querySelector('[data-sa-badge]');
+  var list   = root.querySelector('[data-sa-list]');
+  var feedUrl = '{{ route('tenant.alerts.feed') }}';
+  var readAllUrl = '{{ route('tenant.alerts.read-all') }}';
+  var readUrlTpl = '{{ route('tenant.alerts.read', ['id' => 'ID']) }}';
+  var csrf = '{{ csrf_token() }}';
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  function render(data) {
+    var n = data.unread || 0;
+    if (n > 0) { badge.hidden = false; badge.textContent = n > 99 ? '99+' : n; }
+    else { badge.hidden = true; }
+
+    if (!data.alerts || !data.alerts.length) {
+      list.innerHTML = '<div class="sa-empty">No notifications yet.</div>';
+      return;
+    }
+    list.innerHTML = data.alerts.map(function (a) {
+      var cls = 'sa-item' + (a.read ? '' : ' unread') + (a.is_critical ? ' critical' : '');
+      var tag = a.link ? 'a' : 'div';
+      var href = a.link ? ' href="' + esc(a.link) + '"' : '';
+      return '<' + tag + ' class="' + cls + '"' + href + ' data-sa-id="' + a.id + '">' +
+        '<div class="sa-item-title">' + esc(a.title) + '</div>' +
+        (a.body ? '<div class="sa-item-body">' + esc(a.body) + '</div>' : '') +
+        '<div class="sa-item-ago">' + esc(a.ago) + '</div>' +
+        '</' + tag + '>';
+    }).join('');
+  }
+
+  function load() {
+    // MARKER-OFFLINE-SYNC-PIN — the 60s poll is not human activity; without
+    // this flag it kept the idle PIN lock from ever engaging server-side.
+    fetch(feedUrl, { headers: { 'Accept': 'application/json', 'X-Intake-Background': '1' } })
+      .then(function (r) { return r.json(); }).then(render).catch(function () {});
+  }
+
+  // MARKER-PATCH-231F — portal the panel to <body> so position:fixed escapes
+  // the sidebar's stacking/overflow trap, then place it next to the bell.
+  function positionPanel() {
+    var r = toggle.getBoundingClientRect();
+    if (panel.parentNode !== document.body) document.body.appendChild(panel);
+    panel.style.top  = (r.top) + 'px';
+    panel.style.left = (r.right + 8) + 'px';
+    // keep it on-screen if the viewport is narrow
+    var pw = 300;
+    if (r.right + 8 + pw > window.innerWidth) {
+      panel.style.left = Math.max(8, window.innerWidth - pw - 8) + 'px';
+    }
+  }
+
+  toggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) { positionPanel(); load(); }
+  });
+  window.addEventListener('resize', function () { if (!panel.hidden) positionPanel(); });
+  document.addEventListener('click', function (e) {
+    if (!root.contains(e.target) && !panel.contains(e.target)) panel.hidden = true;
+  });
+
+  list.addEventListener('click', function (e) {
+    var item = e.target.closest('[data-sa-id]');
+    if (!item) return;
+    var id = item.getAttribute('data-sa-id');
+    // Mark read (fire and forget); navigation proceeds for anchors.
+    fetch(readUrlTpl.replace('ID', id), { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' } });
+  });
+
+  root.querySelector('[data-sa-mark-all]').addEventListener('click', function () {
+    fetch(readAllUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' } })
+      .then(function () { load(); });
+  });
+
+  load();
+  setInterval(function () { if (panel.hidden) load(); }, 60000);
+})();
+</script>
+RCFIX_1_EOF
+
+cat > 'resources/views/layouts/tenant/app.blade.php' <<'RCFIX_2_EOF'
+<!DOCTYPE html>
+<html lang="en" class="ia-theme-{{ $adminTheme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{{ $pageTitle ?? 'Dashboard' }} — {{ $currentTenant->name }}</title>
+
+  {{-- Fonts --}}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  {{-- Favicon --}}
+  @if($currentTenant->favicon_url)
+    <link rel="icon" href="{{ $currentTenant->favicon_url }}">
+  @endif
+
+  {{-- Base + theme CSS --}}
+  <link rel="stylesheet" href="{{ asset('css/tenant/base.css') }}?v={{ filemtime(public_path('css/tenant/base.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/theme-' . $adminTheme . '.css') }}?v={{ filemtime(public_path('css/tenant/theme-' . $adminTheme . '.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-nav.css') }}?v={{ filemtime(public_path('css/tenant/mobile-nav.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-schedule.css') }}?v={{ filemtime(public_path('css/tenant/mobile-schedule.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/mobile-forms.css') }}?v={{ filemtime(public_path('css/tenant/mobile-forms.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/dashboard.css') }}?v={{ filemtime(public_path('css/tenant/dashboard.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/toast.css') }}?v={{ filemtime(public_path('css/tenant/toast.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/tenant/toggle.css') }}?v={{ filemtime(public_path('css/tenant/toggle.css')) }}">
+
+  {{-- Master-admin theme overrides (theme_settings table) --}}
+  {!! \App\Support\ThemeOverrideHelper::styleTag() !!}
+
+  {{-- Tenant accent color injected at runtime --}}
+  <style>
+    body {
+      --ia-accent: {{ $currentTenant->accent_color ?? '#3B5A78' }};
+      --ia-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#3B5A78') }};
+      --ia-accent-soft: {{ \App\Support\ColorHelper::accentSoft($currentTenant->accent_color ?? '#3B5A78') }};
+    }
+  </style>
+
+  @stack('styles')
+</head>
+
+<body class="ia-theme-{{ $adminTheme }}">
+{{-- MARKER-PATCH-498 — invite setup success: check draws, circle wraps it, dashboard fades in --}}
+@if(session('setup_complete'))
+<div id="ia-setup-success" aria-hidden="true">
+  <svg viewBox="0 0 72 72" width="88" height="88">
+    <circle cx="36" cy="36" r="32" fill="none" stroke="var(--ia-accent)" stroke-width="3"
+            stroke-linecap="round" stroke-dasharray="202" stroke-dashoffset="202"
+            transform="rotate(-90 36 36)" class="iss-circle"/>
+    <path d="M23 37l9 9 17-19" fill="none" stroke="var(--ia-accent)" stroke-width="4"
+          stroke-linecap="round" stroke-linejoin="round"
+          stroke-dasharray="40" stroke-dashoffset="40" class="iss-check"/>
+  </svg>
+  <div class="iss-label">You're in</div>
+</div>
+<style>
+#ia-setup-success{position:fixed;inset:0;z-index:9999;background:var(--ia-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:iss-fade .5s ease 1.6s forwards}
+#ia-setup-success .iss-check{animation:iss-draw .35s ease-out .15s forwards}
+#ia-setup-success .iss-circle{animation:iss-draw .55s ease-in-out .45s forwards}
+#ia-setup-success .iss-label{font-size:14px;font-weight:600;color:var(--ia-text);opacity:0;animation:iss-in .3s ease .9s forwards}
+@keyframes iss-draw{to{stroke-dashoffset:0}}
+@keyframes iss-in{to{opacity:1}}
+@keyframes iss-fade{to{opacity:0;visibility:hidden}}
+</style>
+<script>setTimeout(function(){var el=document.getElementById('ia-setup-success');if(el)el.remove();},2300);</script>
+@endif
+
+@include('layouts.tenant._mobile-header')
+
+<div class="ia-shell">
+
+  {{-- ================================================================
+       Sidebar — rendered on both themes (B = Light Premium, C = Dark Premium).
+       Both share the same sidebar layout; theme CSS handles the palette.
+       ================================================================ --}}
+  @include('layouts.tenant._sidebar')
+
+  {{-- ================================================================
+       Main area
+       ================================================================ --}}
+  <div class="ia-main">
+
+    {{-- Impersonation banner --}}
+    @if(session('impersonating_from'))
+      <div style="background:#854F0B;color:#fff;padding:8px 20px;font-size:13px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
+        <span>⚠ You are impersonating this tenant as an admin.</span>
+        <a href="{{ config('app.url') }}/admin/impersonate/stop" style="color:#FCD34D;font-weight:600">Stop impersonating →</a>
+      </div>
+    @endif
+
+    {{-- Page content --}}
+    <main class="ia-content">
+
+      {{-- Impersonation banner --}}
+      @if(session('impersonating_tenant_name') || session()->has('impersonating_from'))
+        <div style="background:#854F0B;color:#FAEEDA;padding:10px 16px;border-radius:var(--ia-r-md);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+          <span>
+            👤 You are impersonating <strong>{{ session('impersonating_tenant_name', 'this tenant') }}</strong>.
+            All actions you take are real.
+          </span>
+          <a href="{{ config('app.url') }}/admin/impersonate/stop"
+             style="background:rgba(0,0,0,.2);color:#FAEEDA;padding:5px 14px;border-radius:6px;font-weight:600;font-size:12px">
+            Stop impersonating →
+          </a>
+        </div>
+      @endif
+
+      {{-- Flash messages.
+           Success → inline green banner (non-blocking, just confirms an action).
+           Error   → IntakeConfirm.alert() modal (blocks until acknowledged so
+           it can't be missed when the page is long, e.g. class session list). --}}
+      @if(session('success'))
+        <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
+      @endif
+
+      {{-- MARKER-PATCH-613 — clock-in prompt. Off-the-clock staff get a gentle,
+           dismissible nudge (dismissal is per page-load, not persisted — it
+           reappears next visit so a forgotten clock-in gets caught). --}}
+      @if(!empty($authUser) && empty($pinLockPending))
+        @php
+          $tcOpen = \App\Models\Tenant\TenantTimePunch::openFor($currentTenant->id, $authUser->id);
+        @endphp
+        @if(!$tcOpen)
+          <div class="ia-flash" id="tc-clockin-nudge"
+               style="display:flex;align-items:center;gap:12px;background:color-mix(in srgb,var(--ia-accent) 10%,transparent);border:0.5px solid var(--ia-accent);color:var(--ia-text)">
+            <span style="flex:1">You're not clocked in.</span>
+            <form method="POST" action="{{ route('tenant.timeclock.in') }}" style="margin:0">
+              @csrf<input type="hidden" name="source" value="lock_screen">
+              <button type="submit" style="background:var(--ia-accent);color:var(--ia-accent-text);border:none;border-radius:6px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Clock in</button>
+            </form>
+            <button type="button" onclick="sessionStorage.setItem('tc_nudge_dismissed','1');document.getElementById('tc-clockin-nudge').remove()"
+                    style="background:none;border:none;color:var(--ia-text-muted);cursor:pointer;font-size:16px;line-height:1">×</button>
+          </div>
+          <script>if(sessionStorage.getItem('tc_nudge_dismissed')){var n=document.getElementById('tc-clockin-nudge');if(n)n.remove();}</script>
+        @endif
+      @endif
+      {{-- MARKER-PATCH-445 — single global flash; per-page success/error banners removed across tenant views --}}
+      @if(session('error'))
+        @push('scripts')
+        <script>
+          (function () {
+            function pop() {
+              if (window.IntakeConfirm && typeof window.IntakeConfirm.alert === 'function') {
+                window.IntakeConfirm.alert({
+                  title:   'Couldn\'t do that',
+                  message: @json(session('error')),
+                });
+              } else {
+                // Fallback if confirm.js hasn't loaded for some reason. Same
+                // visual pattern as the inline banner — never silently swallow.
+                var d = document.createElement('div');
+                d.className = 'ia-flash ia-flash--error';
+                d.textContent = @json(session('error'));
+                document.body.insertBefore(d, document.body.firstChild);
+              }
+            }
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', pop);
+            } else {
+              pop();
+            }
+          })();
+        </script>
+        @endpush
+      @endif
+
+      @include('layouts.tenant._staff-broadcast-banner')
+      @yield('content')
+
+    </main>
+  </div>
+</div>
+
+{{-- ================================================================
+     Mobile-only nav (bottom tab bar + drawer)
+     Hidden on desktop via CSS; always rendered in markup.
+     ================================================================ --}}
+@include('layouts.tenant._mobile-nav')
+@include('layouts.tenant._more-drawer')
+@include('layouts.tenant._mobile-fab')
+
+{{-- Detail modal (appointments, customers) --}}
+@include('tenant._detail_modal')
+
+{{-- Global JS --}}
+<script>
+  window.IntakeAdmin = {
+    tenantId:   '{{ $currentTenant->id }}',
+    csrfToken:  '{{ csrf_token() }}',
+    theme:      '{{ $adminTheme }}',
+    currency:   '{{ $currentTenant->currency_symbol ?? "$" }}',
+    ajaxUrl:    '{{ url("/admin/ajax") }}',
+    pinIdleThresholdSec:    {{ (int) config('intake.auth.pin_idle_threshold_sec', 120) }},
+    pinHeartbeatIntervalSec:{{ (int) config('intake.auth.pin_heartbeat_interval_sec', 60) }},
+  };
+</script>
+
+<script src="{{ asset('js/tenant/toast.js') }}?v={{ filemtime(public_path('js/tenant/toast.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/admin.js') }}?v={{ filemtime(public_path('js/tenant/admin.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
+
+@include('layouts.tenant._lock-overlay')
+@include('layouts.tenant._action-gate-modal')
+@include('layouts.tenant._location-welcome')
+
+{{-- MARKER-OFFLINE-SYNC stage 3 — global module: SW install, background
+     snapshot refresh, queue replay, and the status pill live on EVERY admin
+     page. No arming ritual. --}}
+@php
+  $ioEnabled = app()->bound('tenant')
+      ? app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync')
+      : false;
+@endphp
+<script>
+window.IntakeOfflineConfig = {
+  enabled: {{ $ioEnabled ? 'true' : 'false' }},
+  catalogUrl: @json(route('tenant.register.offline_catalog')),
+  storeSaleUrl: @json(route('tenant.register.sales.store')),
+  csrf: document.querySelector('meta[name=csrf-token]')?.content || '',
+};
+</script>
+<script src="{{ asset('js/offline-sync.js') }}?v=nogear2"></script>
+
+{{-- MARKER-OFFLINE-SYNC stage 2 — when a SW-cached page is shown offline,
+     stamp it so nobody trusts stale data blindly. --}}
+<script>
+(function () {
+  function osStamp() {
+    if (navigator.onLine || document.getElementById('osPageStamp')) return;
+    var el = document.createElement('div');
+    el.id = 'osPageStamp';
+    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:9999;'
+      + 'background:rgba(245,197,107,.12);border:1px solid rgba(245,197,107,.4);color:#F5C56B;'
+      + 'font:600 12.5px Inter,-apple-system,sans-serif;border-radius:100px;padding:8px 16px;backdrop-filter:blur(6px)';
+    el.textContent = 'Offline — showing your last-loaded view. Changes are paused until you reconnect.';
+    document.body.appendChild(el);
+  }
+  function osUnstamp() {
+    var el = document.getElementById('osPageStamp');
+    if (el) el.remove();
+  }
+  window.addEventListener('offline', osStamp);
+  window.addEventListener('online', osUnstamp);
+  if (!navigator.onLine) osStamp();
+})();
+</script>
+@stack('scripts')
+
+@include('tenant._onboarding_modal')
+
+  <script defer src="{{ asset('js/tenant/cl-subnav-hint.js') }}"></script>
+@include('tenant.print._composer') {{-- MARKER-PATCH-337 --}}
+</body>
+</html>
+
+RCFIX_2_EOF
+
+echo "root-cause fixes applied — view:clear on server, hard-refresh devices"
