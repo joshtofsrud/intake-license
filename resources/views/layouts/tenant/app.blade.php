@@ -208,6 +208,24 @@
 @include('layouts.tenant._action-gate-modal')
 @include('layouts.tenant._location-welcome')
 
+{{-- MARKER-OFFLINE-SYNC stage 3 — global module: SW install, background
+     snapshot refresh, queue replay, and the status pill live on EVERY admin
+     page. No arming ritual. --}}
+@php
+  $ioEnabled = app()->bound('tenant')
+      ? app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync')
+      : false;
+@endphp
+<script>
+window.IntakeOfflineConfig = {
+  enabled: {{ $ioEnabled ? 'true' : 'false' }},
+  catalogUrl: @json(route('tenant.register.offline_catalog')),
+  storeSaleUrl: @json(route('tenant.register.sales.store')),
+  csrf: document.querySelector('meta[name=csrf-token]')?.content || '',
+};
+</script>
+<script src="{{ asset('js/offline-sync.js') }}?v=stage3"></script>
+
 {{-- MARKER-OFFLINE-SYNC stage 2 — when a SW-cached page is shown offline,
      stamp it so nobody trusts stale data blindly. --}}
 <script>
