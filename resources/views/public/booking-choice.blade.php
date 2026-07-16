@@ -74,14 +74,14 @@
     document.querySelectorAll('.fcard').forEach(function(el){
       el.addEventListener('click', function(){
         try {
-          if (navigator.sendBeacon) {
-            // MARKER-PATCH-632 — choosing a flow IS starting a booking; keeps the
-            // "Bookings started" tile consistent with the funnel steps.
-            if (!sessionStorage.getItem('ia_booking_started')) { // MARKER-PATCH-632B — once per session
-              sessionStorage.setItem('ia_booking_started', '1');
-              navigator.sendBeacon('/funnel/track', new Blob([JSON.stringify({event_type:'booking_started'})], {type:'application/json'}));
-            }
-            navigator.sendBeacon('/funnel/track', new Blob([JSON.stringify({event_type:'booking_step', step:'00 Chose ' + (el.dataset.flow === 'quick' ? 'Quick' : 'Full')})], {type:'application/json'}));
+          // MARKER-FUNNEL-SESSION-FIX — route through the shared tracker so
+          // every event carries the client-minted session id; the old
+          // sessionStorage guard is gone (its tab lifetime disagreed with
+          // session + report-window semantics — distinct-session counting
+          // on the server is the real dedupe).
+          if (window.__intakeFunnel) {
+            window.__intakeFunnel.send('booking_started');
+            window.__intakeFunnel.send('booking_step', { step: '00 Chose ' + (el.dataset.flow === 'quick' ? 'Quick' : 'Full') });
           }
         } catch(e){}
       });

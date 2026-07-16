@@ -45,6 +45,7 @@ class FunnelTrackController extends Controller
         RateLimiter::hit($key, 60);
 
         $data = $request->validate([
+            'session_id'   => ['nullable', 'string', 'regex:/^[a-zA-Z0-9]{20,64}$/'], // MARKER-FUNNEL-SESSION-FIX
             'event_type'   => ['required', 'string', 'in:' . implode(',', TenantFunnelEvent::VALID_TYPES)],
             'path'         => ['nullable', 'string', 'max:255'],
             'referrer_url' => ['nullable', 'string', 'max:2048'],
@@ -108,8 +109,19 @@ class FunnelTrackController extends Controller
      */
     protected function resolveSession(Request $request): array
     {
+        // MARKER-FUNNEL-SESSION-FIX — prefer the client-minted id from the
+        // payload: simultaneous first-visit beacons used to race the cookie
+        // and each get a fresh server-minted id, fragmenting one visitor
+        // into several phantom sessions. Cookie is the fallback; server
+        // minting is the last resort (old tracker versions, JS-off edge).
+        $fromPayload = (string) $request->input('session_id', '');
+        if ($fromPayload !== '' && preg_match('/^[a-zA-Z0-9]{20,64}$/', $fromPayload)) {
+            $known = $request->cookie('fnl_sid') === $fromPayload;
+            return [$fromPayload, ! $known];
+        }
+
         $existing = $request->cookie('fnl_sid');
-        if ($existing && preg_match('/^[a-zA-Z0-9]{32,64}$/', $existing)) {
+        if ($existing && preg_match('/^[a-zA-Z0-9]{20,64}$/', $existing)) {
             return [$existing, false];
         }
         return [(string) Str::random(40), true];

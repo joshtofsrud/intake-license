@@ -30,12 +30,41 @@
     utm_campaign: params.get('utm_campaign') || null,
   };
 
+  // MARKER-FUNNEL-SESSION-FIX — the session id is minted CLIENT-side, once,
+  // and rides in every payload. Server-minted ids fragmented first visits:
+  // several beacons raced out before any Set-Cookie landed, so one person's
+  // click became two or three phantom "sessions" and the started tile could
+  // never reconcile with the funnel steps.
+  function fnlSid() {
+    try {
+      var m = document.cookie.match(/(?:^|;\s*)fnl_sid=([a-zA-Z0-9]{20,64})/);
+      if (m) return m[1];
+      var v = localStorage.getItem('ia_fnl_sid');
+      if (!v || !/^[a-zA-Z0-9]{20,64}$/.test(v)) {
+        v = '';
+        if (window.crypto && crypto.getRandomValues) {
+          var a = new Uint8Array(20); crypto.getRandomValues(a);
+          for (var i = 0; i < a.length; i++) v += ('0' + a[i].toString(16)).slice(-2);
+        } else {
+          while (v.length < 40) v += Math.random().toString(36).slice(2);
+          v = v.slice(0, 40);
+        }
+        localStorage.setItem('ia_fnl_sid', v);
+      }
+      document.cookie = 'fnl_sid=' + v + ';path=/;max-age=' + (60*60*24*90) + ';samesite=lax' + (location.protocol === 'https:' ? ';secure' : '');
+      return v;
+    } catch (e) { return null; }
+  }
+  var SID = fnlSid();
+  window.__intakeFunnelSid = SID;
+
   function send(eventType, extra) {
     extra = extra || {};
     var body = Object.assign({
       event_type:   eventType,
       path:         window.location.pathname,
       referrer_url: document.referrer || null,
+      session_id:   SID,
     }, utm, extra);
 
     // Strip nulls so the server-side validator stays happy
@@ -43,7 +72,7 @@
 
     try {
       // Use sendBeacon when available — fire-and-forget, survives nav
-      if (navigator.sendBeacon && eventType !== 'booking_started') {
+      if (navigator.sendBeacon) { // MARKER-FUNNEL-SESSION-FIX — one transport for everything
         var blob = new Blob([JSON.stringify(body)], { type: 'application/json' });
         navigator.sendBeacon('/funnel/track', blob);
         return;
@@ -76,24 +105,9 @@
     if (!document.getElementById('bk-progress') && !document.querySelector('.bk-section')) return;
     send('booking_page_viewed');
 
-    // First interaction with the booking form = "started"
-    var startedFired = false;
-    function fireStarted() {
-      if (startedFired) return;
-      startedFired = true;
-      send('booking_started');
-    }
-    // Catch the first click on any service tile, button, or form input inside the booking surface
-    document.addEventListener('click', function(e){
-      if (!startedFired && (e.target.closest('button, .svc-tile, .booking-step, [data-fn-step]'))) {
-        fireStarted();
-      }
-    }, true);
-    document.addEventListener('change', function(e){
-      if (!startedFired && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
-        fireStarted();
-      }
-    }, true);
+    // MARKER-FUNNEL-SESSION-FIX — the old "first interaction = started"
+    // emitter is gone. "Started" now has exactly one meaning: entered the
+    // flow (choice-page click or direct landing), emitted by those pages.
 
     // MARKER-PATCH-452 — record each wizard step the anonymous session reaches,
     // so drop-off is visible even before any contact info exists. Deduped per step.

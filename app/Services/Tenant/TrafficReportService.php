@@ -775,14 +775,16 @@ class TrafficReportService
             $sess['last_at'] = $e->created_at;
             if ($e->device && ! $sess['device'])     $sess['device']   = $e->device;
             if ($e->referrer_domain && ! $sess['referrer']) $sess['referrer'] = $e->referrer_domain;
-            if ($e->event_type === 'booking_started') $sess['via_choice'] = true;
+            // MARKER-FUNNEL-SESSION-FIX — started now fires for every entry;
+            // "via choice page" means the session clicked a fork card.
+            if ($e->event_type === 'booking_step' && str_starts_with((string) $e->step, '00 Chose')) $sess['via_choice'] = true;
             if ($e->event_type === 'booking_completed') $sess['booked'] = true;
             if ($e->step !== null && $e->step !== '') $sess['steps'][] = $e->step;
             $sess['timeline'][] = [
                 'at'   => $e->created_at->copy()->setTimezone($tz)->format('g:i:s A'),
                 'what' => $e->event_type === 'booking_step'
                     ? preg_replace('/^\\d+\\s*/', '', (string) $e->step)
-                    : ($e->event_type === 'booking_started' ? 'Started — chose a path on the choice page' : 'Booked'),
+                    : ($e->event_type === 'booking_started' ? 'Entered the booking flow' : 'Booked'),
             ];
             unset($sess);
         }
