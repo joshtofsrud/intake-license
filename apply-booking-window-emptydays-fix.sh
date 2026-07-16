@@ -1,3 +1,19 @@
+#!/bin/bash
+# booking-window-emptydays-fix — a service date whose own pickup windows
+# exist but with no usable lead days (earliest bookable day) rendered no
+# chooser while the Continue gate still required a choice: a dead end.
+# The mini-step now renders in that case with just the "reach out to me"
+# option and adjusted copy, so the booking can always proceed.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-WINDOW-MINISTEP-EMPTYFIX" public/js/booking.js; then
+  echo "emptydays fix already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-PICKUP-OUTREACH" app/Services/BookingService.php; then
+  echo "pickup-outreach-alerts not applied — aborting."; exit 1
+fi
+
+cat > 'public/js/booking.js' <<'EMPTYFIX_0_EOF'
 /**
  * Intake SaaS — Booking Form JS
  * 4-step flow: Services → Schedule → Details → Review + Payment
@@ -1817,3 +1833,6 @@
     if (typeof window.__bkInitAssetServices === 'function') window.__bkInitAssetServices(); // MARKER-PATCH-214c
   });
 })();
+EMPTYFIX_0_EOF
+
+echo "emptydays fix applied — no server steps beyond git pull (filemtime-busted js)"
