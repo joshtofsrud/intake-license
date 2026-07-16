@@ -1,3 +1,19 @@
+#!/bin/bash
+# booking-returning-prefill-fix — a mid-flow page refresh restored the
+# returning customer's identity for submission but left the Details fields
+# blank (the prefill only ran on the items-step continue). The prefill/lock
+# logic is now a shared function called from both the items-step continue
+# and the snapshot restore, so details survive any refresh.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-RETURNING-PREFILL" public/js/booking.js; then
+  echo "returning-prefill fix already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-NEEDBY-POLISH" public/js/booking.js; then
+  echo "needby polish not applied — wrong base, aborting."; exit 1
+fi
+
+cat > 'public/js/booking.js' <<'RETPREFILL_0_EOF'
 /**
  * Intake SaaS — Booking Form JS
  * 4-step flow: Services → Schedule → Details → Review + Payment
@@ -1831,3 +1847,6 @@
     if (typeof window.__bkInitAssetServices === 'function') window.__bkInitAssetServices(); // MARKER-PATCH-214c
   });
 })();
+RETPREFILL_0_EOF
+
+echo "returning-prefill fix applied — git pull on server is enough"
