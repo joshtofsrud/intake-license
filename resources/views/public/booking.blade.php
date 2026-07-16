@@ -61,10 +61,24 @@
 .bk-service-add-btn:hover{border-color:var(--p-accent,#BEF264)}
 .bk-service-row.is-selected .bk-service-add-btn{background:var(--p-accent,#BEF264);border-color:var(--p-accent,#BEF264);color:#0a0a0a}
 @media (max-width:600px){.bk-service-row{flex-direction:column}.bk-service-actions{width:100%}.bk-service-add-btn{width:100%}}
+  /* MARKER-BOOKING-RESET */
+  .bk-progress-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .bk-progress-head .bk-progress{flex:1}
+  .bk-reset{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--bk-muted,#8a8a8a);opacity:.75;cursor:pointer;padding:6px 10px;border-radius:8px;user-select:none;white-space:nowrap}
+  .bk-reset:hover{opacity:1;background:rgba(127,127,127,.08)}
+  .bk-reset-confirm{position:absolute;top:calc(100% + 6px);right:0;width:262px;background:var(--bk-surface,#181818);border:0.5px solid var(--bk-border,rgba(255,255,255,.12));border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:13px;display:none;z-index:60;text-align:left}
+  .bk-reset-confirm.open{display:block}
+  .bk-reset-confirm b{display:block;margin-bottom:6px}
+  .bk-reset-confirm p{opacity:.65;font-size:12px;line-height:1.5;margin:0 0 12px}
+  .bk-reset-btns{display:flex;gap:8px}
+  .bk-reset-btns button{flex:1;font-family:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer;border:0.5px solid var(--bk-border,rgba(255,255,255,.15));background:transparent;color:inherit}
+  .bk-reset-btns button.danger{background:rgba(240,90,90,.12);border-color:rgba(240,90,90,.4);color:#F09595}
 </style>
 @endpush
 
 @section('content')
+{{-- MARKER-BOOKING-RESET — quiet start-over control, visible past step 1 --}}
+<div class="bk-progress-head">
 <div class="bk-progress" id="bk-progress">
   @if($multiAsset)
     <div class="bk-step bk-step--pre active" data-pre="intro"><div class="bk-step-dot">1</div><span class="bk-step-label">You</span></div>
@@ -79,6 +93,16 @@
     </div>
     @if(!$loop->last)<div class="bk-step-line"></div>@endif
   @endforeach
+</div>
+  <span class="bk-reset" id="bk-reset" style="display:none" onclick="bkResetToggle(event)">&#8634; Start over</span>
+  <div class="bk-reset-confirm" id="bk-reset-confirm">
+    <b>Start this booking over?</b>
+    <p>Your selections will be cleared. This can't be undone.</p>
+    <div class="bk-reset-btns">
+      <button type="button" onclick="bkResetToggle(event)">Keep going</button>
+      <button type="button" class="danger" onclick="bkResetConfirm()">Start over</button>
+    </div>
+  </div>
 </div>
 
 
