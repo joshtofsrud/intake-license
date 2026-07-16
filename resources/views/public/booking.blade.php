@@ -80,6 +80,24 @@
   .bk-pre-bike--sel{border-color:var(--p-accent) !important;background:color-mix(in srgb, var(--p-accent) 10%, transparent)}
   .bk-pre-bike--sel .bk-pre-pickcheck{background:var(--p-accent);border-color:var(--p-accent)}
   .bk-pre-bike--sel .bk-pre-pickcheck:after{content:"\2713"}
+  /* MARKER-WINDOW-MINISTEP — focused pickup-window chooser */
+  .bk-pdw{margin-top:16px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:var(--p-r);padding:16px}
+  .bk-pdw-stepper{display:flex;gap:6px;margin-bottom:12px}
+  .bk-pdw-s{flex:1;height:4px;border-radius:100px;background:color-mix(in srgb, var(--p-text) 14%, transparent)}
+  .bk-pdw-s.done{background:var(--p-accent)}
+  .bk-pdw-title{font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .bk-pdw-sub{font-size:12.5px;opacity:.65;margin:3px 0 12px}
+  .bk-pdw-card{position:relative;display:flex;align-items:center;gap:12px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:var(--p-r);padding:13px 14px;margin-bottom:8px;cursor:pointer;transition:all .12s;flex-wrap:wrap}
+  .bk-pdw-card:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
+  .bk-pdw-card.sel{border-color:var(--p-accent);background:color-mix(in srgb, var(--p-accent) 10%, transparent)}
+  .bk-pdw-card.full{opacity:.4;cursor:default;text-decoration:line-through}
+  .bk-pdw-radio{width:19px;height:19px;border-radius:50%;border:2px solid color-mix(in srgb, var(--p-text) 28%, transparent);flex:none;position:relative}
+  .bk-pdw-card.sel .bk-pdw-radio{border-color:var(--p-accent)}
+  .bk-pdw-card.sel .bk-pdw-radio:after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--p-accent)}
+  .bk-pdw-d{font-size:13.5px;font-weight:700}
+  .bk-pdw-spots{margin-left:auto;font-size:11px;font-weight:700;opacity:.7}
+  .bk-pdw-skip{border-style:dashed}
+  .bk-pdw-sub2{flex-basis:100%;font-size:12px;opacity:.6;margin-left:31px}
 </style>
 @endpush
 
