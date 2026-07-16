@@ -10,6 +10,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TenantDelivery extends Model
 {
+    // MARKER-PICKUP-OUTREACH — scheduling a pickup for an appointment
+    // resolves its "reach out about pickup" flag, whichever path created it.
+    protected static function booted(): void
+    {
+        static::created(function (TenantDelivery $d) {
+            if ($d->type === 'pickup' && $d->appointment_id) {
+                \App\Models\Tenant\TenantAppointment::where('id', $d->appointment_id)
+                    ->where('pickup_outreach_pending', true)
+                    ->update(['pickup_outreach_pending' => false]);
+            }
+        });
+    }
+
     use HasUuids;
 
     protected $table = 'tenant_deliveries';

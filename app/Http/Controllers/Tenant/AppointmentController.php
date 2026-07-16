@@ -57,6 +57,7 @@ class AppointmentController extends Controller
         // mirrors a card on the dashboard so clicking the card lands here filtered.
         $filterLabels = [
             'unconfirmed_bookings' => 'Unconfirmed bookings',
+            'pickup_outreach' => 'Pickup to arrange', // MARKER-PICKUP-OUTREACH
             'unpaid_completed'     => 'Unpaid completed jobs',
             'ready_pickup'         => 'Ready for pickup',
             'overdue_unstarted'    => 'Overdue: not started',
@@ -74,6 +75,9 @@ class AppointmentController extends Controller
             case 'unconfirmed_bookings':
                 $q->whereIn('status', AppointmentStatus::awaitingStatuses())
                   ->whereDate('appointment_date', '>=', $today);
+                break;
+            case 'pickup_outreach': // MARKER-PICKUP-OUTREACH
+                $q->where('pickup_outreach_pending', true);
                 break;
             case 'unpaid_completed':
                 $q->whereIn('status', AppointmentStatus::doneStatuses())
@@ -240,6 +244,7 @@ class AppointmentController extends Controller
             'resource_id'      => $data['resource_id'] ?? null,
             // MARKER-PATCH-519 — P&D fields; createAppointment re-validates both.
             'route_window_id'  => $request->input('route_window_id') ?: null,
+            // MARKER-PICKUP-OUTREACH — assigning a window resolves the outreach flag downstream
             'need_by'          => $request->input('need_by') ?: null,
             'items'            => array_map(function ($item) {
                 return [

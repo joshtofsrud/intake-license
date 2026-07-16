@@ -190,6 +190,7 @@ class BookingController extends Controller
             'phone'                   => ['nullable', 'string', 'max:32'],
             'date'                    => ['required', 'date', 'after_or_equal:today'],
             'route_window_id'         => ['nullable', 'uuid'], // MARKER-PATCH-512
+            'pickup_outreach'         => ['nullable', 'boolean'], // MARKER-PICKUP-OUTREACH
             'pickup_date'             => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:date'], // MARKER-PATCH-520
             'need_by'                 => ['nullable', 'date', 'after_or_equal:date'], // MARKER-PATCH-512
             'appointment_time'        => ['nullable', 'string'],

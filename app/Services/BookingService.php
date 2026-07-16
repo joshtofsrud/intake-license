@@ -316,6 +316,20 @@ class BookingService
                 // both funnel the raw payload through createAppointment.
                 if (!empty($data['route_window_id'])) {
                     $this->createPickupStop($appointment, (string) $data['route_window_id'], (array) $data);
+                } elseif (!empty($data['pickup_outreach'])) {
+                    // MARKER-PICKUP-OUTREACH — customer skipped the window
+                    // choice and asked to be contacted about pickup.
+                    $appointment->forceFill(['pickup_outreach_pending' => true])->save();
+                    $outreachTenant = \App\Models\Tenant::find($tenantId);
+                    if ($outreachTenant) {
+                        $outreachName = trim(($appointment->customer->first_name ?? '') . ' ' . ($appointment->customer->last_name ?? '')) ?: 'A customer';
+                        app(\App\Services\Tenant\StaffAlertService::class)->emit($outreachTenant, 'booking.pickup_outreach', [
+                            'title' => 'Pickup to arrange',
+                            'body'  => $outreachName . ' asked you to reach out about pickup for their booking',
+                            'link'  => route('tenant.appointments.show', $appointment->id),
+                            'meta'  => ['appointment_id' => $appointment->id],
+                        ]);
+                    }
                 }
                 if (!empty($data['need_by']) && (bool) (((array) $tenant->settings)['pd_need_by_enabled'] ?? true)) {
                     $appointment->forceFill(['need_by' => $data['need_by']])->save();

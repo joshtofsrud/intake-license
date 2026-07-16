@@ -136,6 +136,11 @@ class DashboardDataService
             ->whereDate('appointment_date', '>=', $today)
             ->count();
 
+        // MARKER-PICKUP-OUTREACH
+        $pickupOutreachCount = TenantAppointment::where('tenant_id', $tenantId)
+            ->where('pickup_outreach_pending', true)
+            ->count();
+
         $unpaidDoneCount = TenantAppointment::where('tenant_id', $tenantId)
             ->whereIn('status', AppointmentStatus::doneStatuses())
             ->whereIn('payment_status', ['unpaid', 'partial'])
@@ -222,6 +227,21 @@ class DashboardDataService
                     : $unconfirmedCount . ' bookings awaiting confirmation or drop-off',
                 'tone'  => 'red',  // your action: review and confirm
                 'link'  => route('tenant.appointments.index', ['filter' => 'unconfirmed_bookings']),
+            ];
+        }
+
+        // MARKER-PICKUP-OUTREACH — bookings that asked for pickup outreach
+        if ($pickupOutreachCount > 0) {
+            $cards[] = [
+                'count' => $pickupOutreachCount,
+                'title' => 'Pickup to arrange',
+                'key'   => 'pickup_outreach',
+                'icon'  => '🚚',
+                'desc'  => $pickupOutreachCount === 1
+                    ? '1 booking asked you to reach out about pickup'
+                    : $pickupOutreachCount . ' bookings asked you to reach out about pickup',
+                'tone'  => 'amber',  // your action: contact and schedule
+                'link'  => route('tenant.appointments.index', ['filter' => 'pickup_outreach']),
             ];
         }
 

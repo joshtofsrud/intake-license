@@ -17,6 +17,7 @@ class TenantAppointment extends Model
         'customer_first_name','customer_last_name','customer_email','customer_phone',
         'appointment_date','appointment_time','appointment_end_time',
         'promised_at', // MARKER-PATCH-311
+        'pickup_outreach_pending', // MARKER-PICKUP-OUTREACH
         'total_duration_minutes','prep_before_minutes_snapshot','cleanup_after_minutes_snapshot',
         'slot_weight','slot_weight_auto','slot_weight_overridden',
         'receiving_method_snapshot','receiving_time_snapshot','tracking_number',
