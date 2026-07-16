@@ -1,3 +1,16 @@
+#!/bin/bash
+# appt-modal-service-typeahead — the New Appointment modal's raw service
+# <select> becomes a register-style typeahead: type-to-filter over the loaded
+# catalog (name + duration + price), keyboard nav, full alphabetical list on
+# focus, selected service shows as a chip with Change. Same downstream flow
+# (resources → times) untouched.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "SERVICE-TYPEAHEAD" resources/views/tenant/appointments/_create_modal.blade.php; then
+  echo "service typeahead already applied — aborting."; exit 1
+fi
+
+cat > 'resources/views/tenant/appointments/_create_modal.blade.php' <<'SVCTYPE_EOF'
 {{--
   New Appointment modal — availability-first design.
 
@@ -931,3 +944,6 @@ window.addEventListener('pageshow', function (e) {
   }
 });
 </script>
+SVCTYPE_EOF
+
+echo "service typeahead applied — view:clear on server"
