@@ -77,7 +77,10 @@
           if (navigator.sendBeacon) {
             // MARKER-PATCH-632 — choosing a flow IS starting a booking; keeps the
             // "Bookings started" tile consistent with the funnel steps.
-            navigator.sendBeacon('/funnel/track', new Blob([JSON.stringify({event_type:'booking_started'})], {type:'application/json'}));
+            if (!sessionStorage.getItem('ia_booking_started')) { // MARKER-PATCH-632B — once per session
+              sessionStorage.setItem('ia_booking_started', '1');
+              navigator.sendBeacon('/funnel/track', new Blob([JSON.stringify({event_type:'booking_started'})], {type:'application/json'}));
+            }
             navigator.sendBeacon('/funnel/track', new Blob([JSON.stringify({event_type:'booking_step', step:'00 Chose ' + (el.dataset.flow === 'quick' ? 'Quick' : 'Full')})], {type:'application/json'}));
           }
         } catch(e){}
