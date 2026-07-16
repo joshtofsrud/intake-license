@@ -98,6 +98,15 @@
   .bk-pdw-spots{margin-left:auto;font-size:11px;font-weight:700;opacity:.7}
   .bk-pdw-skip{border-style:dashed}
   .bk-pdw-sub2{flex-basis:100%;font-size:12px;opacity:.6;margin-left:31px}
+  /* MARKER-NEEDBY-POLISH */
+  .bk-pdw-needby{margin-top:14px;padding-top:14px;border-top:1px solid color-mix(in srgb, var(--p-text) 10%, transparent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .bk-pdw-needby-l{font-size:13px;font-weight:600}
+  .bk-pdw-needby-l span{font-weight:400;font-size:11px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-left:6px}
+  .bk-pdw-needby-i{padding:10px 12px;border:1.5px solid color-mix(in srgb, var(--p-text) 14%, transparent);border-radius:var(--p-r);font-size:13.5px;font-family:inherit;background:transparent;color:var(--p-text);min-width:170px;transition:border-color .12s}
+  .bk-pdw-needby-i:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
+  .bk-pdw-needby-i:focus{outline:none;border-color:var(--p-accent)}
+  .bk-pdw-needby-i.has-value{border-color:var(--p-accent);background:color-mix(in srgb, var(--p-accent) 8%, transparent)}
+  .bk-pdw-needby-i::-webkit-calendar-picker-indicator{filter:invert(.7);cursor:pointer}
 </style>
 @endpush
 

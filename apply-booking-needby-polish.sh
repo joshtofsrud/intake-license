@@ -1,3 +1,18 @@
+#!/bin/bash
+# booking-needby-polish — the "need it back by" field matches the pickup
+# mini-step: divider above, proper label with an OPTIONAL tag, and a real
+# input treatment (border, hover, focus, gold fill when set, themed
+# calendar icon) instead of the bare browser date field.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-NEEDBY-POLISH" public/js/booking.js; then
+  echo "needby polish already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-WINDOW-MINISTEP-EMPTYFIX" public/js/booking.js; then
+  echo "emptydays fix not applied — wrong base, aborting."; exit 1
+fi
+
+cat > 'public/js/booking.js' <<'NEEDBY_0_EOF'
 /**
  * Intake SaaS — Booking Form JS
  * 4-step flow: Services → Schedule → Details → Review + Payment
@@ -1821,3 +1836,524 @@
     if (typeof window.__bkInitAssetServices === 'function') window.__bkInitAssetServices(); // MARKER-PATCH-214c
   });
 })();
+NEEDBY_0_EOF
+
+cat > 'resources/views/public/booking.blade.php' <<'NEEDBY_1_EOF'
+@extends('public._booking-shell')
+@php
+  $pageTitle = 'Book online';
+  $showBackLink = true;
+  // MARKER-PATCH-595 — theme flag needed by this view's pushed styles;
+  // pushed stacks don't see the shell's php locals.
+  $isDark = (($bk['theme'] ?? 'light') === 'dark');
+  // MARKER-PATCH-596 — view-local derivations restored (were dropped when the
+  // theme block moved to _booking-shell). These feed the stepper + multi-asset flow.
+  $stepLabels = [
+    $bk['step1_label'] ?? 'Services',
+    $bk['step2_label'] ?? 'Schedule',
+    $bk['step3_label'] ?? 'Details',
+    $bk['step4_label'] ?? 'Review',
+  ];
+  $multiAsset = (bool) ($currentTenant->multi_asset_enabled ?? false) && (($bookingMode ?? 'drop_off') === 'drop_off');
+  $assetSingular = $currentTenant->asset_label_singular ?: 'item';
+  $assetPlural   = $currentTenant->asset_label_plural ?: 'items';
+@endphp
+
+@push('styles')
+<style>
+    @if($isDark)
+    .bk-top-bar { border-bottom-color: rgba(255,255,255,.08) !important; }
+    .bk-item-card, .bk-review-card { border-color: rgba(255,255,255,.1) !important; }
+    .bk-input, .bk-select, .bk-textarea, .bk-search { background: rgba(255,255,255,.06) !important; border-color: rgba(255,255,255,.12) !important; color: #f0f0f0 !important; }
+    .bk-cal-day.available:hover { background: rgba(255,255,255,.08) !important; }
+    .bk-sidebar { background: rgba(255,255,255,.04) !important; border-color: rgba(255,255,255,.1) !important; }
+    .bk-addon-row { border-color: rgba(255,255,255,.08) !important; }
+    /* MARKER-PATCH-380 — dark-theme contrast: service rows, add buttons, card field */
+    .bk-service-row { border-color: rgba(255,255,255,.12) !important; background: rgba(255,255,255,.03) !important; }
+    .bk-service-add-btn { border-color: rgba(255,255,255,.30) !important; background: rgba(255,255,255,.06) !important; color: #f0f0f0 !important; } /* MARKER-PATCH-381 */
+    .bk-service-row.is-selected .bk-service-add-btn { color: #0a0a0a !important; }
+    .bk-service-addon:hover { background: rgba(255,255,255,.05) !important; }
+    #bk-stripe-elements { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 13px 14px; }
+    @endif
+</style>
+  <link rel="stylesheet" href="{{ asset('css/booking.css') }}?v={{ filemtime(public_path('css/booking.css')) }}">
+<style>
+.bk-service-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.bk-service-row{display:flex;gap:16px;align-items:flex-start;padding:14px 16px;border:0.5px solid var(--bk-border,rgba(0,0,0,.08));border-radius:10px;background:var(--bk-surface,rgba(0,0,0,.02));transition:border-color .12s ease,background .12s ease}
+.bk-service-row:hover{border-color:var(--bk-border-strong,rgba(0,0,0,.15))}
+.bk-service-row.is-selected{border-color:var(--p-accent,#BEF264);background:rgba(190,242,100,.08)}
+.bk-service-main{flex:1;min-width:0}
+.bk-service-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.bk-service-name{font-weight:600;font-size:15px;line-height:1.3}
+.bk-service-price{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.bk-service-desc{font-size:13px;opacity:.65;margin-top:4px;line-height:1.5}
+.bk-service-meta{font-size:12px;opacity:.5;margin-top:6px}
+.bk-service-addons{margin-top:12px;padding-top:12px;border-top:0.5px dashed var(--bk-border,rgba(0,0,0,.08));display:flex;flex-direction:column;gap:4px}
+.bk-service-addons-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;opacity:.5;margin-bottom:4px;font-weight:600}
+.bk-service-addon{display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .12s ease}
+.bk-service-addon:hover{background:rgba(0,0,0,.03)}
+.bk-service-addon input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--p-accent,#BEF264)}
+.bk-service-addon-name{min-width:0}
+.bk-service-addon-name small{display:block;opacity:.55;font-size:11.5px;margin-top:1px;line-height:1.35}
+.bk-service-addon-price{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;white-space:nowrap}
+.bk-service-addon-price small{display:block;opacity:.5;font-size:10.5px;margin-top:1px}
+.bk-service-actions{flex-shrink:0}
+.bk-service-add-btn{padding:8px 14px;border:0.5px solid var(--bk-border-strong,rgba(0,0,0,.15));border-radius:8px;background:transparent;font-size:13px;font-weight:500;cursor:pointer;transition:all .12s ease;white-space:nowrap}
+.bk-service-add-btn:hover{border-color:var(--p-accent,#BEF264)}
+.bk-service-row.is-selected .bk-service-add-btn{background:var(--p-accent,#BEF264);border-color:var(--p-accent,#BEF264);color:#0a0a0a}
+@media (max-width:600px){.bk-service-row{flex-direction:column}.bk-service-actions{width:100%}.bk-service-add-btn{width:100%}}
+  /* MARKER-BOOKING-RESET */
+  .bk-progress-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .bk-progress-head .bk-progress{flex:1}
+  .bk-reset{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--bk-muted,#8a8a8a);opacity:.75;cursor:pointer;padding:6px 10px;border-radius:8px;user-select:none;white-space:nowrap}
+  .bk-reset:hover{opacity:1;background:rgba(127,127,127,.08)}
+  .bk-reset-confirm{position:absolute;top:calc(100% + 6px);right:0;width:262px;background:var(--bk-surface,#181818);border:0.5px solid var(--bk-border,rgba(255,255,255,.12));border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:13px;display:none;z-index:60;text-align:left}
+  .bk-reset-confirm.open{display:block}
+  .bk-reset-confirm b{display:block;margin-bottom:6px}
+  .bk-reset-confirm p{opacity:.65;font-size:12px;line-height:1.5;margin:0 0 12px}
+  .bk-reset-btns{display:flex;gap:8px}
+  .bk-reset-btns button{flex:1;font-family:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer;border:0.5px solid var(--bk-border,rgba(255,255,255,.15));background:transparent;color:inherit}
+  .bk-reset-btns button.danger{background:rgba(240,90,90,.12);border-color:rgba(240,90,90,.4);color:#F09595}
+  /* MARKER-ITEMS-PICK — account items as explicit pick-cards */
+  .bk-pre-bike--pick{cursor:pointer;user-select:none;transition:border-color .12s,background .12s}
+  .bk-pre-bike--pick:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
+  .bk-pre-pickcheck{width:21px;height:21px;border-radius:50%;border:2px solid color-mix(in srgb, var(--p-text) 28%, transparent);display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:12px;font-weight:800;color:var(--p-accent-text)}
+  .bk-pre-bike--sel{border-color:var(--p-accent) !important;background:color-mix(in srgb, var(--p-accent) 10%, transparent)}
+  .bk-pre-bike--sel .bk-pre-pickcheck{background:var(--p-accent);border-color:var(--p-accent)}
+  .bk-pre-bike--sel .bk-pre-pickcheck:after{content:"\2713"}
+  /* MARKER-WINDOW-MINISTEP — focused pickup-window chooser */
+  .bk-pdw{margin-top:16px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:var(--p-r);padding:16px}
+  .bk-pdw-stepper{display:flex;gap:6px;margin-bottom:12px}
+  .bk-pdw-s{flex:1;height:4px;border-radius:100px;background:color-mix(in srgb, var(--p-text) 14%, transparent)}
+  .bk-pdw-s.done{background:var(--p-accent)}
+  .bk-pdw-title{font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .bk-pdw-sub{font-size:12.5px;opacity:.65;margin:3px 0 12px}
+  .bk-pdw-card{position:relative;display:flex;align-items:center;gap:12px;border:1.5px solid color-mix(in srgb, var(--p-text) 12%, transparent);border-radius:var(--p-r);padding:13px 14px;margin-bottom:8px;cursor:pointer;transition:all .12s;flex-wrap:wrap}
+  .bk-pdw-card:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
+  .bk-pdw-card.sel{border-color:var(--p-accent);background:color-mix(in srgb, var(--p-accent) 10%, transparent)}
+  .bk-pdw-card.full{opacity:.4;cursor:default;text-decoration:line-through}
+  .bk-pdw-radio{width:19px;height:19px;border-radius:50%;border:2px solid color-mix(in srgb, var(--p-text) 28%, transparent);flex:none;position:relative}
+  .bk-pdw-card.sel .bk-pdw-radio{border-color:var(--p-accent)}
+  .bk-pdw-card.sel .bk-pdw-radio:after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--p-accent)}
+  .bk-pdw-d{font-size:13.5px;font-weight:700}
+  .bk-pdw-spots{margin-left:auto;font-size:11px;font-weight:700;opacity:.7}
+  .bk-pdw-skip{border-style:dashed}
+  .bk-pdw-sub2{flex-basis:100%;font-size:12px;opacity:.6;margin-left:31px}
+  /* MARKER-NEEDBY-POLISH */
+  .bk-pdw-needby{margin-top:14px;padding-top:14px;border-top:1px solid color-mix(in srgb, var(--p-text) 10%, transparent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .bk-pdw-needby-l{font-size:13px;font-weight:600}
+  .bk-pdw-needby-l span{font-weight:400;font-size:11px;opacity:.5;text-transform:uppercase;letter-spacing:.06em;margin-left:6px}
+  .bk-pdw-needby-i{padding:10px 12px;border:1.5px solid color-mix(in srgb, var(--p-text) 14%, transparent);border-radius:var(--p-r);font-size:13.5px;font-family:inherit;background:transparent;color:var(--p-text);min-width:170px;transition:border-color .12s}
+  .bk-pdw-needby-i:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
+  .bk-pdw-needby-i:focus{outline:none;border-color:var(--p-accent)}
+  .bk-pdw-needby-i.has-value{border-color:var(--p-accent);background:color-mix(in srgb, var(--p-accent) 8%, transparent)}
+  .bk-pdw-needby-i::-webkit-calendar-picker-indicator{filter:invert(.7);cursor:pointer}
+</style>
+@endpush
+
+@section('content')
+{{-- MARKER-BOOKING-RESET — quiet start-over control, visible past step 1 --}}
+<div class="bk-progress-head">
+<div class="bk-progress" id="bk-progress">
+  @if($multiAsset)
+    <div class="bk-step bk-step--pre active" data-pre="intro"><div class="bk-step-dot">1</div><span class="bk-step-label">You</span></div>
+    <div class="bk-step-line"></div>
+    <div class="bk-step bk-step--pre" data-pre="bikes"><div class="bk-step-dot">2</div><span class="bk-step-label">{{ ucfirst($assetPlural) }}</span></div>
+    <div class="bk-step-line"></div>
+  @endif
+  @foreach($stepLabels as $i => $label)
+    <div class="bk-step {{ (!$multiAsset && $i === 0) ? 'active' : '' }}" data-step="{{ $i + 1 }}">
+      <div class="bk-step-dot">{{ $multiAsset ? $i + 3 : $i + 1 }}</div>
+      <span class="bk-step-label">{{ $label }}</span>
+    </div>
+    @if(!$loop->last)<div class="bk-step-line"></div>@endif
+  @endforeach
+</div>
+  <span class="bk-reset" id="bk-reset" style="display:none" onclick="bkResetToggle(event)">&#8634; Start over</span>
+  <div class="bk-reset-confirm" id="bk-reset-confirm">
+    <b>Start this booking over?</b>
+    <p>Your selections will be cleared. This can't be undone.</p>
+    <div class="bk-reset-btns">
+      <button type="button" onclick="bkResetToggle(event)">Keep going</button>
+      <button type="button" class="danger" onclick="bkResetConfirm()">Start over</button>
+    </div>
+  </div>
+</div>
+
+
+<div class="bk-body">
+
+@if($multiAsset)
+{{-- MARKER-PATCH-214 — multi-asset pre-flow: You + Bikes (before the numbered stepper) --}}
+<div id="bk-preflow" class="active">
+
+  {{-- Intro --}}
+  <div class="bk-pre-panel active" id="bk-pre-intro">
+    <h1 class="bk-section-title">Let's start.</h1>
+    <p class="bk-section-sub">Have you booked with us before?</p>
+
+    <div class="bk-pre-toggle" id="bk-pre-toggle" data-pos="left">
+      <span class="bk-pre-thumb"></span>
+      <button type="button" class="on" data-path="new">New customer</button>
+      <button type="button" data-path="returning">Returning</button>
+    </div>
+
+    <div id="bk-pre-new">
+      <p class="bk-section-sub" style="margin-top:0">No problem — we'll grab your details near the end. Next, tell us what you're bringing in.</p>
+      <div class="bk-pre-actions"><button type="button" class="bk-next" id="bk-pre-new-continue">Continue →</button></div>
+    </div>
+
+    <div id="bk-pre-returning" style="display:none">
+      <label class="bk-label" for="bk-pre-email">Your email</label>
+      <input type="email" class="bk-input" id="bk-pre-email" placeholder="you@example.com" autocomplete="email">
+      <div class="bk-pre-status" id="bk-pre-status"></div>
+      <div class="bk-pre-actions"><button type="button" class="bk-next" id="bk-pre-lookup">Look me up</button></div>
+    </div>
+  </div>
+
+  {{-- Bikes --}}
+  <div class="bk-pre-panel" id="bk-pre-bikes">
+    <h1 class="bk-section-title">What are you bringing in?</h1>
+    <p class="bk-section-sub" id="bk-pre-bikes-sub">Name each {{ $assetSingular }} you want serviced.</p>
+
+    <div id="bk-pre-bike-list"></div>
+
+    <button type="button" class="bk-pre-add" id="bk-pre-add">
+      <span class="bk-pre-add-ic">+</span>
+      <span class="bk-pre-add-txt"><strong>Add another {{ $assetSingular }}</strong><small>Another {{ $assetSingular }} you'd like serviced</small></span>
+    </button>
+
+    <div class="bk-pre-actions bk-pre-actions--split">
+      <button type="button" class="bk-back" id="bk-pre-bikes-back">← Back</button>
+      <button type="button" class="bk-next" id="bk-pre-bikes-continue" disabled>Continue → {{ $stepLabels[0] }}</button>
+      {{-- MARKER-ITEMS-PICK --}}
+      <div id="bk-pre-pick-hint" style="font-size:12.5px;opacity:.55;text-align:center;margin-top:8px">Select at least one item to continue</div>
+    </div>
+  </div>
+
+</div>
+@endif
+
+{{-- Step 1: Services --}}
+<div class="bk-section {{ $multiAsset ? '' : 'active' }}" id="bk-step-1">
+  <h1 class="bk-section-title">{{ $bk['step1_heading'] ?? 'What do you need serviced?' }}</h1>
+  <p class="bk-section-sub">{{ $bk['step1_sub'] ?? 'Select one or more services.' }}</p>
+  <div class="bk-toolbar">
+    <input type="search" class="bk-search" id="bk-search" placeholder="Search services…">
+  </div>
+  {{-- MARKER-PATCH-265 — category pill rail (filters the catalog below) --}}
+  @php
+    $catsWithItems = collect($catalog)->filter(fn($c) => $c->items->count());
+    $totalSvc = $catsWithItems->sum(fn($c) => $c->items->count());
+  @endphp
+  @if($catsWithItems->count() > 1)
+  <style>
+    .bk-cat-rail{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;margin:0 -2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    .bk-cat-rail::-webkit-scrollbar{display:none}
+    .bk-cat-pill{flex:none;padding:8px 15px;border-radius:99px;border:1px solid var(--bk-border,rgba(0,0,0,.14));
+      background:transparent;color:inherit;opacity:.78;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit;transition:all .12s}
+    .bk-cat-pill:hover{opacity:1;border-color:var(--bk-border-strong,rgba(0,0,0,.3))}
+    .bk-cat-pill.is-active{background:var(--p-accent,#BEF264);color:#0a0a0a;border-color:var(--p-accent,#BEF264);opacity:1}
+    .bk-cat-pill-ct{opacity:.55;font-size:11.5px;margin-left:5px}
+    .bk-cat-pill.is-active .bk-cat-pill-ct{opacity:.7}
+  </style>
+  <div class="bk-cat-rail" id="bk-cat-rail">
+    <button type="button" class="bk-cat-pill is-active" data-cat="all">All <span class="bk-cat-pill-ct">{{ $totalSvc }}</span></button>
+    @foreach($catalog as $cat)
+      @if($cat->items->count())
+        <button type="button" class="bk-cat-pill" data-cat="{{ strtolower($cat->name) }}">{{ $cat->name }} <span class="bk-cat-pill-ct">{{ $cat->items->count() }}</span></button>
+      @endif
+    @endforeach
+  </div>
+  @endif
+  <div id="bk-catalog">
+    @forelse($catalog as $cat)
+      <div class="bk-cat-group" data-cat="{{ strtolower($cat->name) }}">
+        <div class="bk-cat-heading">{{ $cat->name }}</div>
+        <div class="bk-service-list">
+          @foreach($cat->items as $item)
+            <div class="bk-service-row"
+                 data-service-id="{{ $item->id }}"
+                 data-service-name="{{ $item->name }}"
+                 data-service-price-cents="{{ $item->price_cents }}"
+                 data-service-duration="{{ $item->duration_minutes }}">
+              <div class="bk-service-main">
+                <div class="bk-service-head">
+                  <div class="bk-service-name">{{ $item->name }}</div>
+                  <div class="bk-service-price">{{ format_money($item->price_cents) }}</div>
+                </div>
+                @if($item->description)
+                  <div class="bk-service-desc">{{ $item->description }}</div>
+                @endif
+                <div class="bk-service-meta">
+                  <span class="bk-service-duration">{{ $item->duration_minutes }} min</span>
+                </div>
+                @if($item->serviceAddons && $item->serviceAddons->count() > 0)
+                  <div class="bk-service-addons">
+                    <div class="bk-service-addons-label">Add-ons</div>
+                    @foreach($item->serviceAddons as $pivot)
+                      @if($pivot->addon && $pivot->addon->is_active)
+                        @php
+                          $effPrice    = $pivot->effectivePriceCents();
+                          $effDuration = $pivot->effectiveDuration();
+                          $addonKey    = $item->id . ':' . $pivot->addon_id;
+                        @endphp
+                        <label class="bk-service-addon" for="bk-addon-{{ $addonKey }}">
+                          <input type="checkbox"
+                                 id="bk-addon-{{ $addonKey }}"
+                                 class="bk-service-addon-check"
+                                 data-service-id="{{ $item->id }}"
+                                 data-addon-id="{{ $pivot->addon_id }}"
+                                 data-addon-name="{{ $pivot->addon->name }}"
+                                 data-addon-price-cents="{{ $effPrice }}"
+                                 data-addon-duration="{{ $effDuration }}">
+                          <span class="bk-service-addon-name">
+                            {{ $pivot->addon->name }}
+                            @if($pivot->addon->description)
+                              <small>{{ $pivot->addon->description }}</small>
+                            @endif
+                          </span>
+                          <span class="bk-service-addon-price">
+                            +{{ format_money($effPrice) }}
+                            @if($effDuration > 0)
+                              <small>+{{ $effDuration }} min</small>
+                            @endif
+                          </span>
+                        </label>
+                      @endif
+                    @endforeach
+                  </div>
+                @endif
+              </div>
+              <div class="bk-service-actions">
+                <button type="button"
+                        class="bk-service-add-btn"
+                        data-service-id="{{ $item->id }}"
+                        data-service-name="{{ $item->name }}"
+                        data-service-price-cents="{{ $item->price_cents }}">
+                  Add to booking
+                </button>
+              </div>
+            </div>
+          @endforeach
+        </div>
+      </div>
+    @empty
+      <p style="opacity:.4">No services available yet.</p>
+    @endforelse
+  </div>
+  <div class="bk-nav">
+    <button type="button" class="bk-next" id="bk-next-1" disabled onclick="goTo(2)">Continue → {{ $stepLabels[1] }}</button>
+  </div>
+</div>
+
+{{-- Step 2: Schedule --}}
+<div class="bk-section" id="bk-step-2">
+  <h1 class="bk-section-title">{{ $bk['step2_heading'] ?? 'Pick a drop-off date' }}</h1>
+  <p class="bk-section-sub">{{ $bk['step2_sub'] ?? 'Choose an available date for your service.' }}</p>
+  {{-- MARKER-PATCH-525 — split layout open --}}
+  <div class="bk-details-layout bk-s2-layout">
+  <div class="bk-s2-main">
+  <button type="button" class="bk-earliest" id="bk-earliest" style="display:none">
+    <span class="bk-earliest-dot"></span>
+    <span class="bk-earliest-text" id="bk-earliest-text">Loading…</span>
+    <span class="bk-earliest-arrow">&rsaquo;</span>
+  </button>
+
+  <div class="bk-calendar" id="bk-calendar">
+    <div class="bk-cal-header">
+      <button type="button" class="bk-cal-nav" id="cal-prev">‹</button>
+      <span class="bk-cal-month" id="cal-month-label"></span>
+      <button type="button" class="bk-cal-nav" id="cal-next">›</button>
+    </div>
+    <div class="bk-cal-grid" id="cal-grid">
+      @foreach(['Su','Mo','Tu','We','Th','Fr','Sa'] as $d)
+        <div class="bk-cal-day-name">{{ $d }}</div>
+      @endforeach
+    </div>
+    <div id="cal-loading" style="display:none;text-align:center;padding:16px;font-size:13px;opacity:.4">Loading…</div>
+    <div class="bk-cal-legend" id="bk-cal-legend" style="display:none">
+      <span class="bk-cal-legend-item"><span class="bk-cal-legend-dot"></span>has openings</span>
+      <span class="bk-cal-legend-item"><span class="bk-cal-legend-strike"></span>full or closed</span>
+    </div>
+  </div>
+  </div>{{-- /.bk-s2-main --}}
+  {{-- MARKER-PATCH-525 — schedule rail --}}
+  <div class="bk-s2-rail">
+    <div class="bk-sidebar bk-s2-card">
+      <div class="bk-sidebar-title">Your services</div>
+      <div id="bk-rail-order-items"><p class="bk-sidebar-empty">No services selected yet.</p></div>
+      <button type="button" class="bk-s2-change" onclick="goTo(1)">Change services</button>
+    </div>
+    <div class="bk-sidebar bk-s2-card" id="bk-rail-day" style="display:none">
+      <div class="bk-sidebar-title">Your day</div>
+      <div class="bk-s2-day" data-rail-date>—</div>
+      <div class="bk-s2-day-sub" data-rail-cap></div>
+    </div>
+    <div class="bk-sidebar bk-s2-card" id="bk-rail-mounts"></div>
+    @if($receivingMethods->isNotEmpty())
+      <div class="bk-sidebar bk-s2-card">
+        <label class="bk-label">How are you dropping off?</label>
+        <select class="bk-select" id="bk-receiving">
+          <option value="">Select…</option>
+          @foreach($receivingMethods as $rm)
+            <option value="{{ $rm->name }}">{{ $rm->name }}</option>
+          @endforeach
+        </select>
+      </div>
+    @endif
+    <div class="bk-nav bk-s2-nav">
+      <button type="button" class="bk-back" onclick="goTo(1)">← Back</button>
+      <button type="button" class="bk-next" id="bk-next-2" disabled onclick="goTo(3)">Continue → {{ $stepLabels[2] }}</button>
+    </div>
+  </div>
+  </div>{{-- /.bk-s2-layout --}}
+</div>
+
+{{-- Step 3: Details --}}
+<div class="bk-section" id="bk-step-3">
+  <div class="bk-details-layout">
+    <div>
+      <h1 class="bk-section-title">{{ $bk['step3_heading'] ?? 'Your details' }}</h1>
+      <p class="bk-section-sub">{{ $bk['step3_sub'] ?? 'We\'ll use this to confirm your booking.' }}</p>
+
+      <div class="bk-step3-recap" id="bk-step3-recap" style="display:none">
+        <div class="bk-step3-recap-text">
+          <strong id="bk-step3-recap-when">—</strong>
+          <small id="bk-step3-recap-meta">—</small>
+        </div>
+        <button type="button" class="bk-step3-recap-change" id="bk-step3-recap-change">Change</button>
+      </div>
+
+      <div class="bk-field-grid-2">
+        <div class="bk-form-group">
+          <label class="bk-label">First name *</label>
+          <input type="text" class="bk-input" id="bk-first-name" required placeholder="Jane">
+        </div>
+        <div class="bk-form-group">
+          <label class="bk-label">Last name *</label>
+          <input type="text" class="bk-input" id="bk-last-name" required placeholder="Smith">
+        </div>
+      </div>
+      <div class="bk-field-grid-2">
+        <div class="bk-form-group">
+          <label class="bk-label">Email *</label>
+          <input type="email" class="bk-input" id="bk-email" required placeholder="jane@example.com">
+        </div>
+        <div class="bk-form-group">
+          <label class="bk-label">Phone</label>
+          <input type="tel" class="bk-input" id="bk-phone" placeholder="+1 (555) 000-0000">
+        </div>
+      </div>
+      @foreach($formSections as $section)
+        @if(!$section->is_core && $section->fields->isNotEmpty())
+          <div style="margin-top:20px">
+            <div style="font-size:11px;font-weight:600;margin-bottom:12px;opacity:.4;text-transform:uppercase;letter-spacing:.07em">{{ $section->title }}</div>
+            @foreach($section->fields as $field)
+              <div class="bk-form-group">
+                <label class="bk-label">{{ $field->label }}@if($field->is_required) *@endif</label>
+                @if($field->field_type === 'textarea')
+                  <textarea class="bk-textarea bk-custom-field" data-field-key="{{ $field->field_key }}" data-field-label="{{ $field->label }}" {{ $field->is_required ? 'required' : '' }} placeholder="{{ $field->placeholder }}"></textarea>
+                @elseif($field->field_type === 'select')
+                  <select class="bk-select bk-custom-field" data-field-key="{{ $field->field_key }}" data-field-label="{{ $field->label }}" {{ $field->is_required ? 'required' : '' }}>
+                    <option value="">Select…</option>
+                    @foreach($field->options ?? [] as $opt)
+                      <option value="{{ is_array($opt) ? ($opt['value'] ?? '') : $opt }}">{{ is_array($opt) ? ($opt['label'] ?? $opt['value'] ?? '') : $opt }}</option>
+                    @endforeach
+                  </select>
+                @else
+                  <input type="{{ $field->field_type }}" class="bk-input bk-custom-field" data-field-key="{{ $field->field_key }}" data-field-label="{{ $field->label }}" {{ $field->is_required ? 'required' : '' }} placeholder="{{ $field->placeholder }}">
+                @endif
+              </div>
+            @endforeach
+          </div>
+        @endif
+      @endforeach
+      <div class="bk-nav">
+        <button type="button" class="bk-back" onclick="goTo(2)">← Back</button>
+        <button type="button" class="bk-next" id="bk-next-3" onclick="goToReview()">Continue → {{ $stepLabels[3] }}</button>
+      </div>
+    </div>
+    <div class="bk-sidebar" id="bk-sidebar">
+      <div class="bk-sidebar-title">Your order</div>
+      <div id="bk-sidebar-items"><p class="bk-sidebar-empty">No items selected yet.</p></div>
+    </div>
+  </div>
+</div>
+
+{{-- Step 4: Review + Payment --}}
+<div class="bk-section" id="bk-step-4">
+  <h1 class="bk-section-title">{{ $bk['step4_heading'] ?? 'Review your order' }}</h1>
+  <p class="bk-section-sub">{{ $bk['step4_sub'] ?? 'Confirm your booking details.' }}</p>
+  <div class="bk-review-card">
+    <div class="bk-review-head">Services</div>
+    <div class="bk-review-body" id="bk-review-services"></div>
+  </div>
+  <div class="bk-review-card">
+    <div class="bk-review-head">Date & contact</div>
+    <div class="bk-review-body" id="bk-review-details"></div>
+  </div>
+
+  @if($stripeEnabled || $paypalEnabled)
+  <div style="margin-bottom:24px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">Payment method</div>
+    <div class="bk-payment-methods">
+      @if($stripeEnabled)
+        <button type="button" class="bk-payment-btn {{ !$paypalEnabled ? 'selected' : '' }}" id="pay-stripe" onclick="selectPayment('stripe')">💳 Card</button>
+      @endif
+      @if($paypalEnabled)
+        <button type="button" class="bk-payment-btn" id="pay-paypal" onclick="selectPayment('paypal')">🅿 PayPal</button>
+      @endif
+    </div>
+    <div id="bk-stripe-wrap">
+      <div id="bk-stripe-elements"></div>
+    </div>
+    <div id="bk-paypal-wrap" style="display:none">
+      <div id="bk-paypal-button-container"></div>
+    </div>
+  </div>
+  @endif
+
+  <div id="bk-form-error" class="bk-error" style="display:none"></div>
+  <div class="bk-nav">
+    <button type="button" class="bk-back" onclick="goTo(3)">← Back</button>
+    @if(!$stripeEnabled && !$paypalEnabled)
+      <button type="button" class="bk-submit" id="bk-submit-btn" onclick="submitBooking('none')">Confirm booking</button>
+    @elseif($stripeEnabled)
+      <button type="button" class="bk-submit" id="bk-submit-btn" onclick="handlePayment()">Pay & confirm</button>
+    @endif
+  </div>
+</div>
+
+</div>{{-- /.bk-body --}}
+
+@endsection
+
+@push('scripts')
+<script>
+window.BkData = {
+  csrf:           '{{ csrf_token() }}',
+  availUrl:       '{{ route("tenant.booking.availability") }}',
+  submitUrl:      '{{ route("tenant.booking.submit") }}',
+  finalizeUrl:    '{{ route("tenant.booking.finalize") }}',
+  currency:       '{{ $currentTenant->currency_symbol ?? "$" }}',
+  stripeEnabled:  {{ $stripeEnabled ? 'true' : 'false' }},
+  paypalEnabled:  {{ $paypalEnabled ? 'true' : 'false' }},
+  stripePk:       '{{ $stripePublishableKey }}',
+  paypalClientId: '{{ $paypalClientId }}',
+  hasReceiving:   {{ $receivingMethods->isNotEmpty() ? 'true' : 'false' }},
+  bookingMode:    '{{ $bookingMode ?? "drop_off" }}',
+  resources:      @json($resources ?? []),
+  multiAsset:     {{ $multiAsset ? 'true' : 'false' }},
+  lookupUrl:      '{{ route("tenant.booking.customer-lookup") }}',
+  assetSingular:  @json($assetSingular),
+  assetPlural:    @json($assetPlural),
+};
+</script>
+@if($stripeEnabled)<script src="https://js.stripe.com/v3/"></script>@endif
+@if($paypalEnabled)<script src="https://www.paypal.com/sdk/js?client-id={{ $paypalClientId }}&currency={{ strtoupper($currentTenant->currency ?? 'USD') }}"></script>@endif
+<script src="{{ asset('js/booking.js') }}?v={{ filemtime(public_path('js/booking.js')) }}"></script>
+@endpush
+NEEDBY_1_EOF
+
+echo "needby polish applied — view:clear on server"
