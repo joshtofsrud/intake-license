@@ -153,6 +153,7 @@ class TrafficReportService
         $prevDone = $this->eventCount('booking_completed', $this->prevStart, $this->prevEnd);
 
         return [
+            'sessions'   => $this->bookingSessions(), // MARKER-SESSIONS-EXPLORER
             'visitors'   => $this->tile('Visitors',           $curVisitors,  $prevVisitors),
             'page_views' => $this->tile('Page views',         $curPV,        $prevPV),
             'started'    => $this->tile('Bookings started',   $curStart,     $prevStartCount),
@@ -737,5 +738,94 @@ class TrafficReportService
             ],
         ];
     }
-}
 
+    /**
+     * MARKER-SESSIONS-EXPLORER — per-session booking activity for the
+     * explorer panel under the funnel. Groups this window's booking events
+     * by session; times are returned pre-formatted in the tenant timezone.
+     */
+    protected function bookingSessions(): array
+    {
+        $tz = $this->tenant->timezone ?? config('app.timezone', 'UTC');
+
+        $events = TenantFunnelEvent::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->whereIn('event_type', ['booking_started', 'booking_step', 'booking_completed'])
+            ->where('created_at', '>=', $this->curStart)
+            ->where('created_at', '<',  $this->curEnd)
+            ->orderBy('created_at')
+            ->limit(3000)
+            ->get(['session_id', 'event_type', 'step', 'device', 'referrer_domain', 'created_at']);
+
+        $sessions = [];
+        foreach ($events as $e) {
+            $sid = $e->session_id ?: 'unknown';
+            $sessions[$sid] ??= [
+                'session'   => substr($sid, 0, 4) . '…' . substr($sid, -2),
+                'first_at'  => $e->created_at,
+                'last_at'   => $e->created_at,
+                'device'    => $e->device,
+                'referrer'  => $e->referrer_domain,
+                'via_choice'=> false,
+                'booked'    => false,
+                'steps'     => [],
+                'timeline'  => [],
+            ];
+            $sess = &$sessions[$sid];
+            $sess['last_at'] = $e->created_at;
+            if ($e->device && ! $sess['device'])     $sess['device']   = $e->device;
+            if ($e->referrer_domain && ! $sess['referrer']) $sess['referrer'] = $e->referrer_domain;
+            if ($e->event_type === 'booking_started') $sess['via_choice'] = true;
+            if ($e->event_type === 'booking_completed') $sess['booked'] = true;
+            if ($e->step !== null && $e->step !== '') $sess['steps'][] = $e->step;
+            $sess['timeline'][] = [
+                'at'   => $e->created_at->copy()->setTimezone($tz)->format('g:i:s A'),
+                'what' => $e->event_type === 'booking_step'
+                    ? preg_replace('/^\\d+\\s*/', '', (string) $e->step)
+                    : ($e->event_type === 'booking_started' ? 'Started — chose a path on the choice page' : 'Booked'),
+            ];
+            unset($sess);
+        }
+
+        $stepCount = 6; // choice/entry → items → services → schedule → details → review
+        $out = [];
+        foreach ($sessions as $sess) {
+            // Furthest step index from the numeric step prefixes (00, 01, …).
+            $furthest = $sess['via_choice'] ? 1 : 1; // entering the flow at all = segment 1
+            foreach ($sess['steps'] as $st) {
+                if (preg_match('/^(\\d+)/', $st, $m)) {
+                    $furthest = max($furthest, min($stepCount, (int) $m[1] + 1));
+                }
+            }
+            if ($sess['booked']) $furthest = $stepCount;
+
+            $activeCutoff = now()->subMinutes(10);
+            $status = $sess['booked'] ? 'booked'
+                : ($sess['last_at']->gt($activeCutoff) ? 'active' : 'dropped');
+
+            $lastStep = null;
+            if (! empty($sess['steps'])) {
+                $lastStep = preg_replace('/^\\d+\\s*/', '', end($sess['steps']));
+            }
+
+            $out[] = [
+                'session'   => $sess['session'],
+                'time'      => $sess['first_at']->copy()->setTimezone($tz)->format('g:i A'),
+                'day'       => $sess['first_at']->copy()->setTimezone($tz)->format('D n/j'),
+                'entry'     => $sess['via_choice'] ? 'choice' : 'direct',
+                'device'    => $sess['device'],
+                'referrer'  => $sess['referrer'],
+                'status'    => $status,
+                'furthest'  => $furthest,
+                'step_count'=> $stepCount,
+                'last_step' => $lastStep,
+                'duration'  => $sess['first_at']->diffForHumans($sess['last_at'], ['syntax' => \Carbon\CarbonInterface::DIFF_ABSOLUTE, 'short' => true]),
+                'sort'      => $sess['first_at']->timestamp,
+                'timeline'  => $sess['timeline'],
+            ];
+        }
+        usort($out, fn ($a, $b) => $b['sort'] <=> $a['sort']);
+
+        return array_slice($out, 0, 100);
+    }
+}

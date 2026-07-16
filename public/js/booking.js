@@ -47,6 +47,16 @@
 
   // MARKER-PATCH-526 — refresh persistence
   var bkStoreKey = 'bk-state:' + location.host + ':' + location.pathname + ':' + (location.search || '');
+
+  // MARKER-SESSIONS-EXPLORER — sessions that land directly on the booking
+  // flow (shared links, bookmarks) skipped the choice page and never counted
+  // as "started". Same once-per-session guard as the choice page.
+  try {
+    if (!sessionStorage.getItem('ia_booking_started')) {
+      sessionStorage.setItem('ia_booking_started', '1');
+      navigator.sendBeacon('/funnel/track', new Blob([JSON.stringify({event_type:'booking_started'})], {type:'application/json'}));
+    }
+  } catch (e) {}
   var bkRestoring = false;
 
   function bkSnap() {

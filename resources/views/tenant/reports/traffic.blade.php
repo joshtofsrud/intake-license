@@ -483,6 +483,99 @@
     </div>
   </div>
 
+  {{-- MARKER-SESSIONS-EXPLORER — per-session booking activity --}}
+  <style>
+    .rse-scroll{max-height:430px;overflow-y:auto;border:.5px solid var(--ia-border);border-radius:12px;background:rgba(0,0,0,.18)}
+    .rse-row{display:flex;align-items:center;gap:13px;padding:12px 15px;border-bottom:.5px solid rgba(255,255,255,.05);cursor:pointer;flex-wrap:wrap}
+    .rse-row:hover{background:rgba(255,255,255,.03)}
+    .rse-time{width:82px;flex:none;font-size:12.5px;font-weight:700}
+    .rse-time span{display:block;font-size:10.5px;font-weight:400;color:var(--ia-text-dim,rgba(255,255,255,.42))}
+    .rse-entry{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:100px;padding:4px 9px;flex:none}
+    .rse-entry.choice{background:rgba(190,242,100,.09);color:var(--ia-lime,#BEF264);border:.5px solid rgba(190,242,100,.3)}
+    .rse-entry.direct{background:rgba(245,197,107,.09);color:#F5C56B;border:.5px solid rgba(245,197,107,.32)}
+    .rse-prog{display:flex;gap:4px;align-items:center;flex:1;min-width:170px}
+    .rse-p{width:20px;height:5px;border-radius:100px;background:rgba(255,255,255,.08)}
+    .rse-p.done{background:var(--ia-lime,#BEF264)}
+    .rse-p.drop{background:#F09595}
+    .rse-lbl{font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.5));margin-left:7px;white-space:nowrap}
+    .rse-dev{color:var(--ia-text-dim,rgba(255,255,255,.42));font-size:11px;flex:none;width:52px;text-align:right}
+    .rse-status{flex:none;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:100px;padding:4px 10px}
+    .rse-status.booked{background:rgba(127,217,143,.11);color:#7FD98F;border:.5px solid rgba(127,217,143,.32)}
+    .rse-status.dropped{background:rgba(240,149,149,.09);color:#F09595;border:.5px solid rgba(240,149,149,.28)}
+    .rse-status.active{background:rgba(190,242,100,.09);color:var(--ia-lime,#BEF264);border:.5px solid rgba(190,242,100,.32)}
+    .rse-detail{display:none;flex-basis:100%;background:rgba(0,0,0,.25);border:.5px solid var(--ia-border);border-radius:10px;margin-top:9px;padding:12px 15px}
+    .rse-row.open .rse-detail{display:block}
+    .rse-dmeta{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.42));margin-bottom:9px;border-bottom:.5px solid rgba(255,255,255,.06);padding-bottom:9px}
+    .rse-ev{display:flex;gap:11px;font-size:12px;padding:4px 0;align-items:baseline}
+    .rse-ev .t{width:76px;flex:none;color:var(--ia-text-dim,rgba(255,255,255,.42));font-size:11px}
+    .rse-ev .w{color:var(--ia-text-2,rgba(255,255,255,.72))}
+    .rse-filters{display:flex;gap:7px;margin:12px 0}
+    .rse-chip{font-size:11.5px;font-weight:600;border:.5px solid var(--ia-border);border-radius:100px;padding:5px 12px;color:var(--ia-text-2,rgba(255,255,255,.6));cursor:pointer}
+    .rse-chip.on{background:var(--ia-lime,#BEF264);color:#0B0B0B;border-color:var(--ia-lime,#BEF264);font-weight:700}
+  </style>
+  <div class="rep-zone">
+    <div class="rep-zone-head">
+      <div>
+        <div class="rep-zone-title">Booking sessions</div>
+        <div class="rep-zone-sub">Every session that entered the booking flow · newest first · times in {{ tenant()->timezone ?? config('app.timezone') }}</div>
+      </div>
+    </div>
+    <div class="rse-filters" id="rseFilters">
+      <span class="rse-chip on" data-f="all">All ({{ count($sessions) }})</span>
+      <span class="rse-chip" data-f="booked">Booked</span>
+      <span class="rse-chip" data-f="dropped">Dropped</span>
+      <span class="rse-chip" data-f="active">Active now</span>
+    </div>
+    <div class="rse-scroll">
+      @forelse($sessions as $sess)
+        <div class="rse-row" data-status="{{ $sess['status'] }}" onclick="this.classList.toggle('open')">
+          <span class="rse-time">{{ $sess['time'] }}<span>{{ $sess['day'] }}</span></span>
+          <span class="rse-entry {{ $sess['entry'] }}">{{ $sess['entry'] === 'choice' ? 'via choice page' : 'direct entry' }}</span>
+          <span class="rse-prog">
+            @for($i = 0; $i < $sess['step_count']; $i++)
+              <span class="rse-p {{ $i < $sess['furthest'] ? ($i === $sess['furthest'] - 1 && $sess['status'] === 'dropped' ? 'drop' : 'done') : '' }}"></span>
+            @endfor
+            <span class="rse-lbl">
+              @if($sess['status'] === 'booked') completed
+              @elseif($sess['last_step']) {{ $sess['status'] === 'active' ? 'on' : 'left at' }} {{ Str::limit($sess['last_step'], 28) }}
+              @else entered only @endif
+            </span>
+          </span>
+          <span class="rse-dev">{{ $sess['device'] ?? '' }}</span>
+          <span class="rse-status {{ $sess['status'] }}">{{ $sess['status'] === 'active' ? 'active now' : $sess['status'] }}</span>
+          <div class="rse-detail" onclick="event.stopPropagation()">
+            <div class="rse-dmeta">
+              <span>Session {{ $sess['session'] }}</span>
+              @if($sess['referrer'])<span>From {{ $sess['referrer'] }}</span>@endif
+              <span>Duration {{ $sess['duration'] }}</span>
+            </div>
+            @foreach($sess['timeline'] as $ev)
+              <div class="rse-ev"><span class="t">{{ $ev['at'] }}</span><span class="w">{{ $ev['what'] }}</span></div>
+            @endforeach
+          </div>
+        </div>
+      @empty
+        <div style="padding:22px;text-align:center;font-size:13px;color:var(--ia-text-dim,rgba(255,255,255,.42))">No booking sessions in this window yet.</div>
+      @endforelse
+    </div>
+  </div>
+  <script>
+    (function () {
+      var wrap = document.getElementById('rseFilters');
+      if (!wrap) return;
+      wrap.addEventListener('click', function (e) {
+        var chip = e.target.closest('.rse-chip');
+        if (!chip) return;
+        wrap.querySelectorAll('.rse-chip').forEach(function (c) { c.classList.remove('on'); });
+        chip.classList.add('on');
+        var f = chip.getAttribute('data-f');
+        document.querySelectorAll('.rse-row').forEach(function (r) {
+          r.style.display = (f === 'all' || r.getAttribute('data-status') === f) ? 'flex' : 'none';
+        });
+      });
+    })();
+  </script>
+
   {{-- MARKER-PATCH-453 — per-step drop diagnosis --}}
   <style>
    .rep-seg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}

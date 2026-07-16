@@ -317,7 +317,8 @@ class ReportsController extends Controller
             'rangeText'      => $svc->rangeLabel(),
             'from'           => $fromStr,
             'to'             => $toStr,
-            'topStats'       => $svc->topStats(),
+            'topStats'       => $topStats = $svc->topStats(),
+            'sessions'       => $topStats['sessions'] ?? [], // MARKER-SESSIONS-EXPLORER
             'dailyVisitors'  => $svc->dailyVisitors(),
             'dailyStart'     => $svc->curStart(),
             'topSearches'    => $svc->topSearches(),      // MARKER-PATCH-621
