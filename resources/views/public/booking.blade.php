@@ -73,6 +73,13 @@
   .bk-reset-btns{display:flex;gap:8px}
   .bk-reset-btns button{flex:1;font-family:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer;border:0.5px solid var(--bk-border,rgba(255,255,255,.15));background:transparent;color:inherit}
   .bk-reset-btns button.danger{background:rgba(240,90,90,.12);border-color:rgba(240,90,90,.4);color:#F09595}
+  /* MARKER-ITEMS-PICK — account items as explicit pick-cards */
+  .bk-pre-bike--pick{cursor:pointer;user-select:none;transition:border-color .12s,background .12s}
+  .bk-pre-bike--pick:hover{border-color:color-mix(in srgb, var(--p-accent) 55%, transparent)}
+  .bk-pre-pickcheck{width:21px;height:21px;border-radius:50%;border:2px solid color-mix(in srgb, var(--p-text) 28%, transparent);display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:12px;font-weight:800;color:var(--p-accent-text)}
+  .bk-pre-bike--sel{border-color:var(--p-accent) !important;background:color-mix(in srgb, var(--p-accent) 10%, transparent)}
+  .bk-pre-bike--sel .bk-pre-pickcheck{background:var(--p-accent);border-color:var(--p-accent)}
+  .bk-pre-bike--sel .bk-pre-pickcheck:after{content:"\2713"}
 </style>
 @endpush
 
@@ -151,6 +158,8 @@
     <div class="bk-pre-actions bk-pre-actions--split">
       <button type="button" class="bk-back" id="bk-pre-bikes-back">← Back</button>
       <button type="button" class="bk-next" id="bk-pre-bikes-continue" disabled>Continue → {{ $stepLabels[0] }}</button>
+      {{-- MARKER-ITEMS-PICK --}}
+      <div id="bk-pre-pick-hint" style="font-size:12.5px;opacity:.55;text-align:center;margin-top:8px">Select at least one item to continue</div>
     </div>
   </div>
 
