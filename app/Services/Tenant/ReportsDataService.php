@@ -97,8 +97,9 @@ class ReportsDataService
         $winStart = $from->copy()->setTimezone($tz)->startOfDay()->utc();
         $winEnd   = $to->copy()->setTimezone($tz)->endOfDay()->utc();
 
-        // Offset (seconds) from UTC to tenant-local, for SQL bucketing.
-        $offsetSec = Carbon::now($tz)->utcOffset() * 60;
+        // MARKER-TZ-WAVE4 — DST-correct per-row offset (a fixed "today"
+        // offset shifted historical rows across DST changes).
+        [$tzExpr, $tzBind] = tenant_tz_offset_expr('recorded_at', $tz, $winStart, $winEnd);
 
         $base = DB::table('tenant_sale_payments')
             ->where('tenant_id', $this->tenant->id)
@@ -109,7 +110,7 @@ class ReportsDataService
         $series = [];
         if ($isSingleDay) {
             $hourly = (clone $base)
-                ->selectRaw("HOUR(DATE_ADD(recorded_at, INTERVAL ? SECOND)) as hour, SUM(amount_cents) as cents, COUNT(*) as n", [$offsetSec])
+                ->selectRaw("HOUR({$tzExpr}) as hour, SUM(amount_cents) as cents, COUNT(*) as n", $tzBind)
                 ->groupBy('hour')
                 ->get()
                 ->keyBy('hour');
@@ -123,7 +124,7 @@ class ReportsDataService
             }
         } else {
             $daily = (clone $base)
-                ->selectRaw("DATE(DATE_ADD(recorded_at, INTERVAL ? SECOND)) as d, SUM(amount_cents) as cents, COUNT(*) as n", [$offsetSec])
+                ->selectRaw("DATE({$tzExpr}) as d, SUM(amount_cents) as cents, COUNT(*) as n", $tzBind)
                 ->groupBy('d')
                 ->get()
                 ->keyBy('d');

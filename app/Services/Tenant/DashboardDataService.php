@@ -790,13 +790,13 @@ class DashboardDataService
         // MARKER-PATCH-185 — daily revenue spark = payments received (ledger),
         // bucketed by recorded_at in tenant tz.
         $tzS = $this->tenant->timezone();
-        $offS = Carbon::now($tzS)->utcOffset() * 60;
+        // MARKER-TZ-WAVE4 — DST-correct per-row offset.
+        $sparkStart = $from->copy()->setTimezone($tzS)->startOfDay()->utc();
+        $sparkEnd   = $to->copy()->setTimezone($tzS)->endOfDay()->utc();
+        [$tzExpr, $tzBind] = tenant_tz_offset_expr('recorded_at', $tzS, $sparkStart, $sparkEnd);
         $rows = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenantId)
-            ->whereBetween('recorded_at', [
-                $from->copy()->setTimezone($tzS)->startOfDay()->utc(),
-                $to->copy()->setTimezone($tzS)->endOfDay()->utc(),
-            ])
-            ->selectRaw('DATE(DATE_ADD(recorded_at, INTERVAL ? SECOND)) as d, SUM(amount_cents) as cents', [$offS])
+            ->whereBetween('recorded_at', [$sparkStart, $sparkEnd])
+            ->selectRaw("DATE({$tzExpr}) as d, SUM(amount_cents) as cents", $tzBind)
             ->groupBy('d')
             ->pluck('cents', 'd')
             ->toArray();

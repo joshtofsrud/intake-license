@@ -193,3 +193,54 @@ if (! function_exists('tenant_day_utc_range')) {
         return [$local->copy()->utc(), $local->copy()->addDay()->utc()];
     }
 }
+
+if (! function_exists('tenant_tz_offset_expr')) {
+    /**
+     * MARKER-TZ-WAVE4 — DST-correct SQL expression converting a UTC
+     * timestamp COLUMN to tenant-local time for bucketing (DATE()/HOUR()).
+     *
+     * WRONG: $off = Carbon::now($tz)->utcOffset() * 60;           // TODAY's offset
+     *        DATE(DATE_ADD(recorded_at, INTERVAL $off SECOND))    // applied to history
+     *        — rows across a DST change bucket an hour off, and around
+     *          midnight land on the wrong local day.
+     * RIGHT: [$expr, $b] = tenant_tz_offset_expr('recorded_at', $tz, $startUtc, $endUtc);
+     *        ->selectRaw("DATE($expr) as d, ...", $b)
+     *
+     * Builds a CASE over the DST transitions inside [$startUtc, $endUtc] so
+     * each row gets the offset that was in force at its own instant.
+     * $column MUST be a trusted literal (never user input).
+     *
+     * @return array{0:string,1:array}  [sql fragment, bindings]
+     */
+    function tenant_tz_offset_expr(string $column, string $tz, \Carbon\Carbon $startUtc, \Carbon\Carbon $endUtc): array
+    {
+        $zone = new \DateTimeZone($tz);
+        $transitions = $zone->getTransitions($startUtc->timestamp, $endUtc->timestamp) ?: [];
+
+        // First entry describes the offset in force at range start; the rest
+        // are actual changes inside the range.
+        $eras = [];
+        foreach ($transitions as $t) {
+            $eras[] = ['ts' => (int) $t['ts'], 'offset' => (int) $t['offset']];
+        }
+        if ($eras === []) {
+            $eras[] = ['ts' => $startUtc->timestamp, 'offset' => $zone->getOffset($startUtc->toDateTime())];
+        }
+
+        if (count($eras) === 1) {
+            return ["DATE_ADD({$column}, INTERVAL ? SECOND)", [$eras[0]['offset']]];
+        }
+
+        $sql = 'CASE';
+        $bindings = [];
+        for ($i = 1; $i < count($eras); $i++) {
+            $sql .= " WHEN {$column} < ? THEN ?";
+            $bindings[] = \Carbon\Carbon::createFromTimestampUTC($eras[$i]['ts'])->toDateTimeString();
+            $bindings[] = $eras[$i - 1]['offset'];
+        }
+        $sql .= ' ELSE ? END';
+        $bindings[] = $eras[count($eras) - 1]['offset'];
+
+        return ["DATE_ADD({$column}, INTERVAL ({$sql}) SECOND)", $bindings];
+    }
+}
