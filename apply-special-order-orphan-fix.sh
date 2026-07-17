@@ -1,3 +1,18 @@
+#!/bin/bash
+# special-order-orphan-fix — removing a part from an appointment now handles
+# its linked special order instead of orphaning it: a still-"needed" SO is
+# cancelled with a reason (same rule as the uncheck path); an already
+# ordered/arrived SO stays active but the appointment removal note warns
+# with the SO number so staff review it. Pulled/cancelled SOs untouched.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-SO-ORPHAN-FIX" app/Http/Controllers/Tenant/AppointmentController.php; then
+  echo "already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-PICKUP-OUTREACH" app/Http/Controllers/Tenant/AppointmentController.php; then
+  echo "wrong base (pickup-outreach missing) — aborting."; exit 1
+fi
+cat > 'app/Http/Controllers/Tenant/AppointmentController.php' <<'SOFIX_EOF'
 <?php
 
 namespace App\Http\Controllers\Tenant;
@@ -2789,3 +2804,5 @@ class AppointmentController extends Controller
     }
 
 }
+SOFIX_EOF
+echo "special-order-orphan-fix applied — view:clear on server"
