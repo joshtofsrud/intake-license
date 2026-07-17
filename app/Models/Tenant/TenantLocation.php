@@ -83,6 +83,11 @@ class TenantLocation extends Model
     /**
      * Effective timezone — falls back to tenant timezone when null.
      */
+    /**
+     * MARKER-TZ-WAVE3 — NOT YET WIRED: no runtime code calls this. It is the
+     * intended resolution point when scheduling becomes location-aware; the
+     * locations form no longer exposes the field until then.
+     */
     public function effectiveTimezone(): string
     {
         return $this->timezone ?: $this->tenant->timezone();

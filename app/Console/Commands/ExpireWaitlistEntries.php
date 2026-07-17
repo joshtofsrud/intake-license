@@ -14,11 +14,15 @@ class ExpireWaitlistEntries extends Command
 
     public function handle(): int
     {
-        $today = Carbon::today();
-
-        $entryCount = TenantWaitlistEntry::where('status', 'active')
-            ->whereDate('date_range_end', '<', $today)
-            ->update(['status' => 'expired', 'updated_at' => now()]);
+        // MARKER-TZ-WAVE3 — date_range_end is a tenant-local business date;
+        // expire per tenant against that tenant's local today, not UTC's.
+        $entryCount = 0;
+        foreach (\App\Console\Commands\MembershipsTickCommand::tenantLocalDates() as $tenantId => $localToday) {
+            $entryCount += TenantWaitlistEntry::where('tenant_id', $tenantId)
+                ->where('status', 'active')
+                ->whereDate('date_range_end', '<', $localToday)
+                ->update(['status' => 'expired', 'updated_at' => now()]);
+        }
 
         $offerCount = TenantWaitlistOffer::whereIn('status', ['pending', 'viewed'])
             ->where('offer_expires_at', '<', now())

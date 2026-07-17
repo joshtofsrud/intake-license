@@ -60,11 +60,18 @@ class MembershipsTickCommand extends Command
     {
         $count = 0;
 
+        // MARKER-TZ-WAVE3 — period_end is a tenant-local business date; the
+        // job runs on UTC hours (early UTC morning = the previous evening in
+        // the US), so comparing against the UTC date rolled memberships the
+        // night before their period actually ended. Compare per tenant
+        // against that tenant's local today.
+        $tenantToday = self::tenantLocalDates();
         TenantCustomerMembership::where('status', 'active')
             ->whereNotNull('current_period_end')
-            ->where('current_period_end', '<', $now->toDateString())
             ->cursor()
-            ->each(function (TenantCustomerMembership $m) use (&$count, $now) {
+            ->each(function (TenantCustomerMembership $m) use (&$count, $now, $tenantToday) {
+                $localToday = $tenantToday[$m->tenant_id] ?? $now->toDateString(); // MARKER-TZ-WAVE3
+                if ($m->current_period_end->toDateString() >= $localToday) return;
                 try {
                     DB::transaction(function () use ($m, $now) {
                         // Advance the period. We anchor off the existing end so
@@ -109,9 +116,28 @@ class MembershipsTickCommand extends Command
      */
     private function expirePacks(Carbon $now): int
     {
-        return TenantCustomerPack::whereIn('status', ['active', 'exhausted'])
-            ->whereNotNull('expires_at')
-            ->where('expires_at', '<', $now->toDateString())
-            ->update(['status' => 'expired']);
+        // MARKER-TZ-WAVE3 — same per-tenant local-date treatment as rollover.
+        $count = 0;
+        foreach (self::tenantLocalDates() as $tenantId => $localToday) {
+            $count += TenantCustomerPack::where('tenant_id', $tenantId)
+                ->whereIn('status', ['active', 'exhausted'])
+                ->whereNotNull('expires_at')
+                ->where('expires_at', '<', $localToday)
+                ->update(['status' => 'expired']);
+        }
+        return $count;
+    }
+
+    /**
+     * MARKER-TZ-WAVE3 — map of tenant_id => that tenant's local "today"
+     * (Y-m-d). One query; used by daily jobs so business-date comparisons
+     * respect each tenant's timezone instead of the UTC calendar.
+     */
+    public static function tenantLocalDates(): array
+    {
+        return \App\Models\Tenant::query()
+            ->pluck('timezone', 'id')
+            ->map(fn ($tz) => now($tz ?: config('app.timezone', 'UTC'))->toDateString())
+            ->all();
     }
 }

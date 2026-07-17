@@ -109,10 +109,9 @@
         <label class="ia-form-label">Email</label>
         <input type="email" name="email" class="ia-input" value="{{ old('email') }}">
       </div>
-      <div class="ia-form-group">
-        <label class="ia-form-label">Timezone</label>
-        <input type="text" name="timezone" class="ia-input" value="{{ old('timezone') }}" placeholder="America/Los_Angeles">
-      </div>
+      {{-- MARKER-TZ-WAVE3 — timezone field removed from the form: nothing
+           consumes it yet (effectiveTimezone() is unwired). Column and
+           validation retained for the future multi-location tz feature. --}}
     </div>
     <div class="loc-edit-grid-2" style="margin-top:14px">
       <div class="ia-form-group">

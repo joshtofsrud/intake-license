@@ -1,3 +1,27 @@
+#!/bin/bash
+# timezone-wave3 — class times, per-tenant job days, honest location tz.
+#   · Class sessions (create + edit): entered wall-clock times parse in the
+#     TENANT timezone and store UTC — a 10:00 AM class no longer becomes
+#     3:00 AM PT. Existing sessions are NOT bulk-corrected (inspect first;
+#     pre-fix rows were stored shifted).
+#   · Memberships/packs daily tick + waitlist expiry: business-date
+#     comparisons now use EACH tenant's local today (jobs run on UTC hours =
+#     the previous US evening; periods no longer roll the night before).
+#     Instant comparisons (offer_expires_at, addon period ends) untouched.
+#   · Locations: the do-nothing per-location timezone input is removed from
+#     the form; effectiveTimezone() gains a NOT-YET-WIRED docblock. Column
+#     and validation stay for the future multi-location feature.
+# No routes, no migrations.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-TZ-WAVE3" app/Http/Controllers/Tenant/ClassController.php; then
+  echo "timezone-wave3 already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-TZ-WAVE2" config/database.php; then
+  echo "timezone-wave2 not applied — wrong base, aborting."; exit 1
+fi
+
+cat > 'app/Http/Controllers/Tenant/ClassController.php' <<'TZW3_0_EOF'
 <?php
 
 namespace App\Http\Controllers\Tenant;
@@ -825,3 +849,636 @@ class ClassController extends Controller
         ]);
     }
 }
+TZW3_0_EOF
+
+cat > 'app/Console/Commands/MembershipsTickCommand.php' <<'TZW3_1_EOF'
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Tenant\TenantCustomerMembership;
+use App\Models\Tenant\TenantCustomerPack;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * memberships:tick
+ *
+ * Runs daily. Two jobs in one command:
+ *
+ *   1. Membership period rollover. For every active membership whose
+ *      current_period_end has passed, advance the period by one month and
+ *      reset classes_used_this_period. Without this, "monthly limit"
+ *      memberships stay frozen on a single period's usage forever.
+ *
+ *   2. Pack expiry. For every active or exhausted pack whose expires_at
+ *      has passed, flip status='expired'. Existing credits stay on the row
+ *      for accounting honesty, but the pack stops being eligible for class
+ *      coverage.
+ *
+ * Both operations are idempotent — running twice in a day is a no-op the
+ * second time. Safe to retry on failure.
+ *
+ * Wire-up: Josh runs the existing intake-scheduler externally (see
+ * addons:expire pattern). Add this command to the same crontab/systemd
+ * timer as `0 4 * * * php artisan memberships:tick` or similar. Or add to
+ * routes/console.php Schedule::command() if standardizing on Laravel scheduler.
+ */
+class MembershipsTickCommand extends Command
+{
+    protected $signature = 'memberships:tick';
+
+    protected $description = 'Roll over membership periods and expire stale packs.';
+
+    public function handle(): int
+    {
+        $now = now();
+
+        $rolled  = $this->rolloverMemberships($now);
+        $expired = $this->expirePacks($now);
+
+        $this->info("Rolled over {$rolled} membership period(s). Expired {$expired} pack(s).");
+        return self::SUCCESS;
+    }
+
+    /**
+     * Find every active membership whose period has lapsed and advance it.
+     *
+     * Loop chunks to avoid loading the whole table — at scale a tenant could
+     * have thousands of active memberships. Each row is a tiny update so the
+     * cursor is fine.
+     */
+    private function rolloverMemberships(Carbon $now): int
+    {
+        $count = 0;
+
+        // MARKER-TZ-WAVE3 — period_end is a tenant-local business date; the
+        // job runs on UTC hours (early UTC morning = the previous evening in
+        // the US), so comparing against the UTC date rolled memberships the
+        // night before their period actually ended. Compare per tenant
+        // against that tenant's local today.
+        $tenantToday = self::tenantLocalDates();
+        TenantCustomerMembership::where('status', 'active')
+            ->whereNotNull('current_period_end')
+            ->cursor()
+            ->each(function (TenantCustomerMembership $m) use (&$count, $now, $tenantToday) {
+                $localToday = $tenantToday[$m->tenant_id] ?? $now->toDateString(); // MARKER-TZ-WAVE3
+                if ($m->current_period_end->toDateString() >= $localToday) return;
+                try {
+                    DB::transaction(function () use ($m, $now) {
+                        // Advance the period. We anchor off the existing end so
+                        // a membership that lapsed mid-month still rolls cleanly,
+                        // but if the period_end is way in the past (system was
+                        // down for a month), we catch up to "next from now" so
+                        // we don't loop. Most cases: period_end was yesterday,
+                        // new start = today, new end = today + 1 month.
+                        $newStart = $m->current_period_end->copy()->addDay();
+                        if ($newStart->lt($now->copy()->startOfDay())) {
+                            $newStart = $now->copy()->startOfDay();
+                        }
+                        $newEnd = $newStart->copy()->addMonth()->subDay();
+
+                        $m->update([
+                            'current_period_start'     => $newStart,
+                            'current_period_end'       => $newEnd,
+                            'classes_used_this_period' => 0,
+                        ]);
+                    });
+                    $count++;
+                } catch (\Throwable $e) {
+                    // Don't fail the whole batch on one bad row.
+                    Log::warning('memberships:tick rollover failed', [
+                        'membership_id' => $m->id,
+                        'tenant_id'     => $m->tenant_id,
+                        'error'         => $e->getMessage(),
+                    ]);
+                }
+            });
+
+        return $count;
+    }
+
+    /**
+     * Mark packs whose expires_at has passed as expired. Includes both
+     * 'active' (had unused credits) and 'exhausted' (zero credits remaining)
+     * — both should transition to 'expired' for accurate reporting.
+     *
+     * Note: 'cancelled' packs are left alone. Their cancellation is the
+     * terminal event — expiring them would obscure the history.
+     */
+    private function expirePacks(Carbon $now): int
+    {
+        // MARKER-TZ-WAVE3 — same per-tenant local-date treatment as rollover.
+        $count = 0;
+        foreach (self::tenantLocalDates() as $tenantId => $localToday) {
+            $count += TenantCustomerPack::where('tenant_id', $tenantId)
+                ->whereIn('status', ['active', 'exhausted'])
+                ->whereNotNull('expires_at')
+                ->where('expires_at', '<', $localToday)
+                ->update(['status' => 'expired']);
+        }
+        return $count;
+    }
+
+    /**
+     * MARKER-TZ-WAVE3 — map of tenant_id => that tenant's local "today"
+     * (Y-m-d). One query; used by daily jobs so business-date comparisons
+     * respect each tenant's timezone instead of the UTC calendar.
+     */
+    public static function tenantLocalDates(): array
+    {
+        return \App\Models\Tenant::query()
+            ->pluck('timezone', 'id')
+            ->map(fn ($tz) => now($tz ?: config('app.timezone', 'UTC'))->toDateString())
+            ->all();
+    }
+}
+TZW3_1_EOF
+
+cat > 'app/Console/Commands/ExpireWaitlistEntries.php' <<'TZW3_2_EOF'
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Tenant\TenantWaitlistEntry;
+use App\Models\Tenant\TenantWaitlistOffer;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+
+class ExpireWaitlistEntries extends Command
+{
+    protected $signature   = 'waitlist:expire';
+    protected $description = 'Mark waitlist entries past their date range as expired, and pending offers past slot time.';
+
+    public function handle(): int
+    {
+        // MARKER-TZ-WAVE3 — date_range_end is a tenant-local business date;
+        // expire per tenant against that tenant's local today, not UTC's.
+        $entryCount = 0;
+        foreach (\App\Console\Commands\MembershipsTickCommand::tenantLocalDates() as $tenantId => $localToday) {
+            $entryCount += TenantWaitlistEntry::where('tenant_id', $tenantId)
+                ->where('status', 'active')
+                ->whereDate('date_range_end', '<', $localToday)
+                ->update(['status' => 'expired', 'updated_at' => now()]);
+        }
+
+        $offerCount = TenantWaitlistOffer::whereIn('status', ['pending', 'viewed'])
+            ->where('offer_expires_at', '<', now())
+            ->update(['status' => 'expired', 'updated_at' => now()]);
+
+        $this->info("Expired {$entryCount} entries and {$offerCount} offers.");
+        return self::SUCCESS;
+    }
+}
+TZW3_2_EOF
+
+cat > 'app/Models/Tenant/TenantLocation.php' <<'TZW3_3_EOF'
+<?php
+
+namespace App\Models\Tenant;
+
+use App\Models\Tenant;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/**
+ * A physical location for a tenant.
+ *
+ * Every tenant has at least one location (the default "Main" location),
+ * even if they're single-location forever. Multi-location is a capability
+ * flag — controls whether the UI lets them create more than one.
+ *
+ * Falls back to tenant-level values for booking_window_days, min_notice_hours,
+ * and timezone when the location-level override is null.
+ */
+class TenantLocation extends Model
+{
+    use HasUuids, SoftDeletes;
+
+    protected $table = 'tenant_locations';
+
+    protected $fillable = [
+        'tenant_id',
+        'name',
+        'slug',
+        'is_default',
+        'is_active',
+        'sort_order',
+        'address_line_1',
+        'address_line_2',
+        'city',
+        'state',
+        'postal_code',
+        'country',
+        'phone',
+        'email',
+        'timezone',
+        'booking_window_days_override',
+        'min_notice_hours_override',
+        'settings',
+    ];
+
+    protected $casts = [
+        'is_default' => 'boolean',
+        'is_active' => 'boolean',
+        'sort_order' => 'integer',
+        'booking_window_days_override' => 'integer',
+        'min_notice_hours_override' => 'integer',
+        'settings' => 'array',
+    ];
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function capacityRules(): HasMany
+    {
+        return $this->hasMany(TenantCapacityRule::class, 'location_id');
+    }
+
+    public function inventoryItemLocations(): HasMany
+    {
+        return $this->hasMany(TenantInventoryItemLocation::class, 'location_id');
+    }
+
+    public function inventoryMovements(): HasMany
+    {
+        return $this->hasMany(TenantInventoryMovement::class, 'location_id');
+    }
+
+    public function receiveShipments(): HasMany
+    {
+        return $this->hasMany(TenantInventoryReceiveShipment::class, 'location_id');
+    }
+
+    /**
+     * Effective timezone — falls back to tenant timezone when null.
+     */
+    /**
+     * MARKER-TZ-WAVE3 — NOT YET WIRED: no runtime code calls this. It is the
+     * intended resolution point when scheduling becomes location-aware; the
+     * locations form no longer exposes the field until then.
+     */
+    public function effectiveTimezone(): string
+    {
+        return $this->timezone ?: $this->tenant->timezone();
+    }
+
+    /**
+     * Effective booking window — falls back to tenant value when override is null.
+     */
+    public function effectiveBookingWindowDays(): ?int
+    {
+        return $this->booking_window_days_override ?? $this->tenant->booking_window_days;
+    }
+
+    /**
+     * Effective min notice — falls back to tenant value when override is null.
+     */
+    public function effectiveMinNoticeHours(): ?int
+    {
+        return $this->min_notice_hours_override ?? $this->tenant->min_notice_hours;
+    }
+}
+TZW3_3_EOF
+
+cat > 'resources/views/tenant/locations/index.blade.php' <<'TZW3_4_EOF'
+@extends('layouts.tenant.app')
+@php
+  $pageTitle = 'Locations';
+@endphp
+
+@push('styles')
+<style>
+.loc-add-card {
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-lg);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: none;
+}
+.loc-add-card.open { display: block; }
+
+.loc-list {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.loc-card {
+  background: var(--ia-surface);
+  border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-lg);
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+.loc-card.is-inactive { opacity: .55; }
+
+.loc-card-main { min-width: 0; }
+.loc-card-name {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600; margin-bottom: 4px;
+}
+.loc-card-meta {
+  font-size: 12.5px; opacity: .6; line-height: 1.5;
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+.loc-card-meta-item { display: inline-flex; align-items: center; gap: 4px; }
+
+.loc-actions { display: flex; gap: 4px; align-items: center; }
+.loc-icon-btn {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  border: 0.5px solid var(--ia-border);
+  background: transparent;
+  color: var(--ia-text-muted, rgba(255,255,255,.55));
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--ia-t), color var(--ia-t), border-color var(--ia-t);
+  padding: 0;
+}
+.loc-icon-btn:hover {
+  background: var(--ia-hover, rgba(255,255,255,.05));
+  color: var(--ia-text);
+  border-color: var(--ia-border-strong, rgba(255,255,255,.18));
+}
+.loc-icon-btn.is-danger:hover {
+  background: rgba(226,75,74,.10);
+  color: #F09595;
+  border-color: rgba(226,75,74,.30);
+}
+.loc-icon-svg { width: 15px; height: 15px; }
+
+/* Inline edit form */
+.loc-edit-form { display: none; margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--ia-border); }
+.loc-edit-form.open { display: block; }
+.loc-edit-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; }
+.loc-edit-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+
+@media (max-width: 720px) {
+  .loc-card { grid-template-columns: 1fr; }
+  .loc-actions { justify-content: flex-start; }
+  .loc-edit-grid, .loc-edit-grid-2 { grid-template-columns: 1fr; }
+}
+</style>
+@endpush
+
+@section('content')
+
+<div class="ia-page-head">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">Locations</h1>
+    <p class="ia-page-subtitle">{{ $locations->count() }} {{ Str::plural('location', $locations->count()) }}</p>
+  </div>
+  <div class="ia-page-actions">
+    <button type="button" class="ia-btn ia-btn--primary" id="loc-add-toggle">+ Add location</button>
+  </div>
+</div>
+
+{{-- Add location form --}}
+<div class="loc-add-card" id="loc-add-card">
+  <div style="font-size:13px;font-weight:500;margin-bottom:16px">New location</div>
+  <form method="POST" action="{{ route('tenant.locations.store') }}">
+    @csrf
+    <div class="loc-edit-grid">
+      <div class="ia-form-group">
+        <label class="ia-form-label">Name <span class="ia-required">*</span></label>
+        <input type="text" name="name" class="ia-input" value="{{ old('name') }}" placeholder="e.g. Westside" required>
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Phone</label>
+        <input type="tel" name="phone" class="ia-input" value="{{ old('phone') }}">
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Email</label>
+        <input type="email" name="email" class="ia-input" value="{{ old('email') }}">
+      </div>
+      {{-- MARKER-TZ-WAVE3 — timezone field removed from the form: nothing
+           consumes it yet (effectiveTimezone() is unwired). Column and
+           validation retained for the future multi-location tz feature. --}}
+    </div>
+    <div class="loc-edit-grid-2" style="margin-top:14px">
+      <div class="ia-form-group">
+        <label class="ia-form-label">Street address</label>
+        <input type="text" name="address_line_1" class="ia-input" value="{{ old('address_line_1') }}">
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Suite, unit (optional)</label>
+        <input type="text" name="address_line_2" class="ia-input" value="{{ old('address_line_2') }}">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-top:10px">
+      <div class="ia-form-group">
+        <label class="ia-form-label">City</label>
+        <input type="text" name="city" class="ia-input" value="{{ old('city') }}">
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">State</label>
+        <input type="text" name="state" class="ia-input" value="{{ old('state') }}">
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">ZIP</label>
+        <input type="text" name="postal_code" class="ia-input" value="{{ old('postal_code') }}">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add location</button>
+      <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" id="loc-add-cancel">Cancel</button>
+    </div>
+  </form>
+</div>
+
+{{-- Location list --}}
+<div class="loc-list">
+  @foreach($locations as $loc)
+    <div class="loc-card {{ $loc->is_active ? '' : 'is-inactive' }}" data-loc-card="{{ $loc->id }}">
+      <div class="loc-card-main">
+        <div class="loc-card-name">
+          {{ $loc->name }}
+          @if($loc->is_default)
+            <span class="ia-badge ia-badge--completed" style="font-size:10.5px">Default</span>
+          @endif
+          @if(! $loc->is_active)
+            <span class="ia-badge ia-badge--cancelled" style="font-size:10.5px">Inactive</span>
+          @endif
+        </div>
+        <div class="loc-card-meta">
+          @if($loc->address_line_1)
+            <span class="loc-card-meta-item">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              {{ trim($loc->address_line_1 . ', ' . ($loc->city ?? '') . ' ' . ($loc->state ?? ''), ', ') }}
+            </span>
+          @endif
+          @if($loc->phone)
+            <span class="loc-card-meta-item">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              {{ $loc->phone }}
+            </span>
+          @endif
+          @if($loc->timezone)
+            <span class="loc-card-meta-item">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              {{ $loc->timezone }}
+            </span>
+          @endif
+          @if(! $loc->address_line_1 && ! $loc->phone && ! $loc->timezone)
+            <span style="opacity:.4;font-style:italic">No address or contact set</span>
+          @endif
+        </div>
+
+        {{-- Inline edit form (hidden by default) --}}
+        <form method="POST" action="{{ route('tenant.locations.update', $loc->id) }}" class="loc-edit-form" data-loc-edit="{{ $loc->id }}">
+          @csrf @method('PATCH')
+          <div class="loc-edit-grid">
+            <div class="ia-form-group">
+              <label class="ia-form-label">Name <span class="ia-required">*</span></label>
+              <input type="text" name="name" class="ia-input" value="{{ $loc->name }}" required>
+            </div>
+            <div class="ia-form-group">
+              <label class="ia-form-label">Phone</label>
+              <input type="tel" name="phone" class="ia-input" value="{{ $loc->phone }}">
+            </div>
+            <div class="ia-form-group">
+              <label class="ia-form-label">Email</label>
+              <input type="email" name="email" class="ia-input" value="{{ $loc->email }}">
+            </div>
+            <div class="ia-form-group">
+              <label class="ia-form-label">Timezone</label>
+              <input type="text" name="timezone" class="ia-input" value="{{ $loc->timezone }}" placeholder="America/Los_Angeles">
+            </div>
+          </div>
+          <div class="loc-edit-grid-2" style="margin-top:10px">
+            <div class="ia-form-group">
+              <label class="ia-form-label">Street address</label>
+              <input type="text" name="address_line_1" class="ia-input" value="{{ $loc->address_line_1 }}">
+            </div>
+            <div class="ia-form-group">
+              <label class="ia-form-label">Suite, unit</label>
+              <input type="text" name="address_line_2" class="ia-input" value="{{ $loc->address_line_2 }}">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-top:10px">
+            <div class="ia-form-group">
+              <label class="ia-form-label">City</label>
+              <input type="text" name="city" class="ia-input" value="{{ $loc->city }}">
+            </div>
+            <div class="ia-form-group">
+              <label class="ia-form-label">State</label>
+              <input type="text" name="state" class="ia-input" value="{{ $loc->state }}">
+            </div>
+            <div class="ia-form-group">
+              <label class="ia-form-label">ZIP</label>
+              <input type="text" name="postal_code" class="ia-input" value="{{ $loc->postal_code }}">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:18px">
+            <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
+            <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" data-loc-edit-cancel="{{ $loc->id }}">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="loc-actions">
+        {{-- Edit --}}
+        <button type="button" class="loc-icon-btn" title="Edit" aria-label="Edit" data-loc-edit-toggle="{{ $loc->id }}">
+          <svg class="loc-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </button>
+
+        {{-- Set default (only if not already default and is active) --}}
+        @if(! $loc->is_default && $loc->is_active)
+        <form method="POST" action="{{ route('tenant.locations.set-default', $loc->id) }}">
+          @csrf
+          <button type="submit" class="loc-icon-btn" title="Set as default" aria-label="Set as default" data-confirm="Set {{ $loc->name }} as the default location?">
+            <svg class="loc-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </button>
+        </form>
+        @endif
+
+        {{-- Toggle active --}}
+        @if(! $loc->is_default)
+        <form method="POST" action="{{ route('tenant.locations.toggle-active', $loc->id) }}">
+          @csrf
+          <button type="submit" class="loc-icon-btn" title="{{ $loc->is_active ? 'Deactivate' : 'Reactivate' }}" aria-label="{{ $loc->is_active ? 'Deactivate' : 'Reactivate' }}" data-confirm="{{ $loc->is_active ? 'Deactivate' : 'Reactivate' }} {{ $loc->name }}?">
+            @if($loc->is_active)
+              <svg class="loc-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            @else
+              <svg class="loc-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+            @endif
+          </button>
+        </form>
+        @endif
+
+        {{-- Delete --}}
+        @if(! $loc->is_default)
+        <form method="POST" action="{{ route('tenant.locations.destroy', $loc->id) }}">
+          @csrf @method('DELETE')
+          <button type="submit" class="loc-icon-btn is-danger" title="Delete location" aria-label="Delete location" data-confirm="Delete {{ $loc->name }}? This cannot be undone.">
+            <svg class="loc-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+          </button>
+        </form>
+        @endif
+      </div>
+    </div>
+  @endforeach
+</div>
+
+@endsection
+
+@push('scripts')
+<script>
+// Add-card toggle
+(function() {
+  var toggle = document.getElementById('loc-add-toggle');
+  var card   = document.getElementById('loc-add-card');
+  var cancel = document.getElementById('loc-add-cancel');
+  if (toggle) toggle.addEventListener('click', function() {
+    card.classList.add('open');
+    toggle.style.display = 'none';
+  });
+  if (cancel) cancel.addEventListener('click', function() {
+    card.classList.remove('open');
+    toggle.style.display = '';
+  });
+})();
+
+// Inline edit toggles
+document.querySelectorAll('[data-loc-edit-toggle]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id = btn.dataset.locEditToggle;
+    var form = document.querySelector('[data-loc-edit="' + id + '"]');
+    if (form) form.classList.add('open');
+  });
+});
+document.querySelectorAll('[data-loc-edit-cancel]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id = btn.dataset.locEditCancel;
+    var form = document.querySelector('[data-loc-edit="' + id + '"]');
+    if (form) form.classList.remove('open');
+  });
+});
+</script>
+@endpush
+TZW3_4_EOF
+
+echo "timezone-wave3 applied — server needs view:clear"
