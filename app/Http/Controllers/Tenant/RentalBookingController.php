@@ -679,7 +679,7 @@ class RentalBookingController extends Controller
                 'id'                 => (string) Str::uuid(),
                 'tenant_id'          => $tenant->id,
                 'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
-                'sale_date'          => now()->toDateString(),
+                'sale_date'          => tnow()->toDateString(), // MARKER-TZ-WAVE1 — tenant-local business date
                 'status'             => 'pending',
                 'payment_status'     => 'draft',
                 'customer_id'        => $rental->customer_id,
@@ -899,7 +899,7 @@ class RentalBookingController extends Controller
                 'id'                 => (string) Str::uuid(),
                 'tenant_id'          => $tenant->id,
                 'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
-                'sale_date'          => now()->toDateString(),
+                'sale_date'          => tnow()->toDateString(), // MARKER-TZ-WAVE1 — tenant-local business date
                 'status'             => 'pending',
                 'payment_status'     => 'draft',
                 'customer_id'        => $rental->customer_id,
@@ -1114,7 +1114,7 @@ class RentalBookingController extends Controller
                 'id'                 => (string) Str::uuid(),
                 'tenant_id'          => $tenant->id,
                 'sale_number'        => $this->generateRentalSaleNumber($tenant->id),
-                'sale_date'          => now()->toDateString(),
+                'sale_date'          => tnow()->toDateString(), // MARKER-TZ-WAVE1 — tenant-local business date
                 'status'             => 'completed',
                 'payment_status'     => 'unpaid', // record() flips it via recalcStatus
                 'customer_id'        => $rental->customer_id,
@@ -1173,7 +1173,7 @@ class RentalBookingController extends Controller
     /** RD-YYYYMMDD-NNN — same shape as the appointment DP- generator. */
     private function generateRentalSaleNumber(string $tenantId): string
     {
-        $prefix = 'RD-' . now()->format('Ymd') . '-';
+        $prefix = 'RD-' . tnow()->format('Ymd') . '-'; // MARKER-TZ-WAVE1
         $maxNumber = DB::table('tenant_sales')
             ->where('tenant_id', $tenantId)
             ->where('sale_number', 'like', $prefix . '%')

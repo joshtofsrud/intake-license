@@ -689,9 +689,14 @@ class DashboardDataService
         $todayStr = $this->tnow()->toDateString();
 
         // Today's register total. Sums tenant_sales paid today.
+        // MARKER-TZ-WAVE1 — paid_at is a UTC instant; whereDate() compared
+        // its UTC date to the tenant-local date, so evening sales vanished
+        // from today's tile. Compare against the tenant day's UTC range.
+        [$dayStartUtc, $dayEndUtc] = tenant_day_utc_range($this->tnow());
         $todaySalesTotal = (int) DB::table('tenant_sales')
             ->where('tenant_id', $tenantId)
-            ->whereDate('paid_at', $todayStr)
+            ->where('paid_at', '>=', $dayStartUtc)
+            ->where('paid_at', '<',  $dayEndUtc)
             ->where('payment_status', 'paid')
             ->sum('total_cents');
 

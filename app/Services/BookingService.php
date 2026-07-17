@@ -651,10 +651,14 @@ class BookingService
         $minNoticeHours = $tenant->min_notice_hours    ?? 24;
         $mode           = $tenant->booking_mode        ?? 'drop_off';
 
-        $earliest = now()->addHours($minNoticeHours)->startOfDay();
-        $latest   = now()->addDays($windowDays)->endOfDay();
-        $start = Carbon::create($year, $month, 1)->max($earliest);
-        $end   = Carbon::create($year, $month, 1)->endOfMonth()->min($latest);
+        // MARKER-TZ-WAVE1 — availability math runs on the TENANT's clock.
+        // Bare now() (UTC) cut Pacific tenants off from the current business
+        // day at 5 PM local and mis-rolled the min-notice boundary.
+        $bkTz = $tenant->timezone();
+        $earliest = now($bkTz)->addHours($minNoticeHours)->startOfDay();
+        $latest   = now($bkTz)->addDays($windowDays)->endOfDay();
+        $start = Carbon::create($year, $month, 1, 0, 0, 0, $bkTz)->max($earliest);
+        $end   = Carbon::create($year, $month, 1, 0, 0, 0, $bkTz)->endOfMonth()->min($latest);
         if ($start->gt($end)) return [];
 
         $defaults  = TenantCapacityRule::where('tenant_id', $tenant->id)
@@ -1022,7 +1026,7 @@ class BookingService
         }
 
         $minNoticeHours = (int) ($tenant->min_notice_hours ?? 0);
-        $earliest = now()->addHours($minNoticeHours);
+        $earliest = now($tenant->timezone())->addHours($minNoticeHours); // MARKER-TZ-WAVE1
 
         $cursor = $earliest->copy()->startOfDay();
         $stopAt = $earliest->copy()->addDays($maxDaysAhead);

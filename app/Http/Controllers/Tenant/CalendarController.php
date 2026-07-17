@@ -556,8 +556,12 @@ class CalendarController extends Controller
         $records = TenantCalendarBreak::where('tenant_id', $tenantId)
             ->where(function ($q) use ($date) {
                 $q->where(function ($q2) use ($date) {
+                    // MARKER-TZ-WAVE1 — starts_at is UTC; bound by the
+                    // tenant day's UTC range instead of whereDate.
+                    [$dS, $dE] = tenant_day_utc_range($date);
                     $q2->where('is_recurring', false)
-                       ->whereDate('starts_at', $date->toDateString());
+                       ->where('starts_at', '>=', $dS)
+                       ->where('starts_at', '<',  $dE);
                 })->orWhere(function ($q2) use ($date) {
                     $q2->where('is_recurring', true)
                        ->where('starts_at', '<=', $date->copy()->endOfDay())
@@ -582,8 +586,12 @@ class CalendarController extends Controller
             })
             ->where(function ($q) use ($date) {
                 $q->where(function ($q2) use ($date) {
+                    // MARKER-TZ-WAVE1 — starts_at is UTC; bound by the
+                    // tenant day's UTC range instead of whereDate.
+                    [$dS, $dE] = tenant_day_utc_range($date);
                     $q2->where('is_recurring', false)
-                       ->whereDate('starts_at', $date->toDateString());
+                       ->where('starts_at', '>=', $dS)
+                       ->where('starts_at', '<',  $dE);
                 })->orWhere(function ($q2) use ($date) {
                     $q2->where('is_recurring', true)
                        ->where('starts_at', '<=', $date->copy()->endOfDay())

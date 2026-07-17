@@ -360,8 +360,8 @@ class SpecialOrderController extends Controller
 
         $appts = TenantAppointment::where('tenant_id', $tenant->id)
             ->where('customer_id', $customerId)
-            ->whereDate('appointment_date', '>=', now()->toDateString())
-            ->whereDate('appointment_date', '<=', now()->addDays(60)->toDateString())
+            ->whereDate('appointment_date', '>=', tnow()->toDateString()) // MARKER-TZ-WAVE1 — appointment_date is a naive tenant-local DATE
+            ->whereDate('appointment_date', '<=', tnow()->addDays(60)->toDateString())
             ->whereNotIn('status', ['cancelled', 'refunded'])
             ->orderBy('appointment_date')
             ->limit(10)

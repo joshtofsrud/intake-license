@@ -639,8 +639,12 @@ class ReportsDataService
 
     private function newCustomerCountForDate(Carbon $date): int
     {
+        // MARKER-TZ-WAVE1 — created_at is UTC; bucket by the tenant day's
+        // UTC range so evening signups land on the right local day.
+        [$s, $e] = tenant_day_utc_range($date, $this->tenant->timezone());
         return TenantCustomer::where('tenant_id', $this->tenant->id)
-            ->whereDate('created_at', $date->toDateString())
+            ->where('created_at', '>=', $s)
+            ->where('created_at', '<',  $e)
             ->count();
     }
 

@@ -168,3 +168,28 @@ if (! function_exists('tender_label')) {
     }
 }
 
+if (! function_exists('tenant_day_utc_range')) {
+    /**
+     * MARKER-TZ-WAVE1 — the ONE way to bound a tenant-local calendar day
+     * when querying UTC timestamp columns. Returns [startUtc, endUtc)
+     * for the given tenant-local day.
+     *
+     * WRONG: ->whereDate('paid_at', tnow()->toDateString())
+     *        (compares the UTC date of the stored instant — evening rows
+     *        land on tomorrow)
+     * RIGHT: [$s, $e] = tenant_day_utc_range(tnow());
+     *        ->where('paid_at', '>=', $s)->where('paid_at', '<', $e)
+     *
+     * @param  \Carbon\Carbon|string  $day  tenant-local day (Carbon or Y-m-d)
+     * @return array{0:\Carbon\Carbon,1:\Carbon\Carbon}
+     */
+    function tenant_day_utc_range(\Carbon\Carbon|string $day, ?string $tz = null): array
+    {
+        $tz ??= tenant()?->timezone() ?? config('app.timezone', 'UTC');
+        $local = $day instanceof \Carbon\Carbon
+            ? $day->copy()->setTimezone($tz)->startOfDay()
+            : \Carbon\Carbon::parse($day, $tz)->startOfDay();
+
+        return [$local->copy()->utc(), $local->copy()->addDay()->utc()];
+    }
+}
