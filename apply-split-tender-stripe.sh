@@ -1,3 +1,22 @@
+#!/bin/bash
+# split-tender-stripe — stage 2: the Stripe card leg joins splits.
+#   Mid-split, tapping Card (with Direct Payments on) opens the card modal
+#   charging EXACTLY the remaining balance — no amount entry, no confirm
+#   step; on success the charge becomes the final payments[] row (brand +
+#   last4 as its reference) and the sale commits as a split. Single-tender
+#   card charges are unchanged. Payment-link and mark_paid remain
+#   full-amount-only. The existing auto-refund-on-commit-failure path
+#   covers the split card leg too, since it holds the PaymentIntent the
+#   same way. Offline stays single-tender until stage 3.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-SPLIT-STRIPE" resources/views/tenant/register/index.blade.php; then
+  echo "already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-SPLIT-TENDER" resources/views/tenant/register/index.blade.php; then
+  echo "split-tender-core not applied — wrong base, aborting."; exit 1
+fi
+cat > 'resources/views/tenant/register/index.blade.php' <<'SPLSTRIPE_EOF'
 @extends('layouts.tenant.app')
 
 @php $pageTitle = 'Register'; @endphp
@@ -3564,3 +3583,5 @@ loadDrafts().then(refreshDraftsBanner);
 @endif
 @endpush
 
+SPLSTRIPE_EOF
+echo "split-tender-stripe applied — view:clear on server"
