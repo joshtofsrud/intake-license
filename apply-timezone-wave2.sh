@@ -1,3 +1,18 @@
+#!/bin/bash
+# timezone-wave2 — pin the SQL session timezone to UTC on the mysql and
+# mariadb connections: 'timezone' => env('DB_TIMEZONE', '+00:00'). Closes
+# the hole where a host/database global could write CURRENT_TIMESTAMP
+# defaults as local wall time. App timezone already defaults to UTC.
+# Optional .env (defaults correct without): APP_TIMEZONE=UTC, DB_TIMEZONE=+00:00
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-TZ-WAVE2" config/database.php; then
+  echo "timezone-wave2 already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-TZ-WAVE1" app/helpers.php; then
+  echo "timezone-wave1 not applied — wrong base, aborting."; exit 1
+fi
+cat > 'config/database.php' <<'TZW2_EOF'
 <?php
 
 use Illuminate\Support\Str;
@@ -189,3 +204,5 @@ return [
     ],
 
 ];
+TZW2_EOF
+echo "timezone-wave2 applied — server: php artisan config:clear (recache only if you use config:cache)"
