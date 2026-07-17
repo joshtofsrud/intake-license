@@ -1,3 +1,25 @@
+#!/bin/bash
+# split-tender-anyorder — replaces stage 2's card-last rule with the real
+# requirement: any number of payments, in any order, for any amount.
+#   · Card gets the same amount field as every tender, prefilled with the
+#     remaining balance and editable; the Stripe modal charges exactly the
+#     typed amount, first leg or fifth
+#   · A charged card row lands LOCKED with an explicit "Void" (refunds the
+#     PaymentIntent via the existing auto-refund endpoint) instead of the
+#     quiet ✕ — the UI tells the truth about irreversible money
+#   · After a partial card charge the tender modal reopens to keep taking
+#     payments; the sale commits whenever remaining hits zero
+#   · Each card leg's PaymentIntent id rides in its ledger row reference
+#   · Payment-link and mark_paid remain full-amount-only (stage 3+)
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-SPLIT-ANYORDER" resources/views/tenant/register/index.blade.php; then
+  echo "already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-SPLIT-STRIPE" resources/views/tenant/register/index.blade.php; then
+  echo "split-tender-stripe not applied — wrong base, aborting."; exit 1
+fi
+cat > 'resources/views/tenant/register/index.blade.php' <<'ANYORDER_EOF'
 @extends('layouts.tenant.app')
 
 @php $pageTitle = 'Register'; @endphp
@@ -3603,3 +3625,5 @@ loadDrafts().then(refreshDraftsBanner);
 @endif
 @endpush
 
+ANYORDER_EOF
+echo "split-tender-anyorder applied — view:clear on server"
