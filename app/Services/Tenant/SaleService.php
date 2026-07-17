@@ -144,15 +144,7 @@ class SaleService
                         $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
                     }
 
-                    app(\App\Services\Tenant\SalePaymentService::class)->record(
-                        sale:               $finalSale,
-                        amountCents:        (int) $finalSale->total_cents,
-                        kind:               $kind,
-                        source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
-                        method:             $finalSale->payment_method ?? 'other',
-                        externalReference:  $finalSale->payment_reference,
-                        notes:              "Paid via sale {$finalSale->sale_number}",
-                    );
+                    $this->recordRegisterPayments($finalSale, $data, $kind); // MARKER-SPLIT-TENDER
 
                     // MARKER-PATCH-219C — appointment paid cache cascades
                     // centrally in SalePaymentService::recalcStatus().
@@ -406,15 +398,7 @@ class SaleService
                         $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
                     }
 
-                    app(\App\Services\Tenant\SalePaymentService::class)->record(
-                        sale:               $finalSale,
-                        amountCents:        (int) $finalSale->total_cents,
-                        kind:               $kind,
-                        source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
-                        method:             $finalSale->payment_method ?? 'other',
-                        externalReference:  $finalSale->payment_reference,
-                        notes:              "Paid via sale {$finalSale->sale_number}",
-                    );
+                    $this->recordRegisterPayments($finalSale, $data, $kind); // MARKER-SPLIT-TENDER
 
                     // MARKER-PATCH-219C — appointment paid cache cascades
                     // centrally in SalePaymentService::recalcStatus().
@@ -896,5 +880,48 @@ class SaleService
                 'refund'         => $refundRow,
             ];
         });
+    }
+
+    /**
+     * MARKER-SPLIT-TENDER — record register payments for a paid sale: one
+     * ledger row per tender when a payments[] array was supplied (amounts
+     * must sum to the sale total), else the single-tender row as before.
+     */
+    protected function recordRegisterPayments(\App\Models\Tenant\TenantSale $finalSale, array $data, string $kind): void
+    {
+        $svc = app(\App\Services\Tenant\SalePaymentService::class);
+        $payments = $data['payments'] ?? null;
+
+        if (is_array($payments) && count($payments) > 0) {
+            $sum = array_sum(array_map(fn ($p) => (int) $p['amount_cents'], $payments));
+            if ($sum !== (int) $finalSale->total_cents) {
+                throw new \RuntimeException(sprintf(
+                    'Split payments (%d¢) do not match the sale total (%d¢).',
+                    $sum, (int) $finalSale->total_cents
+                ));
+            }
+            foreach ($payments as $i => $p) {
+                $svc->record(
+                    sale:               $finalSale,
+                    amountCents:        (int) $p['amount_cents'],
+                    kind:               $i === 0 ? $kind : \App\Models\Tenant\TenantSalePayment::KIND_BALANCE,
+                    source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
+                    method:             (string) $p['method'],
+                    externalReference:  $p['reference'] ?? null,
+                    notes:              "Split tender via sale {$finalSale->sale_number}",
+                );
+            }
+            return;
+        }
+
+        $svc->record(
+            sale:               $finalSale,
+            amountCents:        (int) $finalSale->total_cents,
+            kind:               $kind,
+            source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
+            method:             $finalSale->payment_method ?? 'other',
+            externalReference:  $finalSale->payment_reference,
+            notes:              "Paid via sale {$finalSale->sale_number}",
+        );
     }
 }

@@ -1,3 +1,3415 @@
+#!/bin/bash
+# split-tender-core — stage 1 of register split tenders (per approved mockup).
+#   UI: selecting a splittable tender opens an amount field prefilled with
+#   the remaining balance; "Add payment" records a partial tender row
+#   (removable), remaining counts down, Complete unlocks at exactly zero.
+#   Cash may exceed the remainder — overage shows as change due, recorded
+#   amount stays the applied amount so the ledger sums to the total.
+#   Zero recorded payments = the classic single-tender flow, byte-for-byte.
+#   Server: payments[] accepted on all three commit endpoints (store, draft
+#   commit, mixed refund+sale), validated against allowed tenders; SaleService
+#   verifies the sum equals the authoritative sale total and writes one
+#   TenantSalePayment row per tender (sale.payment_method = 'split', labeled
+#   "Split" in history). Daily-ops drawer math reads payment rows, so split
+#   cash/card amounts land in the right drawer buckets automatically.
+#   Stage-1 limits (greyed out mid-split, stage 2 lifts them): Stripe card,
+#   payment-link, and mark_paid are full-amount only; tip modal is skipped
+#   on split commits; card-fee passthrough surcharge does not apply to
+#   splits containing card. Offline queue stays single-tender until stage 3.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-SPLIT-TENDER" app/Services/Tenant/SaleService.php; then
+  echo "split-tender-core already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-SO-ORPHAN-FIX" app/Http/Controllers/Tenant/AppointmentController.php; then
+  echo "special-order-orphan-fix not applied — wrong base, aborting."; exit 1
+fi
+
+cat > 'app/Http/Controllers/Tenant/RegisterController.php' <<'SPLIT_0_EOF'
+<?php
+
+namespace App\Http\Controllers\Tenant;
+
+use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantSale;
+use App\Models\Tenant\TenantInventoryItem;
+use App\Models\Tenant\TenantInventoryItemLocation;
+use App\Models\Tenant\TenantServiceItem;
+use App\Models\Tenant\TenantCustomer;
+use App\Services\Tenant\SaleService;
+use App\Services\Tenant\SaleValidationException;
+use App\Services\Tenant\InventoryStockException;
+use App\Services\Tenant\DirectPaymentsService;  // MARKER-PATCH-170
+use Illuminate\Support\Facades\Log;  // MARKER-PATCH-172B — missing import broke patches 170/170b/171/172
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
+
+class RegisterController extends Controller
+{
+    public function __construct(protected SaleService $sales) {}
+
+    public function index(Request $request)
+    {
+        $tenant = tenant();
+
+        // Count of appointment-sourced drafts ready for checkout. Used to
+        // render the "X ready for checkout" banner on the register page.
+        $appointmentTrayCount = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->count();
+
+        // Patch 46: pre-attach customer from query param (walk-in flow).
+        $preAttachCustomer = null;
+        $preCustId = $request->query('customer_id');
+        if ($preCustId) {
+            $cust = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $preCustId)
+                ->first(['id', 'first_name', 'last_name', 'email', 'phone']);
+            if ($cust) {
+                $preAttachCustomer = [
+                    'id'         => $cust->id,
+                    'first_name' => $cust->first_name,
+                    'last_name'  => $cust->last_name,
+                    'name'       => trim(($cust->first_name ?? '') . ' ' . ($cust->last_name ?? '')),
+                    'email'      => $cust->email,
+                    'phone'      => $cust->phone,
+                ];
+            }
+        }
+
+        return view('tenant.register.index', [
+            'tenant'     => $tenant,
+            'offlineSyncEnabled' => app(\App\Services\FeatureAccessService::class)->hasAddon($tenant, 'offline_sync'), // MARKER-OFFLINE-SYNC
+            'registers'  => \App\Models\Tenant\TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('number')->get(['id','number','name']), // MARKER-REGISTER-RECON-DISPLAY
+            'currentRegisterId' => (int) $request->session()->get('current_register_id', 0), // MARKER-REGISTER-RECON-DISPLAY
+            'manualTenders' => \App\Models\Tenant\TenantPaymentMethod::registerManualTenders($tenant), // MARKER-PATCH-630
+            'preAttachCustomer' => $preAttachCustomer,
+            'taxRate'    => (float) ($tenant->default_tax_rate ?? 0),
+            'taxLabel'   => $this->taxLabel($tenant),
+            'appointmentTrayCount' => $appointmentTrayCount,
+            // MARKER-PATCH-162 — hide "Request transfer" button on oversell rows for single-location tenants
+            'multiLocationActive' => (bool) $tenant->multi_location_active,
+            'tipsConfig' => [
+                'enabled'      => (bool) $tenant->tips_enabled,
+                'method'       => $tenant->tip_default_method,
+                'options'      => is_array($tenant->tip_default_options)
+                                    ? $tenant->tip_default_options
+                                    : (json_decode($tenant->tip_default_options ?? '[]', true) ?: []),
+                'allow_custom' => (bool) $tenant->tip_allow_custom,
+                'attributable' => (bool) $tenant->tip_attributable,
+            ],
+            'surchargeConfig' => [
+                'enabled' => (bool) $tenant->passthrough_card_fees,
+                'percent' => (float) ($tenant->card_surcharge_percent ?? 0),
+                'label'   => $tenant->card_surcharge_label ?? 'Card processing fee',
+            ],
+        ]);
+    }
+
+    /**
+     * List of appointment-sourced sales ready for checkout. Used by the
+     * Register's "Ready for checkout" tray on the register home and by the
+     * dedicated tray page.
+     */
+    public function appointmentTray(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $sales = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->with(['customer', 'appointment'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'ok' => true,
+            'sales' => $sales->map(function ($s) {
+                $appt = $s->appointment;
+                return [
+                    'id'              => $s->id,
+                    'sale_number'     => $s->sale_number,
+                    'total_cents'     => (int) $s->total_cents,
+                    'total_display'   => format_money((int) $s->total_cents),
+                    'customer_name'   => $s->customer
+                        ? trim(($s->customer->first_name ?? '') . ' ' . ($s->customer->last_name ?? ''))
+                        : ($appt ? trim(($appt->customer_first_name ?? '') . ' ' . ($appt->customer_last_name ?? '')) : 'Walk-in'),
+                    'appointment_id'  => $appt?->id,
+                    'ra_number'       => $appt?->ra_number,
+                    'created_at'      => $s->created_at?->toIso8601String(),
+                    'item_count'      => (int) \DB::table('tenant_sale_items')->where('sale_id', $s->id)->count(),
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-180 — dismiss a parked appointment draft sale from the
+     * register tray. Voids the DRAFT sale (status=cancelled) so it leaves the
+     * "ready for checkout" list. Non-destructive: only unpaid draft sales are
+     * eligible; the appointment itself is untouched. The sale can be recreated
+     * later from the appointment if needed.
+     */
+    public function dismissTraySale(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->whereNotNull('appointment_id')
+            ->where('payment_status', 'draft')
+            ->whereNotIn('status', ['cancelled', 'closed'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found or not dismissible.'], 404);
+        }
+
+        $sale->status = 'cancelled';
+        $sale->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $q = trim((string) $request->input('q', ''));
+        $type = $request->input('type', 'all');
+
+        if ($q === '' || mb_strlen($q) < 2) {
+            return response()->json(['products' => [], 'services' => [], 'customers' => []]);
+        }
+
+        $products = [];
+        $services = [];
+        $customers = [];
+
+        if ($type === 'all' || $type === 'product') {
+            // patch-96 location stock — enrich each product with its on-hand
+            // count at the CURRENT register location, so the cart can show an
+            // oversell badge when qty exceeds that.
+            $registerLocationId = $request->session()->get('current_location_id');
+            $registerLocationName = null;
+            if ($registerLocationId) {
+                $loc = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)
+                    ->where('id', $registerLocationId)
+                    ->first();
+                $registerLocationName = $loc?->name;
+            }
+
+            $productItems = TenantInventoryItem::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                // MARKER-PATCH-552 — every word must hit SOMEWHERE across the
+                // item's text: "Centerline Rotor 200mm" matches name+subtitle.
+                ->where(function ($w) use ($q) {
+                    foreach (array_filter(preg_split('/\s+/', $q)) as $t) {
+                        $w->whereRaw("CONCAT_WS(' ', name, display_subtitle, sku, catalog_upc) LIKE ?", ['%' . $t . '%']);
+                    }
+                })
+                ->limit(15)
+                ->get();
+
+            // One join to fetch all per-location counts for the matched items
+            $stockByItem = [];
+            if ($registerLocationId && $productItems->isNotEmpty()) {
+                $stockByItem = \App\Models\Tenant\TenantInventoryItemLocation::whereIn(
+                        'inventory_item_id', $productItems->pluck('id')
+                    )
+                    ->where('location_id', $registerLocationId)
+                    ->pluck('computed_stock_count', 'inventory_item_id')
+                    ->toArray();
+            }
+
+            $products = $productItems->map(fn ($p) => [
+                'id'                     => $p->id,
+                'name'                   => $p->name ?? '',
+                'subtitle'               => $p->display_subtitle ?? '',
+                'sku'                    => $p->sku ?? '',
+                'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
+                'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
+                'allow_oversell'         => (bool) $p->allow_oversell,
+                'current_location_stock' => (int) ($stockByItem[$p->id] ?? 0),
+                'current_location_name'  => $registerLocationName,
+            ])->toArray();
+        }
+
+        if ($type === 'all' || $type === 'service') {
+            $services = TenantServiceItem::where('tenant_id', $tenant->id)
+                ->where('is_active', 1)
+                ->where('name', 'like', "%{$q}%")
+                ->limit(15)
+                ->get()
+                ->map(fn ($s) => [
+                    'id'               => $s->id,
+                    'name'             => $s->name,
+                    'price_cents'      => (int) ($s->price_cents ?? 0),
+                    'duration_minutes' => (int) ($s->duration_minutes ?? 0),
+                ])
+                ->toArray();
+        }
+
+        if ($type === 'all' || $type === 'customer') {
+            $customers = TenantCustomer::where('tenant_id', $tenant->id)
+                ->where(function ($w) use ($q) {
+                    $w->where('first_name', 'like', "%{$q}%")
+                      ->orWhere('last_name', 'like', "%{$q}%")
+                      ->orWhere('email', 'like', "%{$q}%")
+                      ->orWhere('phone', 'like', "%{$q}%");
+                })
+                ->limit(10)
+                ->get()
+                ->map(fn ($c) => [
+                    'id'    => $c->id,
+                    'name'  => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')),
+                    'email' => $c->email ?? '',
+                    'phone' => $c->phone ?? '',
+                ])
+                ->toArray();
+        }
+
+        return response()->json(compact('products', 'services', 'customers'));
+    }
+
+    public function storeSale(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'      => 'nullable|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'discount_cents'   => 'nullable|integer|min:0',
+            'payment_method'   => $this->allowedTenders(), // MARKER-PATCH-630
+            'payment_reference'=> 'nullable|string',
+            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // present, payment_method is 'split' and applied amounts must sum
+            // to the authoritative server-side total (checked in SaleService).
+            'payments'                     => 'nullable|array|max:6',
+            'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
+            'payments.*.amount_cents'      => 'required|integer|min:1',
+            'payments.*.reference'         => 'nullable|string|max:120',
+            'items'            => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+            // MARKER-PATCH-161 — per-sale receipt skip
+            'skip_receipt'             => 'nullable|boolean',
+            // MARKER-OFFLINE-SYNC — idempotency key for offline replay
+            'client_uuid'              => 'nullable|uuid',
+        ]);
+
+        // MARKER-OFFLINE-SYNC — replay dedupe: an offline queue may POST the
+        // same sale more than once (retries, multiple tabs). Same client_uuid
+        // returns the already-committed sale instead of double-selling.
+        if (! empty($validated['client_uuid'])) {
+            $existing = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('client_uuid', $validated['client_uuid'])
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'ok'          => true,
+                    'sale_id'     => $existing->id,
+                    'sale_number' => $existing->sale_number,
+                    'total_cents' => $existing->total_cents,
+                    'redirect'    => route('tenant.register.index'),
+                    'replayed'    => true,
+                ]);
+            }
+        }
+
+        try {
+            $sale = $this->sales->createSale([
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'register_id'        => $request->session()->get('current_register_id'), // MARKER-REGISTER-RECON-DISPLAY
+                'client_uuid'        => $validated['client_uuid'] ?? null, // MARKER-OFFLINE-SYNC
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'status'             => 'completed',
+                'payment_status'     => 'paid',
+                'payment_method'     => $validated['payment_method'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'payment_reference'  => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
+                'paid_at'            => Carbon::now(),
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                'items'              => $validated['items'],
+            ]);
+
+            if ($validated['payment_method'] === 'card' && $tenant->passthrough_card_fees) {
+                $surcharge = (int) round($sale->subtotal_cents * (($tenant->card_surcharge_percent ?? 0) / 100));
+                if ($surcharge > 0) {
+                    $sale->update(['surcharge_cents' => $surcharge]);
+                    $sale = $this->sales->recalculate($sale->fresh('items'));
+                }
+            }
+
+            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
+            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            if (! $request->boolean('skip_receipt')) {
+                \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            }
+
+            return response()->json([
+                'ok'          => true,
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+                'redirect'    => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Save (or update) a draft cart.
+     * Called on every cart change with debounce. First call creates,
+     * subsequent calls include 'id' and update.
+     */
+    public function storeDraft(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'id'               => 'nullable|uuid',
+            'customer_id'      => 'nullable|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'metadata'         => 'nullable|array',
+            'items'            => 'nullable|array',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        try {
+            $draft = $this->sales->saveDraft([
+                'id'                 => $validated['id'] ?? null,
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'metadata'           => $validated['metadata'] ?? null,
+                'items'              => $validated['items'] ?? [],
+            ]);
+
+            return response()->json([
+                'ok'             => true,
+                'draft_id'       => $draft->id,
+                'subtotal_cents' => $draft->subtotal_cents,
+                'tax_cents'      => $draft->tax_cents,
+                'total_cents'    => $draft->total_cents,
+                'updated_at'     => $draft->updated_at?->toIso8601String(),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * List open drafts at the current location.
+     * Used by the resume banner on register load.
+     */
+    /**
+     * patch-100a oversell actions — register cart "Request transfer" button.
+     * Creates a pending TenantTransferRequest scoped to the current
+     * register location. Returns the new request's id so the cart UI
+     * can swap the button for a confirmation pill.
+     */
+    public function storeOversellTransferRequest(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        // MARKER-PATCH-162 — single-location tenants have nowhere to transfer FROM.
+        // Defense in depth against stale tabs or URL fuzzing. Client UI already
+        // hides the button, so a normal user can't hit this branch.
+        if (! $tenant->multi_location_active) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Transfer requests require at least two active locations.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'inventory_item_id' => 'required|uuid|exists:tenant_inventory_items,id',
+            'quantity'          => 'nullable|integer|min:1',
+            'sale_id'           => 'nullable|uuid',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $svc = app(\App\Services\Tenant\TransferRequestService::class);
+            $tr = $svc->create([
+                'tenant_id'            => $tenant->id,
+                'inventory_item_id'    => $validated['inventory_item_id'],
+                'to_location_id'       => $locationId,
+                'quantity'             => $validated['quantity'] ?? 1,
+                'requested_by_user_id' => auth('tenant')->id(),
+                'sale_id'              => $validated['sale_id'] ?? null,
+                'notes'                => $validated['notes'] ?? null,
+            ]);
+
+            $fromLocName = $tr->fromLocation?->name;
+            return response()->json([
+                'ok'                  => true,
+                'transfer_request_id' => $tr->id,
+                'from_location_name'  => $fromLocName,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * patch-100a oversell actions — register cart "Add to order" button.
+     * Creates a status=needed special order for the item, optionally
+     * attached to a customer (if the cart has one). Returns the new
+     * SO's id + number for confirmation display.
+     */
+    public function storeOversellSpecialOrder(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'inventory_item_id' => 'required|uuid|exists:tenant_inventory_items,id',
+            'quantity'          => 'nullable|integer|min:1',
+            'customer_id'       => 'nullable|uuid',
+            'notes'             => 'nullable|string|max:1000',
+        ]);
+
+        $item = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('id', $validated['inventory_item_id'])
+            ->first();
+
+        if (!$item) {
+            return response()->json(['ok' => false, 'error' => 'Item not found.'], 404);
+        }
+
+        try {
+            $svc = app(\App\Services\Tenant\SpecialOrderService::class);
+            $so = $svc->create([
+                'tenant_id'          => $tenant->id,
+                'inventory_item_id'  => $item->id,
+                'item_name_snapshot' => $item->name,
+                'quantity'           => $validated['quantity'] ?? 1,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'status'             => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
+                'created_from'       => 'register',
+                'notes'              => $validated['notes'] ?? null,
+            ]);
+
+            return response()->json([
+                'ok'                => true,
+                'special_order_id'  => $so->id,
+                'so_number'         => $so->so_number,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function listDrafts(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['drafts' => []]);
+        }
+
+        $drafts = TenantSale::where('tenant_id', $tenant->id)
+            ->where('location_id', $locationId)
+            ->drafts()
+            ->with(['customer', 'rangUpBy', 'items'])
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get()
+            ->map(function ($d) {
+                return [
+                    'id'           => $d->id,
+                    'item_count'   => $d->items->count(),
+                    'total_cents'  => $d->total_cents,
+                    'customer'     => $d->customer
+                        ? trim(($d->customer->first_name ?? '') . ' ' . ($d->customer->last_name ?? ''))
+                        : null,
+                    'started_by'   => $d->rangUpBy
+                        ? trim(($d->rangUpBy->first_name ?? '') . ' ' . ($d->rangUpBy->last_name ?? ''))
+                        : null,
+                    'updated_at'   => $d->updated_at?->toIso8601String(),
+                ];
+            });
+
+        return response()->json(['drafts' => $drafts]);
+    }
+
+    /**
+     * Fetch a single draft with full line items, for resume into cart.
+     */
+    public function showDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $draft = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->with(['customer', 'items'])
+            ->first();
+
+        if (!$draft) {
+            return response()->json(['ok' => false, 'error' => 'Draft not found.'], 404);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'draft' => [
+                'id'          => $draft->id,
+                'customer'    => $draft->customer ? [
+                    'id'    => $draft->customer->id,
+                    'name'  => trim(($draft->customer->first_name ?? '') . ' ' . ($draft->customer->last_name ?? '')),
+                    'email' => $draft->customer->email ?? '',
+                    'phone' => $draft->customer->phone ?? '',
+                ] : null,
+                'tip_cents'   => $draft->tip_cents,
+                'notes'       => $draft->notes,
+                'tax_locked'  => (bool) $draft->tax_locked,
+                'tax_cents'   => (int) $draft->tax_cents,
+                'items'       => $draft->items->map(fn ($i) => [
+                    'type'              => $i->type,
+                    'source_id'         => $i->service_id ?? $i->inventory_item_id,
+                    'inventory_item_id' => $i->inventory_item_id,
+                    'service_id'        => $i->service_id,
+                    'name'              => $i->name_snapshot,
+                    'price_cents'       => $i->unit_price_cents,
+                    'qty'               => (float) $i->quantity,
+                    'is_taxable'        => (bool) $i->is_taxable,
+                    'tax_cents'         => (int) $i->tax_cents,
+                    'tax_rate_snapshot' => $i->tax_rate_snapshot,
+                ])->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Permanently discard a draft.
+     */
+    public function discardDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        try {
+            $this->sales->discardDraft($tenant->id, $id);
+            return response()->json(['ok' => true]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 404);
+        }
+    }
+
+    /**
+     * Promote a draft to a paid sale. Replaces storeSale for draft-backed flow.
+     */
+    public function commitDraft(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'payment_method'    => $this->allowedTenders(), // MARKER-PATCH-630
+            'payment_reference' => 'nullable|string',
+            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // present, payment_method is 'split' and applied amounts must sum
+            // to the authoritative server-side total (checked in SaleService).
+            'payments'                     => 'nullable|array|max:6',
+            'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
+            'payments.*.amount_cents'      => 'required|integer|min:1',
+            'payments.*.reference'         => 'nullable|string|max:120',
+            'tip_cents'         => 'nullable|integer|min:0',
+            'customer_id'       => 'nullable|uuid',
+            'notes'             => 'nullable|string',
+            // MARKER-PATCH-161 — per-sale receipt skip
+            'skip_receipt'      => 'nullable|boolean',
+        ]);
+
+        try {
+            $sale = $this->sales->commitDraft($tenant->id, $id, [
+                'payment_status'    => 'paid',
+                'payment_method'    => $validated['payment_method'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'payment_reference' => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
+                'paid_at'           => Carbon::now(),
+                'tip_cents'         => $validated['tip_cents'] ?? null,
+                'customer_id'       => $validated['customer_id'] ?? null,
+                'notes'             => $validated['notes'] ?? null,
+            ]);
+
+            // Apply card surcharge same as storeSale path.
+            if ($validated['payment_method'] === 'card' && $tenant->passthrough_card_fees) {
+                $surcharge = (int) round($sale->subtotal_cents * (($tenant->card_surcharge_percent ?? 0) / 100));
+                if ($surcharge > 0) {
+                    $sale->update(['surcharge_cents' => $surcharge]);
+                    $sale = $this->sales->recalculate($sale->fresh('items'));
+                }
+            }
+
+            // MARKER-PATCH-160 — auto-send receipt (queued, fail-open)
+            // MARKER-PATCH-161 — skip if cashier opted out for this sale
+            if (! $request->boolean('skip_receipt')) {
+                \App\Jobs\SendSaleReceiptJob::dispatch($sale->id)->afterCommit();
+            }
+
+            return response()->json([
+                'ok'          => true,
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+                'redirect'    => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Look up a past sale by sale_number for the refund picker.
+     * Returns the sale's line items with refundable quantities.
+     */
+    public function lookupSaleForRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $saleNumber = trim((string) $request->input('sale_number', ''));
+
+        if ($saleNumber === '') {
+            return response()->json(['ok' => false, 'error' => 'Sale number required.'], 422);
+        }
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('sale_number', $saleNumber)
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->whereNull('refund_of_sale_id')
+            ->with(['customer', 'items', 'refunds.items'])
+            ->first();
+
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found or not refundable.'], 404);
+        }
+
+        // For each original line, compute quantity already refunded across all
+        // prior refund rows. Refundable_qty = original_qty - already_refunded_qty.
+        $refundedByOrigItem = [];
+        foreach ($sale->refunds as $refund) {
+            foreach ($refund->items as $rline) {
+                // Refund lines snapshot the same product/service/etc.
+                // We match by (type, source_id, name_snapshot) since refund lines
+                // don't carry a back-reference to the original line.
+                $key = $rline->type . '|'
+                    . ($rline->inventory_item_id ?? $rline->service_id ?? '')
+                    . '|' . $rline->name_snapshot;
+                $refundedByOrigItem[$key] = ($refundedByOrigItem[$key] ?? 0) + (float) $rline->quantity;
+            }
+        }
+
+        $items = $sale->items->map(function ($i) use ($refundedByOrigItem) {
+            $key = $i->type . '|'
+                . ($i->inventory_item_id ?? $i->service_id ?? '')
+                . '|' . $i->name_snapshot;
+            $already = $refundedByOrigItem[$key] ?? 0;
+            $remaining = max(0, (float) $i->quantity - $already);
+            return [
+                'id'                => $i->id,
+                'type'              => $i->type,
+                'name'              => $i->name_snapshot,
+                'quantity'          => (float) $i->quantity,
+                'already_refunded'  => $already,
+                'remaining'         => $remaining,
+                'unit_price_cents'  => $i->unit_price_cents,
+                'line_total_cents'  => $i->line_total_cents,
+                'tax_cents'         => (int) $i->tax_cents,
+                'is_taxable'        => (bool) $i->is_taxable,
+            ];
+        })->values();
+
+        return response()->json([
+            'ok'   => true,
+            'sale' => [
+                'id'             => $sale->id,
+                'sale_number'    => $sale->sale_number,
+                'sale_date'      => $sale->sale_date?->toDateString(),
+                'paid_at'        => $sale->paid_at?->toDateTimeString(),
+                'total_cents'    => $sale->total_cents,
+                'tender'         => $sale->payment_method,
+                'customer'       => $sale->customer
+                    ? trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? ''))
+                    : null,
+                'items'          => $items,
+            ],
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-177 — Standalone refund: money out with NO sale attached.
+     *
+     * For refunds that aren't tied to a past sale in the system — e.g. refunding
+     * a fee charged before Intake existed. Always carries a customer; sale_id is
+     * null. Writes one negative row directly through the sale-payment ledger so
+     * it shows in "money out" / Payments Received reporting alongside everything
+     * else. Uncapped (there is no sale total to cap against — the operator types
+     * the amount). Line-item refunds against an existing sale keep using the
+     * existing storeTransaction flow; this is the no-sale path only.
+     */
+    public function storeStandaloneRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'   => 'required|uuid',
+            'amount_cents'  => 'required|integer|min:1',
+            'refund_method' => 'required|string|in:cash,card,check,store_credit,mark_paid',
+            'reason'        => 'required|string|max:500',
+        ]);
+
+        // Customer must belong to this tenant (defense against cross-tenant ids).
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $validated['customer_id'])
+            ->first();
+        if (!$customer) {
+            return response()->json(['ok' => false, 'error' => 'Customer not found.'], 404);
+        }
+
+        try {
+            $payment = app(\App\Services\Tenant\SalePaymentService::class)->recordStandaloneRefund(
+                tenantId:    $tenant->id,
+                customerId:  $customer->id,
+                amountCents: (int) $validated['amount_cents'],
+                method:      $validated['refund_method'],
+                reason:      $validated['reason'],
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Standalone refund failed', [
+                'tenant_id'   => $tenant->id,
+                'customer_id' => $customer->id,
+                'error'       => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Could not record refund.'], 500);
+        }
+
+        return response()->json([
+            'ok'            => true,
+            'payment_id'    => $payment->id,
+            'amount_cents'  => abs($payment->amount_cents),
+            'customer'      => trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')),
+            'method'        => $validated['refund_method'],
+        ]);
+    }
+
+    /**
+     * Commit a multi-row transaction (mixed sale + refund, or pure refund).
+     * Pure sales still use storeSale or commitDraft.
+     */
+    public function storeTransaction(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'customer_id'      => 'nullable|uuid',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'payment_method'   => $this->allowedTenders(['even_exchange']), // MARKER-PATCH-630
+            'payment_reference'=> 'nullable|string',
+            'items'            => 'nullable|array',
+            'items.*.type'             => 'required_with:items|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // present, payment_method is 'split' and applied amounts must sum
+            // to the authoritative server-side total (checked in SaleService).
+            'payments'                     => 'nullable|array|max:6',
+            'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
+            'payments.*.amount_cents'      => 'required|integer|min:1',
+            'payments.*.reference'         => 'nullable|string|max:120',
+            'refund'                       => 'required|array',
+            'refund.original_sale_id'      => 'required|uuid',
+            'refund.item_ids'              => 'required|array|min:1',
+            'refund.item_ids.*'            => 'uuid',
+            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange',
+        ]);
+
+        try {
+            $result = $this->sales->createTransaction([
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'payment_method'     => $validated['payment_method'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'payment_reference'  => $validated['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
+                'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
+                'stripe_charge_id'         => $request->input('stripe_charge_id'),
+                'card_brand'               => $request->input('card_brand'),
+                'card_last4'               => $request->input('card_last4'),
+                'card_funding'             => $request->input('card_funding'),
+                'items'              => $validated['items'] ?? [],
+                'refund'             => $validated['refund'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+            ]);
+
+            // Build a unified receipt response.
+            $sale = $result['sale'];
+            $refund = $result['refund'];
+
+            // MARKER-PATCH-171 — fire Stripe refund if refund half exists and
+            // refund_method=card. Mirrors storeRefund behavior for the mixed path.
+            $stripeRefundError = null;
+            if ($refund && ($validated['refund']['refund_method'] ?? null) === 'card') {
+                $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
+            }
+
+            return response()->json([
+                'ok'             => true,
+                'transaction_id' => $result['transaction_id'],
+                'sale_id'        => $sale?->id,
+                'sale_number'    => $sale?->sale_number ?? $refund?->sale_number,
+                'total_cents'    => ($sale?->total_cents ?? 0) - ($refund?->total_cents ?? 0),
+                'sale_total'     => $sale?->total_cents ?? 0,
+                'refund_total'   => $refund?->total_cents ?? 0,
+                // MARKER-PATCH-171 — Stripe refund outcome
+                'stripe_refund_error' => $stripeRefundError ?? null,
+                'stripe_refund_id'    => $refund?->fresh()?->stripe_refund_id,
+                'redirect'       => route('tenant.register.index'),
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Transaction History — list view of every tenant_sales row,
+     * including drafts/quotes/paid/partial/refunded.
+     * Filtered and sorted client-side by the page JS.
+     */
+    public function historyIndex(Request $request)
+    {
+        $tenant = tenant();
+
+        $rows = TenantSale::where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'location'])
+            ->orderByDesc('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'id'             => $r->id,
+                    'sale_number'    => $r->sale_number,
+                    'payment_status' => $r->payment_status,
+                    'item_count'     => $r->items->count(),
+                    'total_cents'    => $r->total_cents,
+                    'transaction_id' => $r->transaction_id,
+                    'customer'       => $r->customer
+                        ? trim(($r->customer->first_name ?? '') . ' ' . ($r->customer->last_name ?? ''))
+                        : null,
+                    'customer_email' => $r->customer->email ?? null,
+                    'started_by'     => $r->rangUpBy
+                        ? trim(($r->rangUpBy->first_name ?? '') . ' ' . ($r->rangUpBy->last_name ?? ''))
+                        : null,
+                    'location_name'  => $r->location->name ?? null,
+                    'is_refund'      => $r->refund_of_sale_id !== null,
+                    'refund_of_sale_number' => $r->refund_of_sale_id
+                        ? \App\Models\Tenant\TenantSale::where('id', $r->refund_of_sale_id)->value('sale_number')
+                        : null,
+                    'updated_at'     => $r->updated_at?->toIso8601String(),
+                    'paid_at'        => $r->paid_at?->toIso8601String(),
+                    'sale_date'      => $r->sale_date?->toDateString(),
+                ];
+            });
+
+        return view('tenant.register.history', [
+            'tenant' => $tenant,
+            'rows'   => $rows,
+        ]);
+    }
+
+    /**
+     * Return a single sale as JSON for the sale-detail modal.
+     * Read-only. Used by the history page and customer activity timeline.
+     */
+    /**
+     * MARKER-PATCH-231A — sale detail PAGE (the JSON sibling feeds the
+     * register modal; this is a linkable page for search + history).
+     */
+    public function showSalePage(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'payments', 'location', 'refundOf:id,sale_number', 'appointment:id,ra_number'])
+            ->firstOrFail();
+
+        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('created_at')
+            ->get(['id', 'sale_number', 'total_cents', 'created_at']);
+
+        // MARKER-PATCH-231 — linked context (rental/lease the sale belongs to).
+        $linkedRental = $sale->rental_id
+            ? \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->find($sale->rental_id, ['id', 'rental_number'])
+            : null;
+        $linkedLease = $sale->lease_id
+            ? \App\Models\Tenant\Lease::where('tenant_id', $tenant->id)->find($sale->lease_id, ['id', 'lease_number'])
+            : null;
+
+        return view('tenant.register.sale-show', [
+            'sale'         => $sale,
+            'refunds'      => $refunds,
+            'linkedRental' => $linkedRental,
+            'linkedLease'  => $linkedLease,
+        ]);
+    }
+
+    // MARKER-PATCH-319 — render the printable 80mm sales receipt.
+    public function printReceipt(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'items', 'payments'])
+            ->firstOrFail();
+
+        $cfg   = (array) (($tenant->settings['work_order_tag'] ?? []));
+        $print = \App\Services\PrintIdentityService::forTenant($tenant); // MARKER-PATCH-332
+        $embed = $request->boolean('embed');
+
+        return view('tenant.register.receipt', compact('tenant', 'sale', 'print', 'embed'));
+    }
+
+    public function showSaleJson(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+
+        $sale = TenantSale::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->with(['customer', 'rangUpBy', 'items', 'location', 'refundOf:id,sale_number'])
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Load related refunds (children) so the modal can summarize them.
+        $refunds = TenantSale::where('refund_of_sale_id', $sale->id)
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('created_at')
+            ->get(['id', 'sale_number', 'total_cents', 'paid_at', 'created_at'])
+            ->map(fn ($r) => [
+                'id'          => $r->id,
+                'sale_number' => $r->sale_number,
+                'total_cents' => (int) $r->total_cents,
+                'paid_at'     => $r->paid_at?->toIso8601String() ?? $r->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        $items = $sale->items
+            ->sortBy(fn ($i) => $i->position ?? 0)
+            ->values()
+            ->map(fn ($i) => [
+                'type'             => $i->type,
+                'name'             => $i->name_snapshot,
+                'description'      => $i->description_snapshot,
+                'quantity'         => (float) $i->quantity,
+                'unit_price_cents' => (int) $i->unit_price_cents,
+                'discount_cents'   => (int) $i->discount_cents,
+                'tax_cents'        => (int) $i->tax_cents,
+                'is_taxable'       => (bool) $i->is_taxable,
+                'line_total_cents' => (int) $i->line_total_cents,
+            ]);
+
+        // MARKER-PATCH-191 — the payment ledger for this sale (each deposit /
+        // balance / payment / refund row), so the modal shows exactly what was
+        // paid, how, and when — not just the sale total.
+        $payments = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->orderBy('recorded_at')
+            ->get()
+            ->map(fn ($p) => [
+                'id'           => $p->id, // MARKER-PATCH-198 — targets delete
+                'amount_cents' => (int) $p->amount_cents,
+                'kind'         => $p->kind,
+                'method'       => $p->method,
+                'method_label' => method_exists($p, 'methodLabel') ? $p->methodLabel() : $p->method,
+                'source'       => $p->source,
+                'reference'    => $p->external_reference,
+                'notes'        => $p->notes,
+                'recorded_at'  => $p->recorded_at?->toIso8601String(),
+                'is_refund'    => $p->amount_cents < 0,
+            ])
+            ->values();
+        $paidCents = (int) $payments->sum('amount_cents');
+
+        // MARKER-PATCH-161 — email send log for this sale.
+        $sendLog = \App\Models\Tenant\TenantNotificationLog::where('tenant_id', $tenant->id)
+            ->where('related_type', 'sale')
+            ->where('related_id', $sale->id)
+            ->where('channel', 'email')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['event_type','recipient','status','error_message','template_key','created_at'])
+            ->map(fn ($r) => [
+                'event_type'   => $r->event_type,
+                'recipient'    => $r->recipient,
+                'status'       => $r->status,
+                'error'        => $r->error_message,
+                'template_key' => $r->template_key,
+                'created_at'   => $r->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json([
+            'ok'   => true,
+            'sale' => [
+                'id'             => $sale->id,
+                'sale_number'    => $sale->sale_number,
+                'status'         => $sale->status,
+                'payment_status' => $sale->payment_status,
+                'is_refund'      => $sale->refund_of_sale_id !== null,
+                'is_quote'       => $sale->payment_status === 'quote',
+                'is_draft'       => $sale->payment_status === 'draft',
+                'sale_date'      => $sale->sale_date?->toDateString(),
+                'paid_at'        => $sale->paid_at?->toIso8601String(),
+                'created_at'     => $sale->created_at?->toIso8601String(),
+                'updated_at'     => $sale->updated_at?->toIso8601String(),
+                'transaction_id' => $sale->transaction_id,
+                'payment_method' => $sale->payment_method,
+                'payment_reference' => $sale->payment_reference,
+                'notes'          => $sale->notes,
+                'subtotal_cents' => (int) $sale->subtotal_cents,
+                'discount_cents' => (int) $sale->discount_cents,
+                'tax_cents'      => (int) $sale->tax_cents,
+                'surcharge_cents'=> (int) $sale->surcharge_cents,
+                'tip_cents'      => (int) $sale->tip_cents,
+                'total_cents'    => (int) $sale->total_cents,
+                'customer'       => $sale->customer ? [
+                    'id'    => $sale->customer->id,
+                    'name'  => trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? '')),
+                    'email' => $sale->customer->email,
+                    'phone' => $sale->customer->phone,
+                ] : null,
+                'rang_up_by'     => $sale->rangUpBy
+                    ? trim(($sale->rangUpBy->first_name ?? '') . ' ' . ($sale->rangUpBy->last_name ?? ''))
+                    : null,
+                'location_name'  => $sale->location->name ?? null,
+                'refund_of'      => $sale->refundOf ? [
+                    'id'          => $sale->refundOf->id,
+                    'sale_number' => $sale->refundOf->sale_number,
+                ] : null,
+                'refunds'        => $refunds,
+                'items'          => $items,
+                'send_log'       => $sendLog,
+                'payments'       => $payments,
+                'paid_cents'     => $paidCents,
+                // MARKER-PATCH-195 — checkout link fields for the status view.
+                'checkout_session_id' => $sale->checkout_session_id,
+                'sale_status'    => $sale->status,
+                'appointment_id' => $sale->appointment_id,
+            ],
+        ]);
+    }
+
+    /**
+     * Quotes list with dashboard metrics on top.
+     * Cards: open quotes, aging (>14 days), new this week, recently converted.
+     */
+    public function quotesIndex(Request $request)
+    {
+        $tenant = tenant();
+        $now = Carbon::now();
+        $agingThreshold = $now->copy()->subDays(14);
+        $oneWeekAgo = $now->copy()->subDays(7);
+        $thirtyDaysAgo = $now->copy()->subDays(30);
+
+        // Open quotes: total count + dollar value.
+        $openQuotesQuery = TenantSale::where('tenant_id', $tenant->id)->quotes();
+        $openCount = (clone $openQuotesQuery)->count();
+        $openValueCents = (clone $openQuotesQuery)->sum('total_cents');
+
+        // Aging: quotes where updated_at < 14 days ago.
+        $agingQuery = (clone $openQuotesQuery)->where('updated_at', '<', $agingThreshold);
+        $agingCount = (clone $agingQuery)->count();
+        $agingValueCents = (clone $agingQuery)->sum('total_cents');
+        $oldestAging = (clone $agingQuery)->orderBy('updated_at')->value('updated_at');
+        $oldestAgingDays = $oldestAging
+            ? (int) Carbon::parse($oldestAging)->diffInDays($now)
+            : 0;
+
+        // New this week: quotes created (created_at) in last 7 days.
+        $newThisWeekQuery = (clone $openQuotesQuery)->where('created_at', '>=', $oneWeekAgo);
+        $newThisWeekCount = (clone $newThisWeekQuery)->count();
+        $newThisWeekValueCents = (clone $newThisWeekQuery)->sum('total_cents');
+
+        // Recently converted: paid sales with was_quote=true in last 30 days.
+        $convertedQuery = TenantSale::where('tenant_id', $tenant->id)
+            ->where('was_quote', true)
+            ->where('payment_status', 'paid')
+            ->where('paid_at', '>=', $thirtyDaysAgo);
+        $convertedCount = (clone $convertedQuery)->count();
+        $convertedValueCents = (clone $convertedQuery)->sum('total_cents');
+
+        // Conversion rate: of all quotes created in last 30 days, what fraction are now converted?
+        $quotesCreated30d = TenantSale::where('tenant_id', $tenant->id)
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->where(function ($q) {
+                // Either currently a quote, or was one and is now paid.
+                $q->where('payment_status', 'quote')
+                  ->orWhere(function ($qq) {
+                      $qq->where('was_quote', true)->where('payment_status', 'paid');
+                  });
+            })
+            ->count();
+        $conversionRate = $quotesCreated30d > 0
+            ? round(($convertedCount / $quotesCreated30d) * 100)
+            : null;
+
+        $dashboard = [
+            'open' => [
+                'count' => $openCount,
+                'value_cents' => (int) $openValueCents,
+            ],
+            'aging' => [
+                'count' => $agingCount,
+                'value_cents' => (int) $agingValueCents,
+                'oldest_days' => $oldestAgingDays,
+            ],
+            'new_this_week' => [
+                'count' => $newThisWeekCount,
+                'value_cents' => (int) $newThisWeekValueCents,
+            ],
+            'converted' => [
+                'count' => $convertedCount,
+                'value_cents' => (int) $convertedValueCents,
+                'rate_pct' => $conversionRate,
+            ],
+            'aging_threshold_days' => 14,
+        ];
+
+        $quotes = TenantSale::where('tenant_id', $tenant->id)
+            ->quotes()
+            ->with(['customer', 'rangUpBy', 'items', 'location'])
+            ->orderByDesc('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(function ($q) {
+                return [
+                    'id'           => $q->id,
+                    'item_count'   => $q->items->count(),
+                    'total_cents'  => $q->total_cents,
+                    'customer'     => $q->customer
+                        ? trim(($q->customer->first_name ?? '') . ' ' . ($q->customer->last_name ?? ''))
+                        : null,
+                    'customer_email' => $q->customer->email ?? null,
+                    'started_by'   => $q->rangUpBy
+                        ? trim(($q->rangUpBy->first_name ?? '') . ' ' . ($q->rangUpBy->last_name ?? ''))
+                        : null,
+                    'location_name' => $q->location->name ?? null,
+                    'notes'        => $q->notes,
+                    'updated_at'   => $q->updated_at?->toIso8601String(),
+                    'created_at'   => $q->created_at?->toIso8601String(),
+                ];
+            });
+
+        return view('tenant.register.quotes', [
+            'tenant'    => $tenant,
+            'quotes'    => $quotes,
+            'dashboard' => $dashboard,
+        ]);
+    }
+
+    /**
+     * Save the current cart as a quote.
+     * Customer is required (the modal enforces it client-side too).
+     */
+    public function storeQuote(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $locationId = $request->session()->get('current_location_id');
+
+        if (!$locationId) {
+            return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
+        }
+
+        $validated = $request->validate([
+            'id'               => 'nullable|uuid',
+            'customer_id'      => 'required|uuid',
+            'notes'            => 'nullable|string',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'items'            => 'required|array|min:1',
+            'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
+            'items.*.service_id'       => 'nullable|uuid',
+            'items.*.inventory_item_id'=> 'nullable|uuid',
+            'items.*.name_snapshot'    => 'nullable|string|max:255',
+            'items.*.unit_price_cents' => 'nullable|integer|min:0',
+            'items.*.quantity'         => 'nullable|numeric|min:0.001',
+            'items.*.discount_cents'   => 'nullable|integer|min:0',
+            'items.*.is_taxable'       => 'nullable|boolean',
+            'items.*.assigned_staff_id'=> 'nullable|uuid',
+            'items.*.notes'            => 'nullable|string',
+        ]);
+
+        try {
+            $quote = $this->sales->saveQuote([
+                'id'                 => $validated['id'] ?? null,
+                'tenant_id'          => $tenant->id,
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'location_id'        => $locationId,
+                'customer_id'        => $validated['customer_id'],
+                'notes'              => $validated['notes'] ?? null,
+                'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                'items'              => $validated['items'],
+            ]);
+
+            return response()->json([
+                'ok'          => true,
+                'quote_id'    => $quote->id,
+                'total_cents' => $quote->total_cents,
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * GET /register/item/{id}/info — MARKER-PATCH-552
+     * Everything staff want to see about an item mid-sale: identity,
+     * price, per-location stock, and the catalog image when linked.
+     */
+    public function itemInfo(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $item = TenantInventoryItem::with(['category', 'distributorCatalog'])
+            ->where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $stock = \App\Models\Tenant\TenantInventoryItemLocation::query()
+            ->where('inventory_item_id', $item->id)
+            ->get()
+            ->map(function ($row) use ($tenant) {
+                $loc = \App\Models\Tenant\TenantLocation::where('tenant_id', $tenant->id)->where('id', $row->location_id)->first();
+                return ['location' => $loc?->name ?? '—', 'count' => (int) $row->computed_stock_count];
+            })->values();
+
+        // MARKER-PATCH-553 — HLC stores images as objects; pull usable URLs.
+        $images = collect((array) ($item->distributorCatalog?->images ?? []))
+            ->map(function ($im) {
+                if (is_string($im)) return $im;
+                if (is_array($im)) return $im['Url'] ?? $im['url'] ?? $im['src'] ?? null;
+                return null;
+            })->filter()->values()->all();
+
+        // Specs from canonical attributes
+        $attrs = collect((array) ($item->distributorCatalog?->attributes ?? []))
+            ->filter(fn ($a) => is_array($a) && !empty($a['Name']) && trim((string) ($a['Value'] ?? '')) !== '')
+            ->map(fn ($a) => ['name' => $a['Name'], 'value' => $a['Value']])
+            ->values()->all();
+
+        // Sold in the last 30 days (real sales only)
+        $sold30 = (float) \App\Models\Tenant\TenantSaleItem::query()
+            ->where('inventory_item_id', $item->id)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereHas('sale', fn ($q) => $q->where('tenant_id', $tenant->id)
+                ->whereNotIn('payment_status', ['draft', 'quote']))
+            ->sum('quantity');
+
+        // MARKER-PATCH-553 — cost/margin only for roles with the capability
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user(); // MARKER-PATCH-554
+        $costPayload = null;
+        if ($user && $user->canAccessSection('cost_margins')) {
+            $cost  = (int) ($item->effectiveCostCents() ?? 0);
+            $price = (int) ($item->effectiveSellPriceCents() ?? 0);
+            $costPayload = [
+                'cost_cents' => $cost,
+                'margin_pct' => ($price > 0 && $cost > 0) ? round((($price - $cost) / $price) * 100, 1) : null,
+            ];
+        }
+
+        return response()->json([
+            'ok'          => true,
+            'name'        => $item->name,
+            'brand'       => $item->distributorCatalog?->manufacturer,
+            'subtitle'    => $item->display_subtitle,
+            'description' => $item->description,
+            'sku'         => $item->sku,
+            'upc'         => $item->catalog_upc,
+            'category'    => $item->category?->name,
+            'price_cents' => (int) ($item->effectiveSellPriceCents() ?? 0),
+            'taxable'     => (($item->tax_class_code ?? null) !== 'exempt'),
+            'images'      => array_slice($images, 0, 4),
+            'attrs'       => $attrs,
+            'sold_30d'    => $sold30,
+            'cost'        => $costPayload,
+            'edit_url'    => route('tenant.inventory.edit', $item->id),
+            'stock'       => $stock,
+        ]);
+    }
+
+    public function searchRefundables(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $q = trim((string) $request->input('q', ''));
+
+        if ($q === '' || mb_strlen($q) < 2) {
+            return response()->json(['sales' => []]);
+        }
+
+        $sales = TenantSale::where('tenant_id', $tenant->id)
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->whereNull('refund_of_sale_id')
+            ->where(function ($w) use ($q) {
+                $w->where('sale_number', 'like', "%{$q}%")
+                  ->orWhereHas('customer', function ($c) use ($q) {
+                      $c->where('first_name', 'like', "%{$q}%")
+                        ->orWhere('last_name', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                  });
+            })
+            ->orderByDesc('paid_at')
+            ->limit(20)
+            ->with(['customer', 'items'])
+            ->get()
+            ->map(function ($s) {
+                return [
+                    'id'          => $s->id,
+                    'sale_number' => $s->sale_number,
+                    'sale_date'   => $s->sale_date?->toDateString(),
+                    'paid_at'     => $s->paid_at?->toDateTimeString(),
+                    'total_cents' => $s->total_cents,
+                    'tender'      => $s->payment_method,
+                    'customer'    => $s->customer
+                        ? trim(($s->customer->first_name ?? '') . ' ' . ($s->customer->last_name ?? ''))
+                        : null,
+                    'items'       => $s->items->map(fn ($i) => [
+                        'id'               => $i->id,
+                        'name'             => $i->name_snapshot,
+                        'quantity'         => $i->quantity,
+                        'line_total_cents' => $i->line_total_cents,
+                        'type'             => $i->type,
+                    ])->toArray(),
+                ];
+            });
+
+        return response()->json(['sales' => $sales]);
+    }
+
+    // MARKER-PATCH-160 — re-send (or send to another email) a sale receipt
+    public function resendReceipt(Request $request, string $id): JsonResponse
+    {
+        $tenant = tenant();
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->first();
+        if (!$sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Optional override — "send to another email" on the sale-detail card.
+        $override = trim((string) $request->input('email', ''));
+        if ($override !== '' && !filter_var($override, FILTER_VALIDATE_EMAIL)) {
+            return response()->json(['ok' => false, 'error' => 'Invalid email address.'], 422);
+        }
+
+        \App\Jobs\SendSaleReceiptJob::dispatch($sale->id, $override ?: null, 'manual_resend');
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-PATCH-170 — Direct Payments Session 2A.
+     *
+     * Create a Stripe PaymentIntent for a cart. Returns the client_secret
+     * which the front-end uses with Stripe.js to confirm the card.
+     *
+     * This is called BEFORE the sale is committed. After Stripe confirms
+     * the payment client-side, the front-end POSTs to /register/sales (or
+     * /register/drafts/{id}/commit) with payment_method=card AND the
+     * stripe_payment_intent_id so the controller can verify + record.
+     */
+    public function createPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        // MARKER-PATCH-618 — tenant toggle gates NEW payments (refunds untouched).
+        if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
+            return response()->json(['error' => 'Card payments are turned off in Settings → Payments.'], 422);
+        }
+
+        $validated = $request->validate([
+            'amount_cents'      => 'required|integer|min:50',
+            'sale_id'           => 'nullable|uuid',
+            // MARKER-PATCH-170B — preflight payload so we can validate before charging
+            'customer_id'       => 'nullable|uuid',
+            'has_service_line'  => 'nullable|boolean',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Card payments are not enabled for this tenant.',
+            ], 422);
+        }
+
+        // MARKER-PATCH-170B — pre-charge cart validation. Mirrors SaleService
+        // checks so we never authorize a card for a sale that won\'t commit.
+        if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Customer is required when the sale has any service line.',
+            ], 422);
+        }
+
+        try {
+            $pi = $direct->createPaymentIntent($validated['amount_cents'], 'usd', array_filter([
+                'intake_sale_id' => $validated['sale_id'] ?? null,
+            ]));
+            return response()->json([
+                'ok'             => true,
+                'client_secret'  => $pi->client_secret,
+                'payment_intent' => $pi->id,
+                'publishable_key' => $direct->publishableKey(),
+                'mode'           => $direct->mode(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.create_pi_failed', [
+                'tenant_id' => $tenant->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok' => false,
+                'error' => 'Could not initialize card payment. Verify your Stripe keys are correct.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify a PaymentIntent's final state with Stripe. Returns the card
+     * details if succeeded so the front-end can include them in the
+     * subsequent commit call (which writes them to the sale row).
+     */
+    public function confirmPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        try {
+            $pi = $direct->retrievePaymentIntent($validated['payment_intent']);
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.retrieve_pi_failed', [
+                'tenant_id' => $tenant->id,
+                'pi'        => $validated['payment_intent'],
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Could not verify payment.'], 500);
+        }
+
+        if ($pi->status !== 'succeeded') {
+            return response()->json([
+                'ok'     => false,
+                'status' => $pi->status,
+                'error'  => 'Payment is not in a succeeded state (status: ' . $pi->status . ').',
+            ], 409);
+        }
+
+        $card = $direct->extractCardDetails($pi);
+        return response()->json([
+            'ok'                       => true,
+            'payment_intent'           => $pi->id,
+            'stripe_charge_id'         => $card['charge_id'],
+            'card_brand'               => $card['brand'],
+            'card_last4'               => $card['last4'],
+            'card_funding'             => $card['funding'],
+            'amount_received_cents'    => $pi->amount_received,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Create a Stripe Checkout Session and a matching
+     * DRAFT sale that\'s waiting for the customer to pay remotely.
+     *
+     * Returns the Checkout URL (for QR + copy/share) and the draft sale ID
+     * (which the frontend polls until the webhook fires).
+     */
+    public function createCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        // MARKER-PATCH-618 — tenant toggle gates NEW payment links (refunds untouched).
+        if (! $tenant->direct_payments_enabled || ! ($tenant->settings['stripe_register_enabled'] ?? true)) {
+            return response()->json(['error' => 'Payment links are turned off in Settings → Payments.'], 422);
+        }
+
+        $validated = $request->validate([
+            'amount_cents'     => 'required|integer|min:50',
+            'customer_id'      => 'nullable|uuid',
+            'has_service_line' => 'nullable|boolean',
+            'description'      => 'nullable|string|max:255',
+            // MARKER-PATCH-178B — when present, bind the link to THIS existing
+            // sale instead of minting a new (appointment-less) one. This is the
+            // resumed parked sale's id (cart.draft_id on the frontend).
+            'sale_id'          => 'nullable|uuid',
+            'items'            => 'required|array|min:1',
+            'tip_cents'        => 'nullable|integer|min:0',
+            'discount_cents'   => 'nullable|integer|min:0',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        // Same pre-check as createPaymentIntent (defense in depth).
+        if (! empty($validated['has_service_line']) && empty($validated['customer_id'])) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Customer is required when the sale has any service line.',
+            ], 422);
+        }
+
+        // Resolve customer email for receipt (Stripe Checkout will pre-fill it).
+        $customerEmail = null;
+        if (! empty($validated['customer_id'])) {
+            $customerEmail = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)
+                ->where('id', $validated['customer_id'])
+                ->value('email');
+        }
+
+        // Create the Checkout Session first — if Stripe fails, no draft sale orphan.
+        $description = $validated['description'] ?: ($tenant->name . ' — purchase');
+        try {
+            $session = $direct->createCheckoutSession(
+                $validated['amount_cents'],
+                $description,
+                array_filter([
+                    'customer_email' => $customerEmail,
+                ])
+            );
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.checkout_session_failed', [
+                'tenant_id' => $tenant->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Could not create payment link. Verify your Stripe keys.',
+            ], 500);
+        }
+
+        // MARKER-PATCH-178B — bind the session to an EXISTING sale when sale_id
+        // is given (resumed parked/appointment sale), instead of minting a new
+        // appointment-less sale. This was the link-detach bug: link-paid
+        // appointments stayed unpaid because the charge landed on a separate
+        // sale. If no sale_id, fall back to creating a draft as before.
+        $locationId = $request->session()->get('current_location_id');
+        try {
+            if (!empty($validated['sale_id'])) {
+                $draftSale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                    ->where('id', $validated['sale_id'])
+                    ->whereNotIn('status', ['cancelled', 'closed'])
+                    ->first();
+                if (!$draftSale) {
+                    return response()->json(['ok' => false, 'error' => 'Sale not found to attach the link.'], 404);
+                }
+                $draftSale->checkout_session_id = $session->id;
+                if (in_array($draftSale->payment_status, ['draft'], true)) {
+                    $draftSale->payment_status = 'unpaid';
+                }
+                $draftSale->payment_method    = $draftSale->payment_method ?: 'card';
+                $draftSale->payment_reference = $draftSale->payment_reference ?: 'Awaiting payment link';
+                $draftSale->save();
+            } else {
+                $draftSale = $this->sales->createSale([
+                    'tenant_id'          => $tenant->id,
+                    'rang_up_by_user_id' => auth('tenant')->id(),
+                    'location_id'        => $locationId,
+                    'customer_id'        => $validated['customer_id'] ?? null,
+                    'status'             => 'pending',
+                    'payment_status'     => 'unpaid',
+                    'payment_method'     => 'card',
+                    'payment_reference'  => 'Awaiting payment link',
+                    'paid_at'            => null,
+                    'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
+                    'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                    'items'              => $validated['items'],
+                    'checkout_session_id' => $session->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // If draft creation fails, expire the Stripe session immediately so
+            // the link can\'t be paid (we have nothing to attach it to).
+            try {
+                $direct->client = null; // ignore typing — best-effort
+            } catch (\Throwable $_) {}
+            Log::error('direct_payments.draft_sale_failed', [
+                'tenant_id'  => $tenant->id,
+                'session_id' => $session->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Could not stage the sale. ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'sale_id'      => $draftSale->id,
+            'session_id'   => $session->id,
+            'checkout_url' => $session->url,
+            'expires_at'   => $session->expires_at,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Poll status of a Checkout Session. Frontend calls
+     * this every ~3 seconds while the payment-link modal is open.
+     *
+     * Returns one of: pending (still waiting), succeeded (payment_status
+     * went paid via webhook), expired, or cancelled.
+     */
+    public function checkCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Primary check: the webhook handler updates payment_status=paid when
+        // checkout.session.completed fires. Read DB first to avoid hitting Stripe.
+        if ($sale->payment_status === 'paid') {
+            return response()->json([
+                'ok'          => true,
+                'status'      => 'succeeded',
+                'sale_id'     => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'total_cents' => $sale->total_cents,
+            ]);
+        }
+
+        // Fallback: hit Stripe directly in case webhook is delayed/dropped.
+        $direct = new DirectPaymentsService($tenant);
+        if ($sale->checkout_session_id) {
+            try {
+                $session = $direct->retrieveCheckoutSession($sale->checkout_session_id);
+                if ($session->payment_status === 'paid' && $session->status === 'complete') {
+                    // Webhook hasn\'t fired yet. We could promote here, but
+                    // it\'s cleaner to let the webhook be the source of truth.
+                    // Just report pending for now; the next poll should see it.
+                }
+                if ($session->status === 'expired') {
+                    return response()->json(['ok' => true, 'status' => 'expired']);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('direct_payments.poll_failed', [
+                    'tenant_id' => $tenant->id,
+                    'session'   => $sale->checkout_session_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json(['ok' => true, 'status' => 'pending']);
+    }
+
+    /**
+     * MARKER-PATCH-172 — Cancel a pending Checkout-Session-backed sale.
+     * Used when the operator closes the payment-link modal manually.
+     */
+    public function cancelCheckoutSession(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->where('payment_status', 'unpaid')  // MARKER-PATCH-172C
+            ->first();
+
+        if (! $sale) {
+            return response()->json(['ok' => true, 'status' => 'already_resolved']);
+        }
+
+        // Expire the Stripe session (best-effort) and mark the sale cancelled.
+        if ($sale->checkout_session_id) {
+            try {
+                $direct = new DirectPaymentsService($tenant);
+                $direct->retrieveCheckoutSession($sale->checkout_session_id); // ensure exists
+                // Stripe Checkout sessions don\'t have a direct cancel API,
+                // but expire is achievable via the expire endpoint.
+                // Use stripe SDK's expire method.
+                // NOTE: stripe-php exposes this as $client->checkout->sessions->expire($id)
+                // (added in newer versions). If unavailable, the session will
+                // simply expire after 24h naturally.
+                // We swallow errors here — they're non-fatal.
+                $client = new \Stripe\StripeClient(['api_key' => $tenant->settings['register_payments_' . ($tenant->settings['register_payments_mode'] ?? 'test') . '_sk'] ?? null]);
+                try {
+                    $client->checkout->sessions->expire($sale->checkout_session_id);
+                } catch (\Throwable $_) {
+                    // expire may not be available on older SDK versions — ignore.
+                }
+            } catch (\Throwable $e) {
+                // Best-effort cleanup.
+                Log::info('direct_payments.session_expire_skipped', [
+                    'tenant_id' => $tenant->id,
+                    'session'   => $sale->checkout_session_id,
+                ]);
+            }
+        }
+
+        // MARKER-PATCH-172C — payment_status enum doesn't have 'cancelled'.
+        // status column already has 'cancelled'. payment_status stays 'unpaid'
+        // (customer didn't pay; was never going to from this aborted attempt).
+        $sale->status = 'cancelled';
+        $sale->save();
+
+        return response()->json(['ok' => true, 'status' => 'cancelled']);
+    }
+
+    /**
+     * MARKER-PATCH-173 — Customer-facing landing page after a successful
+     * Stripe Checkout payment (send-payment-link flow). PUBLIC route: the
+     * paying customer is anonymous on their own device. Tenant is resolved by
+     * ResolveTenant middleware and $currentTenant is shared to the view.
+     *
+     * No money depends on this page — the webhook has already promoted the
+     * sale to paid by the time Stripe redirects here. total_cents is set on
+     * the draft sale at link-creation time, so we show the amount without any
+     * synchronous Stripe round-trip.
+     */
+    public function checkoutSuccess(Request $request)
+    {
+        $tenant    = tenant();
+        $sessionId = (string) $request->query('session_id', '');
+
+        $sale = null;
+        if ($sessionId !== '') {
+            $sale = \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->where('checkout_session_id', $sessionId)
+                ->first();
+        }
+
+        return view('tenant.register.checkout-success', [
+            'amountCents' => $sale?->total_cents,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-173 — Customer-facing landing page when the customer backs
+     * out of the Stripe Checkout page. Nothing was charged. PUBLIC route.
+     */
+    public function checkoutCancel(Request $request)
+    {
+        return view('tenant.register.checkout-cancel');
+    }
+
+    /**
+     * MARKER-PATCH-170B — auto-refund a PaymentIntent. Called by the client
+     * when commitTransaction fails after a charge already authorized.
+     *
+     * Idempotent: if the PI was already refunded, Stripe returns the existing
+     * refund instead of erroring.
+     */
+    public function autoRefundPaymentIntent(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+            'reason'         => 'nullable|string|max:255',
+        ]);
+
+        $direct = new DirectPaymentsService($tenant);
+        if (! $direct->isEnabled()) {
+            return response()->json(['ok' => false, 'error' => 'Card payments not enabled.'], 422);
+        }
+
+        $refund = $direct->refundPaymentIntent(
+            $validated['payment_intent'],
+            $validated['reason'] ?? 'sale_commit_failed'
+        );
+
+        if (! $refund) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Refund failed. Charge may still be live in Stripe — check the Stripe dashboard.',
+            ], 500);
+        }
+
+        return response()->json([
+            'ok'        => true,
+            'refund_id' => $refund->id,
+            'amount'    => $refund->amount,
+        ]);
+    }
+
+    public function storeRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'original_sale_id' => 'required|uuid',
+            'refund_method'    => 'required|string|in:cash,card,check,store_credit,mark_paid',
+            'reason'           => 'nullable|string|max:500',
+            'notes'            => 'nullable|string',
+            'item_ids'         => 'required|array|min:1',
+            'item_ids.*'       => 'uuid',
+        ]);
+
+        try {
+            $refund = $this->sales->createRefund([
+                'tenant_id'          => $tenant->id,
+                'original_sale_id'   => $validated['original_sale_id'],
+                'rang_up_by_user_id' => auth('tenant')->id(),
+                'refund_method'      => $validated['refund_method'],
+                'reason'             => $validated['reason'] ?? null,
+                'notes'              => $validated['notes'] ?? null,
+                'item_ids'           => $validated['item_ids'],
+            ]);
+
+            // MARKER-PATCH-171 — fire a Stripe refund when the refund is to card
+            // AND the original sale was paid via direct-payments Stripe flow.
+            // Failure here is REPORTED but doesn\'t roll back the Intake refund row —
+            // the operator can retry from sale detail (or via Stripe dashboard).
+            $stripeRefundError = null;
+            if ($validated['refund_method'] === 'card') {
+                $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
+            }
+
+            return response()->json([
+                'ok'                  => true,
+                'refund_id'           => $refund->id,
+                'sale_number'         => $refund->sale_number,
+                'total_cents'         => $refund->total_cents,
+                'stripe_refund_error' => $stripeRefundError,
+                'stripe_refund_id'    => $refund->fresh()->stripe_refund_id,
+            ]);
+        } catch (SaleValidationException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (InventoryStockException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * MARKER-PATCH-171 — shared helper to fire a Stripe refund for a refund row.
+     * Returns null on success, or an error message string on failure.
+     *
+     * The refund row\'s own stripe_payment_intent_id is copied from the original
+     * sale in SaleService::createRefund via the existing snapshot machinery —
+     * but to be safe and explicit, we read the original sale fresh from the DB
+     * and use ITS stripe_payment_intent_id (the refund row may not have one set
+     * depending on snapshot config).
+     */
+    protected function fireStripeRefund(\App\Models\Tenant $tenant, \App\Models\Tenant\TenantSale $refundRow): ?string
+    {
+        if (! $tenant->direct_payments_enabled) {
+            // Not an error — just nothing to do.
+            return null;
+        }
+
+        $original = \App\Models\Tenant\TenantSale::find($refundRow->refund_of_sale_id);
+        if (! $original || ! $original->stripe_payment_intent_id) {
+            // Original wasn\'t paid via Stripe; nothing to refund there.
+            return null;
+        }
+
+        try {
+            $direct = new DirectPaymentsService($tenant);
+            $stripeRefund = $direct->refundCharge(
+                $original->stripe_payment_intent_id,
+                (int) $refundRow->total_cents,
+                [
+                    'intake_refund_sale_id'   => $refundRow->id,
+                    'intake_original_sale_id' => $original->id,
+                ]
+            );
+            $refundRow->stripe_refund_id = $stripeRefund->id;
+            $refundRow->save();
+            return null;
+        } catch (\Throwable $e) {
+            Log::error('direct_payments.refund_failed', [
+                'tenant_id'        => $tenant->id,
+                'refund_sale_id'   => $refundRow->id,
+                'original_sale_id' => $original->id,
+                'pi'               => $original->stripe_payment_intent_id,
+                'error'            => $e->getMessage(),
+            ]);
+            return $e->getMessage();
+        }
+    }
+
+    /**
+     * MARKER-PATCH-461 — Record an overage refund against an appointment.
+     *
+     * paid_cents > total_cents means the customer overpaid. This returns the
+     * difference (or a portion of it): it writes a negative overage_refund row
+     * on the appointment's money-bearing sale, which cascades the appointment
+     * paid cache + payment_status centrally via SalePaymentService::recalcStatus().
+     * 'card' fires a real Stripe partial refund when the sale has a charge to
+     * reverse; otherwise card records a manual refund like the other methods.
+     */
+    public function recordAppointmentOverageRefund(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+
+        $validated = $request->validate([
+            'appointment_id' => 'required|uuid',
+            'amount_cents'   => 'required|integer|min:1',
+            'method'         => 'required|string|in:cash,check,store_credit,mark_paid,card',
+            'notes'          => 'nullable|string|max:500',
+        ]);
+
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('id', $validated['appointment_id'])
+            ->first();
+        if (! $appointment) {
+            return response()->json(['ok' => false, 'error' => 'Appointment not found.'], 404);
+        }
+
+        // Authoritative overage from the ledger, not the cached column.
+        $appointment->load('payments');
+        $paid    = $appointment->paidCentsFromLedger();
+        $total   = (int) $appointment->total_cents;
+        $overage = $paid - $total;
+
+        if ($overage <= 0) {
+            return response()->json(['ok' => false, 'error' => 'This appointment has no overage to refund.'], 422);
+        }
+        if ((int) $validated['amount_cents'] > $overage) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Refund exceeds the overage of $' . number_format($overage / 100, 2) . '.',
+            ], 422);
+        }
+
+        // The sale holding the money: highest net-paid, non-cancelled.
+        $paymentSvc = app(\App\Services\Tenant\SalePaymentService::class);
+        $sale = $appointment->sales()
+            ->where('status', '!=', 'cancelled')
+            ->get()
+            ->sortByDesc(fn ($s) => $paymentSvc->paidCents($s))
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'No sale found to refund against.'], 422);
+        }
+
+        // MARKER-PATCH-462 — card refund: fire a real Stripe refund when the sale
+        // has a charge to reverse; otherwise fall through and record a manual
+        // 'card' refund (operator returned it out-of-band — terminal, manual key).
+        $stripeRefundId = null;
+        if ($validated['method'] === 'card'
+            && $tenant->direct_payments_enabled
+            && $sale->stripe_payment_intent_id) {
+            try {
+                $direct = new DirectPaymentsService($tenant);
+                $stripeRefund = $direct->refundCharge(
+                    $sale->stripe_payment_intent_id,
+                    (int) $validated['amount_cents'],
+                    [
+                        'intake_overage_refund_appointment_id' => $appointment->id,
+                        'intake_sale_id'                       => $sale->id,
+                    ]
+                );
+                $stripeRefundId = $stripeRefund->id;
+            } catch (\Throwable $e) {
+                Log::error('overage_refund.stripe_failed', [
+                    'tenant_id'      => $tenant->id,
+                    'appointment_id' => $appointment->id,
+                    'sale_id'        => $sale->id,
+                    'error'          => $e->getMessage(),
+                ]);
+                return response()->json(['ok' => false, 'error' => 'Stripe refund failed: ' . $e->getMessage()], 422);
+            }
+        }
+
+        // Refund chain: point at the most recent inbound payment on this sale.
+        $referencePaymentId = \App\Models\Tenant\TenantSalePayment::where('sale_id', $sale->id)
+            ->where('amount_cents', '>', 0)
+            ->orderByDesc('recorded_at')
+            ->value('id');
+
+        try {
+            $payment = $paymentSvc->record(
+                $sale,
+                -1 * (int) $validated['amount_cents'],
+                \App\Models\Tenant\TenantSalePayment::KIND_OVERAGE_REFUND,
+                \App\Models\Tenant\TenantSalePayment::SOURCE_MANUAL_ENTRY,
+                $validated['method'],
+                $referencePaymentId,
+                $stripeRefundId,
+                $validated['notes'] ?? null,
+            );
+        } catch (\Throwable $e) {
+            Log::error('overage_refund.record_failed', [
+                'tenant_id'        => $tenant->id,
+                'appointment_id'   => $appointment->id,
+                'sale_id'          => $sale->id,
+                'stripe_refund_id' => $stripeRefundId,
+                'error'            => $e->getMessage(),
+            ]);
+            $tail = $stripeRefundId
+                ? ' (Stripe refund ' . $stripeRefundId . ' DID fire — reconcile manually)'
+                : '';
+            return response()->json(['ok' => false, 'error' => 'Could not record the refund' . $tail . ': ' . $e->getMessage()], 500);
+        }
+
+        $appointment->refresh()->load('payments');
+        $newPaid    = $appointment->paidCentsFromLedger();
+        $newOverage = max(0, $newPaid - $total);
+
+        Log::info('overage_refund.recorded', [
+            'tenant_id'      => $tenant->id,
+            'appointment_id' => $appointment->id,
+            'sale_id'        => $sale->id,
+            'amount_cents'   => (int) $validated['amount_cents'],
+            'method'         => $validated['method'],
+            'stripe_refund'  => $stripeRefundId,
+            'by'             => auth('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'               => true,
+            'payment_id'       => $payment->id,
+            'paid_cents'       => $newPaid,
+            'overage_cents'    => $newOverage,
+            'stripe_refund_id' => $stripeRefundId,
+        ]);
+    }
+
+
+    /**
+     * MARKER-PATCH-630 — allowed payment_method values: built-ins plus any
+     * enabled manual method keys from tenant_payment_methods.
+     */
+    protected function allowedTenders(array $extra = []): string
+    {
+        $manual = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', tenant()->id)
+            ->where('enabled', true)->where('kind', 'manual')
+            ->pluck('method_key')->all();
+        $all = array_unique(array_merge(['cash', 'card', 'check', 'store_credit', 'mark_paid', 'split'], $extra, $manual));
+        return 'required|string|in:' . implode(',', $all);
+    }
+
+    protected function taxLabel($tenant): string
+    {
+        $rate = $tenant->default_tax_rate;
+        if ($rate === null || (float) $rate === 0.0) {
+            return 'No tax configured';
+        }
+        return 'Tax · ' . rtrim(rtrim(number_format((float) $rate, 3), '0'), '.') . '%';
+    }
+
+    /**
+     * MARKER-PATCH-197 — Stripe-vs-ledger reconciliation report. Lists succeeded
+     * Stripe payments with no matching ledger row ("paid in Stripe, unpaid in
+     * Intake"). The safety net for any payment that slips past the webhook.
+     */
+    public function reconciliation(\Illuminate\Http\Request $request)
+    {
+        $tenant = tenant();
+        $days = (int) $request->query('days', 30);
+        $days = max(1, min($days, 90));
+
+        $svc = new \App\Services\Tenant\PaymentReconciliationService($tenant);
+        $result = $svc->unmatchedPayments($days);
+
+        return view('tenant.register.reconciliation', [
+            'days'      => $days,
+            'scanned'   => $result['scanned'],
+            'unmatched' => $result['unmatched'],
+            'error'     => $result['error'],
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-197 — Reconcile a stranded Stripe payment by recording it
+     * against a sale through the ledger. Requires an explicit sale_id (the
+     * operator picks the candidate) and the PI id. Idempotent: refuses if a
+     * ledger row for this PI already exists.
+     */
+    public function reconcilePayment(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'payment_intent' => 'required|string',
+            'sale_id'        => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Idempotency: never double-record a PI.
+        $already = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('external_reference', $validated['payment_intent'])
+            ->exists();
+        if ($already) {
+            return response()->json(['ok' => false, 'error' => 'This payment is already recorded in the ledger.'], 409);
+        }
+
+        // Verify the PI with Stripe before recording — don't trust the request.
+        $direct = new DirectPaymentsService($tenant);
+        try {
+            $pi = $direct->retrievePaymentIntent($validated['payment_intent']);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not verify payment with Stripe.'], 422);
+        }
+        if (($pi->status ?? null) !== 'succeeded' || (int) ($pi->amount_received ?? 0) <= 0) {
+            return response()->json(['ok' => false, 'error' => 'That Stripe payment is not a completed charge.'], 422);
+        }
+
+        $amountCents = (int) $pi->amount_received;
+        $details = [];
+        try { $details = $direct->extractCardDetails($pi); } catch (\Throwable $e) {}
+
+        try {
+            $hasPrior = $sale->payments()->count() > 0;
+            app(\App\Services\Tenant\SalePaymentService::class)->record(
+                sale:               $sale,
+                amountCents:        $amountCents,
+                kind:               $hasPrior
+                    ? \App\Models\Tenant\TenantSalePayment::KIND_BALANCE
+                    : ($sale->appointment_id
+                        ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                        : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT),
+                source:             \App\Models\Tenant\TenantSalePayment::SOURCE_DIRECT_PAYMENT_LINK,
+                method:             'card',
+                externalReference:  $pi->id,
+                notes:              'Reconciled from Stripe (was not recorded by webhook).',
+            );
+
+            // Stamp the sale's Stripe fields + un-cancel if it was cancelled.
+            $sale->stripe_payment_intent_id = $pi->id;
+            if (!empty($details['charge_id'])) $sale->stripe_charge_id = $details['charge_id'];
+            if (!empty($details['brand']))     $sale->card_brand       = $details['brand'];
+            if (!empty($details['last4']))     $sale->card_last4       = $details['last4'];
+            if (!empty($details['funding']))   $sale->card_funding     = $details['funding'];
+            if ($sale->status === 'cancelled') $sale->status = 'completed';
+            $sale->save();
+
+            // MARKER-PATCH-219C — appointment paid cache cascades
+            // centrally in SalePaymentService::recalcStatus().
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => 'Could not record the payment: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'amount_cents' => $amountCents, 'sale_number' => $sale->sale_number]);
+    }
+
+    /**
+     * MARKER-PATCH-198 — Hard-delete a single payment row from a sale's ledger.
+     * For correcting bad data (e.g. a duplicate deposit). After deletion the
+     * sale's payment_status + paid_at and the linked appointment's paid_cents
+     * are recomputed so totals stay consistent. Double-confirmed in the UI.
+     */
+    public function deleteSalePayment(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id'    => 'required|uuid',
+            'payment_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        $payment = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('id', $validated['payment_id'])
+            ->where('sale_id', $sale->id)
+            ->first();
+        if (! $payment) {
+            return response()->json(['ok' => false, 'error' => 'Payment not found on this sale.'], 404);
+        }
+
+        $deletedCents = (int) $payment->amount_cents;
+        $payment->delete();
+
+        // Recompute the sale's derived payment state from the remaining ledger.
+        $svc = app(\App\Services\Tenant\SalePaymentService::class);
+        $svc->recalcStatus($sale);
+        $sale->refresh();
+
+        // MARKER-PATCH-219C — appointment paid cache cascades centrally in
+        // SalePaymentService::recalcStatus() (called via recalcStatus above).
+
+        \Illuminate\Support\Facades\Log::info('sale_payment.deleted', [
+            'tenant_id'  => $tenant->id,
+            'sale_id'    => $sale->id,
+            'payment_id' => $validated['payment_id'],
+            'amount'     => $deletedCents,
+            'by'         => auth('tenant')->id(),
+        ]);
+
+        return response()->json([
+            'ok'             => true,
+            'paid_cents'     => $svc->paidCents($sale),
+            'payment_status' => $sale->payment_status,
+        ]);
+    }
+
+    /**
+     * MARKER-PATCH-199 — Delete an empty sale (data correction for stray
+     * deposit-sales left after their payment was removed). REFUSES if the sale
+     * still has any ledger payments — you must clear those first (patch-198).
+     * Hard-deletes the sale + its line items, then refreshes the linked
+     * appointment's paid cache. Double-confirmed in the UI.
+     */
+    public function deleteSale(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $validated = $request->validate([
+            'sale_id' => 'required|uuid',
+        ]);
+
+        $sale = TenantSale::where('tenant_id', $tenant->id)
+            ->where('id', $validated['sale_id'])
+            ->first();
+        if (! $sale) {
+            return response()->json(['ok' => false, 'error' => 'Sale not found.'], 404);
+        }
+
+        // Guard: never delete a sale that still carries money. The operator must
+        // remove the payments first (so the deletion can't silently lose a
+        // recorded payment).
+        $payCount = \App\Models\Tenant\TenantSalePayment::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->count();
+        if ($payCount > 0) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'This sale still has ' . $payCount . ' payment(s). Delete those first, then delete the sale.',
+            ], 409);
+        }
+
+        // Guard: never delete a refund record this way.
+        if ($sale->refund_of_sale_id) {
+            return response()->json(['ok' => false, 'error' => 'Refund records cannot be deleted here.'], 422);
+        }
+
+        $apptId = $sale->appointment_id;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $sale) {
+            \App\Models\Tenant\TenantSaleItem::where('tenant_id', $tenant->id)
+                ->where('sale_id', $sale->id)
+                ->delete();
+            $sale->delete();
+        });
+
+        // Recompute the linked appointment's paid cache from the remaining ledger.
+        // MARKER-PATCH-219C — this block stays MANUAL by necessity: the sale
+        // row was just deleted, so SalePaymentService::recalcStatus() can
+        // never run for it. Every other site cascades centrally.
+        if ($apptId) {
+            $appt = \App\Models\Tenant\TenantAppointment::find($apptId);
+            if ($appt) {
+                $appt->paid_cents = (int) $appt->payments()->sum('tenant_sale_payments.amount_cents');
+                $total = (int) $appt->total_cents;
+                if ($total > 0 && $appt->paid_cents >= $total) {
+                    $appt->payment_status = ($appt->paid_cents > $total) ? 'overage' : 'paid';
+                } elseif ($appt->paid_cents > 0) {
+                    $appt->payment_status = 'partial';
+                } else {
+                    $appt->payment_status = 'unpaid';
+                }
+                $appt->save();
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('sale.deleted', [
+            'tenant_id'   => $tenant->id,
+            'sale_id'     => $validated['sale_id'],
+            'sale_number' => $sale->sale_number,
+            'by'          => auth('tenant')->id(),
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-OFFLINE-SYNC — catalog snapshot for offline register search.
+     * Top products by 90-day sale frequency plus all active services, shaped
+     * like the live /register/search response so the offline path reuses
+     * renderResults() unchanged.
+     */
+    public function offlineCatalog(Request $request): JsonResponse
+    {
+        $tenant = app('tenant');
+
+        $topProductIds = \Illuminate\Support\Facades\DB::table('tenant_sale_items')
+            ->join('tenant_sales', 'tenant_sales.id', '=', 'tenant_sale_items.sale_id')
+            ->where('tenant_sales.tenant_id', $tenant->id)
+            ->where('tenant_sales.sale_date', '>=', now()->subDays(90)->toDateString())
+            ->whereNotNull('tenant_sale_items.inventory_item_id')
+            ->groupBy('tenant_sale_items.inventory_item_id')
+            ->orderByRaw('COUNT(*) DESC')
+            ->limit(min(1000, max(100, (int) $request->query('limit', 500)))) // MARKER-OFFLINE-SYNC stage 2
+            ->pluck('tenant_sale_items.inventory_item_id')
+            ->all();
+
+        $products = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->whereIn('id', $topProductIds)
+            ->get()
+            ->map(fn ($p) => [
+                'id'                     => $p->id,
+                'name'                   => $p->name ?? '',
+                'subtitle'               => $p->display_subtitle ?? '',
+                'sku'                    => $p->sku ?? '',
+                'price_cents'            => (int) ($p->effectiveSellPriceCents() ?? 0),
+                'is_taxable'             => (($p->tax_class_code ?? null) !== 'exempt'),
+                'allow_oversell'         => (bool) $p->allow_oversell,
+                'current_location_stock' => 0,
+                'current_location_name'  => null,
+            ])->values();
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', 1)
+            ->get()
+            ->map(fn ($sv) => [
+                'id'               => $sv->id,
+                'name'             => $sv->name,
+                'price_cents'      => (int) ($sv->price_cents ?? 0),
+                'duration_minutes' => (int) ($sv->duration_minutes ?? 0),
+            ])->values();
+
+        return response()->json([
+            'ok'          => true,
+            'captured_at' => now()->toIso8601String(),
+            'products'    => $products,
+            'services'    => $services,
+        ]);
+    }
+}
+SPLIT_0_EOF
+
+cat > 'app/Services/Tenant/SaleService.php' <<'SPLIT_1_EOF'
+<?php
+
+namespace App\Services\Tenant;
+
+use App\Models\Tenant\TenantSale;
+use App\Models\Tenant\TenantSaleItem;
+use App\Models\Tenant\TenantSaleCounter;
+use App\Models\Tenant\TenantServiceItem;
+use App\Models\Tenant\TenantInventoryItem;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
+
+class SaleService
+{
+    public function __construct(protected InventoryService $inventory)
+    {
+    }
+
+    /**
+     * Generate the next sale_number for a tenant on a given date.
+     * Uses row-level lock-and-increment on tenant_sale_counters to prevent
+     * collision under concurrent register writes.
+     *
+     * Format: S-YYYYMMDD-### (zero-padded sequence).
+     */
+    public function nextSaleNumber(string $tenantId, ?string $saleDate = null): string
+    {
+        // MARKER-PATCH-159 — tenant-local "today" for date-only sale_number generation
+        $tenant = \App\Models\Tenant::find($tenantId);
+        $tz = $tenant ? $tenant->timezone() : 'UTC';
+        $date = $saleDate ? Carbon::parse($saleDate, $tz) : Carbon::today($tz);
+        $datePart = $date->format('Ymd');
+
+        return DB::transaction(function () use ($tenantId, $date, $datePart) {
+            $counter = TenantSaleCounter::where('tenant_id', $tenantId)
+                ->whereDate('counter_date', $date->toDateString())
+                ->lockForUpdate()
+                ->first();
+
+            if (!$counter) {
+                $counter = TenantSaleCounter::create([
+                    'tenant_id'    => $tenantId,
+                    'counter_date' => $date->toDateString(),
+                    'last_seq'     => 0,
+                ]);
+            }
+
+            $counter->increment('last_seq');
+            $seq = str_pad((string) $counter->last_seq, 3, '0', STR_PAD_LEFT);
+
+            return "S-{$datePart}-{$seq}";
+        });
+    }
+
+    /**
+     * Create a sale and its line items atomically.
+     */
+    public function createSale(array $data): TenantSale
+    {
+        $items = $data['items'] ?? [];
+        unset($data['items']);
+
+        // Customer-required-for-service validation
+        $hasServiceLine = collect($items)->contains(fn ($i) => ($i['type'] ?? null) === 'service');
+        if ($hasServiceLine && empty($data['customer_id'])) {
+            throw new SaleValidationException(
+                'Customer is required when the sale has any service line.'
+            );
+        }
+
+        // Location is required (DB allows null for legacy/imports; app enforces presence).
+        if (empty($data['location_id'])) {
+            throw new SaleValidationException(
+                'location_id is required to create a sale.'
+            );
+        }
+
+        return DB::transaction(function () use ($data, $items) {
+            $tenantId = $data['tenant_id'];
+            // MARKER-PATCH-159 — tenant-local today, not UTC
+            $saleDate = $data['sale_date'] ?? \App\Models\Tenant::find($data['tenant_id'])?->localToday()->toDateString() ?? Carbon::today()->toDateString();
+
+            $sale = TenantSale::create([
+                'tenant_id'          => $tenantId,
+                'sale_number'        => $this->nextSaleNumber($tenantId, $saleDate),
+                'sale_date'          => $saleDate,
+                'status'             => $data['status'] ?? 'pending',
+                'payment_status'     => $data['payment_status'] ?? 'unpaid',
+                'customer_id'        => $data['customer_id'] ?? null,
+                'assigned_staff_id'  => $data['assigned_staff_id'] ?? null,
+                'appointment_id'     => $data['appointment_id'] ?? null,
+                'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                'location_id'        => $data['location_id'],
+                'register_id'        => $data['register_id'] ?? null, // MARKER-REGISTER-RECON-DISPLAY
+                'client_uuid'        => $data['client_uuid'] ?? null, // MARKER-OFFLINE-SYNC
+                'payment_method'     => $data['payment_method'] ?? null,
+                'payment_reference'  => $data['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments card metadata
+                'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
+                'stripe_charge_id'         => $data['stripe_charge_id']         ?? null,
+                'card_brand'               => $data['card_brand']               ?? null,
+                'card_last4'               => $data['card_last4']               ?? null,
+                'card_funding'             => $data['card_funding']             ?? null,
+                // MARKER-PATCH-172E — Checkout Session ID for send-payment-link flow.
+                // Missing this passthrough broke patch 172's draft-sale linkage.
+                'checkout_session_id'      => $data['checkout_session_id']      ?? null,
+                'paid_at'            => $data['paid_at'] ?? null,
+                'notes'              => $data['notes'] ?? null,
+                'subtotal_cents'     => 0,
+                'discount_cents'     => 0,
+                'tax_cents'          => 0,
+                'surcharge_cents'    => 0,
+                'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
+                'total_cents'        => 0,
+            ]);
+
+            $position = 0;
+            foreach ($items as $itemData) {
+                $this->createSaleItem($sale, $itemData, $position++);
+            }
+
+            // Decrement inventory for product lines, in same transaction.
+            // Throws InventoryStockException if stock insufficient and no allow_oversell.
+            $sale->load('items');
+            foreach ($sale->items as $line) {
+                if ($line->type === 'product') {
+                    $this->inventory->decrementForSaleItem($sale, $line, $data['location_id']);
+                }
+            }
+
+            $finalSale = $this->recalculate($sale->fresh('items'));
+
+            // MARKER-PATCH-176 — record payment on the SALE ledger (createSale
+            // path). Mirrors the commit path; appointment reads it through its
+            // sale. Refresh appointment paid_cents cache afterward.
+            if ($finalSale->payment_status === 'paid') {
+                try {
+                    $existingOnSale = $finalSale->payments()->count();
+                    if ($existingOnSale === 0) {
+                        $kind = $finalSale->appointment_id
+                            ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT;
+                    } else {
+                        $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
+                    }
+
+                    $this->recordRegisterPayments($finalSale, $data, $kind); // MARKER-SPLIT-TENDER
+
+                    // MARKER-PATCH-219C — appointment paid cache cascades
+                    // centrally in SalePaymentService::recalcStatus().
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed (createSale)', [
+                        'sale_id'        => $finalSale->id,
+                        'appointment_id' => $finalSale->appointment_id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            return $finalSale;
+        });
+    }
+
+    /**
+     * Save a cart as a draft. Like createSale but:
+     *   - skips inventory decrement
+     *   - skips customer-required-for-service validation
+     *   - leaves sale_number null
+     *   - sets payment_status to 'draft'
+     *
+     * If $data contains 'id', updates that draft (nuke-and-rebuild items).
+     * Otherwise creates a new draft.
+     *
+     * Required: tenant_id, location_id, rang_up_by_user_id.
+     */
+    public function saveDraft(array $data): TenantSale
+    {
+        if (empty($data['location_id'])) {
+            throw new SaleValidationException(
+                'location_id is required to save a draft.'
+            );
+        }
+
+        $items = $data['items'] ?? [];
+        unset($data['items']);
+
+        return DB::transaction(function () use ($data, $items) {
+            $existingId = $data['id'] ?? null;
+
+            if ($existingId) {
+                $draft = TenantSale::where('id', $existingId)
+                    ->where('tenant_id', $data['tenant_id'])
+                    ->where('payment_status', 'draft')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$draft) {
+                    throw new SaleValidationException('Draft not found.');
+                }
+
+                $draft->update([
+                    'customer_id'        => $data['customer_id']        ?? $draft->customer_id,
+                    'assigned_staff_id'  => $data['assigned_staff_id']  ?? $draft->assigned_staff_id,
+                    'appointment_id'     => $data['appointment_id']     ?? $draft->appointment_id,
+                    'location_id'        => $data['location_id'],
+                    'tip_cents'          => (int) ($data['tip_cents'] ?? $draft->tip_cents),
+                    'notes'              => $data['notes']              ?? $draft->notes,
+                    'metadata'           => $data['metadata']           ?? $draft->metadata,
+                ]);
+
+                // Nuke-and-rebuild items. Drafts are transient; IDs don't matter.
+                $draft->items()->delete();
+            } else {
+                // MARKER-PATCH-159 — tenant-local today, not UTC
+                $saleDate = $data['sale_date'] ?? \App\Models\Tenant::find($data['tenant_id'])?->localToday()->toDateString() ?? Carbon::today()->toDateString();
+                $draft = TenantSale::create([
+                    'tenant_id'          => $data['tenant_id'],
+                    'sale_number'        => null,
+                    'sale_date'          => $saleDate,
+                    'status'             => 'pending',
+                    'payment_status'     => 'draft',
+                    'customer_id'        => $data['customer_id']        ?? null,
+                    'assigned_staff_id'  => $data['assigned_staff_id']  ?? null,
+                    'appointment_id'     => $data['appointment_id']     ?? null,
+                    'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                    'location_id'        => $data['location_id'],
+                    'notes'              => $data['notes'] ?? null,
+                    'metadata'           => $data['metadata'] ?? null,
+                    'subtotal_cents'     => 0,
+                    'discount_cents'     => 0,
+                    'tax_cents'          => 0,
+                    'surcharge_cents'    => 0,
+                    'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
+                    'total_cents'        => 0,
+                ]);
+            }
+
+            $position = 0;
+            foreach ($items as $itemData) {
+                $this->createSaleItem($draft, $itemData, $position++);
+            }
+
+            return $this->recalculate($draft->fresh('items'));
+        });
+    }
+
+    /**
+     * Save a cart as a quote. Like saveDraft but:
+     *   - requires customer_id
+     *   - requires quote_expires_at
+     *   - sets payment_status to 'quote'
+     *
+     * Quotes are tenant-wide (not location-scoped for listing purposes), but
+     * are stamped with a location_id like any sale row.
+     */
+    public function saveQuote(array $data): TenantSale
+    {
+        if (empty($data['customer_id'])) {
+            throw new SaleValidationException(
+                'A customer is required to save a quote.'
+            );
+        }
+
+        // Reuse draft path, then flip status. Expiry is opt-in.
+        $sale = $this->saveDraft($data);
+
+        $sale->update([
+            'payment_status'   => 'quote',
+            'quote_expires_at' => $data['quote_expires_at'] ?? null,
+        ]);
+
+        return $sale->fresh('items');
+    }
+
+    /**
+     * Permanently delete a draft (or quote) and its items.
+     * Caller is responsible for tenant scoping; we double-check here.
+     */
+    public function discardDraft(string $tenantId, string $saleId): void
+    {
+        $sale = TenantSale::where('id', $saleId)
+            ->where('tenant_id', $tenantId)
+            ->whereIn('payment_status', ['draft', 'quote'])
+            ->first();
+
+        if (!$sale) {
+            throw new SaleValidationException('Draft not found or not discardable.');
+        }
+
+        DB::transaction(function () use ($sale) {
+            $sale->items()->delete();
+            $sale->delete();
+        });
+    }
+
+    /**
+     * Promote a draft (or quote) into a committed sale.
+     * Assigns sale_number, runs inventory decrement, flips payment_status.
+     *
+     * $data may include: payment_status (default 'paid'), payment_method,
+     * payment_reference, paid_at, tip_cents, notes, customer_id.
+     */
+    public function commitDraft(string $tenantId, string $saleId, array $data): TenantSale
+    {
+        return DB::transaction(function () use ($tenantId, $saleId, $data) {
+            $sale = TenantSale::where('id', $saleId)
+                ->where('tenant_id', $tenantId)
+                ->whereIn('payment_status', ['draft', 'quote'])
+                ->with('items')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$sale) {
+                throw new SaleValidationException('Draft not found or already committed.');
+            }
+
+            // Customer-required-for-service is enforced HERE, at commit, not at draft save.
+            $hasServiceLine = $sale->items->contains(fn ($i) => $i->type === 'service');
+            $customerId = $data['customer_id'] ?? $sale->customer_id;
+            if ($hasServiceLine && empty($customerId)) {
+                throw new SaleValidationException(
+                    'Customer is required when the sale has any service line.'
+                );
+            }
+
+            $newPaymentStatus = $data['payment_status'] ?? 'paid';
+            $paidAt = $newPaymentStatus === 'paid'
+                ? ($data['paid_at'] ?? Carbon::now())
+                : null;
+
+            // If this row was a quote and is now becoming paid, stamp was_quote=true
+            // so the dashboard's 'Recently converted' card can find it.
+            $wasQuote = $sale->payment_status === 'quote' && $newPaymentStatus === 'paid';
+
+            $sale->update([
+                'sale_number'       => $this->nextSaleNumber($tenantId, $sale->sale_date),
+                'payment_status'    => $newPaymentStatus,
+                'customer_id'       => $customerId,
+                'payment_method'    => $data['payment_method']    ?? null,
+                'payment_reference' => $data['payment_reference'] ?? null,
+                // MARKER-PATCH-170 — Direct Payments card metadata
+                'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
+                'stripe_charge_id'         => $data['stripe_charge_id']         ?? null,
+                'card_brand'               => $data['card_brand']               ?? null,
+                'card_last4'               => $data['card_last4']               ?? null,
+                'card_funding'             => $data['card_funding']             ?? null,
+                // MARKER-PATCH-172E — Checkout Session ID for send-payment-link flow.
+                // Missing this passthrough broke patch 172's draft-sale linkage.
+                'checkout_session_id'      => $data['checkout_session_id']      ?? null,
+                'paid_at'           => $paidAt,
+                'tip_cents'         => (int) ($data['tip_cents'] ?? $sale->tip_cents),
+                'notes'             => $data['notes'] ?? $sale->notes,
+                'quote_expires_at'  => null,
+                'was_quote'         => $wasQuote ?: $sale->was_quote,
+            ]);
+
+            // Decrement inventory for product lines now that we're committing.
+            foreach ($sale->items as $line) {
+                if ($line->type === 'product') {
+                    $this->inventory->decrementForSaleItem($sale, $line, $sale->location_id);
+                }
+            }
+
+            $finalSale = $this->recalculate($sale->fresh('items'));
+
+            // Appointment-payment hook. If this sale is linked to an
+            // appointment (auto-created from Completed, or manual deposit
+            // collection), write a payment row to the appointment ledger.
+            //
+            // The kind is determined by whether the appointment has any
+            // existing payments — first payment ever = 'deposit', else
+            // 'balance'. The bridge service handles the recompute of
+            // appointment.paid_cents and payment_status.
+            //
+            // Wrapped to never roll back the sale on failure: if the
+            // ledger write fails for some reason, the sale is still real
+            // money and committed, and an admin can manually record the
+            // payment row later. Logging surfaces the issue.
+            // MARKER-PATCH-176 — record the payment on the SALE ledger
+            // (sales-as-money). Every paid sale gets a payment row here; if the
+            // sale is appointment-linked, the appointment reads it THROUGH its
+            // sale (see TenantAppointment::payments()). We then refresh the
+            // appointment's paid_cents cache so its detail banner stays correct.
+            //
+            // Kind: first payment on THIS sale = deposit (appointment job) or
+            // payment (walk-in retail); subsequent payments = balance.
+            //
+            // Wrapped so a ledger failure never rolls back the sale — the sale
+            // is real money and committed; an admin can record the row later.
+            if ($newPaymentStatus === 'paid') {
+                try {
+                    $existingOnSale = $finalSale->payments()->count();
+                    if ($existingOnSale === 0) {
+                        $kind = $finalSale->appointment_id
+                            ? \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT
+                            : \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT;
+                    } else {
+                        $kind = \App\Models\Tenant\TenantSalePayment::KIND_BALANCE;
+                    }
+
+                    $this->recordRegisterPayments($finalSale, $data, $kind); // MARKER-SPLIT-TENDER
+
+                    // MARKER-PATCH-219C — appointment paid cache cascades
+                    // centrally in SalePaymentService::recalcStatus().
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Sale payment ledger write failed', [
+                        'sale_id'        => $finalSale->id,
+                        'appointment_id' => $finalSale->appointment_id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Class-registration hook. If this sale was opened from the
+            // "register customer for class via cash" flow, the class_session_id
+            // is stashed in metadata. On commit, we register the customer for
+            // the class with payment_method=cash. Done after recalculate so
+            // any failure here doesn't poison the sale state.
+            //
+            // Wrapped in try/catch so a class-registration failure (capacity
+            // change between draft and commit, customer already registered,
+            // etc.) doesn't undo the sale itself. The sale stands; the admin
+            // gets a flash error and can register manually.
+            $meta = $finalSale->metadata ?? [];
+            if (!empty($meta['class_session_id']) && $finalSale->customer_id && $newPaymentStatus === 'paid') {
+                try {
+                    app(\App\Services\ClassRegistrationService::class)->register(
+                        $meta['class_session_id'],
+                        $finalSale->customer_id,
+                        $tenantId,
+                        'cash'
+                    );
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('class registration after sale commit failed', [
+                        'sale_id'          => $finalSale->id,
+                        'class_session_id' => $meta['class_session_id'],
+                        'customer_id'      => $finalSale->customer_id,
+                        'error'            => $e->getMessage(),
+                    ]);
+                    // Re-throw inside the transaction so the calling controller
+                    // can surface the message to the admin. The sale remains
+                    // committed because we're outside the transaction at this
+                    // point — wait, we ARE inside the transaction. Re-throwing
+                    // would roll back the sale. We DON'T want that — the cash
+                    // was taken, the sale is real. Better to log and let the
+                    // admin reconcile.
+                }
+            }
+
+            return $finalSale;
+        });
+    }
+
+    /**
+     * Create a single line item on a sale, snapshotting fields from source.
+     */
+    protected function createSaleItem(TenantSale $sale, array $data, int $position): TenantSaleItem
+    {
+        $type = $data['type'] ?? 'open_item';
+
+        $name           = $data['name_snapshot'] ?? null;
+        $description    = $data['description_snapshot'] ?? null;
+        $unitPriceCents = $data['unit_price_cents'] ?? null;
+        $costCents      = $data['cost_cents_snapshot'] ?? null;
+        $isTaxable      = $data['is_taxable'] ?? true;
+        $serviceId      = $data['service_id'] ?? null;
+        $inventoryItemId= $data['inventory_item_id'] ?? null;
+        $giftCardId     = $data['gift_card_id'] ?? null;
+
+        // Snapshot from source records when available
+        if ($type === 'service' && $serviceId) {
+            $service = TenantServiceItem::find($serviceId);
+            if ($service) {
+                $name           = $name           ?? $service->name;
+                $description    = $description    ?? $service->description;
+                $unitPriceCents = $unitPriceCents ?? (int) ($service->price_cents ?? 0);
+            }
+        } elseif ($type === 'product' && $inventoryItemId) {
+            $item = TenantInventoryItem::find($inventoryItemId);
+            if ($item) {
+                $name           = $name           ?? ($item->name ?? '');
+                $description    = $description    ?? ($item->description ?? null);
+                $unitPriceCents = $unitPriceCents ?? (int) ($item->effectiveSellPriceCents() ?? 0);
+                $costCents      = $costCents      ?? (int) ($item->effectiveCostCents() ?? 0);
+                // tax_class_code may be 'exempt'; default true otherwise
+                $isTaxable      = $data['is_taxable'] ?? (($item->tax_class_code ?? null) !== 'exempt');
+            }
+        }
+
+        if ($name === null || $name === '') {
+            throw new SaleValidationException(
+                'Sale item is missing a name_snapshot (required for type=' . $type . ').'
+            );
+        }
+        if ($unitPriceCents === null) {
+            throw new SaleValidationException(
+                'Sale item is missing unit_price_cents (required for type=' . $type . ').'
+            );
+        }
+
+        $quantity      = (float) ($data['quantity'] ?? 1);
+        $discountCents = (int) ($data['discount_cents'] ?? 0);
+
+        $grossCents     = (int) round($unitPriceCents * $quantity);
+        $lineTotalCents = max(0, $grossCents - $discountCents);
+
+        return TenantSaleItem::create([
+            'tenant_id'           => $sale->tenant_id,
+            'sale_id'             => $sale->id,
+            'type'                => $type,
+            'service_id'          => $serviceId,
+            'inventory_item_id'   => $inventoryItemId,
+            'gift_card_id'        => $giftCardId,
+            'name_snapshot'       => $name,
+            'description_snapshot'=> $description,
+            'cost_cents_snapshot' => $costCents,
+            'quantity'            => $quantity,
+            'unit_price_cents'    => $unitPriceCents,
+            'discount_cents'      => $discountCents,
+            'tax_rate_snapshot'   => $data['tax_rate_snapshot'] ?? null,
+            'is_taxable'          => $isTaxable,
+            'tax_cents'           => (int) ($data['tax_cents'] ?? 0),
+            'tip_cents'           => 0,
+            'line_total_cents'    => $lineTotalCents,
+            'assigned_staff_id'   => $data['assigned_staff_id'] ?? null,
+            'position'            => $data['position'] ?? $position,
+            'notes'               => $data['notes'] ?? null,
+        ]);
+    }
+
+    /**
+     * Recompute sale totals from its items + tenant settings.
+     * Does NOT include surcharge — that is settlement-time logic.
+     */
+    public function recalculate(TenantSale $sale): TenantSale
+    {
+        $tenant = $sale->tenant;
+        $taxLocked = (bool) ($sale->tax_locked ?? false);
+        $taxRate = (float) ($tenant->default_tax_rate ?? 0);
+        $taxServicesByDefault = (bool) ($tenant->tax_services_default ?? true);
+
+        $subtotal = 0;
+        $discount = 0;
+        $tax      = 0;
+
+        foreach ($sale->items as $item) {
+            $subtotal += $item->line_total_cents;
+            $discount += $item->discount_cents;
+
+            // tax_locked sales (e.g. bridge-created from appointments) carry
+            // pre-computed per-line tax that we must preserve, not recompute.
+            if ($taxLocked) {
+                $tax += (int) $item->tax_cents;
+                continue;
+            }
+
+            $shouldTax = $item->is_taxable
+                && ($item->type !== 'service' || $taxServicesByDefault);
+
+            if ($shouldTax && $taxRate > 0) {
+                $lineTax = (int) round($item->line_total_cents * ($taxRate / 100));
+                if ($lineTax !== $item->tax_cents
+                    || (string) $taxRate !== (string) $item->tax_rate_snapshot) {
+                    $item->update([
+                        'tax_cents'         => $lineTax,
+                        'tax_rate_snapshot' => $taxRate,
+                    ]);
+                }
+                $tax += $lineTax;
+            } else {
+                if ($item->tax_cents !== 0 || $item->tax_rate_snapshot !== null) {
+                    $item->update([
+                        'tax_cents'         => 0,
+                        'tax_rate_snapshot' => null,
+                    ]);
+                }
+            }
+        }
+
+        $total = $subtotal + $tax + $sale->tip_cents + $sale->surcharge_cents;
+
+        $sale->update([
+            'subtotal_cents' => $subtotal,
+            'discount_cents' => $discount,
+            'tax_cents'      => $tax,
+            'total_cents'    => $total,
+        ]);
+
+        return $sale->fresh('items');
+    }
+
+    /**
+     * Create a refund row referencing an original sale.
+     * Refunds are negative-effect sale rows: line items mirror the originals,
+     * inventory is restocked via InventoryService::incrementForRefund(), and
+     * the original's payment_status flips to 'refunded' (full) or 'partial'.
+     *
+     * Expected $data:
+     *   tenant_id (required)
+     *   original_sale_id (required)
+     *   rang_up_by_user_id (required)
+     *   refund_method (required) — cash | card | check | store_credit | mark_paid
+     *   reason (optional)
+     *   notes (optional)
+     *   item_ids (required, array of original sale_item ids to refund)
+     */
+    public function createRefund(array $data): TenantSale
+    {
+        $original = TenantSale::where('id', $data['original_sale_id'] ?? null)
+            ->where('tenant_id', $data['tenant_id'] ?? null)
+            ->with('items')
+            ->first();
+
+        if (!$original) {
+            throw new SaleValidationException('Original sale not found.');
+        }
+        if ($original->payment_status !== 'paid' && $original->payment_status !== 'partial') {
+            throw new SaleValidationException('Only paid sales can be refunded.');
+        }
+        if ($original->refund_of_sale_id !== null) {
+            throw new SaleValidationException('Cannot refund a refund row.');
+        }
+        if (empty($data['item_ids']) || !is_array($data['item_ids'])) {
+            throw new SaleValidationException('No items selected to refund.');
+        }
+
+        $itemsToRefund = $original->items->whereIn('id', $data['item_ids']);
+        if ($itemsToRefund->isEmpty()) {
+            throw new SaleValidationException('No matching items to refund.');
+        }
+        // Resolve a location for the refund through a fallback chain:
+        //   1. original sale's location_id
+        //   2. original's appointment's location_id (if appointment-derived)
+        //   3. tenant's default active location
+        // Only error if NO location exists anywhere on the tenant.
+        $refundLocationId = $original->location_id;
+        if (! $refundLocationId && $original->appointment_id) {
+            $refundLocationId = \App\Models\Tenant\TenantAppointment::where('id', $original->appointment_id)
+                ->value('location_id');
+        }
+        if (! $refundLocationId) {
+            $refundLocationId = \App\Models\Tenant\TenantLocation::query()
+                ->where('tenant_id', $original->tenant_id)
+                ->where('is_active', 1)
+                ->orderByDesc('is_default')
+                ->orderBy('created_at')
+                ->value('id');
+        }
+        if (! $refundLocationId) {
+            throw new SaleValidationException('Tenant has no active location; cannot refund.');
+        }
+
+        return DB::transaction(function () use ($data, $original, $itemsToRefund, $refundLocationId) {
+            $tenantId = $data['tenant_id'];
+            // MARKER-PATCH-159 — tenant-local today for refund sale_date
+            $today = \App\Models\Tenant::find($tenantId)?->localToday()->toDateString() ?? Carbon::today()->toDateString();
+            $reason = trim((string) ($data['reason'] ?? ''));
+            $notes  = trim((string) ($data['notes'] ?? ''));
+            $combinedNotes = trim($reason . ($reason && $notes ? "\n" : '') . $notes);
+
+            $refund = TenantSale::create([
+                'tenant_id'          => $tenantId,
+                'sale_number'        => $this->nextSaleNumber($tenantId, $today),
+                'sale_date'          => $today,
+                'status'             => 'completed',
+                'payment_status'     => 'refunded',
+                'customer_id'        => $original->customer_id,
+                'assigned_staff_id'  => null,
+                'appointment_id'     => null,
+                'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                'refund_of_sale_id'  => $original->id,
+                'location_id'        => $refundLocationId,
+                'notes'              => $combinedNotes !== '' ? $combinedNotes : null,
+                'subtotal_cents'     => 0,
+                'discount_cents'     => 0,
+                'tax_cents'          => 0,
+                'surcharge_cents'    => 0,
+                'tip_cents'          => 0,
+                'total_cents'        => 0,
+                'paid_at'            => Carbon::now(),
+                'payment_method'     => $data['refund_method'],
+            ]);
+
+            $position = 0;
+            foreach ($itemsToRefund as $orig) {
+                $line = TenantSaleItem::create([
+                    'tenant_id'           => $tenantId,
+                    'sale_id'             => $refund->id,
+                    'type'                => $orig->type,
+                    'service_id'          => $orig->service_id,
+                    'inventory_item_id'   => $orig->inventory_item_id,
+                    'gift_card_id'        => $orig->gift_card_id,
+                    'name_snapshot'       => $orig->name_snapshot,
+                    'description_snapshot'=> $orig->description_snapshot,
+                    'cost_cents_snapshot' => $orig->cost_cents_snapshot,
+                    'quantity'            => $orig->quantity,
+                    'unit_price_cents'    => $orig->unit_price_cents,
+                    'discount_cents'      => $orig->discount_cents,
+                    'tax_rate_snapshot'   => $orig->tax_rate_snapshot,
+                    'is_taxable'          => $orig->is_taxable,
+                    'tax_cents'           => $orig->tax_cents,
+                    'tip_cents'           => 0,
+                    'line_total_cents'    => $orig->line_total_cents,
+                    'assigned_staff_id'   => null,
+                    'position'            => $position++,
+                    'notes'               => null,
+                ]);
+
+                // Restock inventory for refunded product lines
+                if ($line->type === 'product') {
+                    $this->inventory->incrementForRefund($refund, $line, $refundLocationId);
+                }
+            }
+
+            // Flip original's payment_status:
+            //   - all items refunded -> 'refunded'
+            //   - some items refunded -> 'partial'
+            $allRefunded = $itemsToRefund->count() === $original->items->count();
+            $original->update([
+                'payment_status' => $allRefunded ? 'refunded' : 'partial',
+            ]);
+
+            $finalRefund = $this->recalculate($refund->fresh('items'));
+
+            // Appointment-payment ledger hook for refunds.
+            //
+            // If the original sale was tied to an appointment, write a refund
+            // ledger row against the most recent inbound payment on that
+            // appointment. The refund is tied to the new refund-sale via
+            // register_sale_id and to the original payment via reference_payment_id.
+            //
+            // Wrapped to never roll back the refund-sale on failure: the cash
+            // movement is real even if the ledger write trips. Logged for
+            // manual reconciliation.
+            //
+            // Phase 1 limitation: refunds against a single inbound payment.
+            // If refund amount exceeds that one row, we log and bail rather
+            // than half-implementing a cascade across deposit + balance.
+            // MARKER-PATCH-176 — refund row on the SALE ledger. Identical-but-
+            // repointed from the appointment ledger (the standalone/simplified
+            // refund redesign is patch-177). We record a NEGATIVE row against
+            // the ORIGINAL sale so its net paid drops and recalcStatus reflects
+            // refunded/partial; the appointment (if any) reads it through the
+            // sale. Phase-1 behavior preserved: refund against a single inbound
+            // payment row; if it exceeds that row we log and skip the auto-write.
+            try {
+                $refundCents = (int) abs($finalRefund->total_cents);
+                if ($refundCents > 0) {
+                    $originalPayment = \App\Models\Tenant\TenantSalePayment::query()
+                        ->where('sale_id', $original->id)
+                        ->whereIn('kind', [
+                            \App\Models\Tenant\TenantSalePayment::KIND_DEPOSIT,
+                            \App\Models\Tenant\TenantSalePayment::KIND_BALANCE,
+                            \App\Models\Tenant\TenantSalePayment::KIND_PAYMENT,
+                        ])
+                        ->orderByDesc('recorded_at')
+                        ->first();
+
+                    if (! $originalPayment) {
+                        \Illuminate\Support\Facades\Log::warning('Refund ledger: no original payment row found for sale', [
+                            'refund_sale_id'   => $finalRefund->id,
+                            'original_sale_id' => $original->id,
+                        ]);
+                    } elseif ($refundCents > $originalPayment->amount_cents) {
+                        \Illuminate\Support\Facades\Log::warning('Refund ledger: refund exceeds single original payment, skipping auto-write', [
+                            'refund_sale_id'      => $finalRefund->id,
+                            'refund_cents'        => $refundCents,
+                            'original_payment_id' => $originalPayment->id,
+                            'original_amount'     => $originalPayment->amount_cents,
+                        ]);
+                    } else {
+                        app(\App\Services\Tenant\SalePaymentService::class)->refund(
+                            sale:               $original,
+                            amountCents:        $refundCents,
+                            method:             $data['refund_method'] ?? 'other',
+                            referencePaymentId: $originalPayment->id,
+                            notes:              "Refund via sale {$finalRefund->sale_number}",
+                        );
+
+                        // MARKER-PATCH-219C — appointment paid cache cascades
+                        // centrally in SalePaymentService::recalcStatus().
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Sale refund ledger write failed', [
+                    'refund_sale_id'   => $finalRefund->id,
+                    'original_sale_id' => $original->id,
+                    'error'            => $e->getMessage(),
+                ]);
+            }
+
+            return $finalRefund;
+        });
+    }
+
+    /**
+     * Create a multi-row transaction (sale + optional refund of prior sale).
+     *
+     * Use cases:
+     *   - Pure sale: $data['items'] has new lines, no $data['refund'] block. Behaves like createSale.
+     *   - Pure refund: no $data['items'], $data['refund'] block has original_sale_id + item_ids. Behaves like createRefund.
+     *   - Exchange: both — refund happens against original sale, new sale is rung up, both rows share transaction_id.
+     *
+     * Tender direction is the caller's responsibility. This method just composes
+     * the two writes inside one DB transaction and stamps a shared transaction_id.
+     *
+     * Expected $data:
+     *   tenant_id (required)
+     *   rang_up_by_user_id (required)
+     *   location_id (required)
+     *   customer_id (optional)
+     *   notes (optional)
+     *   tip_cents (optional, applies to new-sale row only)
+     *   payment_method (required if any net payment is moving)
+     *   payment_reference (optional)
+     *   items (optional array — new sale lines)
+     *   refund (optional array):
+     *     original_sale_id (required if refund present)
+     *     item_ids (required if refund present)
+     *     reason (optional)
+     *     refund_method (required if refund present — cash/card/check/store_credit/mark_paid)
+     *
+     * Returns:
+     *   array with keys 'sale' (TenantSale|null) and 'refund' (TenantSale|null) and 'transaction_id'.
+     *   At least one of sale/refund will be non-null.
+     */
+    public function createTransaction(array $data): array
+    {
+        $hasNewSale = !empty($data['items']);
+        $hasRefund  = !empty($data['refund']) && !empty($data['refund']['item_ids']);
+
+        if (!$hasNewSale && !$hasRefund) {
+            throw new SaleValidationException(
+                'Transaction needs at least one new sale line or a refund.'
+            );
+        }
+
+        $transactionId = (string) \Illuminate\Support\Str::uuid();
+
+        return DB::transaction(function () use ($data, $hasNewSale, $hasRefund, $transactionId) {
+            $refundRow = null;
+            $saleRow   = null;
+
+            if ($hasRefund) {
+                $refundData = $data['refund'];
+                $refundRow = $this->createRefund([
+                    'tenant_id'          => $data['tenant_id'],
+                    'original_sale_id'   => $refundData['original_sale_id'],
+                    'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                    'refund_method'      => $refundData['refund_method'],
+                    'reason'             => $refundData['reason'] ?? null,
+                    'notes'              => $refundData['notes'] ?? null,
+                    'item_ids'           => $refundData['item_ids'],
+                ]);
+                $refundRow->update(['transaction_id' => $transactionId]);
+            }
+
+            if ($hasNewSale) {
+                $saleRow = $this->createSale([
+                    'tenant_id'          => $data['tenant_id'],
+                    'rang_up_by_user_id' => $data['rang_up_by_user_id'],
+                    'location_id'        => $data['location_id'],
+                    'customer_id'        => $data['customer_id'] ?? null,
+                    'status'             => 'completed',
+                    'payment_status'     => $data['payment_status'] ?? 'paid',
+                    'payment_method'     => $data['payment_method'] ?? null,
+                    'payment_reference'  => $data['payment_reference'] ?? null,
+                    'paid_at'            => $data['paid_at'] ?? Carbon::now(),
+                    'notes'              => $data['notes'] ?? null,
+                    'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
+                    'discount_cents'     => (int) ($data['discount_cents'] ?? 0),
+                    'items'              => $data['items'],
+                ]);
+                $saleRow->update(['transaction_id' => $transactionId]);
+            }
+
+            return [
+                'transaction_id' => $transactionId,
+                'sale'           => $saleRow,
+                'refund'         => $refundRow,
+            ];
+        });
+    }
+
+    /**
+     * MARKER-SPLIT-TENDER — record register payments for a paid sale: one
+     * ledger row per tender when a payments[] array was supplied (amounts
+     * must sum to the sale total), else the single-tender row as before.
+     */
+    protected function recordRegisterPayments(\App\Models\Tenant\TenantSale $finalSale, array $data, string $kind): void
+    {
+        $svc = app(\App\Services\Tenant\SalePaymentService::class);
+        $payments = $data['payments'] ?? null;
+
+        if (is_array($payments) && count($payments) > 0) {
+            $sum = array_sum(array_map(fn ($p) => (int) $p['amount_cents'], $payments));
+            if ($sum !== (int) $finalSale->total_cents) {
+                throw new \RuntimeException(sprintf(
+                    'Split payments (%d¢) do not match the sale total (%d¢).',
+                    $sum, (int) $finalSale->total_cents
+                ));
+            }
+            foreach ($payments as $i => $p) {
+                $svc->record(
+                    sale:               $finalSale,
+                    amountCents:        (int) $p['amount_cents'],
+                    kind:               $i === 0 ? $kind : \App\Models\Tenant\TenantSalePayment::KIND_BALANCE,
+                    source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
+                    method:             (string) $p['method'],
+                    externalReference:  $p['reference'] ?? null,
+                    notes:              "Split tender via sale {$finalSale->sale_number}",
+                );
+            }
+            return;
+        }
+
+        $svc->record(
+            sale:               $finalSale,
+            amountCents:        (int) $finalSale->total_cents,
+            kind:               $kind,
+            source:             \App\Models\Tenant\TenantSalePayment::SOURCE_REGISTER,
+            method:             $finalSale->payment_method ?? 'other',
+            externalReference:  $finalSale->payment_reference,
+            notes:              "Paid via sale {$finalSale->sale_number}",
+        );
+    }
+}
+SPLIT_1_EOF
+
+cat > 'resources/views/tenant/register/index.blade.php' <<'SPLIT_2_EOF'
 @extends('layouts.tenant.app')
 
 @php $pageTitle = 'Register'; @endphp
@@ -3537,3 +6949,6 @@ loadDrafts().then(refreshDraftsBanner);
 @endif
 @endpush
 
+SPLIT_2_EOF
+
+echo "split-tender-core applied — server needs view:clear"

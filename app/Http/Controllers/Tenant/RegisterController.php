@@ -266,6 +266,13 @@ class RegisterController extends Controller
             'discount_cents'   => 'nullable|integer|min:0',
             'payment_method'   => $this->allowedTenders(), // MARKER-PATCH-630
             'payment_reference'=> 'nullable|string',
+            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // present, payment_method is 'split' and applied amounts must sum
+            // to the authoritative server-side total (checked in SaleService).
+            'payments'                     => 'nullable|array|max:6',
+            'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
+            'payments.*.amount_cents'      => 'required|integer|min:1',
+            'payments.*.reference'         => 'nullable|string|max:120',
             'items'            => 'required|array|min:1',
             'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
             'items.*.service_id'       => 'nullable|uuid',
@@ -313,6 +320,7 @@ class RegisterController extends Controller
                 'status'             => 'completed',
                 'payment_status'     => 'paid',
                 'payment_method'     => $validated['payment_method'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
                 'payment_reference'  => $validated['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
@@ -627,6 +635,13 @@ class RegisterController extends Controller
         $validated = $request->validate([
             'payment_method'    => $this->allowedTenders(), // MARKER-PATCH-630
             'payment_reference' => 'nullable|string',
+            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // present, payment_method is 'split' and applied amounts must sum
+            // to the authoritative server-side total (checked in SaleService).
+            'payments'                     => 'nullable|array|max:6',
+            'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
+            'payments.*.amount_cents'      => 'required|integer|min:1',
+            'payments.*.reference'         => 'nullable|string|max:120',
             'tip_cents'         => 'nullable|integer|min:0',
             'customer_id'       => 'nullable|uuid',
             'notes'             => 'nullable|string',
@@ -638,6 +653,7 @@ class RegisterController extends Controller
             $sale = $this->sales->commitDraft($tenant->id, $id, [
                 'payment_status'    => 'paid',
                 'payment_method'    => $validated['payment_method'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
                 'payment_reference' => $validated['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
@@ -842,6 +858,13 @@ class RegisterController extends Controller
             'items.*.unit_price_cents' => 'nullable|integer|min:0',
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.is_taxable'       => 'nullable|boolean',
+            // MARKER-SPLIT-TENDER — optional multi-tender payments. When
+            // present, payment_method is 'split' and applied amounts must sum
+            // to the authoritative server-side total (checked in SaleService).
+            'payments'                     => 'nullable|array|max:6',
+            'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
+            'payments.*.amount_cents'      => 'required|integer|min:1',
+            'payments.*.reference'         => 'nullable|string|max:120',
             'refund'                       => 'required|array',
             'refund.original_sale_id'      => 'required|uuid',
             'refund.item_ids'              => 'required|array|min:1',
@@ -857,6 +880,7 @@ class RegisterController extends Controller
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                 'payment_method'     => $validated['payment_method'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
                 'payment_reference'  => $validated['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
@@ -866,6 +890,7 @@ class RegisterController extends Controller
                 'card_funding'             => $request->input('card_funding'),
                 'items'              => $validated['items'] ?? [],
                 'refund'             => $validated['refund'],
+                'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
             ]);
 
             // Build a unified receipt response.
