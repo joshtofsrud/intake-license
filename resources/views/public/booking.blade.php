@@ -64,7 +64,11 @@
   /* MARKER-BOOKING-RESET */
   .bk-progress-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .bk-progress-head .bk-progress{flex:1}
-  .bk-reset{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--bk-muted,#8a8a8a);opacity:.75;cursor:pointer;padding:6px 10px;border-radius:8px;user-select:none;white-space:nowrap}
+  /* MARKER-RESET-PLACEMENT — the control docks on the active section's
+     title row, right-aligned, instead of floating in the progress corner */
+  .bk-title-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+  .bk-title-row .bk-section-title{margin-bottom:0}
+  .bk-reset{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--bk-muted,#8a8a8a);opacity:.75;cursor:pointer;padding:6px 10px;border-radius:8px;user-select:none;white-space:nowrap;border:1px solid color-mix(in srgb, var(--p-text) 14%, transparent)}
   .bk-reset:hover{opacity:1;background:rgba(127,127,127,.08)}
   .bk-reset-confirm{position:absolute;top:calc(100% + 6px);right:0;width:262px;background:var(--bk-surface,#181818);border:0.5px solid var(--bk-border,rgba(255,255,255,.12));border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:13px;display:none;z-index:60;text-align:left}
   .bk-reset-confirm.open{display:block}
