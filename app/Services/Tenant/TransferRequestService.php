@@ -31,10 +31,26 @@ class TransferRequestService
         }
 
         return DB::transaction(function () use ($data) {
+            // MARKER-TRANSFER-SCOPE — every id crossing a request boundary
+            // proves ownership before anything reads or writes through it.
+            // Previously only presence was checked, so a foreign item id
+            // could seed a transfer whose source auto-suggest then selected
+            // ANOTHER TENANT'S stock location.
+            $tenantId = (string) $data['tenant_id'];
+            self::assertOwned(TenantInventoryItem::class, $data['inventory_item_id'], $tenantId, 'inventory item');
+            self::assertOwned(\App\Models\Tenant\TenantLocation::class, $data['to_location_id'], $tenantId, 'destination location');
+            if (!empty($data['from_location_id'])) {
+                self::assertOwned(\App\Models\Tenant\TenantLocation::class, $data['from_location_id'], $tenantId, 'source location');
+            }
+            if (!empty($data['sale_id'])) {
+                self::assertOwned(\App\Models\Tenant\TenantSale::class, $data['sale_id'], $tenantId, 'sale');
+            }
+
             // Auto-suggest a source location: any OTHER location with positive stock.
             $fromLocationId = $data['from_location_id'] ?? null;
             if (!$fromLocationId) {
-                $candidate = TenantInventoryItemLocation::where('inventory_item_id', $data['inventory_item_id'])
+                $candidate = TenantInventoryItemLocation::where('tenant_id', $tenantId) // MARKER-TRANSFER-SCOPE
+                    ->where('inventory_item_id', $data['inventory_item_id'])
                     ->where('location_id', '!=', $data['to_location_id'])
                     ->where('computed_stock_count', '>', 0)
                     ->orderByDesc('computed_stock_count')
@@ -76,12 +92,23 @@ class TransferRequestService
                 throw new InvalidArgumentException('Transfer request has no source location set.');
             }
 
-            $tenant = $tr->load('inventoryItem', 'fromLocation')->fromLocation->tenant;
+            // MARKER-TRANSFER-SCOPE — the tenant comes from the transfer row
+            // itself, never inferred from a related record, and both the item
+            // and the source location must belong to it. Defense in depth: a
+            // row poisoned before this fix can no longer move foreign stock.
+            $tr->load('inventoryItem', 'fromLocation');
             $item = $tr->inventoryItem;
             $fromLoc = $tr->fromLocation;
 
             if (!$item || !$fromLoc) {
                 throw new InvalidArgumentException('Item or source location missing.');
+            }
+            self::assertRowTenant($item->tenant_id, $tr->tenant_id, 'inventory item');
+            self::assertRowTenant($fromLoc->tenant_id, $tr->tenant_id, 'source location');
+
+            $tenant = \App\Models\Tenant::find($tr->tenant_id);
+            if (!$tenant) {
+                throw new InvalidArgumentException('Transfer request tenant not found.');
             }
 
             // Decrement source stock — uses the Pos InventoryService primitive,
@@ -120,12 +147,20 @@ class TransferRequestService
                 throw new InvalidArgumentException("Transfer request is not in transit (status={$tr->status}).");
             }
 
-            $tenant = $tr->load('inventoryItem', 'toLocation')->toLocation->tenant;
+            // MARKER-TRANSFER-SCOPE — see markSent.
+            $tr->load('inventoryItem', 'toLocation');
             $item = $tr->inventoryItem;
             $toLoc = $tr->toLocation;
 
             if (!$item || !$toLoc) {
                 throw new InvalidArgumentException('Item or destination location missing.');
+            }
+            self::assertRowTenant($item->tenant_id, $tr->tenant_id, 'inventory item');
+            self::assertRowTenant($toLoc->tenant_id, $tr->tenant_id, 'destination location');
+
+            $tenant = \App\Models\Tenant::find($tr->tenant_id);
+            if (!$tenant) {
+                throw new InvalidArgumentException('Transfer request tenant not found.');
             }
 
             $qty = (int) ($tr->quantity_sent ?? $tr->quantity);
@@ -170,5 +205,26 @@ class TransferRequestService
             $tr->save();
             return $tr;
         });
+    }
+
+    /**
+     * MARKER-TRANSFER-SCOPE — assert a record exists AND belongs to the given
+     * tenant. Existence alone is not authorization: unguessable ids leak
+     * through shared browsers, screenshots, and support threads.
+     */
+    protected static function assertOwned(string $modelClass, string $id, string $tenantId, string $label): void
+    {
+        $owns = $modelClass::where('id', $id)->where('tenant_id', $tenantId)->exists();
+        if (! $owns) {
+            throw new InvalidArgumentException("That {$label} does not belong to this tenant.");
+        }
+    }
+
+    /** MARKER-TRANSFER-SCOPE — compare a loaded row's tenant against the expected one. */
+    protected static function assertRowTenant(?string $rowTenantId, ?string $expectedTenantId, string $label): void
+    {
+        if (! $rowTenantId || ! $expectedTenantId || $rowTenantId !== $expectedTenantId) {
+            throw new InvalidArgumentException("Transfer {$label} belongs to a different tenant — refusing to move stock.");
+        }
     }
 }
