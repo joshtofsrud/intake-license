@@ -1455,6 +1455,12 @@
         payment_method: { card: stripeCard }
       }).then(function (result) {
         if (result.error) {
+          // MARKER-HOLD-RELEASE — declined/typo'd/failed card: free the
+          // hold instantly so the retry can't collide with its own ghost.
+          try {
+            navigator.sendBeacon(d.releaseHoldUrl || '/book/release-hold',
+              new Blob([JSON.stringify({ pending_token: resp.pending_token })], { type: 'application/json' }));
+          } catch (e) {}
           showError(result.error.message);
           resetSubmitBtn();
         } else {

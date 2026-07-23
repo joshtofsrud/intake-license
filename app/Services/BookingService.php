@@ -1690,4 +1690,48 @@ class BookingService
             ]);
         }
     }
+
+    /**
+     * MARKER-FAILED-PAID — a verified-paid pending that could not
+     * materialize becomes a PERMANENT record plus a staff alert, whatever
+     * the failure reason. Status transition is guarded so the browser and
+     * webhook racing the same failure produce exactly one alert, and the
+     * reap job never deletes failed_paid rows.
+     */
+    public static function recordFailedPaid(\App\Models\Tenant\TenantPendingBooking $pending, string $reason): void
+    {
+        try {
+            $flipped = \App\Models\Tenant\TenantPendingBooking::whereKey($pending->id)
+                ->where('status', '!=', 'failed_paid')
+                ->update(['status' => 'failed_paid', 'updated_at' => now()]);
+            if (! $flipped) return; // other finalize path already recorded it
+
+            $tenant = \App\Models\Tenant::find($pending->tenant_id);
+            if (! $tenant) return;
+            $payload = is_array($pending->payload) ? $pending->payload : (json_decode((string) $pending->payload, true) ?: []);
+            $name  = trim(($payload['first_name'] ?? '') . ' ' . ($payload['last_name'] ?? '')) ?: 'A customer';
+            $email = $payload['email'] ?? null;
+            $phone = $payload['phone'] ?? null;
+            $date  = $payload['date'] ?? $pending->booking_date ?? 'unknown date';
+            $cents = (int) ($pending->amount_cents ?? 0);
+
+            app(\App\Services\Tenant\StaffAlertService::class)->emit($tenant, 'booking.failed_paid', [
+                'title' => 'Paid booking needs attention',
+                'body'  => sprintf(
+                    '%s paid $%s for %s but the booking could not be completed (%s). Contact: %s%s · Stripe: %s',
+                    $name,
+                    number_format($cents / 100, 2),
+                    $date,
+                    \Illuminate\Support\Str::limit($reason, 90),
+                    $email ?: 'no email',
+                    $phone ? ' / ' . $phone : '',
+                    $pending->stripe_payment_intent_id ?: 'n/a'
+                ),
+                'link'  => null,
+                'meta'  => ['pending_id' => $pending->id, 'pi' => $pending->stripe_payment_intent_id],
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('booking.failed_paid_record_error', ['pending_id' => $pending->id, 'error' => $e->getMessage()]);
+        }
+    }
 }

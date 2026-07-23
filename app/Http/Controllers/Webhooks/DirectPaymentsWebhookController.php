@@ -183,6 +183,7 @@ class DirectPaymentsWebhookController extends Controller
                     'tenant_id' => $tenant->id, 'pi' => $piId, 'pending_id' => $pending->id,
                     'error'     => $e->getMessage(),
                 ]);
+                \App\Services\BookingService::recordFailedPaid($pending, $e->getMessage()); // MARKER-FAILED-PAID
             }
             return; // booking handled — not a sale
         }

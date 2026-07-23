@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/plan-quiz/*',
             'booking/abandon', // MARKER-RECOVERY — partial booking capture
             'funnel/track', // MARKER-FUNNEL-CSRF — anonymous analytics beacon
+            'book/release-hold', // MARKER-HOLD-RELEASE — payment-failure beacon; token-authenticated, capacity-freeing only
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

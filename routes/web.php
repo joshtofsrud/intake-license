@@ -136,6 +136,7 @@ $tenantRoutes = function () {
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
     Route::post('/book/finalize',        [TenantControllers\BookingController::class, 'finalize'])->name('tenant.booking.finalize'); // MARKER-PATCH-385
+    Route::post('/book/release-hold',    [TenantControllers\BookingController::class, 'releaseHold'])->name('tenant.booking.release-hold'); // MARKER-HOLD-RELEASE
     // MARKER-PATCH-213 — returning-customer lookup (pre-fills the Bikes step)
     Route::post('/book/customer-lookup', [TenantControllers\BookingLookupController::class, 'lookup'])->name('tenant.booking.customer-lookup');
     // MARKER-PATCH-239 — public rental availability browse.

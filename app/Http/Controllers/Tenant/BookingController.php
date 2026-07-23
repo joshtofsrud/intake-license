@@ -367,6 +367,26 @@ class BookingController extends Controller
      * actually succeeded against Stripe (never trusts the client), then writes
      * the appointment via BookingService::materialize (idempotent).
      */
+    /**
+     * MARKER-HOLD-RELEASE — a failed payment releases its hold immediately,
+     * so a retry can never collide with its own ghost. Token-authenticated
+     * (same secret the browser holds for finalize); releasing is only ever
+     * capacity-freeing, so the endpoint is safe to expose.
+     */
+    public function releaseHold(Request $request)
+    {
+        $tenant = tenant();
+        $token  = (string) $request->input('pending_token');
+        if ($token === '') return response()->json(['ok' => false], 422);
+
+        \App\Models\Tenant\TenantPendingBooking::where('tenant_id', $tenant->id)
+            ->where('token', $token)
+            ->where('status', 'pending')
+            ->update(['status' => 'released', 'updated_at' => now()]);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function finalize(Request $request)
     {
         $tenant = tenant();
@@ -402,6 +422,7 @@ class BookingController extends Controller
             $appt = app(BookingService::class)->materialize($pending);
         } catch (RuntimeException $e) {
             \Illuminate\Support\Facades\Log::error('booking.materialize_failed', ['tenant_id' => $tenant->id, 'pending_id' => $pending->id, 'pi' => $pending->stripe_payment_intent_id, 'error' => $e->getMessage()]);
+            \App\Services\BookingService::recordFailedPaid($pending, $e->getMessage()); // MARKER-FAILED-PAID
             return response()->json(['success' => false, 'message' => 'Your payment went through but that time was just taken. We will reach out to reschedule.'], 409);
         }
 

@@ -23,7 +23,10 @@ class BookingsReapHolds extends Command
 
     public function handle(): int
     {
-        $abandoned = TenantPendingBooking::where('status', 'pending')
+        // MARKER-FAILED-PAID — released holds reap on the same schedule as
+        // abandoned ones; failed_paid rows are permanent evidence of a
+        // charged customer and are NEVER deleted here.
+        $abandoned = TenantPendingBooking::whereIn('status', ['pending', 'released'])
             ->where('expires_at', '<', now()->subHours(2))
             ->delete();
 
