@@ -1,3 +1,21 @@
+#!/bin/bash
+# booking-prepay-fk-fix — every card-prepaid online booking has been failing
+# since the overage-refund FK constraint landed: the Stripe PaymentIntent id
+# was passed positionally into record()'s referencePaymentId (a self-FK to
+# tenant_sale_payments.id) instead of externalReference. The FK violation
+# rolled back materialize, the customer saw "your payment went through but
+# that time was just taken", stayed charged, and no appointment or alert
+# was created. One-argument fix, converted to named args.
+# AFTER DEPLOY: rescue stuck paid pendings (see chat) — they re-materialize.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-PREPAY-FK-FIX" app/Services/BookingService.php; then
+  echo "already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-TZ-WAVE1" app/Services/BookingService.php; then
+  echo "wrong base — aborting."; exit 1
+fi
+cat > 'app/Services/BookingService.php' <<'PREPAYFK_EOF'
 <?php
 
 namespace App\Services;
@@ -1691,3 +1709,5 @@ class BookingService
         }
     }
 }
+PREPAYFK_EOF
+echo "booking-prepay-fk-fix applied — server: git pull only (no view changes)"
