@@ -88,6 +88,15 @@ class TransferRequestService
             if ($quantitySent < 1) {
                 throw new InvalidArgumentException('Quantity sent must be at least 1.');
             }
+            // MARKER-TRANSFER-MOVEMENTS — a request for 1 could be dispatched
+            // as 100. Sending less than requested is a legitimate partial.
+            if ($quantitySent > (int) $tr->quantity) {
+                throw new InvalidArgumentException(sprintf(
+                    'Cannot send %d — only %d were requested.',
+                    $quantitySent,
+                    (int) $tr->quantity
+                ));
+            }
             if (!$tr->from_location_id) {
                 throw new InvalidArgumentException('Transfer request has no source location set.');
             }
@@ -123,6 +132,7 @@ class TransferRequestService
                 tenantUser: $byUserId ? \App\Models\Tenant\TenantUser::find($byUserId) : null,
                 reason: 'Transfer out',
                 notes: "To {$tr->toLocation?->name}",
+                movementType: 'transfer_out', // MARKER-TRANSFER-MOVEMENTS — was recorded as a SALE
             );
 
             $tr->status = TenantTransferRequest::STATUS_IN_TRANSIT;
@@ -173,8 +183,12 @@ class TransferRequestService
                 referenceType: 'transfer_request',
                 referenceId: $tr->id,
                 tenantUser: $byUserId ? \App\Models\Tenant\TenantUser::find($byUserId) : null,
-                reason: 'Transfer in',
-                notes: "From {$tr->fromLocation?->name}",
+                // MARKER-TRANSFER-MOVEMENTS — incrementStock has no $reason
+                // parameter: this call threw "Unknown named parameter $reason"
+                // every time, so receiving a transfer ALWAYS fataled. The
+                // reason now rides in notes, and the movement is typed.
+                movementType: 'transfer_in',
+                notes: "Transfer in — from {$tr->fromLocation?->name}",
             );
 
             $tr->status = TenantTransferRequest::STATUS_FULFILLED;
@@ -201,6 +215,41 @@ class TransferRequestService
             if ($tr->status === TenantTransferRequest::STATUS_FULFILLED) {
                 throw new InvalidArgumentException('Already fulfilled, cannot cancel.');
             }
+
+            // MARKER-TRANSFER-MOVEMENTS — cancelling an IN-TRANSIT transfer
+            // used to silently strand the stock: it had already been deducted
+            // from the source and was never given back. The goods return to
+            // the source location with their own transfer_in movement.
+            if ($tr->status === TenantTransferRequest::STATUS_IN_TRANSIT) {
+                $tr->load('inventoryItem', 'fromLocation');
+                $item    = $tr->inventoryItem;
+                $fromLoc = $tr->fromLocation;
+                if (!$item || !$fromLoc) {
+                    throw new InvalidArgumentException('Cannot cancel: item or source location missing.');
+                }
+                self::assertRowTenant($item->tenant_id, $tr->tenant_id, 'inventory item');
+                self::assertRowTenant($fromLoc->tenant_id, $tr->tenant_id, 'source location');
+
+                $tenant = \App\Models\Tenant::find($tr->tenant_id);
+                if (!$tenant) {
+                    throw new InvalidArgumentException('Transfer request tenant not found.');
+                }
+
+                $qty = (int) ($tr->quantity_sent ?? 0);
+                if ($qty > 0) {
+                    app(\App\Services\Pos\InventoryService::class)->incrementStock(
+                        tenant: $tenant,
+                        item: $item,
+                        location: $fromLoc,
+                        quantity: $qty,
+                        referenceType: 'transfer_request',
+                        referenceId: $tr->id,
+                        movementType: 'transfer_in',
+                        notes: 'Transfer cancelled in transit — returned to source',
+                    );
+                }
+            }
+
             $tr->status = TenantTransferRequest::STATUS_CANCELLED;
             $tr->save();
             return $tr;
