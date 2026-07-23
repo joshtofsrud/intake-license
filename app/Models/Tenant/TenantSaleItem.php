@@ -21,6 +21,7 @@ class TenantSaleItem extends Model
         'tax_rate_snapshot', 'is_taxable', 'tax_cents',
         'tip_cents', 'line_total_cents',
         'assigned_staff_id', 'position', 'notes',
+        'original_sale_item_id', 'disposition', // MARKER-REFUND-QTY
     ];
 
     protected $casts = [

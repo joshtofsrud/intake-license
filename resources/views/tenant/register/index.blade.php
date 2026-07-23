@@ -1612,6 +1612,24 @@ function renderCart() {
           <div>
             <div class="name">${escapeHtml(r.name)}</div>
             <div class="meta">refund · ${r.qty} × ${fmt(r.price_cents)}</div>
+            ${r.type === 'product' ? `
+            <div class="meta" style="margin-top:6px;display:flex;align-items:center;gap:6px">
+              <span style="opacity:.65">Goes to</span>
+              <select class="reg-dispo" data-dispo="${r.key}"
+                      style="background:transparent;border:1px solid var(--ia-border);border-radius:7px;color:inherit;font-family:inherit;font-size:11.5px;padding:3px 6px">
+                <option value="restock"${(r.disposition||'restock')==='restock'?' selected':''}>Restock — sellable</option>
+                <option value="open_box"${r.disposition==='open_box'?' selected':''}>Open box — sellable</option>
+                <option value="damaged"${r.disposition==='damaged'?' selected':''}>Damaged</option>
+                <option value="defective"${r.disposition==='defective'?' selected':''}>Defective</option>
+                <option value="warranty_hold"${r.disposition==='warranty_hold'?' selected':''}>Warranty hold</option>
+                <option value="return_vendor"${r.disposition==='return_vendor'?' selected':''}>Return to vendor</option>
+                <option value="scrap"${r.disposition==='scrap'?' selected':''}>Scrap</option>
+                <option value="customer_keeps"${r.disposition==='customer_keeps'?' selected':''}>Customer keeps item</option>
+              </select>
+              ${['restock','open_box'].includes(r.disposition||'restock')
+                ? '<span style="color:var(--ia-accent)">back to stock</span>'
+                : (r.disposition === 'customer_keeps' ? '<span style="opacity:.6">no stock change</span>' : '<span style="color:#F5C56B">off the shelf</span>')}
+            </div>` : ''}
           </div>
           <div></div>
           <div style="display:flex;align-items:center;gap:6px">
@@ -1704,6 +1722,14 @@ function renderCart() {
       cart.refund_lines = cart.refund_lines.filter(r => r.key !== key);
       if (cart.refund_lines.length === 0) cart.refund_meta = null;
       renderCart();
+    });
+  });
+  // MARKER-REFUND-QTY — where the returned goods go, per line.
+  lines.querySelectorAll('[data-dispo]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const key = parseInt(sel.dataset.dispo, 10);
+      const line = cart.refund_lines.find(r => r.key === key);
+      if (line) { line.disposition = sel.value; renderCart(); }
     });
   });
 
@@ -2766,6 +2792,13 @@ async function commitTransaction(opts = {}) {
         items: hasNewSale ? cart.items.map(serializeLine) : [],
         refund: {
           original_sale_id: cart.refund_meta.original_sale_id,
+          // MARKER-REFUND-QTY — the quantity the cashier chose is now sent and
+          // is authoritative on the server, along with where the goods went.
+          items: cart.refund_lines.map(r => ({
+            sale_item_id: r.original_item_id,
+            quantity: r.qty,
+            disposition: r.disposition || 'restock',
+          })),
           item_ids: cart.refund_lines.map(r => r.original_item_id),
           refund_method: cart.payment_method,
         },

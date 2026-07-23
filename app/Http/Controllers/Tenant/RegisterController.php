@@ -876,8 +876,15 @@ class RegisterController extends Controller
             'payments.*.reference'         => 'nullable|string|max:120',
             'refund'                       => 'required|array',
             'refund.original_sale_id'      => 'required|uuid',
-            'refund.item_ids'              => 'required|array|min:1',
+            // MARKER-REFUND-QTY — quantity- and disposition-aware refund lines.
+            // item_ids stays accepted (read as "full remaining, restocked") so
+            // an older tab mid-transaction still works.
+            'refund.item_ids'              => 'required_without:refund.items|array|min:1',
             'refund.item_ids.*'            => 'uuid',
+            'refund.items'                 => 'required_without:refund.item_ids|array|min:1',
+            'refund.items.*.sale_item_id'  => 'required|uuid',
+            'refund.items.*.quantity'      => 'required|numeric|min:0.001',
+            'refund.items.*.disposition'   => 'nullable|string|in:' . implode(',', \App\Services\Tenant\SaleService::DISPOSITIONS),
             'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange',
         ]);
 

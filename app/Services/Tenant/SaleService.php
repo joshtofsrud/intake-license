@@ -604,6 +604,15 @@ class SaleService
      *   notes (optional)
      *   item_ids (required, array of original sale_item ids to refund)
      */
+    /** MARKER-REFUND-QTY — where returned goods went. */
+    public const DISPOSITION_DEFAULT = 'restock';
+    public const DISPOSITIONS = [
+        'restock', 'open_box', 'damaged', 'defective',
+        'warranty_hold', 'return_vendor', 'scrap', 'customer_keeps',
+    ];
+    /** Dispositions that put goods back into sellable stock. */
+    public const DISPOSITIONS_RESTOCK = ['restock', 'open_box'];
+
     public function createRefund(array $data): TenantSale
     {
         $original = TenantSale::where('id', $data['original_sale_id'] ?? null)
@@ -620,11 +629,35 @@ class SaleService
         if ($original->refund_of_sale_id !== null) {
             throw new SaleValidationException('Cannot refund a refund row.');
         }
-        if (empty($data['item_ids']) || !is_array($data['item_ids'])) {
+        // MARKER-REFUND-QTY — the payload is now authoritative per line:
+        //   items: [{sale_item_id, quantity, disposition}]
+        // Legacy item_ids is still accepted and read as "the full remaining
+        // quantity, restocked" so nothing in flight breaks.
+        $requested = [];
+        if (!empty($data['items']) && is_array($data['items'])) {
+            foreach ($data['items'] as $row) {
+                $sid = $row['sale_item_id'] ?? null;
+                if (!$sid) continue;
+                $requested[$sid] = [
+                    'quantity'    => isset($row['quantity']) && $row['quantity'] !== null ? (float) $row['quantity'] : null,
+                    'disposition' => $row['disposition'] ?? self::DISPOSITION_DEFAULT,
+                ];
+            }
+        } elseif (!empty($data['item_ids']) && is_array($data['item_ids'])) {
+            foreach ($data['item_ids'] as $sid) {
+                $requested[$sid] = ['quantity' => null, 'disposition' => self::DISPOSITION_DEFAULT];
+            }
+        }
+        if (empty($requested)) {
             throw new SaleValidationException('No items selected to refund.');
         }
+        foreach ($requested as $sid => $row) {
+            if (!in_array($row['disposition'], self::DISPOSITIONS, true)) {
+                throw new SaleValidationException('Unknown return disposition: ' . $row['disposition']);
+            }
+        }
 
-        $itemsToRefund = $original->items->whereIn('id', $data['item_ids']);
+        $itemsToRefund = $original->items->whereIn('id', array_keys($requested));
         if ($itemsToRefund->isEmpty()) {
             throw new SaleValidationException('No matching items to refund.');
         }
@@ -650,8 +683,39 @@ class SaleService
             throw new SaleValidationException('Tenant has no active location; cannot refund.');
         }
 
-        return DB::transaction(function () use ($data, $original, $itemsToRefund, $refundLocationId) {
+        return DB::transaction(function () use ($data, $original, $itemsToRefund, $refundLocationId, $requested) {
             $tenantId = $data['tenant_id'];
+
+            // MARKER-REFUND-QTY — serialize concurrent refunds of the same
+            // sale: two registers must not both spend the same remainder.
+            TenantSale::whereKey($original->id)->lockForUpdate()->first();
+
+            // Sum what each original line has ALREADY had refunded, across
+            // every prior refund of this sale. Lines written before this patch
+            // carry no original_sale_item_id, so they are attributed by an
+            // exact type/item/name match (legacy refunds always took the whole
+            // line, so that attribution is accurate).
+            $priorRefundSaleIds = TenantSale::where('tenant_id', $tenantId)
+                ->where('refund_of_sale_id', $original->id)
+                ->pluck('id');
+            $prior = [];
+            if ($priorRefundSaleIds->isNotEmpty()) {
+                $priorLines = TenantSaleItem::whereIn('sale_id', $priorRefundSaleIds)->get();
+                foreach ($priorLines as $pl) {
+                    $key = $pl->original_sale_item_id;
+                    if (!$key) {
+                        $key = $original->items->first(function ($o) use ($pl) {
+                            return $o->type === $pl->type
+                                && $o->inventory_item_id === $pl->inventory_item_id
+                                && $o->service_id === $pl->service_id
+                                && $o->name_snapshot === $pl->name_snapshot;
+                        })?->id;
+                    }
+                    if ($key) {
+                        $prior[$key] = ($prior[$key] ?? 0) + (float) $pl->quantity;
+                    }
+                }
+            }
             // MARKER-PATCH-159 — tenant-local today for refund sale_date
             $today = \App\Models\Tenant::find($tenantId)?->localToday()->toDateString() ?? Carbon::today()->toDateString();
             $reason = trim((string) ($data['reason'] ?? ''));
@@ -682,7 +746,41 @@ class SaleService
             ]);
 
             $position = 0;
+            $appliedNow = [];
             foreach ($itemsToRefund as $orig) {
+                // MARKER-REFUND-QTY — the backend, not the browser, decides
+                // how much may come back on this line.
+                $origQty   = (float) $orig->quantity;
+                $already   = (float) ($prior[$orig->id] ?? 0);
+                $remaining = round($origQty - $already, 4);
+                if ($remaining <= 0) {
+                    throw new SaleValidationException(
+                        sprintf('%s has already been fully refunded.', $orig->name_snapshot)
+                    );
+                }
+
+                $qty = $requested[$orig->id]['quantity'];
+                if ($qty === null) {
+                    $qty = $remaining; // legacy payload: the whole remainder
+                }
+                if ($qty <= 0) {
+                    continue;
+                }
+                if ($qty > $remaining + 0.0001) {
+                    throw new SaleValidationException(sprintf(
+                        'Cannot refund %s × %s — only %s of %s remain unrefunded.',
+                        rtrim(rtrim(number_format($qty, 3, '.', ''), '0'), '.'),
+                        $orig->name_snapshot,
+                        rtrim(rtrim(number_format($remaining, 3, '.', ''), '0'), '.'),
+                        rtrim(rtrim(number_format($origQty, 3, '.', ''), '0'), '.')
+                    ));
+                }
+
+                // Money is prorated from the original line so discounts and
+                // tax come back in the same proportion as the goods.
+                $ratio = $origQty > 0 ? ($qty / $origQty) : 1.0;
+                $dispo = $requested[$orig->id]['disposition'];
+
                 $line = TenantSaleItem::create([
                     'tenant_id'           => $tenantId,
                     'sale_id'             => $refund->id,
@@ -693,29 +791,45 @@ class SaleService
                     'name_snapshot'       => $orig->name_snapshot,
                     'description_snapshot'=> $orig->description_snapshot,
                     'cost_cents_snapshot' => $orig->cost_cents_snapshot,
-                    'quantity'            => $orig->quantity,
+                    'quantity'            => $qty,
                     'unit_price_cents'    => $orig->unit_price_cents,
-                    'discount_cents'      => $orig->discount_cents,
+                    'discount_cents'      => (int) round(((int) $orig->discount_cents) * $ratio),
                     'tax_rate_snapshot'   => $orig->tax_rate_snapshot,
                     'is_taxable'          => $orig->is_taxable,
-                    'tax_cents'           => $orig->tax_cents,
+                    'tax_cents'           => (int) round(((int) $orig->tax_cents) * $ratio),
                     'tip_cents'           => 0,
-                    'line_total_cents'    => $orig->line_total_cents,
+                    'line_total_cents'    => (int) round(((int) $orig->line_total_cents) * $ratio),
                     'assigned_staff_id'   => null,
                     'position'            => $position++,
                     'notes'               => null,
+                    'original_sale_item_id' => $orig->id,   // MARKER-REFUND-QTY
+                    'disposition'           => $dispo,      // MARKER-REFUND-QTY
                 ]);
 
-                // Restock inventory for refunded product lines
-                if ($line->type === 'product') {
+                $appliedNow[$orig->id] = ($appliedNow[$orig->id] ?? 0) + $qty;
+
+                // MARKER-REFUND-QTY — only sellable dispositions put goods
+                // back on the shelf. The rest record where the item went; the
+                // vendor-return / warranty workflows consume that data later.
+                if ($line->type === 'product' && in_array($dispo, self::DISPOSITIONS_RESTOCK, true)) {
                     $this->inventory->incrementForRefund($refund, $line, $refundLocationId);
                 }
             }
 
-            // Flip original's payment_status:
-            //   - all items refunded -> 'refunded'
-            //   - some items refunded -> 'partial'
-            $allRefunded = $itemsToRefund->count() === $original->items->count();
+            if (empty($appliedNow)) {
+                throw new SaleValidationException('No refundable quantity selected.');
+            }
+
+            // MARKER-REFUND-QTY — 'refunded' only when EVERY original line has
+            // been fully returned across all refunds; otherwise 'partial'.
+            $allRefunded = true;
+            foreach ($original->items as $o) {
+                $done = (float) ($prior[$o->id] ?? 0) + (float) ($appliedNow[$o->id] ?? 0);
+                if (round($done, 4) + 0.0001 < round((float) $o->quantity, 4)) {
+                    $allRefunded = false;
+                    break;
+                }
+            }
             $original->update([
                 'payment_status' => $allRefunded ? 'refunded' : 'partial',
             ]);
@@ -827,7 +941,7 @@ class SaleService
     public function createTransaction(array $data): array
     {
         $hasNewSale = !empty($data['items']);
-        $hasRefund  = !empty($data['refund']) && !empty($data['refund']['item_ids']);
+        $hasRefund  = !empty($data['refund']) && (!empty($data['refund']['item_ids']) || !empty($data['refund']['items'])); // MARKER-REFUND-QTY
 
         if (!$hasNewSale && !$hasRefund) {
             throw new SaleValidationException(
@@ -850,7 +964,8 @@ class SaleService
                     'refund_method'      => $refundData['refund_method'],
                     'reason'             => $refundData['reason'] ?? null,
                     'notes'              => $refundData['notes'] ?? null,
-                    'item_ids'           => $refundData['item_ids'],
+                    'item_ids'           => $refundData['item_ids'] ?? null,
+                    'items'              => $refundData['items'] ?? null, // MARKER-REFUND-QTY
                 ]);
                 $refundRow->update(['transaction_id' => $transactionId]);
             }
