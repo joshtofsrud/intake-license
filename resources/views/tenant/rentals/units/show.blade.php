@@ -67,7 +67,7 @@
         @endphp
         <a href="{{ route('tenant.rentals.bookings.show', $r->id) }}" style="display:grid;grid-template-columns:100px 1.2fr 1.2fr 110px 80px;gap:10px;align-items:center;padding:10px 16px;border-bottom:.5px solid var(--ia-border);text-decoration:none;color:inherit">
           <span style="font-size:12px;opacity:.6;font-family:var(--ia-font-mono,monospace)">{{ $r->rental_number }}</span>
-          <span style="font-size:12.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $r->customer?->first_name }} {{ $r->customer?->last_name }}</span>
+          <span style="font-size:12.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $r->customer?->fullName() }}</span>
           <span style="font-size:11.5px;opacity:.6">{{ tlocal_date($r->starts_at, 'M j') }} – {{ tlocal_date($r->returned_at ?? $r->due_at, 'M j') }}</span>
           <span style="display:flex;align-items:center;gap:5px">
             @include('tenant.rentals._status-pill', ['rental' => $r])

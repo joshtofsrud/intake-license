@@ -158,7 +158,7 @@
     <div class="ia-card" style="padding:16px;margin-bottom:16px">
       <span class="ia-label">Customer</span>
       <div style="margin-top:8px">
-        <a href="{{ route('tenant.customers.show', $rental->customer_id) }}" style="font-size:14px;font-weight:700;text-decoration:none;color:inherit">{{ $rental->customer?->first_name }} {{ $rental->customer?->last_name }}</a>
+        <a href="{{ route('tenant.customers.show', $rental->customer_id) }}" style="font-size:14px;font-weight:700;text-decoration:none;color:inherit">{{ $rental->customer?->fullName() }}</a>
         <div style="font-size:12px;opacity:.6;margin-top:2px">{{ $rental->customer?->email }}</div>
         @if($rental->customer?->phone)<div style="font-size:12px;opacity:.6">{{ $rental->customer?->phone }}</div>@endif
       </div>

@@ -1337,6 +1337,35 @@
         </span>
       </label>
     </div>
+
+    {{-- MARKER-BIZ-SETTINGS — defaults for new business customers, so
+         payment terms and PO-required are not fields you have to remember
+         to set one customer at a time. --}}
+    @php $custDefaults = $s['customers'] ?? []; @endphp
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Business customers — defaults</span></div>
+      <p style="font-size:13px;opacity:.55;margin-bottom:16px">
+        Applied when a new business customer is created. Each customer can still be changed individually.
+      </p>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Default payment terms</label>
+          <select name="cust_default_payment_terms" class="ia-input">
+            <option value="">Due at service</option>
+            <option value="net_15" @selected(($custDefaults['default_payment_terms'] ?? '') === 'net_15')>Net 15</option>
+            <option value="net_30" @selected(($custDefaults['default_payment_terms'] ?? '') === 'net_30')>Net 30</option>
+            <option value="net_60" @selected(($custDefaults['default_payment_terms'] ?? '') === 'net_60')>Net 60</option>
+          </select>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Purchase orders</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 0;cursor:pointer">
+            <input type="checkbox" name="cust_default_po_required" value="1" @checked($custDefaults['default_po_required'] ?? false)>
+            <span>New business customers require a PO by default</span>
+          </label>
+        </div>
+      </div>
+    </div>
   </form>
 </div>
 

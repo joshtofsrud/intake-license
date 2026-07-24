@@ -120,7 +120,7 @@
             <td>{{ $so->quantity }}</td>
             <td>
               @if($so->customer)
-                <strong>{{ $so->customer->first_name }} {{ $so->customer->last_name }}</strong>
+                <strong>{{ $so->customer->fullName() }}</strong>
                 @if($so->appointment)
                   <div class="ia-text-muted" style="font-size:11.5px">
                     {{ $so->appointment->ra_number }} · {{ $so->appointment->appointment_date?->format('M j') }}
@@ -199,7 +199,7 @@
         <div class="so-card-item">{{ $so->item_name_snapshot }} <span class="ia-text-muted">×{{ $so->quantity }}</span></div>
         <div class="so-card-meta">
           @if($so->customer)
-            {{ $so->customer->first_name }} {{ $so->customer->last_name }}
+            {{ $so->customer->fullName() }}
           @else
             Shop stock
           @endif

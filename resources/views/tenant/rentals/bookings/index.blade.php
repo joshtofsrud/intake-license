@@ -77,7 +77,7 @@
       <a href="{{ route('tenant.rentals.bookings.show', $r->id) }}"
          style="display:grid;grid-template-columns:100px 1.3fr 1.5fr 1fr 1fr 90px 130px;gap:12px;align-items:center;padding:12px 18px;border-bottom:0.5px solid var(--ia-border);text-decoration:none;color:inherit">
         <span style="font-size:12px;opacity:.6;font-family:var(--ia-font-mono,monospace)">{{ $r->rental_number }}</span>
-        <span style="font-size:13.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $r->customer?->first_name }} {{ $r->customer?->last_name }}</span>
+        <span style="font-size:13.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $r->customer?->fullName() }}</span>
         <span style="font-size:12.5px;opacity:.7;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $units->pluck('name_snapshot')->take(2)->implode(', ') }}{{ $units->count() > 2 ? ' +' . ($units->count() - 2) : '' }}</span>
         <span style="font-size:12px;opacity:.65">{{ tlocal_datetime($r->starts_at, 'M j, g:i A') }}</span>
         <span style="font-size:12px;{{ $late ? 'color:#ef4444;font-weight:700' : 'opacity:.65' }}">{{ tlocal_datetime($r->due_at, 'M j, g:i A') }}</span>

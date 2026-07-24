@@ -61,10 +61,21 @@ class SettingsController extends Controller
             'so_auto_assign_vendor' => ['required', 'in:preferred,lowest_price,off'],
         ]);
 
+        // MARKER-BIZ-SETTINGS — business-customer defaults share this tab.
+        $request->validate([
+            'cust_default_payment_terms' => ['nullable', 'in:' . implode(',', \App\Models\Tenant\TenantCustomer::PAYMENT_TERMS)],
+        ]);
+
         $settings = $tenant->settings ?? [];
         $so = (array) ($settings['special_orders'] ?? []);
         $so['auto_assign_vendor'] = $request->input('so_auto_assign_vendor');
         $settings['special_orders'] = $so;
+
+        $cust = (array) ($settings['customers'] ?? []);
+        $cust['default_payment_terms'] = $request->input('cust_default_payment_terms') ?: null;
+        $cust['default_po_required']   = $request->boolean('cust_default_po_required');
+        $settings['customers'] = $cust;
+
         $tenant->update(['settings' => $settings]);
 
         return back()->with('success', 'Ordering settings saved.');

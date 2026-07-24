@@ -19,7 +19,7 @@
   <div class="body">{{ $template->body }}</div>
   <div class="sig">
     <b>{{ $signerName }}</b>
-    <div class="meta">Signed at the counter · {{ tlocal_datetime($signedAt, 'M j, Y g:i A') }} · Agreement v{{ $template->version }} · Customer: {{ $rental->customer?->first_name }} {{ $rental->customer?->last_name }}</div>
+    <div class="meta">Signed at the counter · {{ tlocal_datetime($signedAt, 'M j, Y g:i A') }} · Agreement v{{ $template->version }} · Customer: {{ $rental->customer?->fullName() }}</div>
   </div>
 </body>
 </html>

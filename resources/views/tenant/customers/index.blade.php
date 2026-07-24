@@ -10,6 +10,7 @@
     'spend_asc'    => 'Lowest spend',
     'last_service' => 'Last service',
     'vips_only'    => 'VIPs only',
+    'businesses_only' => 'Businesses only', // MARKER-BIZ-LIST
   ];
   $currentSortLabel = $sortLabels[$sort] ?? 'Name A–Z';
 @endphp
@@ -269,7 +270,14 @@
           @php $stat = $stats[$c->id] ?? null; @endphp
           {{-- MARKER-PATCH-503 — straight to the customer page, no modal hop --}}
           <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
-            <td><span style="font-weight:500">{{ $c->first_name }} {{ $c->last_name }}</span>@if($c->is_vip)<span class="vip-list-star" title="VIP">★</span>@endif</td>
+            <td>
+              <span style="font-weight:500">{{ $c->fullName() }}</span>@if($c->is_vip)<span class="vip-list-star" title="VIP">★</span>@endif
+              {{-- MARKER-BIZ-LIST --}}
+              @if($c->isBusiness())
+                <span class="biz-pill">Business</span>
+                @if($c->tax_exempt)<span class="biz-pill exempt">Tax exempt</span>@endif
+              @endif
+            </td>
             <td class="ia-muted-cell">{{ $c->email }}</td>
             <td class="ia-muted-cell">{{ $c->phone ?: '—' }}</td>
             <td class="ia-muted-cell">
@@ -296,7 +304,7 @@
       @endphp
       <button type="button" class="cust-card" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
         <div class="cust-card-top">
-          <span class="cust-card-name">{{ $c->first_name }} {{ $c->last_name }}</span>
+          <span class="cust-card-name">{{ $c->fullName() }}</span>
           @if($spend > 0)
             <span class="cust-card-spend">{{ format_money($spend) }}</span>
           @endif
@@ -674,5 +682,11 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
   });
 })();
 </script>
+
+{{-- MARKER-BIZ-LIST --}}
+<style>
+  .biz-pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:2px 7px;margin-left:6px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);vertical-align:1px}
+  .biz-pill.exempt{border-color:rgba(232,163,61,.4);color:#E8A33D}
+</style>
 
 @endsection

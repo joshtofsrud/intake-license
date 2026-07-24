@@ -290,13 +290,17 @@ class ReportsDataService
                 $j->on('tsp.sale_id', '=', 'ts.id')
                   ->whereBetween('tsp.recorded_at', [$winStart, $winEnd]);
             })
-            ->selectRaw('tenant_customers.id, tenant_customers.first_name, tenant_customers.last_name, tenant_customers.created_at, SUM(tsp.amount_cents) as cents, COUNT(DISTINCT ts.id) as visits')
-            ->groupBy('tenant_customers.id', 'tenant_customers.first_name', 'tenant_customers.last_name', 'tenant_customers.created_at')
+            // MARKER-BIZ-NAME — raw rows carry no model methods, so the
+            // business name is selected and chosen inline.
+            ->selectRaw('tenant_customers.id, tenant_customers.first_name, tenant_customers.last_name, tenant_customers.business_name, tenant_customers.customer_type, tenant_customers.created_at, SUM(tsp.amount_cents) as cents, COUNT(DISTINCT ts.id) as visits')
+            ->groupBy('tenant_customers.id', 'tenant_customers.first_name', 'tenant_customers.last_name', 'tenant_customers.business_name', 'tenant_customers.customer_type', 'tenant_customers.created_at')
             ->orderByDesc('cents')
             ->limit(5)
             ->get()
             ->map(fn($r) => [
-                'name'             => trim($r->first_name . ' ' . $r->last_name),
+                'name'             => ($r->customer_type === 'business' && trim((string) $r->business_name) !== '')
+                    ? trim($r->business_name)
+                    : trim($r->first_name . ' ' . $r->last_name), // MARKER-BIZ-NAME
                 'cents'            => (int) $r->cents,
                 'visits'           => (int) $r->visits,
                 'is_new_in_period' => Carbon::parse($r->created_at)->between($from, $to->copy()->endOfDay()),

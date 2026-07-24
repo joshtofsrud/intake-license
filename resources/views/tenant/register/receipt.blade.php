@@ -12,8 +12,9 @@
   $m        = fn($c) => $sym . number_format(((int) $c) / 100, 2);
   $qfmt     = fn($q) => rtrim(rtrim(number_format((float) $q, 3), '0'), '.');
   $when     = $sale->paid_at ?? $sale->created_at;
+  // MARKER-BIZ-RECEIPT — a business is billed by its business name
   $custName = $sale->customer
-                ? trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? ''))
+                ? trim($sale->customer->fullName())
                 : null;
 @endphp
 <!DOCTYPE html>
@@ -105,6 +106,16 @@
     @endif
     @if((int) $sale->tax_cents > 0)
       <tr><td>Tax</td><td class="r">{{ $m($sale->tax_cents) }}</td></tr>
+      {{-- MARKER-BIZ-RECEIPT — an accounts-payable clerk needs to see WHY tax
+           is zero, and needs the PO reference to process the invoice. --}}
+      @if($sale->tax_exempt_applied)
+        <tr><td colspan="2" style="font-size:11px;opacity:.7">
+          Tax exempt@if($sale->tax_exempt_certificate) — certificate {{ $sale->tax_exempt_certificate }}@endif
+        </td></tr>
+      @endif
+      @if($sale->po_number)
+        <tr><td colspan="2" style="font-size:11px;opacity:.7">PO {{ $sale->po_number }}</td></tr>
+      @endif
     @endif
     @if((int) $sale->surcharge_cents > 0)
       <tr><td>Surcharge</td><td class="r">{{ $m($sale->surcharge_cents) }}</td></tr>

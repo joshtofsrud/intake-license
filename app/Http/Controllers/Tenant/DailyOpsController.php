@@ -464,7 +464,7 @@ class DailyOpsController extends Controller
         foreach ($unpaid as $a) {
             $due = max(0, (int) $a->total_cents - (int) $a->paid_cents);
             if ($due === 0) continue;
-            $who = $a->customer ? trim($a->customer->first_name . ' ' . $a->customer->last_name) : 'customer';
+            $who = $a->customer ? trim($a->customer->fullName()) : 'customer';
             $items[] = ['label' => 'Unpaid job — ' . $who,
                         'amount' => $due, 'tag' => 'unpaid',
                         'url' => route('tenant.appointments.show', $a->id)];

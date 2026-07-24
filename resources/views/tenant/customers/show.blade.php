@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 @php
-  $pageTitle  = $customer->first_name . ' ' . $customer->last_name;
+  $pageTitle  = $customer->fullName();
   $updateUrl  = route('tenant.customers.update', $customer->id);
 @endphp
 
@@ -875,7 +875,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
   <div class="ia-page-head-left">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">Customer</div>
     <h1 class="ia-page-title">
-      {{ $customer->first_name }} {{ $customer->last_name }}
+      {{ $customer->fullName() }}
       <span class="cust-vip-badge" data-vip-badge style="display:{{ $customer->is_vip ? 'inline-flex' : 'none' }}">
         <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="12" height="12" aria-hidden="true">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -948,7 +948,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
   {{-- HERO BAND --}}
   <div class="cmd-hero">
     <div class="cmd-hero-top">
-      <h1 class="cmd-hero-name">{{ $customer->first_name }} {{ $customer->last_name }}</h1>
+      <h1 class="cmd-hero-name">{{ $customer->fullName() }}</h1>
       <div class="cmd-hero-actions">
         <button type="button" class="cmd-vip-btn {{ $customer->is_vip ? 'is-on' : '' }}"
                 data-vip-toggle data-url="{{ $updateUrl }}" data-csrf="{{ csrf_token() }}"
@@ -1254,7 +1254,7 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
         <div class="cust-info-grid">
           <div>
             <div class="cust-field-label">Name</div>
-            <div class="cust-field-value">{{ $customer->first_name }} {{ $customer->last_name }}</div>
+            <div class="cust-field-value">{{ $customer->fullName() }}</div>
           </div>
           <div>
             <div class="cust-field-label">Email</div>

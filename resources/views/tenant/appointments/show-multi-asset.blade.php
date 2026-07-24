@@ -1387,7 +1387,7 @@ input.ma-asset-name-edit:focus {
     <div class="ma-mhero-ra">{{ $appointment->ra_number }}</div>
     <div class="ma-mhero-top">
       <div>
-        <div class="ma-mhero-cust">{{ $appointment->customer ? trim($appointment->customer->first_name . ' ' . $appointment->customer->last_name) : 'Walk-in' }}</div>
+        <div class="ma-mhero-cust">{{ $appointment->customer ? trim($appointment->customer->fullName()) : 'Walk-in' }}</div>
         <div class="ma-mhero-when">{{ $appointment->appointment_date->format('D, M j') }}@if($appointment->appointment_time) · {{ \Carbon\Carbon::parse($appointment->appointment_time)->format('g:i A') }}@endif @if($appointment->resource) · {{ $appointment->resource->name }}@endif</div>
       </div>
       <span class="ma-status-pill ma-status-pill--{{ $appointment->status }}">{{ $statusLabels[$appointment->status] ?? $appointment->status }}</span>
@@ -1626,7 +1626,7 @@ input.ma-asset-name-edit:focus {
         <div class="ma-top-customer">
           <div class="ma-customer-avatar">{{ $maInitials }}</div>
           <div class="ma-top-customer-main">
-            <div class="ma-customer-name">{{ $appointment->customer->first_name }} {{ $appointment->customer->last_name }}</div>
+            <div class="ma-customer-name">{{ $appointment->customer->fullName() }}</div>
             <div class="ma-customer-meta">
               @if($appointment->customer->email)<span>{{ $appointment->customer->email }}</span>@endif
               @if($appointment->customer->email && $appointment->customer->phone)<span class="sep">·</span>@endif

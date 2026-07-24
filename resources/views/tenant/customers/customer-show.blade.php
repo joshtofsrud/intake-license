@@ -1,6 +1,6 @@
 @extends('layouts.tenant.app')
 @php
-  $pageTitle  = $customer->first_name . ' ' . $customer->last_name;
+  $pageTitle  = $customer->fullName();
   $updateUrl  = route('tenant.customers.update', $customer->id);
 @endphp
 
@@ -59,7 +59,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.4;margin-bottom:4px">Customer</div>
-    <h1 class="ia-page-title">{{ $customer->first_name }} {{ $customer->last_name }}</h1>
+    <h1 class="ia-page-title">{{ $customer->fullName() }}</h1>
     <p class="ia-page-subtitle">
       {{ $customer->email }}
       @if($customer->phone) · {{ $customer->phone }} @endif
@@ -92,7 +92,7 @@
         <div class="cust-info-grid">
           <div>
             <div class="cust-field-label">Name</div>
-            <div class="cust-field-value">{{ $customer->first_name }} {{ $customer->last_name }}</div>
+            <div class="cust-field-value">{{ $customer->fullName() }}</div>
           </div>
           <div>
             <div class="cust-field-label">Email</div>

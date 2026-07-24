@@ -110,7 +110,7 @@
           <div class="ib-thread-top">
             <span class="ib-thread-name">
               @if((int) $t->unread_count > 0 || $t->status === 'needs_reply')<span class="ib-dot"></span>@endif
-              {{ $t->customer?->first_name }} {{ $t->customer?->last_name }}
+              {{ $t->customer?->fullName() }}
               @if($t->status === 'needs_reply')<span class="ib-nr">Needs reply</span>@endif
             </span>
             <span class="ib-thread-time">{{ $t->last_message_at ? tlocal_datetime($t->last_message_at, 'M j, g:i A') : '' }}</span>
@@ -133,7 +133,7 @@
         <div class="ib-conv-head-left">
         <a class="ib-back" href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null])) }}" aria-label="Back to conversations">&lsaquo;</a>
         <div style="min-width:0">
-          <a href="{{ route('tenant.customers.show', $selected->customer_id) }}" class="ib-conv-name" style="font-weight:700;text-decoration:none;color:inherit">{{ $selected->customer?->first_name }} {{ $selected->customer?->last_name }}</a>
+          <a href="{{ route('tenant.customers.show', $selected->customer_id) }}" class="ib-conv-name" style="font-weight:700;text-decoration:none;color:inherit">{{ $selected->customer?->fullName() }}</a>
           <div style="font-size:11.5px;opacity:.55">
             {{ $selected->customer?->phone ?? 'no phone' }}
             @if($selected->customer?->email) · {{ $selected->customer?->email }}@endif

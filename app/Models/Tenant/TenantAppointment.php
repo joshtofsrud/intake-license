@@ -124,7 +124,7 @@ class TenantAppointment extends Model
         // MARKER-PATCH-421 — live customer via customer_id is the source of truth;
         // the snapshot is only a fallback for a deleted customer record.
         return $this->customer
-            ? trim($this->customer->first_name . ' ' . $this->customer->last_name)
+            ? trim($this->customer->fullName())
             : trim(($this->customer_first_name ?? '') . ' ' . ($this->customer_last_name ?? ''));
     }
     public function isPaid(): bool         { return $this->payment_status === 'paid'; }

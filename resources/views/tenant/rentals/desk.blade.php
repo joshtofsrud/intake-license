@@ -111,7 +111,7 @@
             }
           @endphp
           <tr onclick="window.location='{{ route('tenant.rentals.bookings.show', $r->id) }}'">
-            <td>{{ $r->customer?->first_name }} {{ $r->customer?->last_name }}</td>
+            <td>{{ $r->customer?->fullName() }}</td>
             <td>{{ $unitLabel }}</td>
             <td class="ia-num">{{ tlocal($r->due_at) }}</td>
             <td>
@@ -162,7 +162,7 @@
           @endphp
           <tr onclick="window.location='{{ route('tenant.rentals.bookings.show', $r->id) }}'">
             <td class="ia-num">{{ $r->starts_at->copy()->setTimezone(tenant()->timezone())->isToday() ? tlocal($r->starts_at) : tlocal_datetime($r->starts_at, 'M j, g:i A') }}</td>
-            <td>{{ $r->customer?->first_name }} {{ $r->customer?->last_name }}</td>
+            <td>{{ $r->customer?->fullName() }}</td>
             <td>{{ $resLabel }}</td>
             <td style="text-align:right">
               {{-- MARKER-PATCH-232 — desk pickups open the guided flow. --}}

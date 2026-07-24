@@ -745,7 +745,27 @@
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
+        {{-- MARKER-BIZ-WORKORDER — business context where the job is done --}}
+        @if($appointment->customer && $appointment->customer->isBusiness())
+          <span class="biz-pill">Business</span>
+        @endif
       </div>
+      @if($appointment->customer && $appointment->customer->isBusiness())
+        @php $bizPrimary = $appointment->customer->primaryContact; @endphp
+        @if($bizPrimary)
+          <div style="font-size:13px;opacity:.75;margin-bottom:2px">
+            {{ $bizPrimary->name }}@if($bizPrimary->role) · {{ $bizPrimary->role }}@endif
+            @if($bizPrimary->phone) · {{ $bizPrimary->phone }}@endif
+          </div>
+        @endif
+        <div style="font-size:12.5px;opacity:.6;margin-bottom:6px">
+          {{ $appointment->customer->termsLabel() }}
+          @if($appointment->customer->tax_exempt)
+            · Tax exempt@if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
+          @endif
+          @if($appointment->customer->po_required) · <span style="color:#E8A33D">PO required</span>@endif
+        </div>
+      @endif
       <div style="font-size:13px;opacity:.6;margin-bottom:2px">
         {{ $appointment->customer_email }}
       </div>
@@ -1100,7 +1120,7 @@
         <div class="appt-section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
           <span>Special-order parts</span>
           <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm"
-                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json(trim(($appointment->customer->first_name ?? "") . " " . ($appointment->customer->last_name ?? ""))), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
+                  onclick='SoDrawer.open({customer_id: @json($appointment->customer_id), customer_label: @json($appointment->customerName()), appointment_id: @json($appointment->id), alloc_mode: "customer_appt"})'>
             + SO for this appointment
           </button>
         </div>
@@ -1416,7 +1436,27 @@
       <div class="appt-section-label">Customer</div>
       <div style="font-weight:500;margin-bottom:4px">
         {{ $appointment->customerName() }}
+        {{-- MARKER-BIZ-WORKORDER — business context where the job is done --}}
+        @if($appointment->customer && $appointment->customer->isBusiness())
+          <span class="biz-pill">Business</span>
+        @endif
       </div>
+      @if($appointment->customer && $appointment->customer->isBusiness())
+        @php $bizPrimary = $appointment->customer->primaryContact; @endphp
+        @if($bizPrimary)
+          <div style="font-size:13px;opacity:.75;margin-bottom:2px">
+            {{ $bizPrimary->name }}@if($bizPrimary->role) · {{ $bizPrimary->role }}@endif
+            @if($bizPrimary->phone) · {{ $bizPrimary->phone }}@endif
+          </div>
+        @endif
+        <div style="font-size:12.5px;opacity:.6;margin-bottom:6px">
+          {{ $appointment->customer->termsLabel() }}
+          @if($appointment->customer->tax_exempt)
+            · Tax exempt@if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
+          @endif
+          @if($appointment->customer->po_required) · <span style="color:#E8A33D">PO required</span>@endif
+        </div>
+      @endif
       <div style="font-size:13px;opacity:.6;margin-bottom:2px">
         {{ $appointment->customer_email }}
       </div>
@@ -1679,6 +1719,11 @@
 
 {{-- MARKER-PATCH-314 --}}
 @include('tenant.appointments._tag_modal')
+
+{{-- MARKER-BIZ-WORKORDER --}}
+<style>
+  .biz-pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:2px 7px;margin-left:6px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);vertical-align:1px}
+</style>
 
 @endsection
 

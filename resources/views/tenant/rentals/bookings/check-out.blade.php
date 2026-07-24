@@ -40,7 +40,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Check out — {{ $rental->rental_number }}</h1>
-    <p class="ia-page-subtitle">{{ $rental->customer?->first_name }} {{ $rental->customer?->last_name }} · {{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
+    <p class="ia-page-subtitle">{{ $rental->customer?->fullName() }} · {{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</p>
   </div>
   <a href="{{ route('tenant.rentals.bookings.show', $rental->id) }}" class="ia-btn">Back to booking</a>
 </div>
@@ -72,7 +72,7 @@
     <div class="co-pane" data-pane="1">
       <div class="ia-card" style="padding:18px 20px;margin-bottom:14px">
         <h2 class="ia-h3" style="margin-bottom:10px">Who &amp; what</h2>
-        <div class="co-kv"><span>Customer</span><span style="font-weight:600">{{ $rental->customer?->first_name }} {{ $rental->customer?->last_name }}</span></div>
+        <div class="co-kv"><span>Customer</span><span style="font-weight:600">{{ $rental->customer?->fullName() }}</span></div>
         <div class="co-kv"><span>Contact</span><span>{{ $rental->customer?->email ?: '—' }}{{ $rental->customer?->phone ? ' · ' . $rental->customer->phone : '' }}</span></div>
         <div class="co-kv"><span>Window</span><span>{{ tlocal_datetime($rental->starts_at, 'M j, g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}</span></div>
         <div style="border-top:.5px solid var(--ia-border);margin-top:8px;padding-top:8px">
@@ -103,7 +103,7 @@
             <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
               <div style="flex:1;min-width:220px">
                 <label class="ia-label" style="display:block;margin-bottom:5px">Customer signs by typing their full name</label>
-                <input type="text" name="signer_name" maxlength="160" required class="ia-input" style="width:100%" placeholder="{{ $rental->customer?->first_name }} {{ $rental->customer?->last_name }}">
+                <input type="text" name="signer_name" maxlength="160" required class="ia-input" style="width:100%" placeholder="{{ $rental->customer?->fullName() }}">
               </div>
               <button type="submit" class="ia-btn ia-btn--primary">Sign agreement</button>
             </div>

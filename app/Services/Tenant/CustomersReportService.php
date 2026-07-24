@@ -74,7 +74,7 @@ class CustomersReportService
             ->get(['id', 'first_name', 'last_name', 'email', 'created_at'])
             ->map(fn($c) => [
                 'id'       => $c->id,
-                'name'     => trim($c->first_name . ' ' . $c->last_name),
+                'name'     => trim($c->fullName()),
                 'email'    => $c->email,
                 'added_at' => $c->created_at,
             ])
@@ -134,11 +134,14 @@ class CustomersReportService
             ->whereDate('l.last_appt', '<', $lapsedCutoff->toDateString())
             ->orderBy('l.last_appt', 'asc') // longest-lapsed first — most urgent
             ->limit(self::LIST_LIMIT_LAPSED)
-            ->select('c.id', 'c.first_name', 'c.last_name', 'c.email', 'c.phone', 'l.last_appt')
+            // MARKER-BIZ-NAME — raw rows: select what the display name needs
+            ->select('c.id', 'c.first_name', 'c.last_name', 'c.business_name', 'c.customer_type', 'c.email', 'c.phone', 'l.last_appt')
             ->get()
             ->map(fn($r) => [
                 'id'         => $r->id,
-                'name'       => trim($r->first_name . ' ' . $r->last_name),
+                'name'       => ($r->customer_type === 'business' && trim((string) $r->business_name) !== '')
+                    ? trim($r->business_name)
+                    : trim($r->first_name . ' ' . $r->last_name), // MARKER-BIZ-NAME
                 'email'      => $r->email,
                 'phone'      => $r->phone,
                 'last_visit' => $r->last_appt,
@@ -229,7 +232,7 @@ class CustomersReportService
             if (!$c) continue;
             $list[] = [
                 'id'             => $c->id,
-                'name'           => trim($c->first_name . ' ' . $c->last_name),
+                'name'           => trim($c->fullName()),
                 'email'          => $c->email,
                 'phone'          => $c->phone,
                 'ltv_cents'      => $ltv[$cid],

@@ -44,7 +44,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Return — {{ $rental->rental_number }}</h1>
-    <p class="ia-page-subtitle">{{ $rental->customer?->first_name }} {{ $rental->customer?->last_name }} · due {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}
+    <p class="ia-page-subtitle">{{ $rental->customer?->fullName() }} · due {{ tlocal_datetime($rental->due_at, 'M j, g:i A') }}
       @if($lateMinutes > 0)<span style="color:#ef4444;font-weight:600"> — {{ $lateMinutes >= 60 ? floor($lateMinutes / 60) . 'h ' . ($lateMinutes % 60) . 'm' : $lateMinutes . 'm' }} overdue</span>@endif
     </p>
   </div>

@@ -393,7 +393,7 @@
             <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
               <td><strong>{{ $so->so_number }}</strong></td>
               <td>{{ $so->quantity }}</td>
-              <td>@if($so->customer){{ $so->customer->first_name }} {{ $so->customer->last_name }}@else<span style="color:var(--ia-text-muted)">Shop stock</span>@endif</td>
+              <td>@if($so->customer){{ $so->customer->fullName() }}@else<span style="color:var(--ia-text-muted)">Shop stock</span>@endif</td>
               <td>{{ $so->vendor?->name ?? '—' }}</td>
               <td>
                 @php $isOverdue = $so->status === 'ordered' && $so->expected_arrival_date && $so->expected_arrival_date->isPast(); @endphp
@@ -417,7 +417,7 @@
               <tr style="cursor:pointer;opacity:.7" onclick="window.location.href='{{ route('tenant.special-orders.show', ['id' => $so->id]) }}'">
                 <td><strong>{{ $so->so_number }}</strong></td>
                 <td>{{ $so->quantity }}</td>
-                <td>{{ $so->customer ? $so->customer->first_name . ' ' . $so->customer->last_name : 'Stock' }}</td>
+                <td>{{ $so->customer ? $so->customer->fullName() : 'Stock' }}</td>
                 <td><span class="so-status so-status--{{ $so->status }}">{{ ucfirst($so->status) }}</span></td>
                 <td style="color:var(--ia-text-muted);font-size:12px">{{ $so->updated_at->format('M j, Y') }}</td>
               </tr>

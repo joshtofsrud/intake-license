@@ -549,7 +549,7 @@ window.ApptModal = (function () {
     customers.forEach(function (c) {
       var row = document.createElement('div');
       row.className = 'appt-cust-row';
-      row.innerHTML = '<div>' + escapeHtml(c.first_name + ' ' + c.last_name) + '</div>'
+      row.innerHTML = '<div>' + escapeHtml(c.name || (c.first_name + ' ' + c.last_name)) + '</div>' // MARKER-BIZ-NAME
         + '<div class="meta">' + escapeHtml(c.email || c.phone || '') + '</div>';
       row.addEventListener('click', function () { attachCustomer(c); });
       box.appendChild(row);
@@ -560,7 +560,7 @@ window.ApptModal = (function () {
 
   function attachCustomer(c) {
     state.customerId = c.id;
-    el('appt-cust-attached-name').textContent = (c.first_name + ' ' + c.last_name).trim();
+    el('appt-cust-attached-name').textContent = (c.name || (c.first_name + ' ' + c.last_name)).trim(); // MARKER-BIZ-NAME
     el('appt-cust-attached-meta').textContent = c.email || c.phone || '';
     el('appt-cust-attached').style.display = 'flex';
     el('appt-cust-search-wrap').style.display = 'none';

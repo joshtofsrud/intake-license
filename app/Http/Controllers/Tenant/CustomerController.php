@@ -52,6 +52,12 @@ class CustomerController extends Controller
             $q->where('is_vip', true);
         }
 
+        // MARKER-BIZ-LIST — same pattern as VIPs. Also the practical route to
+        // finding records where a business was typed into a person's name.
+        if ($sort === 'businesses_only') {
+            $q->where('customer_type', \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS);
+        }
+
         // Sort
         switch ($sort) {
             case 'name_desc':
@@ -360,7 +366,7 @@ class CustomerController extends Controller
             'ok' => true,
             'customer' => [
                 'id' => $customer->id, 'first_name' => $customer->first_name, 'last_name' => $customer->last_name,
-                'name' => $customer->first_name . ' ' . $customer->last_name, 'email' => $customer->email,
+                'name' => $customer->fullName(), 'email' => $customer->email,
                 'phone' => $customer->phone, 'address_line1' => $customer->address_line1,
                 'city' => $customer->city, 'state' => $customer->state, 'postcode' => $customer->postcode,
                 'country' => $customer->country, 'created_at' => $customer->created_at->format('M j, Y'),

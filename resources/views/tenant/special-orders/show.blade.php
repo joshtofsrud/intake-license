@@ -11,7 +11,7 @@
     <h1 class="ia-page-title">{{ $so->so_number }}</h1>
     <p class="ia-page-subtitle">
       {{ $so->item_name_snapshot }} ×{{ $so->quantity }}
-      @if($so->customer) · for {{ $so->customer->first_name }} {{ $so->customer->last_name }} @endif
+      @if($so->customer) · for {{ $so->customer->fullName() }} @endif
       @if($so->appointment) · {{ $so->appointment->ra_number }} @endif
     </p>
   </div>
@@ -200,7 +200,7 @@
                 <td>{{ $sib->so_number }}</td>
                 <td>
                   @if($sib->customer)
-                    {{ $sib->customer->first_name }} {{ $sib->customer->last_name }}
+                    {{ $sib->customer->fullName() }}
                   @else
                     <span class="ia-text-muted">Shop stock</span>
                   @endif
@@ -254,7 +254,7 @@
             <div class="so-detail-label">Customer</div>
             <div style="margin-top:4px">
               <a href="{{ route('tenant.customers.show', ['id' => $so->customer->id]) }}">
-                <strong>{{ $so->customer->first_name }} {{ $so->customer->last_name }}</strong>
+                <strong>{{ $so->customer->fullName() }}</strong>
               </a>
               @if($so->customer->email)
                 <div class="ia-text-muted" style="font-size:11.5px">{{ $so->customer->email }}</div>

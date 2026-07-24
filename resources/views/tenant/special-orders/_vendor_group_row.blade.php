@@ -17,7 +17,7 @@
     <a class="sog-nm sog-open" href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}">{{ $so->item_name_snapshot }}</a>
     <div class="sog-mt">
       <span>{{ $so->so_number }} · qty {{ $so->quantity }} ·
-        {{ $so->customer ? trim($so->customer->first_name . ' ' . $so->customer->last_name) : 'stock' }}</span>
+        {{ $so->customer ? trim($so->customer->fullName()) : 'stock' }}</span>
       @if($og)
         <span class="so-origin so-origin--{{ $og['state'] }}">{{ $og['label'] }}</span>
       @endif

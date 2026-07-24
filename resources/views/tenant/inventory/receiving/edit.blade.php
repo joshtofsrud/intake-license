@@ -217,7 +217,7 @@
                     </td>
                     <td>
                       @if($so->customer)
-                        {{ $so->customer->first_name }} {{ $so->customer->last_name }}
+                        {{ $so->customer->fullName() }}
                         @if($so->appointment)<div style="font-size:11px;color:var(--ia-text-muted)">{{ $so->appointment->ra_number }}</div>@endif
                       @else
                         <span style="color:var(--ia-text-muted)">Shop stock</span>
