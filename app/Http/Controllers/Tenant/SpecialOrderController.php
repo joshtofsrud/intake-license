@@ -81,9 +81,22 @@ class SpecialOrderController extends Controller
                 break;
         }
 
+        // MARKER-SO-SCROLL — the open view is one scrollable list, not pages:
+        // the footer total ("13 open across 3 vendors") is only ever true when
+        // the whole set is on screen. Capped so a pathological backlog cannot
+        // render forever; the cap is surfaced in the footer when hit.
+        $grouped   = ($view === 'open');
+        $scrollCap = 500;
+
         $total = $q->count();
-        $totalPages = max(1, (int) ceil($total / $perPage));
-        $sos = $q->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        if ($grouped) {
+            $totalPages = 1;
+            $page = 1;
+            $sos = $q->limit($scrollCap)->get();
+        } else {
+            $totalPages = max(1, (int) ceil($total / $perPage));
+            $sos = $q->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        }
 
         // Drawer prep: vendors list for the picker, plus today's date
         // for the date-picker default. Item search is XHR, customers
@@ -93,11 +106,11 @@ class SpecialOrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // MARKER-SO-ONESCREEN — vendor grouping is a mode of this list, not a
-        // second screen. Only meaningful for orders still to be placed.
-        $group = $request->input('group') === 'vendor' ? 'vendor' : null;
+        // MARKER-SO-SCROLL — grouping is not a mode. Open orders are grouped by
+        // vendor because that is how they get placed; the other tabs stay flat,
+        // since vendor grouping means nothing once an order has been placed.
         $vendorData = ['groups' => [], 'vendors' => collect(), 'options' => [], 'checkedAt' => null];
-        if ($group === 'vendor') {
+        if ($grouped) {
             $needed = $sos->where('status', TenantSpecialOrder::STATUS_NEEDED);
             $vendorData = $this->vendorGroups($tenant, $needed);
         }
@@ -139,7 +152,8 @@ class SpecialOrderController extends Controller
 
         return view('tenant.special-orders.index', [
             'origins'    => $origins, // MARKER-SO-ORIGIN
-            'group'      => $group,                    // MARKER-SO-ONESCREEN
+            'grouped'    => $grouped,                  // MARKER-SO-SCROLL
+            'scrollCap'  => $scrollCap,                // MARKER-SO-SCROLL
             'vgroups'    => $vendorData['groups'],     // MARKER-SO-ONESCREEN
             'vvendors'   => $vendorData['vendors'],    // MARKER-SO-ONESCREEN
             'voptions'   => $vendorData['options'],    // MARKER-SO-ONESCREEN

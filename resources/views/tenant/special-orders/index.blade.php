@@ -17,11 +17,6 @@
     </p>
   </div>
   <div class="ia-page-actions">
-    {{-- MARKER-SO-ONESCREEN — grouping is a mode of this list, not a second screen --}}
-    <a href="{{ route('tenant.special-orders.index', array_filter(['view' => $view, 'group' => $group ? null : 'vendor'])) }}"
-       class="ia-btn {{ $group ? 'ia-btn--primary' : 'ia-btn--ghost' }}">
-      {{ $group ? '← Flat list' : 'Group by vendor' }}
-    </a>
     <button type="button" class="ia-btn ia-btn--primary" onclick="SoDrawer.open()">
       + New special order
     </button>
@@ -88,7 +83,7 @@
 
 {{-- MARKER-SO-ONESCREEN — grouped mode replaces both renderers, so the same
      orders are never shown twice, and it works on phones as well as desktop. --}}
-@if($group === 'vendor')
+@if($grouped) {{-- MARKER-SO-SCROLL — open orders ARE the grouped screen --}}
   @include('tenant.special-orders._vendor_groups')
 @else
 
@@ -235,7 +230,7 @@
   </div>
 @endif{{-- MARKER-SO-ONESCREEN --}}
 
-  @if($totalPages > 1)
+  @if($totalPages > 1 && !$grouped) {{-- MARKER-SO-SCROLL — the open view scrolls instead of paging --}}
     <div class="ia-pagination">
       @for($p = 1; $p <= $totalPages; $p++)
         <a href="{{ route('tenant.special-orders.index', array_merge(request()->query(), ['page' => $p])) }}"
