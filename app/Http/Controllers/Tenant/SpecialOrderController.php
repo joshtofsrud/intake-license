@@ -141,11 +141,28 @@ class SpecialOrderController extends Controller
             $liveAppts = $apptIds->isEmpty() ? collect() : \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
                 ->whereIn('id', $apptIds)->pluck('ra_number', 'id');
 
+            // MARKER-SO-PARTGONE — same trap as a live sale with a dead line:
+            // the work order survives while the PART that requested the order
+            // is removed. Parts carry special_order_id, so this is exact.
+            $partAlive = [];
+            if ($apptIds->isNotEmpty()) {
+                $partAlive = \App\Models\Tenant\TenantAppointmentPart::whereIn('appointment_id', $apptIds)
+                    ->whereNotNull('special_order_id')
+                    ->pluck('special_order_id')
+                    ->flip()
+                    ->all();
+            }
+
             foreach ($sos as $so) {
                 if ($so->appointment_id) {
-                    $origins[$so->id] = isset($liveAppts[$so->appointment_id])
-                        ? ['state' => 'live', 'label' => $liveAppts[$so->appointment_id]]
-                        : ['state' => 'orphan', 'label' => 'Work order deleted'];
+                    if (! isset($liveAppts[$so->appointment_id])) {
+                        $origins[$so->id] = ['state' => 'orphan', 'label' => 'Work order deleted'];
+                    } elseif (! isset($partAlive[$so->id])) {
+                        // MARKER-SO-PARTGONE
+                        $origins[$so->id] = ['state' => 'orphan', 'label' => 'Part removed from work order'];
+                    } else {
+                        $origins[$so->id] = ['state' => 'live', 'label' => $liveAppts[$so->appointment_id]];
+                    }
                 } elseif ($so->sale_id) {
                     if (! isset($liveSales[$so->sale_id])) {
                         $origins[$so->id] = ['state' => 'orphan', 'label' => 'Sale removed'];
