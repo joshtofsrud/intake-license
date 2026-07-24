@@ -63,7 +63,9 @@ class InventoryCategoryController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:128'],
-            'parent_id' => ['nullable', 'uuid', 'exists:tenant_inventory_categories,id'],
+            // MARKER-CAT-TREE — ownership, not mere existence (same hole closed on transfers)
+            'parent_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
         ]);
 
         TenantInventoryCategory::create([
@@ -87,7 +89,9 @@ class InventoryCategoryController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:128'],
-            'parent_id' => ['nullable', 'uuid', 'exists:tenant_inventory_categories,id'],
+            // MARKER-CAT-TREE — ownership, not mere existence (same hole closed on transfers)
+            'parent_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
         ]);
 
         $cat = TenantInventoryCategory::create([
@@ -118,7 +122,9 @@ class InventoryCategoryController extends Controller
         $cat = TenantInventoryCategory::where('tenant_id', $tenant->id)->findOrFail($id);
 
         $data = $request->validate([
-            'parent_id' => ['nullable', 'uuid', 'exists:tenant_inventory_categories,id'],
+            // MARKER-CAT-TREE — ownership, not mere existence (same hole closed on transfers)
+            'parent_id' => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_inventory_categories', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
         ]);
         $newParent = $this->ownedParentId($tenant, $data['parent_id'] ?? null);
 

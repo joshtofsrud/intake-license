@@ -68,7 +68,17 @@ class InventoryController extends Controller
         }
         $hereLocId = $currentLocation?->id;
 
-        $q = TenantInventoryItem::with(['category'])
+        // MARKER-CAT-TREE — categories already support parents (the category
+        // admin builds a real tree) but this list matched category_id
+        // exactly, so selecting a parent returned NOTHING when items were
+        // filed on its children. Load the tree up front and expand.
+        $includeSubs = $request->input('subs', '1') !== '0';
+        $allCats = TenantInventoryCategory::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $q = TenantInventoryItem::with(['category.parent']) // MARKER-CAT-TREE — path without N+1
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true);
 
@@ -82,7 +92,12 @@ class InventoryController extends Controller
         }
 
         if ($category) {
-            $q->where('category_id', $category);
+            // MARKER-CAT-TREE — a parent includes everything beneath it
+            // unless the viewer narrowed to direct items only.
+            $catIds = $includeSubs
+                ? self::descendantCategoryIds($allCats, $category)
+                : [$category];
+            $q->whereIn('category_id', $catIds);
         }
 
         // Stock filter — patch-98: keyed off CURRENT LOCATION's stock row
@@ -159,21 +174,82 @@ class InventoryController extends Controller
                 ->toArray();
         }
 
-        $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        // MARKER-CAT-TREE — per-location stock for every shown item, so a row
+        // can say WHERE it is sitting instead of only how many are here.
+        $locStocks = [];
+        if ($isMultiLocation && $items->isNotEmpty()) {
+            foreach (\App\Models\Tenant\TenantInventoryItemLocation::whereIn('inventory_item_id', $items->pluck('id'))
+                        ->get(['inventory_item_id', 'location_id', 'computed_stock_count']) as $row) {
+                $locStocks[$row->inventory_item_id][$row->location_id] = (int) $row->computed_stock_count;
+            }
+        }
 
+        $categories    = $allCats;
         $hasCategories = $categories->isNotEmpty();
+
+        // MARKER-CAT-TREE — roots with their children and rolled-up counts.
+        $catCounts = TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true) // MARKER-CAT-TREE — matches the list's own active filter
+            ->whereNotNull('category_id')
+            ->selectRaw('category_id, COUNT(*) as c')
+            ->groupBy('category_id')
+            ->pluck('c', 'category_id')
+            ->toArray();
+
+        $categoryTree = [];
+        foreach ($allCats->whereNull('parent_id') as $root) {
+            $children = [];
+            foreach ($allCats->where('parent_id', $root->id) as $child) {
+                $children[] = [
+                    'cat'   => $child,
+                    'count' => array_sum(array_map(
+                        fn ($id) => $catCounts[$id] ?? 0,
+                        self::descendantCategoryIds($allCats, $child->id)
+                    )),
+                ];
+            }
+            $categoryTree[] = [
+                'cat'      => $root,
+                'children' => $children,
+                'count'    => array_sum(array_map(
+                    fn ($id) => $catCounts[$id] ?? 0,
+                    self::descendantCategoryIds($allCats, $root->id)
+                )),
+            ];
+        }
 
         $posCap = $this->inventoryCapContext($tenant);
 
         return view('tenant.inventory.index', compact(
             'items', 'categories', 'hasCategories',
+            'categoryTree', 'includeSubs', 'locStocks', 'allLocations', // MARKER-CAT-TREE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
             'posCap',
             'currentLocation', 'isMultiLocation', 'hereStocks'
         ));
+    }
+
+    /**
+     * MARKER-CAT-TREE — a category id plus every id beneath it, at any depth.
+     * Walks the already-loaded collection, so no extra queries and no
+     * recursion into another tenant's rows.
+     */
+    protected static function descendantCategoryIds($cats, string $rootId): array
+    {
+        $ids   = [$rootId];
+        $queue = [$rootId];
+
+        while ($queue) {
+            $parentId = array_shift($queue);
+            foreach ($cats->where('parent_id', $parentId) as $child) {
+                if (! in_array($child->id, $ids, true)) {
+                    $ids[]   = $child->id;
+                    $queue[] = $child->id;
+                }
+            }
+        }
+
+        return $ids;
     }
 
     /**

@@ -37,12 +37,22 @@
     <div class="inv-row-meta">
       <code class="inv-row-sku">{{ $item->sku }}</code>
       @if($item->category)
-        <span class="inv-row-pill">{{ $item->category->name }}</span>
+        {{-- MARKER-CAT-TREE — show the path so a child category reads in context --}}
+        <span class="inv-row-pill inv-catpath">@if($item->category->parent)<span class="par">{{ $item->category->parent->name }} › </span>@endif{{ $item->category->name }}</span>
       @endif
       @if($item->shop_bin_location)
         <span class="inv-row-bin">Bin {{ $item->shop_bin_location }}</span>
       @endif
     </div>
+    @if(($isMultiLocation ?? false) && !empty($locStocks ?? []))
+      {{-- MARKER-CAT-TREE — where this item is actually sitting --}}
+      <div class="inv-locs">
+        @foreach(($allLocations ?? []) as $loc)
+          @php $lq = (int) ($locStocks[$item->id][$loc->id] ?? 0); @endphp
+          <span class="inv-loc {{ (($currentLocation ?? null) && $loc->id === $currentLocation->id) ? 'here' : '' }} {{ $lq <= 0 ? 'zero' : '' }}">{{ $loc->name }} {{ $lq }}</span>
+        @endforeach
+      </div>
+    @endif
   </td>
 
   <td class="inv-row-upc">

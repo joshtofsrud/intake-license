@@ -101,6 +101,24 @@
 .inv-row-identity { padding-left: 12px !important; }
 .inv-row-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; color: var(--ia-text); }
 .inv-row-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; flex-wrap: wrap; }
+/* MARKER-CAT-TREE */
+.inv-split{display:flex;gap:16px;align-items:flex-start}
+.inv-cattree{width:230px;flex:none;background:var(--ia-surface);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-lg);padding:10px}
+.inv-cattree .hd{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ia-text-muted);padding:4px 8px 8px}
+.inv-cattree a{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;text-decoration:none;color:var(--ia-text);font-size:13px}
+.inv-cattree a:hover{background:var(--ia-hover)}
+.inv-cattree a.sel{background:color-mix(in srgb, var(--ia-accent) 14%, transparent);color:var(--ia-accent);font-weight:700}
+.inv-cattree a .cnt{margin-left:auto;font-size:11.5px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums}
+.inv-cattree a.sel .cnt{color:var(--ia-accent)}
+.inv-cattree .kids{margin-left:12px;border-left:0.5px solid var(--ia-border);padding-left:5px}
+.inv-cattree .kids a{font-size:12.5px;color:var(--ia-text-2,var(--ia-text-muted))}
+.inv-scope{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px}
+.inv-loc{font-size:10.5px;font-weight:600;border-radius:100px;padding:2px 8px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);white-space:nowrap}
+.inv-loc.here{background:color-mix(in srgb, var(--ia-accent) 12%, transparent);border-color:color-mix(in srgb, var(--ia-accent) 40%, transparent);color:var(--ia-accent)}
+.inv-loc.zero{opacity:.45}
+.inv-locs{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.inv-catpath .par{color:var(--ia-text-muted)}
+@media(max-width:900px){.inv-cattree{display:none}.inv-split{display:block}}
 .inv-row-sku { font-family: var(--font-mono, monospace); color: var(--ia-text-muted); font-size: 11.5px; background: transparent; padding: 0; }
 .inv-row-pill { display: inline-block; padding: 1px 8px; background: var(--ia-hover); color: var(--ia-text-muted); border-radius: 99px; font-size: 11px; }
 .inv-row-bin { color: var(--ia-text-muted); font-size: 11px; }
@@ -202,12 +220,17 @@
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
     placeholder="Search name, SKU, or UPC…" style="max-width:300px">
 
+  {{-- MARKER-CAT-TREE — parents first, children indented beneath them --}}
   <select name="category" class="ia-input" style="width:auto">
     <option value="">All categories</option>
-    @foreach($categories as $cat)
-      <option value="{{ $cat->id }}" @selected($category === $cat->id)>{{ $cat->name }}</option>
+    @foreach($categoryTree as $node)
+      <option value="{{ $node['cat']->id }}" @selected($category === $node['cat']->id)>{{ $node['cat']->name }}</option>
+      @foreach($node['children'] as $child)
+        <option value="{{ $child['cat']->id }}" @selected($category === $child['cat']->id)>&nbsp;&nbsp;└ {{ $child['cat']->name }}</option>
+      @endforeach
     @endforeach
   </select>
+  @unless($includeSubs)<input type="hidden" name="subs" value="0">@endunless
 
   <select name="stock" class="ia-input" style="width:auto">
     @foreach($stockLabels as $val => $label)
@@ -264,6 +287,51 @@
   </div>
 @endif
 
+{{-- MARKER-CAT-TREE — the hierarchy the category admin already builds,
+     finally visible where items are browsed. Plain links keep filters
+     deep-linkable and need no JS. --}}
+<div class="inv-split">
+@if($hasCategories)
+<aside class="inv-cattree">
+  <div class="hd">Categories</div>
+  <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null])) }}"
+     class="{{ $category ? '' : 'sel' }}">All items</a>
+  @foreach($categoryTree as $node)
+    <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$node['cat']->id,'subs'=>$includeSubs?null:'0'])) }}"
+       class="{{ $category === $node['cat']->id ? 'sel' : '' }}">
+      <span>{{ $node['cat']->name }}</span><span class="cnt">{{ $node['count'] }}</span>
+    </a>
+    @if(count($node['children']))
+      <div class="kids">
+        @foreach($node['children'] as $child)
+          <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$child['cat']->id])) }}"
+             class="{{ $category === $child['cat']->id ? 'sel' : '' }}">
+            <span>{{ $child['cat']->name }}</span><span class="cnt">{{ $child['count'] }}</span>
+          </a>
+        @endforeach
+      </div>
+    @endif
+  @endforeach
+</aside>
+@endif
+
+<div style="flex:1;min-width:0">
+@php
+  $selNode = collect($categoryTree)->firstWhere('cat.id', $category);
+  $subCount = $selNode ? count($selNode['children']) : 0;
+@endphp
+@if($category && $subCount)
+  <div class="inv-scope">
+    <span class="inv-chip-m">
+      {{ $selNode['cat']->name }}@if($includeSubs) + {{ $subCount }} {{ Str::plural('subcategory', $subCount) }}@endif
+    </span>
+    <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$category,'subs'=>$includeSubs?'0':null])) }}"
+       style="color:var(--ia-text-muted);text-decoration:underline">
+      {{ $includeSubs ? 'Show only items filed directly here' : 'Include subcategories' }}
+    </a>
+  </div>
+@endif
+
 <div class="ia-card inv-desk-card">
   @if($items->isEmpty())
     <div class="ia-card-body" style="text-align:center;padding:40px 20px;color:var(--ia-text-muted)">
@@ -294,6 +362,8 @@
 </div>
   @endif
 </div>
+</div>{{-- /flex:1 --}}
+</div>{{-- /inv-split MARKER-CAT-TREE --}}
 
 {{-- Mobile card list (≤640px). Same data, different shape. --}}
 <div class="inv-mobile">
@@ -324,12 +394,23 @@
             <div class="inv-meta-m">
               <span class="inv-sku-m">{{ $item->sku }}</span>
               @if($item->category)
-                <span>· {{ $item->category->name }}</span>
+                {{-- MARKER-CAT-TREE — full path, not a bare leaf name --}}
+                <span class="inv-catpath">·
+                  @if($item->category->parent)<span class="par">{{ $item->category->parent->name }} ›</span> @endif{{ $item->category->name }}
+                </span>
               @endif
               @if($item->shop_bin_location)
                 <span>· Bin {{ $item->shop_bin_location }}</span>
               @endif
             </div>
+            @if(($isMultiLocation ?? false) && !empty($locStocks))
+              <div class="inv-locs">
+                @foreach($allLocations as $loc)
+                  @php $lq = (int) ($locStocks[$item->id][$loc->id] ?? 0); @endphp
+                  <span class="inv-loc {{ ($currentLocation && $loc->id === $currentLocation->id) ? 'here' : '' }} {{ $lq <= 0 ? 'zero' : '' }}">{{ $loc->name }} {{ $lq }}</span>
+                @endforeach
+              </div>
+            @endif
           </div>
           <div class="inv-right-m">
             <div class="inv-stock-m {{ $dotCls }}">{{ $stockCount }}</div>
