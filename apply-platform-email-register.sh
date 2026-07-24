@@ -1,3 +1,16 @@
+#!/bin/bash
+# platform-email-register — the Platform email page existed but was invisible.
+# AdminPanelProvider registers pages with an explicit ->pages([...]) array
+# rather than discoverPages(), and the new page was never added to it — so
+# the class autoloaded, the view and table were in place, and the panel
+# simply did not know the page existed: no nav item, no route.
+# Registered next to Email health.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "PlatformEmail" app/Providers/Filament/AdminPanelProvider.php; then
+  echo "already registered — aborting."; exit 1
+fi
+cat > 'app/Providers/Filament/AdminPanelProvider.php' <<'PMREG_EOF'
 <?php
 
 namespace App\Providers\Filament;
@@ -135,3 +148,5 @@ class AdminPanelProvider extends PanelProvider
             ]);
     }
 }
+PMREG_EOF
+echo "registered — server: git pull && php artisan optimize:clear && php artisan filament:cache-components"
