@@ -371,7 +371,14 @@ td.ia-inline-cell { cursor: default; }
     @endif
   </div>
 @else
-  <div class="ia-table-wrap appt-desktop-only">
+  {{-- MARKER-DELIVERY-RESOLUTION — the awaiting-delivery queue gets a triage
+       panel with per-row reasons and resolution actions; the standard table
+       is hidden for this filter so the same jobs are not listed twice. --}}
+  @php $adTriage = (($filter ?? '') === 'awaiting_delivery'); @endphp
+  @if($adTriage)
+    @include('tenant.appointments._awaiting_delivery_panel')
+  @endif
+  <div class="ia-table-wrap appt-desktop-only" @if($adTriage) style="display:none" @endif>
     <table class="ia-table" id="ia-appts-table" data-update-url="{{ route('tenant.appointments.update', ['id' => '__ID__']) }}" data-active-filter="{{ $filter ?? '' }}" data-status-filter="{{ $status ?? '' }}">
       <thead>
         <tr>
@@ -449,7 +456,7 @@ td.ia-inline-cell { cursor: default; }
   </div>
 
   {{-- Mobile card list (parallel to desktop table) --}}
-  <div class="appt-mobile-only appt-cards">
+  <div class="appt-mobile-only appt-cards" @if($adTriage ?? false) style="display:none" @endif>
     @foreach($appointments as $appt)
       @php
         $statusKey = $appt->status;

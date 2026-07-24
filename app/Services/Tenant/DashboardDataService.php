@@ -177,6 +177,13 @@ class DashboardDataService
                 ->where('tenant_appointments.status', 'completed')
                 ->whereNotNull('tenant_appointments.completed_at')
                 ->where('tenant_appointments.completed_at', '>=', now()->subDays(14))
+                // MARKER-DELIVERY-RESOLUTION — a decided job is gone from the
+                // queue; a snoozed one is hidden until its wake time.
+                ->whereNull('tenant_appointments.delivery_resolution')
+                ->where(function ($q) {
+                    $q->whereNull('tenant_appointments.delivery_snooze_until')
+                      ->orWhere('tenant_appointments.delivery_snooze_until', '<=', now());
+                })
                 ->whereNotExists(function ($q) {
                     $q->selectRaw('1')
                         ->from('tenant_deliveries')

@@ -18,6 +18,8 @@ class TenantAppointment extends Model
         'appointment_date','appointment_time','appointment_end_time',
         'promised_at', // MARKER-PATCH-311
         'pickup_outreach_pending', // MARKER-PICKUP-OUTREACH
+        'delivery_resolution', 'delivery_resolved_at',            // MARKER-DELIVERY-RESOLUTION
+        'delivery_resolved_by_user_id', 'delivery_snooze_until',  // MARKER-DELIVERY-RESOLUTION
         'total_duration_minutes','prep_before_minutes_snapshot','cleanup_after_minutes_snapshot',
         'slot_weight','slot_weight_auto','slot_weight_overridden',
         'receiving_method_snapshot','receiving_time_snapshot','tracking_number',

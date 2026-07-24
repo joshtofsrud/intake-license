@@ -17,9 +17,16 @@
     {{-- MARKER-PATCH-536 — full-width action row: skip 1/3, primary 2/3 --}}
     <button type="button" id="dp-modal-clear" style="display:none;background:none;border:0;color:var(--ia-text-muted);font-size:12px;font-family:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-bottom:10px">clear selection</button>
     <div style="display:flex;align-items:stretch;gap:12px;width:100%">
-      <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip" style="flex:1">Skip</button>
+      <button type="button" class="ia-btn ia-btn--ghost" id="dp-modal-skip" style="flex:1">Not yet</button>
       <button type="button" class="ia-btn ia-btn--primary" id="dp-modal-go" style="flex:2">Text the options</button>
     </div>
+    {{-- MARKER-DELIVERY-RESOLUTION — third outcome: fully done, no delivery.
+         Styled apart from the action row so it reads as a resolution rather
+         than a second way to dismiss the modal. --}}
+    <button type="button" id="dp-modal-done"
+      style="width:100%;margin-top:8px;background:none;border:1px solid rgba(127,217,143,.4);color:#7FD98F;border-radius:10px;padding:11px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">
+      &#10003; No delivery needed &mdash; they have it
+    </button>
   </div>
 </div>
 <style>
@@ -48,7 +55,9 @@ window.IntakeDeliveryPropose = (function () {
     firstName = (payload.customer_name || 'the customer').split(' ')[0];
     // MARKER-PATCH-535 — tenant asset noun, never hardcoded
     var noun = payload.asset_noun || 'work';
-    document.getElementById('dp-modal-title').textContent = noun + "'s done \u2014 delivery?";
+    // MARKER-DELIVERY-RESOLUTION — "delivery?" invited a yes/no, which is how
+    // Skip became a dumping ground for three different situations.
+    document.getElementById('dp-modal-title').textContent = 'How is this getting back to them?';
     document.getElementById('dp-modal-sub').innerHTML =
       'Pick a window for <b style="color:var(--ia-text)">' + esc(payload.customer_name) + '</b> (&hellip;' + esc(payload.phone_tail) + '), or text the options and let them choose.';
     document.getElementById('dp-notify-lbl').textContent = 'Notify ' + firstName + ' by:';
@@ -79,6 +88,35 @@ window.IntakeDeliveryPropose = (function () {
     document.getElementById('dp-pill-email').dataset.on = '1';
     document.getElementById('dp-modal-go').disabled = false; // MARKER-PATCH-535
     document.getElementById('dp-modal-skip').onclick  = function () { close(true); };
+
+    // MARKER-DELIVERY-RESOLUTION — the third outcome. "Not yet" leaves the job
+    // on the Awaiting delivery queue (correctly — nobody has contacted them);
+    // this records that no delivery is needed at all, so it never queues.
+    var doneBtn = document.getElementById('dp-modal-done');
+    if (doneBtn) doneBtn.onclick = function () {
+      var original = doneBtn.textContent;
+      doneBtn.disabled = true; doneBtn.textContent = 'Saving\u2026';
+      var fd = new FormData();
+      fd.append('_token', csrf);
+      fd.append('_method', 'PATCH');
+      fd.append('op', 'delivery_resolution');
+      fd.append('resolution', 'customer_pickup');
+      fetch(updateUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok) {
+            if (window.IntakeToast) IntakeToast.success('Marked as no delivery needed');
+            close(true);
+          } else {
+            doneBtn.disabled = false; doneBtn.textContent = original;
+            if (window.IntakeToast) IntakeToast.error((j && j.message) || 'Could not save.');
+          }
+        })
+        .catch(function () {
+          doneBtn.disabled = false; doneBtn.textContent = original;
+          if (window.IntakeToast) IntakeToast.error('Network error.');
+        });
+    };
     document.getElementById('dp-modal-clear').onclick = function () {
       selected = null;
       Array.prototype.forEach.call(list.children, function (c) { c.classList.remove('sel'); });
