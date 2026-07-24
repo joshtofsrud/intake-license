@@ -49,6 +49,13 @@ class AppServiceProvider extends ServiceProvider
         // method returns a [Event::class => 'handler'] map.
         Event::subscribe(LogAuthEvents::class);
         Event::subscribe(LogMailEvents::class);
+
+        // MARKER-PLATFORM-MAIL — fill the platform sender on mail that has
+        // not set its own From (was falling through to hello@example.com).
+        Event::listen(
+            \Illuminate\Mail\Events\MessageSending::class,
+            \App\Listeners\ApplyPlatformMailFrom::class
+        );
         Event::subscribe(LogQueueEvents::class);
 
         // Model observers
