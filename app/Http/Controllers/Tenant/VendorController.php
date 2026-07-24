@@ -222,9 +222,20 @@ class VendorController extends Controller
             'contact_phone'     => ['nullable', 'string', 'max:32'],
             'website'           => ['nullable', 'string', 'max:255'],
             'account_number'    => ['nullable', 'string', 'max:64'],
+            // MARKER-SO-PLACEMENT — entered in dollars, stored in cents. Blank
+            // means "no threshold", and the placement board simply shows no
+            // freight bar for this vendor rather than inventing one.
+            'free_freight'      => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'notes'             => ['nullable', 'string'],
             'is_active'         => ['nullable'],
         ]);
+
+        // MARKER-SO-PLACEMENT — dollars in, cents stored.
+        $freight = $request->input('free_freight');
+        $data['free_freight_cents'] = ($freight === null || $freight === '')
+            ? null
+            : (int) round(((float) $freight) * 100);
+        unset($data['free_freight']);
 
         // Soft-cast is_active. Checkboxes send 'on'/null; explicit
         // boolean values come through from API/edit form.

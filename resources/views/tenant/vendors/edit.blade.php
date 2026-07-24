@@ -38,6 +38,14 @@
           <input type="text" name="account_number" class="ia-input"
                  value="{{ old('account_number', $vendor->account_number) }}">
         </div>
+        {{-- MARKER-SO-PLACEMENT --}}
+        <div class="ia-form-group">
+          <label class="ia-form-label">Free freight over</label>
+          <input type="number" step="0.01" min="0" name="free_freight" class="ia-input"
+                 placeholder="e.g. 500.00"
+                 value="{{ old('free_freight', $vendor->free_freight_cents !== null ? number_format($vendor->free_freight_cents / 100, 2, '.', '') : '') }}">
+          <div class="ia-form-hint">Order total that earns free shipping. Leave blank if this vendor has none — the placement board only shows a freight bar when it is set.</div>
+        </div>
       </div>
 
       <div class="ia-input-grid-2">
