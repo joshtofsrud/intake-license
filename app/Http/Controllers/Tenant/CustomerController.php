@@ -408,19 +408,65 @@ class CustomerController extends Controller
     private function validated(Request $request, ?string $existingEmail = null): array
     {
         $emailRules = $existingEmail ? ['nullable','email','max:191'] : ['required','email','max:191'];
+
+        // MARKER-BIZ-CUSTOMER — a business is identified by its business name,
+        // so the person's name stops being required there (the contact people
+        // live in tenant_customer_contacts). Individuals are unchanged.
+        $isBusiness = $request->input('customer_type') === \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS;
+        $nameRule   = $isBusiness ? ['nullable', 'string', 'max:100'] : ['required', 'string', 'max:100'];
+
         $request->validate([
-            'first_name' => ['required', 'string', 'max:100'], 'last_name' => ['required', 'string', 'max:100'],
+            'customer_type'          => ['nullable', 'in:individual,business'],
+            'business_name'          => [$isBusiness ? 'required' : 'nullable', 'string', 'max:191'],
+            'tax_exempt_certificate' => ['nullable', 'string', 'max:64'],
+            'payment_terms'          => ['nullable', 'in:' . implode(',', \App\Models\Tenant\TenantCustomer::PAYMENT_TERMS)],
+            'first_name' => $nameRule, 'last_name' => $nameRule,
             'email' => $emailRules, 'phone' => ['nullable', 'string', 'max:32'],
             'address_line1' => ['nullable', 'string', 'max:191'], 'city' => ['nullable', 'string', 'max:100'],
             'state' => ['nullable', 'string', 'max:64'], 'postcode' => ['nullable', 'string', 'max:20'],
             'country' => ['nullable', 'string', 'max:2'],
         ]);
-        return array_filter([
+        $payload = array_filter([
             'first_name' => $request->input('first_name'), 'last_name' => $request->input('last_name'),
             'email' => $request->input('email') ?? $existingEmail, 'phone' => \App\Support\PhoneNumber::normalize($request->input('phone')),
             'address_line1' => $request->input('address_line1'), 'city' => $request->input('city'),
             'state' => $request->input('state'), 'postcode' => $request->input('postcode'),
             'country' => strtoupper($request->input('country', 'US')),
         ], fn($v) => $v !== null && $v !== '');
+
+        // MARKER-BIZ-CUSTOMER — only touch the business fields when the form
+        // actually submitted a customer_type. Several edit forms post a subset
+        // of fields; without this guard, saving a phone number from one of
+        // them would flip a business back to individual and wipe its tax
+        // exemption. Absent means "leave as-is", not "individual".
+        if (! $request->has('customer_type')) {
+            return $payload;
+        }
+
+        // Added AFTER the array_filter above: it strips empty values, which
+        // would silently discard a false boolean and make "not tax exempt"
+        // unsavable once it had ever been true.
+        $payload['customer_type'] = $isBusiness
+            ? \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS
+            : \App\Models\Tenant\TenantCustomer::TYPE_INDIVIDUAL;
+        $payload['business_name'] = $isBusiness ? $request->input('business_name') : null;
+
+        if ($isBusiness) {
+            $payload['tax_exempt']             = $request->boolean('tax_exempt');
+            $payload['tax_exempt_certificate'] = $request->boolean('tax_exempt')
+                ? $request->input('tax_exempt_certificate')
+                : null;
+            $payload['po_required']            = $request->boolean('po_required');
+            $payload['payment_terms']          = $request->input('payment_terms') ?: null;
+        } else {
+            // Switching a record back to individual clears the business-only
+            // fields rather than leaving stale exemptions applying to sales.
+            $payload['tax_exempt']             = false;
+            $payload['tax_exempt_certificate'] = null;
+            $payload['po_required']            = false;
+            $payload['payment_terms']          = null;
+        }
+
+        return $payload;
     }
 }

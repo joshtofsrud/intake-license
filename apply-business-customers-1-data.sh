@@ -1,3 +1,1497 @@
+#!/bin/bash
+# business-customers-1-data — phase 1 of 3: identity, data and the form.
+#   · customer_type (defaults to individual, so every existing record and
+#     query behaves exactly as today) + business_name, tax_exempt,
+#     tax_exempt_certificate, payment_terms, po_required on tenant_customers
+#   · tenant_customer_contacts table — the fleet manager, the rider and
+#     accounts payable are three people; one email field cannot hold them.
+#     makePrimary() demotes siblings in a scoped update so a customer can
+#     never end up with two primaries or none.
+#   · tax_exempt_applied / tax_exempt_certificate / po_number on tenant_sales,
+#     so an exempt sale is auditable and a later customer edit cannot rewrite
+#     what was true at the time of sale
+#   · fullName() becomes the single display name: business name for a
+#     business, unchanged for an individual. personName() added for the places
+#     that genuinely mean the human.
+#   · Customer create form and edit drawer get an Individual/Business toggle
+#     that reveals the business fields; the individual path is untouched.
+#   TWO TRAPS HANDLED EXPLICITLY:
+#   1. validated() runs array_filter, which strips empty values — a false
+#      boolean would have been discarded, making "not tax exempt" unsavable
+#      once it had ever been true. The business fields are applied after it.
+#   2. Several edit forms post only a subset of fields. Without a guard,
+#      saving a phone number from one of them would flip a business back to
+#      individual and wipe its exemption. An absent customer_type now means
+#      "leave as-is", never "individual".
+#   Person-name requirement relaxes for businesses on both client and server,
+#   matching rules exactly.
+# No routes. Server: MIGRATION REQUIRED, then view:clear.
+# NEXT: phase 2 (tax + register), phase 3 (contacts panel, work order,
+# receipts, list, search, settings defaults) — the display pass across the
+# 26 files that concatenate names inline ships with phase 3.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-BIZ-CUSTOMER" app/Models/Tenant/TenantCustomer.php; then
+  echo "business-customers-1-data already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-SO-PARTGONE" app/Http/Controllers/Tenant/SpecialOrderController.php; then
+  echo "wrong base — aborting."; exit 1
+fi
+
+cat > 'database/migrations/2026_07_24_000001_add_business_fields_to_tenant_customers.php' <<'BIZ1_0_EOF'
+<?php
+
+// MARKER-BIZ-CUSTOMER — business customers live on the customer record rather
+// than a separate entity: a business still has assets, appointments, sales,
+// history and a login, and splitting it would fork every query in the app.
+// customer_type defaults to 'individual', so every existing record and every
+// existing query behaves exactly as it does today.
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('tenant_customers', function (Blueprint $t) {
+            $t->string('customer_type', 16)->default('individual')->index();
+            $t->string('business_name', 191)->nullable();
+            $t->boolean('tax_exempt')->default(false);
+            $t->string('tax_exempt_certificate', 64)->nullable();
+            // due_now (today's behaviour) | net_15 | net_30 | net_60
+            $t->string('payment_terms', 16)->nullable();
+            $t->boolean('po_required')->default(false);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tenant_customers', function (Blueprint $t) {
+            $t->dropColumn([
+                'customer_type', 'business_name', 'tax_exempt',
+                'tax_exempt_certificate', 'payment_terms', 'po_required',
+            ]);
+        });
+    }
+};
+BIZ1_0_EOF
+
+cat > 'database/migrations/2026_07_24_000002_create_tenant_customer_contacts_table.php' <<'BIZ1_1_EOF'
+<?php
+
+// MARKER-BIZ-CUSTOMER — the fleet manager who books, the rider who drops off,
+// and accounts payable are three different people. One email field on the
+// customer cannot hold them.
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('tenant_customer_contacts', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->foreignUuid('tenant_id')->constrained('tenants')->cascadeOnDelete();
+            $t->foreignUuid('customer_id')->constrained('tenant_customers')->cascadeOnDelete();
+            $t->string('name', 120);
+            $t->string('role', 64)->nullable();
+            $t->string('email', 191)->nullable();
+            $t->string('phone', 32)->nullable();
+            $t->boolean('is_primary')->default(false);
+            $t->text('notes')->nullable();
+            $t->timestamps();
+
+            $t->index(['tenant_id', 'customer_id']);
+            $t->index(['customer_id', 'is_primary']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('tenant_customer_contacts');
+    }
+};
+BIZ1_1_EOF
+
+cat > 'database/migrations/2026_07_24_000003_add_tax_exempt_and_po_to_tenant_sales.php' <<'BIZ1_2_EOF'
+<?php
+
+// MARKER-BIZ-CUSTOMER — the certificate is snapshotted onto the sale so a
+// later edit to the customer cannot rewrite what was true at the time of
+// sale, which is the whole point of an audit trail.
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('tenant_sales', function (Blueprint $t) {
+            $t->boolean('tax_exempt_applied')->default(false);
+            $t->string('tax_exempt_certificate', 64)->nullable();
+            $t->string('po_number', 64)->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tenant_sales', function (Blueprint $t) {
+            $t->dropColumn(['tax_exempt_applied', 'tax_exempt_certificate', 'po_number']);
+        });
+    }
+};
+BIZ1_2_EOF
+
+cat > 'app/Models/Tenant/TenantCustomerContact.php' <<'BIZ1_3_EOF'
+<?php
+
+namespace App\Models\Tenant;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * MARKER-BIZ-CUSTOMER — a person at a business customer. Exactly one contact
+ * per customer is primary; the primary is what the app uses wherever it needs
+ * a single email or phone for a business.
+ */
+class TenantCustomerContact extends Model
+{
+    use HasUuids;
+
+    protected $table = 'tenant_customer_contacts';
+
+    protected $fillable = [
+        'tenant_id', 'customer_id',
+        'name', 'role', 'email', 'phone',
+        'is_primary', 'notes',
+    ];
+
+    protected $casts = [
+        'is_primary' => 'boolean',
+    ];
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(TenantCustomer::class, 'customer_id');
+    }
+
+    /**
+     * Make this contact the only primary for its customer. Done as a pair of
+     * scoped updates rather than a loop so two people saving at once cannot
+     * leave a customer with two primaries or none.
+     */
+    public function makePrimary(): void
+    {
+        static::where('customer_id', $this->customer_id)
+            ->where('id', '!=', $this->id)
+            ->update(['is_primary' => false]);
+
+        $this->forceFill(['is_primary' => true])->save();
+    }
+}
+BIZ1_3_EOF
+
+cat > 'app/Models/Tenant/TenantCustomer.php' <<'BIZ1_4_EOF'
+<?php
+namespace App\Models\Tenant;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use App\Models\Tenant;
+
+class TenantCustomer extends Authenticatable
+{
+    use HasUuids, Notifiable;
+
+    protected $table    = 'tenant_customers';
+    protected $fillable = [
+        'tenant_id','first_name','last_name','email','phone',
+        'sms_opt_out_at','sms_consent_source', // MARKER-PATCH-221
+        'address_line1','address_line2','city','state','postcode','country',
+        'notes','stripe_customer_id','wp_source_url',
+        'password','remember_token','email_verified_at',
+        'password_reset_token','password_reset_sent_at',
+        'is_vip',
+        // MARKER-BIZ-CUSTOMER
+        'customer_type', 'business_name',
+        'tax_exempt', 'tax_exempt_certificate',
+        'payment_terms', 'po_required',
+    ];
+
+    protected $hidden = ['password','remember_token'];
+
+    protected $casts = [
+        'tax_exempt'             => 'boolean', // MARKER-BIZ-CUSTOMER
+        'po_required'            => 'boolean', // MARKER-BIZ-CUSTOMER
+        'email_verified_at'      => 'datetime',
+        'password_reset_sent_at' => 'datetime',
+        'password'               => 'hashed',
+    ];
+
+    public function tenant(): BelongsTo       { return $this->belongsTo(Tenant::class); }
+    public function appointments(): HasMany   { return $this->hasMany(TenantAppointment::class, 'customer_id'); }
+    public function specialOrders(): HasMany  { return $this->hasMany(TenantSpecialOrder::class, 'customer_id'); }
+    public function notes(): HasMany          { return $this->hasMany(TenantCustomerNote::class, 'customer_id')->orderByDesc('created_at'); }
+    // MARKER-BIZ-CUSTOMER — one display name for the whole app. A business
+    // shows its business name; an individual is unchanged. Everything that
+    // renders a customer name routes through here so a business record can
+    // never surface a person's name by accident.
+    public function fullName(): string
+    {
+        if ($this->isBusiness()) {
+            $name = trim((string) $this->business_name);
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    /** The person, even for a business — used where a human is meant. */
+    public function personName(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    public function isBusiness(): bool
+    {
+        return $this->customer_type === self::TYPE_BUSINESS;
+    }
+
+    public const TYPE_INDIVIDUAL = 'individual';
+    public const TYPE_BUSINESS   = 'business';
+
+    public const PAYMENT_TERMS = ['due_now', 'net_15', 'net_30', 'net_60'];
+
+    public function termsLabel(): string
+    {
+        return match ($this->payment_terms) {
+            'net_15' => 'Net 15',
+            'net_30' => 'Net 30',
+            'net_60' => 'Net 60',
+            default  => 'Due at service',
+        };
+    }
+
+    /** MARKER-BIZ-CUSTOMER — people at a business customer. */
+    public function contacts()
+    {
+        return $this->hasMany(TenantCustomerContact::class, 'customer_id')
+            ->orderByDesc('is_primary')
+            ->orderBy('name');
+    }
+
+    public function primaryContact()
+    {
+        return $this->hasOne(TenantCustomerContact::class, 'customer_id')
+            ->where('is_primary', true);
+    }
+
+    // MARKER-PATCH-158-A
+    public function assets(): HasMany         { return $this->hasMany(TenantCustomerAsset::class, 'customer_id'); }
+    public function activeAssets(): HasMany   { return $this->hasMany(TenantCustomerAsset::class, 'customer_id')->whereNull('archived_at'); }
+
+    public function packs(): HasMany
+    {
+        return $this->hasMany(TenantCustomerPack::class, 'customer_id');
+    }
+
+    public function activePacks(): HasMany
+    {
+        return $this->packs()->where('status', 'active')
+                    ->where('credits_remaining', '>', 0)
+                    ->where('expires_at', '>=', now()->toDateString())
+                    ->orderBy('expires_at');
+    }
+
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(TenantCustomerMembership::class, 'customer_id');
+    }
+
+    public function activeMembership(): ?TenantCustomerMembership
+    {
+        return $this->memberships()->where('status', 'active')->with('product')->first();
+    }
+
+    public function classRegistrations(): HasMany
+    {
+        return $this->hasMany(TenantClassRegistration::class, 'customer_id');
+    }
+
+    public function getAuthIdentifierName(): string { return 'id'; }
+    public function getAuthPassword(): string { return $this->password ?? ''; }
+}
+BIZ1_4_EOF
+
+cat > 'app/Http/Controllers/Tenant/CustomerController.php' <<'BIZ1_5_EOF'
+<?php
+
+namespace App\Http\Controllers\Tenant;
+
+use App\Http\Controllers\Controller;
+use App\Models\Tenant\TenantCustomer;
+use App\Models\Tenant\TenantCustomerNote;
+use App\Models\Tenant\TenantAppointment;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class CustomerController extends Controller
+{
+    public function index(Request $request)
+    {
+        $tenant = tenant();
+
+        if ($request->has('detail') && ($request->expectsJson() || $request->ajax())) {
+            return $this->jsonDetail($tenant, $request->input('detail'));
+        }
+
+        $search        = $request->input('s', '');
+        $createdAfter  = $request->input('created_after', ''); // MARKER-PATCH-114
+        // When the dashboard's "new customers" tile links here, default sort
+        // to newest-first so the new arrivals are immediately visible.
+        $defaultSort   = $createdAfter ? 'added_desc' : 'name_asc';
+        $sort          = $request->input('sort', $defaultSort);
+        $page          = max(1, (int) $request->input('page', 1));
+        $perPage       = 25;
+
+        $q = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($createdAfter) {
+            try {
+                $q->where('created_at', '>=', \Carbon\Carbon::parse($createdAfter)->startOfDay());
+            } catch (\Throwable $e) {
+                $createdAfter = ''; // bad date, ignore silently
+            }
+        }
+
+        if ($search) {
+            $q->where(function ($q2) use ($search) {
+                $q2->where('first_name', 'like', "%{$search}%")
+                   ->orWhere('last_name',  'like', "%{$search}%")
+                   ->orWhere('email',      'like', "%{$search}%")
+                   ->orWhere('phone',      'like', "%{$search}%");
+            });
+        }
+
+        // VIPs-only filter is a sort option for UX simplicity. When
+        // selected, filter to is_vip=true and order by name ascending.
+        if ($sort === 'vips_only') {
+            $q->where('is_vip', true);
+        }
+
+        // Sort
+        switch ($sort) {
+            case 'name_desc':
+                $q->orderByDesc('last_name')->orderByDesc('first_name');
+                break;
+            case 'added_desc':
+                $q->orderByDesc('created_at');
+                break;
+            case 'added_asc':
+                $q->orderBy('created_at');
+                break;
+            default: // name_asc
+                $q->orderBy('last_name')->orderBy('first_name');
+                break;
+        }
+
+        $total   = $q->count();
+        $customers = $q->offset(($page - 1) * $perPage)
+                       ->limit($perPage)
+                       ->get();
+
+        $emails = $customers->pluck('email')->toArray();
+        $stats = [];
+        if (!empty($emails)) {
+            // last_service_date stays appointment-sourced (scheduling fact).
+            $rows = TenantAppointment::where('tenant_id', $tenant->id)
+                ->whereIn('customer_email', $emails)
+                ->selectRaw('
+                    customer_email,
+                    MAX(CASE WHEN status = \'completed\' THEN appointment_date END) AS last_service_date
+                ')
+                ->groupBy('customer_email')
+                ->get()
+                ->keyBy('customer_email');
+
+            // MARKER-PATCH-184F — lifetime spend from the sale payment ledger,
+            // keyed by the sale's customer_id (payments received).
+            $spendByCustomer = \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+                ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
+                ->whereNotNull('ts.customer_id')
+                ->selectRaw('ts.customer_id as customer_id, SUM(tenant_sale_payments.amount_cents) as total_spend_cents')
+                ->groupBy('ts.customer_id')
+                ->pluck('total_spend_cents', 'customer_id');
+
+            foreach ($customers as $c) {
+                $row = $rows[$c->email] ?? null;
+                $stats[$c->id] = (object) [
+                    'last_service_date' => $row->last_service_date ?? null,
+                    'total_spend_cents' => (int) ($spendByCustomer[$c->id] ?? 0),
+                ];
+            }
+        }
+
+        // Re-sort by spend/last service if needed (done in PHP since it's a joined stat)
+        if ($sort === 'spend_desc') {
+            $customers = $customers->sortByDesc(fn($c) => (int)($stats[$c->id]?->total_spend_cents ?? 0))->values();
+        } elseif ($sort === 'spend_asc') {
+            $customers = $customers->sortBy(fn($c) => (int)($stats[$c->id]?->total_spend_cents ?? 0))->values();
+        } elseif ($sort === 'last_service') {
+            $customers = $customers->sortByDesc(fn($c) => $stats[$c->id]?->last_service_date ?? '0000-00-00')->values();
+        }
+
+        $totalPages = max(1, ceil($total / $perPage));
+
+        return view('tenant.customers.index', compact(
+            'customers', 'stats', 'total', 'page', 'totalPages', 'search', 'sort', 'createdAfter'
+        ));
+    }
+
+    /**
+     * Lightweight customer search endpoint for typeahead pickers throughout
+     * the admin (class registration, future POS, etc). Returns JSON with up
+     * to 12 matches across name, email, phone — narrow result set so we don't
+     * ship 5000 rows over the wire.
+     *
+     * Empty query returns the 12 most-recent customers as a "default browse"
+     * convenience for clicking through without typing.
+     */
+    public function search(Request $request)
+    {
+        $tenant = tenant();
+        $q      = trim((string) $request->input('q', ''));
+        $limit  = 12;
+
+        $query = TenantCustomer::where('tenant_id', $tenant->id);
+
+        if ($q !== '') {
+            $query->where(function ($qb) use ($q) {
+                $qb->where('first_name', 'like', "%{$q}%")
+                   ->orWhere('last_name', 'like', "%{$q}%")
+                   ->orWhere('email',     'like', "%{$q}%")
+                   ->orWhere('phone',     'like', "%{$q}%");
+            });
+            // Name match wins over partial — order by best match heuristically
+            $query->orderByRaw("
+                CASE
+                    WHEN first_name LIKE ? OR last_name LIKE ? THEN 0
+                    WHEN email LIKE ? THEN 1
+                    ELSE 2
+                END
+            ", ["{$q}%", "{$q}%", "{$q}%"]);
+        } else {
+            $query->orderByDesc('created_at');
+        }
+
+        $rows = $query->limit($limit)
+            ->get(['id', 'first_name', 'last_name', 'email', 'phone'])
+            ->map(fn($c) => [
+                'id'         => $c->id,
+                'first_name' => $c->first_name,
+                'last_name'  => $c->last_name,
+                'email'      => $c->email,
+                'phone'      => $c->phone,
+                'label'      => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')),
+            ]);
+
+        return response()->json(['customers' => $rows]);
+    }
+
+    public function show(Request $request, string $id)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return $this->jsonDetail(tenant(), $id);
+        }
+
+        $tenant = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $appointments = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->orderByDesc('appointment_date')
+            ->with('items')
+            ->get();
+
+        // Note: $customer->notes is a fillable string column on TenantCustomer.
+        // The relationship is on notes() — call explicitly to get the collection.
+        $notes       = $customer->notes()->orderByDesc('created_at')->get();
+        // MARKER-PATCH-184F — lifetime spend from the sale payment ledger
+        // (payments received, attributed via the sale's customer), not appt totals.
+        $totalSpend  = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
+            ->where('ts.customer_id', $customer->id)
+            ->sum('tenant_sale_payments.amount_cents');
+        $lastService = $appointments->where('status', 'completed')->first()?->appointment_date;
+        $updateUrl   = route('tenant.customers.update', $customer->id);
+
+        // Unified activity timeline. Service merges appointments, sales,
+        // class registrations, and pack/membership grants into a single
+        // chronological feed grouped by month.
+        $timelineService = app(\App\Services\Tenant\CustomerTimelineService::class);
+        $timelineEvents  = $timelineService->buildForCustomer($tenant->id, $customer->id);
+        $timelineMonths  = $timelineService->groupByMonth($timelineEvents);
+        $timelineCount   = $timelineEvents->count();
+
+        // Memberships & packs — only loaded when the tenant has classes enabled.
+        // Saves a query for non-class tenants and prevents UI clutter.
+        $customerMemberships = collect();
+        $customerPacks       = collect();
+        $membershipProducts  = collect();
+        $packProducts        = collect();
+        if ($tenant->classes_enabled) {
+            $customerMemberships = \App\Models\Tenant\TenantCustomerMembership::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->with('product:id,name,type,monthly_limit,price_cents')
+                ->orderByDesc('created_at')
+                ->get();
+            $customerPacks = \App\Models\Tenant\TenantCustomerPack::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->with('product:id,name,credit_count,expiry_days,price_cents')
+                ->orderByDesc('created_at')
+                ->get();
+            $membershipProducts = \App\Models\Tenant\TenantClassMembershipProduct::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'monthly_limit', 'price_cents']);
+            $packProducts = \App\Models\Tenant\TenantClassPackProduct::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'credit_count', 'expiry_days', 'price_cents']);
+        }
+
+        // MARKER-PATCH-158-C — load customer assets when multi_asset is on
+        $customerActiveAssets   = collect();
+        $customerArchivedAssets = collect();
+        if ($tenant->multi_asset_enabled) {
+            $allAssets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+                ->where('customer_id', $customer->id)
+                ->orderBy('created_at')
+                ->get();
+            $customerActiveAssets   = $allAssets->whereNull('archived_at')->values();
+            $customerArchivedAssets = $allAssets->whereNotNull('archived_at')->values();
+        }
+
+        // Special orders for this customer (added by patch 88, Stage 5)
+        $specialOrdersOpen = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('customer_id', $id)
+            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_OPEN)
+            ->with(['vendor', 'item', 'appointment'])
+            ->orderBy('expected_arrival_date')
+            ->get();
+        $specialOrdersClosed = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('customer_id', $id)
+            ->whereIn('status', \App\Models\Tenant\TenantSpecialOrder::STATUSES_CLOSED)
+            ->where('updated_at', '>=', now()->subDays(90))
+            ->with(['vendor', 'item'])
+            ->orderByDesc('updated_at')
+            ->limit(10)
+            ->get();
+        $soVendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('tenant.customers.show', compact(
+            'customer', 'appointments', 'notes',
+            'totalSpend', 'lastService', 'updateUrl',
+            'customerMemberships', 'customerPacks',
+            'membershipProducts', 'packProducts',
+            'timelineMonths', 'timelineCount', 'specialOrdersOpen', 'specialOrdersClosed', 'soVendors',
+            'customerActiveAssets', 'customerArchivedAssets')); // MARKER-PATCH-158-C
+    }
+
+    public function store(Request $request)
+    {
+        $tenant = tenant();
+
+        if ($request->has('update')) {
+            return $this->handleUpdate($tenant, $request->input('update'), $request);
+        }
+
+        $data   = $this->validated($request);
+        $data['tenant_id'] = $tenant->id;
+
+        $existing = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('email', $data['email'])
+            ->first();
+
+        if ($existing) {
+            $existing->update($data);
+            $customer = $existing;
+        } else {
+            $customer = TenantCustomer::create($data);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'id' => $customer->id]);
+        }
+
+        return redirect()->route('tenant.customers.index')
+            ->with('success', 'Customer saved.');
+    }
+
+    public function update(Request $request, string $id)
+    {
+        return $this->handleUpdate(tenant(), $id, $request);
+    }
+
+    private function jsonDetail($tenant, string $id)
+    {
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $notes = TenantCustomerNote::where('customer_id', $customer->id)->orderByDesc('created_at')->get();
+
+        $appointments = TenantAppointment::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id) // MARKER-PATCH-421 — stable id, not the mutable email snapshot
+            ->orderByDesc('appointment_date')->orderByDesc('created_at')->get();
+
+        // MARKER-PATCH-184F — lifetime spend from the sale payment ledger.
+        $totalSpend = (int) \App\Models\Tenant\TenantSalePayment::where('tenant_sale_payments.tenant_id', $tenant->id)
+            ->join('tenant_sales as ts', 'ts.id', '=', 'tenant_sale_payments.sale_id')
+            ->where('ts.customer_id', $customer->id)
+            ->sum('tenant_sale_payments.amount_cents');
+        $lastService = $appointments->where('status', 'completed')->max('appointment_date');
+        $totalAppts = $appointments->count();
+
+        return response()->json([
+            'ok' => true,
+            'customer' => [
+                'id' => $customer->id, 'first_name' => $customer->first_name, 'last_name' => $customer->last_name,
+                'name' => $customer->first_name . ' ' . $customer->last_name, 'email' => $customer->email,
+                'phone' => $customer->phone, 'address_line1' => $customer->address_line1,
+                'city' => $customer->city, 'state' => $customer->state, 'postcode' => $customer->postcode,
+                'country' => $customer->country, 'created_at' => $customer->created_at->format('M j, Y'),
+                'total_spend' => format_money($totalSpend),
+                'last_service' => $lastService ? \Carbon\Carbon::parse($lastService)->format('M j, Y') : null,
+                'total_appts' => $totalAppts,
+            ],
+            'appointments' => $appointments->take(10)->map(fn($a) => [
+                'id' => $a->id, 'ito' => $a->ra_number, 'date' => $a->appointment_date->format('M j, Y'),
+                'status' => ucwords(str_replace('_', ' ', $a->status)), 'status_key' => $a->status,
+                'payment' => ucfirst($a->payment_status), 'payment_key' => $a->payment_status,
+                'total' => format_money($a->total_cents),
+            ]),
+            'notes' => $notes->map(fn($n) => [
+                'id' => $n->id, 'note' => $n->note, 'author' => $n->user?->name ?? 'Staff',
+                'created_at' => $n->created_at->format('M j, g:i a'),
+            ]),
+        ]);
+    }
+
+    private function handleUpdate($tenant, string $id, Request $request)
+    {
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+        $op = $request->input('op');
+
+        if ($op === 'update_info') {
+            // MARKER-PATCH-423 — capture the pre-edit email; it's the legacy join
+            // key for appointment snapshots created before id-linking.
+            $oldEmail = $customer->email;
+            $data = $this->validated($request, $customer->email);
+            $customer->update($data);
+
+            // Propagate the corrected identity onto this customer's appointment
+            // snapshots so every snapshot-reading surface (calendar tiles, tags,
+            // the drawer fallback) shows current data. Matched by the stable
+            // customer_id, plus the old email to catch any pre-id-link rows.
+            TenantAppointment::where('tenant_id', $tenant->id)
+                ->where(function ($q) use ($customer, $oldEmail) {
+                    $q->where('customer_id', $customer->id)
+                      ->orWhere('customer_email', $oldEmail);
+                })
+                ->update([
+                    'customer_first_name' => $customer->first_name,
+                    'customer_last_name'  => $customer->last_name,
+                    'customer_email'      => $customer->email,
+                    'customer_phone'      => $customer->phone,
+                ]);
+
+            return response()->json(['ok' => true]);
+        }
+        if ($op === 'toggle_vip') {
+            // Toggle is_vip flag. Returns the new state so the UI can render
+            // the updated star + badge without a full page reload.
+            $customer->is_vip = !$customer->is_vip;
+            $customer->save();
+            return response()->json(['ok' => true, 'is_vip' => $customer->is_vip]);
+        }
+        if ($op === 'add_note') {
+            $note = mb_substr(trim($request->input('note', '')), 0, 200);
+            if (!$note) return response()->json(['ok' => false, 'message' => 'Note is required.'], 422);
+            $n = TenantCustomerNote::create(['tenant_id' => $tenant->id, 'customer_id' => $customer->id, 'user_id' => Auth::guard('tenant')->id(), 'note' => $note, 'created_at' => now()]);
+            $user = Auth::guard('tenant')->user();
+            return response()->json(['ok' => true, 'id' => $n->id, 'note' => $n->note, 'author' => $user->name, 'created_at' => $n->created_at->format('M j, g:i a')]);
+        }
+        if ($op === 'delete_note') {
+            TenantCustomerNote::where('customer_id', $customer->id)->where('id', $request->input('note_id'))->delete();
+            return response()->json(['ok' => true]);
+        }
+        return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
+    }
+
+    private function validated(Request $request, ?string $existingEmail = null): array
+    {
+        $emailRules = $existingEmail ? ['nullable','email','max:191'] : ['required','email','max:191'];
+
+        // MARKER-BIZ-CUSTOMER — a business is identified by its business name,
+        // so the person's name stops being required there (the contact people
+        // live in tenant_customer_contacts). Individuals are unchanged.
+        $isBusiness = $request->input('customer_type') === \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS;
+        $nameRule   = $isBusiness ? ['nullable', 'string', 'max:100'] : ['required', 'string', 'max:100'];
+
+        $request->validate([
+            'customer_type'          => ['nullable', 'in:individual,business'],
+            'business_name'          => [$isBusiness ? 'required' : 'nullable', 'string', 'max:191'],
+            'tax_exempt_certificate' => ['nullable', 'string', 'max:64'],
+            'payment_terms'          => ['nullable', 'in:' . implode(',', \App\Models\Tenant\TenantCustomer::PAYMENT_TERMS)],
+            'first_name' => $nameRule, 'last_name' => $nameRule,
+            'email' => $emailRules, 'phone' => ['nullable', 'string', 'max:32'],
+            'address_line1' => ['nullable', 'string', 'max:191'], 'city' => ['nullable', 'string', 'max:100'],
+            'state' => ['nullable', 'string', 'max:64'], 'postcode' => ['nullable', 'string', 'max:20'],
+            'country' => ['nullable', 'string', 'max:2'],
+        ]);
+        $payload = array_filter([
+            'first_name' => $request->input('first_name'), 'last_name' => $request->input('last_name'),
+            'email' => $request->input('email') ?? $existingEmail, 'phone' => \App\Support\PhoneNumber::normalize($request->input('phone')),
+            'address_line1' => $request->input('address_line1'), 'city' => $request->input('city'),
+            'state' => $request->input('state'), 'postcode' => $request->input('postcode'),
+            'country' => strtoupper($request->input('country', 'US')),
+        ], fn($v) => $v !== null && $v !== '');
+
+        // MARKER-BIZ-CUSTOMER — only touch the business fields when the form
+        // actually submitted a customer_type. Several edit forms post a subset
+        // of fields; without this guard, saving a phone number from one of
+        // them would flip a business back to individual and wipe its tax
+        // exemption. Absent means "leave as-is", not "individual".
+        if (! $request->has('customer_type')) {
+            return $payload;
+        }
+
+        // Added AFTER the array_filter above: it strips empty values, which
+        // would silently discard a false boolean and make "not tax exempt"
+        // unsavable once it had ever been true.
+        $payload['customer_type'] = $isBusiness
+            ? \App\Models\Tenant\TenantCustomer::TYPE_BUSINESS
+            : \App\Models\Tenant\TenantCustomer::TYPE_INDIVIDUAL;
+        $payload['business_name'] = $isBusiness ? $request->input('business_name') : null;
+
+        if ($isBusiness) {
+            $payload['tax_exempt']             = $request->boolean('tax_exempt');
+            $payload['tax_exempt_certificate'] = $request->boolean('tax_exempt')
+                ? $request->input('tax_exempt_certificate')
+                : null;
+            $payload['po_required']            = $request->boolean('po_required');
+            $payload['payment_terms']          = $request->input('payment_terms') ?: null;
+        } else {
+            // Switching a record back to individual clears the business-only
+            // fields rather than leaving stale exemptions applying to sales.
+            $payload['tax_exempt']             = false;
+            $payload['tax_exempt_certificate'] = null;
+            $payload['po_required']            = false;
+            $payload['payment_terms']          = null;
+        }
+
+        return $payload;
+    }
+}
+BIZ1_5_EOF
+
+cat > 'resources/views/tenant/customers/index.blade.php' <<'BIZ1_6_EOF'
+@extends('layouts.tenant.app')
+@php
+  $pageTitle = 'Customers';
+  $sortLabels = [
+    'name_asc'     => 'Name A–Z',
+    'name_desc'    => 'Name Z–A',
+    'added_desc'   => 'Newest first',
+    'added_asc'    => 'Oldest first',
+    'spend_desc'   => 'Top spenders',
+    'spend_asc'    => 'Lowest spend',
+    'last_service' => 'Last service',
+    'vips_only'    => 'VIPs only',
+  ];
+  $currentSortLabel = $sortLabels[$sort] ?? 'Name A–Z';
+@endphp
+
+@section('content')
+
+{{-- CUSTOMER-LIST-MOBILE v1 — parallel desktop + mobile renders. --}}
+
+{{-- ========== DESKTOP HEAD (hidden on mobile via CSS) ========== --}}
+<div class="ia-page-head cust-desktop-only">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">Customers</h1>
+    <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('customer', $total) }}</p>
+  </div>
+  <div class="ia-page-actions">
+    <button type="button" class="ia-btn ia-btn--primary" onclick="document.getElementById('new-customer-card').style.display='block';this.style.display='none'">
+      + New customer
+    </button>
+  </div>
+</div>
+
+{{-- ========== MOBILE HEAD (hidden on desktop via CSS) ========== --}}
+<div class="cust-mobile-only cust-mobile-head">
+  <h1 class="cust-mobile-title">Customers</h1>
+  <p class="cust-mobile-sub">{{ number_format($total) }} total</p>
+</div>
+
+{{-- ========== NEW CUSTOMER FORM (shared, toggled by either mobile + or desktop button) ========== --}}
+<div id="new-customer-card" class="ia-card" style="display:none;margin-bottom:20px">
+  <div class="ia-card-head">
+    <span class="ia-card-title">New customer</span>
+    <button type="button" class="ia-card-action"
+      onclick="document.getElementById('new-customer-card').style.display='none';
+               var d = document.querySelector('.cust-desktop-only .ia-btn--primary'); if (d) d.style.display='';">
+      Cancel
+    </button>
+  </div>
+  <form method="POST" action="{{ route('tenant.customers.store') }}" data-biz-form>
+    @csrf
+
+    {{-- MARKER-BIZ-CUSTOMER — individual is the default, so this form opens
+         exactly as it always has. Choosing Business reveals the extra fields
+         and relaxes the person-name requirement. --}}
+    @php $bizDefaults = tenant()->settings['customers'] ?? []; @endphp
+    <div class="ia-form-group">
+      <label class="ia-form-label">Customer type</label>
+      <div class="biz-type-row">
+        <label class="biz-type">
+          <input type="radio" name="customer_type" value="individual" @checked(old('customer_type', 'individual') !== 'business')>
+          <span>Individual</span>
+        </label>
+        <label class="biz-type">
+          <input type="radio" name="customer_type" value="business" @checked(old('customer_type') === 'business')>
+          <span>Business</span>
+        </label>
+      </div>
+    </div>
+
+    <div data-biz-only style="display:none">
+      <div class="ia-form-group">
+        <label class="ia-form-label">Business name <span class="ia-required">*</span></label>
+        <input type="text" name="business_name" class="ia-input" value="{{ old('business_name') }}"
+               placeholder="Spokane Public Schools">
+      </div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Payment terms</label>
+          <select name="payment_terms" class="ia-input">
+            <option value="">Due at service</option>
+            <option value="net_15" @selected(old('payment_terms', $bizDefaults['default_payment_terms'] ?? '') === 'net_15')>Net 15</option>
+            <option value="net_30" @selected(old('payment_terms', $bizDefaults['default_payment_terms'] ?? '') === 'net_30')>Net 30</option>
+            <option value="net_60" @selected(old('payment_terms', $bizDefaults['default_payment_terms'] ?? '') === 'net_60')>Net 60</option>
+          </select>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Purchase order</label>
+          <label class="biz-check">
+            <input type="checkbox" name="po_required" value="1"
+                   @checked(old('po_required', ($bizDefaults['default_po_required'] ?? false) ? '1' : ''))>
+            <span>Requires a PO number</span>
+          </label>
+        </div>
+      </div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Tax status</label>
+          <label class="biz-check">
+            <input type="checkbox" name="tax_exempt" value="1" data-biz-exempt @checked(old('tax_exempt'))>
+            <span>Tax exempt</span>
+          </label>
+        </div>
+        <div class="ia-form-group" data-biz-cert style="display:none">
+          <label class="ia-form-label">Exemption certificate #</label>
+          <input type="text" name="tax_exempt_certificate" class="ia-input" value="{{ old('tax_exempt_certificate') }}">
+        </div>
+      </div>
+    </div>
+
+    <div class="ia-input-grid-2">
+      <div class="ia-form-group">
+        <label class="ia-form-label"><span data-biz-namelabel>First name</span> <span class="ia-required" data-biz-req>*</span></label>
+        <input type="text" name="first_name" class="ia-input" required value="{{ old('first_name') }}" data-biz-name>
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Last name <span class="ia-required" data-biz-req>*</span></label>
+        <input type="text" name="last_name" class="ia-input" required value="{{ old('last_name') }}" data-biz-name>
+      </div>
+    </div>
+    <div class="ia-input-grid-2">
+      <div class="ia-form-group">
+        <label class="ia-form-label">Email <span class="ia-required">*</span></label>
+        <input type="email" name="email" class="ia-input" required value="{{ old('email') }}">
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Phone</label>
+        <input type="tel" name="phone" class="ia-input" value="{{ old('phone') }}">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button type="submit" class="ia-btn ia-btn--primary">Save customer</button>
+    </div>
+  </form>
+</div>
+
+{{-- ========== DESKTOP FILTER TOOLBAR (hidden on mobile) ========== --}}
+<style>
+.cust-resource-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  background: var(--ia-surface-2, rgba(255,255,255,0.03));
+  border: 0.5px solid var(--ia-border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ia-text-2);
+}
+.cust-resource-chip strong { color: var(--ia-text); }
+.cust-resource-clear {
+  margin-left: 6px;
+  color: var(--ia-text-3);
+  text-decoration: none;
+  font-size: 11px;
+}
+.cust-resource-clear:hover { color: var(--ia-accent, #BEF264); }
+</style>
+
+{{-- MARKER-PATCH-114 - created_after filter chip --}}
+@if(!empty($createdAfter))
+  <div class="cust-resource-chip">
+    Showing customers added since
+    <strong>{{ \Carbon\Carbon::parse($createdAfter)->format('M j, Y') }}</strong>
+    <a href="{{ route('tenant.customers.index') }}" class="cust-resource-clear">clear ×</a>
+  </div>
+@endif
+
+<form method="get" action="{{ route('tenant.customers.index') }}" class="ia-toolbar cust-desktop-only" id="cust-desktop-form">
+  <input type="search" name="s" class="ia-input" value="{{ $search }}"
+    placeholder="Search name, email, or phone…" style="max-width:300px">
+
+  <select name="sort" class="ia-input" style="width:auto">
+    @foreach($sortLabels as $val => $label)
+      <option value="{{ $val }}" @selected($sort === $val)>{{ $label }}</option>
+    @endforeach
+  </select>
+
+  <button type="submit" class="ia-btn ia-btn--secondary">Search</button>
+  @if($search || $sort !== 'name_asc')
+    <a href="{{ route('tenant.customers.index') }}" class="ia-btn ia-btn--ghost">Reset</a>
+  @endif
+</form>
+
+{{-- ========== MOBILE FILTER BAR + SORT SHEET (hidden on desktop) ========== --}}
+<form method="get" action="{{ route('tenant.customers.index') }}" class="cust-mobile-only cust-mfilter" id="cust-mobile-form">
+  <div class="cust-mfilter-search-wrap">
+    <svg class="cust-mfilter-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input type="search" name="s" class="cust-mfilter-search" value="{{ $search }}"
+      placeholder="Search name, email, or phone" autocomplete="off" id="cust-search-mobile">
+  </div>
+  <input type="hidden" name="sort" id="cust-sort-mobile" value="{{ $sort }}">
+  <button type="button" class="cust-mfilter-iconbtn {{ $sort !== 'name_asc' ? 'is-active' : '' }}" onclick="CustSort.open()" aria-label="Sort">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 6h18M6 12h12M10 18h4"/>
+    </svg>
+    @if($sort !== 'name_asc')
+      <span class="cust-mfilter-badge" aria-hidden="true"></span>
+    @endif
+  </button>
+  <button type="button" class="cust-mfilter-iconbtn" onclick="document.getElementById('new-customer-card').style.display='block';window.scrollTo({top:0,behavior:'smooth'})" aria-label="Add new customer">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+</form>
+
+{{-- Sort bottom sheet --}}
+<div class="cust-sort-sheet-backdrop" id="cust-sort-backdrop" onclick="CustSort.close()" aria-hidden="true"></div>
+<div class="cust-sort-sheet" id="cust-sort-sheet" role="dialog" aria-modal="true" aria-label="Sort customers" aria-hidden="true">
+  <div class="cust-sort-handle" aria-hidden="true"></div>
+  <div class="cust-sort-title">Sort by</div>
+  @foreach($sortLabels as $val => $label)
+    <button type="button"
+            class="cust-sort-row {{ $sort === $val ? 'is-active' : '' }}"
+            onclick="CustSort.pick('{{ $val }}')">
+      <span>{{ $label }}</span>
+      @if($sort === $val)
+        <span class="cust-sort-check" aria-hidden="true">✓</span>
+      @endif
+    </button>
+  @endforeach
+</div>
+
+{{-- ========== RESULT COUNT (desktop) ========== --}}
+<p class="ia-result-count cust-desktop-only">
+  <strong>{{ number_format($total) }}</strong> {{ Str::plural('customer', $total) }}
+</p>
+
+{{-- ========== MOBILE LIST HEADER (count + current sort) ========== --}}
+<div class="cust-mobile-only cust-list-header">
+  <span>{{ number_format($total) }} {{ Str::plural('customer', $total) }} · {{ $currentSortLabel }}</span>
+</div>
+
+@if($customers->isEmpty())
+  <div class="ia-empty">
+    <div class="ia-empty-icon">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="opacity:.4">
+        <circle cx="10" cy="7" r="4" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M2.5 18c0-4 3.5-7 7.5-7s7.5 3 7.5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="ia-empty-title">
+      @if($search) No customers match "{{ $search }}" @else No customers yet @endif
+    </div>
+    <div class="ia-empty-desc">
+      @if($search) Try a different search term. @else Customers are created when appointments are booked, or you can add one manually. @endif
+    </div>
+  </div>
+@else
+  {{-- ========== DESKTOP TABLE ========== --}}
+  <div class="ia-table-wrap cust-desktop-only">
+    <table class="ia-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Last service</th>
+          <th class="ia-num">Total spend</th>
+          <th>Added</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($customers as $c)
+          @php $stat = $stats[$c->id] ?? null; @endphp
+          {{-- MARKER-PATCH-503 — straight to the customer page, no modal hop --}}
+          <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
+            <td><span style="font-weight:500">{{ $c->first_name }} {{ $c->last_name }}</span>@if($c->is_vip)<span class="vip-list-star" title="VIP">★</span>@endif</td>
+            <td class="ia-muted-cell">{{ $c->email }}</td>
+            <td class="ia-muted-cell">{{ $c->phone ?: '—' }}</td>
+            <td class="ia-muted-cell">
+              {{ $stat?->last_service_date ? \Carbon\Carbon::parse($stat->last_service_date)->format('M j, Y') : '—' }}
+            </td>
+            <td class="ia-num">{{ format_money((int)($stat?->total_spend_cents ?? 0)) }}</td>
+            <td class="ia-muted-cell">{{ $c->created_at->format('M j, Y') }}</td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+  </div>
+
+  {{-- ========== MOBILE CARD LIST ========== --}}
+  <div class="cust-mobile-only cust-cards">
+    @foreach($customers as $c)
+      @php
+        $stat = $stats[$c->id] ?? null;
+        $spend = (int)($stat?->total_spend_cents ?? 0);
+        $lastSvc = $stat?->last_service_date
+          ? \Carbon\Carbon::parse($stat->last_service_date)->format('M j')
+          : null;
+        $contactParts = array_filter([$c->email, $c->phone]);
+      @endphp
+      <button type="button" class="cust-card" onclick="window.location.href='{{ route('tenant.customers.show', $c->id) }}'">
+        <div class="cust-card-top">
+          <span class="cust-card-name">{{ $c->first_name }} {{ $c->last_name }}</span>
+          @if($spend > 0)
+            <span class="cust-card-spend">{{ format_money($spend) }}</span>
+          @endif
+        </div>
+        @if($contactParts)
+          <div class="cust-card-contact">{{ implode(' · ', $contactParts) }}</div>
+        @endif
+        <div class="cust-card-meta">
+          @if($lastSvc)Last service {{ $lastSvc }} · @endif
+          Added {{ $c->created_at->format('M j, Y') }}
+        </div>
+      </button>
+    @endforeach
+  </div>
+
+  @if($totalPages > 1)
+    {{-- MARKER-PATCH-368 — windowed pager (prev/next + ellipses) replaces the full 1..N wall. --}}
+    @php
+      $pgUrl     = fn($p) => route('tenant.customers.index', array_merge(request()->query(), ['page' => $p]));
+      $winStart  = max(1, $page - 2);
+      $winEnd    = min($totalPages, $page + 2);
+      $shownFrom = $total > 0 ? ($page - 1) * 25 + 1 : 0;
+      $shownTo   = min($page * 25, $total);
+    @endphp
+    <div class="ia-pagination" role="navigation" aria-label="Customer pages">
+      @if($page > 1)
+        <a href="{{ $pgUrl($page - 1) }}" class="ia-page-btn" rel="prev" aria-label="Previous page">&lsaquo;</a>
+      @else
+        <span class="ia-page-btn is-disabled" aria-disabled="true">&lsaquo;</span>
+      @endif
+
+      @if($winStart > 1)
+        <a href="{{ $pgUrl(1) }}" class="ia-page-btn">1</a>
+        @if($winStart > 2)<span class="ia-page-ellipsis">&hellip;</span>@endif
+      @endif
+
+      @for($p = $winStart; $p <= $winEnd; $p++)
+        <a href="{{ $pgUrl($p) }}" class="ia-page-btn {{ $p === $page ? 'active' : '' }}"@if($p === $page) aria-current="page"@endif>{{ $p }}</a>
+      @endfor
+
+      @if($winEnd < $totalPages)
+        @if($winEnd < $totalPages - 1)<span class="ia-page-ellipsis">&hellip;</span>@endif
+        <a href="{{ $pgUrl($totalPages) }}" class="ia-page-btn">{{ $totalPages }}</a>
+      @endif
+
+      @if($page < $totalPages)
+        <a href="{{ $pgUrl($page + 1) }}" class="ia-page-btn" rel="next" aria-label="Next page">&rsaquo;</a>
+      @else
+        <span class="ia-page-btn is-disabled" aria-disabled="true">&rsaquo;</span>
+      @endif
+    </div>
+    <div class="cust-page-count">Showing {{ number_format($shownFrom) }}&ndash;{{ number_format($shownTo) }} of {{ number_format($total) }}</div>
+  @endif
+@endif
+
+@push('scripts')
+<script>
+(function () {
+  // ── Sort sheet open/close + pick ─────────────────────────────────────────
+  window.CustSort = {
+    open: function () {
+      document.getElementById('cust-sort-backdrop').classList.add('is-open');
+      document.getElementById('cust-sort-sheet').classList.add('is-open');
+      document.getElementById('cust-sort-backdrop').setAttribute('aria-hidden','false');
+      document.getElementById('cust-sort-sheet').setAttribute('aria-hidden','false');
+      document.body.style.overflow = 'hidden';
+    },
+    close: function () {
+      document.getElementById('cust-sort-backdrop').classList.remove('is-open');
+      document.getElementById('cust-sort-sheet').classList.remove('is-open');
+      document.getElementById('cust-sort-backdrop').setAttribute('aria-hidden','true');
+      document.getElementById('cust-sort-sheet').setAttribute('aria-hidden','true');
+      document.body.style.overflow = '';
+    },
+    pick: function (val) {
+      document.getElementById('cust-sort-mobile').value = val;
+      document.getElementById('cust-mobile-form').submit();
+    },
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') CustSort.close();
+  });
+
+  // ── Live search (mobile only) ────────────────────────────────────────────
+  var searchInput = document.getElementById('cust-search-mobile');
+  var form = document.getElementById('cust-mobile-form');
+  if (searchInput && form) {
+    var t = null;
+    searchInput.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () { form.submit(); }, 350);
+    });
+  }
+})();
+</script>
+@endpush
+
+@push('styles')
+<style>
+/* CUSTOMER-LIST-MOBILE v1 ────────────────────────────────────────────────── */
+
+.cust-mobile-only { display: none; }
+
+@media (max-width: 600px) {
+  .cust-desktop-only { display: none !important; }
+  .cust-mobile-only { display: block; }
+
+  /* Mobile head */
+  .cust-mobile-head {
+    margin-bottom: 14px;
+  }
+  .cust-mobile-title {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    color: var(--ia-text);
+    margin: 0;
+  }
+  .cust-mobile-sub {
+    font-size: 12px;
+    color: var(--ia-text-muted);
+    margin: 2px 0 0;
+  }
+
+  /* Filter bar */
+  .cust-mfilter {
+    display: grid !important;
+    grid-template-columns: 1fr 40px 40px;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .cust-mfilter-search-wrap {
+    position: relative;
+  }
+  .cust-mfilter-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ia-text-muted);
+    pointer-events: none;
+  }
+  .cust-mfilter-search {
+    width: 100%;
+    height: 40px;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: 8px;
+    padding: 0 12px 0 36px;
+    color: var(--ia-text);
+    font-size: 14px;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .cust-mfilter-search:focus {
+    outline: none;
+    border-color: var(--ia-accent);
+  }
+  .cust-mfilter-iconbtn {
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ia-text-muted);
+    cursor: pointer;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cust-mfilter-iconbtn:active { transform: scale(0.95); }
+  .cust-mfilter-iconbtn.is-active {
+    color: var(--ia-accent);
+    border-color: rgba(190,242,100,.3);
+    background: var(--ia-accent-soft);
+  }
+  .cust-mfilter-badge {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 8px; height: 8px;
+    background: var(--ia-accent);
+    border-radius: 50%;
+    border: 2px solid var(--ia-bg, #0a0a0a);
+  }
+
+  /* List header */
+  .cust-list-header {
+    padding: 0 4px 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--ia-text-muted);
+    font-weight: 500;
+  }
+
+  /* Customer cards */
+  .cust-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cust-card {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--ia-surface);
+    border: 0.5px solid var(--ia-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cust-card:active { transform: scale(0.99); }
+  .cust-card-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .cust-card-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ia-text);
+    letter-spacing: -.01em;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cust-card-spend {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ia-text);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .cust-card-contact {
+    font-size: 12px;
+    color: var(--ia-text-muted);
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cust-card-meta {
+    font-size: 11px;
+    color: var(--ia-text-dim, rgba(255,255,255,.4));
+    margin-top: 3px;
+  }
+}
+
+/* Sort sheet — base styles outside media query so transitions work
+   when the sheet opens. Hidden via translate when not .is-open. */
+.cust-sort-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.cust-sort-sheet-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.cust-sort-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--ia-surface);
+  border-radius: 18px 18px 0 0;
+  padding: 12px 0 calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 201;
+  border: 0.5px solid var(--ia-border);
+  border-bottom: 0;
+  transform: translateY(100%);
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.cust-sort-sheet.is-open { transform: translateY(0); }
+.cust-sort-handle {
+  width: 36px; height: 4px;
+  background: rgba(255,255,255,.18);
+  border-radius: 2px;
+  margin: 0 auto 12px;
+}
+body.ia-theme-b .cust-sort-handle { background: rgba(0,0,0,.18); }
+.cust-sort-title {
+  padding: 0 20px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--ia-text-muted);
+  font-weight: 500;
+}
+.cust-sort-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  border-top: 0.5px solid var(--ia-border);
+  color: var(--ia-text);
+  font-size: 15px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cust-sort-row:active { background: rgba(255,255,255,.04); }
+body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
+.cust-sort-row.is-active { color: var(--ia-accent); }
+.cust-sort-check {
+  color: var(--ia-accent);
+  font-weight: 600;
+}
+
+/* Hide the sort sheet entirely on desktop — never reachable */
+@media (min-width: 601px) {
+  .cust-sort-sheet,
+  .cust-sort-sheet-backdrop { display: none !important; }
+}
+
+/* MARKER-PATCH-368 — windowed pager extras */
+.ia-page-btn.is-disabled { opacity: .35; pointer-events: none; }
+.ia-page-ellipsis { display: inline-flex; align-items: center; padding: 0 4px; color: var(--ia-text-3, #888); font-size: 12px; }
+.cust-page-count { margin-top: 8px; font-size: 11.5px; color: var(--ia-text-3, #888); }
+</style>
+@endpush
+
+
+{{-- MARKER-BIZ-CUSTOMER — inside the section: Blade discards markup placed
+     after @endsection. --}}
+<style>
+  .biz-type-row{display:flex;gap:8px}
+  .biz-type{flex:1;display:flex;align-items:center;gap:8px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:11px 13px;cursor:pointer;font-size:13.5px}
+  .biz-type:has(input:checked){border-color:var(--ia-accent);background:color-mix(in srgb, var(--ia-accent) 10%, transparent)}
+  .biz-check{display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 0}
+</style>
+<script>
+(function () {
+  function sync(form) {
+    var isBiz = !!form.querySelector('input[name="customer_type"][value="business"]:checked');
+    var only  = form.querySelector('[data-biz-only]');
+    if (only) only.style.display = isBiz ? '' : 'none';
+
+    // A business is identified by its business name, so the person's name
+    // stops being required — matching the server-side rule exactly.
+    form.querySelectorAll('[data-biz-name]').forEach(function (i) { i.required = !isBiz; });
+    form.querySelectorAll('[data-biz-req]').forEach(function (r) { r.style.display = isBiz ? 'none' : ''; });
+    var lbl = form.querySelector('[data-biz-namelabel]');
+    if (lbl) lbl.textContent = isBiz ? 'Contact first name' : 'First name';
+
+    var ex   = form.querySelector('[data-biz-exempt]');
+    var cert = form.querySelector('[data-biz-cert]');
+    if (cert) cert.style.display = (isBiz && ex && ex.checked) ? '' : 'none';
+  }
+
+  document.querySelectorAll('[data-biz-form]').forEach(function (form) {
+    form.addEventListener('change', function (e) {
+      if (e.target.name === 'customer_type' || e.target.hasAttribute('data-biz-exempt')) sync(form);
+    });
+    sync(form);
+  });
+})();
+</script>
+
+@endsection
+BIZ1_6_EOF
+
+cat > 'resources/views/tenant/customers/show.blade.php' <<'BIZ1_7_EOF'
 @extends('layouts.tenant.app')
 @php
   $pageTitle  = $customer->first_name . ' ' . $customer->last_name;
@@ -2439,3 +3933,6 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
   })();
 </script>
 @endpush
+BIZ1_7_EOF
+
+echo "business-customers-1-data applied — server: git pull && php artisan migrate --force && php artisan view:clear"

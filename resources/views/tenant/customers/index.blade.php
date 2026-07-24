@@ -47,16 +47,75 @@
       Cancel
     </button>
   </div>
-  <form method="POST" action="{{ route('tenant.customers.store') }}">
+  <form method="POST" action="{{ route('tenant.customers.store') }}" data-biz-form>
     @csrf
+
+    {{-- MARKER-BIZ-CUSTOMER — individual is the default, so this form opens
+         exactly as it always has. Choosing Business reveals the extra fields
+         and relaxes the person-name requirement. --}}
+    @php $bizDefaults = tenant()->settings['customers'] ?? []; @endphp
+    <div class="ia-form-group">
+      <label class="ia-form-label">Customer type</label>
+      <div class="biz-type-row">
+        <label class="biz-type">
+          <input type="radio" name="customer_type" value="individual" @checked(old('customer_type', 'individual') !== 'business')>
+          <span>Individual</span>
+        </label>
+        <label class="biz-type">
+          <input type="radio" name="customer_type" value="business" @checked(old('customer_type') === 'business')>
+          <span>Business</span>
+        </label>
+      </div>
+    </div>
+
+    <div data-biz-only style="display:none">
+      <div class="ia-form-group">
+        <label class="ia-form-label">Business name <span class="ia-required">*</span></label>
+        <input type="text" name="business_name" class="ia-input" value="{{ old('business_name') }}"
+               placeholder="Spokane Public Schools">
+      </div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Payment terms</label>
+          <select name="payment_terms" class="ia-input">
+            <option value="">Due at service</option>
+            <option value="net_15" @selected(old('payment_terms', $bizDefaults['default_payment_terms'] ?? '') === 'net_15')>Net 15</option>
+            <option value="net_30" @selected(old('payment_terms', $bizDefaults['default_payment_terms'] ?? '') === 'net_30')>Net 30</option>
+            <option value="net_60" @selected(old('payment_terms', $bizDefaults['default_payment_terms'] ?? '') === 'net_60')>Net 60</option>
+          </select>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Purchase order</label>
+          <label class="biz-check">
+            <input type="checkbox" name="po_required" value="1"
+                   @checked(old('po_required', ($bizDefaults['default_po_required'] ?? false) ? '1' : ''))>
+            <span>Requires a PO number</span>
+          </label>
+        </div>
+      </div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Tax status</label>
+          <label class="biz-check">
+            <input type="checkbox" name="tax_exempt" value="1" data-biz-exempt @checked(old('tax_exempt'))>
+            <span>Tax exempt</span>
+          </label>
+        </div>
+        <div class="ia-form-group" data-biz-cert style="display:none">
+          <label class="ia-form-label">Exemption certificate #</label>
+          <input type="text" name="tax_exempt_certificate" class="ia-input" value="{{ old('tax_exempt_certificate') }}">
+        </div>
+      </div>
+    </div>
+
     <div class="ia-input-grid-2">
       <div class="ia-form-group">
-        <label class="ia-form-label">First name <span class="ia-required">*</span></label>
-        <input type="text" name="first_name" class="ia-input" required value="{{ old('first_name') }}">
+        <label class="ia-form-label"><span data-biz-namelabel>First name</span> <span class="ia-required" data-biz-req>*</span></label>
+        <input type="text" name="first_name" class="ia-input" required value="{{ old('first_name') }}" data-biz-name>
       </div>
       <div class="ia-form-group">
-        <label class="ia-form-label">Last name <span class="ia-required">*</span></label>
-        <input type="text" name="last_name" class="ia-input" required value="{{ old('last_name') }}">
+        <label class="ia-form-label">Last name <span class="ia-required" data-biz-req>*</span></label>
+        <input type="text" name="last_name" class="ia-input" required value="{{ old('last_name') }}" data-biz-name>
       </div>
     </div>
     <div class="ia-input-grid-2">
@@ -578,5 +637,42 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
 .cust-page-count { margin-top: 8px; font-size: 11.5px; color: var(--ia-text-3, #888); }
 </style>
 @endpush
+
+
+{{-- MARKER-BIZ-CUSTOMER — inside the section: Blade discards markup placed
+     after @endsection. --}}
+<style>
+  .biz-type-row{display:flex;gap:8px}
+  .biz-type{flex:1;display:flex;align-items:center;gap:8px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:11px 13px;cursor:pointer;font-size:13.5px}
+  .biz-type:has(input:checked){border-color:var(--ia-accent);background:color-mix(in srgb, var(--ia-accent) 10%, transparent)}
+  .biz-check{display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 0}
+</style>
+<script>
+(function () {
+  function sync(form) {
+    var isBiz = !!form.querySelector('input[name="customer_type"][value="business"]:checked');
+    var only  = form.querySelector('[data-biz-only]');
+    if (only) only.style.display = isBiz ? '' : 'none';
+
+    // A business is identified by its business name, so the person's name
+    // stops being required — matching the server-side rule exactly.
+    form.querySelectorAll('[data-biz-name]').forEach(function (i) { i.required = !isBiz; });
+    form.querySelectorAll('[data-biz-req]').forEach(function (r) { r.style.display = isBiz ? 'none' : ''; });
+    var lbl = form.querySelector('[data-biz-namelabel]');
+    if (lbl) lbl.textContent = isBiz ? 'Contact first name' : 'First name';
+
+    var ex   = form.querySelector('[data-biz-exempt]');
+    var cert = form.querySelector('[data-biz-cert]');
+    if (cert) cert.style.display = (isBiz && ex && ex.checked) ? '' : 'none';
+  }
+
+  document.querySelectorAll('[data-biz-form]').forEach(function (form) {
+    form.addEventListener('change', function (e) {
+      if (e.target.name === 'customer_type' || e.target.hasAttribute('data-biz-exempt')) sync(form);
+    });
+    sync(form);
+  });
+})();
+</script>
 
 @endsection
