@@ -10,6 +10,8 @@
 <div class="ia-page-head so-desktop-only">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Special orders</h1>
+    {{-- MARKER-SO-PLACEMENT --}}
+    <a href="{{ route('tenant.special-orders.placement') }}" class="ia-btn ia-btn--ghost" style="margin-left:12px">Place orders →</a>
     <p class="ia-page-subtitle">
       {{ $counts['open'] }} open
       @if($counts['arrived_bench'] > 0) · {{ $counts['arrived_bench'] }} on bench @endif

@@ -363,6 +363,140 @@ class SpecialOrderController extends Controller
     }
 
     /**
+     * MARKER-SO-PLACEMENT — the vendor placement board. Every needed order
+     * with the vendors that actually carry it, grouped by where it is
+     * currently assigned, so a whole day's ordering is one screen.
+     */
+    public function placement(Request $request): View
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $sos = TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('status', TenantSpecialOrder::STATUS_NEEDED)
+            ->with(['item', 'customer'])
+            ->orderBy('created_at')
+            ->get();
+
+        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'free_freight_cents'])
+            ->keyBy('id');
+
+        // Vendor options per item. The item-vendor pivot carries no tenant_id
+        // by design, so options are filtered to this tenant's vendors.
+        $itemIds = $sos->pluck('inventory_item_id')->filter()->unique();
+        $options = [];
+        $freshest = null;
+        if ($itemIds->isNotEmpty()) {
+            $pivots = \App\Models\Tenant\TenantInventoryItemVendor::whereIn('inventory_item_id', $itemIds)
+                ->orderByDesc('is_preferred')
+                ->get();
+            foreach ($pivots as $p) {
+                if (! $vendors->has($p->vendor_id)) {
+                    continue; // another tenant's vendor, or inactive
+                }
+                $options[$p->inventory_item_id][] = [
+                    'vendor_id' => $p->vendor_id,
+                    'name'      => $vendors[$p->vendor_id]->name,
+                    'cost'      => $p->live_cost_cents ?? $p->unit_cost_cents,
+                    'avail'     => $p->live_avail,
+                    'lead'      => $p->lead_time_days,
+                    'preferred' => (bool) $p->is_preferred,
+                ];
+                if ($p->live_checked_at && (! $freshest || $p->live_checked_at->lt($freshest))) {
+                    $freshest = $p->live_checked_at;
+                }
+            }
+        }
+
+        // Group by current assignment; unassigned first — it is the nag.
+        $groups = ['' => []];
+        foreach ($sos as $so) {
+            $key = $so->vendor_id && $vendors->has($so->vendor_id) ? $so->vendor_id : '';
+            $groups[$key][] = $so;
+        }
+        if (empty($groups[''])) {
+            unset($groups['']);
+        }
+
+        return view('tenant.special-orders.placement', [
+            'groups'   => $groups,
+            'vendors'  => $vendors,
+            'options'  => $options,
+            'checkedAt'=> $freshest,
+        ]);
+    }
+
+    /**
+     * MARKER-SO-PLACEMENT — move an order to a vendor. Assignment is not
+     * ordering: it sets vendor_id and nothing else, and is reversible.
+     */
+    public function assignVendor(Request $request, string $id): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+
+        $data = $request->validate([
+            'vendor_id' => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_vendors', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+        ]);
+
+        $so = TenantSpecialOrder::where('tenant_id', $tenant->id)->findOrFail($id);
+        if ($so->status !== TenantSpecialOrder::STATUS_NEEDED) {
+            return response()->json(['ok' => false, 'error' => 'Only needed orders can be reassigned.'], 422);
+        }
+
+        $so->forceFill(['vendor_id' => $data['vendor_id']])->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-SO-PLACEMENT — mark a whole vendor batch ordered in one action,
+     * sharing a PO number and expected date. Partial failures are reported
+     * rather than silently swallowed.
+     */
+    public function markOrderedBatch(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $data = $request->validate([
+            'ids'                   => ['required', 'array', 'min:1', 'max:200'],
+            'ids.*'                 => ['uuid'],
+            'vendor_id'             => ['required', 'uuid', \Illuminate\Validation\Rule::exists('tenant_vendors', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+            'po_number'             => ['required', 'string', 'max:64'],
+            'expected_arrival_date' => ['required', 'date'],
+        ]);
+
+        $ok = 0;
+        $failed = [];
+        foreach ($data['ids'] as $soId) {
+            try {
+                $this->ensureBelongsToTenant($soId, $tenant->id);
+                $this->service->markOrdered($soId, [
+                    'vendor_id'             => $data['vendor_id'],
+                    'po_number'             => $data['po_number'],
+                    'expected_arrival_date' => $data['expected_arrival_date'],
+                ]);
+                $ok++;
+            } catch (\Throwable $e) {
+                $failed[] = $e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'ok'      => $ok > 0,
+            'ordered' => $ok,
+            'failed'  => $failed,
+        ]);
+    }
+
+    /**
      * MARKER-SO-ORIGIN — "yes, this is still needed" for an order whose
      * source is gone. Persisted so the queue stops asking.
      */

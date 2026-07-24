@@ -36,10 +36,12 @@ class TenantVendor extends Model
         'distributor_catalog_id',
         'notes',
         'is_active',
+        'free_freight_cents', // MARKER-SO-PLACEMENT
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'free_freight_cents' => 'integer', // MARKER-SO-PLACEMENT
     ];
 
     public function tenant(): BelongsTo
