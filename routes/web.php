@@ -687,6 +687,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/{id}/mark-arrived',                  [TenantControllers\SpecialOrderController::class, 'markArrived'])->name('mark-arrived');
                 Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
                 Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
+                Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source'); // MARKER-SO-ORIGIN
                 Route::post('/{id}/notes',                         [TenantControllers\SpecialOrderController::class, 'addNote'])->name('notes.store');
             });
 

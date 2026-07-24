@@ -46,6 +46,7 @@ class TenantSpecialOrder extends Model
         'appointment_id',
         'sale_id',      // MARKER-SO-SALE-LINK
         'sale_item_id', // MARKER-SO-SALE-LINK
+        'source_confirmed_at', 'source_confirmed_by_user_id', // MARKER-SO-ORIGIN
         'vendor_id',
         'vendor_reference',
         'po_number',

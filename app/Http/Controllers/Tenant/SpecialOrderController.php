@@ -93,7 +93,43 @@ class SpecialOrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // MARKER-SO-ORIGIN — for each listed order: where did it come from,
+        // and does that source still exist? Two lookups, no N+1.
+        $origins = [];
+        if ($sos->isNotEmpty()) {
+            $saleIds = $sos->pluck('sale_id')->filter()->unique();
+            $liveSales = $saleIds->isEmpty() ? collect() : \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
+                ->whereIn('id', $saleIds)->pluck('sale_number', 'id');
+
+            $apptIds = $sos->pluck('appointment_id')->filter()->unique();
+            $liveAppts = $apptIds->isEmpty() ? collect() : \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+                ->whereIn('id', $apptIds)->pluck('ra_number', 'id');
+
+            foreach ($sos as $so) {
+                if ($so->appointment_id) {
+                    $origins[$so->id] = isset($liveAppts[$so->appointment_id])
+                        ? ['state' => 'live', 'label' => $liveAppts[$so->appointment_id]]
+                        : ['state' => 'orphan', 'label' => 'Work order deleted'];
+                } elseif ($so->sale_id) {
+                    $origins[$so->id] = isset($liveSales[$so->sale_id])
+                        ? ['state' => 'live', 'label' => 'Sale ' . $liveSales[$so->sale_id]]
+                        : ['state' => 'orphan', 'label' => 'Sale removed'];
+                } elseif ($so->created_from === 'register') {
+                    // Created before sale linking existed — the link was never
+                    // recorded, so it cannot be reconstructed. Say so plainly.
+                    $origins[$so->id] = ['state' => 'unknown', 'label' => 'Origin not recorded'];
+                } else {
+                    $origins[$so->id] = ['state' => 'manual', 'label' => ucfirst((string) $so->created_from)];
+                }
+
+                if ($so->source_confirmed_at && $origins[$so->id]['state'] !== 'live') {
+                    $origins[$so->id] = ['state' => 'confirmed', 'label' => 'Confirmed still needed'];
+                }
+            }
+        }
+
         return view('tenant.special-orders.index', [
+            'origins'    => $origins, // MARKER-SO-ORIGIN
             'sos'        => $sos,
             'view'       => $view,
             'counts'     => $counts,
@@ -324,6 +360,26 @@ class SpecialOrderController extends Controller
 
         return redirect()->route('tenant.special-orders.show', ['id' => $id])
             ->with('flash', ['type' => 'success', 'message' => 'Special order cancelled.']);
+    }
+
+    /**
+     * MARKER-SO-ORIGIN — "yes, this is still needed" for an order whose
+     * source is gone. Persisted so the queue stops asking.
+     */
+    public function confirmSource(Request $request, string $id): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+        $this->ensureBelongsToTenant($id, $tenant->id);
+
+        TenantSpecialOrder::where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->update([
+                'source_confirmed_at'         => now(),
+                'source_confirmed_by_user_id' => auth('tenant')->id(),
+            ]);
+
+        return response()->json(['ok' => true]);
     }
 
     public function addNote(Request $request, string $id): RedirectResponse

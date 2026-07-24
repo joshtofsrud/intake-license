@@ -67,6 +67,20 @@
   </div>
 @else
 
+{{-- MARKER-SO-ORIGIN --}}
+<style>
+  .so-origin{font-size:10.5px;font-weight:700;border-radius:100px;padding:3px 9px;white-space:nowrap;border:0.5px solid var(--ia-border);color:var(--ia-text-muted)}
+  .so-origin--live{border-color:rgba(143,184,240,.35);color:#8FB8F0;background:rgba(143,184,240,.08)}
+  .so-origin--orphan{border-color:rgba(240,149,149,.35);color:#F09595;background:rgba(240,149,149,.08)}
+  .so-origin--unknown{border-color:rgba(232,163,61,.35);color:#E8A33D;background:rgba(232,163,61,.08)}
+  .so-origin--confirmed{border-color:rgba(127,217,143,.35);color:#7FD98F;background:rgba(127,217,143,.08)}
+  .so-origin-acts{display:flex;gap:5px;margin-top:6px}
+  .so-oa{font-family:inherit;font-size:10.5px;font-weight:700;border-radius:7px;padding:4px 8px;cursor:pointer;border:0.5px solid var(--ia-border);background:transparent;color:var(--ia-text)}
+  .so-oa:hover{border-color:var(--ia-accent)}
+  .so-oa.danger{color:#F09595;border-color:rgba(240,149,149,.35)}
+  .so-oa[disabled]{opacity:.5;cursor:default}
+</style>
+
   {{-- Desktop table --}}
   <div class="ia-card so-desktop-only">
     <table class="ia-table">
@@ -77,6 +91,7 @@
           <th>Qty</th>
           <th>For</th>
           <th>Vendor</th>
+          <th>Origin</th>{{-- MARKER-SO-ORIGIN --}}
           <th>Status</th>
           <th>ETA</th>
         </tr>
@@ -114,6 +129,23 @@
                 {{ $so->vendor->name }}
               @else
                 <span class="ia-text-muted" style="font-size:12px">TBD</span>
+              @endif
+            </td>
+            {{-- MARKER-SO-ORIGIN — where it came from, and whether that source
+                 still exists. Orphans carry their two honest choices inline. --}}
+            @php $og = $origins[$so->id] ?? ['state' => 'manual', 'label' => '—']; @endphp
+            <td onclick="event.stopPropagation()" style="cursor:default">
+              <span class="so-origin so-origin--{{ $og['state'] }}">{{ $og['label'] }}</span>
+              @if($so->created_at)
+                <div class="ia-text-muted" style="font-size:10.5px;margin-top:3px">
+                  {{ (int) $so->created_at->diffInDays(now()) }}d old
+                </div>
+              @endif
+              @if(in_array($og['state'], ['orphan', 'unknown'], true) && $so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
+                <div class="so-origin-acts" data-so="{{ $so->id }}">
+                  <button type="button" class="so-oa" data-so-keep>Still needed</button>
+                  <button type="button" class="so-oa danger" data-so-drop>Cancel</button>
+                </div>
               @endif
             </td>
             <td>
@@ -298,3 +330,46 @@
 @endpush
 
 @endsection
+
+{{-- MARKER-SO-ORIGIN — resolve an orphaned request without leaving the list --}}
+<script>
+(function () {
+  var confirmUrl = @json(route('tenant.special-orders.confirm-source', ['id' => '__ID__']));
+  var cancelUrl  = @json(route('tenant.special-orders.cancel', ['id' => '__ID__']));
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content;
+
+  function post(url, body, wrap, okText) {
+    wrap.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+      body: JSON.stringify(body || {}),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          wrap.innerHTML = '<span class="ia-text-muted" style="font-size:10.5px">' + okText + '</span>';
+          if (window.IntakeToast) IntakeToast.success(okText);
+        } else {
+          wrap.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+          if (window.IntakeToast) IntakeToast.error((j && j.error) || 'Could not save.');
+        }
+      })
+      .catch(function () {
+        wrap.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+        if (window.IntakeToast) IntakeToast.error('Network error.');
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var wrap = e.target.closest('.so-origin-acts');
+    if (!wrap) return;
+    var id = wrap.getAttribute('data-so');
+    if (e.target.hasAttribute('data-so-keep')) {
+      post(confirmUrl.replace('__ID__', id), {}, wrap, 'Confirmed still needed');
+    } else if (e.target.hasAttribute('data-so-drop')) {
+      post(cancelUrl.replace('__ID__', id), { reason: 'Source removed — abandoned request.' }, wrap, 'Cancelled');
+    }
+  });
+})();
+</script>
