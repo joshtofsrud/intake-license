@@ -1,3 +1,3240 @@
+#!/bin/bash
+# special-orders-auto-vendor — vendor assignment becomes automatic and
+# configurable, so the manual picker is the exception rather than the routine.
+#   NEW SETTINGS TAB: Settings -> Ordering -> "Special orders — vendor
+#   assignment", with three rules:
+#     · Preferred vendor (default) — the is_preferred row on the item,
+#       falling back to whoever you ordered from most recently
+#     · Lowest price — cheapest live cost (catalog cost as fallback) among
+#       vendors that carry it, PREFERRING vendors that actually show stock,
+#       because auto-assigning to a vendor with none only makes work. Falls
+#       back to cheapest overall when nobody has stock, and to the preferred
+#       vendor when no cost is known anywhere.
+#     · Don't assign automatically — leave it blank
+#   Verified in isolation: cheapest-with-stock ($116.50) correctly beats
+#   cheapest-overall ($115.00 at zero stock); falls back when nobody stocks it.
+#   vendor_assigned_rule records WHICH rule chose the vendor (or 'manual'),
+#   so an automatic choice is explainable on the row.
+#   ALSO: closes the draft-timing race in the register. Draft saving is
+#   debounced, so a fast "Add to order" click could create the order before
+#   cart.draft_id existed — leaving it with no sale link, the exact orphan
+#   class this feature prevents. The draft is now flushed first, with a
+#   single retry that proceeds unlinked rather than blocking the sale.
+#   Vendor options are always scoped through the item and this tenant's
+#   active vendors (the item-vendor pivot deliberately has no tenant_id).
+# No routes. Server: MIGRATION REQUIRED, then view:clear.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "MARKER-SO-AUTOVENDOR" app/Services/Tenant/SpecialOrderService.php; then
+  echo "special-orders-auto-vendor already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-SO-PLACEMENT" app/Http/Controllers/Tenant/SpecialOrderController.php; then
+  echo "special-orders-placement not applied — wrong base, aborting."; exit 1
+fi
+
+cat > 'database/migrations/2026_07_23_000006_add_vendor_rule_to_tenant_special_orders.php' <<'SOAV_0_EOF'
+<?php
+
+// MARKER-SO-AUTOVENDOR — records WHICH rule chose a vendor, so an automatic
+// assignment is explainable on the row rather than mysterious, and so
+// hand-picked choices are distinguishable from automatic ones.
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('tenant_special_orders', function (Blueprint $t) {
+            // preferred | lowest_price | manual | null (none assigned)
+            $t->string('vendor_assigned_rule', 24)->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tenant_special_orders', function (Blueprint $t) {
+            $t->dropColumn('vendor_assigned_rule');
+        });
+    }
+};
+SOAV_0_EOF
+
+cat > 'app/Models/Tenant/TenantSpecialOrder.php' <<'SOAV_1_EOF'
+<?php
+
+namespace App\Models\Tenant;
+
+use App\Models\Tenant;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/**
+ * Special order — one row per "this many units of this item, going
+ * to this destination."
+ *
+ * STATUS LIFECYCLE:
+ *   needed   → soft request, not yet ordered (booking-flow or staff intent)
+ *   ordered  → committed to a vendor with PO number + expected date
+ *   arrived  → on the receiving bench, waiting to be pulled
+ *   pulled   → consumed at register or appointment completion
+ *   cancelled → killed at any prior state
+ *
+ * PARTIAL RECEIPT MECHANIC:
+ *   When a vendor short-ships, the service layer SPLITS the row: the
+ *   original becomes "arrived" with the received qty, and a new sibling
+ *   is created with parent_id = original.id, status=ordered, qty=the
+ *   remaining. See $this->children() and $this->parent() relationships.
+ *
+ * BATCH GROUPING:
+ *   Rows that were created together (multi-customer batch) share a
+ *   batch_id UUID. See $this->siblings() and the inBatch() scope.
+ */
+class TenantSpecialOrder extends Model
+{
+    use HasUuids, SoftDeletes;
+
+    protected $table = 'tenant_special_orders';
+
+    protected $fillable = [
+        'tenant_id',
+        'so_number',
+        'inventory_item_id',
+        'item_name_snapshot',
+        'quantity',
+        'customer_id',
+        'appointment_id',
+        'sale_id',      // MARKER-SO-SALE-LINK
+        'sale_item_id', // MARKER-SO-SALE-LINK
+        'source_confirmed_at', 'source_confirmed_by_user_id', // MARKER-SO-ORIGIN
+        'vendor_assigned_rule', // MARKER-SO-AUTOVENDOR
+        'vendor_id',
+        'vendor_reference',
+        'po_number',
+        'vendor_invoice_number',
+        'vendor_invoice_date',
+        'status',
+        'created_from',
+        'unit_cost_cents_estimated',
+        'unit_cost_cents_actual',
+        'expected_arrival_date',
+        'ordered_at',
+        'arrived_at',
+        'pulled_at',
+        'cancelled_at',
+        'deposit_cents',
+        'deposit_paid_at',
+        'deposit_payment_ref',
+        'batch_id',
+        'parent_id',
+        'cancellation_reason',
+        'created_by_user_id',
+    ];
+
+    protected $casts = [
+        'quantity'                  => 'integer',
+        'unit_cost_cents_estimated' => 'integer',
+        'unit_cost_cents_actual'    => 'integer',
+        'expected_arrival_date'     => 'date',
+        'vendor_invoice_date'       => 'date',
+        'ordered_at'                => 'datetime',
+        'arrived_at'                => 'datetime',
+        'pulled_at'                 => 'datetime',
+        'cancelled_at'              => 'datetime',
+        'deposit_cents'             => 'integer',
+        'deposit_paid_at'           => 'datetime',
+    ];
+
+    public const STATUS_NEEDED    = 'needed';
+    public const STATUS_ORDERED   = 'ordered';
+    public const STATUS_ARRIVED   = 'arrived';
+    public const STATUS_PULLED    = 'pulled';
+    public const STATUS_CANCELLED = 'cancelled';
+
+    public const STATUSES_OPEN    = [self::STATUS_NEEDED, self::STATUS_ORDERED, self::STATUS_ARRIVED];
+    public const STATUSES_ACTIVE  = [self::STATUS_ORDERED, self::STATUS_ARRIVED];
+    public const STATUSES_CLOSED  = [self::STATUS_PULLED, self::STATUS_CANCELLED];
+
+    // ─── Relationships ──────────────────────────────────────
+
+    public function tenant(): BelongsTo      { return $this->belongsTo(Tenant::class); }
+    public function item(): BelongsTo        { return $this->belongsTo(TenantInventoryItem::class, 'inventory_item_id'); }
+    public function customer(): BelongsTo    { return $this->belongsTo(TenantCustomer::class, 'customer_id'); }
+    public function appointment(): BelongsTo { return $this->belongsTo(TenantAppointment::class, 'appointment_id'); }
+    public function vendor(): BelongsTo      { return $this->belongsTo(TenantVendor::class, 'vendor_id'); }
+    public function createdBy(): BelongsTo   { return $this->belongsTo(TenantUser::class, 'created_by_user_id'); }
+    public function notes(): HasMany         { return $this->hasMany(TenantSpecialOrderNote::class, 'special_order_id')->orderBy('created_at'); }
+
+    /**
+     * Parent SO if this row was spawned by a partial-receipt split.
+     * Null = this is the original (or no split has happened yet).
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /**
+     * Sibling rows from a partial-receipt split. The parent is NOT
+     * included here — only siblings spawned from it.
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    // ─── Scopes ─────────────────────────────────────────────
+
+    /** Status in needed/ordered/arrived — anything not done/cancelled. */
+    public function scopeOpen($q)
+    {
+        return $q->whereIn('status', self::STATUSES_OPEN);
+    }
+
+    /** Status in ordered/arrived — committed and live. */
+    public function scopeActive($q)
+    {
+        return $q->whereIn('status', self::STATUSES_ACTIVE);
+    }
+
+    public function scopeAwaitingArrival($q)
+    {
+        return $q->where('status', self::STATUS_ORDERED);
+    }
+
+    public function scopeArrivedBench($q)
+    {
+        return $q->where('status', self::STATUS_ARRIVED);
+    }
+
+    /**
+     * Ordered + past expected arrival. Used by the dashboard "overdue"
+     * triage tile and the SO list overdue tab.
+     */
+    public function scopeOverdue($q)
+    {
+        return $q->where('status', self::STATUS_ORDERED)
+            ->whereNotNull('expected_arrival_date')
+            ->whereDate('expected_arrival_date', '<', now()->toDateString());
+    }
+
+    /** Soft requests from booking flow. */
+    public function scopeSoftRequests($q)
+    {
+        return $q->where('created_from', 'booking')
+            ->where('status', self::STATUS_NEEDED);
+    }
+
+    public function scopeForCustomer($q, string $customerId)
+    {
+        return $q->where('customer_id', $customerId);
+    }
+
+    public function scopeForAppointment($q, string $appointmentId)
+    {
+        return $q->where('appointment_id', $appointmentId);
+    }
+
+    public function scopeForVendor($q, string $vendorId)
+    {
+        return $q->where('vendor_id', $vendorId);
+    }
+
+    public function scopeInBatch($q, string $batchId)
+    {
+        return $q->where('batch_id', $batchId);
+    }
+
+    // ─── Helpers ────────────────────────────────────────────
+
+    public function isOpen(): bool
+    {
+        return in_array($this->status, self::STATUSES_OPEN, true);
+    }
+
+    public function isClosed(): bool
+    {
+        return in_array($this->status, self::STATUSES_CLOSED, true);
+    }
+
+    public function isPartial(): bool
+    {
+        // True if this row is itself a partial-split child, OR if any
+        // children exist spawned from this row.
+        return $this->parent_id !== null || $this->children()->exists();
+    }
+
+    /**
+     * All rows in the same batch. Includes the current row.
+     * Returns a Builder (not a Relation) — call ->get() to materialize.
+     */
+    public function batchSiblings()
+    {
+        if ($this->batch_id === null) {
+            // Single-row "batch" — return a query that yields just this row.
+            return self::query()->where('id', $this->id);
+        }
+        return self::query()->where('batch_id', $this->batch_id);
+    }
+
+    /**
+     * Outstanding deposit balance in cents. Estimated total minus
+     * deposit already collected. Returns 0 if no estimate set.
+     */
+    public function depositOutstandingCents(): int
+    {
+        if ($this->unit_cost_cents_estimated === null) {
+            return 0;
+        }
+        $estimatedTotal = $this->unit_cost_cents_estimated * $this->quantity;
+        return max(0, $estimatedTotal - (int) $this->deposit_cents);
+    }
+}
+SOAV_1_EOF
+
+cat > 'app/Services/Tenant/SpecialOrderService.php' <<'SOAV_2_EOF'
+<?php
+
+namespace App\Services\Tenant;
+
+use App\Models\Tenant\TenantInventoryItem;
+use App\Models\Tenant\TenantInventoryItemVendor;
+use App\Models\Tenant\TenantSpecialOrder;
+use App\Models\Tenant\TenantSpecialOrderCounter;
+use App\Models\Tenant\TenantSpecialOrderNote;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+/**
+ * SpecialOrderService — business logic for the SO lifecycle.
+ *
+ * STATE MACHINE:
+ *
+ *     needed  ─┐
+ *              ├──► ordered ──► arrived ──► pulled
+ *     needed  ─┘
+ *
+ *     any open state ──► cancelled
+ *
+ * Notes:
+ *   - 'needed' can transition directly to 'ordered' (vendor confirmed)
+ *     or to 'cancelled' (request killed before any vendor commitment).
+ *   - 'pulled' is terminal. Cannot un-pull.
+ *   - 'cancelled' is terminal. Use create() to start fresh if you
+ *     want to re-order something that was cancelled.
+ *
+ * PARTIAL RECEIPT MECHANIC:
+ *   When markArrived() is called with $receivedQty < quantity, the
+ *   service splits the row:
+ *     - Original row → status=arrived, quantity=$receivedQty, sets arrived_at
+ *     - New sibling row → parent_id=original.id, status=ordered,
+ *       quantity=remaining, expected_arrival_date preserved, same
+ *       vendor/customer/appointment/etc. New so_number issued.
+ *
+ *   The original audit history (notes, ordered_at, ordered_at, etc.) stays
+ *   with the original row. The sibling has its own short history starting
+ *   from its creation.
+ *
+ * VENDOR LEAD-TIME LEARNING:
+ *   When an SO transitions to 'arrived', the pivot row for (item, vendor)
+ *   gets last_ordered_at updated. The lead_time_days field on the pivot
+ *   is computed on-demand by averaging actual ordered-to-arrived days
+ *   for that pair — we don't try to maintain a running average. Cheap
+ *   enough at read time; reconsider if a tenant ever has 10k+ SOs per
+ *   vendor.
+ */
+class SpecialOrderService
+{
+    // ────────────────────────────────────────────────────────
+    //  SO numbering (per-tenant counter)
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Atomically increment the per-tenant counter and return the next
+     * SO number formatted as "SO-{n}" (zero-padded to 4 digits).
+     *
+     * Wraps in a DB transaction + lockForUpdate so concurrent SO
+     * creations from two staff members can't collide.
+     */
+    public function nextSpecialOrderNumber(string $tenantId): string
+    {
+        return DB::transaction(function () use ($tenantId) {
+            $counter = TenantSpecialOrderCounter::where('tenant_id', $tenantId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$counter) {
+                $counter = TenantSpecialOrderCounter::create([
+                    'tenant_id'   => $tenantId,
+                    'next_number' => 1,
+                ]);
+            }
+
+            $n = $counter->next_number;
+            $counter->next_number = $n + 1;
+            $counter->save();
+
+            return 'SO-' . str_pad((string) $n, 4, '0', STR_PAD_LEFT);
+        });
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Creation
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Create a new SO row. Validates required fields per the chosen
+     * initial status, assigns a SO number, snapshots the item name,
+     * and writes a "Created" system note.
+     *
+     * Expected $data keys:
+     *   tenant_id            (required)
+     *   inventory_item_id    (nullable - "not yet catalogued")
+     *   item_name_snapshot   (required - free text fallback when no item)
+     *   quantity             (required, > 0)
+     *   customer_id          (nullable)
+     *   appointment_id       (nullable)
+     *   vendor_id            (required if status='ordered'; nullable if 'needed')
+     *   po_number            (nullable - usually set at markOrdered)
+     *   vendor_reference     (nullable)
+     *   status               (default 'needed')
+     *   created_from         (default 'manual')
+     *   unit_cost_cents_estimated (nullable)
+     *   expected_arrival_date (nullable)
+     *   deposit_cents        (nullable, default 0)
+     *   deposit_paid_at      (nullable)
+     *   deposit_payment_ref  (nullable)
+     *   batch_id             (nullable)
+     *   parent_id            (nullable - set by splitForPartialReceipt only)
+     *   created_by_user_id   (nullable)
+     *   notes                (nullable - first user note to seed the thread)
+     */
+    public function create(array $data): TenantSpecialOrder
+    {
+        // MARKER-SO-AUTOVENDOR — resolve the vendor once, up front, so the
+        // rule that chose it can be recorded alongside it.
+        $auto = empty($data['vendor_id'])
+            ? self::autoAssignVendor($data['tenant_id'], $data['inventory_item_id'] ?? null)
+            : ['vendor_id' => null, 'rule' => null];
+
+        if (empty($data['tenant_id'])) {
+            throw new SpecialOrderValidationException('tenant_id is required.');
+        }
+        if (empty($data['item_name_snapshot'])) {
+            throw new SpecialOrderValidationException('item_name_snapshot is required.');
+        }
+        if (!isset($data['quantity']) || (int) $data['quantity'] < 1) {
+            throw new SpecialOrderValidationException('quantity must be at least 1.');
+        }
+
+        $status = $data['status'] ?? TenantSpecialOrder::STATUS_NEEDED;
+        if (!in_array($status, [
+            TenantSpecialOrder::STATUS_NEEDED,
+            TenantSpecialOrder::STATUS_ORDERED,
+        ], true)) {
+            throw new SpecialOrderValidationException(
+                "Initial status must be 'needed' or 'ordered', got '{$status}'."
+            );
+        }
+
+        // If creating directly as 'ordered', vendor + ETA + PO are
+        // expected. Soft-create with status=needed if those are missing
+        // and let the caller transition explicitly via markOrdered().
+        if ($status === TenantSpecialOrder::STATUS_ORDERED) {
+            if (empty($data['vendor_id'])) {
+                throw new SpecialOrderValidationException(
+                    "Cannot create with status='ordered' without a vendor_id."
+                );
+            }
+        }
+
+        return DB::transaction(function () use ($data, $status) {
+            $soNumber = $this->nextSpecialOrderNumber($data['tenant_id']);
+
+            $so = TenantSpecialOrder::create([
+                'tenant_id'                 => $data['tenant_id'],
+                'so_number'                 => $soNumber,
+                'inventory_item_id'         => $data['inventory_item_id'] ?? null,
+                'item_name_snapshot'        => $data['item_name_snapshot'],
+                'quantity'                  => (int) $data['quantity'],
+                'customer_id'               => $data['customer_id'] ?? null,
+                'appointment_id'            => $data['appointment_id'] ?? null,
+                'sale_id'                   => $data['sale_id'] ?? null,      // MARKER-SO-SALE-LINK
+                'sale_item_id'              => $data['sale_item_id'] ?? null, // MARKER-SO-SALE-LINK
+                // MARKER-SO-AUTOVENDOR — an order with no vendor cannot be
+                // grouped or placed, so one is chosen automatically by the
+                // tenant's rule unless the caller named one.
+                'vendor_id'                 => $data['vendor_id'] ?? ($auto['vendor_id'] ?? null),
+                'vendor_assigned_rule'      => $data['vendor_id'] ? 'manual' : ($auto['rule'] ?? null),
+                'po_number'                 => $data['po_number'] ?? null,
+                'vendor_reference'          => $data['vendor_reference'] ?? null,
+                'status'                    => $status,
+                'created_from'              => $data['created_from'] ?? 'manual',
+                'unit_cost_cents_estimated' => $data['unit_cost_cents_estimated'] ?? null,
+                'expected_arrival_date'     => $data['expected_arrival_date'] ?? null,
+                'ordered_at'                => $status === TenantSpecialOrder::STATUS_ORDERED ? now() : null,
+                'deposit_cents'             => $data['deposit_cents'] ?? 0,
+                'deposit_paid_at'           => $data['deposit_paid_at'] ?? null,
+                'deposit_payment_ref'       => $data['deposit_payment_ref'] ?? null,
+                'batch_id'                  => $data['batch_id'] ?? null,
+                'parent_id'                 => $data['parent_id'] ?? null,
+                'created_by_user_id'        => $data['created_by_user_id'] ?? null,
+            ]);
+
+            // System note recording creation. Includes the creation context
+            // so audit history is honest about where this came from.
+            $createdFromHuman = match ($so->created_from) {
+                'register'    => 'register sale',
+                'appointment' => 'work order',
+                'item'        => 'item detail page',
+                'booking'     => 'customer booking flow',
+                default       => 'manual entry',
+            };
+            $this->writeSystemNote($so, "Created from {$createdFromHuman}.");
+
+            // If the caller provided a seed note, persist it as a user note.
+            if (!empty($data['notes'])) {
+                $this->addNote($so->id, $data['created_by_user_id'] ?? null, $data['notes']);
+            }
+
+            return $so->fresh();
+        });
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  MARKER-PATCH-419 — appointment-part bridge
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Reconcile the special order for a single work-order part line to match
+     * its is_special_order checkbox. Inventory-linked parts only — custom
+     * one-off charges are never ordered. Retracts only while the SO is still
+     * a soft 'needed' request; an already-ordered PO is left alone.
+     */
+    public function syncForAppointmentPart(\App\Models\Tenant\TenantAppointmentPart $part, ?string $userId = null): void
+    {
+        // Custom items (no inventory link) can't be special-ordered.
+        if (empty($part->inventory_item_id)) {
+            if ($part->special_order_id) {
+                $part->forceFill(['special_order_id' => null])->saveQuietly();
+            }
+            return;
+        }
+
+        $part->loadMissing('appointment', 'inventoryItem');
+        $appt = $part->appointment;
+        if (!$appt) {
+            return;
+        }
+
+        $linked = $part->special_order_id
+            ? TenantSpecialOrder::find($part->special_order_id)
+            : null;
+        $liveStatuses = [
+            TenantSpecialOrder::STATUS_NEEDED,
+            TenantSpecialOrder::STATUS_ORDERED,
+            TenantSpecialOrder::STATUS_ARRIVED,
+        ];
+        $linkedIsLive = $linked && in_array($linked->status, $liveStatuses, true);
+
+        if ($part->is_special_order) {
+            if ($linkedIsLive) {
+                // Keep qty aligned while it's still a soft request.
+                if ($linked->status === TenantSpecialOrder::STATUS_NEEDED
+                    && (int) $linked->quantity !== (int) $part->quantity) {
+                    $linked->update(['quantity' => (int) $part->quantity]);
+                }
+                return;
+            }
+
+            $so = $this->create([
+                'tenant_id'                 => $appt->tenant_id,
+                'item_name_snapshot'        => $part->item_name_snapshot,
+                'quantity'                  => (int) $part->quantity,
+                'inventory_item_id'         => $part->inventory_item_id,
+                'customer_id'               => $appt->customer_id,
+                'appointment_id'            => $appt->id,
+                'vendor_id'                 => $part->inventoryItem?->default_vendor_id,
+                'status'                    => TenantSpecialOrder::STATUS_NEEDED,
+                'created_from'              => 'appointment',
+                'created_by_user_id'        => $userId,
+                'unit_cost_cents_estimated' => $part->cost_cents_at_time,
+            ]);
+            $part->forceFill(['special_order_id' => $so->id])->saveQuietly();
+            return;
+        }
+
+        // Unchecked.
+        if ($linked && $linked->status === TenantSpecialOrder::STATUS_NEEDED) {
+            // Still just a request — safe to retract.
+            $this->cancel($linked->id, 'Removed from work order (part special-order unchecked).');
+            $part->forceFill(['special_order_id' => null])->saveQuietly();
+        } elseif ($linkedIsLive) {
+            // Already ordered/arrived — can't un-order from a checkbox; re-check it.
+            $part->forceFill(['is_special_order' => true])->saveQuietly();
+        } else {
+            $part->forceFill(['special_order_id' => null])->saveQuietly();
+        }
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Transitions
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * needed → ordered. Requires vendor_id, po_number, and an
+     * expected_arrival_date. Estimated cost optional but recommended.
+     *
+     * $data keys consumed:
+     *   vendor_id (required)
+     *   po_number (required)
+     *   vendor_reference (optional - their PO ack number)
+     *   expected_arrival_date (required, date string)
+     *   unit_cost_cents_estimated (optional)
+     */
+    public function markOrdered(string $id, array $data): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id, $data) {
+            $so = $this->findOrFail($id);
+            $this->validateTransition($so, TenantSpecialOrder::STATUS_ORDERED);
+
+            if (empty($data['vendor_id'])) {
+                throw new SpecialOrderValidationException(
+                    'vendor_id is required to mark an SO ordered.'
+                );
+            }
+            if (empty($data['po_number'])) {
+                throw new SpecialOrderValidationException(
+                    'po_number is required to mark an SO ordered.'
+                );
+            }
+            if (empty($data['expected_arrival_date'])) {
+                throw new SpecialOrderValidationException(
+                    'expected_arrival_date is required to mark an SO ordered.'
+                );
+            }
+
+            $so->update([
+                'status'                    => TenantSpecialOrder::STATUS_ORDERED,
+                'vendor_id'                 => $data['vendor_id'],
+                'po_number'                 => $data['po_number'],
+                'vendor_reference'          => $data['vendor_reference'] ?? $so->vendor_reference,
+                'expected_arrival_date'     => $data['expected_arrival_date'],
+                'unit_cost_cents_estimated' => $data['unit_cost_cents_estimated'] ?? $so->unit_cost_cents_estimated,
+                'ordered_at'                => now(),
+            ]);
+
+            $this->writeSystemNote(
+                $so->fresh(),
+                "Marked ordered. PO {$data['po_number']} · ETA {$data['expected_arrival_date']}."
+            );
+
+            return $so->fresh();
+        });
+    }
+
+    /**
+     * ordered → arrived. Supports partial receipt: when $receivedQty
+     * is provided and less than $so->quantity, the row is split via
+     * splitForPartialReceipt() before marking arrived.
+     *
+     * Also writes the vendor invoice fields if provided, and updates
+     * the item↔vendor pivot's last_ordered_at.
+     *
+     * @param int|null $receivedQty       null = full receipt
+     * @param int|null $actualUnitCostCents null = use estimated
+     * @param string|null $vendorInvoiceNumber  optional, set at receiving
+     * @param string|null $vendorInvoiceDate    optional, date string
+     */
+    public function markArrived(
+        string $id,
+        ?int $receivedQty = null,
+        ?int $actualUnitCostCents = null,
+        ?string $vendorInvoiceNumber = null,
+        ?string $vendorInvoiceDate = null
+    ): TenantSpecialOrder {
+        $result = DB::transaction(function () use ($id, $receivedQty, $actualUnitCostCents, $vendorInvoiceNumber, $vendorInvoiceDate) {
+            $so = $this->findOrFail($id);
+            $this->validateTransition($so, TenantSpecialOrder::STATUS_ARRIVED);
+
+            $totalQty = (int) $so->quantity;
+            $received = $receivedQty ?? $totalQty;
+
+            if ($received < 1) {
+                throw new SpecialOrderValidationException(
+                    'Received quantity must be at least 1 (cancel the SO instead).'
+                );
+            }
+            if ($received > $totalQty) {
+                throw new SpecialOrderValidationException(
+                    "Received quantity ({$received}) cannot exceed ordered quantity ({$totalQty})."
+                );
+            }
+
+            // Partial receipt: split the row before marking arrived.
+            if ($received < $totalQty) {
+                $this->splitForPartialReceipt($so, $received);
+                // After split, $so has quantity=$received. Refresh.
+                $so = $so->fresh();
+            }
+
+            $so->update([
+                'status'                 => TenantSpecialOrder::STATUS_ARRIVED,
+                'arrived_at'             => now(),
+                'unit_cost_cents_actual' => $actualUnitCostCents ?? $so->unit_cost_cents_actual,
+                'vendor_invoice_number'  => $vendorInvoiceNumber ?? $so->vendor_invoice_number,
+                'vendor_invoice_date'    => $vendorInvoiceDate ?? $so->vendor_invoice_date,
+            ]);
+
+            // Vendor pivot housekeeping — update last_ordered_at for
+            // the (item, vendor) pair so future "preferred vendor" reads
+            // can recompute lead time fresh.
+            $this->updateVendorLeadTime($so->fresh());
+
+            $partialNote = $received < $totalQty
+                ? " (partial: {$received} of {$totalQty})"
+                : '';
+            $this->writeSystemNote($so->fresh(), "Marked arrived{$partialNote}.");
+
+            return $so->fresh();
+        });
+
+        // patch-93 dispatch SpecialOrderArrived — fires AFTER the DB
+        // transaction commits, so listeners can assume durable state.
+        event(new \App\Events\SpecialOrders\SpecialOrderArrived($result));
+
+        return $result;
+    }
+
+    /**
+     * arrived → pulled. Called when the line is rung up at register
+     * or when an appointment containing the SO is completed.
+     */
+    public function markPulled(string $id): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id) {
+            $so = $this->findOrFail($id);
+            $this->validateTransition($so, TenantSpecialOrder::STATUS_PULLED);
+
+            $so->update([
+                'status'    => TenantSpecialOrder::STATUS_PULLED,
+                'pulled_at' => now(),
+            ]);
+
+            $this->writeSystemNote($so->fresh(), 'Marked pulled.');
+
+            return $so->fresh();
+        });
+    }
+
+    /**
+     * Any non-terminal status → cancelled. Records the reason if given.
+     * Does NOT refund deposits — that's a controller-layer Stripe call;
+     * the service just records that the SO is no longer active.
+     */
+    public function cancel(string $id, ?string $reason = null): TenantSpecialOrder
+    {
+        return DB::transaction(function () use ($id, $reason) {
+            $so = $this->findOrFail($id);
+            $this->validateTransition($so, TenantSpecialOrder::STATUS_CANCELLED);
+
+            $so->update([
+                'status'              => TenantSpecialOrder::STATUS_CANCELLED,
+                'cancelled_at'        => now(),
+                'cancellation_reason' => $reason,
+            ]);
+
+            $noteBody = $reason ? "Cancelled: {$reason}" : 'Cancelled.';
+            $this->writeSystemNote($so->fresh(), $noteBody);
+
+            return $so->fresh();
+        });
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Partial-receipt row split
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Split an ordered SO into two rows because the vendor short-shipped:
+     *   - The current row's quantity is reduced to $receivedQty
+     *     (caller will then mark it arrived)
+     *   - A new sibling row is created with parent_id pointing at the
+     *     current row, quantity = remaining, status=ordered
+     *
+     * The new sibling preserves vendor, customer, appointment, batch,
+     * expected_arrival_date, and estimated cost. Its created_from is
+     * carried over too. The deposit, however, stays with the parent
+     * row — splits don't redistribute money already collected.
+     *
+     * Returns the new sibling. The parent (current) row mutation
+     * happens in place; caller should refresh it.
+     */
+    public function splitForPartialReceipt(TenantSpecialOrder $so, int $receivedQty): TenantSpecialOrder
+    {
+        $totalQty = (int) $so->quantity;
+        $remaining = $totalQty - $receivedQty;
+
+        if ($receivedQty < 1 || $receivedQty >= $totalQty) {
+            throw new SpecialOrderValidationException(
+                "Split requires 1 <= receivedQty < quantity (got {$receivedQty} of {$totalQty})."
+            );
+        }
+        if ($so->status !== TenantSpecialOrder::STATUS_ORDERED) {
+            throw new SpecialOrderValidationException(
+                "Only 'ordered' rows can be partial-receipt split (got status='{$so->status}')."
+            );
+        }
+
+        return DB::transaction(function () use ($so, $receivedQty, $remaining) {
+            // Reduce the parent's quantity in place.
+            $so->update(['quantity' => $receivedQty]);
+
+            // Spawn the remainder as a new sibling, parent_id pointing back.
+            $remainderNumber = $this->nextSpecialOrderNumber($so->tenant_id);
+
+            $remainderRow = TenantSpecialOrder::create([
+                'tenant_id'                 => $so->tenant_id,
+                'so_number'                 => $remainderNumber,
+                'inventory_item_id'         => $so->inventory_item_id,
+                'item_name_snapshot'        => $so->item_name_snapshot,
+                'quantity'                  => $remaining,
+                'customer_id'               => $so->customer_id,
+                'appointment_id'            => $so->appointment_id,
+                'vendor_id'                 => $so->vendor_id,
+                'po_number'                 => $so->po_number,
+                'vendor_reference'          => $so->vendor_reference,
+                'status'                    => TenantSpecialOrder::STATUS_ORDERED,
+                'created_from'              => $so->created_from,
+                'unit_cost_cents_estimated' => $so->unit_cost_cents_estimated,
+                'expected_arrival_date'     => $so->expected_arrival_date,
+                'ordered_at'                => $so->ordered_at,
+                'batch_id'                  => $so->batch_id,
+                'parent_id'                 => $so->id,
+                'created_by_user_id'        => $so->created_by_user_id,
+            ]);
+
+            $this->writeSystemNote(
+                $so->fresh(),
+                "Partial receipt — split into {$so->so_number} (received {$receivedQty}) "
+                . "and {$remainderNumber} (remaining {$remaining})."
+            );
+            $this->writeSystemNote(
+                $remainderRow,
+                "Spawned from {$so->so_number} after partial receipt. {$remaining} units remain on order."
+            );
+
+            return $remainderRow;
+        });
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Notes
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Append a note to an SO's notes thread. User notes have a
+     * tenant_user_id and is_system=false. System notes pass userId=null
+     * (or whatever the system "user" is) and isSystem=true.
+     */
+    public function addNote(
+        string $specialOrderId,
+        ?string $userId,
+        string $body,
+        bool $isSystem = false
+    ): TenantSpecialOrderNote {
+        if (trim($body) === '') {
+            throw new SpecialOrderValidationException('Note body cannot be empty.');
+        }
+
+        return TenantSpecialOrderNote::create([
+            'special_order_id' => $specialOrderId,
+            'tenant_user_id'   => $isSystem ? null : $userId,
+            'is_system'        => $isSystem,
+            'body'             => $body,
+        ]);
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Internal helpers
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * Transition rules in one place. Throws on illegal.
+     */
+    protected function validateTransition(TenantSpecialOrder $so, string $newStatus): void
+    {
+        $from = $so->status;
+        $allowed = match ($newStatus) {
+            TenantSpecialOrder::STATUS_ORDERED   => [TenantSpecialOrder::STATUS_NEEDED],
+            TenantSpecialOrder::STATUS_ARRIVED   => [TenantSpecialOrder::STATUS_ORDERED],
+            TenantSpecialOrder::STATUS_PULLED    => [TenantSpecialOrder::STATUS_ARRIVED],
+            TenantSpecialOrder::STATUS_CANCELLED => TenantSpecialOrder::STATUSES_OPEN,
+            default => [],
+        };
+
+        if (!in_array($from, $allowed, true)) {
+            throw new SpecialOrderValidationException(
+                "Cannot transition from '{$from}' to '{$newStatus}' on SO {$so->so_number}."
+            );
+        }
+    }
+
+    /**
+     * Find an SO by id or throw. Subclassed in tests to scope by
+     * tenant; here we just bare findOrFail since controllers will
+     * scope before calling.
+     */
+    protected function findOrFail(string $id): TenantSpecialOrder
+    {
+        return TenantSpecialOrder::findOrFail($id);
+    }
+
+    protected function writeSystemNote(TenantSpecialOrder $so, string $body): void
+    {
+        $this->addNote($so->id, null, $body, true);
+    }
+
+    /**
+     * After an SO arrives, touch the (item, vendor) pivot row's
+     * last_ordered_at. Doesn't recompute lead_time_days — that's
+     * a read-side concern, computed on demand from the SO history.
+     *
+     * Silent no-op if the SO has no item or no vendor, or no pivot
+     * row exists for the pair yet. (The pivot row may legitimately
+     * not exist for the first SO from a new vendor — caller can
+     * create it explicitly via the item.vendors() relationship.)
+     */
+    protected function updateVendorLeadTime(TenantSpecialOrder $so): void
+    {
+        if (!$so->inventory_item_id || !$so->vendor_id) {
+            return;
+        }
+
+        try {
+            $pivot = TenantInventoryItemVendor::where('inventory_item_id', $so->inventory_item_id)
+                ->where('vendor_id', $so->vendor_id)
+                ->first();
+
+            if ($pivot) {
+                $pivot->update(['last_ordered_at' => now()]);
+            }
+        } catch (\Throwable $e) {
+            // Never let pivot housekeeping fail the arrival transition.
+            // Log and continue.
+            Log::warning('SpecialOrderService::updateVendorLeadTime failed', [
+                'so_id'     => $so->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * MARKER-SO-SALE-LINK — the vendor this tenant would normally buy this
+     * item from: the preferred row in the item-vendor catalog, else the most
+     * recently ordered, else none.
+     */
+    public static function preferredVendorId(string $tenantId, ?string $inventoryItemId): ?string
+    {
+        if (! $inventoryItemId) {
+            return null;
+        }
+
+        // The item-vendor pivot deliberately carries no tenant_id (see its
+        // migration), so scope through the item and confirm the vendor is
+        // this tenant's before returning it.
+        $ownsItem = \App\Models\Tenant\TenantInventoryItem::where('id', $inventoryItemId)
+            ->where('tenant_id', $tenantId)
+            ->exists();
+        if (! $ownsItem) {
+            return null;
+        }
+
+        $vendorId = \App\Models\Tenant\TenantInventoryItemVendor::query()
+            ->where('inventory_item_id', $inventoryItemId)
+            ->orderByDesc('is_preferred')
+            ->orderByDesc('last_ordered_at')
+            ->value('vendor_id');
+
+        if (! $vendorId) {
+            return null;
+        }
+
+        return \App\Models\Tenant\TenantVendor::where('id', $vendorId)
+            ->where('tenant_id', $tenantId)
+            ->exists() ? $vendorId : null;
+    }
+
+    /**
+     * MARKER-SO-AUTOVENDOR — choose a vendor by the tenant's rule.
+     *
+     *   off           — leave it blank
+     *   preferred     — the is_preferred row, else most recently ordered
+     *   lowest_price  — cheapest live cost (falling back to catalog cost),
+     *                   PREFERRING vendors that actually show stock, because
+     *                   auto-assigning to a vendor with none just makes work.
+     *                   Falls back to cheapest overall when nobody has stock.
+     *
+     * @return array{vendor_id: ?string, rule: ?string}
+     */
+    public static function autoAssignVendor(string $tenantId, ?string $inventoryItemId): array
+    {
+        $none = ['vendor_id' => null, 'rule' => null];
+
+        if (! $inventoryItemId) {
+            return $none;
+        }
+
+        $tenant = \App\Models\Tenant::find($tenantId);
+        $rule = (string) (($tenant->settings['special_orders']['auto_assign_vendor'] ?? 'preferred'));
+        if ($rule === 'off') {
+            return $none;
+        }
+
+        // The item-vendor pivot deliberately carries no tenant_id, so scope
+        // through the item and keep only this tenant's active vendors.
+        $ownsItem = \App\Models\Tenant\TenantInventoryItem::where('id', $inventoryItemId)
+            ->where('tenant_id', $tenantId)->exists();
+        if (! $ownsItem) {
+            return $none;
+        }
+
+        $vendorIds = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)
+            ->where('is_active', true)->pluck('id');
+        if ($vendorIds->isEmpty()) {
+            return $none;
+        }
+
+        $rows = \App\Models\Tenant\TenantInventoryItemVendor::where('inventory_item_id', $inventoryItemId)
+            ->whereIn('vendor_id', $vendorIds)
+            ->get();
+        if ($rows->isEmpty()) {
+            return $none;
+        }
+
+        if ($rule === 'lowest_price') {
+            $priced = $rows->filter(fn ($r) => ($r->live_cost_cents ?? $r->unit_cost_cents) !== null);
+            if ($priced->isEmpty()) {
+                // No cost known anywhere — fall through to preferred instead
+                // of picking arbitrarily.
+                $rule = 'preferred';
+            } else {
+                $inStock = $priced->filter(fn ($r) => (int) ($r->live_avail ?? 0) > 0);
+                $pool    = $inStock->isNotEmpty() ? $inStock : $priced;
+                $pick    = $pool->sortBy(fn ($r) => $r->live_cost_cents ?? $r->unit_cost_cents)->first();
+
+                return ['vendor_id' => $pick->vendor_id, 'rule' => 'lowest_price'];
+            }
+        }
+
+        $pick = $rows->sortByDesc(fn ($r) => [(int) $r->is_preferred, optional($r->last_ordered_at)->timestamp ?? 0])->first();
+
+        return $pick ? ['vendor_id' => $pick->vendor_id, 'rule' => 'preferred'] : $none;
+    }
+}
+SOAV_2_EOF
+
+cat > 'app/Http/Controllers/Tenant/SettingsController.php' <<'SOAV_3_EOF'
+<?php
+
+namespace App\Http\Controllers\Tenant;
+
+use App\Http\Controllers\Controller;
+use App\Services\Sms\SmsService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+/**
+ * Unified settings controller. Absorbs the previous BrandingController so the
+ * settings page is a single tabbed view. The `tab` request input discriminates
+ * which group of fields to validate and persist.
+ *
+ * Tabs:
+ *  - business      currency, timezone, booking, tax, drop-off methods (CRUD via ReceivingMethodController)
+ *  - branding      shop name, tagline, logos, colors, typography
+ *  - communication email sender details, SMS provider config, notification toggles
+ *  - account       custom domain (booking URL is read-only)
+ *  - appearance    admin theme
+ *  - payments      Stripe + PayPal API keys
+ */
+class SettingsController extends Controller
+{
+    public function index()
+    {
+        $tenant = tenant();
+        $receivingMethods = \App\Models\Tenant\TenantReceivingMethod::where('tenant_id', $tenant->id)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $paymentMethods = \App\Models\Tenant\TenantPaymentMethod::bootstrapFor($tenant); // MARKER-PATCH-629
+        return view('tenant.settings.index', compact('receivingMethods', 'paymentMethods'));
+    }
+
+    public function update(Request $request)
+    {
+        $tenant = tenant();
+        $tab    = $request->input('tab', 'business');
+
+        return match ($tab) {
+            'business'      => $this->updateBusiness($request, $tenant),
+            'branding'      => $this->updateBranding($request, $tenant),
+            'communication' => $this->updateCommunication($request, $tenant),
+            'account'       => $this->updateAccount($request, $tenant),
+            'appearance'    => $this->updateAppearance($request, $tenant),
+            'payments'      => $this->updatePayments($request, $tenant),
+            'tags'          => $this->updateTags($request, $tenant), // MARKER-PATCH-315
+            'ordering'      => $this->updateOrdering($request, $tenant), // MARKER-SO-AUTOVENDOR
+            default         => back()->with('error', 'Unknown tab.'),
+        };
+    }
+
+    // -------------------------------------------------------------------
+    // MARKER-SO-AUTOVENDOR — how special orders choose a vendor.
+    // -------------------------------------------------------------------
+    private function updateOrdering(Request $request, $tenant)
+    {
+        $request->validate([
+            'so_auto_assign_vendor' => ['required', 'in:preferred,lowest_price,off'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $so = (array) ($settings['special_orders'] ?? []);
+        $so['auto_assign_vendor'] = $request->input('so_auto_assign_vendor');
+        $settings['special_orders'] = $so;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Ordering settings saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // MARKER-PATCH-315 — Work-order tag settings (toggles, lead time,
+    // paper width, thermal logo). Stored in the tenant settings JSON.
+    // -------------------------------------------------------------------
+    private function updateTags(Request $request, $tenant)
+    {
+        $request->validate([
+            'wot_lead_days' => ['nullable', 'integer', 'min:0', 'max:30'],
+            'wot_paper'     => ['nullable', 'in:80mm,58mm'],
+            'wot_header_text' => ['nullable', 'string', 'max:500'], // MARKER-PATCH-330
+            'wot_footer_text' => ['nullable', 'string', 'max:500'], // MARKER-PATCH-330
+            'wot_logo'      => ['nullable', 'image', 'max:2048'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $wot = (array) ($settings['work_order_tag'] ?? []);
+
+        $wot['enabled']       = (bool) $request->input('wot_enabled');
+        $wot['show_header']   = (bool) $request->input('wot_show_header');
+        $wot['show_phone']    = (bool) $request->input('wot_show_phone');
+        $wot['show_bike']     = (bool) $request->input('wot_show_bike');
+        $wot['show_services'] = (bool) $request->input('wot_show_services');
+        $wot['show_note']     = (bool) $request->input('wot_show_note');
+        $wot['show_qr']       = (bool) $request->input('wot_show_qr');
+        $wot['show_stub']     = (bool) $request->input('wot_show_stub');
+        $wot['lead_days']     = $request->filled('wot_lead_days') ? (int) $request->input('wot_lead_days') : 3;
+        $wot['paper']         = $request->input('wot_paper', '80mm');
+        $wot['logo_size']     = in_array($request->input('wot_logo_size'), ['small', 'medium', 'large', 'xl'], true) ? $request->input('wot_logo_size') : 'medium'; // MARKER-PATCH-317
+        $wot['feed_mm']       = max(0, min(40, (int) $request->input('wot_feed_mm', 0))); // MARKER-PATCH-320
+        $wot['header_text']   = trim((string) $request->input('wot_header_text', '')); // MARKER-PATCH-330
+        $wot['footer_text']   = trim((string) $request->input('wot_footer_text', '')); // MARKER-PATCH-330
+
+        if ($request->hasFile('wot_logo')) {
+            $wot['logo_path'] = $request->file('wot_logo')->store("tenants/{$tenant->id}/work-order-tag", 'public');
+        } elseif ($request->input('wot_logo_remove') === '1') {
+            $wot['logo_path'] = null;
+        }
+
+        $settings['work_order_tag'] = $wot;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Work-order tag settings saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // Business: currency, timezone, booking window, classes, tax
+    // -------------------------------------------------------------------
+    private function updateBusiness(Request $request, $tenant)
+    {
+        $request->validate([
+            'currency'             => ['required', 'string', 'size:3'],
+            'currency_symbol'      => ['required', 'string', 'max:5'],
+            'timezone'             => ['required', 'string', 'max:64'],
+            'booking_window_days'  => ['required', 'integer', 'min:1', 'max:365'],
+            'min_notice_hours'     => ['required', 'integer', 'min:0', 'max:168'],
+            'classes_enabled'      => ['nullable', 'boolean'],
+            'deliveries_enabled'   => ['nullable', 'boolean'], // MARKER-PATCH-156
+            'multi_asset_enabled'  => ['nullable', 'boolean'], // MARKER-PATCH-158-B
+            'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_singular' => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'asset_label_plural'   => ['nullable', 'string', 'max:30'], // MARKER-PATCH-215
+            'default_tax_rate'     => ['nullable', 'numeric', 'min:0', 'max:25'],
+            'tax_services_default' => ['nullable', 'boolean'],
+            'tax_supports_exempt'  => ['nullable', 'boolean'],
+        ]);
+
+        $tenant->update([
+            'currency'             => $request->input('currency'),
+            'currency_symbol'      => $request->input('currency_symbol'),
+            'timezone'             => $request->input('timezone'),
+            'booking_window_days'  => (int) $request->input('booking_window_days'),
+            'min_notice_hours'     => (int) $request->input('min_notice_hours'),
+            'classes_enabled'      => (bool) $request->input('classes_enabled'),
+            'deliveries_enabled'   => (bool) $request->input('deliveries_enabled'), // MARKER-PATCH-156
+            'multi_asset_enabled'  => (bool) $request->input('multi_asset_enabled'), // MARKER-PATCH-158-B
+            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
+            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
+            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
+            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
+            'asset_label_singular' => $request->filled('asset_label_singular') ? trim($request->input('asset_label_singular')) : 'item',  // MARKER-PATCH-215
+            'asset_label_plural'   => $request->filled('asset_label_plural')   ? trim($request->input('asset_label_plural'))   : 'items', // MARKER-PATCH-215
+            'default_tax_rate'     => $request->filled('default_tax_rate')
+                ? (float) $request->input('default_tax_rate')
+                : null,
+            'tax_services_default' => (bool) $request->input('tax_services_default'),
+            'tax_supports_exempt'  => (bool) $request->input('tax_supports_exempt'),
+        ]);
+
+        return back()->with('success', 'Business settings saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // Branding: shop identity, logos, colors, typography
+    // (formerly BrandingController::update tab=appearance, file uploads + colors)
+    // -------------------------------------------------------------------
+    private function updateBranding(Request $request, $tenant)
+    {
+        $request->validate([
+            'name'              => ['required', 'string', 'max:255'],
+            'tagline'           => ['nullable', 'string', 'max:255'],
+            'accent_color'      => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'text_color'        => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'bg_color'          => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'font_heading'      => ['nullable', 'string', 'max:100'],
+            'font_body'         => ['nullable', 'string', 'max:100'],
+            'logo_size_admin'   => ['nullable', 'integer', 'min:16', 'max:80'],
+            'logo_size_booking' => ['nullable', 'integer', 'min:16', 'max:120'],
+        ]);
+
+        $data = $request->only([
+            'name', 'tagline', 'accent_color', 'text_color',
+            'bg_color', 'font_heading', 'font_body',
+            'logo_size_admin', 'logo_size_booking',
+        ]);
+
+        if ($request->hasFile('logo')) {
+            $request->validate(['logo' => ['image', 'max:2048']]);
+            $path = $request->file('logo')->store("tenants/{$tenant->id}/logo", 'public');
+            $data['logo_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->hasFile('logo_light')) {
+            $request->validate(['logo_light' => ['image', 'max:2048']]);
+            $path = $request->file('logo_light')->store("tenants/{$tenant->id}/logo", 'public');
+            $data['logo_light_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->hasFile('favicon')) {
+            $request->validate(['favicon' => ['image', 'max:512']]);
+            $path = $request->file('favicon')->store("tenants/{$tenant->id}/favicon", 'public');
+            $data['favicon_url'] = asset('storage/' . $path);
+        }
+
+        $tenant->update($data);
+
+        return back()->with('success', 'Branding saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // Communication: email sender, SMS provider, notification toggles
+    // -------------------------------------------------------------------
+    private function updateCommunication(Request $request, $tenant)
+    {
+        $request->validate([
+            // Email
+            'email_from_name'    => ['nullable', 'string', 'max:255'],
+            'email_from_address' => ['nullable', 'email', 'max:255'],
+            'email_reply_to'     => ['nullable', 'email', 'max:255'],
+            'notification_email' => ['nullable', 'email', 'max:255'],
+            // SMS
+            // MARKER-PATCH-224 — sms_* moved to Settings\MessagingController.
+            // MARKER-PATCH-406 — notification toggles moved to Communication Center
+        ]);
+
+        // Don't overwrite an existing token with empty input — the form posts
+        // MARKER-PATCH-224 — sms_*/twilio_* are owned by
+        // Settings\MessagingController now. Writing them here would null
+        // the messaging config on every unrelated settings save.
+        $tenant->update([
+            'email_from_name'    => $request->input('email_from_name'),
+            'email_from_address' => $request->input('email_from_address'),
+            'email_reply_to'     => $request->input('email_reply_to'),
+            'notification_email' => $request->input('notification_email'),
+        ]);
+
+        // MARKER-PATCH-406 — notification toggles now owned by CommunicationController
+
+        return back()->with('success', 'Communication settings saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // Account: custom domain
+    // (booking URL is read-only display; subscription/billing also read-only)
+    // -------------------------------------------------------------------
+    private function updateAccount(Request $request, $tenant)
+    {
+        if (in_array($tenant->plan_tier, ['branded', 'scale', 'custom'])) {
+            $request->validate([
+                // MARKER-PATCH-120-SETTINGS-CONTROLLER - tenant_domains is the new source of truth
+                // 'custom_domain' => ['nullable', 'string', 'max:253',
+                //     'regex:/^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/'],
+            ]);
+            // $tenant->update(['custom_domain' => $request->input('custom_domain') ?: null]); // MARKER-PATCH-120-SETTINGS-CONTROLLER
+        }
+        return back()->with('success', 'Account settings saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // Appearance: admin theme
+    // -------------------------------------------------------------------
+    private function updateAppearance(Request $request, $tenant)
+    {
+        $request->validate([
+            'admin_theme' => ['required', 'in:b,c'],
+        ]);
+        $settings = $tenant->settings ?? [];
+        $settings['admin_theme'] = $request->input('admin_theme');
+        $tenant->update(['settings' => $settings]);
+        return back()->with('success', 'Appearance saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // Payments: Stripe + PayPal API keys (preserved verbatim from old controller)
+    // -------------------------------------------------------------------
+    private function updatePayments(Request $request, $tenant)
+    {
+        $settings = $tenant->settings ?? [];
+
+        // MARKER-PATCH-388 — legacy booking-deposit stripe_* keys retired.
+        // Booking deposits now run on Direct Payments (register_payments_* keys).
+
+        // MARKER-PATCH-169 — Direct Payments bridge feature.
+        // Register card-sale keys, namespaced separately from the booking-deposit
+        // Stripe keys above (which power BookingController via App\Services\StripeService).
+        // Only saved if the tenant has direct_payments_enabled set by master admin;
+        // otherwise the form fields don\'t render and the inputs come back empty,
+        // which is fine.
+        if ($tenant->direct_payments_enabled) {
+            // MARKER-PATCH-618 — tenant-level on/off for card + payment-link tenders
+            // (master flag stays the capability gate; this is the tenant's switch).
+            $settings['stripe_register_enabled'] = (bool) $request->input('stripe_register_enabled');
+            $settings['square_enabled']          = (bool) $request->input('square_enabled');
+
+            $settings['register_payments_mode']           = $request->input('register_payments_mode', 'test');
+            $settings['register_payments_test_pk']        = $request->input('register_payments_test_pk', '');
+            $settings['register_payments_test_sk']        = $request->input('register_payments_test_sk', '');
+            $settings['register_payments_live_pk']        = $request->input('register_payments_live_pk', '');
+            $settings['register_payments_live_sk']        = $request->input('register_payments_live_sk', '');
+            $settings['register_payments_webhook_secret'] = $request->input('register_payments_webhook_secret', '');
+
+            // MARKER-PATCH-473 — Square (tenant-connected) credentials
+            $settings['square_payments_mode']           = $request->input('square_payments_mode', 'sandbox');
+            $settings['square_sandbox_app_id']          = $request->input('square_sandbox_app_id', '');
+            $settings['square_sandbox_location_id']     = $request->input('square_sandbox_location_id', '');
+            $settings['square_sandbox_access_token']    = $request->input('square_sandbox_access_token', '');
+            $settings['square_production_app_id']       = $request->input('square_production_app_id', '');
+            $settings['square_production_location_id']  = $request->input('square_production_location_id', '');
+            $settings['square_production_access_token'] = $request->input('square_production_access_token', '');
+            $settings['square_webhook_signature_key']   = $request->input('square_webhook_signature_key', '');
+        }
+
+        $settings['paypal_enabled']        = (bool) $request->input('paypal_enabled');
+        $settings['paypal_mode']           = $request->input('paypal_mode', 'sandbox');
+        $settings['paypal_test_client_id'] = $request->input('paypal_test_client_id', '');
+        $settings['paypal_test_secret']    = $request->input('paypal_test_secret', '');
+        $settings['paypal_live_client_id'] = $request->input('paypal_live_client_id', '');
+        $settings['paypal_live_secret']    = $request->input('paypal_live_secret', '');
+
+        // MARKER-PATCH-618 — Venmo / Cash App manual tenders (peer-to-peer pay links).
+        // Handles are stored bare (no @ / $); the link helper adds the scheme.
+        // MARKER-PATCH-629 — venmo/cashapp keys retired here: owned by
+        // tenant_payment_methods and written back via syncLegacyKeys().
+
+        $tenant->update(['settings' => $settings]);
+        return back()->with('success', 'Payment settings saved.');
+    }
+
+    // -------------------------------------------------------------------
+    // POST endpoint: send a test SMS to verify Twilio configuration.
+    // Uses the tenant's *saved* credentials, so user must save before testing.
+    // -------------------------------------------------------------------
+    // MARKER-PATCH-468 — toggle asset tracking from the Services-page banner
+    public function toggleAssetTracking(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        $enabled = (bool) $request->input('enabled');
+        $tenant->update(['multi_asset_enabled' => $enabled]);
+        return response()->json(['ok' => true, 'enabled' => $enabled]);
+    }
+
+    // MARKER-PATCH-473 — verify the tenant's pasted Square credentials
+    public function verifySquareConnection(Request $request): JsonResponse
+    {
+        $tenant = tenant();
+        if (! ($tenant->direct_payments_enabled ?? false)) {
+            return response()->json(['ok' => false, 'message' => 'Payments are not enabled for this account.'], 403);
+        }
+        $result = (new \App\Services\Tenant\SquarePaymentsService($tenant))->verifyConnection();
+        return response()->json($result);
+    }
+
+    public function sendTestSms(Request $request): JsonResponse
+    {
+        $request->validate([
+            'to' => ['required', 'string', 'max:32'],
+        ]);
+
+        $tenant = tenant();
+
+        // MARKER-PATCH-224 — managed numbers send on platform creds; only
+        // require tenant creds when no platform fallback exists.
+        $hasCreds = ($tenant->twilio_account_sid && $tenant->twilio_auth_token)
+            || (config('services.twilio.sid') && config('services.twilio.token')); // MARKER-PATCH-224B
+        if (! $tenant->sms_enabled || ! $tenant->sms_from_number || ! $hasCreds) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'SMS is not enabled or credentials are missing. Save your settings first, then try again.',
+            ], 422);
+        }
+
+        try {
+            SmsService::send(
+                $tenant,
+                $request->input('to'),
+                sprintf('Intake test message from %s. SMS is configured correctly.', $tenant->name)
+            );
+            return response()->json(['ok' => true, 'message' => 'Test SMS sent. Check the recipient phone.']);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Send failed: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+}
+
+SOAV_3_EOF
+
+cat > 'resources/views/tenant/settings/index.blade.php' <<'SOAV_4_EOF'
+@extends('layouts.tenant.app')
+@php
+  /*
+   * Unified settings page. Six tabs, JS-switched (no URL params).
+   * Each tab is its own form; one save button per tab in a sticky save bar.
+   * Drop-off methods CRUD lives in the Business tab and uses its own
+   * dedicated endpoints (tenant.receiving-methods.*) — preserved verbatim
+   * from the previous settings/branding split.
+   */
+  $pageTitle  = 'Settings';
+  $s          = $currentTenant->settings ?? [];
+  $currencies = ['USD'=>'$','CAD'=>'CA$','GBP'=>'£','EUR'=>'€','AUD'=>'A$','NZD'=>'NZ$'];
+  $fonts      = ['Inter','Poppins','DM Sans','Nunito','Lato','Raleway','Montserrat','Playfair Display','Merriweather'];
+
+  // Admin theme stored in settings JSON. Default to 'c' (dark).
+  $adminTheme = $s['admin_theme'] ?? 'c';
+  if ($adminTheme === 'a') $adminTheme = 'c';
+
+  // Notification toggles default to ON via Tenant::notificationEnabled().
+  $notifyBookingEmail = $currentTenant->notificationEnabled('booking_confirmation_email');
+  $notifyBookingSms   = $currentTenant->notificationEnabled('booking_confirmation_sms');
+
+  // MARKER-PATCH-152C — delivery scheduled toggles
+  $notifyDeliveryEmail = $currentTenant->notificationEnabled('delivery_scheduled_email');
+  $notifyDeliverySms   = $currentTenant->notificationEnabled('delivery_scheduled_sms');
+
+  // MARKER-PATCH-154 — appointment reminder toggles
+  $notifyApptReminderEmail = $currentTenant->notificationEnabled('appointment_reminder_email');
+  $notifyApptReminderSms   = $currentTenant->notificationEnabled('appointment_reminder_sms');
+
+  // MARKER-PATCH-155 — delivery reminder toggles
+  $notifyDeliveryReminderEmail = $currentTenant->notificationEnabled('delivery_reminder_email');
+  $notifyDeliveryReminderSms   = $currentTenant->notificationEnabled('delivery_reminder_sms');
+
+  // SMS auth token: don't render the actual value back to the form. Show
+  // a masked placeholder if one is set, blank if not. Controller treats
+  // an empty submission as "leave unchanged."
+  $hasTwilioToken = (bool) $currentTenant->twilio_auth_token;
+@endphp
+
+@push('styles')
+<style>
+/* -------------------------------------------------------------------------
+ * Settings page chrome
+ * ------------------------------------------------------------------------- */
+.set-head {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:16px; margin-bottom:18px; flex-wrap:wrap;
+}
+.set-booking-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:7px 12px; border-radius:99px;
+  border:0.5px solid var(--ia-border);
+  background:var(--ia-surface);
+  font-size:12px; color:var(--ia-text);
+  text-decoration:none;
+  transition:background var(--ia-t), border-color var(--ia-t);
+  white-space:nowrap;
+}
+.set-booking-chip:hover { background:var(--ia-hover); border-color:var(--ia-border-strong); }
+.set-booking-chip svg { opacity:.55; }
+
+/* Tabs */
+.set-tabs {
+  display:flex; gap:0;
+  border-bottom:0.5px solid var(--ia-border);
+  margin-bottom:20px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.set-tabs::-webkit-scrollbar { display:none; }
+.set-tab {
+  padding:10px 18px; font-size:13px; color:var(--ia-text-muted);
+  cursor:pointer; border-bottom:2px solid transparent;
+  background:transparent; border-left:none; border-right:none; border-top:none;
+  font-family:inherit; transition:color .12s, border-color .12s;
+  white-space:nowrap;
+}
+.set-tab:hover { color:var(--ia-text); }
+.set-tab.active { color:var(--ia-text); border-bottom-color:var(--ia-accent); }
+
+/* Panes */
+.set-pane { display:none; }
+.set-pane.active { display:block; }
+
+/* MARKER-PATCH-150-POLISH-A — responsive card grid */
+.set-section {
+  display: block;
+  max-width: 1200px;
+}
+/* Each card in a settings form becomes a grid cell.
+   Cards default to ~half width (min 420px). Cards with .set-card--wide
+   span the full row. Save bars and headers are always full-row. */
+.set-section .ia-card {
+  margin-bottom: 0;
+}
+.set-section--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 18px;
+  /* MARKER-PATCH-150-POLISH-C — same-row cards match heights */
+  align-items: stretch;
+}
+.set-section--grid > .ia-card { display: flex; flex-direction: column; }
+.set-section--grid .set-card--wide,
+.set-section--grid .set-savebar {
+  grid-column: 1 / -1;
+}
+@media (max-width: 880px) {
+  .set-section--grid { grid-template-columns: 1fr; }
+}
+
+/* Save bar — sticky at top of pane, dims when no changes */
+.set-savebar {
+  position:sticky; top:0; z-index:5;
+  background:var(--ia-bg);
+  margin:-6px -6px 16px;
+  padding:10px 6px;
+  border-bottom:0.5px solid transparent;
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; flex-wrap:wrap;
+  transition:border-color .15s;
+}
+.set-savebar.dirty { border-bottom-color:var(--ia-border); }
+.set-savebar-msg {
+  font-size:12px; color:var(--ia-text-dim);
+  transition:color .15s;
+}
+.set-savebar.dirty .set-savebar-msg { color:var(--ia-text); }
+.set-savebar-actions { display:flex; gap:8px; }
+.set-save-btn {
+  font-size:13px; padding:8px 16px;
+  border-radius:var(--ia-r-md);
+  border:0.5px solid var(--ia-accent);
+  background:var(--ia-accent); color:var(--ia-accent-text);
+  cursor:pointer; font-family:inherit; font-weight:500;
+  transition:opacity .15s, filter .15s;
+}
+.set-save-btn:hover { filter:brightness(1.08); }
+.set-save-btn:disabled,
+.set-savebar:not(.dirty) .set-save-btn {
+  opacity:.4; cursor:not-allowed; filter:none;
+}
+.set-discard-btn {
+  font-size:13px; padding:8px 14px;
+  border-radius:var(--ia-r-md);
+  border:0.5px solid var(--ia-border);
+  background:transparent; color:var(--ia-text-muted);
+  cursor:pointer; font-family:inherit;
+  transition:background .12s;
+}
+.set-discard-btn:hover { background:var(--ia-hover); color:var(--ia-text); }
+.set-savebar:not(.dirty) .set-discard-btn { display:none; }
+
+/* "Coming soon" sections (Locations, etc.) */
+.set-coming-soon {
+  position:relative;
+  border:0.5px dashed var(--ia-border);
+  border-radius:var(--ia-r-lg);
+  padding:18px 20px;
+  margin-bottom:20px;
+  opacity:.55;
+}
+.set-coming-soon-pill {
+  position:absolute; top:14px; right:14px;
+  font-size:10px; padding:3px 9px; border-radius:99px;
+  background:var(--ia-surface-2); color:var(--ia-text-dim);
+  text-transform:uppercase; letter-spacing:.06em; font-weight:600;
+}
+.set-coming-soon-title {
+  font-size:14px; font-weight:500; margin-bottom:4px;
+}
+.set-coming-soon-desc {
+  font-size:12px; color:var(--ia-text-muted); line-height:1.5;
+  max-width:520px;
+}
+
+/* Provider toggle (Stripe / PayPal) — preserved from old settings page */
+.provider-card {
+  border:0.5px solid var(--ia-border);
+  border-radius:var(--ia-r-lg);
+  padding:20px; margin-bottom:16px;
+  transition:border-color .12s;
+}
+.provider-card.enabled { border-color:var(--ia-accent); }
+.provider-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0; }
+.provider-fields {
+  margin-top:16px; padding-top:16px;
+  border-top:0.5px solid var(--ia-border);
+  display:none;
+}
+.provider-card.enabled .provider-fields { display:block; }
+.prov-toggle-btn {
+  width:38px; height:22px; background:var(--ia-border);
+  border-radius:11px; position:relative;
+  cursor:pointer; border:none; outline:none;
+  transition:background .12s; flex-shrink:0;
+}
+.prov-toggle-btn.on { background:var(--ia-accent); }
+.prov-toggle-btn::after {
+  content:''; position:absolute; top:3px; left:3px;
+  width:16px; height:16px; border-radius:50%;
+  background:white; transition:transform .12s;
+}
+.prov-toggle-btn.on::after { transform:translateX(16px); }
+
+/* Domain badge (preserved) */
+.domain-badge {
+  font-size:11px; padding:3px 10px;
+  border-radius:20px; font-weight:500; margin-left:8px;
+}
+.domain-badge.basic   { background:var(--ia-surface-2); color:var(--ia-text-muted); }
+.domain-badge.branded { background:#EEEDFE; color:#534AB7; }
+.domain-badge.scale   { background:#E1F5EE; color:#0F6E56; }
+.domain-badge.custom  { background:#EAF3DE; color:#3B6D11; }
+
+/* notif-row styles removed — patch-406 (toggles moved to Communication Center) */
+
+/* Color swatch (branding tab) */
+.color-swatch-row {
+  display:flex; gap:10px; align-items:center; margin-top:6px;
+}
+.color-swatch {
+  width:36px; height:36px;
+  border-radius:var(--ia-r-md);
+  border:0.5px solid var(--ia-border);
+  overflow:hidden; cursor:pointer; flex-shrink:0;
+}
+.color-swatch input[type=color] {
+  width:52px; height:52px; margin:-8px;
+  border:none; cursor:pointer; background:none; padding:0;
+}
+
+/* Logo previews (branding tab) */
+.logo-preview { height:40px; border-radius:6px; margin-bottom:8px; display:block; }
+.logo-preview-dark {
+  background:#111; padding:6px 10px; border-radius:6px;
+  margin-bottom:8px; display:inline-block;
+}
+.logo-preview-dark img { height:32px; }
+
+/* Theme picker (appearance tab) */
+.theme-grid {
+  display:grid; grid-template-columns:repeat(2,1fr);
+  gap:12px; margin-top:8px; max-width:420px;
+}
+.theme-card {
+  border:0.5px solid var(--ia-border);
+  border-radius:var(--ia-r-lg);
+  padding:14px; cursor:pointer; transition:all .12s;
+  position:relative;
+}
+.theme-card:hover { border-color:var(--ia-accent); }
+.theme-card.selected { border-color:var(--ia-accent); background:var(--ia-accent-soft); }
+.theme-card input { position:absolute; opacity:0; width:0; height:0; }
+.theme-preview {
+  height:60px; border-radius:var(--ia-r-md);
+  overflow:hidden; margin-bottom:8px; display:flex;
+}
+.theme-label { font-size:12px; font-weight:500; text-align:center; }
+.preview-b-wrap { flex:1; display:flex; flex-direction:column; }
+.preview-b-top  { height:12px; background:#ffffff; border-bottom:0.5px solid #e8e8e4; }
+.preview-b-main { flex:1; background:#ffffff; }
+.preview-c-side { width:35%; background:#0c0c0c; }
+.preview-c-main { flex:1; background:#111111; }
+
+/* SMS test status flash */
+.sms-test-status {
+  margin-top:10px; font-size:12px; padding:8px 12px;
+  border-radius:var(--ia-r-md);
+  display:none;
+}
+.sms-test-status.success { display:block; background:rgba(120,200,120,.10); color:#78c878; border:0.5px solid rgba(120,200,120,.25); }
+.sms-test-status.error   { display:block; background:rgba(240,149,149,.10); color:#F09595; border:0.5px solid rgba(240,149,149,.25); }
+</style>
+@endpush
+
+@section('content')
+
+<div class="set-head">
+  <div>
+    <h1 class="ia-page-title" style="margin-bottom:4px">Settings</h1>
+    <p class="ia-page-subtitle" style="margin:0">Configure your shop's operational preferences and branding.</p>
+  </div>
+  <a href="{{ $currentTenant->bookingUrl() }}" target="_blank" rel="noopener noreferrer" class="set-booking-chip">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M5 9L9 5M9 5H5.5M9 5v3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+    Open booking page
+  </a>
+</div>
+
+{{-- MARKER-PATCH-165 — success flash removed; the global layout renders it once at the top. --}}
+@if($errors->any())
+<div style="padding:10px 14px;margin-bottom:16px;border-radius:var(--ia-r-md);background:rgba(240,149,149,.10);border:0.5px solid rgba(240,149,149,.25);font-size:13px;color:#F09595">
+  @foreach($errors->all() as $err){{ $err }}<br>@endforeach
+</div>
+@endif
+
+<div class="set-tabs" role="tablist">
+  <button type="button" class="set-tab active" data-tab="business"      role="tab">Business</button>
+  <button type="button" class="set-tab"        data-tab="branding"      role="tab">Branding</button>
+  <button type="button" class="set-tab"        data-tab="communication" role="tab">Communication</button>
+  <button type="button" class="set-tab"        data-tab="account"       role="tab">Account</button>
+  <button type="button" class="set-tab"        data-tab="payments"      role="tab">Payments</button>
+  <button type="button" class="set-tab"        data-tab="tags"          role="tab">Print &amp; receipts</button>{{-- MARKER-PATCH-315 / 339 --}}
+  <button type="button" class="set-tab"        data-tab="ordering"      role="tab">Ordering</button>{{-- MARKER-SO-AUTOVENDOR --}}
+</div>
+
+{{-- =====================================================================
+     BUSINESS — currency, timezone, booking, tax, drop-off methods
+     ===================================================================== --}}
+<div class="set-pane active" id="pane-business" role="tabpanel">
+
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="business">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save business settings</button>
+      </div>
+    </div>
+
+    {{-- Currency --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Currency</span></div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Currency code</label>
+          <select name="currency" class="ia-input">
+            @foreach($currencies as $code => $sym)
+              <option value="{{ $code }}" @selected($currentTenant->currency === $code)>{{ $code }} ({{ $sym }})</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Currency symbol</label>
+          <input type="text" name="currency_symbol" class="ia-input"
+            value="{{ old('currency_symbol', $currentTenant->currency_symbol) }}" maxlength="5">
+        </div>
+      </div>
+    </div>
+
+    {{-- Timezone --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Timezone</span></div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Your local timezone</label>
+        <select name="timezone" class="ia-input">
+          @php
+            $tzGroups = [
+              'United States' => [
+                'America/Los_Angeles' => 'Pacific (Los Angeles)',
+                'America/Denver'      => 'Mountain (Denver)',
+                'America/Phoenix'     => 'Mountain — no DST (Phoenix)',
+                'America/Chicago'     => 'Central (Chicago)',
+                'America/New_York'    => 'Eastern (New York)',
+                'America/Anchorage'   => 'Alaska (Anchorage)',
+                'Pacific/Honolulu'    => 'Hawaii (Honolulu)',
+              ],
+              'Canada' => [
+                'America/Vancouver' => 'Pacific (Vancouver)',
+                'America/Edmonton'  => 'Mountain (Edmonton)',
+                'America/Winnipeg'  => 'Central (Winnipeg)',
+                'America/Toronto'   => 'Eastern (Toronto)',
+                'America/Halifax'   => 'Atlantic (Halifax)',
+              ],
+              'Other' => [
+                'UTC'              => 'UTC',
+                'Europe/London'    => 'London',
+                'Europe/Paris'     => 'Paris',
+                'Australia/Sydney' => 'Sydney',
+              ],
+            ];
+            $currentTz = old('timezone', $currentTenant->timezone ?? 'America/Los_Angeles');
+          @endphp
+          @foreach($tzGroups as $groupName => $zones)
+            <optgroup label="{{ $groupName }}">
+              @foreach($zones as $tz => $label)
+                <option value="{{ $tz }}" @selected($currentTz === $tz)>{{ $label }}</option>
+              @endforeach
+            </optgroup>
+          @endforeach
+        </select>
+        <p style="font-size:12px;opacity:.5;margin-top:6px">
+          Determines what counts as "today" on your calendar and dashboard. Stored timestamps are unaffected.
+        </p>
+      </div>
+    </div>
+
+    {{-- Booking window --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Booking window</span></div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">How far ahead can customers book?</label>
+          <input type="number" name="booking_window_days" class="ia-input" min="1" max="365"
+            value="{{ old('booking_window_days', $currentTenant->booking_window_days ?? 60) }}">
+          <p style="font-size:11px;opacity:.4;margin-top:4px">Days from today</p>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Minimum notice required</label>
+          <input type="number" name="min_notice_hours" class="ia-input" min="0" max="168"
+            value="{{ old('min_notice_hours', $currentTenant->min_notice_hours ?? 24) }}">
+          <p style="font-size:11px;opacity:.4;margin-top:4px">0 = same-day bookings allowed</p>
+        </div>
+      </div>
+    </div>
+
+    {{-- Class bookings --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Class bookings</span></div>
+      <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:14px;font-weight:500">Enable class bookings</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Adds a Classes section to your admin and a customer-facing /classes page.</div>
+        </div>
+        <input type="hidden" name="classes_enabled" id="classes_enabled_input" value="{{ $currentTenant->classes_enabled ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ $currentTenant->classes_enabled ? 'on' : '' }}"
+          id="classes-toggle-btn"
+          aria-label="Enable class bookings">
+          <span class="ia-toggle-sr">{{ $currentTenant->classes_enabled ? 'Enabled' : 'Disabled' }}</span>
+        </button>
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-156 — Deliveries --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Deliveries</span></div>
+      <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:14px;font-weight:500">Enable deliveries</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Internal pickup &amp; dropoff scheduling. Adds a Deliveries pill to your Schedule menu.</div>
+        </div>
+        <input type="hidden" name="deliveries_enabled" id="deliveries_enabled_input" value="{{ $currentTenant->deliveries_enabled ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ $currentTenant->deliveries_enabled ? 'on' : '' }}"
+          id="deliveries-toggle-btn"
+          aria-label="Enable deliveries">
+          <span class="ia-toggle-sr">{{ $currentTenant->deliveries_enabled ? 'Enabled' : 'Disabled' }}</span>
+        </button>
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-158-B — Multi-asset --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Multi-asset appointments</span></div>
+      <div style="padding:6px 0;display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div>
+          <div style="font-size:14px;font-weight:500">Track customer assets</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Track bikes, vehicles, pets, or other items per customer, and attach multiple to a single appointment. Useful for family drop-offs, fleet servicing, or multi-pet appointments.</div>
+        </div>
+        <input type="hidden" name="multi_asset_enabled" id="multi_asset_enabled_input" value="{{ $currentTenant->multi_asset_enabled ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ $currentTenant->multi_asset_enabled ? 'on' : '' }}"
+          id="multi-asset-toggle-btn"
+          aria-label="Enable multi-asset tracking">
+          <span class="ia-toggle-sr">{{ $currentTenant->multi_asset_enabled ? 'Enabled' : 'Disabled' }}</span>
+        </button>
+      </div>
+      {{-- MARKER-PATCH-215 — what this tenant calls its assets (drives customer booking copy) --}}
+      <div class="ia-input-grid-2" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ia-border,rgba(255,255,255,.08))">
+        <div class="ia-form-group">
+          <label class="ia-form-label">What you call one (singular)</label>
+          <input type="text" name="asset_label_singular" class="ia-input" maxlength="30"
+            placeholder="item" value="{{ old('asset_label_singular', $currentTenant->asset_label_singular) }}">
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Plural</label>
+          <input type="text" name="asset_label_plural" class="ia-input" maxlength="30"
+            placeholder="items" value="{{ old('asset_label_plural', $currentTenant->asset_label_plural) }}">
+        </div>
+      </div>
+      <div style="font-size:12px;opacity:.5;margin-top:8px">Shown on your customer booking page — e.g. “bike”, “vehicle”, “pet”. Leave blank for “item”.</div>
+    </div>
+
+    {{-- Tax --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Sales tax</span></div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Default tax rate (%)</label>
+        <input type="number" name="default_tax_rate" class="ia-input" step="0.001" min="0" max="25"
+          style="max-width:200px"
+          value="{{ old('default_tax_rate', $currentTenant->default_tax_rate) }}"
+          placeholder="e.g. 8.875">
+        <p style="font-size:11px;opacity:.5;margin-top:6px;line-height:1.5">
+          Applied to taxable items at checkout. Leave blank if you don't collect sales tax.
+        </p>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-top:0.5px solid var(--ia-border);margin-top:8px">
+        <div>
+          <div style="font-size:13px;font-weight:500">Services are taxable by default</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Per-service overrides available later when editing a service.</div>
+        </div>
+        <input type="hidden" name="tax_services_default" id="tax_services_default_input" value="{{ ($currentTenant->tax_services_default ?? true) ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ ($currentTenant->tax_services_default ?? true) ? 'on' : '' }}"
+          id="tax-services-toggle-btn"
+          aria-label="Services are taxable by default">
+          <span class="ia-toggle-sr">{{ ($currentTenant->tax_services_default ?? true) ? 'Yes' : 'No' }}</span>
+        </button>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0;border-top:0.5px solid var(--ia-border)">
+        <div>
+          <div style="font-size:13px;font-weight:500">Customers can be tax-exempt</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">Adds a "tax exempt" toggle to customer records (useful for non-profits, resellers).</div>
+        </div>
+        <input type="hidden" name="tax_supports_exempt" id="tax_supports_exempt_input" value="{{ ($currentTenant->tax_supports_exempt ?? false) ? '1' : '0' }}">
+        <button type="button"
+          class="ia-toggle {{ ($currentTenant->tax_supports_exempt ?? false) ? 'on' : '' }}"
+          id="tax-exempt-toggle-btn"
+          aria-label="Customers can be tax-exempt">
+          <span class="ia-toggle-sr">{{ ($currentTenant->tax_supports_exempt ?? false) ? 'Yes' : 'No' }}</span>
+        </button>
+      </div>
+    </div>
+
+    {{-- Locations (coming soon) --}}
+    <div class="set-coming-soon">
+      <span class="set-coming-soon-pill">Add-on</span>
+      <div class="set-coming-soon-title">Locations</div>
+      <div class="set-coming-soon-desc">
+        Run multiple shops from one Intake account — separate calendars, staff, and reporting per location.
+        Available as a paid add-on. Talk to support to enable.
+      </div>
+    </div>
+
+  </form>
+
+  {{-- Drop-off methods (separate block — own endpoints, not part of the main form) --}}
+  <div class="set-section set-section--grid">
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
+      <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="ia-card-title">Drop-off methods</span>
+        <span style="font-size:11px;opacity:.45">Shown on the booking page so customers tell you how they're getting items to you</span>
+      </div>
+
+      <div style="padding:14px 16px">
+        <form id="add-method-form" style="display:grid;grid-template-columns:1.2fr 1.6fr auto;gap:10px;align-items:end">
+          @csrf
+          <div>
+            <label class="ia-label" style="display:block;margin-bottom:5px">Name</label>
+            <input type="text" name="name" required maxlength="120" placeholder="e.g. Walk-in" class="ia-input" style="width:100%">
+          </div>
+          <div>
+            <label class="ia-label" style="display:block;margin-bottom:5px">Description (optional)</label>
+            <input type="text" name="description" maxlength="500" placeholder="e.g. Stop by during business hours" class="ia-input" style="width:100%">
+          </div>
+          <div>
+            <button type="submit" class="ia-btn ia-btn--primary">Add</button>
+          </div>
+        </form>
+        <div style="display:flex;gap:18px;margin-top:10px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" form="add-method-form" name="ask_for_time" value="1"> Ask for arrival time
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" form="add-method-form" name="ask_for_tracking" value="1"> Ask for shipment tracking number
+          </label>
+        </div>
+      </div>
+
+      @if($receivingMethods->isEmpty())
+        <div style="padding:24px;text-align:center;border-top:0.5px solid var(--ia-border)">
+          <div style="font-size:13px;opacity:.55">No drop-off methods yet. Add your first one above.</div>
+        </div>
+      @else
+        <div id="method-list" style="border-top:0.5px solid var(--ia-border)">
+          @foreach($receivingMethods as $m)
+            <div class="method-row" data-method-id="{{ $m->id }}"
+                 style="display:grid;grid-template-columns:auto 1.2fr 1.6fr auto auto auto;gap:12px;align-items:center;padding:10px 16px;border-bottom:0.5px solid var(--ia-border);{{ $m->is_active ? '' : 'opacity:.45' }}">
+              <div class="drag-handle" style="cursor:grab;opacity:.4;font-size:14px;user-select:none">⋮⋮</div>
+              <input type="text" data-field="name" value="{{ $m->name }}" maxlength="120" class="ia-input method-edit" style="width:100%">
+              <input type="text" data-field="description" value="{{ $m->description }}" maxlength="500" placeholder="—" class="ia-input method-edit" style="width:100%">
+              <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap" title="Show a time field on the booking page when this method is selected">
+                <input type="checkbox" data-field="ask_for_time" {{ $m->ask_for_time ? 'checked' : '' }} class="method-edit-toggle">
+                <span>Time</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap" title="Show a tracking-number field on the booking page when this method is selected">
+                <input type="checkbox" data-field="ask_for_tracking" {{ $m->ask_for_tracking ? 'checked' : '' }} class="method-edit-toggle">
+                <span>Tracking</span>
+              </label>
+              <button type="button" class="ia-toggle method-row-toggle {{ $m->is_active ? 'on' : '' }}" data-field="is_active" title="{{ $m->is_active ? 'Click to deactivate' : 'Click to activate' }}">
+                <span class="ia-toggle-sr">{{ $m->is_active ? 'Active' : 'Inactive' }}</span>
+              </button>
+            </div>
+          @endforeach
+        </div>
+      @endif
+    </div>
+  </div>
+</div>
+
+{{-- =====================================================================
+     BRANDING — shop identity, logos, colors, typography
+     ===================================================================== --}}
+<div class="set-pane" id="pane-branding" role="tabpanel">
+  <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="branding">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save branding</button>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Shop identity</span></div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Shop name <span class="ia-required">*</span></label>
+        <input type="text" name="name" class="ia-input" value="{{ old('name', $currentTenant->name) }}" required>
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Tagline</label>
+        <input type="text" name="tagline" class="ia-input" value="{{ old('tagline', $currentTenant->tagline) }}"
+          placeholder="e.g. Expert bike service since 2010">
+      </div>
+    </div>
+
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Logos</span></div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:16px">
+        Upload two versions of your logo. The system automatically picks the right one based on the background color.
+      </p>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Default logo <span style="opacity:.4;font-weight:400">(for light backgrounds)</span></label>
+          @if($currentTenant->logo_url)
+            <img src="{{ $currentTenant->logo_url }}" alt="Logo" class="logo-preview">
+          @endif
+          <input type="file" name="logo" accept="image/*" class="ia-input" style="padding:6px">
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Light logo <span style="opacity:.4;font-weight:400">(for dark backgrounds)</span></label>
+          @if($currentTenant->logo_light_url)
+            <div class="logo-preview-dark">
+              <img src="{{ $currentTenant->logo_light_url }}" alt="Light logo">
+            </div>
+          @endif
+          <input type="file" name="logo_light" accept="image/*" class="ia-input" style="padding:6px">
+          <div style="font-size:11px;opacity:.35;margin-top:4px">White or light-colored version for dark hero sections and dark theme booking forms.</div>
+        </div>
+      </div>
+      <div class="ia-form-group" style="margin-top:12px">
+        <label class="ia-form-label">Favicon</label>
+        @if($currentTenant->favicon_url)
+          <img src="{{ $currentTenant->favicon_url }}" alt="Favicon" style="height:32px;border-radius:4px;margin-bottom:8px;display:block">
+        @endif
+        <input type="file" name="favicon" accept="image/*" class="ia-input" style="padding:6px;max-width:300px">
+      </div>
+    </div>
+
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Logo display size</span></div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:18px">
+        Drag the sliders to set how big the uploaded logo renders. The preview shows what it'll look like.
+        Doesn't affect the file itself — re-uploading isn't needed.
+      </p>
+
+      @php
+        // Pulled into PHP vars so JS init values match what's in the DB.
+        $adminPx   = (int) ($currentTenant->logo_size_admin   ?? 26);
+        $bookingPx = (int) ($currentTenant->logo_size_booking ?? 28);
+        // Pick whichever logo will actually render in each surface.
+        $adminLogo = \App\Support\ColorHelper::pickLogo($currentTenant, '#0c0c0c'); // dark sidebar
+        $bookLogo  = \App\Support\ColorHelper::pickLogo($currentTenant, $currentTenant->bg_color ?? '#ffffff'); // booking bg
+      @endphp
+
+      {{-- Admin sidebar --}}
+      <div style="margin-bottom:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="ia-form-label" style="margin:0">Admin sidebar</label>
+          <span style="font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums">
+            <span id="logo-admin-readout">{{ $adminPx }}</span>px
+          </span>
+        </div>
+        <input type="range" name="logo_size_admin" id="logo-admin-slider"
+               min="16" max="80" step="1" value="{{ $adminPx }}"
+               style="width:100%;margin:0">
+        <div style="font-size:11px;opacity:.45;margin-top:4px;display:flex;justify-content:space-between">
+          <span>16px</span><span>80px</span>
+        </div>
+
+        {{-- Mini preview chip — mimics the sidebar logo block --}}
+        <div style="margin-top:14px;background:#0c0c0c;border-radius:var(--ia-r-md);padding:14px 16px;display:flex;align-items:center;gap:10px;min-height:60px">
+          @if($adminLogo)
+            <img id="logo-admin-preview" src="{{ $adminLogo }}" alt="Admin logo preview"
+                 style="height:{{ $adminPx }}px;width:auto;border-radius:4px;max-width:160px;object-fit:contain;transition:height .05s linear">
+          @else
+            <span style="color:#999;font-size:12px;font-style:italic">Upload a logo above to preview</span>
+          @endif
+        </div>
+      </div>
+
+      {{-- Booking page --}}
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="ia-form-label" style="margin:0">Booking page</label>
+          <span style="font-size:12px;color:var(--ia-text-muted);font-variant-numeric:tabular-nums">
+            <span id="logo-booking-readout">{{ $bookingPx }}</span>px
+          </span>
+        </div>
+        <input type="range" name="logo_size_booking" id="logo-booking-slider"
+               min="16" max="120" step="1" value="{{ $bookingPx }}"
+               style="width:100%;margin:0">
+        <div style="font-size:11px;opacity:.45;margin-top:4px;display:flex;justify-content:space-between">
+          <span>16px</span><span>120px</span>
+        </div>
+
+        {{-- Mini preview chip — mimics the booking page top bar --}}
+        @php $previewBg = $currentTenant->bg_color ?? '#ffffff'; @endphp
+        <div style="margin-top:14px;background:{{ $previewBg }};border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:14px 16px;display:flex;align-items:center;gap:10px;min-height:80px">
+          @if($bookLogo)
+            <img id="logo-booking-preview" src="{{ $bookLogo }}" alt="Booking logo preview"
+                 style="height:{{ $bookingPx }}px;width:auto;border-radius:4px;max-width:240px;object-fit:contain;transition:height .05s linear">
+          @else
+            <span style="color:#999;font-size:12px;font-style:italic">Upload a logo above to preview</span>
+          @endif
+        </div>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Colors</span></div>
+      @foreach([
+        ['accent_color', 'Accent color', $currentTenant->accent_color ?? '#BEF264', 'Used for buttons, links, and active states'],
+        ['text_color',   'Text color',   $currentTenant->text_color   ?? '#111111', 'Main body text on your booking form'],
+        ['bg_color',     'Background',   $currentTenant->bg_color     ?? '#ffffff', 'Page background on your booking form'],
+      ] as [$name, $label, $value, $hint])
+      <div class="ia-form-group">
+        <label class="ia-form-label">{{ $label }}</label>
+        <div class="color-swatch-row">
+          <div class="color-swatch">
+            <input type="color" name="{{ $name }}" value="{{ old($name, $value) }}" id="color-{{ $name }}">
+          </div>
+          <input type="text" class="ia-input" style="width:110px;font-family:var(--ia-font-mono);font-size:13px"
+            value="{{ old($name, $value) }}" id="text-{{ $name }}"
+            oninput="document.getElementById('color-{{ $name }}').value=this.value"
+            pattern="^#[0-9A-Fa-f]{6}$">
+          <span style="font-size:12px;opacity:.45">{{ $hint }}</span>
+        </div>
+      </div>
+      @endforeach
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Typography</span></div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Heading font</label>
+          <select name="font_heading" class="ia-input">
+            @foreach($fonts as $font)
+              <option value="{{ $font }}" @selected(old('font_heading', $currentTenant->font_heading) === $font)>{{ $font }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Body font</label>
+          <select name="font_body" class="ia-input">
+            @foreach($fonts as $font)
+              <option value="{{ $font }}" @selected(old('font_body', $currentTenant->font_body) === $font)>{{ $font }}</option>
+            @endforeach
+          </select>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+{{-- =====================================================================
+     COMMUNICATION — email sender, SMS provider, notifications
+     ===================================================================== --}}
+<div class="set-pane" id="pane-communication" role="tabpanel">
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="communication">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save communication settings</button>
+      </div>
+    </div>
+
+
+
+    {{-- Email sender details --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Email sender details</span></div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:16px">
+        All emails to your customers will be sent from these details.
+      </p>
+      <div class="ia-form-group">
+        <label class="ia-form-label">From name</label>
+        <input type="text" name="email_from_name" class="ia-input"
+          value="{{ old('email_from_name', $currentTenant->email_from_name) }}"
+          placeholder="{{ $currentTenant->name }}">
+      </div>
+      {{-- MARKER-PATCH-143 — From address locked to <subdomain>@intake.works until custom domains land --}}
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">From email address</label>
+          <input type="email" class="ia-input" readonly disabled
+            value="{{ $currentTenant->subdomain }}@intake.works"
+            style="opacity:.7;cursor:not-allowed">
+          <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+            All your customer emails come from this address. Custom domains coming soon.
+          </div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Reply-to (optional)</label>
+          <input type="email" name="email_reply_to" class="ia-input"
+            value="{{ old('email_reply_to', $currentTenant->email_reply_to) }}"
+            placeholder="{{ Auth::guard('tenant')->user()->email ?? '' }}">
+          <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+            Where replies go. Usually your shop's main email.
+          </div>
+        </div>
+      </div>
+
+      {{-- MARKER-PATCH-144 — Test send block (no nested form, uses fetch) --}}
+      <div style="margin-top:14px;padding:14px;background:rgba(190,242,100,.06);border:1px solid rgba(190,242,100,.18);border-radius:var(--ia-r-md)" id="email-test-block">
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px">Test your email setup</div>
+        <div style="font-size:12px;color:var(--ia-text-dim);margin-bottom:10px;line-height:1.55">
+          Save any changes above first. Then enter a recipient and send a test email to verify the From name and reply-to look right.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="email" id="email-test-recipient" class="ia-input" style="flex:1;min-width:240px"
+            placeholder="recipient@example.com"
+            value="{{ Auth::guard('tenant')->user()->email ?? '' }}">
+          <button type="button" id="email-test-btn" class="ia-btn ia-btn--ghost ia-btn--sm">Send test email</button>
+        </div>
+        <div id="email-test-result" style="margin-top:10px;font-size:12px;display:none"></div>
+      </div>
+      <script>
+        (function() {
+          const btn = document.getElementById('email-test-btn');
+          const recipient = document.getElementById('email-test-recipient');
+          const result = document.getElementById('email-test-result');
+          if (!btn) return;
+          btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const r = (recipient.value || '').trim();
+            if (!r) {
+              result.style.display = 'block';
+              result.style.color = 'var(--ia-bad, #F87171)';
+              result.textContent = 'Enter a recipient email first.';
+              return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Sending…';
+            result.style.display = 'block';
+            result.style.color = 'var(--ia-text-dim)';
+            result.textContent = 'Sending test email to ' + r + '…';
+            try {
+              const resp = await fetch('{{ route('tenant.settings.email.test') }}', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'Accept': 'application/json'
+                },
+                body: 'recipient=' + encodeURIComponent(r)
+              });
+              if (resp.ok) {
+                result.style.color = 'var(--ia-ok, #86EFAC)';
+                result.textContent = 'Sent to ' + r + '. Check the inbox (and spam folder) within ~1 minute.';
+              } else {
+                const body = await resp.text();
+                result.style.color = 'var(--ia-bad, #F87171)';
+                result.textContent = 'Send failed (HTTP ' + resp.status + '). Check logs for details.';
+              }
+            } catch (err) {
+              result.style.color = 'var(--ia-bad, #F87171)';
+              result.textContent = 'Send failed: ' + err.message;
+            } finally {
+              btn.disabled = false;
+              btn.textContent = 'Send test email';
+            }
+          });
+        })();
+      </script>
+      <div class="ia-form-group">
+        <label class="ia-form-label">New booking notification email</label>
+        <input type="email" name="notification_email" class="ia-input"
+          value="{{ old('notification_email', $currentTenant->notification_email) }}"
+          placeholder="Where to send new booking alerts">
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-228B — Rentals pointer card --}}
+    @if($currentTenant->rentals_enabled)
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="ia-card-title">Rentals &amp; leasing</span>
+        <span class="ia-badge {{ $currentTenant->rentals_visible ? 'ia-badge--paid' : 'ia-badge--unpaid' }}">
+          {{ $currentTenant->rentals_visible ? 'On' : 'Hidden' }}{{ $currentTenant->leases_enabled ? ' · leasing' : '' }}
+        </span>
+      </div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        Turn rentals on or off, configure your season window, and enable season-long leasing.
+      </p>
+      <a href="{{ route('tenant.rentals.settings') }}" class="ia-btn ia-btn--primary">Open Rental settings</a>
+    </div>
+    @endif
+
+    {{-- MARKER-PATCH-228B — Notifications/Alerts pointer card --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Notifications</span></div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        Choose how you hear about new bookings, overdue rentals, payments, and more — in-app and by text.
+      </p>
+      <a href="{{ route('tenant.alerts.prefs') }}" class="ia-btn ia-btn--primary">Open Notification settings</a>
+    </div>
+
+    {{-- MARKER-PATCH-224 — SMS config moved to Settings -> Messaging --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="ia-card-title">Text messaging</span>
+        <span class="ia-badge {{ $currentTenant->sms_enabled && $currentTenant->sms_from_number ? 'ia-badge--paid' : 'ia-badge--unpaid' }}">
+          {{ $currentTenant->sms_enabled && $currentTenant->sms_from_number ? 'Active · ' . $currentTenant->sms_from_number : 'Not set up' }}
+        </span>
+      </div>
+      <p style="font-size:13px;opacity:.5;margin-bottom:12px;line-height:1.55">
+        Your business text number, two-way Inbox routing, and SMS sending live on the Messaging page.
+      </p>
+      <a href="{{ route('tenant.settings.messaging') }}" class="ia-btn ia-btn--primary">Open Messaging settings</a>
+    </div>
+
+    {{-- MARKER-PATCH-406 — customer notifications moved to Communication Center --}}
+    <div class="ia-card set-card--wide" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Customer notifications</span></div>
+      <p style="font-size:13px;opacity:.6;margin:0;line-height:1.55">
+        Booking, delivery, reminder, and receipt messages are managed in
+        <a href="{{ route('tenant.communication.index') }}" style="color:var(--ia-accent)">Communication</a>.
+      </p>
+    </div>
+  </form>
+  {{-- MARKER-PATCH-150-FIX — Web analytics card, outside parent form (HTML disallows nested forms) --}}
+  {{-- MARKER-PATCH-150-POLISH-C — wrap in grid section so set-card--wide applies --}}
+  <div class="set-section set-section--grid">
+  <div class="ia-card set-card--wide" style="margin-bottom: 20px;">
+    <div class="ia-card-head">
+      <span class="ia-card-title">Web analytics</span>
+    </div>
+    <p style="font-size:13px;opacity:.5;margin-bottom:14px">
+      Connect Google Analytics 4 to your public-facing pages. We'll inject the tracking script automatically.
+      Leave blank to disable.
+    </p>
+    <form method="POST" action="{{ route('tenant.settings.analytics.update') }}">
+      @csrf
+      <div class="ia-form-group">
+        <label class="ia-form-label">GA-4 measurement ID</label>
+        <input type="text" name="analytics_ga4_id" class="ia-input"
+               value="{{ old('analytics_ga4_id', $currentTenant->settings['analytics_ga4_id'] ?? '') }}"
+               placeholder="G-XXXXXXXXXX"
+               style="max-width: 320px; font-family: var(--ia-font-mono, 'JetBrains Mono', monospace);">
+        <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+          Find this in your GA-4 Admin → Data Streams → Measurement ID. Starts with <code>G-</code>.
+        </div>
+      </div>
+      @error('analytics_ga4_id')
+        <div style="color: #F47373; font-size: 12px; margin-top: 6px;">{{ $message }}</div>
+      @enderror
+      <div style="margin-top: 14px;">
+        <button type="submit" class="ia-btn ia-btn--primary">Save analytics</button>
+      </div>
+    </form>
+  </div>
+  </div>{{-- MARKER-PATCH-150-POLISH-C close grid wrapper --}}
+
+</div>
+
+{{-- =====================================================================
+     ACCOUNT — booking URL, custom domain, subscription
+     ===================================================================== --}}
+<div class="set-pane" id="pane-account" role="tabpanel">
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="account">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save account</button>
+      </div>
+    </div>
+
+    {{-- Booking URL (read-only) --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Your booking URL</span></div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:6px">
+        <a href="{{ $currentTenant->bookingUrl() }}" target="_blank" rel="noopener noreferrer"
+           style="color:var(--ia-accent);text-decoration:none;font-family:var(--ia-font-mono);font-size:13px">
+          {{ $currentTenant->bookingUrl() }}
+        </a>
+      </div>
+      <div style="font-size:12px;opacity:.5">This is where customers go to book with you.</div>
+    </div>
+
+    {{-- MARKER-PATCH-120 - Custom domains live on a dedicated page --}}
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head">
+        <span class="ia-card-title">Custom domains</span>
+      </div>
+      <p style="font-size:13px;opacity:.6;margin-bottom:14px;line-height:1.55">
+        Connect your own domain — like <code style="font-family:var(--ia-font-mono);font-size:12px">{{ $currentTenant->subdomain }}.com</code> — to your Intake site. HTTPS is automatic.
+      </p>
+      <a href="{{ route('tenant.domains.index', []) }}"
+         class="ia-btn ia-btn-secondary"
+         style="display:inline-flex;align-items:center;gap:6px">
+        Manage domains →
+      </a>
+    </div>
+  </form>
+
+  {{-- Subscription (read-only, separate from form) --}}
+  <div class="set-section set-section--grid">
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Subscription</span></div>
+
+      @if($currentTenant->stripe_customer_id)
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:480px;font-size:13px;margin-bottom:16px">
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Current plan</div>
+            <div style="font-weight:500">{{ ucfirst($currentTenant->plan_tier ?? 'Starter') }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Status</div>
+            <div style="font-weight:500">{{ ucfirst($currentTenant->subscription_status ?? 'unknown') }}</div>
+          </div>
+          @if($currentTenant->trial_ends_at)
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Trial ends</div>
+            <div style="font-weight:500">{{ $currentTenant->trial_ends_at->format('M j, Y') }}</div>
+          </div>
+          @endif
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-muted);margin-bottom:4px;font-weight:500">Billing</div>
+            <div style="font-weight:500">{{ ucfirst($currentTenant->stripe_subscription_cadence ?? '') ?: '—' }}</div>
+          </div>
+        </div>
+
+        <a href="{{ route('tenant.billing.portal', []) }}"
+           class="ia-btn ia-btn--primary"
+           target="_blank" rel="noopener noreferrer">
+          Manage billing in Stripe →
+        </a>
+        <p style="font-size:12px;color:var(--ia-text-muted);margin-top:8px">
+          Update your card, download invoices, or cancel your subscription through Stripe's secure portal.
+        </p>
+      @else
+        <p style="margin:0;color:var(--ia-text-muted);font-size:13px;line-height:1.55">
+          No billing account is connected to this tenant. Contact support to enable billing.
+        </p>
+      @endif
+    </div>
+  </div>
+</div>
+
+{{-- =====================================================================
+     PAYMENTS — Stripe + PayPal (preserved verbatim)
+     ===================================================================== --}}
+<div class="set-pane" id="pane-payments" role="tabpanel">
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="payments">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span><!-- MARKER-PATCH-165 — populated by JS -->
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save payment settings</button>
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-169 — Direct Payments bridge feature.
+         Only renders when master admin flipped direct_payments_enabled on for this tenant.
+         Tenant pastes their own Stripe keys here for register card-sales. --}}
+    @if($currentTenant->direct_payments_enabled ?? false)
+    {{-- MARKER-PATCH-618 — toggle-able (default on). Off hides card + payment-link tenders at the register; refunds of past charges still work. --}}
+    <div class="provider-card {{ ($s['stripe_register_enabled'] ?? true) ? 'enabled' : '' }}" id="register-payments-card">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px">
+            Register card payments
+          </div>
+          <div style="font-size:12px;opacity:.6;margin-top:2px">Hand-key card numbers and send payment links from the register. Paste your own Stripe keys below.</div>
+        </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['stripe_register_enabled'] ?? true) ? 'on' : '' }}"
+          id="register-payments-toggle" onclick="toggleProvider('register-payments')"></button>
+        <input type="hidden" name="stripe_register_enabled" id="register-payments-enabled-val" value="{{ ($s['stripe_register_enabled'] ?? true) ? '1' : '0' }}">
+      </div>
+      <div class="provider-fields" id="register-payments-fields">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Mode</label>
+          <select name="register_payments_mode" class="ia-input" style="width:auto">
+            <option value="test" @selected(($s['register_payments_mode'] ?? 'test') === 'test')>Test</option>
+            <option value="live" @selected(($s['register_payments_mode'] ?? 'test') === 'live')>Live</option>
+          </select>
+          <div style="font-size:11px;opacity:.55;margin-top:6px">Start in test mode. Switch to live only after you've verified end-to-end flows with test cards.</div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Test publishable key</label>
+            <input type="text" name="register_payments_test_pk" value="{{ $s['register_payments_test_pk'] ?? '' }}" class="ia-input" placeholder="pk_test_…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Test secret key</label>
+            <input type="password" name="register_payments_test_sk" value="{{ $s['register_payments_test_sk'] ?? '' }}" class="ia-input" placeholder="sk_test_…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Live publishable key</label>
+            <input type="text" name="register_payments_live_pk" value="{{ $s['register_payments_live_pk'] ?? '' }}" class="ia-input" placeholder="pk_live_…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Live secret key</label>
+            <input type="password" name="register_payments_live_sk" value="{{ $s['register_payments_live_sk'] ?? '' }}" class="ia-input" placeholder="sk_live_…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div class="ia-form-group">
+          <label class="ia-form-label">Webhook signing secret</label>
+          <input type="password" name="register_payments_webhook_secret" value="{{ $s['register_payments_webhook_secret'] ?? '' }}" class="ia-input" placeholder="whsec_…" autocomplete="off" spellcheck="false">
+          <div style="font-size:11px;opacity:.55;margin-top:6px">
+            From Stripe Dashboard -> Developers -> Webhooks. Point a new endpoint at <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">{{ url('/webhooks/stripe-direct/' . $currentTenant->id) }}</code> and subscribe to <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">payment_intent.succeeded</code>, <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">checkout.session.completed</code>, and <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">charge.refunded</code>.
+          </div>
+        </div>
+
+      </div>
+    </div>
+    @endif
+
+    {{-- MARKER-PATCH-473 — Square (tenant-connected, paste-token). Same master-admin gate as Stripe. --}}
+    @if($currentTenant->direct_payments_enabled ?? false)
+    <div class="provider-card {{ ($s['square_enabled'] ?? true) ? 'enabled' : '' }}" id="square-payments-card" style="margin-top:16px">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px">Square card payments</div>
+          <div style="font-size:12px;opacity:.6;margin-top:2px">Connect your own Square account as an alternative to Stripe. Paste the credentials from your Square app, save, then test the connection.</div>
+        </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['square_enabled'] ?? true) ? 'on' : '' }}"
+          id="square-payments-toggle" onclick="toggleProvider('square-payments')"></button>
+        <input type="hidden" name="square_enabled" id="square-payments-enabled-val" value="{{ ($s['square_enabled'] ?? true) ? '1' : '0' }}">
+      </div>
+      <div class="provider-fields" id="square-payments-fields">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Mode</label>
+          <select name="square_payments_mode" class="ia-input" style="width:auto">
+            <option value="sandbox" @selected(($s['square_payments_mode'] ?? 'sandbox') === 'sandbox')>Sandbox</option>
+            <option value="production" @selected(($s['square_payments_mode'] ?? 'sandbox') === 'production')>Production</option>
+          </select>
+          <div style="font-size:11px;opacity:.55;margin-top:6px">Sandbox and production are separate Square apps with their own credentials. Verify in sandbox first.</div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="font-size:11px;font-weight:600;opacity:.7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Sandbox credentials</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Application ID</label>
+            <input type="text" name="square_sandbox_app_id" value="{{ $s['square_sandbox_app_id'] ?? '' }}" class="ia-input" placeholder="sandbox-sq0idb-…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Location ID</label>
+            <input type="text" name="square_sandbox_location_id" value="{{ $s['square_sandbox_location_id'] ?? '' }}" class="ia-input" placeholder="L…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group" style="grid-column:1 / -1">
+            <label class="ia-form-label">Access token</label>
+            <input type="password" name="square_sandbox_access_token" value="{{ $s['square_sandbox_access_token'] ?? '' }}" class="ia-input" placeholder="EAAAl…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="font-size:11px;font-weight:600;opacity:.7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Production credentials</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Application ID</label>
+            <input type="text" name="square_production_app_id" value="{{ $s['square_production_app_id'] ?? '' }}" class="ia-input" placeholder="sq0idp-…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Location ID</label>
+            <input type="text" name="square_production_location_id" value="{{ $s['square_production_location_id'] ?? '' }}" class="ia-input" placeholder="L…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="ia-form-group" style="grid-column:1 / -1">
+            <label class="ia-form-label">Access token</label>
+            <input type="password" name="square_production_access_token" value="{{ $s['square_production_access_token'] ?? '' }}" class="ia-input" placeholder="EAAAl…" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div class="ia-form-group">
+          <label class="ia-form-label">Webhook signature key</label>
+          <input type="password" name="square_webhook_signature_key" value="{{ $s['square_webhook_signature_key'] ?? '' }}" class="ia-input" placeholder="webhook signature key" autocomplete="off" spellcheck="false">
+          <div style="font-size:11px;opacity:.55;margin-top:6px">
+            From Square Developer Console -> your app -> Webhooks. Point a subscription at <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">{{ url('/webhooks/square/' . $currentTenant->id) }}</code> and subscribe to <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">payment.updated</code> and <code style="background:var(--ia-input-bg);padding:1px 5px;border-radius:3px;font-size:11px">refund.updated</code>.
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--ia-border);margin:18px 0"></div>
+
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" class="ia-btn ia-btn--ghost" onclick="squareTestConnection(this)">Test connection</button>
+          <span id="square-test-result" style="font-size:12px;opacity:.85"></span>
+        </div>
+        <div style="font-size:11px;opacity:.55;margin-top:8px">Save your credentials first, then test. This calls Square with your saved access token to confirm the location is reachable.</div>
+      </div>
+    </div>
+    <script>
+      window.squareTestConnection = function (btn) {
+        var out = document.getElementById('square-test-result');
+        btn.disabled = true; out.textContent = 'Testing…'; out.style.color = '';
+        fetch({!! json_encode(route('tenant.settings.square.verify')) !!}, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': {!! json_encode(csrf_token()) !!}, 'Accept': 'application/json' },
+          body: '{}'
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          btn.disabled = false;
+          if (d && d.ok) { out.textContent = '\u2713 ' + (d.message || 'Connected'); out.style.color = 'var(--ia-accent)'; }
+          else { out.textContent = '\u2715 ' + ((d && d.message) || 'Failed'); out.style.color = '#f87171'; }
+        }).catch(function () { btn.disabled = false; out.textContent = '\u2715 Request failed'; out.style.color = '#f87171'; });
+      };
+    </script>
+    @endif
+
+    {{-- PayPal --}}
+    <div class="provider-card {{ ($s['paypal_enabled'] ?? false) ? 'enabled' : '' }}" id="paypal-card">
+      <div class="provider-header">
+        <div>
+          <div style="font-size:15px;font-weight:500">PayPal</div>
+          <div style="font-size:12px;opacity:.5;margin-top:2px">PayPal, Venmo, Pay Later</div>
+        </div>
+        <button type="button" class="prov-toggle-btn {{ ($s['paypal_enabled'] ?? false) ? 'on' : '' }}"
+          id="paypal-toggle" onclick="toggleProvider('paypal')"></button>
+        <input type="hidden" name="paypal_enabled" id="paypal-enabled-val" value="{{ ($s['paypal_enabled'] ?? false) ? '1' : '0' }}">
+      </div>
+      <div class="provider-fields" id="paypal-fields">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Mode</label>
+          <select name="paypal_mode" class="ia-input" style="width:auto">
+            <option value="sandbox" @selected(($s['paypal_mode'] ?? 'sandbox') === 'sandbox')>Sandbox</option>
+            <option value="live"    @selected(($s['paypal_mode'] ?? 'sandbox') === 'live')>Live</option>
+          </select>
+        </div>
+        <div class="ia-input-grid-2">
+          <div class="ia-form-group">
+            <label class="ia-form-label">Sandbox client ID</label>
+            <input type="text" name="paypal_test_client_id" class="ia-input ia-mono" value="{{ $s['paypal_test_client_id'] ?? '' }}">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Sandbox secret</label>
+            <input type="password" name="paypal_test_secret" class="ia-input ia-mono" value="{{ $s['paypal_test_secret'] ?? '' }}">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Live client ID</label>
+            <input type="text" name="paypal_live_client_id" class="ia-input ia-mono" value="{{ $s['paypal_live_client_id'] ?? '' }}">
+          </div>
+          <div class="ia-form-group">
+            <label class="ia-form-label">Live secret</label>
+            <input type="password" name="paypal_live_secret" class="ia-input ia-mono" value="{{ $s['paypal_live_secret'] ?? '' }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </form>
+
+  {{-- MARKER-PATCH-629 — unified payment methods list (replaces the 618 Venmo/Cash App cards) --}}
+  @include('tenant.settings._payment-methods')
+</div>
+{{-- MARKER-PATCH-315 — Work-order tag settings --}}
+{{-- =====================================================================
+     ORDERING — how special orders pick a vendor      MARKER-SO-AUTOVENDOR
+     ===================================================================== --}}
+@php $soAuto = $s['special_orders']['auto_assign_vendor'] ?? 'preferred'; @endphp
+<div class="set-pane" id="pane-ordering" role="tabpanel">
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="ordering">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span>
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save ordering settings</button>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Special orders — vendor assignment</span></div>
+      <p style="font-size:13px;opacity:.55;margin-bottom:16px">
+        When a special order is created, Intake can pick the vendor for you from the
+        vendors already linked to that item. You can always change it before placing the order.
+      </p>
+
+      <label class="set-radio-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-bottom:8px;cursor:pointer">
+        <input type="radio" name="so_auto_assign_vendor" value="preferred" @checked($soAuto === 'preferred')>
+        <span>
+          <strong style="display:block;font-size:13.5px">Preferred vendor</strong>
+          <span style="font-size:12px;opacity:.6">Uses the vendor marked preferred on the item, falling back to whoever you ordered from most recently.</span>
+        </span>
+      </label>
+
+      <label class="set-radio-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-bottom:8px;cursor:pointer">
+        <input type="radio" name="so_auto_assign_vendor" value="lowest_price" @checked($soAuto === 'lowest_price')>
+        <span>
+          <strong style="display:block;font-size:13.5px">Lowest price</strong>
+          <span style="font-size:12px;opacity:.6">Cheapest cost among vendors that carry it, preferring vendors that actually show stock. Falls back to the preferred vendor when no cost is known.</span>
+        </span>
+      </label>
+
+      <label class="set-radio-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);cursor:pointer">
+        <input type="radio" name="so_auto_assign_vendor" value="off" @checked($soAuto === 'off')>
+        <span>
+          <strong style="display:block;font-size:13.5px">Don't assign automatically</strong>
+          <span style="font-size:12px;opacity:.6">Leave the vendor blank and choose it yourself on the special orders screen.</span>
+        </span>
+      </label>
+    </div>
+  </form>
+</div>
+
+<div class="set-pane" id="pane-tags" role="tabpanel">
+  @php
+    $wot      = $s['work_order_tag'] ?? [];
+    $wotOn    = fn($k) => array_key_exists($k, $wot) ? (bool) $wot[$k] : true;
+    $wotLead  = $wot['lead_days'] ?? 3;
+    $wotPaper = ($wot['paper'] ?? '80mm') === '58mm' ? '58mm' : '80mm';
+    $wotLogo  = $wot['logo_path'] ?? null;
+    $wotFeed  = (int) ($wot['feed_mm'] ?? 0);
+    $wotHeader = (string) ($wot['header_text'] ?? ''); // MARKER-PATCH-330
+    $wotFooter = (string) ($wot['footer_text'] ?? ''); // MARKER-PATCH-330
+  @endphp
+  <style>
+    .wot-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:0.5px solid var(--ia-border);cursor:pointer}
+    .wot-row:last-child{border-bottom:none}
+    .wot-row-l .t{font-size:13px;color:var(--ia-text)}
+    .wot-row-l .d{font-size:11.5px;color:var(--ia-muted);margin-top:2px}
+    .wot-switch{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:99px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);position:relative;cursor:pointer;flex-shrink:0;transition:background .15s;margin:0}
+    .wot-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--ia-muted);transition:all .15s}
+    .wot-switch:checked{background:var(--ia-accent);border-color:var(--ia-accent)}
+    .wot-switch:checked::after{left:18px;background:#0a0a0a}
+    .wot-seg{display:flex;gap:6px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:8px;padding:4px;max-width:240px}
+    .wot-seg label{flex:1;text-align:center;padding:8px;border-radius:5px;font-size:13px;cursor:pointer;color:var(--ia-muted);position:relative}
+    .wot-seg input{position:absolute;opacity:0;pointer-events:none}
+    .wot-seg label:has(input:checked){background:var(--ia-accent);color:#0a0a0a;font-weight:600}
+    .wot-logo-preview{background:#fff;padding:10px 12px;border-radius:8px;display:inline-block;margin-bottom:10px}
+    .wot-logo-preview img{max-height:42px;max-width:200px;display:block}
+  </style>
+
+  <form method="POST" action="{{ route('tenant.settings.update') }}" enctype="multipart/form-data" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH') {{-- MARKER-PATCH-316 --}}
+    <input type="hidden" name="tab" value="tags">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span>
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save tag settings</button>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <label class="wot-row" style="border:none;padding:2px 0">
+        <span class="wot-row-l">
+          <span class="t">Print service tags</span>
+          <span class="d">Hang a tag on each item at drop-off. Prints to your 80mm receipt printer.</span>
+        </span>
+        <input type="checkbox" name="wot_enabled" value="1" {{ $wotOn('enabled') ? 'checked' : '' }} class="wot-switch">
+      </label>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">What prints on the tag</span></div>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Shop name / logo header</span></span><input type="checkbox" name="wot_show_header" value="1" {{ $wotOn('show_header') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Customer phone</span></span><input type="checkbox" name="wot_show_phone" value="1" {{ $wotOn('show_phone') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Item / asset description</span></span><input type="checkbox" name="wot_show_bike" value="1" {{ $wotOn('show_bike') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Requested services</span></span><input type="checkbox" name="wot_show_services" value="1" {{ $wotOn('show_services') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Intake note</span></span><input type="checkbox" name="wot_show_note" value="1" {{ $wotOn('show_note') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">QR code (links to the job)</span></span><input type="checkbox" name="wot_show_qr" value="1" {{ $wotOn('show_qr') ? 'checked' : '' }} class="wot-switch"></label>
+      <label class="wot-row"><span class="wot-row-l"><span class="t">Tear-off customer claim stub</span></span><input type="checkbox" name="wot_show_stub" value="1" {{ $wotOn('show_stub') ? 'checked' : '' }} class="wot-switch"></label>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Defaults</span></div>
+      <div class="ia-input-grid-2">
+        <div class="ia-form-group">
+          <label class="ia-form-label">Default &ldquo;promised by&rdquo;</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" name="wot_lead_days" value="{{ $wotLead }}" min="0" max="30" class="ia-input" style="width:84px">
+            <span style="font-size:13px;color:var(--ia-muted)">business days after drop-off</span>
+          </div>
+          <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Prefilled on new jobs; editable per work order.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Paper width</label>
+          <div class="wot-seg">
+            <label><input type="radio" name="wot_paper" value="80mm" {{ $wotPaper === '80mm' ? 'checked' : '' }}><span>80mm</span></label>
+            <label><input type="radio" name="wot_paper" value="58mm" {{ $wotPaper === '58mm' ? 'checked' : '' }}><span>58mm</span></label>
+          </div>
+        </div>
+        {{-- MARKER-PATCH-320 --}}
+        <div class="ia-form-group">
+          <label class="ia-form-label">Extra paper after cut</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" name="wot_feed_mm" value="{{ $wotFeed }}" min="0" max="40" class="ia-input" style="width:84px">
+            <span style="font-size:13px;color:var(--ia-muted)">mm of feed so it clears the cutter</span>
+          </div>
+          <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Try 10&ndash;15mm if the last line cuts too close.</div>
+        </div>
+      </div>
+    </div>
+
+    {{-- MARKER-PATCH-330 --}}
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Header &amp; footer</span></div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Header lines</label>
+        <textarea name="wot_header_text" rows="2" class="ia-input" placeholder="e.g. 509-555-1234&#10;Mon–Fri 9–6" style="resize:vertical">{{ $wotHeader }}</textarea>
+        <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Shown under your logo on tags, receipts &amp; slips. One per line.</div>
+      </div>
+      <div class="ia-form-group">
+        <label class="ia-form-label">Footer message</label>
+        <textarea name="wot_footer_text" rows="2" class="ia-input" placeholder="e.g. Thanks for riding with us!" style="resize:vertical">{{ $wotFooter }}</textarea>
+        <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">Printed at the bottom. Leave blank for the default.</div>
+      </div>
+    </div>
+
+    <div class="ia-card">
+      <div class="ia-card-head"><span class="ia-card-title">Logo</span></div>
+      @if($wotLogo)
+        <div class="wot-logo-preview"><img src="{{ asset('storage/' . ltrim($wotLogo, '/')) }}" alt="Tag logo"></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ia-muted);margin-bottom:12px;cursor:pointer">
+          <input type="checkbox" name="wot_logo_remove" value="1"> Remove current logo
+        </label>
+      @endif
+      {{-- MARKER-PATCH-317 --}}
+      <div class="ia-form-group" style="margin-bottom:12px;max-width:240px">
+        <label class="ia-form-label">Logo size on tag</label>
+        @php $wls = $wot['logo_size'] ?? 'medium'; @endphp
+        <select name="wot_logo_size" class="ia-input">
+          <option value="small"  {{ $wls === 'small'  ? 'selected' : '' }}>Small</option>
+          <option value="medium" {{ $wls === 'medium' ? 'selected' : '' }}>Medium</option>
+          <option value="large"  {{ $wls === 'large'  ? 'selected' : '' }}>Large</option>
+          <option value="xl"     {{ $wls === 'xl'     ? 'selected' : '' }}>Extra large</option>
+        </select>
+      </div>
+      <input type="file" name="wot_logo" accept="image/png,image/jpeg,image/webp" class="ia-input">
+      <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">High-contrast black-on-white prints best on thermal. Shown at the top of each tag in place of the shop name.</div>
+    </div>
+
+  </form>
+</div>
+
+@endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+  /* -----------------------------------------------------------------------
+   * Tab switching (no URL params)
+   * ----------------------------------------------------------------------- */
+  function switchTab(name) {
+    document.querySelectorAll('.set-tab').forEach(function(t) {
+      t.classList.toggle('active', t.dataset.tab === name);
+    });
+    document.querySelectorAll('.set-pane').forEach(function(p) {
+      p.classList.toggle('active', p.id === 'pane-' + name);
+    });
+    // Reset window scroll so a long pane doesn't start mid-page
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  document.querySelectorAll('.set-tab').forEach(function(t) {
+    t.addEventListener('click', function() { switchTab(t.dataset.tab); });
+  });
+
+  /* -----------------------------------------------------------------------
+   * Dirty tracking — per form, save bar dims when no changes
+   * ----------------------------------------------------------------------- */
+  // MARKER-PATCH-166 — savebar shows ONLY the unsaved-changes warning.
+  // Save confirmation lives in the top flash banner (one source of truth).
+  document.querySelectorAll('[data-dirty-form]').forEach(function(form) {
+    var savebar = form.querySelector('[data-savebar]');
+    var msg     = savebar ? savebar.querySelector('.set-savebar-msg') : null;
+    var initial = serialize(form);
+
+    function serialize(f) {
+      // For dirty tracking we build a stable string from the form's editable
+      // values. File inputs and password fields with placeholder dots can't
+      // be reliably serialized, so we only mark dirty on text/select/hidden
+      // changes — any user interaction is enough to flip the bar.
+      var parts = [];
+      Array.from(f.elements).forEach(function(el) {
+        if (!el.name) return;
+        if (el.type === 'file') {
+          if (el.files && el.files.length) parts.push(el.name + '=FILE');
+          return;
+        }
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          parts.push(el.name + '=' + (el.checked ? '1' : '0') + '|' + (el.value || ''));
+          return;
+        }
+        parts.push(el.name + '=' + (el.value || ''));
+      });
+      return parts.join('&');
+    }
+
+    function checkDirty() {
+      var nowSerialized = serialize(form);
+      var dirty = nowSerialized !== initial;
+      if (savebar) {
+        savebar.classList.toggle('dirty', dirty);
+        // MARKER-PATCH-166 — savebar shows the warning only.
+        // Save confirmation is handled by the global flash banner at the top
+        // (layouts/tenant/app.blade.php). Dual confirmation was confusing.
+        if (msg) {
+          msg.textContent = dirty ? 'You have unsaved changes.' : '';
+        }
+      }
+    }
+
+    // Initial paint
+    checkDirty();
+
+    form.addEventListener('input', checkDirty);
+    form.addEventListener('change', checkDirty);
+
+    // Discard: reload the page (server-rendered, so this resets to saved state)
+    var discardBtn = form.querySelector('[data-discard]');
+    if (discardBtn) {
+      discardBtn.addEventListener('click', function() {
+        if (confirm('Discard your unsaved changes?')) {
+          window.location.reload();
+        }
+      });
+    }
+  });
+
+  /* -----------------------------------------------------------------------
+   * Generic "ia-toggle bound to hidden input" pattern. Used on:
+   *   - Business: classes_enabled, tax_services_default, tax_supports_exempt
+   *   - Communication: sms_enabled, notify_booking_confirmation_email/sms
+   *
+   * Clicking the toggle flips both the visual class and the hidden input's
+   * value, then dispatches a 'change' on the input so dirty tracking runs.
+   * ----------------------------------------------------------------------- */
+  function bindToggle(btnId, inputId) {
+    var btn   = document.getElementById(btnId);
+    var input = document.getElementById(inputId);
+    if (!btn || !input) return;
+    btn.addEventListener('click', function() {
+      if (btn.disabled) return;
+      var on = !btn.classList.contains('on');
+      btn.classList.toggle('on', on);
+      input.value = on ? '1' : '0';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+  bindToggle('classes-toggle-btn',          'classes_enabled_input');
+  // MARKER-PATCH-156
+  bindToggle('deliveries-toggle-btn',       'deliveries_enabled_input');
+  // MARKER-PATCH-158-B
+  bindToggle('multi-asset-toggle-btn',      'multi_asset_enabled_input');
+  bindToggle('tax-services-toggle-btn',     'tax_services_default_input');
+  bindToggle('tax-exempt-toggle-btn',       'tax_supports_exempt_input');
+  // notify toggles removed — patch-406 (moved to Communication Center)
+
+  /* -----------------------------------------------------------------------
+   * Branding: color picker text/swatch sync
+   * ----------------------------------------------------------------------- */
+  document.querySelectorAll('input[type=color]').forEach(function(picker) {
+    var textId = picker.id.replace('color-', 'text-');
+    var text   = document.getElementById(textId);
+    if (text) picker.addEventListener('input', function() { text.value = picker.value; });
+  });
+
+  /* -----------------------------------------------------------------------
+   * Drop-off methods CRUD (preserved verbatim from the previous settings
+   * page — endpoints unchanged, just wrapped in the new tab structure).
+   * ----------------------------------------------------------------------- */
+  var list = document.getElementById('method-list');
+
+  // Add new method
+  var addForm = document.getElementById('add-method-form');
+  if (addForm) {
+    addForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var fd = new FormData(addForm);
+      var body = {
+        name:             fd.get('name'),
+        description:      fd.get('description'),
+        ask_for_time:     fd.get('ask_for_time') ? 1 : 0,
+        ask_for_tracking: fd.get('ask_for_tracking') ? 1 : 0,
+      };
+      fetch("{{ route('tenant.receiving-methods.store') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function(r) {
+        if (r.ok) window.location.reload();
+        else alert('Could not add method.');
+      });
+    });
+  }
+
+  // Drag-to-reorder
+  if (list && window.Sortable) {
+    Sortable.create(list, {
+      handle: '.drag-handle',
+      animation: 150,
+      onEnd: function() {
+        var ids = Array.from(list.querySelectorAll('.method-row'))
+                       .map(function(r) { return r.getAttribute('data-method-id'); });
+        fetch("{{ route('tenant.receiving-methods.reorder') }}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+          body: JSON.stringify({ order: ids }),
+        }).then(function(r) {
+          // MARKER-PATCH-248
+          if (r.ok) { if (window.IntakeToast) IntakeToast.success('Order saved'); }
+          else { if (window.IntakeToast) IntakeToast.error('Could not save the new order'); }
+        }).catch(function() { if (window.IntakeToast) IntakeToast.error('Could not save the new order — check your connection'); });
+      }
+    });
+  }
+
+  // Inline edit on blur (text) / change (checkbox)
+  document.querySelectorAll('.method-edit, .method-edit-toggle').forEach(function(el) {
+    var evt = el.type === 'checkbox' ? 'change' : 'blur';
+    el.addEventListener(evt, function() {
+      var row = el.closest('.method-row');
+      var id  = row.getAttribute('data-method-id');
+      var field = el.getAttribute('data-field');
+      var value = el.type === 'checkbox' ? (el.checked ? 1 : 0) : el.value;
+      var body = {};
+      body[field] = value;
+      fetch("{{ url('admin/receiving-methods') }}/" + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function(r) {
+        // MARKER-PATCH-248 — saves speak.
+        if (r.ok) { if (window.IntakeToast) IntakeToast.success('Saved'); }
+        else {
+          row.style.outline = '1px solid #d04444';
+          setTimeout(function() { row.style.outline = ''; }, 1500);
+          if (window.IntakeToast) IntakeToast.error('Could not save — try again');
+        }
+      }).catch(function() { if (window.IntakeToast) IntakeToast.error('Could not save — check your connection'); });
+    });
+  });
+
+  // Active toggle
+  document.querySelectorAll('.method-row-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (btn.classList.contains('is-busy')) return;
+      var row    = btn.closest('.method-row');
+      var id     = row.getAttribute('data-method-id');
+      var field  = btn.getAttribute('data-field');
+      var newVal = !btn.classList.contains('on');
+      btn.classList.add('is-busy');
+      var body = {};
+      body[field] = newVal ? 1 : 0;
+      fetch("{{ url('admin/receiving-methods') }}/" + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(function(r) {
+        btn.classList.remove('is-busy');
+        if (r.ok) {
+          btn.classList.toggle('on', newVal);
+          row.style.opacity = newVal ? '' : '.45';
+          btn.setAttribute('title', newVal ? 'Click to deactivate' : 'Click to activate');
+          btn.querySelector('.ia-toggle-sr').textContent = newVal ? 'Active' : 'Inactive';
+        } else {
+          row.style.outline = '1px solid #d04444';
+          setTimeout(function() { row.style.outline = ''; }, 1500);
+          if (window.IntakeToast) IntakeToast.error('Could not update — try again'); // MARKER-PATCH-248
+        }
+      }).catch(function() {
+        btn.classList.remove('is-busy');
+        if (window.IntakeToast) IntakeToast.error('Could not update — check your connection'); // MARKER-PATCH-248
+      });
+    });
+  });
+
+  /* -----------------------------------------------------------------------
+   * SMS test send
+   * ----------------------------------------------------------------------- */
+  var smsTestBtn    = document.getElementById('sms-test-btn');
+  var smsTestTo     = document.getElementById('sms_test_to');
+  var smsTestStatus = document.getElementById('sms-test-status');
+
+  if (smsTestBtn && smsTestTo && smsTestStatus) {
+    smsTestBtn.addEventListener('click', function() {
+      var to = smsTestTo.value.trim();
+      if (!to) {
+        smsTestStatus.className = 'sms-test-status error';
+        smsTestStatus.textContent = 'Enter a phone number first.';
+        return;
+      }
+      smsTestStatus.className = 'sms-test-status';
+      smsTestStatus.textContent = '';
+      smsTestBtn.disabled = true;
+      smsTestBtn.textContent = 'Sending…';
+
+      fetch("{{ route('tenant.settings.test-sms') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+        body: JSON.stringify({ to: to }),
+      }).then(function(r) {
+        return r.json().then(function(d) { return { ok: r.ok, body: d }; });
+      }).then(function(res) {
+        smsTestBtn.disabled = false;
+        smsTestBtn.textContent = 'Send test';
+        if (res.ok && res.body.ok) {
+          smsTestStatus.className = 'sms-test-status success';
+          smsTestStatus.textContent = res.body.message || 'Test sent.';
+        } else {
+          smsTestStatus.className = 'sms-test-status error';
+          smsTestStatus.textContent = (res.body && res.body.error) || 'Send failed.';
+        }
+      }).catch(function() {
+        smsTestBtn.disabled = false;
+        smsTestBtn.textContent = 'Send test';
+        smsTestStatus.className = 'sms-test-status error';
+        smsTestStatus.textContent = 'Network error.';
+      });
+    });
+  }
+
+  /* -----------------------------------------------------------------------
+   * Logo size sliders — live preview chip resize
+   *
+   * Slider input dispatches 'input' on every drag tick. We mutate the
+   * preview img's height directly. The slider itself is a normal form input
+   * so dirty tracking + save bar fire automatically.
+   * ----------------------------------------------------------------------- */
+  function bindLogoSlider(sliderId, readoutId, previewId) {
+    var slider  = document.getElementById(sliderId);
+    var readout = document.getElementById(readoutId);
+    var preview = document.getElementById(previewId);
+    if (!slider) return;
+    slider.addEventListener('input', function() {
+      var v = parseInt(slider.value, 10) || 16;
+      if (readout) readout.textContent = v;
+      if (preview) preview.style.height = v + 'px';
+    });
+  }
+  bindLogoSlider('logo-admin-slider',   'logo-admin-readout',   'logo-admin-preview');
+  bindLogoSlider('logo-booking-slider', 'logo-booking-readout', 'logo-booking-preview');
+
+})();
+
+/* -----------------------------------------------------------------------
+ * Provider toggle (Stripe / PayPal) — needs to be global because the
+ * onclick attribute references it from inline. Preserved from old page.
+ * ----------------------------------------------------------------------- */
+function toggleProvider(name) {
+  var card     = document.getElementById(name + '-card');
+  var toggle   = document.getElementById(name + '-toggle');
+  var valInput = document.getElementById(name + '-enabled-val');
+  var enabled  = toggle.classList.toggle('on');
+  card.classList.toggle('enabled', enabled);
+  valInput.value = enabled ? '1' : '0';
+  // Trigger dirty tracking on the parent form
+  valInput.dispatchEvent(new Event('change', { bubbles: true }));
+}
+</script>
+@endpush
+
+SOAV_4_EOF
+
+cat > 'resources/views/tenant/register/index.blade.php' <<'SOAV_5_EOF'
 @extends('layouts.tenant.app')
 
 @php $pageTitle = 'Register'; @endphp
@@ -3673,3 +6910,6 @@ loadDrafts().then(refreshDraftsBanner);
 @endif
 @endpush
 
+SOAV_5_EOF
+
+echo "special-orders-auto-vendor applied — server: git pull && php artisan migrate --force && php artisan view:clear"

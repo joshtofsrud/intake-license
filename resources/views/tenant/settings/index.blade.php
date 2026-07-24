@@ -305,6 +305,7 @@
   <button type="button" class="set-tab"        data-tab="account"       role="tab">Account</button>
   <button type="button" class="set-tab"        data-tab="payments"      role="tab">Payments</button>
   <button type="button" class="set-tab"        data-tab="tags"          role="tab">Print &amp; receipts</button>{{-- MARKER-PATCH-315 / 339 --}}
+  <button type="button" class="set-tab"        data-tab="ordering"      role="tab">Ordering</button>{{-- MARKER-SO-AUTOVENDOR --}}
 </div>
 
 {{-- =====================================================================
@@ -1288,6 +1289,57 @@
   @include('tenant.settings._payment-methods')
 </div>
 {{-- MARKER-PATCH-315 — Work-order tag settings --}}
+{{-- =====================================================================
+     ORDERING — how special orders pick a vendor      MARKER-SO-AUTOVENDOR
+     ===================================================================== --}}
+@php $soAuto = $s['special_orders']['auto_assign_vendor'] ?? 'preferred'; @endphp
+<div class="set-pane" id="pane-ordering" role="tabpanel">
+  <form method="POST" action="{{ route('tenant.settings.update') }}" class="set-section set-section--grid" data-dirty-form>
+    @csrf @method('PATCH')
+    <input type="hidden" name="tab" value="ordering">
+
+    <div class="set-savebar" data-savebar>
+      <span class="set-savebar-msg"></span>
+      <div class="set-savebar-actions">
+        <button type="button" class="set-discard-btn" data-discard>Discard</button>
+        <button type="submit" class="set-save-btn">Save ordering settings</button>
+      </div>
+    </div>
+
+    <div class="ia-card" style="margin-bottom:20px">
+      <div class="ia-card-head"><span class="ia-card-title">Special orders — vendor assignment</span></div>
+      <p style="font-size:13px;opacity:.55;margin-bottom:16px">
+        When a special order is created, Intake can pick the vendor for you from the
+        vendors already linked to that item. You can always change it before placing the order.
+      </p>
+
+      <label class="set-radio-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-bottom:8px;cursor:pointer">
+        <input type="radio" name="so_auto_assign_vendor" value="preferred" @checked($soAuto === 'preferred')>
+        <span>
+          <strong style="display:block;font-size:13.5px">Preferred vendor</strong>
+          <span style="font-size:12px;opacity:.6">Uses the vendor marked preferred on the item, falling back to whoever you ordered from most recently.</span>
+        </span>
+      </label>
+
+      <label class="set-radio-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);margin-bottom:8px;cursor:pointer">
+        <input type="radio" name="so_auto_assign_vendor" value="lowest_price" @checked($soAuto === 'lowest_price')>
+        <span>
+          <strong style="display:block;font-size:13.5px">Lowest price</strong>
+          <span style="font-size:12px;opacity:.6">Cheapest cost among vendors that carry it, preferring vendors that actually show stock. Falls back to the preferred vendor when no cost is known.</span>
+        </span>
+      </label>
+
+      <label class="set-radio-row" style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);cursor:pointer">
+        <input type="radio" name="so_auto_assign_vendor" value="off" @checked($soAuto === 'off')>
+        <span>
+          <strong style="display:block;font-size:13.5px">Don't assign automatically</strong>
+          <span style="font-size:12px;opacity:.6">Leave the vendor blank and choose it yourself on the special orders screen.</span>
+        </span>
+      </label>
+    </div>
+  </form>
+</div>
+
 <div class="set-pane" id="pane-tags" role="tabpanel">
   @php
     $wot      = $s['work_order_tag'] ?? [];

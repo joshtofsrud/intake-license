@@ -47,8 +47,27 @@ class SettingsController extends Controller
             'appearance'    => $this->updateAppearance($request, $tenant),
             'payments'      => $this->updatePayments($request, $tenant),
             'tags'          => $this->updateTags($request, $tenant), // MARKER-PATCH-315
+            'ordering'      => $this->updateOrdering($request, $tenant), // MARKER-SO-AUTOVENDOR
             default         => back()->with('error', 'Unknown tab.'),
         };
+    }
+
+    // -------------------------------------------------------------------
+    // MARKER-SO-AUTOVENDOR — how special orders choose a vendor.
+    // -------------------------------------------------------------------
+    private function updateOrdering(Request $request, $tenant)
+    {
+        $request->validate([
+            'so_auto_assign_vendor' => ['required', 'in:preferred,lowest_price,off'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $so = (array) ($settings['special_orders'] ?? []);
+        $so['auto_assign_vendor'] = $request->input('so_auto_assign_vendor');
+        $settings['special_orders'] = $so;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('success', 'Ordering settings saved.');
     }
 
     // -------------------------------------------------------------------
