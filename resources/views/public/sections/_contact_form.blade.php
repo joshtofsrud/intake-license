@@ -242,7 +242,9 @@
 
       <div class="p-cf-form-group">
         <label class="p-cf-label">{{ $labelName }} *</label>
-        <input type="text" name="name" class="p-cf-input" value="{{ old('name') }}" required placeholder="">
+        {{-- MARKER-CONTACT-NAMES — split into first and last, both required --}}
+        <input type="text" name="first_name" class="p-cf-input" value="{{ old('first_name') }}" required placeholder="First name">
+        <input type="text" name="last_name" class="p-cf-input" value="{{ old('last_name') }}" required placeholder="Last name" style="margin-top:8px">
       </div>
 
       @if($showPhone)

@@ -142,7 +142,9 @@
         </div>
         </div>
         <form method="POST" action="{{ route('tenant.inbox.status', $selected->id) }}">@csrf
-          <button type="submit" class="ia-btn" style="font-size:11.5px">{{ $selected->status === 'closed' ? 'Reopen' : 'Close' }}</button>
+          {{-- MARKER-INBOX-CLOSE — on a phone "Close" reads as "close this message",
+     which is the opposite of what it does. --}}
+<button type="submit" class="ia-btn" style="font-size:11.5px">{{ $selected->status === 'closed' ? 'Reopen ticket' : 'Close ticket' }}</button>
         </form>
       </div>
 

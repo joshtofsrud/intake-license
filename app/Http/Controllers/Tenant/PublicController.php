@@ -67,11 +67,28 @@ class PublicController extends Controller
             return back()->with('contact_success', true);
         }
 
-        $request->validate([
-            'name'    => ['required', 'string', 'max:255'],
+        // MARKER-CONTACT-NAMES — the form now posts first_name and last_name,
+        // both required, because a single "name" field let people through with
+        // one word and the inbox filled with half-identified customers.
+        // Older published pages may still post a combined "name": those are
+        // still accepted, but must contain a surname.
+        $usesSplitName = $request->has('first_name') || $request->has('last_name');
+
+        $request->validate($usesSplitName ? [
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name'  => ['required', 'string', 'max:100'],
+            'email'      => ['required', 'email', 'max:255'],
+            'phone'      => ['nullable', 'string', 'max:32'],
+            'message'    => ['required', 'string', 'max:2000'],
+        ] : [
+            // At least two words: a single first name was how people slipped through.
+            'name'    => ['required', 'string', 'max:255', 'regex:/^\\S+\\s+\\S+/'],
             'email'   => ['required', 'email', 'max:255'],
             'phone'   => ['nullable', 'string', 'max:32'],
             'message' => ['required', 'string', 'max:2000'],
+        ], [
+            'name.regex'        => 'Please enter both a first and last name.',
+            'last_name.required'=> 'Please enter a last name.',
         ]);
 
         $tenant = tenant();
@@ -81,10 +98,17 @@ class PublicController extends Controller
         // only: no SMS side-effects, no phone required. Email below stays as a
         // fallback. Wrapped so a public form never 500s on a capture failure.
         try {
-            $name  = trim((string) $request->input('name'));
-            $parts = explode(' ', $name, 2);
-            $first = ($parts[0] ?? '') !== '' ? $parts[0] : 'Website';
-            $last  = isset($parts[1]) ? trim($parts[1]) : '';
+            // MARKER-CONTACT-NAMES — split fields win; the combined field is
+            // only a fallback for pages published before this change.
+            if ($usesSplitName) {
+                $first = trim((string) $request->input('first_name'));
+                $last  = trim((string) $request->input('last_name'));
+            } else {
+                $name  = trim((string) $request->input('name'));
+                $parts = explode(' ', $name, 2);
+                $first = ($parts[0] ?? '') !== '' ? $parts[0] : 'Website';
+                $last  = isset($parts[1]) ? trim($parts[1]) : '';
+            }
 
             $customer = \App\Models\Tenant\TenantCustomer::firstOrCreate(
                 ['tenant_id' => $tenant->id, 'email' => strtolower((string) $request->input('email'))],

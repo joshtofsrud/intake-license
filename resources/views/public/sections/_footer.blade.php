@@ -521,7 +521,10 @@
                 @if($errors->any())
                   <div class="p-ftr-form-error">{{ $errors->first() }}</div>
                 @endif
-                <input type="text" name="name" placeholder="Your name" value="{{ old('name') }}" required>
+                {{-- MARKER-CONTACT-NAMES — two fields, both required: one
+                     combined field let people submit a first name only. --}}
+                <input type="text" name="first_name" placeholder="First name" value="{{ old('first_name') }}" required>
+                <input type="text" name="last_name" placeholder="Last name" value="{{ old('last_name') }}" required>
                 <input type="email" name="email" placeholder="you@example.com" value="{{ old('email') }}" required>
                 @if($formShowPhone)
                   <input type="tel" name="phone" placeholder="{{ $formRequirePhone ? 'Phone' : 'Phone (optional)' }}" value="{{ old('phone') }}" {{ $formRequirePhone ? 'required' : '' }}>
