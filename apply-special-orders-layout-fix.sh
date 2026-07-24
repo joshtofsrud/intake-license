@@ -1,3 +1,30 @@
+#!/bin/bash
+# special-orders-layout-fix — fixes the overlapping text and splits the
+# screen the way it should have been.
+#   THE BUG: the vendor header was position:sticky inside one shared scroll
+#   box, painted with background var(--ia-surface-2) — a token that does not
+#   exist in any Intake theme. With no background it rendered transparent and
+#   rows scrolled underneath the header text. (Only --ia-surface exists.)
+#   THE FIX, and the better structure:
+#     · ONE scrollable box at the top: items still needing a vendor, each
+#       with its picker and Assign
+#     · A SEPARATE box per vendor below, each sized to its content with its
+#       own total, freight bar, and Mark-ordered action
+#     · No sticky positioning anywhere, so nothing can overlap
+#     · Item name now sits on its own line above the metadata, so long
+#       product names cannot collide with the vendor picker
+#     · Row markup extracted to a shared partial used by both sections
+# No routes, no migration, no controller change. Server: view:clear.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if grep -q "sog-box" resources/views/tenant/special-orders/_vendor_groups.blade.php; then
+  echo "layout fix already applied — aborting."; exit 1
+fi
+if ! grep -q "MARKER-SO-SCROLL" app/Http/Controllers/Tenant/SpecialOrderController.php; then
+  echo "special-orders-scroll not applied — wrong base, aborting."; exit 1
+fi
+
+cat > 'resources/views/tenant/special-orders/_vendor_groups.blade.php' <<'SOFIX_0_EOF'
 {{-- MARKER-SO-SCROLL — open special orders, in two parts:
      1. one scrollable box of items still needing a vendor
      2. a separate box per vendor below, each with its own batch action
@@ -232,3 +259,63 @@
   document.querySelectorAll('.sog-box[data-vendor]').forEach(refresh);
 })();
 </script>
+SOFIX_0_EOF
+
+cat > 'resources/views/tenant/special-orders/_vendor_group_row.blade.php' <<'SOFIX_1_EOF'
+{{-- MARKER-SO-SCROLL — one special-order row, shared by the needs-a-vendor
+     box and each vendor box. Item name gets its own line so long product
+     names cannot collide with the vendor picker. --}}
+@php
+  $opts = $voptions[$so->inventory_item_id] ?? [];
+  $og   = $origins[$so->id] ?? null;
+@endphp
+<div class="sog-row" data-so="{{ $so->id }}">
+  @if($selectable)
+    <span class="sog-cb on" data-sog-cb></span>
+  @endif
+
+  <div class="sog-ident">
+    <div class="sog-nm">{{ $so->item_name_snapshot }}</div>
+    <div class="sog-mt">
+      <span>{{ $so->so_number }} · qty {{ $so->quantity }} ·
+        {{ $so->customer ? trim($so->customer->first_name . ' ' . $so->customer->last_name) : 'stock' }}</span>
+      @if($og)
+        <span class="so-origin so-origin--{{ $og['state'] }}">{{ $og['label'] }}</span>
+      @endif
+      @if($so->created_at)
+        <span style="opacity:.6">{{ (int) $so->created_at->diffInDays(now()) }}d old</span>
+      @endif
+      @if($so->vendor_assigned_rule && $so->vendor_assigned_rule !== 'manual')
+        <span style="opacity:.6">auto: {{ str_replace('_', ' ', $so->vendor_assigned_rule) }}</span>
+      @endif
+      @if($og && in_array($og['state'], ['orphan', 'unknown'], true))
+        <span class="so-origin-acts" data-so="{{ $so->id }}">
+          <button type="button" class="so-oa" data-so-keep>Still needed</button>
+          <button type="button" class="so-oa danger" data-so-drop>Cancel</button>
+        </span>
+      @endif
+    </div>
+  </div>
+
+  @if(empty($opts))
+    <span class="sog-noopt">No vendor carries this yet — add one on the item</span>
+  @else
+    <span class="sog-pick">
+      <select class="sog-sel" data-sog-select>
+        @foreach($opts as $o)
+          <option value="{{ $o['vendor_id'] }}" @selected($o['vendor_id'] === $vendorId)>
+            {{ $o['name'] }}
+            · {{ $o['avail'] === null ? 'stock unknown' : ($o['avail'] > 0 ? $o['avail'] . ' avail' : 'none in stock') }}
+            @if($o['cost']) · ${{ number_format($o['cost'] / 100, 2) }} @endif
+            @if($o['lead']) · {{ $o['lead'] }}d @endif
+            @if($o['preferred']) · preferred @endif
+          </option>
+        @endforeach
+      </select>
+      <button type="button" class="sog-assign" data-sog-assign>{{ $vendorId === '' ? 'Assign' : 'Move' }}</button>
+    </span>
+  @endif
+</div>
+SOFIX_1_EOF
+
+echo "special-orders-layout-fix applied — server: git pull && php artisan view:clear"
