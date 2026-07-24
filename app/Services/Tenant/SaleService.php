@@ -87,6 +87,7 @@ class SaleService
                 'status'             => $data['status'] ?? 'pending',
                 'payment_status'     => $data['payment_status'] ?? 'unpaid',
                 'customer_id'        => $data['customer_id'] ?? null,
+                'po_number'          => $data['po_number'] ?? null, // MARKER-BIZ-PO
                 'assigned_staff_id'  => $data['assigned_staff_id'] ?? null,
                 'appointment_id'     => $data['appointment_id'] ?? null,
                 'rang_up_by_user_id' => $data['rang_up_by_user_id'],
@@ -558,6 +559,20 @@ class SaleService
         $taxRate = (float) ($tenant->default_tax_rate ?? 0);
         $taxServicesByDefault = (bool) ($tenant->tax_services_default ?? true);
 
+        // MARKER-BIZ-TAX — a tax-exempt customer pays no line tax, and the
+        // certificate is snapshotted onto the sale so a later edit to the
+        // customer cannot rewrite what was true when it was rung up.
+        // tax_locked sales are deliberately untouched: they carry
+        // pre-computed tax from appointments and must be preserved.
+        $exemptCustomer = null;
+        if (! $taxLocked && $sale->customer_id) {
+            $exemptCustomer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $sale->tenant_id)
+                ->where('id', $sale->customer_id)
+                ->where('tax_exempt', true)
+                ->first(['id', 'tax_exempt_certificate']);
+        }
+        $isExempt = $exemptCustomer !== null;
+
         $subtotal = 0;
         $discount = 0;
         $tax      = 0;
@@ -573,7 +588,8 @@ class SaleService
                 continue;
             }
 
-            $shouldTax = $item->is_taxable
+            $shouldTax = ! $isExempt // MARKER-BIZ-TAX
+                && $item->is_taxable
                 && ($item->type !== 'service' || $taxServicesByDefault);
 
             if ($shouldTax && $taxRate > 0) {
@@ -598,12 +614,23 @@ class SaleService
 
         $total = $subtotal + $tax + $sale->tip_cents + $sale->surcharge_cents;
 
-        $sale->update([
+        $saleUpdate = [
             'subtotal_cents' => $subtotal,
             'discount_cents' => $discount,
             'tax_cents'      => $tax,
             'total_cents'    => $total,
-        ]);
+        ];
+
+        // MARKER-BIZ-TAX — audit stamp. Only written when this pass actually
+        // decided the tax (tax_locked sales keep whatever they carried).
+        if (! $taxLocked) {
+            $saleUpdate['tax_exempt_applied']     = $isExempt;
+            $saleUpdate['tax_exempt_certificate'] = $isExempt
+                ? $exemptCustomer->tax_exempt_certificate
+                : null;
+        }
+
+        $sale->update($saleUpdate);
 
         return $sale->fresh('items');
     }
@@ -995,6 +1022,7 @@ class SaleService
                     'rang_up_by_user_id' => $data['rang_up_by_user_id'],
                     'location_id'        => $data['location_id'],
                     'customer_id'        => $data['customer_id'] ?? null,
+                'po_number'          => $data['po_number'] ?? null, // MARKER-BIZ-PO
                     'status'             => 'completed',
                     'payment_status'     => $data['payment_status'] ?? 'paid',
                     'payment_method'     => $data['payment_method'] ?? null,

@@ -488,6 +488,10 @@
         <div class="reg-totals-row"><span>Subtotal</span><span id="subVal">$0.00</span></div>
         <div class="reg-totals-row" id="discountRow" style="display:none"><span>Discount</span><span id="discVal">-$0.00</span></div>
         <div class="reg-totals-row"><span>Tax</span><span id="taxVal">$0.00</span></div>
+        {{-- MARKER-BIZ-REGISTER — never leave a $0.00 tax line unexplained --}}
+        <div class="reg-totals-row" id="taxExemptRow" style="display:none;font-size:11.5px;opacity:.75">
+          <span id="taxExemptLabel">Tax exempt</span><span></span>
+        </div>
         <div class="reg-totals-row" id="surchargeRow" style="display:none"><span id="surchLabel">Surcharge</span><span id="surchVal">$0.00</span></div>
         <div class="reg-totals-row" id="tipRow" style="display:none"><span>Tip</span><span id="tipVal">$0.00</span></div>
         <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
@@ -1118,6 +1122,8 @@ async function osTryQueueCommit(){
   await io.queueSale(osBuildSalePayload());
   cart.items = []; cart.refund_lines = []; cart.refund_meta = null;
   cart.customer = null; cart.tipCents = 0; cart.discountCents = 0;
+  cart.po_number = null; // MARKER-BIZ-REGISTER
+  (function(){ var r = document.getElementById('taxExemptRow'); if (r) r.style.display = 'none'; })();
   cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
   cart.draft_id = null; cart.skipReceipt = false;
   renderCart();
@@ -1188,6 +1194,7 @@ const cart = {
   tipCents: 0, discountCents: 0,
   payment_method: null, payment_reference: null,
   payments: [], // MARKER-SPLIT-TENDER
+  po_number: null, // MARKER-BIZ-REGISTER
   tax_locked: false,    // when true, calcTax sums per-line tax_cents instead of computing from rate
   skipReceipt: false,   // MARKER-PATCH-161 — cashier opted out of receipt for this sale
 };
@@ -1773,6 +1780,19 @@ function renderCart() {
   const slot = document.getElementById('customerSlot');
   if (cart.customer) {
     const c = cart.customer;
+    // MARKER-BIZ-REGISTER — a zero tax line and a missing PO are both things
+    // staff should see at the counter, not discover at invoicing time.
+    (function () {
+      const row = document.getElementById('taxExemptRow');
+      if (!row) return;
+      if (c.tax_exempt) {
+        row.style.display = '';
+        document.getElementById('taxExemptLabel').textContent =
+          'Tax exempt' + (c.tax_exempt_certificate ? ' — cert ' + c.tax_exempt_certificate : '');
+      } else {
+        row.style.display = 'none';
+      }
+    })();
     const profileUrl = ROUTES.customerBase + '/' + encodeURIComponent(c.id);
     const emailRow = c.email
       ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>`
@@ -2557,6 +2577,21 @@ function computeTotalsForCommit() {
 }
 
 document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
+  // MARKER-BIZ-REGISTER — a PO-required customer is asked once, here, rather
+  // than the invoice being rejected weeks later for a missing reference.
+  if (cart.customer && cart.customer.po_required && !cart.po_number) {
+    const po = window.prompt(
+      (cart.customer.name || 'This customer') + ' requires a PO number for this sale.'
+    );
+    if (po === null) return;                 // cancelled — do not complete
+    const clean = String(po).trim();
+    if (!clean) {
+      if (window.IntakeToast) IntakeToast.error('A PO number is required for this customer.');
+      return;
+    }
+    cart.po_number = clean;
+  }
+
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
 
   // MARKER-SPLIT-TENDER — split path: tenders recorded row by row; the tip
@@ -2819,6 +2854,7 @@ async function commitTransaction(opts = {}) {
         tip_cents: cart.tipCents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
+        po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
         payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // MARKER-SPLIT-TENDER + ANYORDER
         // MARKER-PATCH-170 — Stripe metadata if Direct Payments fired
         stripe_payment_intent_id: cart.stripe_payment_intent_id || null,
@@ -2846,6 +2882,7 @@ async function commitTransaction(opts = {}) {
       payload = {
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
+        po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
         payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // MARKER-SPLIT-TENDER + ANYORDER
         tip_cents: cart.tipCents,
         customer_id: cart.customer ? cart.customer.id : null,
@@ -2866,6 +2903,7 @@ async function commitTransaction(opts = {}) {
         discount_cents: cart.discountCents,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
+        po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
         payments: cart.payments.length ? cart.payments.map(p => ({ method: p.method, amount_cents: p.amount_cents, reference: p.stripe_payment_intent_id ? ((p.reference || 'card') + ' · ' + p.stripe_payment_intent_id) : p.reference })) : null, // MARKER-SPLIT-TENDER + ANYORDER
         items: cart.items.map(serializeLine),
         skip_receipt: cart.skipReceipt ? 1 : 0, // MARKER-PATCH-161

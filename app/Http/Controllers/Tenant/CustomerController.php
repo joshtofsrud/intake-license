@@ -143,29 +143,56 @@ class CustomerController extends Controller
                 $qb->where('first_name', 'like', "%{$q}%")
                    ->orWhere('last_name', 'like', "%{$q}%")
                    ->orWhere('email',     'like', "%{$q}%")
-                   ->orWhere('phone',     'like', "%{$q}%");
+                   ->orWhere('phone',     'like', "%{$q}%")
+                   // MARKER-BIZ-SEARCH — searching "Spokane Public" has to
+                   // find the business, and its contacts are searchable too.
+                   ->orWhere('business_name', 'like', "%{$q}%")
+                   ->orWhereExists(function ($sub) use ($q) {
+                       $sub->selectRaw('1')
+                           ->from('tenant_customer_contacts as tcc')
+                           ->whereColumn('tcc.customer_id', 'tenant_customers.id')
+                           ->where(function ($w) use ($q) {
+                               $w->where('tcc.name', 'like', "%{$q}%")
+                                 ->orWhere('tcc.email', 'like', "%{$q}%")
+                                 ->orWhere('tcc.phone', 'like', "%{$q}%");
+                           });
+                   });
             });
             // Name match wins over partial — order by best match heuristically
             $query->orderByRaw("
                 CASE
+                    WHEN business_name LIKE ? THEN 0
                     WHEN first_name LIKE ? OR last_name LIKE ? THEN 0
                     WHEN email LIKE ? THEN 1
                     ELSE 2
                 END
-            ", ["{$q}%", "{$q}%", "{$q}%"]);
+            ", ["{$q}%", "{$q}%", "{$q}%", "{$q}%"]);
         } else {
             $query->orderByDesc('created_at');
         }
 
         $rows = $query->limit($limit)
-            ->get(['id', 'first_name', 'last_name', 'email', 'phone'])
+            ->get([
+                'id', 'first_name', 'last_name', 'email', 'phone',
+                'customer_type', 'business_name', 'tax_exempt',
+                'tax_exempt_certificate', 'po_required', 'payment_terms', // MARKER-BIZ-SEARCH
+            ])
             ->map(fn($c) => [
                 'id'         => $c->id,
                 'first_name' => $c->first_name,
                 'last_name'  => $c->last_name,
                 'email'      => $c->email,
                 'phone'      => $c->phone,
-                'label'      => trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')),
+                // MARKER-BIZ-SEARCH — the register renders `name`/`label`, so
+                // a business must present as its business name here or it will
+                // show a person's name on the ticket.
+                'name'       => $c->fullName(),
+                'label'      => $c->fullName(),
+                'is_business'=> $c->isBusiness(),
+                'tax_exempt' => (bool) $c->tax_exempt,
+                'tax_exempt_certificate' => $c->tax_exempt_certificate,
+                'po_required'=> (bool) $c->po_required,
+                'terms_label'=> $c->termsLabel(),
             ]);
 
         return response()->json(['customers' => $rows]);

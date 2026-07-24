@@ -273,6 +273,7 @@ class RegisterController extends Controller
             'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
             'payments.*.amount_cents'      => 'required|integer|min:1',
             'payments.*.reference'         => 'nullable|string|max:120',
+            'po_number'                    => 'nullable|string|max:64', // MARKER-BIZ-REGISTER
             'items'            => 'required|array|min:1',
             'items.*.type'             => 'required|string|in:service,product,open_item,gift_card',
             'items.*.service_id'       => 'nullable|uuid',
@@ -321,6 +322,7 @@ class RegisterController extends Controller
                 'payment_status'     => 'paid',
                 'payment_method'     => $validated['payment_method'],
                 'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
                 'payment_reference'  => $validated['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
@@ -656,6 +658,7 @@ class RegisterController extends Controller
             'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
             'payments.*.amount_cents'      => 'required|integer|min:1',
             'payments.*.reference'         => 'nullable|string|max:120',
+            'po_number'                    => 'nullable|string|max:64', // MARKER-BIZ-REGISTER
             'tip_cents'         => 'nullable|integer|min:0',
             'customer_id'       => 'nullable|uuid',
             'notes'             => 'nullable|string',
@@ -668,6 +671,7 @@ class RegisterController extends Controller
                 'payment_status'    => 'paid',
                 'payment_method'    => $validated['payment_method'],
                 'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
                 'payment_reference' => $validated['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
@@ -879,6 +883,7 @@ class RegisterController extends Controller
             'payments.*.method'            => str_replace('required|', '', $this->allowedTenders()),
             'payments.*.amount_cents'      => 'required|integer|min:1',
             'payments.*.reference'         => 'nullable|string|max:120',
+            'po_number'                    => 'nullable|string|max:64', // MARKER-BIZ-REGISTER
             'refund'                       => 'required|array',
             'refund.original_sale_id'      => 'required|uuid',
             // MARKER-REFUND-QTY — quantity- and disposition-aware refund lines.
@@ -902,6 +907,7 @@ class RegisterController extends Controller
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                 'payment_method'     => $validated['payment_method'],
                 'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
                 'payment_reference'  => $validated['payment_reference'] ?? null,
                 // MARKER-PATCH-170 — Direct Payments Stripe fields (optional)
                 'stripe_payment_intent_id' => $request->input('stripe_payment_intent_id'),
@@ -912,6 +918,7 @@ class RegisterController extends Controller
                 'items'              => $validated['items'] ?? [],
                 'refund'             => $validated['refund'],
                 'payments'           => $validated['payments'] ?? null, // MARKER-SPLIT-TENDER
+                'po_number'          => $validated['po_number'] ?? null, // MARKER-BIZ-REGISTER
             ]);
 
             // Build a unified receipt response.

@@ -18,6 +18,7 @@ class TenantSale extends Model
         'tenant_id', 'sale_number', 'client_uuid', 'sale_date', // MARKER-OFFLINE-SYNC client_uuid
         'status', 'payment_status',
         'customer_id', 'assigned_staff_id', 'appointment_id',
+        'tax_exempt_applied', 'tax_exempt_certificate', 'po_number', // MARKER-BIZ-TAX
         'rental_id', // MARKER-PATCH-219B — sales-as-money for rentals
         'lease_id',  // MARKER-PATCH-230 — sales-as-money for leases
         'rang_up_by_user_id', 'refund_of_sale_id',
