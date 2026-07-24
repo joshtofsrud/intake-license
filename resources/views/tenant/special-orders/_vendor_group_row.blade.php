@@ -10,8 +10,11 @@
     <span class="sog-cb on" data-sog-cb></span>
   @endif
 
+  {{-- MARKER-SO-OPENROW — the flat table opened the order on row click and
+       the grouped view lost it. The name is the link, so clicks on the
+       picker, checkbox, and inline buttons stay put. --}}
   <div class="sog-ident">
-    <div class="sog-nm">{{ $so->item_name_snapshot }}</div>
+    <a class="sog-nm sog-open" href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}">{{ $so->item_name_snapshot }}</a>
     <div class="sog-mt">
       <span>{{ $so->so_number }} · qty {{ $so->quantity }} ·
         {{ $so->customer ? trim($so->customer->first_name . ' ' . $so->customer->last_name) : 'stock' }}</span>
@@ -32,6 +35,8 @@
       @endif
     </div>
   </div>
+
+  <a class="sog-openall" href="{{ route('tenant.special-orders.show', ['id' => $so->id]) }}">Details →</a>
 
   @if(empty($opts))
     <span class="sog-noopt">No vendor carries this yet — add one on the item</span>

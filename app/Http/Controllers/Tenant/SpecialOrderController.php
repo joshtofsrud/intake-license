@@ -123,6 +123,20 @@ class SpecialOrderController extends Controller
             $liveSales = $saleIds->isEmpty() ? collect() : \App\Models\Tenant\TenantSale::where('tenant_id', $tenant->id)
                 ->whereIn('id', $saleIds)->pluck('sale_number', 'id');
 
+            // MARKER-SO-LINEGONE — a live sale does not mean the request is
+            // live: the LINE that asked for it may have been removed while the
+            // draft survived. sale_item_id is not populated on older rows, so
+            // match on the inventory item still being present on that sale.
+            $hasLine = [];
+            if ($liveSales->isNotEmpty()) {
+                foreach (\App\Models\Tenant\TenantSaleItem::whereIn('sale_id', $liveSales->keys())
+                            ->get(['sale_id', 'inventory_item_id']) as $si) {
+                    if ($si->inventory_item_id) {
+                        $hasLine[$si->sale_id][$si->inventory_item_id] = true;
+                    }
+                }
+            }
+
             $apptIds = $sos->pluck('appointment_id')->filter()->unique();
             $liveAppts = $apptIds->isEmpty() ? collect() : \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
                 ->whereIn('id', $apptIds)->pluck('ra_number', 'id');
@@ -133,9 +147,14 @@ class SpecialOrderController extends Controller
                         ? ['state' => 'live', 'label' => $liveAppts[$so->appointment_id]]
                         : ['state' => 'orphan', 'label' => 'Work order deleted'];
                 } elseif ($so->sale_id) {
-                    $origins[$so->id] = isset($liveSales[$so->sale_id])
-                        ? ['state' => 'live', 'label' => 'Sale ' . $liveSales[$so->sale_id]]
-                        : ['state' => 'orphan', 'label' => 'Sale removed'];
+                    if (! isset($liveSales[$so->sale_id])) {
+                        $origins[$so->id] = ['state' => 'orphan', 'label' => 'Sale removed'];
+                    } elseif ($so->inventory_item_id && empty($hasLine[$so->sale_id][$so->inventory_item_id])) {
+                        // MARKER-SO-LINEGONE
+                        $origins[$so->id] = ['state' => 'orphan', 'label' => 'Line removed from sale'];
+                    } else {
+                        $origins[$so->id] = ['state' => 'live', 'label' => 'Sale ' . $liveSales[$so->sale_id]];
+                    }
                 } elseif ($so->created_from === 'register') {
                     // Created before sale linking existed — the link was never
                     // recorded, so it cannot be reconstructed. Say so plainly.

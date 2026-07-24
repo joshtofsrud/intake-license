@@ -41,6 +41,10 @@
   .sog-cb.on:after{content:"\2713"}
   .sog-ident{flex:1;min-width:200px}
   .sog-nm{font-weight:600;font-size:13.5px;line-height:1.35}
+  a.sog-open{color:var(--ia-text);text-decoration:none;display:inline-block}
+  a.sog-open:hover{color:var(--ia-accent);text-decoration:underline}
+  .sog-row .sog-openall{margin-left:auto;flex:none;font-size:11.5px;color:var(--ia-text-muted);text-decoration:none;padding:6px 8px;border-radius:7px}
+  .sog-row .sog-openall:hover{color:var(--ia-accent)}
   .sog-mt{font-size:11.5px;color:var(--ia-text-muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .sog-pick{display:flex;align-items:center;gap:7px;flex:none}
   .sog-sel{background:rgba(0,0,0,.25);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-family:inherit;font-size:12px;padding:7px 9px;min-width:210px}

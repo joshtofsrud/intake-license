@@ -358,8 +358,6 @@
 </style>
 @endpush
 
-@endsection
-
 {{-- MARKER-SO-ORIGIN — resolve an orphaned request without leaving the list --}}
 <script>
 (function () {
@@ -402,3 +400,5 @@
   });
 })();
 </script>
+
+@endsection
