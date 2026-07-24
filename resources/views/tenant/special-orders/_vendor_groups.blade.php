@@ -1,12 +1,9 @@
-@extends('layouts.tenant.app')
-@php $pageTitle = 'Place special orders'; @endphp
 
 {{-- MARKER-SO-PLACEMENT — the vendor placement board. Every needed order with
      the vendors that actually carry it, grouped by current assignment. Assign
      moves buckets (reversible, no side effects); Mark ordered is the
      committing action. --}}
 
-@push('styles')
 <style>
   .pb-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
   .pb-fresh{font-size:11.5px;color:var(--ia-text-muted);margin-bottom:18px}
@@ -43,31 +40,25 @@
   .pb-in{background:rgba(0,0,0,.2);border:0.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);font-family:inherit;font-size:12px;padding:7px 9px}
   .pb-empty{padding:30px;text-align:center;color:var(--ia-text-muted);font-size:13px}
 </style>
-@endpush
 
-@section('content')
-<div class="pb-head">
-  <h1 class="ia-page-title">Place special orders</h1>
-  <a href="{{ route('tenant.special-orders.index') }}" class="ia-btn ia-btn--ghost" style="margin-left:auto">Back to list</a>
-</div>
 <div class="pb-fresh">
-  @if($checkedAt)
-    Live cost and availability last checked {{ $checkedAt->diffForHumans() }} — from your item-vendor catalog.
+  @if($vcheckedAt)
+    Live cost and availability last checked {{ $vcheckedAt->diffForHumans() }} — from your item-vendor catalog.
   @else
     Costs shown are your catalog costs; live availability has not been checked yet.
   @endif
 </div>
 
-@if(empty($groups))
+@if(empty($vgroups))
   <div class="ia-card"><div class="pb-empty">Nothing waiting to be placed.</div></div>
 @endif
 
-@foreach($groups as $vendorId => $rows)
+@foreach($vgroups as $vendorId => $rows)
   @php
-    $vendor = $vendorId !== '' ? ($vendors[$vendorId] ?? null) : null;
+    $vendor = $vendorId !== '' ? ($vvendors[$vendorId] ?? null) : null;
     $groupTotal = 0;
     foreach ($rows as $r) {
-      $opt = collect($options[$r->inventory_item_id] ?? [])->firstWhere('vendor_id', $vendorId);
+      $opt = collect($voptions[$r->inventory_item_id] ?? [])->firstWhere('vendor_id', $vendorId);
       $unit = $opt['cost'] ?? $r->unit_cost_cents_estimated ?? 0;
       $groupTotal += (int) $unit * (int) $r->quantity;
     }
@@ -101,7 +92,7 @@
     @endif
 
     @foreach($rows as $so)
-      @php $opts = $options[$so->inventory_item_id] ?? []; @endphp
+      @php $opts = $voptions[$so->inventory_item_id] ?? []; @endphp
       <div class="pb-row" data-so="{{ $so->id }}">
         @if($vendorId !== '')
           <span class="pb-cb on" data-pb-cb></span>
@@ -224,4 +215,3 @@
   });
 })();
 </script>
-@endsection

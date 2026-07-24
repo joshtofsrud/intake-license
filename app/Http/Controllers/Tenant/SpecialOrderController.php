@@ -93,6 +93,15 @@ class SpecialOrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // MARKER-SO-ONESCREEN — vendor grouping is a mode of this list, not a
+        // second screen. Only meaningful for orders still to be placed.
+        $group = $request->input('group') === 'vendor' ? 'vendor' : null;
+        $vendorData = ['groups' => [], 'vendors' => collect(), 'options' => [], 'checkedAt' => null];
+        if ($group === 'vendor') {
+            $needed = $sos->where('status', TenantSpecialOrder::STATUS_NEEDED);
+            $vendorData = $this->vendorGroups($tenant, $needed);
+        }
+
         // MARKER-SO-ORIGIN — for each listed order: where did it come from,
         // and does that source still exist? Two lookups, no N+1.
         $origins = [];
@@ -130,6 +139,11 @@ class SpecialOrderController extends Controller
 
         return view('tenant.special-orders.index', [
             'origins'    => $origins, // MARKER-SO-ORIGIN
+            'group'      => $group,                    // MARKER-SO-ONESCREEN
+            'vgroups'    => $vendorData['groups'],     // MARKER-SO-ONESCREEN
+            'vvendors'   => $vendorData['vendors'],    // MARKER-SO-ONESCREEN
+            'voptions'   => $vendorData['options'],    // MARKER-SO-ONESCREEN
+            'vcheckedAt' => $vendorData['checkedAt'],  // MARKER-SO-ONESCREEN
             'sos'        => $sos,
             'view'       => $view,
             'counts'     => $counts,
@@ -367,16 +381,15 @@ class SpecialOrderController extends Controller
      * with the vendors that actually carry it, grouped by where it is
      * currently assigned, so a whole day's ordering is one screen.
      */
-    public function placement(Request $request): View
+    /**
+     * MARKER-SO-ONESCREEN — vendor grouping data for the special-orders
+     * screen. This used to be a separate placement page; it is now a mode of
+     * the one list, so there is no second screen to remember.
+     *
+     * @param  \Illuminate\Support\Collection  $sos  the orders being shown
+     */
+    private function vendorGroups($tenant, $sos): array
     {
-        $tenant = tenant();
-        $this->assertRetailEnabled($tenant);
-
-        $sos = TenantSpecialOrder::where('tenant_id', $tenant->id)
-            ->where('status', TenantSpecialOrder::STATUS_NEEDED)
-            ->with(['item', 'customer'])
-            ->orderBy('created_at')
-            ->get();
 
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
             ->where('is_active', true)
@@ -421,12 +434,12 @@ class SpecialOrderController extends Controller
             unset($groups['']);
         }
 
-        return view('tenant.special-orders.placement', [
-            'groups'   => $groups,
-            'vendors'  => $vendors,
-            'options'  => $options,
-            'checkedAt'=> $freshest,
-        ]);
+        return [
+            'groups'    => $groups,
+            'vendors'   => $vendors,
+            'options'   => $options,
+            'checkedAt' => $freshest,
+        ];
     }
 
     /**

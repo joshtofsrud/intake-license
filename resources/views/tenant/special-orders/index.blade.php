@@ -10,8 +10,6 @@
 <div class="ia-page-head so-desktop-only">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Special orders</h1>
-    {{-- MARKER-SO-PLACEMENT --}}
-    <a href="{{ route('tenant.special-orders.placement') }}" class="ia-btn ia-btn--ghost" style="margin-left:12px">Place orders →</a>
     <p class="ia-page-subtitle">
       {{ $counts['open'] }} open
       @if($counts['arrived_bench'] > 0) · {{ $counts['arrived_bench'] }} on bench @endif
@@ -19,6 +17,11 @@
     </p>
   </div>
   <div class="ia-page-actions">
+    {{-- MARKER-SO-ONESCREEN — grouping is a mode of this list, not a second screen --}}
+    <a href="{{ route('tenant.special-orders.index', array_filter(['view' => $view, 'group' => $group ? null : 'vendor'])) }}"
+       class="ia-btn {{ $group ? 'ia-btn--primary' : 'ia-btn--ghost' }}">
+      {{ $group ? '← Flat list' : 'Group by vendor' }}
+    </a>
     <button type="button" class="ia-btn ia-btn--primary" onclick="SoDrawer.open()">
       + New special order
     </button>
@@ -83,6 +86,12 @@
   .so-oa[disabled]{opacity:.5;cursor:default}
 </style>
 
+{{-- MARKER-SO-ONESCREEN — grouped mode replaces both renderers, so the same
+     orders are never shown twice, and it works on phones as well as desktop. --}}
+@if($group === 'vendor')
+  @include('tenant.special-orders._vendor_groups')
+@else
+
   {{-- Desktop table --}}
   <div class="ia-card so-desktop-only">
     <table class="ia-table">
@@ -141,6 +150,9 @@
               @if($so->created_at)
                 <div class="ia-text-muted" style="font-size:10.5px;margin-top:3px">
                   {{ (int) $so->created_at->diffInDays(now()) }}d old
+                  @if($so->vendor_assigned_rule && $so->vendor_assigned_rule !== 'manual')
+                    · auto: {{ str_replace('_', ' ', $so->vendor_assigned_rule) }}
+                  @endif
                 </div>
               @endif
               @if(in_array($og['state'], ['orphan', 'unknown'], true) && $so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
@@ -199,9 +211,29 @@
           @if($so->vendor) · {{ $so->vendor->name }} @endif
           @if($so->expected_arrival_date) · ETA {{ $so->expected_arrival_date->format('M j') }} @endif
         </div>
+        {{-- MARKER-SO-ORIGIN-MOBILE — the desktop table showed origin and its
+             actions; the cards did not, which is where triage actually
+             happens. Same data, same actions, thumb-sized. --}}
+        @php $og = $origins[$so->id] ?? null; @endphp
+        @if($og)
+          <div class="so-card-meta" style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="so-origin so-origin--{{ $og['state'] }}">{{ $og['label'] }}</span>
+            @if($so->created_at)<span class="ia-text-muted" style="font-size:11px">{{ (int) $so->created_at->diffInDays(now()) }}d old</span>@endif
+            @if($so->vendor_assigned_rule && $so->vendor_assigned_rule !== 'manual')
+              <span class="ia-text-muted" style="font-size:11px">auto: {{ str_replace('_', ' ', $so->vendor_assigned_rule) }}</span>
+            @endif
+          </div>
+          @if(in_array($og['state'], ['orphan', 'unknown'], true) && $so->status === \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
+            <div class="so-origin-acts" data-so="{{ $so->id }}" onclick="event.preventDefault();event.stopPropagation()">
+              <button type="button" class="so-oa" data-so-keep>Still needed</button>
+              <button type="button" class="so-oa danger" data-so-drop>Cancel</button>
+            </div>
+          @endif
+        @endif
       </a>
     @endforeach
   </div>
+@endif{{-- MARKER-SO-ONESCREEN --}}
 
   @if($totalPages > 1)
     <div class="ia-pagination">

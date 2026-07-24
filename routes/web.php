@@ -688,7 +688,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/{id}/mark-pulled',                   [TenantControllers\SpecialOrderController::class, 'markPulled'])->name('mark-pulled');
                 Route::post('/{id}/cancel',                        [TenantControllers\SpecialOrderController::class, 'cancel'])->name('cancel');
                 Route::post('/{id}/confirm-source',                [TenantControllers\SpecialOrderController::class, 'confirmSource'])->name('confirm-source'); // MARKER-SO-ORIGIN
-                Route::get('/placement/board',                     [TenantControllers\SpecialOrderController::class, 'placement'])->name('placement'); // MARKER-SO-PLACEMENT
                 Route::post('/{id}/assign-vendor',                 [TenantControllers\SpecialOrderController::class, 'assignVendor'])->name('assign-vendor'); // MARKER-SO-PLACEMENT
                 Route::post('/placement/mark-ordered-batch',       [TenantControllers\SpecialOrderController::class, 'markOrderedBatch'])->name('mark-ordered-batch'); // MARKER-SO-PLACEMENT
                 Route::post('/{id}/notes',                         [TenantControllers\SpecialOrderController::class, 'addNote'])->name('notes.store');
