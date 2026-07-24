@@ -288,6 +288,25 @@ class SaleService
         }
 
         DB::transaction(function () use ($sale) {
+            // MARKER-SO-SALE-LINK — discarding a draft or quote retracts the
+            // special orders it requested. Orders already placed with a
+            // vendor are left alone: goods may be inbound. Same rule as
+            // removing a part from an appointment.
+            $orphans = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
+                ->where('sale_id', $sale->id)
+                ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
+                ->pluck('id');
+            foreach ($orphans as $soId) {
+                try {
+                    app(\App\Services\Tenant\SpecialOrderService::class)
+                        ->cancel($soId, 'Draft discarded before checkout.');
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('special_order.discard_cancel_failed', [
+                        'special_order_id' => $soId, 'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             $sale->items()->delete();
             $sale->delete();
         });

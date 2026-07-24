@@ -160,7 +160,12 @@ class SpecialOrderService
                 'quantity'                  => (int) $data['quantity'],
                 'customer_id'               => $data['customer_id'] ?? null,
                 'appointment_id'            => $data['appointment_id'] ?? null,
-                'vendor_id'                 => $data['vendor_id'] ?? null,
+                'sale_id'                   => $data['sale_id'] ?? null,      // MARKER-SO-SALE-LINK
+                'sale_item_id'              => $data['sale_item_id'] ?? null, // MARKER-SO-SALE-LINK
+                // MARKER-SO-SALE-LINK — an order with no vendor cannot be
+                // grouped or placed. Fall back to the item's preferred vendor
+                // from the item-vendor catalog before leaving it blank.
+                'vendor_id'                 => $data['vendor_id'] ?? self::preferredVendorId($data['tenant_id'], $data['inventory_item_id'] ?? null),
                 'po_number'                 => $data['po_number'] ?? null,
                 'vendor_reference'          => $data['vendor_reference'] ?? null,
                 'status'                    => $status,
@@ -622,5 +627,41 @@ class SpecialOrderService
                 'exception' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * MARKER-SO-SALE-LINK — the vendor this tenant would normally buy this
+     * item from: the preferred row in the item-vendor catalog, else the most
+     * recently ordered, else none.
+     */
+    public static function preferredVendorId(string $tenantId, ?string $inventoryItemId): ?string
+    {
+        if (! $inventoryItemId) {
+            return null;
+        }
+
+        // The item-vendor pivot deliberately carries no tenant_id (see its
+        // migration), so scope through the item and confirm the vendor is
+        // this tenant's before returning it.
+        $ownsItem = \App\Models\Tenant\TenantInventoryItem::where('id', $inventoryItemId)
+            ->where('tenant_id', $tenantId)
+            ->exists();
+        if (! $ownsItem) {
+            return null;
+        }
+
+        $vendorId = \App\Models\Tenant\TenantInventoryItemVendor::query()
+            ->where('inventory_item_id', $inventoryItemId)
+            ->orderByDesc('is_preferred')
+            ->orderByDesc('last_ordered_at')
+            ->value('vendor_id');
+
+        if (! $vendorId) {
+            return null;
+        }
+
+        return \App\Models\Tenant\TenantVendor::where('id', $vendorId)
+            ->where('tenant_id', $tenantId)
+            ->exists() ? $vendorId : null;
     }
 }

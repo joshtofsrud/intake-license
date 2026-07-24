@@ -504,6 +504,10 @@ class RegisterController extends Controller
             'quantity'          => 'nullable|integer|min:1',
             'customer_id'       => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_customers', 'id')
                 ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
+            // MARKER-SO-SALE-LINK — the draft this request came from, so the
+            // order can be cleaned up when that draft or line goes away.
+            'sale_id'           => ['nullable', 'uuid', \Illuminate\Validation\Rule::exists('tenant_sales', 'id')
+                ->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'notes'             => 'nullable|string|max:1000',
         ]);
 
@@ -525,6 +529,7 @@ class RegisterController extends Controller
                 'customer_id'        => $validated['customer_id'] ?? null,
                 'status'             => \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED,
                 'created_from'       => 'register',
+                'sale_id'            => $validated['sale_id'] ?? null, // MARKER-SO-SALE-LINK
                 'notes'              => $validated['notes'] ?? null,
             ]);
 

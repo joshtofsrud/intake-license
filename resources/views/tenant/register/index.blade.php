@@ -1563,6 +1563,7 @@ function addToOrderForLine(key) {
       inventory_item_id: line.source_id,
       quantity: Math.max(1, Math.ceil(line.qty)),
       customer_id: cart.customer_id || null,
+      sale_id: cart.draft_id || null, // MARKER-SO-SALE-LINK — lets the server clean up later
     }),
   })
   .then(r => r.json())
@@ -1580,6 +1581,31 @@ function addToOrderForLine(key) {
 }
 
 function removeLine(key) {
+  // MARKER-SO-SALE-LINK — a line that requested a special order takes that
+  // request with it. Only retracts orders still in "needed"; anything already
+  // placed with a vendor is left alone and reported, since goods may be
+  // inbound. Same rule as removing a part from an appointment.
+  const line = cart.items.find(i => i.key === key);
+  if (line && line.special_order_id) {
+    const soUrl = @json(route('tenant.special-orders.cancel', ['id' => '__ID__']));
+    fetch(soUrl.replace('__ID__', line.special_order_id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify({ reason: 'Line removed from register sale.' }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.ok) {
+          if (window.IntakeToast) IntakeToast.success('Special order ' + (line.so_number || '') + ' cancelled');
+        } else if (window.IntakeToast) {
+          IntakeToast.error('Line removed, but ' + (line.so_number || 'the special order') + ' is already placed — check Special orders');
+        }
+      })
+      .catch(() => {
+        if (window.IntakeToast) IntakeToast.error('Line removed, but ' + (line.so_number || 'the special order') + ' may still be open');
+      });
+  }
+
   cart.items = cart.items.filter(i => i.key !== key);
   renderCart();
   queueDraftSave();

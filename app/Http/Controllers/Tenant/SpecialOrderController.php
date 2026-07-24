@@ -296,7 +296,9 @@ class SpecialOrderController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Marked pulled.']);
     }
 
-    public function cancel(Request $request, string $id): RedirectResponse
+    // MARKER-SO-SALE-LINK — returns JSON for the register's inline cleanup,
+    // and keeps redirecting for the normal admin form post.
+    public function cancel(Request $request, string $id): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
@@ -310,7 +312,14 @@ class SpecialOrderController extends Controller
         try {
             $this->service->cancel($id, $data['reason'] ?? null);
         } catch (SpecialOrderValidationException $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
             return back()->with('flash', ['type' => 'error', 'message' => $e->getMessage()]);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true]);
         }
 
         return redirect()->route('tenant.special-orders.show', ['id' => $id])
