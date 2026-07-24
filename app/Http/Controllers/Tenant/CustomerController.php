@@ -300,6 +300,12 @@ class CustomerController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // MARKER-BIZ-CONTACTS — the panel reads contacts and the primary;
+        // load them once rather than per row.
+        if ($customer->isBusiness()) {
+            $customer->load('contacts', 'primaryContact');
+        }
+
         return view('tenant.customers.show', compact(
             'customer', 'appointments', 'notes',
             'totalSpend', 'lastService', 'updateUrl',
@@ -436,6 +442,102 @@ class CustomerController extends Controller
             return response()->json(['ok' => true]);
         }
         return response()->json(['ok' => false, 'message' => 'Unknown operation.'], 422);
+    }
+
+    /**
+     * MARKER-BIZ-CONTACTS — people at a business customer. Kept on this
+     * controller rather than a new one: they are part of the customer record,
+     * and every action already runs through this controller's tenant scoping.
+     */
+    public function storeContact(Request $request, string $customerId)
+    {
+        $tenant   = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->where('id', $customerId)->firstOrFail();
+
+        $data = $request->validate([
+            'name'       => ['required', 'string', 'max:120'],
+            'role'       => ['nullable', 'string', 'max:64'],
+            'email'      => ['nullable', 'email', 'max:191'],
+            'phone'      => ['nullable', 'string', 'max:32'],
+            'is_primary' => ['nullable'],
+        ]);
+
+        $contact = \App\Models\Tenant\TenantCustomerContact::create([
+            'tenant_id'   => $tenant->id,
+            'customer_id' => $customer->id,
+            'name'        => $data['name'],
+            'role'        => $data['role'] ?? null,
+            'email'       => $data['email'] ?? null,
+            'phone'       => \App\Support\PhoneNumber::normalize($data['phone'] ?? null),
+            'is_primary'  => false,
+        ]);
+
+        // The first contact is primary by definition — otherwise a business
+        // would have contacts but no one the app could actually reach.
+        $isFirst = $customer->contacts()->count() === 1;
+        if ($isFirst || $request->boolean('is_primary')) {
+            $contact->makePrimary();
+        }
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Contact added.']);
+    }
+
+    public function updateContact(Request $request, string $customerId, string $contactId)
+    {
+        $tenant = tenant();
+        TenantCustomer::where('tenant_id', $tenant->id)->where('id', $customerId)->firstOrFail();
+
+        $contact = \App\Models\Tenant\TenantCustomerContact::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->where('id', $contactId)
+            ->firstOrFail();
+
+        if ($request->input('op') === 'make_primary') {
+            $contact->makePrimary();
+            return back()->with('flash', ['type' => 'success', 'message' => 'Primary contact updated.']);
+        }
+
+        $data = $request->validate([
+            'name'  => ['required', 'string', 'max:120'],
+            'role'  => ['nullable', 'string', 'max:64'],
+            'email' => ['nullable', 'email', 'max:191'],
+            'phone' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $contact->update([
+            'name'  => $data['name'],
+            'role'  => $data['role'] ?? null,
+            'email' => $data['email'] ?? null,
+            'phone' => \App\Support\PhoneNumber::normalize($data['phone'] ?? null),
+        ]);
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Contact updated.']);
+    }
+
+    public function destroyContact(Request $request, string $customerId, string $contactId)
+    {
+        $tenant = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)->where('id', $customerId)->firstOrFail();
+
+        $contact = \App\Models\Tenant\TenantCustomerContact::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customerId)
+            ->where('id', $contactId)
+            ->firstOrFail();
+
+        $wasPrimary = (bool) $contact->is_primary;
+        $contact->delete();
+
+        // MARKER-BIZ-CONTACTS — never leave a business with contacts but no
+        // primary: promote the next one rather than silently losing the
+        // address the app uses.
+        if ($wasPrimary) {
+            $next = $customer->contacts()->first();
+            if ($next) {
+                $next->makePrimary();
+            }
+        }
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Contact removed.']);
     }
 
     private function validated(Request $request, ?string $existingEmail = null): array

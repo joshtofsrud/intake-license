@@ -617,6 +617,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::patch('/customers/{id}',     [TenantControllers\CustomerController::class, 'update'])->name('customers.update');
 
             // MARKER-PATCH-158-C — customer asset CRUD (gated by multi_asset_enabled in controller)
+            // MARKER-BIZ-CONTACTS — people at a business customer
+            Route::post('/customers/{customerId}/contacts',                [TenantControllers\CustomerController::class, 'storeContact'])->name('customers.contacts.store');
+            Route::patch('/customers/{customerId}/contacts/{contactId}',   [TenantControllers\CustomerController::class, 'updateContact'])->name('customers.contacts.update');
+            Route::delete('/customers/{customerId}/contacts/{contactId}',  [TenantControllers\CustomerController::class, 'destroyContact'])->name('customers.contacts.destroy');
             Route::post('/customers/{customerId}/assets',                  [TenantControllers\CustomerAssetsController::class, 'store'])->name('customers.assets.store');
             Route::patch('/customers/{customerId}/assets/{id}',            [TenantControllers\CustomerAssetsController::class, 'update'])->name('customers.assets.update');
             Route::post('/customers/{customerId}/assets/{id}/archive',     [TenantControllers\CustomerAssetsController::class, 'archive'])->name('customers.assets.archive');
