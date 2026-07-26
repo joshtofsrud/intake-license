@@ -287,6 +287,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-PATCH-480 — first-time PIN setup from the lock overlay
             Route::post('/pin/setup',        [TenantControllers\PinGateController::class, 'setupPin'])->name('pin.setup');
 
+            // MARKER-USER-THEME-PREF — per-person light/dark. Sits above the
+            // location gate so the toggle works before a location is picked.
+            Route::post('/theme',            [TenantControllers\ThemeController::class, 'set'])->name('theme.set');
+
             // Everything below requires a current_location_id set in session.
             // Picker routes above are exempt (chicken/egg).
             Route::middleware([\App\Http\Middleware\RequireCurrentLocation::class])->group(function () {

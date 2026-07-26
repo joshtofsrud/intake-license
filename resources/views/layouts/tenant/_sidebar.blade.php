@@ -40,10 +40,11 @@
         </svg>
       </summary>
       <div class="ia-sb-user-menu" role="menu">
-        {{-- MARKER-PATCH-150-POLISH-B — theme toggle (light/dark) --}}
-        <form method="POST" action="{{ route('tenant.settings.update') }}" id="theme-toggle-form" style="margin:0">
-          @csrf @method('PATCH')
-          <input type="hidden" name="tab" value="appearance">
+        {{-- MARKER-USER-THEME-PREF — theme toggle writes THIS person's
+             preference only. It used to POST to Settings->appearance, which
+             stored the theme on the tenant and flipped it for the whole shop. --}}
+        <form method="POST" action="{{ route('tenant.theme.set') }}" id="theme-toggle-form" style="margin:0">
+          @csrf
           <input type="hidden" name="admin_theme" id="theme-toggle-value" value="{{ $adminTheme === 'c' ? 'b' : 'c' }}">
           <button type="submit" class="ia-sb-user-menu-item" role="menuitem">
             @if($adminTheme === 'c')
