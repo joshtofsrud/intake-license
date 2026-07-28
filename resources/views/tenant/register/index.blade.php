@@ -877,7 +877,12 @@
   #rim .rim-sec{padding:14px 0;border-bottom:0.5px solid var(--ia-border)}
   #rim .rim-sec:last-child{border-bottom:0}
   #rim .rim-sec h3{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ia-text-muted);margin-bottom:9px;font-weight:600}
-  #rim .rim-attrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 22px;font-size:12.5px}
+  /* MARKER-SPECS-GRID-PAIR — one grid child per attribute. Emitting the
+     label and the value as separate children let an odd column count
+     offset every pair by one. */
+  #rim .rim-attrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px 22px;font-size:12.5px}
+  #rim .rim-attrs .pair{display:flex;gap:10px;justify-content:space-between;align-items:baseline;border-bottom:0.5px dotted var(--ia-border);padding-bottom:3px}
+  #rim .rim-attrs .pair .v{text-align:right}
   #rim .rim-attrs .k{color:var(--ia-text-muted)}
   #rim table{width:100%;border-collapse:collapse;font-size:12.5px}
   #rim td{padding:5px 0;vertical-align:top}
@@ -969,8 +974,11 @@ async function openItemInfo(id) {
 
     if (d.description) { document.getElementById('rim-desc').textContent = d.description; document.getElementById('rim-sec-desc').style.display = ''; }
     if (d.attrs && d.attrs.length) {
+      // MARKER-SPECS-GRID-PAIR — label + value wrapped together so the
+      // grid can only ever break BETWEEN pairs, never inside one.
       document.getElementById('rim-attrs').innerHTML = d.attrs.map(a =>
-        '<span class="k">' + escapeHtml(a.name) + '</span><span>' + escapeHtml(a.value) + '</span>').join('');
+        '<div class="pair"><span class="k">' + escapeHtml(a.name) + '</span>'
+        + '<span class="v">' + escapeHtml(a.value) + '</span></div>').join('');
       document.getElementById('rim-sec-attrs').style.display = '';
     }
 

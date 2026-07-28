@@ -33,6 +33,8 @@ class CatalogTitles extends Page implements HasForms
 
     public ?array $data = [];
     public string $code = '*';
+    /** MARKER-TITLE-CATEGORY-SCOPE — '' means the distributor's catch-all. */
+    public string $categoryKey = '';
     /** SKUs shown in the live preview — defaults span look-alikes that stress titles. */
     public string $previewSkus = '210273-01, 210273-02, 210273-03, 120520-02, 120520-03, 120520-04, 120520-05';
 
@@ -61,7 +63,20 @@ class CatalogTitles extends Page implements HasForms
             Select::make('code')->label('Distributor')->native(false)
                 ->options($this->distributorOptions())
                 ->default('*')->live()
-                ->afterStateUpdated(fn ($state) => $this->loadCode((string) $state)),
+                ->afterStateUpdated(fn ($state) => $this->loadScope((string) $state, $this->categoryKey)),
+
+            // MARKER-TITLE-CATEGORY-SCOPE
+            TextInput::make('category_key')->label('Category scope')
+                ->placeholder('Tires')
+                ->helperText('Blank applies to every category. Otherwise matches the start of the category path, so "Tires" also covers "Tires > Mountain".')
+                ->live(debounce: 500)
+                ->afterStateUpdated(fn ($state) => $this->loadScope($this->code, (string) $state))
+                ->maxLength(191),
+
+            TextInput::make('size_attribute_priority')->label('Size from attribute')
+                ->placeholder('Labeled Size')
+                ->helperText('Comma-separated attribute names tried in order for {size}. Falls back to the size patterns when none are present.')
+                ->live(debounce: 500)->maxLength(255),
 
             TextInput::make('title_template')->label('Display title')
                 ->helperText('Short — what the cashier scans.')
@@ -92,14 +107,45 @@ class CatalogTitles extends Page implements HasForms
 
     public function loadCode(string $code): void
     {
-        $row = CatalogTitleSetting::query()->where('distributor_code', $code)->first()
-            ?? CatalogTitleSetting::query()->where('distributor_code', '*')->first();
+        $this->loadScope($code, $this->categoryKey);
+    }
+
+    /**
+     * MARKER-TITLE-CATEGORY-SCOPE
+     *
+     * Load the rule for exactly this (distributor, category). When that
+     * pair has no row yet, prefill from whatever rule is in effect for it
+     * today — the distributor catch-all, then the global default — so a
+     * new scope starts from current behaviour rather than from blank, and
+     * saving is what creates the row.
+     */
+    public function loadScope(string $code, string $categoryKey = ''): void
+    {
+        $categoryKey = trim($categoryKey);
+
+        $row = CatalogTitleSetting::query()
+            ->where('distributor_code', $code)
+            ->where('category_key', $categoryKey)
+            ->first();
+
+        $inherited = false;
+        if (! $row) {
+            $inherited = $categoryKey !== '';
+            $row = CatalogTitleSetting::query()
+                    ->where('distributor_code', $code)->where('category_key', '')->first()
+                ?? CatalogTitleSetting::query()
+                    ->where('distributor_code', '*')->where('category_key', '')->first();
+        }
 
         $this->code = $code;
+        $this->categoryKey = $categoryKey;
         $this->data['code']              = $code;
+        $this->data['category_key']      = $categoryKey;
+        $this->data['inherited']         = $inherited;
         $this->data['title_template']    = $row->title_template ?? '{brand} {model} {size} {color}';
         $this->data['subtitle_template'] = $row->subtitle_template ?? '{mpn}';
         $this->data['search_template']   = $row->search_template ?? '';
+        $this->data['size_attribute_priority'] = implode(', ', (array) ($row->size_attribute_priority ?? []));
         $this->data['previewSkus']       = $this->data['previewSkus'] ?? $this->previewSkus;
     }
 
@@ -150,17 +196,29 @@ class CatalogTitles extends Page implements HasForms
     public function save(): void
     {
         $code = $this->data['code'] ?? '*';
+        // MARKER-TITLE-CATEGORY-SCOPE — the row is keyed on both axes now.
+        $categoryKey = trim((string) ($this->data['category_key'] ?? ''));
+
+        $sizeAttrs = collect(explode(',', (string) ($this->data['size_attribute_priority'] ?? '')))
+            ->map(fn ($v) => trim($v))->filter()->values()->all();
+
         CatalogTitleSetting::query()->updateOrCreate(
-            ['distributor_code' => $code],
+            ['distributor_code' => $code, 'category_key' => $categoryKey],
             [
                 'title_template'    => $this->data['title_template'] ?? '{brand} {model}',
                 'subtitle_template' => $this->data['subtitle_template'] ?? '{mpn}',
                 'search_template'   => $this->data['search_template'] ?? '',
+                'size_attribute_priority' => $sizeAttrs ?: null,
                 'is_active'         => true,
             ]
         );
+
+        $this->data['inherited'] = false;
+        $this->categoryKey = $categoryKey;
+
+        $scope = $categoryKey === '' ? 'every category' : $categoryKey;
         Notification::make()->success()->title('Templates saved')
-            ->body('Preview reflects the new templates. Recompose to apply to stored rows.')->send();
+            ->body("Saved for {$code} · {$scope}. Recompose to apply to stored rows.")->send();
     }
 
     public function saveAndRecompose(): void

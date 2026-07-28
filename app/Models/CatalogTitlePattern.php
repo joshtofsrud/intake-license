@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 class CatalogTitlePattern extends Model
 {
     protected $fillable = [
-        'distributor_code', 'label', 'pattern', 'sort_order', 'is_active', 'notes',
+        'distributor_code', 'category_key', 'label', 'pattern', 'sort_order',
+        'is_active', 'notes',
     ];
 
     protected $casts = [

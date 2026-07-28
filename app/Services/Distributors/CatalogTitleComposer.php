@@ -16,10 +16,15 @@ use App\Models\CatalogTitleSetting;
  */
 class CatalogTitleComposer
 {
-    /** @var array<string,CatalogTitleSetting> */
+    /** @var array<string,CatalogTitleSetting> keyed "distributor|categoryPath" */
     private array $settingCache = [];
-    /** @var array<string,array<int,string>> */
+    /** @var array<string,array<int,string>> keyed "distributor|categoryPath" */
     private array $patternCache = [];
+    /** MARKER-TITLE-CATEGORY-SCOPE — whole tables, read once per instance.
+     *  Both are small and every row is a candidate now that matching happens
+     *  in PHP, so per-scope queries would be strictly more work. */
+    private ?array $settingRows = null;
+    private ?array $patternRows = null;
 
     // Last-resort fallback so a missing/empty config never crashes a sync.
     private const FALLBACK_TITLE = '{brand} {model}';
@@ -32,66 +37,13 @@ class CatalogTitleComposer
      */
     public function compose(string $distributorCode, array $parts): array
     {
-        $setting = $this->setting($distributorCode);
-        $attrs = $parts['attributes'] ?? [];
+        // MARKER-TITLE-CATEGORY-SCOPE — this used to carry its own copy of
+        // the whole token-building block that makeResolver() already had.
+        // Two copies meant the editor preview and the real sync could drift.
+        $categoryPath = (string) ($parts['category_path'] ?? '');
+        $setting = $this->setting($distributorCode, $categoryPath);
 
-        $color = $this->pickColor(
-            $attrs,
-            $setting->color_attribute_priority ?: self::FALLBACK_COLOR_PRIORITY
-        );
-        $size = $this->extractSize($distributorCode, (string) ($parts['description'] ?? ''));
-
-        $brand = trim((string) ($parts['brand'] ?? ''));
-        $model = trim((string) ($parts['model'] ?? ''));
-        $mpn   = trim((string) ($parts['mpn'] ?? ''));
-        // HLC sometimes bakes the MPN into the product name; strip a trailing
-        // copy so it doesn't duplicate the subtitle.
-        if ($mpn !== '' && str_ends_with($model, $mpn)) {
-            $model = rtrim(substr($model, 0, -strlen($mpn)), " -,");
-        }
-
-        // {type} = specific category (L1, from `category`); {type0} = broad
-        // category (L0, the first segment of `category_path` = "L0 > L1 > ...").
-        $type  = trim((string) ($parts['category'] ?? ''));
-        $type0 = '';
-        $cp = trim((string) ($parts['category_path'] ?? ''));
-        if ($cp !== '') {
-            $segs = array_values(array_filter(array_map('trim', preg_split('/>+/', $cp))));
-            $type0 = $segs[0] ?? '';
-            if ($type === '' && $segs) { $type = (string) end($segs); }
-        }
-        $unit = trim((string) ($parts['unit'] ?? ''));
-
-        $tokens = [
-            'brand' => $brand, 'model' => $model, 'size' => $size,
-            'color' => $color, 'mpn' => $mpn,
-            'type'  => $type,  'type0' => $type0, 'unit' => $unit,
-        ];
-
-        // Resolver handles static tokens plus dynamic {attr:NAME} and {allattr}.
-        $resolve = function (string $name) use ($tokens, $attrs): string {
-            $name = trim($name);
-            if ($name === 'allattr') {
-                $out = [];
-                foreach ($attrs as $a) {
-                    if (is_array($a) && isset($a['Name'], $a['Value']) && trim((string) $a['Value']) !== '') {
-                        $out[] = trim($a['Name'] . ' ' . $a['Value']);
-                    }
-                }
-                return implode(' ', $out);
-            }
-            if (str_starts_with($name, 'attr:')) {
-                $want = trim(substr($name, 5));
-                foreach ($attrs as $a) {
-                    if (is_array($a) && isset($a['Name'], $a['Value'])
-                        && strcasecmp((string) $a['Name'], $want) === 0) {
-                        return trim((string) $a['Value']);
-                    }
-                }
-                return '';
-            }
-            return $tokens[$name] ?? '';
-        };
+        [$resolve, $size, $color] = $this->makeResolver($distributorCode, $parts);
 
         return [
             'title'    => $this->render($setting->title_template ?: self::FALLBACK_TITLE, $resolve),
@@ -108,14 +60,27 @@ class CatalogTitleComposer
      */
     private function makeResolver(string $distributorCode, array $parts): array
     {
-        $setting = $this->setting($distributorCode);
+        $categoryPath = (string) ($parts['category_path'] ?? '');
+        $setting = $this->setting($distributorCode, $categoryPath);
         $attrs = $parts['attributes'] ?? [];
 
-        $color = $this->pickColor(
+        $color = $this->pickAttribute(
             $attrs,
             $setting->color_attribute_priority ?: self::FALLBACK_COLOR_PRIORITY
         );
-        $size = $this->extractSize($distributorCode, (string) ($parts['description'] ?? ''));
+
+        // MARKER-TITLE-CATEGORY-SCOPE — a named attribute beats scraping the
+        // description. On tires the description says "TPI 60x2TPI" before it
+        // ever says "Labeled Size 27.5''x2.40", so the regex path returned
+        // the thread count as the size.
+        $size = $this->pickAttribute($attrs, $setting->size_attribute_priority ?: []);
+        if ($size === '') {
+            $size = $this->extractSize(
+                $distributorCode,
+                (string) ($parts['description'] ?? ''),
+                $categoryPath
+            );
+        }
 
         $brand = trim((string) ($parts['brand'] ?? ''));
         $model = trim((string) ($parts['model'] ?? ''));
@@ -198,7 +163,7 @@ class CatalogTitleComposer
     }
 
     /** First attribute value whose Name matches the priority list (case-insensitive). */
-    private function pickColor(array $attributes, array $priority): string
+    private function pickAttribute(array $attributes, array $priority): string
     {
         foreach ($priority as $name) {
             foreach ($attributes as $a) {
@@ -216,12 +181,12 @@ class CatalogTitleComposer
     }
 
     /** First size-shaped token in the description, by configured pattern order. */
-    public function extractSize(string $distributorCode, string $description): string
+    public function extractSize(string $distributorCode, string $description, string $categoryPath = ''): string
     {
         if ($description === '') {
             return '';
         }
-        foreach ($this->patterns($distributorCode) as $pattern) {
+        foreach ($this->patterns($distributorCode, $categoryPath) as $pattern) {
             $re = '~' . $pattern . '~u';
             $ok = @preg_match($re, $description, $m);
             if ($ok === 1 && isset($m[0]) && trim($m[0]) !== '') {
@@ -231,34 +196,128 @@ class CatalogTitleComposer
         return '';
     }
 
-    private function setting(string $code): CatalogTitleSetting
+    /**
+     * MARKER-TITLE-CATEGORY-SCOPE
+     *
+     * Category keys for a path, most specific first, always ending in ''
+     * (any category). "Tires > Mountain > Tubeless Ready" yields the full
+     * path, then "Tires > Mountain", then "Tires", then ''. So a single
+     * "Tires" rule covers the branch without enumerating leaves, and a
+     * narrower rule added later automatically outranks it.
+     */
+    private function categoryCandidates(string $categoryPath): array
     {
-        if (! isset($this->settingCache[$code])) {
-            $row = CatalogTitleSetting::query()
-                ->where('is_active', true)
-                ->whereIn('distributor_code', [$code, '*'])
-                ->orderByRaw('CASE WHEN distributor_code = ? THEN 0 ELSE 1 END', [$code])
-                ->first();
-            $this->settingCache[$code] = $row ?? new CatalogTitleSetting([
-                'title_template' => self::FALLBACK_TITLE,
-                'subtitle_template' => self::FALLBACK_SUBTITLE,
-                'color_attribute_priority' => self::FALLBACK_COLOR_PRIORITY,
-            ]);
+        $segs = array_values(array_filter(array_map('trim', preg_split('/>+/', $categoryPath))));
+        $out = [];
+        for ($i = count($segs); $i > 0; $i--) {
+            $out[] = implode(' > ', array_slice($segs, 0, $i));
         }
-        return $this->settingCache[$code];
+        $out[] = '';
+        return $out;
     }
 
-    /** @return array<int,string> ordered regex bodies */
-    private function patterns(string $code): array
+    /** Compare keys without caring about spacing or case around the separator. */
+    private function normKey(string $key): string
     {
-        if (! isset($this->patternCache[$code])) {
-            $this->patternCache[$code] = CatalogTitlePattern::query()
+        $key = preg_replace('/\s+/', ' ', trim($key));
+        $key = preg_replace('/\s*>\s*/', ' > ', (string) $key);
+        return mb_strtolower((string) $key);
+    }
+
+    /** All active setting rows, read once per instance. */
+    private function settingRows(): array
+    {
+        if ($this->settingRows === null) {
+            $this->settingRows = CatalogTitleSetting::query()
                 ->where('is_active', true)
-                ->whereIn('distributor_code', [$code, '*'])
-                ->orderBy('sort_order')
-                ->pluck('pattern')
+                ->get()
                 ->all();
         }
-        return $this->patternCache[$code];
+        return $this->settingRows;
+    }
+
+    /**
+     * Most specific rule wins: this distributor across every category
+     * candidate first, then the global distributor. A distributor's
+     * catch-all beats another distributor's specific rule, which is why
+     * the distributor loop is the outer one.
+     */
+    private function setting(string $code, string $categoryPath = ''): CatalogTitleSetting
+    {
+        $cacheKey = $code . '|' . $categoryPath;
+        if (isset($this->settingCache[$cacheKey])) {
+            return $this->settingCache[$cacheKey];
+        }
+
+        $rows = $this->settingRows();
+        $found = null;
+
+        foreach ([$code, '*'] as $dist) {
+            foreach ($this->categoryCandidates($categoryPath) as $cand) {
+                foreach ($rows as $row) {
+                    if ($row->distributor_code === $dist
+                        && $this->normKey((string) $row->category_key) === $this->normKey($cand)) {
+                        $found = $row;
+                        break 3;
+                    }
+                }
+            }
+        }
+
+        return $this->settingCache[$cacheKey] = $found ?? new CatalogTitleSetting([
+            'title_template' => self::FALLBACK_TITLE,
+            'subtitle_template' => self::FALLBACK_SUBTITLE,
+            'color_attribute_priority' => self::FALLBACK_COLOR_PRIORITY,
+        ]);
+    }
+
+    /** All active pattern rows, read once per instance. */
+    private function patternRows(): array
+    {
+        if ($this->patternRows === null) {
+            $this->patternRows = CatalogTitlePattern::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->all();
+        }
+        return $this->patternRows;
+    }
+
+    /**
+     * MARKER-TITLE-CATEGORY-SCOPE — patterns resolve by the same ladder as
+     * templates, and the FIRST scope with any rows wins outright. They are
+     * not merged: a tire list that inherited the generic NNxNN pattern
+     * would keep matching the TPI, which is the bug this exists to stop.
+     *
+     * @return array<int,string> ordered regex bodies
+     */
+    private function patterns(string $code, string $categoryPath = ''): array
+    {
+        $cacheKey = $code . '|' . $categoryPath;
+        if (isset($this->patternCache[$cacheKey])) {
+            return $this->patternCache[$cacheKey];
+        }
+
+        $rows = $this->patternRows();
+        $out = [];
+
+        foreach ([$code, '*'] as $dist) {
+            foreach ($this->categoryCandidates($categoryPath) as $cand) {
+                $hit = [];
+                foreach ($rows as $row) {
+                    if ($row->distributor_code === $dist
+                        && $this->normKey((string) $row->category_key) === $this->normKey($cand)) {
+                        $hit[] = (string) $row->pattern;
+                    }
+                }
+                if ($hit) {
+                    $out = $hit;
+                    break 2;
+                }
+            }
+        }
+
+        return $this->patternCache[$cacheKey] = $out;
     }
 }
