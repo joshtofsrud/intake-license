@@ -1,3 +1,24 @@
+#!/bin/bash
+# catalog-title-scopes-index-fix — repairs the failed scopes migration.
+#   Two problems, one deploy:
+#   1. platform_distributor_catalogs.category_path is TEXT in the live schema,
+#      and MySQL cannot index a TEXT column without a key length. Laravel's
+#      Blueprint::index() has no way to express a prefix, so the add is now
+#      raw SQL with category_path(191) — long enough for a full path, short
+#      enough to stay inside the index byte limit alongside distributor_code.
+#   2. MySQL DDL is not transactional, so catalog_title_scopes was created
+#      before the index statement failed, and the migration never recorded.
+#      A straight re-run would then die on "table already exists". Both steps
+#      are now guarded, so the migration is safe to run again as-is.
+#   Rewrites the migration file in place. It has not successfully run
+#   anywhere yet, so there is no applied history to preserve.
+# MIGRATION REQUIRED (re-run). After deploy: php artisan catalog:scan-titles HLC
+set -e
+if grep -q "MARKER-SCOPES-INDEX-FIX" database/migrations/2026_07_28_000001_create_catalog_title_scopes.php; then
+  echo "catalog-title-scopes-index-fix already applied — aborting."; exit 1
+fi
+
+cat > 'database/migrations/2026_07_28_000001_create_catalog_title_scopes.php' <<'CTSF_0_EOF'
 <?php
 
 // MARKER-TITLE-SCOPES / MARKER-SCOPES-INDEX-FIX
@@ -85,3 +106,9 @@ return new class extends Migration
             ->exists();
     }
 };
+CTSF_0_EOF
+
+php -l database/migrations/2026_07_28_000001_create_catalog_title_scopes.php
+
+echo
+echo "catalog-title-scopes-index-fix applied."
