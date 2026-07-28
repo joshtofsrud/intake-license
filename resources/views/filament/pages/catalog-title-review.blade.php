@@ -157,8 +157,11 @@
                     <input wire:model.live.debounce.500ms="tpl"
                         class="w-full font-mono text-xs rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 px-3 py-2.5">
                     @if (! $sc->has_own_rule)
+                        {{-- MARKER-ONE-RESOLVER — name the rule being inherited, so a
+                             resolution problem is visible instead of silent. --}}
                         <p class="text-[11px] text-gray-400 mt-1.5">
-                            Currently inherited. Saving creates a rule for this category only.
+                            Inherited from <b>{{ $this->inheritedFrom }}</b>.
+                            Saving creates a rule for this category only.
                         </p>
                     @endif
                 </div>

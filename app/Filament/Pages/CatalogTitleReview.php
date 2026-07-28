@@ -98,6 +98,8 @@ class CatalogTitleReview extends Page
         $this->editingId = $id;
 
         $rule = $this->ruleFor($scope);
+        // MARKER-ONE-RESOLVER — own rule if there is one, otherwise whatever
+        // the ladder actually resolves for this category path.
         $this->tpl = $rule?->title_template ?? $this->inheritedTemplate($scope);
         $this->sizeAttr = implode(', ', $rule?->size_attribute_priority ?? []);
     }
@@ -120,10 +122,31 @@ class CatalogTitleReview extends Page
             ->first();
     }
 
+    /**
+     * MARKER-ONE-RESOLVER — pass the scope's OWN category path and let the
+     * composer walk the ladder. Passing resolved_rule_scope meant a null
+     * from the scan turned into a request for the catch-all, so the editor
+     * showed a template that recompose would never use.
+     */
     private function inheritedTemplate(CatalogTitleScope $scope): string
     {
         return app(CatalogTitleComposer::class)
-            ->titleTemplateFor($scope->distributor_code, $scope->resolved_rule_scope ?? '');
+            ->titleTemplateFor($scope->distributor_code, $scope->category_key);
+    }
+
+    /** Which rule the editor is actually showing, for the drawer label. */
+    public function getInheritedFromProperty(): ?string
+    {
+        $scope = $this->editing;
+        if (! $scope) return null;
+
+        $row = app(CatalogTitleComposer::class)
+            ->matchedSetting($scope->distributor_code, $scope->category_key);
+
+        if (! $row) return 'built-in fallback';
+
+        return $row->distributor_code . ' · '
+            . ($row->category_key !== '' ? $row->category_key : 'any category');
     }
 
     /**

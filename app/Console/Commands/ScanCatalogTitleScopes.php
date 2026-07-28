@@ -112,30 +112,29 @@ class ScanCatalogTitleScopes extends Command
     }
 
     /**
-     * Which rule row wins for this category, using the same prefix ladder the
-     * composer uses. Returns [resolved category_key or null, is it this
-     * scope's own rule].
+     * MARKER-ONE-RESOLVER — delegates to the composer instead of walking
+     * the candidate ladder again. The previous local copy compared category
+     * keys with exact string equality while the composer normalises them,
+     * so a scope could resolve to "no rule" here and to a real rule at
+     * render time — which is exactly what made the editor show the
+     * catch-all for HLC · Tires > Mountain Tires.
+     *
+     * @return array{0:?string,1:bool} [matched category_key or null, is it this scope's own rule]
      */
     private function resolveRule(string $dist, string $cat): array
     {
-        $candidates = [];
-        if ($cat !== '') {
-            $segs = array_map('trim', preg_split('/>+/', $cat));
-            for ($i = count($segs); $i > 0; $i--) {
-                $candidates[] = implode(' > ', array_slice($segs, 0, $i));
-            }
-        }
-        $candidates[] = '';
+        $row = app(\App\Services\Distributors\CatalogTitleComposer::class)
+            ->matchedSetting($dist, $cat);
 
-        foreach ($candidates as $c) {
-            $row = CatalogTitleSetting::where('is_active', true)
-                ->where('distributor_code', $dist)
-                ->where('category_key', $c)
-                ->first();
-            if ($row) {
-                return [$c === '' ? null : $c, $c === $cat && $cat !== ''];
-            }
+        if (! $row) {
+            return [null, false];
         }
-        return [null, false];
+
+        $key = (string) $row->category_key;
+
+        return [
+            $key === '' ? null : $key,
+            $key !== '' && $key === $cat && $row->distributor_code === $dist,
+        ];
     }
 }

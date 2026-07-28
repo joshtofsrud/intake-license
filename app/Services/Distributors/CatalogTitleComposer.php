@@ -195,9 +195,13 @@ class CatalogTitleComposer
      * catch-all scope, so the health scan knows which tokens to check for
      * emptiness without re-deriving the template itself.
      */
-    public function titleTemplateFor(string $distributorCode, string $categoryKey = ''): string
+    /**
+     * MARKER-ONE-RESOLVER — pass the item's FULL category path here, not a
+     * pre-resolved scope. The ladder is this method's job.
+     */
+    public function titleTemplateFor(string $distributorCode, string $categoryPath = ''): string
     {
-        return $this->setting($distributorCode, $categoryKey)->title_template
+        return $this->setting($distributorCode, $categoryPath)->title_template
             ?: self::FALLBACK_TITLE;
     }
 
@@ -262,6 +266,29 @@ class CatalogTitleComposer
      * catch-all beats another distributor's specific rule, which is why
      * the distributor loop is the outer one.
      */
+    /**
+     * MARKER-ONE-RESOLVER — THE rule ladder. Anything that needs to know
+     * which rule applies to a category calls this; nothing re-implements it.
+     * Returns the matched row, or null when only the built-in fallback
+     * applies. Callers that want a usable object should use setting().
+     */
+    public function matchedSetting(string $code, string $categoryPath = ''): ?CatalogTitleSetting
+    {
+        $rows = $this->settingRows();
+
+        foreach ([$code, '*'] as $dist) {
+            foreach ($this->categoryCandidates($categoryPath) as $cand) {
+                foreach ($rows as $row) {
+                    if ($row->distributor_code === $dist
+                        && $this->normKey((string) $row->category_key) === $this->normKey($cand)) {
+                        return $row;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private function setting(string $code, string $categoryPath = ''): CatalogTitleSetting
     {
         $cacheKey = $code . '|' . $categoryPath;
@@ -269,20 +296,7 @@ class CatalogTitleComposer
             return $this->settingCache[$cacheKey];
         }
 
-        $rows = $this->settingRows();
-        $found = null;
-
-        foreach ([$code, '*'] as $dist) {
-            foreach ($this->categoryCandidates($categoryPath) as $cand) {
-                foreach ($rows as $row) {
-                    if ($row->distributor_code === $dist
-                        && $this->normKey((string) $row->category_key) === $this->normKey($cand)) {
-                        $found = $row;
-                        break 3;
-                    }
-                }
-            }
-        }
+        $found = $this->matchedSetting($code, $categoryPath);
 
         return $this->settingCache[$cacheKey] = $found ?? new CatalogTitleSetting([
             'title_template' => self::FALLBACK_TITLE,
