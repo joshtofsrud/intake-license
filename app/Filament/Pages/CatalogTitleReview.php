@@ -43,7 +43,6 @@ class CatalogTitleReview extends Page
     /** Drawer state. */
     public ?int $editingId = null;
     public string $tpl = '';
-    public string $sizeAttr = '';
     public bool $queueMode = false;
 
     public function updatingSearch(): void      { $this->resetPage(); }
@@ -101,7 +100,6 @@ class CatalogTitleReview extends Page
         // MARKER-ONE-RESOLVER — own rule if there is one, otherwise whatever
         // the ladder actually resolves for this category path.
         $this->tpl = $rule?->title_template ?? $this->inheritedTemplate($scope);
-        $this->sizeAttr = implode(', ', $rule?->size_attribute_priority ?? []);
     }
 
     public function closeDrawer(): void
@@ -183,7 +181,6 @@ class CatalogTitleReview extends Page
         if ($rows->isEmpty()) return [];
 
         $composer = app(CatalogTitleComposer::class);
-        $sizeOverride = array_values(array_filter(array_map('trim', explode(',', $this->sizeAttr))));
 
         $out = [];
         foreach ($rows as $row) {
@@ -191,9 +188,11 @@ class CatalogTitleReview extends Page
             $out[] = [
                 'sku'   => $row->manufacturer_sku ?: $row->upc,
                 'was'   => $composer->compose($scope->distributor_code, $parts)['title'],
+                // MARKER-DROP-SIZE-FIELD — no override; {size} resolves from
+                // whatever the saved rule already says, and {attr:Name} is
+                // the visible way to pick a size.
                 'now'   => $composer->renderTemplate(
-                    $scope->distributor_code, $this->tpl, $parts,
-                    $sizeOverride ?: null
+                    $scope->distributor_code, $this->tpl, $parts
                 ),
             ];
         }
@@ -230,14 +229,16 @@ class CatalogTitleReview extends Page
             return;
         }
 
-        $sizes = array_values(array_filter(array_map('trim', explode(',', $this->sizeAttr))));
-
+        // MARKER-DROP-SIZE-FIELD — size_attribute_priority is deliberately
+        // NOT written here. The editor no longer exposes it ({attr:Name} in
+        // the template does the same job visibly), and writing it from a
+        // field that no longer exists would null the stored value on the
+        // seeded rules the first time anyone saved them.
         CatalogTitleSetting::updateOrCreate(
             ['distributor_code' => $scope->distributor_code, 'category_key' => $scope->category_key],
             [
-                'title_template'          => trim($this->tpl),
-                'size_attribute_priority' => $sizes ?: null,
-                'is_active'               => true,
+                'title_template' => trim($this->tpl),
+                'is_active'      => true,
             ]
         );
 

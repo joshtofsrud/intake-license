@@ -176,15 +176,6 @@
                     @endif
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold mb-1.5">Size comes from</label>
-                    <input wire:model.live.debounce.250ms="sizeAttr" placeholder="Labeled Size"
-                        class="w-full font-mono text-xs rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 px-3 py-2.5">
-                    <p class="text-[11px] text-gray-400 mt-1.5">
-                        Attribute names, comma separated, tried in order before any text matching.
-                    </p>
-                </div>
-
                 {{-- MARKER-DRAWER-UX — chips add themselves to the template. --}}
                 <div>
                     <div class="text-xs font-semibold mb-2">Tokens — click to add</div>
@@ -222,11 +213,11 @@
                         <span>Preview — real items from this category</span>
                         {{-- MARKER-DRAWER-UX — pending state, so a slow round trip
                              reads as working rather than stuck. --}}
-                        <span wire:loading.delay wire:target="tpl,sizeAttr,addToken"
+                        <span wire:loading.delay wire:target="tpl,addToken"
                               class="text-[10px] font-normal text-gray-400">recalculating…</span>
                     </div>
                     <div class="rounded-lg ring-1 ring-gray-200 dark:ring-white/10 divide-y divide-gray-100 dark:divide-white/5"
-                         wire:loading.class="opacity-50" wire:target="tpl,sizeAttr,addToken">
+                         wire:loading.class="opacity-50" wire:target="tpl,addToken">
                         @forelse ($this->preview as $p)
                             {{-- MARKER-DRAWER-CLARITY — say which line is which. --}}
                             @php $changed = trim($p['was']) !== trim($p['now']); @endphp
