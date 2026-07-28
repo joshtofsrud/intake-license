@@ -251,6 +251,13 @@ class ThemeEditor extends Page implements HasForms
         $userId = auth()->id();
         $changes = 0;
 
+        // MARKER-THEME-PUBLISH-COUNT — what the banner is showing right
+        // now, read before the fan-out below rewrites $this->data. This is
+        // a count of FIELDS the user edited; $service->publish() returns a
+        // count of ROWS, and a size field is two rows. Reporting the row
+        // count made the toast contradict the banner.
+        $reported = $this->getDirtyCountProperty();
+
         // MARKER-THEME-TEXT-SIZE — copy the single size tab into both
         // themes before the normal write loop picks the data up. Doing it
         // here (rather than a separate loop) means dirty-count, audit rows
@@ -282,8 +289,12 @@ class ThemeEditor extends Page implements HasForms
 
         $published = $service->publish(null, $userId);
 
+        // MARKER-THEME-PUBLISH-COUNT — prefer the field count; fall back
+        // to rows if it somehow came back empty so the toast still reads.
+        $shown = $reported > 0 ? $reported : $published;
+
         Notification::make()->success()
-            ->title("Published {$published} change" . ($published === 1 ? '' : 's'))
+            ->title("Published {$shown} change" . ($shown === 1 ? '' : 's'))
             ->body('Theme updates are live for all tenants on next page load.')
             ->send();
     }
