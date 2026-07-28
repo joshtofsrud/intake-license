@@ -127,9 +127,14 @@
              which is why this opened mid-page instead of against the edge. --}}
         @teleport('body')
         <div wire:key="drawer-{{ $sc->id }}">
-        <div class="fixed inset-0 bg-black/50 z-40" wire:click="closeDrawer"></div>
-        <aside class="fixed top-0 right-0 bottom-0 w-full max-w-2xl z-50 overflow-y-auto
-                      bg-white dark:bg-gray-900 ring-1 ring-gray-950/10 dark:ring-white/10">
+        {{-- MARKER-DRAWER-CLARITY — inline positioning. Teleported out of the
+             Filament wrapper the utility classes stopped applying and this
+             opened against the left edge; styles can't be purged or lost. --}}
+        <div wire:click="closeDrawer"
+             style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40"></div>
+        <aside style="position:fixed;top:0;right:0;bottom:0;width:min(680px,100vw);
+                      z-index:50;overflow-y:auto"
+               class="bg-white dark:bg-gray-900 ring-1 ring-gray-950/10 dark:ring-white/10">
 
             <div class="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-white/10 px-6 py-4 z-10">
                 <div class="flex items-start justify-between gap-4">
@@ -223,10 +228,21 @@
                     <div class="rounded-lg ring-1 ring-gray-200 dark:ring-white/10 divide-y divide-gray-100 dark:divide-white/5"
                          wire:loading.class="opacity-50" wire:target="tpl,sizeAttr,addToken">
                         @forelse ($this->preview as $p)
+                            {{-- MARKER-DRAWER-CLARITY — say which line is which. --}}
+                            @php $changed = trim($p['was']) !== trim($p['now']); @endphp
                             <div class="px-4 py-3" wire:key="prev-{{ $sc->id }}-{{ $loop->index }}">
-                                <div class="text-[11px] text-gray-400 line-through">{{ $p['was'] }}</div>
-                                <div class="text-sm font-semibold mt-0.5">{{ $p['now'] ?: '—' }}</div>
-                                <div class="text-[10px] font-mono text-gray-400 mt-1">{{ $p['sku'] }}</div>
+                                <div class="flex gap-2 items-baseline">
+                                    <span class="text-[9.5px] uppercase tracking-wider text-gray-400 w-20 shrink-0">Now</span>
+                                    <span class="text-[11px] text-gray-400">{{ $p['was'] ?: '—' }}</span>
+                                </div>
+                                <div class="flex gap-2 items-baseline mt-1">
+                                    <span class="text-[9.5px] uppercase tracking-wider w-20 shrink-0
+                                        {{ $changed ? 'text-primary-500' : 'text-gray-400' }}">
+                                        {{ $changed ? 'After saving' : 'Unchanged' }}
+                                    </span>
+                                    <span class="text-sm font-semibold">{{ $p['now'] ?: '—' }}</span>
+                                </div>
+                                <div class="text-[10px] font-mono text-gray-400 mt-1.5 pl-[5.5rem]">{{ $p['sku'] }}</div>
                             </div>
                         @empty
                             <div class="px-4 py-6 text-xs text-gray-400 text-center">
