@@ -75,6 +75,42 @@ class ThemeEditor extends Page implements HasForms
     ];
 
     /**
+     * MARKER-THEME-TEXT-SIZE
+     *
+     * SIZE_TOKENS: text sizing, deliberately NOT split per theme. The
+     * storage schema is (theme, token_key), so these are written to both
+     * 'b' and 'c' with the same value on publish — one field, two rows.
+     * Values are px strings; each CSS rule keeps its original number as
+     * the var() fallback, so an unset token changes nothing.
+     */
+    public const SIZE_TOKENS = [
+        'Status tiles' => [
+            'ia-fs-tile-label' => ['Tile label', '11.5px'],
+            'ia-fs-tile-count' => ['Tile number', '32px'],
+            'ia-fs-tile-desc'  => ['Tile description', '12.5px'],
+        ],
+        'Calendar' => [
+            'ia-fs-cal-appt'     => ['Appointment block', '11px'],
+            'ia-fs-cal-appt-sub' => ['Block service / time line', '10px'],
+        ],
+        'Tables' => [
+            'ia-fs-table' => ['List table rows', '13px'],
+        ],
+    ];
+
+    /** Flat key => default map, for prefilling the form. */
+    public static function sizeDefaults(): array
+    {
+        $out = [];
+        foreach (self::SIZE_TOKENS as $tokens) {
+            foreach ($tokens as $key => [$label, $default]) {
+                $out[$key] = $default;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * HEX_TOKENS: which token keys use #xxxxxx values (vs rgba()).
      * These get a ColorPicker for visual editing. Others stay as TextInput
      * because Filament's ColorPicker doesn't handle rgba alpha well.
@@ -92,7 +128,7 @@ class ThemeEditor extends Page implements HasForms
     public function mount(): void
     {
         if (!Schema::hasTable('theme_settings')) {
-            $this->data = ['b' => [], 'c' => []];
+            $this->data = ['b' => [], 'c' => [], 'size' => self::sizeDefaults()];
             return;
         }
 
@@ -102,6 +138,15 @@ class ThemeEditor extends Page implements HasForms
             // Prefer draft_value if it exists, otherwise published.
             $byTheme[$r->theme][$r->token_key] = $r->draft_value ?? $r->published_value;
         }
+        // MARKER-THEME-TEXT-SIZE — sizes live under both themes but are
+        // edited once; read 'b' as the source of truth, fall back to the
+        // hardcoded CSS value so the field is never blank.
+        $sizes = [];
+        foreach (self::sizeDefaults() as $key => $default) {
+            $sizes[$key] = $byTheme['b'][$key] ?? $default;
+        }
+        $byTheme['size'] = $sizes;
+
         $this->data = $byTheme;
         $this->form->fill($this->data);
     }
@@ -119,6 +164,11 @@ class ThemeEditor extends Page implements HasForms
                         Tabs\Tab::make('Dark theme (c)')
                             ->icon('heroicon-o-moon')
                             ->schema($this->themeFields('c')),
+
+                        // MARKER-THEME-TEXT-SIZE — applies to both themes.
+                        Tabs\Tab::make('Text sizes')
+                            ->icon('heroicon-o-language')
+                            ->schema($this->sizeFields()),
                     ]),
             ])
             ->statePath('data');
@@ -158,6 +208,37 @@ class ThemeEditor extends Page implements HasForms
         return $sections;
     }
 
+    /**
+     * MARKER-THEME-TEXT-SIZE — one set of size fields, applied to both
+     * themes. Values must be a plain px length; anything else is rejected
+     * before it can reach the emitted <style> block.
+     */
+    private function sizeFields(): array
+    {
+        $sections = [];
+        foreach (self::SIZE_TOKENS as $groupName => $tokens) {
+            $fields = [];
+            foreach ($tokens as $key => [$label, $default]) {
+                $fields[] = TextInput::make("size.{$key}")
+                    ->label($label)
+                    ->helperText("--{$key} · default {$default}")
+                    ->placeholder($default)
+                    ->required()
+                    ->maxLength(12)
+                    ->rule('regex:/^\\d{1,3}(\\.\\d)?px$/')
+                    ->validationMessages([
+                        'regex' => 'Use a px value, e.g. 14px or 12.5px.',
+                    ])
+                    ->live(debounce: 250);
+            }
+            $sections[] = Section::make($groupName)
+                ->columns(2)
+                ->schema($fields)
+                ->collapsible();
+        }
+        return $sections;
+    }
+
     public function publish(): void
     {
         if (!Schema::hasTable('theme_settings')) {
@@ -169,6 +250,15 @@ class ThemeEditor extends Page implements HasForms
         $service = app(ThemeSettingsService::class);
         $userId = auth()->id();
         $changes = 0;
+
+        // MARKER-THEME-TEXT-SIZE — copy the single size tab into both
+        // themes before the normal write loop picks the data up. Doing it
+        // here (rather than a separate loop) means dirty-count, audit rows
+        // and publish all treat sizes exactly like any other token.
+        foreach (($this->data['size'] ?? []) as $key => $value) {
+            $this->data['b'][$key] = $value;
+            $this->data['c'][$key] = $value;
+        }
 
         foreach (['b', 'c'] as $theme) {
             $values = $this->data[$theme] ?? [];

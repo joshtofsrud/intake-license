@@ -144,7 +144,7 @@ ul { list-style: none; }
    Tables
    -------------------------------------------------------------------------- */
 .ia-table-wrap { border-radius: var(--ia-r-lg); overflow: hidden; }
-.ia-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ia-table { width: 100%; border-collapse: collapse; font-size: var(--ia-fs-table, 13px); } /* MARKER-THEME-TEXT-SIZE */
 .ia-table thead tr { }
 .ia-table th {
   font-size: 11px;

@@ -62,7 +62,7 @@
   margin-bottom: 12px;
 }
 .ia-dash-tile-label {
-  font-size: 11.5px;
+  font-size: var(--ia-fs-tile-label, 11.5px); /* MARKER-THEME-TEXT-SIZE */
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ia-text-dim);
@@ -70,7 +70,7 @@
 }
 
 .ia-dash-tile-count {
-  font-size: 32px;
+  font-size: var(--ia-fs-tile-count, 32px); /* MARKER-THEME-TEXT-SIZE */
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -83,7 +83,7 @@
 .ia-dash-tile-count--violet { color: #A78BFA; }
 
 .ia-dash-tile-desc {
-  font-size: 12.5px;
+  font-size: var(--ia-fs-tile-desc, 12.5px); /* MARKER-THEME-TEXT-SIZE */
   color: var(--ia-text);
   line-height: 1.45;
   margin-bottom: 12px;
