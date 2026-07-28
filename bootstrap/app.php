@@ -77,6 +77,18 @@ return Application::configure(basePath: dirname(__DIR__))
                 'url'       => $request->fullUrl(),
             ]);
 
+            // MARKER-JSON-500 — AJAX callers get JSON, not the HTML page.
+            // Without this every fetch() in the app treats a server fault as
+            // a network failure, because res.json() throws on an HTML body.
+            // Shape matches what the register already reads: ok:false + error.
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'ok'     => false,
+                    'error'  => "Something went wrong on our end ({$refId}). Nothing was saved — try again, and quote that code if it keeps happening.",
+                    'ref_id' => $refId,
+                ], 500);
+            }
+
             return response()->view('errors.500', [
                 'errorRefId' => $refId,
                 'exception'  => $e,

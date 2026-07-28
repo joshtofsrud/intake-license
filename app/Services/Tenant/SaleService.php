@@ -293,7 +293,10 @@ class SaleService
             // special orders it requested. Orders already placed with a
             // vendor are left alone: goods may be inbound. Same rule as
             // removing a part from an appointment.
-            $orphans = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $tenantId)
+            // MARKER-DISCARD-TENANT-SCOPE — was $tenantId, which is method
+            // scope and was never imported into this closure; the row itself
+            // carries the tenant, so read it from there.
+            $orphans = \App\Models\Tenant\TenantSpecialOrder::where('tenant_id', $sale->tenant_id)
                 ->where('sale_id', $sale->id)
                 ->where('status', \App\Models\Tenant\TenantSpecialOrder::STATUS_NEEDED)
                 ->pluck('id');
