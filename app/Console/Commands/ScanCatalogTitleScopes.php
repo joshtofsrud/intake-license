@@ -77,6 +77,8 @@ class ScanCatalogTitleScopes extends Command
                     'resolved_rule_scope' => $ruleScope,
                     'has_own_rule'        => $own,
                     'flags'               => $flags,
+                    // MARKER-FLAG-TUNING
+                    'severity'            => CatalogTitleHealthService::worstSeverity($flags),
                     'sample_ids'          => $sampleIds,
                     'sample_title'        => $sampleTitle,
                     'scanned_at'          => now(),
@@ -97,11 +99,15 @@ class ScanCatalogTitleScopes extends Command
 
         foreach ($stale as $s) { $s->delete(); }
 
-        $flagged = CatalogTitleScope::query()
-            ->when($code, fn ($q) => $q->where('distributor_code', $code))
-            ->whereNotNull('flags')->where('flags', '!=', '[]')->count();
+        // MARKER-FLAG-TUNING — only warn/bad counts as needing review.
+        $base = fn () => CatalogTitleScope::query()
+            ->when($code, fn ($q) => $q->where('distributor_code', $code));
 
-        $this->info("Scanned {$groups->count()} scopes · {$flagged} flagged · {$stale->count()} stale removed");
+        $flagged = $base()->whereIn('severity', ['warn', 'bad'])->count();
+        $info    = $base()->where('severity', 'info')->count();
+        $clean   = $base()->whereNull('severity')->count();
+
+        $this->info("Scanned {$groups->count()} scopes · {$flagged} need review · {$info} info only · {$clean} clean · {$stale->count()} stale removed");
         return self::SUCCESS;
     }
 

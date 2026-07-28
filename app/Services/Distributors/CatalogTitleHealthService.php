@@ -73,8 +73,14 @@ class CatalogTitleHealthService
         foreach ($emptyToken as $token => $count) {
             if ($count / $n > 0.5) {
                 $pct = (int) round($count / $n * 100);
+                // MARKER-FLAG-TUNING — 'info', not 'warn'. An empty token is
+                // normal: {size} and {color} are blank on most non-tire
+                // categories and render() already collapses the gap. This is
+                // context for whoever edits the template, not a defect, and
+                // it must never put a scope in the review queue — it fired
+                // 894 times across 401 HLC scopes when it did.
                 $flags[] = $this->flag('token_empty', "{$token} is usually empty",
-                    'warn', "blank on {$pct}% of sampled items");
+                    'info', "blank on {$pct}% of sampled items");
             }
         }
 
@@ -102,6 +108,28 @@ class CatalogTitleHealthService
     private function flag(string $code, string $label, string $severity, string $detail): array
     {
         return compact('code', 'label', 'severity', 'detail');
+    }
+
+    /**
+     * MARKER-FLAG-TUNING — worst severity in a flag set, for the indexed
+     * column. 'info' is deliberately ranked below 'warn' and is not a
+     * queueing condition; a scope carrying only info findings is clean.
+     */
+    public static function worstSeverity(array $flags): ?string
+    {
+        $levels = array_column($flags, 'severity');
+        foreach (['bad', 'warn', 'info'] as $level) {
+            if (in_array($level, $levels, true)) {
+                return $level;
+            }
+        }
+        return null;
+    }
+
+    /** Does this flag set warrant human review? Info alone does not. */
+    public static function needsReview(array $flags): bool
+    {
+        return in_array(self::worstSeverity($flags), ['warn', 'bad'], true);
     }
 
     /** Tokens used by the effective title template for this distributor. */

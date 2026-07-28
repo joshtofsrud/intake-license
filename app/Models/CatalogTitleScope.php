@@ -19,7 +19,7 @@ class CatalogTitleScope extends Model
     protected $fillable = [
         'distributor_code', 'category_key', 'item_count',
         'resolved_rule_scope', 'has_own_rule', 'flags', 'sample_ids',
-        'sample_title', 'reviewed', 'reviewed_at', 'scanned_at',
+        'sample_title', 'severity', 'reviewed', 'reviewed_at', 'scanned_at',
     ];
 
     protected $casts = [
@@ -31,17 +31,36 @@ class CatalogTitleScope extends Model
         'scanned_at'   => 'datetime',
     ];
 
+    /**
+     * MARKER-FLAG-TUNING — 'healthy' means nothing needs a human, so a
+     * scope carrying only info findings counts as healthy even though its
+     * flags array isn't empty.
+     */
     public function isHealthy(): bool
     {
-        return empty($this->flags);
+        return ! $this->needsReview();
     }
 
-    /** Worst severity present: 'bad' > 'warn' > null. */
-    public function severity(): ?string
+    public function needsReview(): bool
     {
-        $codes = array_column($this->flags ?? [], 'severity');
-        if (in_array('bad', $codes, true))  return 'bad';
-        if (in_array('warn', $codes, true)) return 'warn';
-        return null;
+        return in_array($this->severity, ['warn', 'bad'], true);
+    }
+
+    /** Only the findings worth showing as problems — info excluded. */
+    public function problems(): array
+    {
+        return array_values(array_filter(
+            $this->flags ?? [],
+            fn ($f) => in_array($f['severity'] ?? null, ['warn', 'bad'], true)
+        ));
+    }
+
+    /** Context findings for the editor: empty tokens and the like. */
+    public function notes(): array
+    {
+        return array_values(array_filter(
+            $this->flags ?? [],
+            fn ($f) => ($f['severity'] ?? null) === 'info'
+        ));
     }
 }
