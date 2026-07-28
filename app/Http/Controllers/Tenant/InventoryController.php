@@ -264,7 +264,10 @@ class InventoryController extends Controller
         $catTable = 'platform_distributor_catalogs';
 
         $bucket = trim((string) $request->query('bucket', ''));
-        $size   = trim((string) $request->query('size', '')) ?: null;
+        // MARKER-SPLIT-BY — attr '' means "not chosen, use the default";
+        // 'none' means the user turned the row off. Neither is remembered.
+        $attrKey = trim((string) $request->query('attr', ''));
+        $attrVal = trim((string) $request->query('val', '')) ?: null;
 
         // Buckets: group uncategorized items by catalog category.
         $bucketRows = TenantInventoryItem::query()
@@ -300,26 +303,107 @@ class InventoryController extends Controller
         $all = $wq->orderBy('name')->limit(500)->get();
         $bucketTotal = $all->count();
 
-        // Size sub-groups (touch of A) — reuse the composer's data-driven patterns.
-        $composer = app(\App\Services\Distributors\CatalogTitleComposer::class);
-        $sizeCounts = [];
+        // MARKER-SPLIT-BY — tally every attribute across the bucket, then
+        // rank them. Coverage alone is not enough: on Wheels, Position
+        // (100%/3) and Rim Color (100%/4) beat Wheel Diameter on coverage
+        // and would win a coverage-only race, giving a three-way split
+        // nobody wants. Hence a floor on distinct values as well.
+        $tally = [];
         foreach ($all as $it) {
-            $cat  = $it->distributorCatalog;
-            $code = $cat->distributor_code ?? '*';
-            $desc = $cat->description ?? $it->name ?? '';
-            $tok  = $cat ? $composer->extractSize($code, (string) $desc) : '';
-            $dia  = '';
-            if ($tok !== '') {
-                $parts = preg_split('/[\x{00d7}xX]/u', $tok);
-                $dia = trim($parts[0] ?? '');
-            }
-            $it->_size = $tok;
-            $it->_dia  = $dia;
-            if ($dia !== '') { $sizeCounts[$dia] = ($sizeCounts[$dia] ?? 0) + 1; }
-        }
-        uksort($sizeCounts, fn ($a, $b) => (float) $b <=> (float) $a);
+            $cat = $it->distributorCatalog;
+            if (! $cat) { continue; }
 
-        $items = $size ? $all->filter(fn ($it) => $it->_dia === $size)->values() : $all;
+            $seen = [];
+            foreach (($cat->attributes ?? []) as $a) {
+                if (! is_array($a) || ! isset($a['Name'])) { continue; }
+                $name = trim((string) $a['Name']);
+                $val  = trim((string) ($a['Value'] ?? ''));
+                if ($name === '' || $val === '' || isset($seen[$name])) { continue; }
+                $seen[$name] = true;                       // one row counts once
+                $tally[$name]['rows'] = ($tally[$name]['rows'] ?? 0) + 1;
+                $tally[$name]['vals'][$val] = ($tally[$name]['vals'][$val] ?? 0) + 1;
+            }
+
+            // Brand is not an attribute. It is offered because it is often
+            // the only usable grouping, and deliberately never ranked.
+            $brand = trim((string) ($cat->manufacturer ?? ''));
+            if ($brand !== '') {
+                $tally['__brand']['rows'] = ($tally['__brand']['rows'] ?? 0) + 1;
+                $tally['__brand']['vals'][$brand] = ($tally['__brand']['vals'][$brand] ?? 0) + 1;
+            }
+        }
+
+        $denom = max(1, $bucketTotal);
+        $attrOptions = [];
+        foreach ($tally as $name => $t) {
+            $isBrand = $name === '__brand';
+            $cov  = (int) round((($t['rows'] ?? 0) / $denom) * 100);
+            $vals = count($t['vals'] ?? []);
+
+            $qualifies = ! $isBrand && $cov >= 60 && $vals >= 5 && $vals <= 60;
+            $reason = '';
+            if (! $qualifies) {
+                if ($isBrand)          { $reason = 'not an attribute'; }
+                elseif ($cov < 60)     { $reason = 'covers only ' . $cov . '%'; }
+                elseif ($vals < 5)     { $reason = 'only ' . $vals . ' values'; }
+                else                   { $reason = $vals . ' values — too many'; }
+            }
+
+            $attrOptions[] = [
+                'key' => $name, 'label' => $isBrand ? 'Brand' : $name,
+                'cov' => $cov, 'vals' => $vals,
+                'qualifies' => $qualifies, 'reason' => $reason, 'brand' => $isBrand,
+            ];
+        }
+
+        usort($attrOptions, function ($a, $b) {
+            if ($a['qualifies'] !== $b['qualifies']) { return $b['qualifies'] <=> $a['qualifies']; }
+            return ($b['cov'] <=> $a['cov']) ?: ($b['vals'] <=> $a['vals']);
+        });
+
+        // Default: the top qualifier, or nothing.
+        if ($attrKey === '') {
+            $top = null;
+            foreach ($attrOptions as $o) { if ($o['qualifies']) { $top = $o['key']; break; } }
+            $attrKey = $top ?? 'none';
+        }
+        $known = array_column($attrOptions, 'key');
+        if ($attrKey !== 'none' && ! in_array($attrKey, $known, true)) { $attrKey = 'none'; }
+
+        $activeAttr = $attrKey === 'none' ? null : $attrKey;
+        $activeAttrLabel = 'Value';
+        foreach ($attrOptions as $o) {
+            if ($o['key'] === $activeAttr) { $activeAttrLabel = $o['label']; break; }
+        }
+
+        // Values for the chip row, biggest first. No unit is appended — the
+        // value carries its own (622 has none, 12mm keeps its own).
+        $valueCounts = [];
+        if ($activeAttr !== null) {
+            $valueCounts = $tally[$activeAttr]['vals'] ?? [];
+            arsort($valueCounts);
+        }
+
+        foreach ($all as $it) {
+            $it->_val = '';
+            $cat = $it->distributorCatalog;
+            if (! $cat || $activeAttr === null) { continue; }
+            if ($activeAttr === '__brand') {
+                $it->_val = trim((string) ($cat->manufacturer ?? ''));
+                continue;
+            }
+            foreach (($cat->attributes ?? []) as $a) {
+                if (is_array($a) && isset($a['Name'])
+                    && trim((string) $a['Name']) === $activeAttr) {
+                    $it->_val = trim((string) ($a['Value'] ?? ''));
+                    break;
+                }
+            }
+        }
+
+        $items = $attrVal !== null
+            ? $all->filter(fn ($it) => $it->_val === $attrVal)->values()
+            : $all;
 
         // Category tree (nested by parent_id) with item counts.
         $cats = TenantInventoryCategory::where('tenant_id', $tenant->id)->orderBy('name')->get();
@@ -339,8 +423,11 @@ class InventoryController extends Controller
 
         return view('tenant.inventory.uncategorized', [
             'buckets' => $buckets, 'noneCount' => $noneCount, 'total' => $total,
-            'activeBucket' => $bucket, 'items' => $items, 'sizeCounts' => $sizeCounts,
-            'activeSize' => $size, 'bucketTotal' => $bucketTotal,
+            'activeBucket' => $bucket, 'items' => $items,
+            // MARKER-SPLIT-BY
+            'attrOptions' => $attrOptions, 'activeAttr' => $activeAttr,
+            'activeAttrLabel' => $activeAttrLabel, 'valueCounts' => $valueCounts,
+            'activeVal' => $attrVal, 'bucketTotal' => $bucketTotal,
             'tree' => $tree, 'recent' => $recent,
         ]);
     }

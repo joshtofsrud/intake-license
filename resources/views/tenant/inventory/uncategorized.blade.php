@@ -48,16 +48,46 @@
     </div>
 
     {{-- size sub-groups (touch of A) --}}
-    @if(count($sizeCounts))
-      <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-mute)">Split by size</span>
-        @php $allOn = ! $activeSize; @endphp
-        <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket]) }}" style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid {{ $allOn ? 'var(--ia-text)' : 'var(--ia-border)' }};background:{{ $allOn ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};color:{{ $allOn ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">All <span style="font-family:var(--ia-mono)">{{ $bucketTotal }}</span></a>
-        @foreach($sizeCounts as $sz => $cnt)
-          @php $on = $activeSize === (string) $sz; @endphp
-          <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'size' => $sz]) }}" style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid {{ $on ? 'var(--ia-text)' : 'var(--ia-border)' }};background:{{ $on ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};color:{{ $on ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $sz }}&Prime; <span style="font-family:var(--ia-mono);opacity:.7">{{ $cnt }}</span></a>
-        @endforeach
+    {{-- MARKER-SPLIT-BY — pick the attribute to group by. Nothing is
+         remembered; the default comes from the ranking every time. --}}
+    @if(count($attrOptions))
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-mute);font-weight:600">Split by</span>
+        <select onchange="window.location = this.value"
+                style="background:var(--ia-input-bg);border:1px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:7px 10px;font-size:12.5px;min-width:280px">
+          <option value="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => 'none']) }}"
+            @selected(! $activeAttr)>— no split —</option>
+          @foreach($attrOptions as $o)
+            <option value="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => $o['key']]) }}"
+              @selected($activeAttr === $o['key'])>
+              {{ $o['label'] }} — {{ $o['cov'] }}% · {{ $o['vals'] }} values{{ $o['qualifies'] ? '' : ' (' . $o['reason'] . ')' }}
+            </option>
+          @endforeach
+        </select>
+        @if($activeAttr)
+          <span style="font-size:12px;color:var(--ia-text-dim)">grouping {{ $bucketTotal }} items</span>
+        @else
+          <span style="font-size:12px;color:var(--ia-text-dim)">nothing in this bucket groups usefully — pick one above if you disagree</span>
+        @endif
       </div>
+
+      @if($activeAttr && count($valueCounts))
+        <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+          @php $allOn = ! $activeVal; $shown = 0; @endphp
+          <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => $activeAttr]) }}"
+             style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid {{ $allOn ? 'var(--ia-text)' : 'var(--ia-border)' }};background:{{ $allOn ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};color:{{ $allOn ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">All <span style="font-family:var(--ia-mono)">{{ $bucketTotal }}</span></a>
+          @foreach($valueCounts as $val => $cnt)
+            @if($shown < 16)
+              @php $on = $activeVal === (string) $val; $shown++; @endphp
+              <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => $activeAttr, 'val' => $val]) }}"
+                 style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid {{ $on ? 'var(--ia-text)' : 'var(--ia-border)' }};background:{{ $on ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};color:{{ $on ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $val }} <span style="font-family:var(--ia-mono);opacity:.7">{{ $cnt }}</span></a>
+            @endif
+          @endforeach
+          @if(count($valueCounts) > 16)
+            <span style="font-size:12px;color:var(--ia-text-mute)">+ {{ count($valueCounts) - 16 }} more</span>
+          @endif
+        </div>
+      @endif
     @endif
 
     <form method="POST" action="{{ route('tenant.inventory.uncategorized.assign') }}">
@@ -70,7 +100,7 @@
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead><tr style="text-align:left;color:var(--ia-text-dim)">
                 <th style="width:28px;padding:10px 14px"><input type="checkbox" onclick="document.querySelectorAll('.uc-cb').forEach(c=>c.checked=this.checked);ucUpd()"></th>
-                <th style="padding:10px 14px">Item</th><th style="padding:10px 14px">Brand</th><th style="padding:10px 14px">Size</th>
+                <th style="padding:10px 14px">Item</th><th style="padding:10px 14px">Brand</th><th style="padding:10px 14px">{{ $activeAttrLabel }}</th>
               </tr></thead>
               <tbody>
               @forelse($items as $it)
@@ -78,7 +108,7 @@
                   <td style="padding:11px 14px"><input type="checkbox" class="uc-cb" name="item_ids[]" value="{{ $it->id }}" onchange="ucUpd()"></td>
                   <td style="padding:11px 14px"><div style="font-weight:600">{{ $it->name }}</div><div style="font-size:11px;color:var(--ia-text-dim);font-family:var(--ia-mono)">{{ $it->sku }}</div></td>
                   <td style="padding:11px 14px">{{ optional($it->distributorCatalog)->manufacturer ?? '—' }}</td>
-                  <td style="padding:11px 14px">@if($it->_size)<span style="font-size:11px;font-family:var(--ia-mono);padding:2px 8px;border-radius:5px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);color:var(--ia-text-dim)">{{ $it->_size }}</span>@else<span style="color:var(--ia-text-mute)">—</span>@endif</td>
+                  <td style="padding:11px 14px">@if($it->_val)<span style="font-size:11px;font-family:var(--ia-mono);padding:2px 8px;border-radius:5px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);color:var(--ia-text-dim)">{{ $it->_val }}</span>@else<span style="color:var(--ia-text-mute)">—</span>@endif</td>
                 </tr>
               @empty
                 <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ia-text-dim)">Nothing in this view.</td></tr>
