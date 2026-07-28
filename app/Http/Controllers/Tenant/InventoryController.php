@@ -376,34 +376,36 @@ class InventoryController extends Controller
             if ($o['key'] === $activeAttr) { $activeAttrLabel = $o['label']; break; }
         }
 
-        // Values for the chip row, biggest first. No unit is appended — the
-        // value carries its own (622 has none, 12mm keeps its own).
-        $valueCounts = [];
-        if ($activeAttr !== null) {
-            $valueCounts = $tally[$activeAttr]['vals'] ?? [];
-            arsort($valueCounts);
+        // MARKER-SPLIT-BY-CLIENT — every attribute's value counts, and every
+        // row's values, go to the browser so switching attribute and picking a
+        // value are both instant. The bucket is capped at 500 rows, so this is
+        // a few tens of KB, not a page weight problem.
+        $valuesByAttr = [];
+        foreach ($tally as $name => $t) {
+            $vals = $t['vals'] ?? [];
+            arsort($vals);
+            $valuesByAttr[$name] = $vals;
         }
 
         foreach ($all as $it) {
-            $it->_val = '';
-            $cat = $it->distributorCatalog;
-            if (! $cat || $activeAttr === null) { continue; }
-            if ($activeAttr === '__brand') {
-                $it->_val = trim((string) ($cat->manufacturer ?? ''));
-                continue;
-            }
-            foreach (($cat->attributes ?? []) as $a) {
-                if (is_array($a) && isset($a['Name'])
-                    && trim((string) $a['Name']) === $activeAttr) {
-                    $it->_val = trim((string) ($a['Value'] ?? ''));
-                    break;
+            $vals = [];
+            $cat  = $it->distributorCatalog;
+            if ($cat) {
+                foreach (($cat->attributes ?? []) as $a) {
+                    if (! is_array($a) || ! isset($a['Name'])) { continue; }
+                    $n = trim((string) $a['Name']);
+                    $v = trim((string) ($a['Value'] ?? ''));
+                    if ($n !== '' && $v !== '' && ! isset($vals[$n])) { $vals[$n] = $v; }
                 }
+                $brand = trim((string) ($cat->manufacturer ?? ''));
+                if ($brand !== '') { $vals['__brand'] = $brand; }
             }
+            $it->_attrs = $vals;
+            $it->_val   = $activeAttr !== null ? ($vals[$activeAttr] ?? '') : '';
         }
 
-        $items = $attrVal !== null
-            ? $all->filter(fn ($it) => $it->_val === $attrVal)->values()
-            : $all;
+        // No server-side filtering — the browser hides rows.
+        $items = $all;
 
         // Category tree (nested by parent_id) with item counts.
         $cats = TenantInventoryCategory::where('tenant_id', $tenant->id)->orderBy('name')->get();
@@ -426,8 +428,8 @@ class InventoryController extends Controller
             'activeBucket' => $bucket, 'items' => $items,
             // MARKER-SPLIT-BY
             'attrOptions' => $attrOptions, 'activeAttr' => $activeAttr,
-            'activeAttrLabel' => $activeAttrLabel, 'valueCounts' => $valueCounts,
-            'activeVal' => $attrVal, 'bucketTotal' => $bucketTotal,
+            'activeAttrLabel' => $activeAttrLabel, 'valuesByAttr' => $valuesByAttr,
+            'bucketTotal' => $bucketTotal,
             'tree' => $tree, 'recent' => $recent,
         ]);
     }

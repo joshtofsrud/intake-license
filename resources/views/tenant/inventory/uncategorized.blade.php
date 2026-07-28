@@ -48,46 +48,24 @@
     </div>
 
     {{-- size sub-groups (touch of A) --}}
-    {{-- MARKER-SPLIT-BY — pick the attribute to group by. Nothing is
-         remembered; the default comes from the ranking every time. --}}
+    {{-- MARKER-SPLIT-BY-CLIENT — the picker runs in the browser. Nothing is
+         remembered; the default still comes from the server-side ranking. --}}
     @if(count($attrOptions))
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-mute);font-weight:600">Split by</span>
-        <select onchange="window.location = this.value"
+        <select id="ucAttr"
                 style="background:var(--ia-input-bg);border:1px solid var(--ia-border);border-radius:var(--ia-r-md);color:var(--ia-text);padding:7px 10px;font-size:12.5px;min-width:280px">
-          <option value="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => 'none']) }}"
-            @selected(! $activeAttr)>— no split —</option>
+          <option value="" @selected(! $activeAttr)>— no split —</option>
           @foreach($attrOptions as $o)
-            <option value="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => $o['key']]) }}"
-              @selected($activeAttr === $o['key'])>
+            <option value="{{ $o['key'] }}" data-label="{{ $o['label'] }}" @selected($activeAttr === $o['key'])>
               {{ $o['label'] }} — {{ $o['cov'] }}% · {{ $o['vals'] }} values{{ $o['qualifies'] ? '' : ' (' . $o['reason'] . ')' }}
             </option>
           @endforeach
         </select>
-        @if($activeAttr)
-          <span style="font-size:12px;color:var(--ia-text-dim)">grouping {{ $bucketTotal }} items</span>
-        @else
-          <span style="font-size:12px;color:var(--ia-text-dim)">nothing in this bucket groups usefully — pick one above if you disagree</span>
-        @endif
+        <span id="ucAttrNote" style="font-size:12px;color:var(--ia-text-dim)"></span>
       </div>
 
-      @if($activeAttr && count($valueCounts))
-        <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-          @php $allOn = ! $activeVal; $shown = 0; @endphp
-          <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => $activeAttr]) }}"
-             style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid {{ $allOn ? 'var(--ia-text)' : 'var(--ia-border)' }};background:{{ $allOn ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};color:{{ $allOn ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">All <span style="font-family:var(--ia-mono)">{{ $bucketTotal }}</span></a>
-          @foreach($valueCounts as $val => $cnt)
-            @if($shown < 16)
-              @php $on = $activeVal === (string) $val; $shown++; @endphp
-              <a href="{{ route('tenant.inventory.uncategorized', ['bucket' => $activeBucket, 'attr' => $activeAttr, 'val' => $val]) }}"
-                 style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;border:1px solid {{ $on ? 'var(--ia-text)' : 'var(--ia-border)' }};background:{{ $on ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};color:{{ $on ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $val }} <span style="font-family:var(--ia-mono);opacity:.7">{{ $cnt }}</span></a>
-            @endif
-          @endforeach
-          @if(count($valueCounts) > 16)
-            <span style="font-size:12px;color:var(--ia-text-mute)">+ {{ count($valueCounts) - 16 }} more</span>
-          @endif
-        </div>
-      @endif
+      <div id="ucChips" style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:14px"></div>
     @endif
 
     <form method="POST" action="{{ route('tenant.inventory.uncategorized.assign') }}">
@@ -99,16 +77,17 @@
           <div class="ia-card" style="overflow:hidden">
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead><tr style="text-align:left;color:var(--ia-text-dim)">
-                <th style="width:28px;padding:10px 14px"><input type="checkbox" onclick="document.querySelectorAll('.uc-cb').forEach(c=>c.checked=this.checked);ucUpd()"></th>
-                <th style="padding:10px 14px">Item</th><th style="padding:10px 14px">Brand</th><th style="padding:10px 14px">{{ $activeAttrLabel }}</th>
+                <th style="width:28px;padding:10px 14px"><input type="checkbox" id="ucAllBox" onclick="ucAll(this.checked)"></th>
+                <th style="padding:10px 14px">Item</th><th style="padding:10px 14px">Brand</th><th style="padding:10px 14px" id="ucColHead">{{ $activeAttrLabel }}</th>
               </tr></thead>
               <tbody>
               @forelse($items as $it)
-                <tr style="border-top:.5px solid var(--ia-border)">
+                <tr class="uc-row" data-attrs='@json($it->_attrs)' style="border-top:.5px solid var(--ia-border)">
+                  {{-- MARKER-SPLIT-BY-CLIENT — values for every attribute ride on the row. --}}
                   <td style="padding:11px 14px"><input type="checkbox" class="uc-cb" name="item_ids[]" value="{{ $it->id }}" onchange="ucUpd()"></td>
                   <td style="padding:11px 14px"><div style="font-weight:600">{{ $it->name }}</div><div style="font-size:11px;color:var(--ia-text-dim);font-family:var(--ia-mono)">{{ $it->sku }}</div></td>
                   <td style="padding:11px 14px">{{ optional($it->distributorCatalog)->manufacturer ?? '—' }}</td>
-                  <td style="padding:11px 14px">@if($it->_val)<span style="font-size:11px;font-family:var(--ia-mono);padding:2px 8px;border-radius:5px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);color:var(--ia-text-dim)">{{ $it->_val }}</span>@else<span style="color:var(--ia-text-mute)">—</span>@endif</td>
+                  <td style="padding:11px 14px"><span class="uc-val"></span></td>
                 </tr>
               @empty
                 <tr><td colspan="4" style="padding:24px;text-align:center;color:var(--ia-text-dim)">Nothing in this view.</td></tr>
@@ -232,5 +211,120 @@
     ucToggleNew();
     document.getElementById('ucNewName').value = '';
   }
+
+/* MARKER-SPLIT-BY-CLIENT ------------------------------------------------
+   Filtering happens here rather than on the server, so the page never
+   reloads and never jumps to the top.
+
+   The rule that matters: a hidden row's checkbox is still inside the form.
+   Filter to 29", hit select-all, and without this you would assign every
+   wheel in the bucket instead of the 71 on screen. So any change that hides
+   rows clears their selection first, and select-all is scoped to what's
+   visible. */
+const UC_VALUES = @json($valuesByAttr ?? []);
+const UC_MAX_CHIPS = 16;
+let ucAttr = @json($activeAttr);
+let ucVal  = null;
+
+function ucAll(checked){
+  document.querySelectorAll('.uc-row').forEach(tr => {
+    if (tr.style.display === 'none') return;          // visible only
+    const cb = tr.querySelector('.uc-cb');
+    if (cb) cb.checked = checked;
+  });
+  ucUpd();
+}
+
+function ucLabel(){
+  const sel = document.getElementById('ucAttr');
+  const opt = sel && sel.selectedOptions[0];
+  return (opt && opt.dataset.label) || 'Size';
+}
+
+function ucPaintRows(){
+  let shown = 0;
+  document.querySelectorAll('.uc-row').forEach(tr => {
+    let vals = {};
+    try { vals = JSON.parse(tr.dataset.attrs || '{}'); } catch (e) {}
+    const v = ucAttr ? (vals[ucAttr] || '') : '';
+
+    const cell = tr.querySelector('.uc-val');
+    if (cell) {
+      cell.innerHTML = v
+        ? '<span style="font-size:11px;font-family:var(--ia-mono);padding:2px 8px;border-radius:5px;background:var(--ia-surface-2);border:.5px solid var(--ia-border);color:var(--ia-text-dim)">'
+          + v.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</span>'
+        : '<span style="color:var(--ia-text-mute)">\u2014</span>';
+    }
+
+    const hide = ucVal !== null && v !== ucVal;
+    tr.style.display = hide ? 'none' : '';
+    if (hide) {
+      const cb = tr.querySelector('.uc-cb');
+      if (cb) cb.checked = false;                     // never assign unseen rows
+    } else { shown++; }
+  });
+
+  const head = document.getElementById('ucColHead');
+  if (head) head.textContent = ucAttr ? ucLabel() : 'Size';
+
+  const all = document.getElementById('ucAllBox');
+  if (all) all.checked = false;
+
+  ucUpd();
+  return shown;
+}
+
+function ucPaintChips(){
+  const box = document.getElementById('ucChips');
+  if (!box) return;
+  if (!ucAttr){ box.innerHTML = ''; return; }
+
+  const counts = UC_VALUES[ucAttr] || {};
+  const entries = Object.entries(counts);
+  const total = document.querySelectorAll('.uc-row').length;
+
+  const pill = (label, count, on, val) =>
+    '<button type="button" data-val="' + (val === null ? '' : String(val).replace(/"/g,'&quot;')) + '"'
+    + ' style="padding:5px 11px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;'
+    + 'border:1px solid ' + (on ? 'var(--ia-text)' : 'var(--ia-border)') + ';'
+    + 'background:' + (on ? 'var(--ia-text)' : 'var(--ia-surface-2)') + ';'
+    + 'color:' + (on ? 'var(--ia-bg)' : 'var(--ia-text-dim)') + '">'
+    + label + ' <span style="font-family:var(--ia-mono);opacity:.7">' + count + '</span></button>';
+
+  let html = pill('All', total, ucVal === null, null);
+  entries.slice(0, UC_MAX_CHIPS).forEach(([v, c]) => {
+    html += pill(v.replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch])), c, ucVal === v, v);
+  });
+  if (entries.length > UC_MAX_CHIPS){
+    html += '<span style="font-size:12px;color:var(--ia-text-mute)">+ '
+         + (entries.length - UC_MAX_CHIPS) + ' more</span>';
+  }
+  box.innerHTML = html;
+
+  box.querySelectorAll('button[data-val]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.val;
+    ucVal = (v === '' ? null : v);
+    ucPaintChips();
+    ucPaintRows();
+  }));
+}
+
+function ucNote(){
+  const el = document.getElementById('ucAttrNote');
+  if (!el) return;
+  const n = document.querySelectorAll('.uc-row').length;
+  el.textContent = ucAttr
+    ? 'grouping ' + n + ' items'
+    : 'nothing in this bucket groups usefully \u2014 pick one above if you disagree';
+}
+
+const ucSel = document.getElementById('ucAttr');
+if (ucSel) ucSel.addEventListener('change', e => {
+  ucAttr = e.target.value || null;
+  ucVal = null;
+  ucNote(); ucPaintChips(); ucPaintRows();
+});
+
+ucNote(); ucPaintChips(); ucPaintRows();
 </script>
 @endsection
