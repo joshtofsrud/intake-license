@@ -221,19 +221,21 @@
                         @forelse ($this->preview as $p)
                             {{-- MARKER-DRAWER-CLARITY — say which line is which. --}}
                             @php $changed = trim($p['was']) !== trim($p['now']); @endphp
-                            <div class="px-4 py-3" wire:key="prev-{{ $sc->id }}-{{ $loop->index }}">
-                                <div class="flex gap-2 items-baseline">
-                                    <span class="text-[9.5px] uppercase tracking-wider text-gray-400 w-20 shrink-0">Now</span>
-                                    <span class="text-[11px] text-gray-400">{{ $p['was'] ?: '—' }}</span>
-                                </div>
-                                <div class="flex gap-2 items-baseline mt-1">
-                                    <span class="text-[9.5px] uppercase tracking-wider w-20 shrink-0
-                                        {{ $changed ? 'text-primary-500' : 'text-gray-400' }}">
-                                        {{ $changed ? 'After saving' : 'Unchanged' }}
-                                    </span>
-                                    <span class="text-sm font-semibold">{{ $p['now'] ?: '—' }}</span>
-                                </div>
-                                <div class="text-[10px] font-mono text-gray-400 mt-1.5 pl-[5.5rem]">{{ $p['sku'] }}</div>
+                            {{-- MARKER-PREVIEW-ALIGN — grid, not fixed-width flex labels.
+                                 A w-20 shrink-0 label overflowed into the title as soon
+                                 as the word was wider than the box. --}}
+                            <div class="px-4 py-3 grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1 items-baseline"
+                                 wire:key="prev-{{ $sc->id }}-{{ $loop->index }}">
+
+                                <span class="text-[9.5px] uppercase tracking-wider text-gray-400 whitespace-nowrap">Now</span>
+                                <span class="text-[11px] text-gray-400">{{ $p['was'] ?: '—' }}</span>
+
+                                <span class="text-[9.5px] uppercase tracking-wider whitespace-nowrap
+                                    {{ $changed ? 'text-primary-500' : 'text-gray-400' }}">{{ $changed ? 'After saving' : 'Unchanged' }}</span>
+                                <span class="text-sm font-semibold">{{ $p['now'] ?: '—' }}</span>
+
+                                <span></span>
+                                <span class="text-[10px] font-mono text-gray-400">{{ $p['sku'] }}</span>
                             </div>
                         @empty
                             <div class="px-4 py-6 text-xs text-gray-400 text-center">
