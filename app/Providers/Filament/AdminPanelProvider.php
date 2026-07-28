@@ -76,6 +76,10 @@ class AdminPanelProvider extends PanelProvider
                 // MARKER-PATCH-135 — custom dashboard replaces Pages\Dashboard
                 \App\Filament\Pages\PlatformDashboard::class,
                 \App\Filament\Pages\Distributors::class, // HLC distributor hub
+                // MARKER-REVIEW-PAGE — list-first Catalog Titles page. This panel
+                // lists pages explicitly, so a new page class is invisible until
+                // it appears here, cache or no cache.
+                \App\Filament\Pages\CatalogTitleReview::class,
                 \App\Filament\Pages\CatalogTitles::class, // MARKER-PATCH-HLCE2 title editor
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
