@@ -122,6 +122,11 @@
     {{-- ---------------- drawer ---------------- --}}
     @if ($this->editing)
         @php $sc = $this->editing; @endphp
+        {{-- MARKER-DRAWER-UX — teleported to body. position:fixed is contained by
+             any ancestor with a transform, and Filament's page wrapper has one,
+             which is why this opened mid-page instead of against the edge. --}}
+        @teleport('body')
+        <div wire:key="drawer-{{ $sc->id }}">
         <div class="fixed inset-0 bg-black/50 z-40" wire:click="closeDrawer"></div>
         <aside class="fixed top-0 right-0 bottom-0 w-full max-w-2xl z-50 overflow-y-auto
                       bg-white dark:bg-gray-900 ring-1 ring-gray-950/10 dark:ring-white/10">
@@ -154,7 +159,7 @@
 
                 <div>
                     <label class="block text-xs font-semibold mb-1.5">Title template</label>
-                    <input wire:model.live.debounce.500ms="tpl"
+                    <input wire:model.live.debounce.250ms="tpl"
                         class="w-full font-mono text-xs rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 px-3 py-2.5">
                     @if (! $sc->has_own_rule)
                         {{-- MARKER-ONE-RESOLVER — name the rule being inherited, so a
@@ -168,23 +173,36 @@
 
                 <div>
                     <label class="block text-xs font-semibold mb-1.5">Size comes from</label>
-                    <input wire:model.live.debounce.500ms="sizeAttr" placeholder="Labeled Size"
+                    <input wire:model.live.debounce.250ms="sizeAttr" placeholder="Labeled Size"
                         class="w-full font-mono text-xs rounded-lg border-gray-300 dark:border-white/10 dark:bg-white/5 px-3 py-2.5">
                     <p class="text-[11px] text-gray-400 mt-1.5">
                         Attribute names, comma separated, tried in order before any text matching.
                     </p>
                 </div>
 
-                @if (count($this->attrNames))
-                    <div>
+                {{-- MARKER-DRAWER-UX — chips add themselves to the template. --}}
+                <div>
+                    <div class="text-xs font-semibold mb-2">Tokens — click to add</div>
+                    <div class="flex flex-wrap gap-1.5 mb-3">
+                        @foreach ($this->baseTokens as $t)
+                            <button type="button" wire:click="addToken(@js($t))"
+                                class="font-mono text-[11px] rounded bg-gray-100 dark:bg-white/10 px-2 py-0.5
+                                       hover:ring-1 hover:ring-primary-500">{{ $t }}</button>
+                        @endforeach
+                    </div>
+
+                    @if (count($this->attrNames))
                         <div class="text-xs font-semibold mb-2">Attributes on these items</div>
                         <div class="flex flex-wrap gap-1.5">
                             @foreach ($this->attrNames as $n)
-                                <span class="font-mono text-[11px] rounded bg-gray-100 dark:bg-white/10 px-2 py-0.5">{{ '{attr:' . $n . '}' }}</span>
+                                @php $tok = '{attr:' . $n . '}'; @endphp
+                                <button type="button" wire:click="addToken(@js($tok))"
+                                    class="font-mono text-[11px] rounded bg-gray-100 dark:bg-white/10 px-2 py-0.5
+                                           hover:ring-1 hover:ring-primary-500">{{ $tok }}</button>
                             @endforeach
                         </div>
-                    </div>
-                @endif
+                    @endif
+                </div>
 
                 @if (count($sc->notes()))
                     <div class="text-[11px] text-gray-400 space-y-1">
@@ -195,10 +213,17 @@
                 @endif
 
                 <div>
-                    <div class="text-xs font-semibold mb-2">Preview — real items from this category</div>
-                    <div class="rounded-lg ring-1 ring-gray-200 dark:ring-white/10 divide-y divide-gray-100 dark:divide-white/5">
+                    <div class="text-xs font-semibold mb-2 flex items-center gap-2">
+                        <span>Preview — real items from this category</span>
+                        {{-- MARKER-DRAWER-UX — pending state, so a slow round trip
+                             reads as working rather than stuck. --}}
+                        <span wire:loading.delay wire:target="tpl,sizeAttr,addToken"
+                              class="text-[10px] font-normal text-gray-400">recalculating…</span>
+                    </div>
+                    <div class="rounded-lg ring-1 ring-gray-200 dark:ring-white/10 divide-y divide-gray-100 dark:divide-white/5"
+                         wire:loading.class="opacity-50" wire:target="tpl,sizeAttr,addToken">
                         @forelse ($this->preview as $p)
-                            <div class="px-4 py-3">
+                            <div class="px-4 py-3" wire:key="prev-{{ $sc->id }}-{{ $loop->index }}">
                                 <div class="text-[11px] text-gray-400 line-through">{{ $p['was'] }}</div>
                                 <div class="text-sm font-semibold mt-0.5">{{ $p['now'] ?: '—' }}</div>
                                 <div class="text-[10px] font-mono text-gray-400 mt-1">{{ $p['sku'] }}</div>
@@ -229,6 +254,8 @@
                 </button>
             </div>
         </aside>
+        </div>
+        @endteleport
     @endif
 
 </x-filament-panels::page>

@@ -109,6 +109,27 @@ class CatalogTitleReview extends Page
         $this->editingId = null;
     }
 
+    /**
+     * MARKER-DRAWER-UX — append a token to the template from a chip click.
+     * Appending rather than inserting at the caret: Livewire doesn't know
+     * where the caret is, and guessing produces worse results than putting
+     * it on the end where it's visible and easy to drag.
+     */
+    public function addToken(string $token): void
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return;
+        }
+        $this->tpl = trim(trim($this->tpl) . ' ' . $token);
+    }
+
+    /** The standard tokens, offered as chips alongside the attribute ones. */
+    public function getBaseTokensProperty(): array
+    {
+        return ['{brand}', '{model}', '{size}', '{color}', '{unit}', '{type}', '{type0}', '{mpn}'];
+    }
+
     public function getEditingProperty(): ?CatalogTitleScope
     {
         return $this->editingId ? CatalogTitleScope::find($this->editingId) : null;
