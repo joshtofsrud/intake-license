@@ -181,6 +181,17 @@ class CatalogTitleComposer
     }
 
     /** First size-shaped token in the description, by configured pattern order. */
+    /**
+     * MARKER-TITLE-SCOPES — the effective title template for a distributor's
+     * catch-all scope, so the health scan knows which tokens to check for
+     * emptiness without re-deriving the template itself.
+     */
+    public function titleTemplateFor(string $distributorCode, string $categoryKey = ''): string
+    {
+        return $this->setting($distributorCode, $categoryKey)->title_template
+            ?: self::FALLBACK_TITLE;
+    }
+
     public function extractSize(string $distributorCode, string $description, string $categoryPath = ''): string
     {
         if ($description === '') {
