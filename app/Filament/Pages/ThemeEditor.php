@@ -308,15 +308,39 @@ class ThemeEditor extends Page implements HasForms
         foreach ($rows as $r) {
             $published[$r->theme][$r->token_key] = $r->published_value;
         }
+        // MARKER-THEME-TEXT-SIZE-DIRTY — size tokens are counted below,
+        // once each. Skipping them here matters after a publish, which
+        // copies them into both themes and would otherwise double-count.
+        $sizeDefaults = self::sizeDefaults();
+
         foreach (['b', 'c'] as $theme) {
             $values = $this->data[$theme] ?? [];
             foreach ($values as $key => $value) {
+                if (array_key_exists($key, $sizeDefaults)) {
+                    continue;
+                }
                 $pub = $published[$theme][$key] ?? null;
                 if ($pub !== null && (string) $pub !== (string) $value) {
                     $count++;
                 }
             }
         }
+
+        // MARKER-THEME-TEXT-SIZE-DIRTY — one field, one count. A token
+        // that has never been published has no row, so the CSS default is
+        // the thing being changed away from; without this the first edit
+        // on a fresh install reads as no change at all.
+        foreach ($sizeDefaults as $key => $default) {
+            $value = $this->data['size'][$key] ?? null;
+            if ($value === null) {
+                continue;
+            }
+            $pub = $published['b'][$key] ?? $default;
+            if ((string) $pub !== (string) $value) {
+                $count++;
+            }
+        }
+
         return $count;
     }
 
