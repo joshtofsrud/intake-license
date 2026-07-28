@@ -90,11 +90,18 @@ class PinGateController extends Controller
             ], 423);
         }
 
-        // Fresh - bump (rate-limited to once per minute, same as middleware).
-        if ($last->lt(now()->subMinute())) {
-            $request->session()->put('last_pin_activity_at', now()->toIso8601String());
-        }
-
+        // MARKER-HEARTBEAT-READONLY — report only; stamp nothing.
+        //
+        // This used to bump last_pin_activity_at whenever the session wasn't
+        // already stale. The client fires this on a 60s timer regardless of
+        // activity, so an unattended browser pushed the timestamp forward
+        // once a minute and the idle threshold could never be reached. The
+        // configured timeout looked like it did nothing because, server-side,
+        // it did nothing.
+        //
+        // Activity is stamped by EnsurePinFresh on real page loads and AJAX.
+        // Background pollers opt out of that with X-Intake-Background: 1.
+        // A heartbeat is the machine asking a question, not a person working.
         return response()->json(['ok' => true]);
     }
 
