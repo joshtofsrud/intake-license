@@ -289,6 +289,19 @@ class CatalogTitleComposer
         return null;
     }
 
+    /**
+     * MARKER-FIELD-INHERITANCE — resolve each field up the ladder on its own.
+     *
+     * A rule that sets only a title used to discard its parent's subtitle,
+     * search blob and colour priority, because the first matching ROW won
+     * outright. The review page writes title-only rules, so editing a
+     * category silently replaced its descriptor with '{mpn}' and emptied
+     * its search blob — search_template has no constant fallback.
+     *
+     * Now the most specific rule that actually SETS a field wins that field,
+     * and everything it leaves blank keeps coming from the parent. That is
+     * what "override" has to mean for partial rules to be safe to write.
+     */
     private function setting(string $code, string $categoryPath = ''): CatalogTitleSetting
     {
         $cacheKey = $code . '|' . $categoryPath;
@@ -296,12 +309,43 @@ class CatalogTitleComposer
             return $this->settingCache[$cacheKey];
         }
 
-        $found = $this->matchedSetting($code, $categoryPath);
+        $rows = $this->settingRows();
 
-        return $this->settingCache[$cacheKey] = $found ?? new CatalogTitleSetting([
-            'title_template' => self::FALLBACK_TITLE,
-            'subtitle_template' => self::FALLBACK_SUBTITLE,
-            'color_attribute_priority' => self::FALLBACK_COLOR_PRIORITY,
+        $strings = ['title_template' => null, 'subtitle_template' => null, 'search_template' => null];
+        $arrays  = ['color_attribute_priority' => null, 'size_attribute_priority' => null];
+
+        // Walk the whole ladder — no early break. Each field is filled by the
+        // first rule that has a value for it, so specificity is per field.
+        foreach ([$code, '*'] as $dist) {
+            foreach ($this->categoryCandidates($categoryPath) as $cand) {
+                foreach ($rows as $row) {
+                    if ($row->distributor_code !== $dist
+                        || $this->normKey((string) $row->category_key) !== $this->normKey($cand)) {
+                        continue;
+                    }
+                    foreach (array_keys($strings) as $f) {
+                        if ($strings[$f] === null && trim((string) $row->$f) !== '') {
+                            $strings[$f] = (string) $row->$f;
+                        }
+                    }
+                    foreach (array_keys($arrays) as $f) {
+                        if ($arrays[$f] === null && ! empty($row->$f)) {
+                            $arrays[$f] = $row->$f;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $this->settingCache[$cacheKey] = new CatalogTitleSetting([
+            'title_template'           => $strings['title_template']    ?? self::FALLBACK_TITLE,
+            'subtitle_template'        => $strings['subtitle_template'] ?? self::FALLBACK_SUBTITLE,
+            // No constant for search: an empty blob is a legitimate choice at
+            // the top of the ladder, it just must not be an ACCIDENT of a
+            // partial rule below it.
+            'search_template'          => $strings['search_template']   ?? '',
+            'color_attribute_priority' => $arrays['color_attribute_priority'] ?? self::FALLBACK_COLOR_PRIORITY,
+            'size_attribute_priority'  => $arrays['size_attribute_priority']  ?? [],
         ]);
     }
 
