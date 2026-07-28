@@ -87,6 +87,14 @@
   }
   .reg-tab.active{background:var(--ia-accent);color:var(--ia-accent-text);border-color:var(--ia-accent)}
 
+  /* MARKER-RESULTS-SCROLL — cap the list and give it its own scroller, so a
+     broad search doesn't run off the bottom of the screen. overscroll-behavior
+     keeps a trackpad flick inside the list instead of scrolling the page. */
+  #resultsArea{max-height:min(52vh,560px);overflow-y:auto;overscroll-behavior:contain}
+  #resultsArea::-webkit-scrollbar{width:8px}
+  #resultsArea::-webkit-scrollbar-thumb{background:var(--ia-border);border-radius:4px}
+  #resultsArea::-webkit-scrollbar-thumb:hover{background:var(--ia-border-strong,var(--ia-border))}
+  #resultsArea::-webkit-scrollbar-track{background:transparent}
   .reg-results-section{margin-top:14px}
   .reg-results-section h3{
     font-size:11px;font-weight:600;color:var(--ia-text-dim);
@@ -1470,6 +1478,12 @@ function applyHighlight() {
   resultsArea.querySelectorAll('.reg-row').forEach((row, i) => {
     if (parseInt(row.dataset.i, 10) === highlighted) {
       row.classList.add('highlighted');
+      // MARKER-RESULTS-SCROLL — the list is scrollable now, so keyboard
+      // navigation has to bring its own row into view. block:'nearest'
+      // means this is a no-op while the row is already visible.
+      if (typeof row.scrollIntoView === 'function') {
+        row.scrollIntoView({ block: 'nearest' });
+      }
     } else {
       row.classList.remove('highlighted');
     }

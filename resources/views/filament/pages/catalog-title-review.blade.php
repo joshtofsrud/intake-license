@@ -208,6 +208,45 @@
                     </div>
                 @endif
 
+                {{-- MARKER-DESC-PREVIEW — generated copy, nothing saved. --}}
+                <div>
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <span class="text-xs font-semibold">Claude descriptions</span>
+                        <button type="button" wire:click="previewDescriptions"
+                            wire:loading.attr="disabled" wire:target="previewDescriptions"
+                            class="text-xs font-semibold rounded-lg px-3 py-1.5 ring-1 ring-gray-300 dark:ring-white/10">
+                            <span wire:loading.remove wire:target="previewDescriptions">Preview on 5 items</span>
+                            <span wire:loading wire:target="previewDescriptions">Generating…</span>
+                        </button>
+                    </div>
+
+                    @if (count($descPreview))
+                        <div class="rounded-lg ring-1 ring-gray-200 dark:ring-white/10 divide-y divide-gray-100 dark:divide-white/5 mb-2">
+                            @foreach ($descPreview as $d)
+                                <div class="px-4 py-3">
+                                    <div class="text-[11px] text-gray-400">{{ $d['name'] }}</div>
+                                    @if ($d['description'])
+                                        <div class="text-sm mt-1">{{ $d['description'] }}</div>
+                                    @else
+                                        <div class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                            skipped — {{ $d['skipped'] }}
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                        <p class="text-[11px] text-gray-400 mb-4">
+                            Nothing saved. This is a look at what generating for all
+                            {{ number_format($sc->item_count) }} items would produce.
+                        </p>
+                    @else
+                        <p class="text-[11px] text-gray-400 mb-4">
+                            Generates copy from the attributes on this category's items.
+                            Costs about a tenth of a cent and saves nothing.
+                        </p>
+                    @endif
+                </div>
+
                 <div>
                     <div class="text-xs font-semibold mb-2 flex items-center gap-2">
                         <span>Preview — real items from this category</span>

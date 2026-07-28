@@ -45,6 +45,9 @@ class CatalogTitleReview extends Page
     public string $tpl = '';
     public bool $queueMode = false;
 
+    /** MARKER-DESC-PREVIEW — generated copy, held in memory only. */
+    public array $descPreview = [];
+
     public function updatingSearch(): void      { $this->resetPage(); }
     public function updatingFilter(): void      { $this->resetPage(); $this->selected = []; }
     public function updatingDistributor(): void { $this->resetPage(); $this->selected = []; }
@@ -105,6 +108,38 @@ class CatalogTitleReview extends Page
     public function closeDrawer(): void
     {
         $this->editingId = null;
+        $this->descPreview = [];
+    }
+
+    /**
+     * MARKER-DESC-PREVIEW — generate descriptions for this scope's samples.
+     * Nothing is written; the result lives on the component until the drawer
+     * closes. This is here to answer "is the output any good" before any
+     * decision about storing it.
+     */
+    public function previewDescriptions(): void
+    {
+        $scope = $this->editing;
+        if (! $scope) {
+            return;
+        }
+
+        $rows = PlatformDistributorCatalog::whereIn('id', $scope->sample_ids ?? [])->get();
+        if ($rows->isEmpty()) {
+            Notification::make()->warning()->title('No sample items stored')
+                ->body('Re-run catalog:scan-titles for this distributor.')->send();
+            return;
+        }
+
+        try {
+            $this->descPreview = app(\App\Services\Distributors\CatalogDescriptionService::class)
+                ->preview($rows);
+        } catch (\Throwable $e) {
+            // A missing API key throws in the client constructor, so it
+            // surfaces here rather than as a 500.
+            Notification::make()->danger()->title('Could not generate')
+                ->body($e->getMessage())->send();
+        }
     }
 
     /**
