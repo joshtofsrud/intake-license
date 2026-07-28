@@ -58,7 +58,7 @@ class CatalogTitleComposer
      * Build the token resolver for a parts array.
      * @return array{0:callable,1:string,2:string} [resolver, size, color]
      */
-    private function makeResolver(string $distributorCode, array $parts): array
+    private function makeResolver(string $distributorCode, array $parts, ?array $sizeAttrOverride = null): array
     {
         $categoryPath = (string) ($parts['category_path'] ?? '');
         $setting = $this->setting($distributorCode, $categoryPath);
@@ -73,7 +73,12 @@ class CatalogTitleComposer
         // description. On tires the description says "TPI 60x2TPI" before it
         // ever says "Labeled Size 27.5''x2.40", so the regex path returned
         // the thread count as the size.
-        $size = $this->pickAttribute($attrs, $setting->size_attribute_priority ?: []);
+        // MARKER-REVIEW-PAGE — the editor previews an UNSAVED size attribute,
+        // so an override wins over the stored priority when one is passed.
+        $sizePriority = $sizeAttrOverride !== null
+            ? $sizeAttrOverride
+            : ($setting->size_attribute_priority ?: []);
+        $size = $this->pickAttribute($attrs, $sizePriority);
         if ($size === '') {
             $size = $this->extractSize(
                 $distributorCode,
@@ -133,9 +138,13 @@ class CatalogTitleComposer
     }
 
     /** Render an ARBITRARY template against parts — used by the live editor preview. */
-    public function renderTemplate(string $distributorCode, string $template, array $parts): string
-    {
-        [$resolve] = $this->makeResolver($distributorCode, $parts);
+    public function renderTemplate(
+        string $distributorCode,
+        string $template,
+        array $parts,
+        ?array $sizeAttrOverride = null
+    ): string {
+        [$resolve] = $this->makeResolver($distributorCode, $parts, $sizeAttrOverride);
         return $this->render($template, $resolve);
     }
 

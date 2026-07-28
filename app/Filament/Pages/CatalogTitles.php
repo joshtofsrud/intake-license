@@ -25,9 +25,11 @@ class CatalogTitles extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon  = 'heroicon-o-tag';
-    protected static ?string $navigationLabel = 'Catalog Titles';
+    // MARKER-REVIEW-PAGE — demoted beneath the review page. Still the right
+    // place for subtitle / search / allattr and the global defaults.
+    protected static ?string $navigationLabel = 'Title templates';
     protected static ?string $navigationGroup = 'Distribution';
-    protected static ?int    $navigationSort  = 20;
+    protected static ?int    $navigationSort  = 21;
 
     protected static string $view = 'filament.pages.catalog-titles';
 
