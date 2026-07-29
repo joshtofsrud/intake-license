@@ -240,7 +240,7 @@ function ucAll(checked){
 }
 
 function ucLabel(){
-  const sel = document.getElementById('ucAttr');
+  const sel = document.getElementById('ucAttr');  // MARKER-UCSEL-COLLISION
   const opt = sel && sel.selectedOptions[0];
   return (opt && opt.dataset.label) || 'Size';
 }
@@ -322,8 +322,12 @@ function ucNote(){
     : 'nothing in this bucket groups usefully \u2014 pick one above if you disagree';
 }
 
-const ucSel = document.getElementById('ucAttr');
-if (ucSel) ucSel.addEventListener('change', e => {
+/* MARKER-UCSEL-COLLISION — was `const ucSel`, which collided with the
+   existing `function ucSel()` above that counts checked rows. Duplicate
+   identifiers are a parse-time SyntaxError, so the whole script block was
+   thrown away and none of this ever ran. */
+const ucAttrSel = document.getElementById('ucAttr');
+if (ucAttrSel) ucAttrSel.addEventListener('change', e => {
   ucAttr = e.target.value || null;
   ucVal = null;
   ucNote(); ucPaintChips(); ucPaintRows();
