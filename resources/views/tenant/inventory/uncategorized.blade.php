@@ -82,7 +82,11 @@
               </tr></thead>
               <tbody>
               @forelse($items as $it)
-                <tr class="uc-row" data-attrs='@json($it->_attrs)' style="border-top:.5px solid var(--ia-border)">
+                {{-- MARKER-ATTRS-QUOTING — double-quoted with {{ }} escaping. This was
+                     single-quoted @json, and HLC writes inches as two apostrophes
+                     (26''x2.30), which closed the attribute early and mangled the
+                     tag on every tire row. --}}
+                <tr class="uc-row" data-attrs="{{ json_encode($it->_attrs, JSON_UNESCAPED_SLASHES) }}" style="border-top:.5px solid var(--ia-border)">
                   {{-- MARKER-SPLIT-BY-CLIENT — values for every attribute ride on the row. --}}
                   <td style="padding:11px 14px"><input type="checkbox" class="uc-cb" name="item_ids[]" value="{{ $it->id }}" onchange="ucUpd()"></td>
                   <td style="padding:11px 14px"><div style="font-weight:600">{{ $it->name }}</div><div style="font-size:11px;color:var(--ia-text-dim);font-family:var(--ia-mono)">{{ $it->sku }}</div></td>
