@@ -113,9 +113,13 @@
             $cap   = $r->max_appointments_per_day;
             $atCap = ($cap !== null && $count >= $cap);
           @endphp
+          {{-- MARKER-WEEK-DROPSTATE — data-cap so the drag handler can rebuild the
+               count badge after a drop. The cap used to live only inside the
+               badge's own text, which is gone the moment a cell empties. --}}
           <div class="cal-week-cell {{ $atCap ? 'is-full' : '' }} {{ $day->isToday() ? 'is-today' : '' }}"
                data-resource-id="{{ $r->id }}"
-               data-date="{{ $day->format('Y-m-d') }}">
+               data-date="{{ $day->format('Y-m-d') }}"
+               data-cap="{{ $cap !== null ? $cap : '' }}">
             @if($count > 0)
               <div class="cal-week-cell-count">{{ $count }}@if($cap !== null)<span class="cap-of">/{{ $cap }}</span>@endif</div>
               @foreach($items as $appt)

@@ -134,8 +134,24 @@
   // body already contains the placeholder DIV (rendered by Blade when the
   // column is empty), but SortableJS just shuffles cards in/out without
   // touching the placeholder. We toggle it imperatively here.
+  // MARKER-WEEK-DROPSTATE
+  //
+  // Called for both views. It used to assume the day view: it looked for
+  // `.cal-dropoff-card` children, which week cells never have, so hasCards
+  // was always false there and it appended a day-view "No appointments yet"
+  // block into cells that plainly had appointments in them — once per drag,
+  // accumulating. Week cells hold `.cal-week-card` and have no text
+  // placeholder at all, just a flex spacer.
   function refreshEmptyState( colEl ) {
     if ( !colEl ) return;
+    if ( colEl.classList.contains( 'cal-week-cell' ) ) {
+      refreshWeekCell( colEl );
+      return;
+    }
+    refreshDayColumn( colEl );
+  }
+
+  function refreshDayColumn( colEl ) {
     var placeholder = colEl.querySelector( ':scope > .cal-dropoff-empty' );
     var hasCards = colEl.querySelector( ':scope > .cal-dropoff-card' ) !== null;
     if ( hasCards && placeholder ) {
@@ -148,6 +164,46 @@
         '<div class="cal-dropoff-empty-hint-desktop">Drag a card here to assign.</div>' +
         '<div class="cal-dropoff-empty-hint-mobile">Tap + below to add one.</div>';
       colEl.appendChild( div );
+    }
+  }
+
+  // Week cell: no text placeholder, a spacer when empty, and a count badge
+  // that nothing was updating — the number in the corner kept whatever the
+  // server rendered at page load, so it lied after every move.
+  function refreshWeekCell( cellEl ) {
+    // Clear any day-view placeholder a previous drag injected here.
+    var stray = cellEl.querySelectorAll( ':scope > .cal-dropoff-empty' );
+    for ( var i = 0; i < stray.length; i++ ) { stray[ i ].remove(); }
+
+    var count   = cellEl.querySelectorAll( ':scope > .cal-week-card' ).length;
+    var spacer  = cellEl.querySelector( ':scope > .cal-week-cell-empty' );
+    var badge   = cellEl.querySelector( ':scope > .cal-week-cell-count' );
+    var capAttr = cellEl.getAttribute( 'data-cap' );
+    var cap     = ( capAttr === null || capAttr === '' ) ? null : parseInt( capAttr, 10 );
+
+    if ( count > 0 ) {
+      if ( spacer ) spacer.remove();
+      if ( !badge ) {
+        badge = document.createElement( 'div' );
+        badge.className = 'cal-week-cell-count';
+        cellEl.insertBefore( badge, cellEl.firstChild );
+      }
+      badge.innerHTML = count +
+        ( cap !== null ? '<span class="cap-of">/' + cap + '</span>' : '' );
+    } else {
+      if ( badge ) badge.remove();
+      if ( !spacer ) {
+        var div = document.createElement( 'div' );
+        div.className = 'cal-week-cell-empty';
+        cellEl.appendChild( div );
+      }
+    }
+
+    // Over-capacity shading has to follow the new count too.
+    if ( cap !== null && count >= cap ) {
+      cellEl.classList.add( 'is-full' );
+    } else {
+      cellEl.classList.remove( 'is-full' );
     }
   }
 
