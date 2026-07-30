@@ -3390,11 +3390,17 @@ input.ma-asset-name-edit:focus {
         html = '<div class="ma-part-picker-empty">No matching items.</div>';
       } else {
         items.forEach(function(it) {
+          // MARKER-ITEM-MODAL-SHARED — "i" opens the shared item modal.
           html += '<div class="ma-part-picker-result" data-id="' + it.id + '">' +
-                  '  <div class="name">' + escapeHtml(it.name) + '</div>' +
-                  '  <div class="meta">' +
-                  '    <span>' + (it.sku ? escapeHtml(it.sku) + ' · ' : '') + (it.price_display || '$0.00') + '</span>' +
-                  '    <span>' + (it.stock > 0 ? it.stock + ' in stock' : (it.allow_oversell ? 'Oversell ok' : 'Out of stock')) + '</span>' +
+                  '  <div style="display:flex;align-items:center;gap:8px">' +
+                  '    <div style="flex:1;min-width:0">' +
+                  '      <div class="name">' + escapeHtml(it.name) + '</div>' +
+                  '      <div class="meta">' +
+                  '        <span>' + (it.sku ? escapeHtml(it.sku) + ' · ' : '') + (it.price_display || '$0.00') + '</span>' +
+                  '        <span>' + (it.stock > 0 ? it.stock + ' in stock' : (it.allow_oversell ? 'Oversell ok' : 'Out of stock')) + '</span>' +
+                  '      </div>' +
+                  '    </div>' +
+                  '    <button type="button" class="item-info-btn" data-info-id="' + it.id + '" title="Item details" aria-label="Item details">i</button>' +
                   '  </div>' +
                   '</div>';
         });
@@ -3403,6 +3409,19 @@ input.ma-asset-name-edit:focus {
               (q ? ' "' + escapeHtml(q) + '"' : '') + '</div>';
       results.innerHTML = html;
       results.style.display = 'block';
+
+      // MARKER-ITEM-MODAL-SHARED — stopPropagation matters: the button sits
+      // inside the row, and the row's own click is what adds the part.
+      results.querySelectorAll('.item-info-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          var row = btn.closest('.ma-part-picker-result');
+          window.IntakeItemModal.open(btn.dataset.infoId, {
+            actionLabel: 'Add to this bike',
+            onAdd: function() { if (row) row.click(); },
+          });
+        });
+      });
 
       // Wire selection
       results.querySelectorAll('.ma-part-picker-result').forEach(function(el) {
@@ -3534,11 +3553,17 @@ input.ma-asset-name-edit:focus {
           html = '<div class="ma-part-picker-empty">No matching items.</div>';
         } else {
           items.forEach(function(it) {
+            // MARKER-ITEM-MODAL-SHARED — "i" opens the shared item modal.
             html += '<div class="ma-part-picker-result" data-id="' + it.id + '">' +
-                    '  <div class="name">' + escapeHtml(it.name) + '</div>' +
-                    '  <div class="meta">' +
-                    '    <span>' + (it.sku ? escapeHtml(it.sku) + ' · ' : '') + (it.price_display || '$0.00') + '</span>' +
-                    '    <span>' + (it.stock > 0 ? it.stock + ' in stock' : (it.allow_oversell ? 'Oversell ok' : 'Out of stock')) + '</span>' +
+                    '  <div style="display:flex;align-items:center;gap:8px">' +
+                    '    <div style="flex:1;min-width:0">' +
+                    '      <div class="name">' + escapeHtml(it.name) + '</div>' +
+                    '      <div class="meta">' +
+                    '        <span>' + (it.sku ? escapeHtml(it.sku) + ' · ' : '') + (it.price_display || '$0.00') + '</span>' +
+                    '        <span>' + (it.stock > 0 ? it.stock + ' in stock' : (it.allow_oversell ? 'Oversell ok' : 'Out of stock')) + '</span>' +
+                    '      </div>' +
+                    '    </div>' +
+                    '    <button type="button" class="item-info-btn" data-info-id="' + it.id + '" title="Item details" aria-label="Item details">i</button>' +
                     '  </div>' +
                     '</div>';
           });
@@ -3547,6 +3572,18 @@ input.ma-asset-name-edit:focus {
                 (q ? ' "' + escapeHtml(q) + '"' : '') + '</div>';
         results.innerHTML = html;
         results.hidden = false;
+
+        // MARKER-ITEM-MODAL-SHARED
+        results.querySelectorAll('.item-info-btn').forEach(function(btn) {
+          btn.addEventListener('click', function(ev) {
+            ev.stopPropagation();
+            var row = btn.closest('.ma-part-picker-result');
+            window.IntakeItemModal.open(btn.dataset.infoId, {
+              actionLabel: 'Add to this bike',
+              onAdd: function() { if (row) row.click(); },
+            });
+          });
+        });
 
         results.querySelectorAll('.ma-part-picker-result').forEach(function(el) {
           el.addEventListener('click', async function() {
@@ -3849,5 +3886,8 @@ input.ma-asset-name-edit:focus {
 })();
 </script>
 @endpush
+
+{{-- MARKER-ITEM-MODAL-SHARED --}}
+@include('tenant._item-detail-modal')
 
 @endsection

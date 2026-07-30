@@ -1399,8 +1399,33 @@ class RegisterController extends Controller
             ];
         }
 
+        // MARKER-ITEM-MODAL-VENDOR — what the distributor last reported for
+        // this variant. Deliberately the stored snapshot, not a live call:
+        // this endpoint fires every time someone taps "i", and hitting the
+        // distributor that often to refresh a number that moves slowly is a
+        // bad trade. checked_at travels with it so the age is visible.
+        $vendor = [];
+        $dc = $item->distributorCatalog;
+        if ($dc && ! empty($dc->distributor_variant_no)) {
+            $snap = \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')
+                ->where('distributor_code', $dc->distributor_code)
+                ->where('distributor_variant_no', $dc->distributor_variant_no)
+                ->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenant->id))
+                ->orderByDesc('checked_at')
+                ->first(['distributor_code', 'avail', 'checked_at']);
+
+            if ($snap) {
+                $vendor[] = [
+                    'distributor' => $snap->distributor_code,
+                    'avail'       => $snap->avail === null ? null : (int) $snap->avail,
+                    'checked_at'  => $snap->checked_at,
+                ];
+            }
+        }
+
         return response()->json([
             'ok'          => true,
+            'vendor'      => $vendor,
             'name'        => $item->name,
             'brand'       => $item->distributorCatalog?->manufacturer,
             'subtitle'    => $item->display_subtitle,
