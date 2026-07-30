@@ -172,7 +172,11 @@ class SpecialOrderService
                 // grouped or placed, so one is chosen automatically by the
                 // tenant's rule unless the caller named one.
                 'vendor_id'                 => $data['vendor_id'] ?? ($auto['vendor_id'] ?? null),
-                'vendor_assigned_rule'      => $data['vendor_id'] ? 'manual' : ($auto['rule'] ?? null),
+                // MARKER-SO-VENDOR-KEY — null-coalesce. The register creates an
+                // SO without naming a vendor (that is what the auto rule is
+                // for), and a bare $data['vendor_id'] threw "Undefined array
+                // key" on every one of those.
+                'vendor_assigned_rule'      => ($data['vendor_id'] ?? null) ? 'manual' : ($auto['rule'] ?? null),
                 'po_number'                 => $data['po_number'] ?? null,
                 'vendor_reference'          => $data['vendor_reference'] ?? null,
                 'status'                    => $status,
