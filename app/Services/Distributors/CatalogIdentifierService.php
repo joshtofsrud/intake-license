@@ -16,8 +16,21 @@ use App\Models\PlatformDistributorCatalog;
  */
 class CatalogIdentifierService
 {
-    /** Shorter than this after normalising and it isn't an identifier. */
-    private const MIN_LENGTH = 4;
+    /**
+     * MARKER-MPN-FLOOR — floors differ by type, on purpose.
+     *
+     * A barcode shorter than 4 digits is corrupt data. A part number shorter
+     * than 4 is routine — "BR-3" is a real Wheels Manufacturing SKU — and it
+     * is already brand-qualified in the key, so WHEELSMANUFACTURING|BR3
+     * cannot collide with another manufacturer's BR3. The original single
+     * floor of 4 was guarding against a collision the brand prefix had
+     * already ruled out, and it silently dropped valid rows.
+     *
+     * Single characters still stay out: within one brand they are far more
+     * likely to be a data-entry artefact than a distinct part.
+     */
+    private const MIN_LENGTH = 4;        // barcodes
+    private const MIN_MPN_LENGTH = 2;    // brand-qualified part numbers
 
     /**
      * Values that appear across unrelated products. Matching on one of these
@@ -102,7 +115,7 @@ class CatalogIdentifierService
         if ($b === '' || $s === '') {
             return null;
         }
-        if (strlen($s) < self::MIN_LENGTH || $this->isJunk($s)) {
+        if (strlen($s) < self::MIN_MPN_LENGTH || $this->isJunk($s)) {
             return null;
         }
 
