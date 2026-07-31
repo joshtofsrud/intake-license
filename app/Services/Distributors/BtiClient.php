@@ -267,7 +267,63 @@ class BtiClient implements DistributorAdapter
             }
         }
 
-        return $out;
+        return $this->groupIntoProducts($out);
+    }
+
+    /**
+     * MARKER-BTI-PRODUCT-SHAPE
+     *
+     * The sync layer is written around HLC's nested shape: it groups on
+     * $product['Brand'] and iterates $product['Variants']. BTI ships flat
+     * item rows, so without this the sync sees rows and counts none of them.
+     *
+     * BTI already has the grouping: group_id is the product, id is the
+     * variant. Rows keep every column, so the field map's flat paths still
+     * resolve — resolve() merges variant and product into one context.
+     *
+     * A group straddling a page boundary produces two entries with the same
+     * group_id. That is fine: upsertVariant keys on distributor_variant_no,
+     * so each row is written exactly once regardless.
+     *
+     * @param  array<int,array<string,string>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function groupIntoProducts(array $rows): array
+    {
+        $byGroup = [];
+
+        foreach ($rows as $r) {
+            // Fall back to the item id so a row with no group still syncs
+            // as a product of one, rather than being silently dropped.
+            $gid = ($r['group_id'] ?? '') !== '' ? $r['group_id'] : ($r['id'] ?? '');
+            if ($gid === '') {
+                continue;
+            }
+
+            if (! isset($byGroup[$gid])) {
+                $byGroup[$gid] = [
+                    // What the sync groups on. Unknown keeps a nameless row
+                    // out of a bucket it doesn't belong in.
+                    'Brand'             => ($r['manufacturer_name'] ?? '') !== ''
+                        ? $r['manufacturer_name']
+                        : 'Unknown',
+                    'group_id'          => $gid,
+                    'group_description' => $r['group_description'] ?? '',
+                    'group_text'        => $r['group_text'] ?? '',
+                    'manufacturer_id'   => $r['manufacturer_id'] ?? '',
+                    'manufacturer_name' => $r['manufacturer_name'] ?? '',
+                    'category_id'       => $r['category_id'] ?? '',
+                    'category_name'     => $r['category_name'] ?? '',
+                    'sub_category_id'   => $r['sub_category_id'] ?? '',
+                    'sub_category_name' => $r['sub_category_name'] ?? '',
+                    'Variants'          => [],
+                ];
+            }
+
+            $byGroup[$gid]['Variants'][] = $r;
+        }
+
+        return array_values($byGroup);
     }
 
     /**
