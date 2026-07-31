@@ -183,13 +183,35 @@ class BtiClient implements DistributorAdapter
                     continue;
                 }
                 yield array_combine($header, array_map(
-                    fn ($v) => $v === null ? '' : trim((string) $v),
+                    fn ($v) => $v === null ? '' : $this->utf8(trim((string) $v)),
                     $line
                 ));
             }
         } finally {
             fclose($fh);
         }
+    }
+
+    /**
+     * MARKER-BTI-ENCODING — BTI serves Windows-1252, not UTF-8.
+     *
+     * Found via a single row whose vendor_item_id began with a bare 0xA0
+     * (a Windows-1252 non-breaking space; the UTF-8 form is 0xC2 0xA0).
+     * MySQL rejected the insert outright. That one row is not the extent of
+     * it — every curly quote, en dash, degree sign and accented brand name
+     * in the feed carries the same defect, so the conversion happens here,
+     * on every value, rather than at the field that happened to fail first.
+     *
+     * Conditional on purpose: anything already valid UTF-8 is returned
+     * untouched, so if BTI switches encoding this needs no change and
+     * double-encoding can't happen.
+     */
+    private function utf8(string $v): string
+    {
+        if ($v === '' || mb_check_encoding($v, 'UTF-8')) {
+            return $v;
+        }
+        return mb_convert_encoding($v, 'UTF-8', 'Windows-1252');
     }
 
     // ---------------------------------------------------------------- api

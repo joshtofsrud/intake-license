@@ -290,8 +290,17 @@ class DistributorMapResolver
         return match ($cast) {
             'cents'  => (int) round(((float) $v) * 100),
             // MARKER-BTI-TRANSFORMS
-            // trim: BTI ships vendor_item_id as " SOX-6M".
-            'trim'   => trim((string) $v),
+            // MARKER-BTI-ENCODING
+            // trim: BTI ships vendor_item_id as " SOX-6M", and at least one
+            // row pads it with a NON-BREAKING space, which PHP's trim() does
+            // not touch — it only strips ASCII whitespace. An MPN carrying an
+            // invisible leading character never matches its counterpart at
+            // another distributor, so this strips unicode whitespace too.
+            'trim'   => preg_replace(
+                '/^[\s\x{00A0}\x{200B}\x{FEFF}]+|[\s\x{00A0}\x{200B}\x{FEFF}]+$/u',
+                '',
+                (string) $v
+            ),
             // zero_null: BTI writes map 0.0 to mean NO MAP. Kept as a number
             // it would floor the price at zero wherever MAP is enforced.
             // Applied after 'cents' by chaining two map rows if both are
