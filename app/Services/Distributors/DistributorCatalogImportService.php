@@ -36,6 +36,9 @@ class DistributorCatalogImportService
         $vendor = $dryRun ? null : $this->vendorFor($tenantId, $code);
         [$byKey, $byUpc, $linkedCatalog] = $this->existingIndexes($tenantId);
 
+        // MARKER-IMPORT-MATCHES
+        $matchedRows = $this->matchedRows($candidates->pluck('id')->all());
+
         foreach ($candidates as $cat) {
             // 1) exact same catalog row already sourced -> idempotent skip
             if (isset($linkedCatalog[$cat->id])) {
@@ -43,11 +46,29 @@ class DistributorCatalogImportService
                 continue;
             }
 
-            // 2) same physical product already carried -> merge a source
+            // MARKER-IMPORT-MATCHES
+            // 2) a catalog row LINKED to this one is already carried.
+            //
+            // Checked before product_key and UPC because it is the only test
+            // built from evidence rather than one field, and the only one
+            // that works when a distributor ships no UPC — 4,207 HLC rows
+            // carry an EAN and nothing else, and UPC matching is blind to
+            // every one of them.
+            $matchId = null;
+            foreach (($matchedRows[$cat->id] ?? []) as $otherId) {
+                if (isset($linkedCatalog[$otherId])) {
+                    $matchId = $linkedCatalog[$otherId];
+                    break;
+                }
+            }
+
+            // 3) same physical product by key or barcode
             $key = $cat->product_key;
-            $matchId = ($key && isset($byKey[$key]))
-                ? $byKey[$key]
-                : (($cat->upc && isset($byUpc[$cat->upc])) ? $byUpc[$cat->upc] : null);
+            if ($matchId === null) {
+                $matchId = ($key && isset($byKey[$key]))
+                    ? $byKey[$key]
+                    : (($cat->upc && isset($byUpc[$cat->upc])) ? $byUpc[$cat->upc] : null);
+            }
 
             if ($matchId) {
                 if (! $dryRun) {
@@ -151,6 +172,44 @@ class DistributorCatalogImportService
         }
 
         return [$byKey, $byUpc, $linked];
+    }
+
+    /**
+     * MARKER-IMPORT-MATCHES — catalog rows linked to each of these rows.
+     *
+     * Only `auto` and `confirmed` links are honoured. A `held` pair is a
+     * question nobody has answered and a `rejected` pair is someone having
+     * said no — merging on either would let the importer overrule a person.
+     *
+     * The pair table stores each pair once with the lower id first, so both
+     * directions are read and folded into one map.
+     *
+     * @param  array<int,string> $catalogIds
+     * @return array<string,array<int,string>> catalog id => linked catalog ids
+     */
+    private function matchedRows(array $catalogIds): array
+    {
+        if (! $catalogIds) {
+            return [];
+        }
+
+        $out = [];
+
+        \App\Models\CatalogMatch::query()
+            ->whereIn('status', ['auto', 'confirmed'])
+            ->where(function ($q) use ($catalogIds) {
+                $q->whereIn('row_a_id', $catalogIds)
+                  ->orWhereIn('row_b_id', $catalogIds);
+            })
+            ->select(['row_a_id', 'row_b_id'])
+            ->chunk(2000, function ($rows) use (&$out) {
+                foreach ($rows as $m) {
+                    $out[$m->row_a_id][] = $m->row_b_id;
+                    $out[$m->row_b_id][] = $m->row_a_id;
+                }
+            });
+
+        return $out;
     }
 
     private function vendorFor(string $tenantId, string $code): TenantVendor
