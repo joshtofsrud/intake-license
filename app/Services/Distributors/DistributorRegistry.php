@@ -17,6 +17,10 @@ class DistributorRegistry
     /** distributor_code => adapter class */
     private const ADAPTERS = [
         'HLC' => HlcClient::class,
+        // MARKER-BTI-ADAPTER — credentials ride in api_key as
+        // "username:password"; BtiClient splits on the first colon, so the
+        // shared (apiKey, region) constructor shape still holds.
+        'BTI' => BtiClient::class,
     ];
 
     /** @return array<int,string> supported distributor codes */

@@ -21,4 +21,20 @@ return [
         'page_size'      => (int) env('HLC_API_PAGE_SIZE', 8000),
     ],
 
+    // MARKER-BTI-ADAPTER — bulk download over HTTP Basic, not a query API.
+    // Tenant credentials still live encrypted on the subscription row; only
+    // transport settings belong here.
+    'bti' => [
+        'name'           => 'BTI',
+        'base_url'       => env('BTI_BASE', 'https://www.bti-usa.com'),
+        // Where relative image_path values hang off.
+        'image_base'     => env('BTI_IMAGE_BASE', 'https://www.bti-usa.com/images'),
+        'timeout'        => (int) env('BTI_TIMEOUT', 600),   // 43 MB download
+        'retries'        => (int) env('BTI_RETRIES', 2),
+        'retry_sleep_ms' => (int) env('BTI_RETRY_SLEEP', 1000),
+        'page_size'      => (int) env('BTI_PAGE_SIZE', 2000),
+        // How long a downloaded feed is reused before re-fetching.
+        'cache_hours'    => (int) env('BTI_CACHE_HOURS', 6),
+    ],
+
 ];
