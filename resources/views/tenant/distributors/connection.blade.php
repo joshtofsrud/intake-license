@@ -31,45 +31,71 @@
 
 @section('content')
 <div style="max-width:880px">
-  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
-  @include('layouts.tenant._inventory-tabs')
-  <p class="dc-sub">Connect your own HLC account to unlock your cost and live availability.</p>
+  {{-- MARKER-DIST-MULTI — one box per supported distributor. --}}
+  <h1 style="font-size:20px;font-weight:600;margin-bottom:6px">Distributor catalogs</h1>
+  <p class="dc-sub">Connect each distributor you buy from. Browsing and importing works without a key —
+  your own key unlocks <b>your cost</b> and <b>live availability</b>, per account, never shared between shops.</p>
 
-  <div class="dc-note">Browsing and importing the catalog works without a key. Your <b>own</b> HLC key unlocks <b>your cost</b> and <b>live availability</b> — per-account, never shared between shops.</div>
-
-  <div class="dc-card">
-    <h2 class="dc-h">Your HLC account</h2>
-    <p class="dc-sub">Stored encrypted. Used only for your shop's cost &amp; availability.</p>
-    <form method="POST" action="{{ route('tenant.distributors.connection.key') }}">
-      @csrf
-      <div class="dc-row">
-        <div class="dc-field"><label>Your API Key</label>
-          <input class="dc-input" type="text" name="api_key" placeholder="{{ $hasKey ? $maskedKey : 'paste your HLC catalog key' }}" autocomplete="off"></div>
-        <div class="dc-field" style="max-width:180px"><label>Account #</label>
-          <input class="dc-input" type="text" name="account_number" value="{{ $accountNo }}" placeholder="optional"></div>
-      </div>
-      <div style="display:flex;gap:10px;margin-top:4px">
-        <button class="dc-btn primary" type="submit">Save key</button>
-        <button class="dc-btn" type="submit" formaction="{{ route('tenant.distributors.connection.test') }}">Test connection</button>
-      </div>
-    </form>
+  <div class="dc-note" style="margin-bottom:18px">
+    <b>Priority</b> decides which distributor's product information wins when two of them carry the
+    same item — the name, description and specs on your items. Lower number wins. It doesn't change
+    who you buy from.
   </div>
 
-  <div class="dc-card">
-    {{-- MARKER-PATCH-559 — sync status + manual runs moved to Catalog attention,
-         the surface staff actually watch. Connection is credentials only. --}}
-    <div style="font-size:12.5px;color:var(--ia-text-muted);padding:6px 0 2px">
-      Looking for sync status or a manual refresh? That lives on
-      <a href="{{ route('tenant.distributors.attention') }}" style="color:var(--ia-accent)">Catalog attention</a> now.
+  @foreach ($boxes as $i => $b)
+    <div class="dc-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <h2 class="dc-h" style="margin:0">{{ $b['label'] }}</h2>
+        <div style="font-size:12px;color:var(--ia-text-dim)">
+          @if ($b['hasKey'])
+            <span style="color:var(--ia-ok,#8FD14F)">connected</span> ·
+          @endif
+          {{ number_format($b['linked']) }} linked item{{ $b['linked'] === 1 ? '' : 's' }}
+          @if ($i === 0 && $b['hasKey'])
+            · <b>data source for shared items</b>
+          @endif
+        </div>
+      </div>
+
+      <form method="POST" action="{{ route('tenant.distributors.connection.key') }}" style="margin-top:12px">
+        @csrf
+        <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          @foreach ($b['fields'] as $f)
+            <div>
+              <label class="dc-label">{{ $f['label'] }}</label>
+              <input class="dc-input" type="{{ $f['type'] }}" name="{{ $f['name'] }}"
+                     autocomplete="off"
+                     placeholder="{{ $b['hasKey'] ? $b['maskedKey'] : '' }}">
+              @if (! empty($f['hint']))
+                <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">{{ $f['hint'] }}</div>
+              @endif
+            </div>
+          @endforeach
+
+          <div>
+            <label class="dc-label">Priority</label>
+            <select class="dc-input" name="data_priority">
+              @foreach ([1,2,3,4,5,10,20,50] as $p)
+                <option value="{{ $p }}" @selected($b['priority'] === $p)>{{ $p }}</option>
+              @endforeach
+            </select>
+            <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">Lower wins.</div>
+          </div>
+        </div>
+
+        @if ($b['hasKey'])
+          <div style="font-size:11px;color:var(--ia-text-dim);margin-top:8px">
+            Leave the credential blank to keep the saved one and change only the priority.
+          </div>
+        @endif
+
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="ia-btn ia-btn--primary">Save</button>
+        </div>
+      </form>
     </div>
-  </div>
+  @endforeach
 
-  <div class="dc-card">
-    <h2 class="dc-h">What your key unlocks</h2>
-    <div class="dc-unlock"><span style="color:var(--ia-accent)">✓</span><div><b>Your dealer cost</b> — per-account Base pricing on every linked item.</div></div>
-    <div class="dc-unlock"><span style="color:var(--ia-accent)">✓</span><div><b>Live availability</b> — per-warehouse stock on the item.</div></div>
-    <div class="dc-unlock"><span style="color:var(--ia-accent)">✓</span><div><b>Pricing attention</b> — vanished cost/MAP/MSRP flags on items you stock.</div></div>
-    <div class="dc-unlock"><span class="dc-dim">○</span><div class="dc-dim">Without a key: catalog, MAP and MSRP are visible, but cost, availability and flags stay hidden.</div></div>
-  </div>
-</div>
 @endsection

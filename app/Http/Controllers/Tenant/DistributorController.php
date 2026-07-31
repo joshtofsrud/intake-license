@@ -19,6 +19,9 @@ use Illuminate\Http\Request;
  */
 class DistributorController extends Controller
 {
+    // MARKER-DIST-MULTI — was the whole controller's distributor. Kept as the
+    // default for the routes that still assume one (import, attention), which
+    // remain HLC-only until those screens are generalised too.
     private const CODE = 'HLC';
 
     private function guard(): void
@@ -34,18 +37,54 @@ class DistributorController extends Controller
         );
     }
 
+    /**
+     * MARKER-DIST-MULTI — one box per supported distributor.
+     *
+     * Reads DistributorRegistry::supported(), so a newly registered adapter
+     * appears here with no change to this method or the view.
+     */
     public function connection(): View
     {
         $this->guard();
         $tenant = tenant();
-        $sub = $this->subscription();
-        $creds = (array) ($sub->credentials_encrypted ?? []);
+        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
+
+        $boxes = [];
+        foreach ($registry->supported() as $code) {
+            $sub = TenantDistributorCatalogSubscription::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'distributor_code' => $code],
+                ['is_active' => true],
+            );
+            $creds = (array) ($sub->credentials_encrypted ?? []);
+
+            $boxes[] = [
+                'code'      => $code,
+                'label'     => $registry->label($code),
+                'sub'       => $sub,
+                'fields'    => $registry->credentialFields($code),
+                'hasKey'    => filled($creds['api_key'] ?? null),
+                'maskedKey' => $this->mask($creds['api_key'] ?? null),
+                'priority'  => (int) ($sub->data_priority ?? 50),
+                'linked'    => TenantInventoryItemVendor::query()
+                    ->where('distributor_code', $code)
+                    ->whereNotNull('distributor_catalog_id')
+                    ->whereHas('item', fn ($q) => $q->where('tenant_id', $tenant->id))
+                    ->count(),
+            ];
+        }
+
+        // Lowest number first, so the screen reads in the order it resolves.
+        usort($boxes, fn ($a, $b) => $a['priority'] <=> $b['priority']);
+
+        $legacy = $this->subscription();
+        $legacyCreds = (array) ($legacy->credentials_encrypted ?? []);
 
         return view('tenant.distributors.connection', [
-            'sub'          => $sub,
-            'hasKey'       => filled($creds['api_key'] ?? null),
-            'maskedKey'    => $this->mask($creds['api_key'] ?? null),
-            'accountNo'    => $sub->account_number,
+            'boxes'        => $boxes,
+            'sub'          => $legacy,
+            'hasKey'       => filled($legacyCreds['api_key'] ?? null),
+            'maskedKey'    => $this->mask($legacyCreds['api_key'] ?? null),
+            'accountNo'    => $legacy->account_number,
             'linkedCount'  => TenantInventoryItemVendor::query()
                 ->where('distributor_code', self::CODE)
                 ->whereNotNull('distributor_catalog_id')
@@ -56,25 +95,51 @@ class DistributorController extends Controller
         ]);
     }
 
+    /**
+     * MARKER-DIST-MULTI — saves one distributor's box.
+     *
+     * The credential fields differ per distributor, so the submitted values
+     * go through the registry, which knows how to collapse them into the
+     * single stored api_key (BTI joins username and password with a colon).
+     * A blank credential means "leave what's stored alone", so a shop can
+     * change its priority without re-typing a key it can't read back.
+     */
     public function saveKey(Request $request): RedirectResponse
     {
         $this->guard();
         $data = $request->validate([
-            'api_key'        => ['nullable', 'string', 'max:255'],
-            'account_number' => ['nullable', 'string', 'max:64'],
+            'distributor_code' => ['required', 'string', 'max:32'],
+            'api_key'          => ['nullable', 'string', 'max:255'],
+            'username'         => ['nullable', 'string', 'max:128'],
+            'password'         => ['nullable', 'string', 'max:255'],
+            'account_number'   => ['nullable', 'string', 'max:64'],
+            'data_priority'    => ['nullable', 'integer', 'min:1', 'max:99'],
         ]);
 
-        $sub = $this->subscription();
+        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
+        $code = strtoupper($data['distributor_code']);
+        abort_unless($registry->isSupported($code), 404);
+
+        $sub = TenantDistributorCatalogSubscription::firstOrCreate(
+            ['tenant_id' => tenant()->id, 'distributor_code' => $code],
+            ['is_active' => true],
+        );
+
         $creds = (array) ($sub->credentials_encrypted ?? []);
-        if (filled($data['api_key'] ?? null)) {
-            $creds['api_key'] = trim($data['api_key']);
+        $packed = $registry->packCredentials($code, $data);
+        if ($packed !== null) {
+            $creds['api_key'] = $packed;
             $creds['region'] = $creds['region'] ?? 'us';
         }
+
         $sub->credentials_encrypted = $creds;
         $sub->account_number = $data['account_number'] ?? $sub->account_number;
+        if (isset($data['data_priority'])) {
+            $sub->data_priority = (int) $data['data_priority'];
+        }
         $sub->save();
 
-        return back()->with('success', 'HLC key saved. Test it to confirm access.');
+        return back()->with('success', $registry->label($code) . ' saved. Test it to confirm access.');
     }
 
     public function testConnection(): RedirectResponse
