@@ -81,6 +81,9 @@ class AdminPanelProvider extends PanelProvider
                 // it appears here, cache or no cache.
                 \App\Filament\Pages\CatalogTitleReview::class,
                 \App\Filament\Pages\CatalogTitles::class, // MARKER-PATCH-HLCE2 title editor
+                // MARKER-MATCH-REVIEW — explicit registration; this panel does
+                // not auto-discover, so the page has no route until listed.
+                \App\Filament\Pages\CatalogMatchReview::class,
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
