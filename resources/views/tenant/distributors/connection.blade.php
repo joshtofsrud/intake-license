@@ -37,9 +37,9 @@
   your own key unlocks <b>your cost</b> and <b>live availability</b>, per account, never shared between shops.</p>
 
   <div class="dc-note" style="margin-bottom:18px">
-    <b>Priority</b> decides which distributor's product information wins when two of them carry the
-    same item — the name, description and specs on your items. Lower number wins. It doesn't change
-    who you buy from.
+    When two distributors carry the same item, the one placed higher supplies its product
+    information — the name, description and specs on your items. Use the arrows to reorder.
+    This doesn't change who you buy from.
   </div>
 
   @foreach ($boxes as $i => $b)
@@ -51,10 +51,32 @@
             <span style="color:var(--ia-ok,#8FD14F)">connected</span> ·
           @endif
           {{ number_format($b['linked']) }} linked item{{ $b['linked'] === 1 ? '' : 's' }}
-          @if ($i === 0 && $b['hasKey'])
-            · <b>data source for shared items</b>
-          @endif
         </div>
+      </div>
+
+      {{-- MARKER-PRIORITY-ORDER — position, stated in words. The stored
+           integer never appears; arrows swap with the neighbour. --}}
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;
+                  background:var(--ia-surface-2);border-radius:var(--ia-r-md)">
+        <span style="font-size:12.5px;font-weight:600">
+          {{ $i === 0 ? '1st' : ($i === 1 ? '2nd' : ($i === 2 ? '3rd' : ($i + 1) . 'th') ) }} choice for product info
+        </span>
+        <span style="font-size:11px;color:var(--ia-text-dim)">
+          @if ($i === 0)
+            Its name, description and specs are used when more than one distributor carries an item.
+          @else
+            Used only where higher-placed distributors don't carry the item.
+          @endif
+        </span>
+        <span style="flex:1"></span>
+        <form method="POST" action="{{ route('tenant.distributors.connection.priority') }}" style="display:flex;gap:4px;margin:0">
+          @csrf
+          <input type="hidden" name="distributor_code" value="{{ $b['code'] }}">
+          <button name="direction" value="up" class="ia-btn ia-btn--ghost" style="padding:3px 9px;font-size:12px"
+                  @disabled($i === 0)>&uarr;</button>
+          <button name="direction" value="down" class="ia-btn ia-btn--ghost" style="padding:3px 9px;font-size:12px"
+                  @disabled($i === count($boxes) - 1)>&darr;</button>
+        </form>
       </div>
 
       <form method="POST" action="{{ route('tenant.distributors.connection.key') }}" style="margin-top:12px">
@@ -74,15 +96,7 @@
             </div>
           @endforeach
 
-          <div>
-            <label class="dc-label">Priority</label>
-            <select class="dc-input" name="data_priority">
-              @foreach ([1,2,3,4,5,10,20,50] as $p)
-                <option value="{{ $p }}" @selected($b['priority'] === $p)>{{ $p }}</option>
-              @endforeach
-            </select>
-            <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">Lower wins.</div>
-          </div>
+
         </div>
 
         @if ($b['hasKey'])

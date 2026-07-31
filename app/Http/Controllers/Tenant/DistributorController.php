@@ -113,7 +113,6 @@ class DistributorController extends Controller
             'username'         => ['nullable', 'string', 'max:128'],
             'password'         => ['nullable', 'string', 'max:255'],
             'account_number'   => ['nullable', 'string', 'max:64'],
-            'data_priority'    => ['nullable', 'integer', 'min:1', 'max:99'],
         ]);
 
         $registry = app(\App\Services\Distributors\DistributorRegistry::class);
@@ -134,12 +133,64 @@ class DistributorController extends Controller
 
         $sub->credentials_encrypted = $creds;
         $sub->account_number = $data['account_number'] ?? $sub->account_number;
-        if (isset($data['data_priority'])) {
-            $sub->data_priority = (int) $data['data_priority'];
-        }
         $sub->save();
 
         return back()->with('success', $registry->label($code) . ' saved. Test it to confirm access.');
+    }
+
+    /**
+     * MARKER-PRIORITY-ORDER — move a distributor up or down the data order.
+     *
+     * Swaps data_priority with the adjacent distributor rather than
+     * renumbering everything. Renumbering would rewrite rows the shop never
+     * touched, and it would let two shops hold different numbers that mean
+     * the same order — harder to reason about later, for no benefit.
+     *
+     * If the two happen to hold the same stored value (both still on the
+     * default), the mover is nudged one below its neighbour so the order is
+     * still definite.
+     */
+    public function movePriority(Request $request): RedirectResponse
+    {
+        $this->guard();
+        $data = $request->validate([
+            'distributor_code' => ['required', 'string', 'max:32'],
+            'direction'        => ['required', 'in:up,down'],
+        ]);
+
+        $code = strtoupper($data['distributor_code']);
+
+        $subs = TenantDistributorCatalogSubscription::where('tenant_id', tenant()->id)
+            ->orderBy('data_priority')->orderBy('distributor_code')->get();
+
+        $i = $subs->search(fn ($s) => $s->distributor_code === $code);
+        if ($i === false) {
+            return back();
+        }
+
+        $j = $data['direction'] === 'up' ? $i - 1 : $i + 1;
+        if ($j < 0 || $j >= $subs->count()) {
+            return back();          // already at the end
+        }
+
+        $me    = $subs[$i];
+        $other = $subs[$j];
+
+        $mine   = (int) $me->data_priority;
+        $theirs = (int) $other->data_priority;
+
+        if ($mine === $theirs) {
+            $me->data_priority = $data['direction'] === 'up'
+                ? max(1, $theirs - 1)
+                : min(99, $theirs + 1);
+        } else {
+            $me->data_priority    = $theirs;
+            $other->data_priority = $mine;
+            $other->save();
+        }
+        $me->save();
+
+        return back();
     }
 
     public function testConnection(): RedirectResponse
