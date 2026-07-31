@@ -72,6 +72,9 @@ class DistributorMapResolver
             'coalesce'            => $this->coalesce($ctx, $args),
             'pick_category_level' => $this->pickLevel($this->path($ctx, $row->source_path), $args),
             'join_array'          => $this->joinArray($this->path($ctx, $row->source_path), $args),
+            // MARKER-BTI-TRANSFORMS
+            'zip_pipe'            => $this->zipPipe($ctx, $args),
+            'split_pipe'          => $this->splitPipe($this->path($ctx, $row->source_path), $args),
             default               => null,
         };
 
@@ -209,6 +212,76 @@ class DistributorMapResolver
         return $parts ? implode($sep, $parts) : null;
     }
 
+    /**
+     * MARKER-BTI-TRANSFORMS
+     *
+     * Two parallel pipe-delimited strings zipped into [{Name,Value}, ...] —
+     * the shape HLC's Attributes already arrive in, so everything downstream
+     * (title tokens, the split-by picker, the specs grid) works untouched.
+     *
+     * args: keys => source path of the names, values => source path of the
+     * values, sep => delimiter, default '|'.
+     *
+     * A length mismatch truncates to the shorter side. Padding would invent
+     * an attribute name or an empty value, and a shop reads these.
+     */
+    private function zipPipe(array $ctx, array $args): ?array
+    {
+        $sep = $args['sep'] ?? '|';
+
+        $rawKeys = $this->path($ctx, $args['keys'] ?? null);
+        $rawVals = $this->path($ctx, $args['values'] ?? null);
+
+        if (! is_string($rawKeys) || ! is_string($rawVals)) {
+            return null;
+        }
+        if (trim($rawKeys) === '' || trim($rawVals) === '') {
+            return null;
+        }
+
+        $keys = array_map('trim', explode($sep, $rawKeys));
+        $vals = array_map('trim', explode($sep, $rawVals));
+
+        $n = min(count($keys), count($vals));
+        $out = [];
+
+        for ($i = 0; $i < $n; $i++) {
+            if ($keys[$i] === '' || $vals[$i] === '') {
+                continue;
+            }
+            $out[] = ['Name' => $keys[$i], 'Value' => $vals[$i]];
+        }
+
+        return $out ?: null;
+    }
+
+    /**
+     * MARKER-BTI-TRANSFORMS — pipe-delimited string to array. BTI's image
+     * paths are host-relative, so `prefix` makes them fetchable.
+     */
+    private function splitPipe(mixed $raw, array $args): ?array
+    {
+        if (! is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        $sep    = $args['sep'] ?? '|';
+        $prefix = (string) ($args['prefix'] ?? '');
+
+        $out = [];
+        foreach (explode($sep, $raw) as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+            $out[] = $prefix !== '' && ! str_starts_with($part, 'http')
+                ? rtrim($prefix, '/') . '/' . ltrim($part, '/')
+                : $part;
+        }
+
+        return $out ?: null;
+    }
+
     private function cast(mixed $v, ?string $cast): mixed
     {
         if ($cast === null || $v === null) {
@@ -216,6 +289,15 @@ class DistributorMapResolver
         }
         return match ($cast) {
             'cents'  => (int) round(((float) $v) * 100),
+            // MARKER-BTI-TRANSFORMS
+            // trim: BTI ships vendor_item_id as " SOX-6M".
+            'trim'   => trim((string) $v),
+            // zero_null: BTI writes map 0.0 to mean NO MAP. Kept as a number
+            // it would floor the price at zero wherever MAP is enforced.
+            // Applied after 'cents' by chaining two map rows if both are
+            // wanted; on its own it works on the raw feed value.
+            'zero_null' => ((float) $v) == 0.0 ? null : $v,
+            'cents_zero_null' => ((float) $v) == 0.0 ? null : (int) round(((float) $v) * 100),
             'int'    => (int) $v,
             'float'  => (float) $v,
             'bool'   => filter_var($v, FILTER_VALIDATE_BOOLEAN),
