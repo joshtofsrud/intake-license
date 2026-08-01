@@ -1,50 +1,85 @@
-<?php
-// MARKER-PATCH-403
+#!/usr/bin/env bash
+# apply-inbound-cold-routing.sh
+# MARKER-INBOUND-COLD — route mail that carries no thread token.
+#
+# Today the token IS the routing. No token, or a token that no longer
+# matches a thread, and the mail is logged and dropped. That makes
+# {subdomain}@reply.intake.works meaningless and it makes a stale token a
+# silent black hole.
+#
+# New order of resolution:
+#
+#   1. dedupe on MessageID  (hoisted — it now guards BOTH paths; Postmark
+#      retries, and the cold path can create a customer, so a replay must
+#      not run twice)
+#   2. token -> thread      (unchanged, still the precise path)
+#   3. FALL THROUGH on a missing OR unknown token to the recipient address:
+#      localpart before any +tag, matched against tenants.subdomain
+#   4. sender's From address -> customer within that tenant (created if new)
+#
+# Step 3 falling through on an UNKNOWN token, not just a missing one, is
+# deliberate and fixes a real edge: a customer composing fresh mail to
+# grndctrl+anything@reply.intake.works puts "anything" in MailboxHash, so
+# it takes the token path, misses, and would otherwise vanish. Same for a
+# reply to a thread that has since been deleted — it now still reaches the
+# right shop instead of nowhere.
+#
+# Recipient comes from OriginalRecipient (the address Postmark actually
+# delivered to) before falling back to scanning To/Cc, so a shop address
+# on Cc still routes.
+#
+# SPAM: the address is public and guessable, and the cold path creates
+# customer records — so Postmark's own X-Spam-Status verdict is checked
+# first and flagged mail is dropped before anything is written. Without
+# that gate a scanner would populate a shop's customer list.
+#
+# Logging is deliberately split so a genuine misroute is findable and a
+# scanner is not alarming: unknown_recipient (nobody owns that address) vs
+# spam_dropped vs no_sender.
+#
+# Controller only: optimize:clear + fpm cycle.
+set -e
 
-namespace App\Http\Controllers\Webhooks;
+python3 <<'PY'
+import io
 
-use App\Http\Controllers\Controller;
-use App\Models\Tenant; // MARKER-INBOUND-COLD
-use App\Models\Tenant\TenantCustomer; // MARKER-INBOUND-COLD
-use App\Models\Tenant\TenantMessage;
-use App\Models\Tenant\TenantThread;
-use App\Services\Tenant\InboxService;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+p = 'app/Http/Controllers/Webhooks/PostmarkInboundController.php'
+s = io.open(p, encoding='utf-8').read()
 
-/**
- * Inbound email webhook (Postmark) -> unified inbox.
- *
- * Counterpart to TwilioInboundController for the email channel. The customer's
- * reply is addressed to our Postmark inbound stream with the thread's token in
- * the localpart ("...+{token}@..."), which Postmark surfaces as MailboxHash.
- * That token is the routing authority: it maps to exactly one thread (and thus
- * one tenant + customer), so no per-tenant inbound address is ever provisioned.
- *
- * Posture (the project's 3rd-party-callback rule): ALWAYS answer 2xx, but never
- * process what we can't route or trust:
- *   - missing/unknown MailboxHash token -> log, 200, no processing
- *   - duplicate MessageID               -> 200, no processing (Postmark retries)
- *
- * Body: prefer Postmark's StrippedTextReply (quoted history + signature already
- * removed) and fall back to TextBody. The From address is recorded in meta but
- * is NOT the auth — replies legitimately arrive from forwards/aliases.
- *
- * Security: sits behind the same edge Basic-Auth as the bounce webhook. The
- * per-thread token (96-bit random) is unguessable, so a forged POST cannot land
- * in a real thread without it.
- */
-class PostmarkInboundController extends Controller
-{
-    public function handle(Request $request, InboxService $inbox)
-    {
-        // Postmark posts application/json; some test pings arrive form-encoded.
-        $payload = $request->json()->all();
-        if (! is_array($payload) || $payload === []) {
-            $payload = $request->all();
+# ---- imports
+old = """use App\\Http\\Controllers\\Controller;
+use App\\Models\\Tenant\\TenantMessage;
+use App\\Models\\Tenant\\TenantThread;"""
+assert s.count(old) == 1, 'C1 import anchor'
+s = s.replace(old, """use App\\Http\\Controllers\\Controller;
+use App\\Models\\Tenant; // MARKER-INBOUND-COLD
+use App\\Models\\Tenant\\TenantCustomer; // MARKER-INBOUND-COLD
+use App\\Models\\Tenant\\TenantMessage;
+use App\\Models\\Tenant\\TenantThread;""")
+
+# ---- routing block: dedupe first, then token, then fall through to address
+old = """        $token = trim((string) ($payload['MailboxHash'] ?? ''));
+        $msgId = trim((string) ($payload['MessageID'] ?? ''));
+
+        if ($token === '') {
+            Log::warning('postmark_inbound.no_token', ['message_id' => $msgId]);
+            return response('OK', 200);
         }
 
-        $token = trim((string) ($payload['MailboxHash'] ?? ''));
+        $thread = TenantThread::where('inbound_token', $token)->first();
+        if (! $thread) {
+            Log::warning('postmark_inbound.unknown_token', ['token' => $token, 'message_id' => $msgId]);
+            return response('OK', 200);
+        }
+
+        // Dedupe on Postmark's retry behavior.
+        if ($msgId !== '' && TenantMessage::where('external_id', $msgId)->exists()) {
+            return response('OK', 200);
+        }
+
+        $from    = trim((string) ($payload['From'] ?? ($payload['FromFull']['Email'] ?? '')));"""
+assert s.count(old) == 1, 'C2 routing block anchor'
+s = s.replace(old, """        $token = trim((string) ($payload['MailboxHash'] ?? ''));
         $msgId = trim((string) ($payload['MessageID'] ?? ''));
 
         // MARKER-INBOUND-COLD — hoisted above routing so it guards both paths.
@@ -72,26 +107,22 @@ class PostmarkInboundController extends Controller
         if (! $thread) {
             return response('OK', 200); // reason already logged
         }
+""")
 
-        $subject = trim((string) ($payload['Subject'] ?? ''));
-        $body    = (string) ($payload['StrippedTextReply'] ?? '');
-        if (trim($body) === '') {
-            $body = (string) ($payload['TextBody'] ?? '');
-        }
-        $body = trim($body);
+# ---- helper methods on the class tail
+old = """        $inbox->postInbound(
+            $thread,
+            $body !== '' ? $body : '(empty email)',
+            $msgId ?: null,
+            ['from' => $from, 'subject' => $subject, 'via' => 'postmark_inbound'],
+            'email'
+        );
 
-        // Token is the authority; flag a sender that doesn't match the thread's
-        // customer for later review, but still thread the message.
-        $onFile = strtolower((string) optional($thread->customer)->email);
-        if ($from !== '' && $onFile !== '' && strtolower($from) !== $onFile) {
-            Log::info('postmark_inbound.sender_mismatch', [
-                'thread_id' => $thread->id,
-                'from'      => $from,
-                'on_file'   => $onFile,
-            ]);
-        }
-
-        $inbox->postInbound(
+        return response('OK', 200);
+    }
+}"""
+assert s.count(old) == 1, 'C3 class tail anchor'
+s = s.replace(old, """        $inbox->postInbound(
             $thread,
             $body !== '' ? $body : '(empty email)',
             $msgId ?: null,
@@ -149,7 +180,7 @@ class PostmarkInboundController extends Controller
 
         $subject = trim((string) ($payload['Subject'] ?? ''));
         if (! $thread->subject && $subject !== '') {
-            $thread->update(['subject' => \Illuminate\Support\Str::limit($subject, 180, '')]);
+            $thread->update(['subject' => \\Illuminate\\Support\\Str::limit($subject, 180, '')]);
         }
 
         return $thread;
@@ -212,8 +243,47 @@ class PostmarkInboundController extends Controller
             return [strtok($email, '@') ?: 'Email', ''];
         }
 
-        $parts = preg_split('/\s+/', $name, 2);
+        $parts = preg_split('/\\s+/', $name, 2);
 
         return [$parts[0], isset($parts[1]) ? trim($parts[1]) : ''];
     }
-}
+}""")
+
+io.open(p, 'w', encoding='utf-8').write(s)
+print('patched', p)
+PY
+
+echo "--- routing paths present ---"
+grep -n "threadFromRecipient\|tenantFromRecipient\|looksLikeSpam\|splitName\|spam_dropped\|unknown_recipient" app/Http/Controllers/Webhooks/PostmarkInboundController.php
+
+echo
+echo "--- braces / parens ---"
+python3 - <<'PY'
+import io
+s = io.open('app/Http/Controllers/Webhooks/PostmarkInboundController.php', encoding='utf-8').read()
+i, n, d, par = 0, len(s), 0, 0
+while i < n:
+    c = s[i]
+    if c == '#' or (c == '/' and i+1 < n and s[i+1] == '/'):
+        while i < n and s[i] != '\n': i += 1
+    elif c == '/' and i+1 < n and s[i+1] == '*':
+        i += 2
+        while i+1 < n and not (s[i] == '*' and s[i+1] == '/'): i += 1
+        i += 2
+    elif c in '"\'':
+        q = c; i += 1
+        while i < n and s[i] != q:
+            if s[i] == '\\': i += 1
+            i += 1
+        i += 1
+    else:
+        if c == '{': d += 1
+        elif c == '}': d -= 1
+        elif c == '(': par += 1
+        elif c == ')': par -= 1
+        i += 1
+print('braces', d, 'parens', par)
+PY
+
+echo
+echo "apply-inbound-cold-routing: OK"
