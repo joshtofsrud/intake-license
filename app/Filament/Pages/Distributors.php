@@ -37,6 +37,31 @@ class Distributors extends Page implements HasForms
     public ?array $data = [];
     public string $testSample = 'kenda';
 
+    /**
+     * MARKER-MASTER-DIST-PER-CODE — which distributor this page is acting on.
+     * Every connection field, the test button and the sync button follow it.
+     */
+    public string $code = 'HLC';
+
+    /** @return array<string,string> code => label, from the registry. */
+    public function distributorOptions(): array
+    {
+        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
+        $out = [];
+        foreach ($registry->supported() as $c) {
+            $out[$c] = $registry->label($c);
+        }
+        return $out;
+    }
+
+    /** Does this distributor have a header-style choice to make? */
+    private function usesAuthStyle(string $code): bool
+    {
+        // BTI is HTTP Basic; there is nothing to choose, and offering the
+        // field would invite setting a value that does nothing.
+        return strtoupper($code) !== 'BTI';
+    }
+
     /** Real HLC variant shapes (trimmed) for the live mapping test. */
     public const SAMPLES = [
         'kenda' => [
@@ -65,9 +90,31 @@ class Distributors extends Page implements HasForms
 
     public function mount(): void
     {
-        $conn = PlatformDistributorConnection::forCode('HLC');
+        $this->loadConnection();
+    }
+
+    /**
+     * MARKER-MASTER-DIST-PER-CODE — refill the form from the selected
+     * distributor's connection row. Called on mount and whenever the
+     * selector changes, so switching distributor never shows another one's
+     * stored values.
+     */
+    public function loadConnection(): void
+    {
+        $conn = PlatformDistributorConnection::forCode($this->code);
+
+        // The stored credential is one string; BTI's is "username:password".
+        // Split it back out so the shop-facing shape and this one agree.
+        $user = '';
+        $pass = '';
+        if (strtoupper($this->code) === 'BTI' && str_contains((string) $conn->api_key, ':')) {
+            [$user, $pass] = explode(':', (string) $conn->api_key, 2);
+        }
+
         $this->form->fill([
             'api_key'    => $conn->api_key,
+            'username'   => $user,
+            'password'   => $pass,
             'region'     => $conn->region,
             'auth_style' => $conn->auth_style,
             'base_url'   => $conn->base_url,
@@ -75,22 +122,55 @@ class Distributors extends Page implements HasForms
         ]);
     }
 
+    public function updatedCode(): void
+    {
+        $this->loadConnection();
+    }
+
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Section::make('HLC — platform connection')
-                    ->description('The master-admin key that builds the shared catalog (identity, MAP, MSRP). Tenants use their own key for cost & availability.')
+                // MARKER-MASTER-DIST-PER-CODE
+                Section::make('Platform connection')
+                    ->description('The master-admin credentials that build the shared catalog (identity, MAP, MSRP). Tenants use their own for cost & availability.')
                     ->schema([
+                        Select::make('code')->label('Distributor')
+                            ->options($this->distributorOptions())
+                            ->default('HLC')->native(false)
+                            ->live()
+                            ->afterStateUpdated(function ($state) {
+                                $this->code = (string) $state;
+                                $this->loadConnection();
+                            })
+                            ->dehydrated(false)
+                            ->columnSpanFull(),
+
+                        // One key, or a username and password — whichever this
+                        // distributor actually issues.
                         TextInput::make('api_key')->label('Platform API key')
                             ->password()->revealable()->autocomplete('off')
-                            ->helperText('Encrypted at rest.'),
+                            ->helperText('Encrypted at rest.')
+                            ->visible(fn () => strtoupper($this->code) !== 'BTI'),
+
+                        TextInput::make('username')->label('Username')
+                            ->autocomplete('off')
+                            ->helperText('Your BTI account number.')
+                            ->visible(fn () => strtoupper($this->code) === 'BTI'),
+
+                        TextInput::make('password')->label('Password')
+                            ->password()->revealable()->autocomplete('off')
+                            ->helperText('Encrypted at rest.')
+                            ->visible(fn () => strtoupper($this->code) === 'BTI'),
+
                         Select::make('auth_style')->native(false)
                             ->options([
                                 'authorization_apikey' => 'authorization_apikey (HLC)',
                                 'x_api_key'             => 'x-api-key',
                                 'bearer'                => 'bearer',
-                            ])->default('authorization_apikey'),
+                            ])->default('authorization_apikey')
+                            ->visible(fn () => $this->usesAuthStyle($this->code)),
+
                         TextInput::make('region')->default('us')->maxLength(8),
                         Toggle::make('is_active')->default(true),
                     ])->columns(2),
@@ -98,13 +178,39 @@ class Distributors extends Page implements HasForms
             ->statePath('data');
     }
 
+    /**
+     * MARKER-MASTER-DIST-PER-CODE — saves the selected distributor's row.
+     *
+     * Credentials are packed through the registry so a stored value means
+     * the same thing here as on the tenant page: BTI's username and password
+     * join with a colon into the single api_key that every adapter and
+     * DistributorRegistry::make() already expect.
+     */
     public function save(): void
     {
-        $conn = PlatformDistributorConnection::forCode('HLC');
-        $conn->update($this->form->getState());
+        $state = $this->form->getState();
+        $registry = app(\App\Services\Distributors\DistributorRegistry::class);
 
-        Notification::make()->success()->title('Connection saved')->send();
+        $conn = PlatformDistributorConnection::forCode($this->code);
+
+        $packed = $registry->packCredentials($this->code, $state);
+        if ($packed !== null) {
+            $conn->api_key = $packed;
+        }
+
+        $conn->region     = $state['region'] ?? 'us';
+        $conn->base_url   = $state['base_url'] ?? $conn->base_url;
+        $conn->is_active  = (bool) ($state['is_active'] ?? true);
+        if ($this->usesAuthStyle($this->code)) {
+            $conn->auth_style = $state['auth_style'] ?? $conn->auth_style;
+        }
+        $conn->distributor_code = $this->code;
+        $conn->save();
+
+        Notification::make()->success()
+            ->title($this->code . ' connection saved')->send();
     }
+
 
     protected function getHeaderActions(): array
     {
@@ -115,7 +221,7 @@ class Distributors extends Page implements HasForms
 
             Action::make('runFull')->label('Run full sync')->color('primary')
                 ->requiresConfirmation()
-                ->modalDescription('Queues a full catalog pull from HLC. Runs in the background.')
+                ->modalDescription('Queues a full catalog pull from the selected distributor. Runs in the background.')
                 ->action(fn () => $this->dispatchSync(false)),
 
             Action::make('runDelta')->label('Run delta sync')->color('gray')
@@ -125,13 +231,13 @@ class Distributors extends Page implements HasForms
 
     public function testConnection(): void
     {
-        $conn = PlatformDistributorConnection::forCode('HLC');
+        $conn = PlatformDistributorConnection::forCode($this->code);
         // persist current form first so we test what's on screen
         $conn->update($this->form->getState());
 
         try {
             $adapter = app(DistributorRegistry::class)
-                ->make('HLC', ['api_key' => $conn->api_key, 'region' => $conn->region ?? 'us']);
+                ->make($this->code, ['api_key' => $conn->api_key, 'region' => $conn->region ?? 'us']);
             if ($conn->auth_style && method_exists($adapter, 'setAuthStyle')) {
                 $adapter->setAuthStyle($conn->auth_style);
             }
@@ -145,7 +251,7 @@ class Distributors extends Page implements HasForms
             ]);
 
             $ok
-                ? Notification::make()->success()->title('Connected to HLC')->send()
+                ? Notification::make()->success()->title('Connected to ' . $this->code)->send()
                 : Notification::make()->danger()->title('Connection failed')->body('HTTP ' . ($res['status'] ?? '?'))->send();
         } catch (\Throwable $e) {
             $conn->update(['last_tested_at' => now(), 'last_test_status' => 'fail', 'last_test_message' => $e->getMessage()]);
@@ -158,12 +264,12 @@ class Distributors extends Page implements HasForms
         // HLC8 running checkpoint — show progress immediately, before the
         // queued job picks up (closes the dispatch→start gap for the poller).
         DB::table('distributor_sync_state')->updateOrInsert(
-            ['distributor_code' => 'HLC', 'source_ref' => 'catalog'],
+            ['distributor_code' => $this->code, 'source_ref' => 'catalog'],
             ['last_status' => 'running', 'last_count' => 0, 'last_run_at' => now(),
              'last_error' => null, 'updated_at' => now(), 'created_at' => now()],
         );
 
-        SyncDistributorCatalogJob::dispatch('HLC', $delta);
+        SyncDistributorCatalogJob::dispatch($this->code, $delta);
         Notification::make()->success()
             ->title(($delta ? 'Delta' : 'Full') . ' sync queued')
             ->body('Running in the background. Refresh in a bit for updated stats.')
@@ -181,15 +287,15 @@ class Distributors extends Page implements HasForms
     public function getViewData(): array
     {
         $state = DB::table('distributor_sync_state')
-            ->where('distributor_code', 'HLC')->where('source_ref', 'catalog')->first();
-        $conn = PlatformDistributorConnection::forCode('HLC');
+            ->where('distributor_code', $this->code)->where('source_ref', 'catalog')->first();
+        $conn = PlatformDistributorConnection::forCode($this->code);
 
         return [
             'conn'   => $conn,
             'state'  => $state,
             'sampleOptions' => collect(self::SAMPLES)->map(fn ($s) => $s['label'])->all(),
             'brandStatuses' => DB::table('distributor_brand_sync_status')
-                ->where('distributor_code', 'HLC')->orderBy('brand_name')->get(),
+                ->where('distributor_code', $this->code)->orderBy('brand_name')->get(),
         ];
     }
 }

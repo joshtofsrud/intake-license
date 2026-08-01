@@ -76,7 +76,11 @@
             @endif
         </div>
         @if($state?->last_error)
-            <div style="margin-top:10px;font-size:12px;color:#E24B4A">{{ \Illuminate\Support\Str::limit($state->last_error, 160) }}</div>
+            {{-- MARKER-MASTER-DIST-PER-CODE — the mapping test uses hardcoded HLC
+     variant shapes, so it's hidden for other distributors rather than
+     shown with data that cannot apply to them. --}}
+@if (strtoupper($this->code) === 'HLC')
+<div style="margin-top:10px;font-size:12px;color:#E24B4A">{{ \Illuminate\Support\Str::limit($state->last_error, 160) }}</div>
         @endif
     </x-filament::section>
 
@@ -105,3 +109,4 @@
     </x-filament::section>
 
 </x-filament-panels::page>
+@endif
