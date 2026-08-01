@@ -362,12 +362,18 @@ class BtiClient implements DistributorAdapter
             if ($want && ! isset($want[$id])) {
                 continue;
             }
+            // MARKER-BTI-SYNC-SHAPES — the platform's key names, not BTI's.
+            // TenantDistributorSyncService::normalizeInventory looks for
+            // VariantNo and TotalQtyAvailable; lowercase 'sku'/'available'
+            // matched nothing and every row was skipped without an error.
             $out[] = [
-                'sku'        => $id,
-                'available'  => (int) ($r['available'] ?? 0),
-                'warehouses' => [
-                    ['code' => 'santa_fe', 'available' => (int) ($r['available_santa_fe'] ?? 0)],
-                    ['code' => 'reno',     'available' => (int) ($r['available_reno'] ?? 0)],
+                'VariantNo'          => $id,
+                'TotalQtyAvailable'  => (int) ($r['available'] ?? 0),
+                // Kept in the shape the service's fallback branch reads, so
+                // the two warehouses still sum if the total is ever missing.
+                'Warehouses' => [
+                    ['Code' => 'santa_fe', 'QtyAvailable' => (int) ($r['available_santa_fe'] ?? 0)],
+                    ['Code' => 'reno',     'QtyAvailable' => (int) ($r['available_reno'] ?? 0)],
                 ],
             ];
         }
@@ -385,14 +391,23 @@ class BtiClient implements DistributorAdapter
                 continue;
             }
             $map = (float) ($r['map'] ?? 0);
+
+            // MARKER-BTI-SYNC-SHAPES — VariantNo plus a Prices[] array, which
+            // is what fetchCosts() reads. HLC sends tiers there, so BTI's
+            // single dealer price is emitted as one tier rather than as a
+            // differently-named field the service would ignore.
             $out[] = [
-                'sku'         => $id,
-                'cost_cents'  => (int) round(((float) ($r['your_price'] ?? 0)) * 100),
-                'msrp_cents'  => (int) round(((float) ($r['msrp'] ?? 0)) * 100),
+                'VariantNo' => $id,
+                'Prices'    => [[
+                    'PriceTypeId' => 1,
+                    'PriceType'   => 'Base',
+                    'Price'       => (float) ($r['your_price'] ?? 0),
+                ]],
+                'MSRP' => (float) ($r['msrp'] ?? 0),
                 // 0.0 means NO MAP, not a zero-dollar floor.
-                'map_cents'   => $map == 0.0 ? null : (int) round($map * 100),
-                'on_sale'     => (bool) ((int) ($r['is_on_sale'] ?? 0)),
-                'on_closeout' => (bool) ((int) ($r['is_on_closeout'] ?? 0)),
+                'MAP'  => $map == 0.0 ? null : $map,
+                'OnSale'     => (bool) ((int) ($r['is_on_sale'] ?? 0)),
+                'OnCloseout' => (bool) ((int) ($r['is_on_closeout'] ?? 0)),
             ];
         }
         return $out;
@@ -414,7 +429,9 @@ class BtiClient implements DistributorAdapter
                 continue;
             }
             $out[] = [
-                'sku'    => $id,
+                // MARKER-BTI-SYNC-SHAPES — consistent with the others.
+                'VariantNo' => $id,
+                'sku'       => $id,
                 'images' => array_values(array_map(
                     fn ($p) => str_starts_with($p, 'http') ? $p : $base . '/' . ltrim($p, '/'),
                     $paths
