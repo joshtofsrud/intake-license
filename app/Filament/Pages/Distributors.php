@@ -112,13 +112,19 @@ class Distributors extends Page implements HasForms
         }
 
         $this->form->fill([
+            // MARKER-DIST-FORM-FILL — without this the selector rendered
+            // "Select an option" and every field under it looked empty,
+            // including a stored key and an active connection.
+            'code'       => $this->code,
             'api_key'    => $conn->api_key,
             'username'   => $user,
             'password'   => $pass,
-            'region'     => $conn->region,
+            'region'     => $conn->region ?: 'us',
             'auth_style' => $conn->auth_style,
             'base_url'   => $conn->base_url,
-            'is_active'  => $conn->is_active,
+            // Default to the stored value, not to false — a connection that
+            // is live must never render as switched off.
+            'is_active'  => (bool) $conn->is_active,
         ]);
     }
 
@@ -135,9 +141,13 @@ class Distributors extends Page implements HasForms
                 Section::make('Platform connection')
                     ->description('The master-admin credentials that build the shared catalog (identity, MAP, MSRP). Tenants use their own for cost & availability.')
                     ->schema([
+                        // MARKER-DIST-FORM-FILL — explicit spans. Two equal
+                        // columns with six fields dropped in put the API key
+                        // beside Auth style and stranded Region next to a
+                        // toggle.
                         Select::make('code')->label('Distributor')
                             ->options($this->distributorOptions())
-                            ->default('HLC')->native(false)
+                            ->native(false)
                             ->live()
                             ->afterStateUpdated(function ($state) {
                                 $this->code = (string) $state;
@@ -150,8 +160,9 @@ class Distributors extends Page implements HasForms
                         // distributor actually issues.
                         TextInput::make('api_key')->label('Platform API key')
                             ->password()->revealable()->autocomplete('off')
-                            ->helperText('Encrypted at rest.')
-                            ->visible(fn () => strtoupper($this->code) !== 'BTI'),
+                            ->helperText('Encrypted at rest. Leave blank to keep the saved key.')
+                            ->visible(fn () => strtoupper($this->code) !== 'BTI')
+                            ->columnSpanFull(),
 
                         TextInput::make('username')->label('Username')
                             ->autocomplete('off')
@@ -160,19 +171,22 @@ class Distributors extends Page implements HasForms
 
                         TextInput::make('password')->label('Password')
                             ->password()->revealable()->autocomplete('off')
-                            ->helperText('Encrypted at rest.')
+                            ->helperText('Encrypted at rest. Leave blank to keep the saved one.')
                             ->visible(fn () => strtoupper($this->code) === 'BTI'),
 
-                        Select::make('auth_style')->native(false)
+                        Select::make('auth_style')->label('Auth style')->native(false)
                             ->options([
                                 'authorization_apikey' => 'authorization_apikey (HLC)',
                                 'x_api_key'             => 'x-api-key',
                                 'bearer'                => 'bearer',
-                            ])->default('authorization_apikey')
+                            ])
                             ->visible(fn () => $this->usesAuthStyle($this->code)),
 
-                        TextInput::make('region')->default('us')->maxLength(8),
-                        Toggle::make('is_active')->default(true),
+                        TextInput::make('region')->label('Region')->maxLength(8)
+                            ->placeholder('us'),
+
+                        Toggle::make('is_active')->label('Is active')
+                            ->columnSpanFull(),
                     ])->columns(2),
             ])
             ->statePath('data');
