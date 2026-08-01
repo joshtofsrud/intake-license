@@ -62,7 +62,7 @@
     return match($r){
       'below_map'     => ['at-b-map','Below MAP'],
       'off_msrp'      => ['at-b-msrp','Off MSRP'],
-      'title_changed' => ['at-b-title','Renamed by HLC'],
+      'title_changed' => ['at-b-title','Renamed by distributor'],
       'cost_vanished' => ['at-b-van','Cost removed'],
       'map_vanished'  => ['at-b-van','MAP removed'],
       'msrp_vanished' => ['at-b-van','MSRP removed'],
@@ -80,7 +80,9 @@
   };
 @endphp
 <div style="max-width:980px">
-  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
+  {{-- MARKER-ATTENTION-PER-DIST — this queue spans every connected
+       distributor, so it can't be titled after one of them. --}}
+  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Distributor catalogs</h1>
   @include('layouts.tenant._inventory-tabs')
 
   {{-- MARKER-PATCH-558 — sync status card (supersedes the 555 button row):
@@ -98,7 +100,7 @@
         @elseif($lastSyncRun->error) <span class="at-dot bad"></span>Last check failed
         @else <span class="at-dot ok"></span>Healthy @endif
       </div>
-      <div class="d">Checks HLC for changes nightly at 5:00 am</div>
+      <div class="d">Checks your connected distributors nightly at 5:00 am</div>
     </div>
     <div class="at-sync-stat">
       <div class="k">Last checked</div>
@@ -205,13 +207,15 @@
             @php
               [$bc, $bl] = $badge($f->reason);
               $item = $f->item; $d = $f->detail ?? []; $cat = $item?->distributorCatalog;
+              // MARKER-ATTENTION-PER-DIST — which distributor raised this one.
+              $flagDist = $cat?->distributor_code;
               $sell = $item->shop_sell_price_cents ?? null;
             @endphp
             <tr>
               <td><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
               <td>
                 <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
-                <div class="at-dim at-mono" style="font-size:11px">{{ $item->sku ?? '' }} · {{ $item->computed_stock_count ?? 0 }} in stock</div>
+                <div class="at-dim at-mono" style="font-size:11px">{{ $item->sku ?? '' }} · {{ $item->computed_stock_count ?? 0 }} in stock@if($flagDist) · <span style="font-weight:700">{{ $flagDist }}</span>@endif</div>
               </td>
               <td><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
               <td class="at-chg">
@@ -237,7 +241,7 @@
                   <div class="when">you may be leaving margin on the table</div>
                 @elseif(str_ends_with($f->reason, '_vanished'))
                   @php $what = ['cost_vanished' => 'a dealer cost', 'map_vanished' => 'a MAP', 'msrp_vanished' => 'an MSRP'][$f->reason] ?? 'this data'; @endphp
-                  HLC no longer publishes {{ $what }} for this item
+                  {{ $cat?->distributor_code ?: 'The distributor' }} no longer publishes {{ $what }} for this item
                   @if($d['prev_cost_cents'] ?? $d['prev_map_cents'] ?? $d['prev_msrp_cents'] ?? null)
                     — it was <b>{{ $fmt($d['prev_cost_cents'] ?? $d['prev_map_cents'] ?? $d['prev_msrp_cents']) }}</b>
                   @endif.
