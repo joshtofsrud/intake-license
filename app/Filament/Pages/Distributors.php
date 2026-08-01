@@ -254,7 +254,26 @@ class Distributors extends Page implements HasForms
         return [
             Action::make('save')->label('Save connection')->action('save'),
 
-            Action::make('test')->label('Test connection')->color('gray')->action('testConnection'),
+            // MARKER-TEST-CONNECTION-COPY — a 30s wait with no explanation reads
+            // as a hung button. Confirming first turns it into an informed
+            // choice, and matches runFull below.
+            Action::make('test')->label('Test connection')->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading(fn () => 'Test ' . strtoupper($this->currentCode()) . ' connection')
+                ->modalDescription(function () {
+                    if (strtoupper($this->currentCode()) === 'BTI') {
+                        return 'BTI has no status endpoint. The only authenticated URL rebuilds '
+                             . 'their entire stock feed on every request, so this takes around 30 '
+                             . 'seconds — roughly 25 of those are BTI generating the file before '
+                             . 'it sends anything. Nothing is wrong; the button will sit spinning '
+                             . 'until they answer.';
+                    }
+
+                    return 'Sends one authenticated request to ' . strtoupper($this->currentCode())
+                         . ' to confirm the stored credentials work. Takes a second or two.';
+                })
+                ->modalSubmitActionLabel('Run test')
+                ->action('testConnection'),
 
             Action::make('runFull')->label('Run full sync')->color('primary')
                 ->requiresConfirmation()
