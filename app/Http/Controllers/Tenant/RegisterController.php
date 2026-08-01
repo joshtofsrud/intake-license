@@ -1416,7 +1416,7 @@ class RegisterController extends Controller
         $sources = \App\Models\Tenant\TenantInventoryItemVendor::query()
             ->where('inventory_item_id', $item->id)
             ->whereNotNull('distributor_catalog_id')
-            ->get(['distributor_code', 'distributor_catalog_id',
+            ->get(['distributor_code', 'distributor_catalog_id', 'vendor_sku',
                    'live_cost_cents', 'unit_cost_cents', 'live_avail', 'live_checked_at']);
 
         $catalogRows = \App\Models\PlatformDistributorCatalog::query()
@@ -1448,6 +1448,13 @@ class RegisterController extends Controller
 
             $vendor[] = [
                 'distributor' => $src->distributor_code,
+                // MARKER-SOURCING-TABLE — that vendor's OWN item number, which
+                // is what goes on a purchase order to them. The modal used to
+                // show a single SKU taken from the item's primary source, so
+                // on a matched item it was right for one vendor and absent
+                // for the other.
+                'sku'         => $src->vendor_sku
+                    ?: ($row->distributor_variant_no ?? null),
                 'avail'       => $avail === null ? null : (int) $avail,
                 'cost_cents'  => $src->live_cost_cents ?? $src->unit_cost_cents,
                 'checked_at'  => $checkedAt,

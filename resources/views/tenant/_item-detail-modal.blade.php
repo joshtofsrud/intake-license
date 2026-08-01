@@ -72,8 +72,13 @@
       <div class="rim-sec" id="rim-sec-desc" style="display:none"><h3>Description</h3><div id="rim-desc" style="font-size:12.5px;color:var(--ia-text-muted);line-height:1.55"></div></div>
       <div class="rim-sec" id="rim-sec-attrs" style="display:none"><h3>Specs</h3><div class="rim-attrs" id="rim-attrs"></div></div>
       {{-- MARKER-ITEM-MODAL-VENDOR --}}
-      <div class="rim-sec" id="rim-sec-vendor" style="display:none"><h3>Vendor inventory</h3><table id="rim-vendor"></table><div class="rim-asof" id="rim-vendor-asof"></div></div>
-      <div class="rim-sec"><h3>Stock &amp; identifiers</h3><table id="rim-table"></table></div>
+      {{-- MARKER-SOURCING-TABLE — vendors, then the shop's own stock, then the
+           identifiers that belong to the product rather than to a vendor. --}}
+      <div class="rim-sec"><h3>Sourcing &amp; stock</h3>
+        <table id="rim-vendor"></table>
+        <table id="rim-table"></table>
+        <div class="rim-asof" id="rim-vendor-asof"></div>
+      </div>
     </div>
     <div class="rim-foot">
       <a class="ia-btn ia-btn--ghost" id="rim-edit" href="#" style="text-decoration:none">Edit item</a>
@@ -125,7 +130,6 @@
     el( 'rim-ph' ).style.display = 'grid';
     el( 'rim-sec-desc' ).style.display = 'none';
     el( 'rim-sec-attrs' ).style.display = 'none';
-    el( 'rim-sec-vendor' ).style.display = 'none';
   }
 
   function paintGallery( images ) {
@@ -176,14 +180,18 @@
 
       rows += '<tr style="border-top:0.5px solid var(--ia-border)">'
            +  '<td class="k">' + esc( v.distributor ) + tags + '</td>'
+           +  '<td style="font-family:ui-monospace,monospace;font-size:11.5px;color:var(--ia-text-muted)">'
+           +  esc( v.sku || '—' ) + '</td>'
            +  '<td class="n">' + cost + '</td>'
            +  '<td class="n">' + esc( qty ) + '</td></tr>';
       if ( !newest || ( v.checked_at && v.checked_at > newest ) ) newest = v.checked_at;
     } );
 
-    rows = '<tr><td class="k" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)">Vendor</td>'
-         + '<td class="n" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)">Your cost</td>'
-         + '<td class="n" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)">Available</td></tr>'
+    var head = 'font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)';
+    rows = '<tr><td style="' + head + '">Vendor</td>'
+         + '<td style="' + head + '">Their item no.</td>'
+         + '<td class="n" style="' + head + '">Your cost</td>'
+         + '<td class="n" style="' + head + '">Available</td></tr>'
          + rows;
 
     el( 'rim-vendor' ).innerHTML = rows;
@@ -191,7 +199,6 @@
     el( 'rim-vendor-asof' ).textContent = when
       ? 'Last checked ' + when + '. Distributor stock is a snapshot, not live.'
       : 'Distributor stock is a snapshot, not live.';
-    el( 'rim-sec-vendor' ).style.display = '';
   }
 
   async function open( id, options ) {
@@ -243,14 +250,23 @@
 
       paintVendor( d.vendor );
 
+      // MARKER-SOURCING-TABLE — the shop's own stock and the identifiers that
+      // belong to the PRODUCT. A vendor's item number is per vendor and now
+      // lives in the row above; UPC and category are the same whoever
+      // supplies it, so they stay here.
       var rows = [];
       ( d.stock || [] ).forEach( function ( s ) {
         rows.push( '<td class="k">' + esc( s.location ) + '</td><td class="n">' + s.count + '</td>' );
       } );
-      if ( d.sku )      rows.push( '<td class="k">SKU</td><td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + esc( d.sku ) + '</td>' );
       if ( d.upc )      rows.push( '<td class="k">UPC</td><td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + esc( d.upc ) + '</td>' );
       if ( d.category ) rows.push( '<td class="k">Category</td><td class="n">' + esc( d.category ) + '</td>' );
-      el( 'rim-table' ).innerHTML = rows.map( function ( r2 ) {
+
+      var header = rows.length
+        ? '<tr><td colspan="2" style="padding-top:12px;font-size:10px;letter-spacing:.08em;'
+          + 'text-transform:uppercase;color:var(--ia-text-muted)">Your shop</td></tr>'
+        : '';
+
+      el( 'rim-table' ).innerHTML = header + rows.map( function ( r2 ) {
         return '<tr style="border-top:0.5px solid var(--ia-border)">' + r2 + '</tr>';
       } ).join( '' );
 
