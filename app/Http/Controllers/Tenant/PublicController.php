@@ -103,6 +103,11 @@ class PublicController extends Controller
             if ($usesSplitName) {
                 $first = trim((string) $request->input('first_name'));
                 $last  = trim((string) $request->input('last_name'));
+                // MARKER-CONTACT-NAME-FIX — $name is read further down for the
+                // message metadata. Leaving it unset here threw an
+                // ErrorException that the catch below swallowed, so the
+                // customer and thread were written and the message was not.
+                $name  = trim($first . ' ' . $last);
             } else {
                 $name  = trim((string) $request->input('name'));
                 $parts = explode(' ', $name, 2);
@@ -127,20 +132,35 @@ class PublicController extends Controller
                 'phone'  => $request->input('phone'),
             ]);
         } catch (\Throwable $e) {
-            logger()->error('Contact form inbox post failed: ' . $e->getMessage());
+            // MARKER-CONTACT-NAME-FIX — this catch is right (a public form must
+            // never 500), but a bare message made a capture failure look like
+            // noise for weeks. Log enough to tie the log line to the blank
+            // thread it produced.
+            logger()->error('Contact form inbox post failed: ' . $e->getMessage(), [
+                'tenant_id' => $tenant?->id,
+                'email'     => $request->input('email'),
+                'file'      => $e->getFile() . ':' . $e->getLine(),
+            ]);
         }
 
         $to     = $tenant?->notification_email ?? $tenant?->email_from_address;
 
         if ($to) {
             try {
+                // MARKER-CONTACT-NAME-FIX — a split-name page posts no 'name'
+                // field, so these interpolations were blank. Rebuild from
+                // whichever pair of fields the page actually sent.
+                $senderName = trim((string) $request->input('name'))
+                    ?: trim(trim((string) $request->input('first_name')) . ' ' . trim((string) $request->input('last_name')))
+                    ?: 'Website visitor';
+
                 Mail::raw(
                     "New contact form submission from {$tenant->name}\n\n"
-                    . "Name: {$request->input('name')}\n"
+                    . "Name: {$senderName}\n"
                     . "Email: {$request->input('email')}\n"
                     . "Phone: {$request->input('phone', '—')}\n\n"
                     . "Message:\n{$request->input('message')}",
-                    fn($m) => $m->to($to)->subject("New message from {$request->input('name')}")
+                    fn($m) => $m->to($to)->subject("New message from {$senderName}")
                 );
             } catch (\Throwable $e) {
                 logger()->error('Contact form mail failed: ' . $e->getMessage());
