@@ -12,13 +12,13 @@
                 border:1px solid {{ $ok ? 'rgba(99,153,34,.4)' : 'rgba(186,117,23,.4)' }};">
         <div style="font-weight:600;font-size:14px">
             {{-- MARKER-PAGE-FOLLOWS-CODE --}}
-            {{ $ok ? '● ' . $this->code . ' connected' : '○ ' . $this->code . ' not verified' }}
+            {{ $ok ? '● ' . $conn->distributor_code . ' connected' : '○ ' . $conn->distributor_code . ' not verified' }}
         </div>
         <div style="font-size:12px;opacity:.8">
             @if($tested)
                 Last tested {{ $tested->diffForHumans() }} — {{ $conn->last_test_message }}
             @else
-                Enter {{ $this->code }}'s credentials and click “Test connection”.
+                Enter {{ $conn->distributor_code }}'s credentials and click “Test connection”.
             @endif
         </div>
     </div>
@@ -29,8 +29,8 @@
     {{-- sync status --}}
     <x-filament::section heading="Catalog sync">
         <x-slot name="description">Tier-1: pulls the shared catalog through the field map. Cost is nulled here (per-tenant). Use the header buttons to queue a run.
-            @if (strtoupper($this->code) === 'BTI')
-                <br><b>{{ $this->code }} is a bulk file feed</b> — every run downloads the whole
+            @if (strtoupper($conn->distributor_code) === 'BTI')
+                <br><b>{{ $conn->distributor_code }} is a bulk file feed</b> — every run downloads the whole
                 catalog, so there is no delta.
             @endif
         </x-slot>
@@ -89,7 +89,7 @@
     {{-- MARKER-PAGE-FOLLOWS-CODE — the mapping test runs hardcoded HLC variant
          shapes through the resolver, so it can say nothing about another
          distributor. Hidden rather than shown with data that cannot apply. --}}
-    @if (strtoupper($this->code) === 'HLC')
+    @if (strtoupper($conn->distributor_code) === 'HLC')
     {{-- live mapping test --}}
     <x-filament::section heading="Test mapping">
         <x-slot name="description">Run a real HLC variant through the current field map. Edit a map row, come back, and the output follows.</x-slot>

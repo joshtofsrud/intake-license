@@ -43,6 +43,30 @@ class Distributors extends Page implements HasForms
      */
     public string $code = 'HLC';
 
+    /**
+     * MARKER-CODE-SOURCE — the distributor actually selected on screen.
+     *
+     * $code used to be maintained solely by the Select's afterStateUpdated
+     * callback. When that didn't fire, the dropdown said BTI while every
+     * action still ran against HLC — which is why the banner kept reading
+     * "HLC connected" and why testing BTI returned 401: it was testing HLC's
+     * key against BTI's endpoint.
+     *
+     * The selection already lives in $data['code']; reading it from there
+     * makes the dropdown the source of truth. The property remains the
+     * fallback for the first render, before a selection exists.
+     */
+    protected function currentCode(): string
+    {
+        $fromForm = strtoupper((string) ($this->data['code'] ?? ''));
+
+        if ($fromForm !== '' && app(\App\Services\Distributors\DistributorRegistry::class)->isSupported($fromForm)) {
+            $this->code = $fromForm;
+        }
+
+        return $this->code;
+    }
+
     /** @return array<string,string> code => label, from the registry. */
     public function distributorOptions(): array
     {
@@ -101,7 +125,7 @@ class Distributors extends Page implements HasForms
      */
     public function loadConnection(): void
     {
-        $conn = PlatformDistributorConnection::forCode($this->code);
+        $conn = PlatformDistributorConnection::forCode($this->currentCode());
 
         // The stored credential is one string; BTI's is "username:password".
         // Split it back out so the shop-facing shape and this one agree.
@@ -153,7 +177,6 @@ class Distributors extends Page implements HasForms
                                 $this->code = (string) $state;
                                 $this->loadConnection();
                             })
-                            ->dehydrated(false)
                             ->columnSpanFull(),
 
                         // One key, or a username and password — whichever this
@@ -161,18 +184,18 @@ class Distributors extends Page implements HasForms
                         TextInput::make('api_key')->label('Platform API key')
                             ->password()->revealable()->autocomplete('off')
                             ->helperText('Encrypted at rest. Leave blank to keep the saved key.')
-                            ->visible(fn () => strtoupper($this->code) !== 'BTI')
+                            ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
                             ->columnSpanFull(),
 
                         TextInput::make('username')->label('Username')
                             ->autocomplete('off')
                             ->helperText('Your BTI account number.')
-                            ->visible(fn () => strtoupper($this->code) === 'BTI'),
+                            ->visible(fn () => strtoupper($this->currentCode()) === 'BTI'),
 
                         TextInput::make('password')->label('Password')
                             ->password()->revealable()->autocomplete('off')
                             ->helperText('Encrypted at rest. Leave blank to keep the saved one.')
-                            ->visible(fn () => strtoupper($this->code) === 'BTI'),
+                            ->visible(fn () => strtoupper($this->currentCode()) === 'BTI'),
 
                         Select::make('auth_style')->label('Auth style')->native(false)
                             ->options([
@@ -180,7 +203,7 @@ class Distributors extends Page implements HasForms
                                 'x_api_key'             => 'x-api-key',
                                 'bearer'                => 'bearer',
                             ])
-                            ->visible(fn () => $this->usesAuthStyle($this->code)),
+                            ->visible(fn () => $this->usesAuthStyle($this->currentCode())),
 
                         TextInput::make('region')->label('Region')->maxLength(8)
                             ->placeholder('us'),
@@ -205,9 +228,9 @@ class Distributors extends Page implements HasForms
         $state = $this->form->getState();
         $registry = app(\App\Services\Distributors\DistributorRegistry::class);
 
-        $conn = PlatformDistributorConnection::forCode($this->code);
+        $conn = PlatformDistributorConnection::forCode($this->currentCode());
 
-        $packed = $registry->packCredentials($this->code, $state);
+        $packed = $registry->packCredentials($this->currentCode(), $state);
         if ($packed !== null) {
             $conn->api_key = $packed;
         }
@@ -215,14 +238,14 @@ class Distributors extends Page implements HasForms
         $conn->region     = $state['region'] ?? 'us';
         $conn->base_url   = $state['base_url'] ?? $conn->base_url;
         $conn->is_active  = (bool) ($state['is_active'] ?? true);
-        if ($this->usesAuthStyle($this->code)) {
+        if ($this->usesAuthStyle($this->currentCode())) {
             $conn->auth_style = $state['auth_style'] ?? $conn->auth_style;
         }
-        $conn->distributor_code = $this->code;
+        $conn->distributor_code = $this->currentCode();
         $conn->save();
 
         Notification::make()->success()
-            ->title($this->code . ' connection saved')->send();
+            ->title($this->currentCode() . ' connection saved')->send();
     }
 
 
@@ -243,14 +266,14 @@ class Distributors extends Page implements HasForms
             // to filter on. Offering the button would imply an incremental
             // pull that doesn't exist and quietly run a full one.
             Action::make('runDelta')->label('Run delta sync')->color('gray')
-                ->visible(fn () => strtoupper($this->code) !== 'BTI')
+                ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
                 ->action(fn () => $this->dispatchSync(true)),
         ];
     }
 
     public function testConnection(): void
     {
-        $conn = PlatformDistributorConnection::forCode($this->code);
+        $conn = PlatformDistributorConnection::forCode($this->currentCode());
 
         // MARKER-TEST-PACKS-CREDS — persist what's on screen, packed the same
         // way save() does. This used to be $conn->update($form->getState()),
@@ -258,20 +281,20 @@ class Distributors extends Page implements HasForms
         // api_key at all — so the test ran against the PREVIOUSLY stored
         // credential rather than the one just typed.
         $state = $this->form->getState();
-        $packed = app(DistributorRegistry::class)->packCredentials($this->code, $state);
+        $packed = app(DistributorRegistry::class)->packCredentials($this->currentCode(), $state);
         if ($packed !== null) {
             $conn->api_key = $packed;
         }
         $conn->region = $state['region'] ?? ($conn->region ?: 'us');
-        if ($this->usesAuthStyle($this->code)) {
+        if ($this->usesAuthStyle($this->currentCode())) {
             $conn->auth_style = $state['auth_style'] ?? $conn->auth_style;
         }
-        $conn->distributor_code = $this->code;
+        $conn->distributor_code = $this->currentCode();
         $conn->save();
 
         try {
             $adapter = app(DistributorRegistry::class)
-                ->make($this->code, ['api_key' => $conn->api_key, 'region' => $conn->region ?? 'us']);
+                ->make($this->currentCode(), ['api_key' => $conn->api_key, 'region' => $conn->region ?? 'us']);
             if ($conn->auth_style && method_exists($adapter, 'setAuthStyle')) {
                 $adapter->setAuthStyle($conn->auth_style);
             }
@@ -285,7 +308,7 @@ class Distributors extends Page implements HasForms
             ]);
 
             $ok
-                ? Notification::make()->success()->title('Connected to ' . $this->code)->send()
+                ? Notification::make()->success()->title('Connected to ' . $this->currentCode())->send()
                 : Notification::make()->danger()->title('Connection failed')->body('HTTP ' . ($res['status'] ?? '?'))->send();
         } catch (\Throwable $e) {
             $conn->update(['last_tested_at' => now(), 'last_test_status' => 'fail', 'last_test_message' => $e->getMessage()]);
@@ -298,12 +321,12 @@ class Distributors extends Page implements HasForms
         // HLC8 running checkpoint — show progress immediately, before the
         // queued job picks up (closes the dispatch→start gap for the poller).
         DB::table('distributor_sync_state')->updateOrInsert(
-            ['distributor_code' => $this->code, 'source_ref' => 'catalog'],
+            ['distributor_code' => $this->currentCode(), 'source_ref' => 'catalog'],
             ['last_status' => 'running', 'last_count' => 0, 'last_run_at' => now(),
              'last_error' => null, 'updated_at' => now(), 'created_at' => now()],
         );
 
-        SyncDistributorCatalogJob::dispatch($this->code, $delta);
+        SyncDistributorCatalogJob::dispatch($this->currentCode(), $delta);
         Notification::make()->success()
             ->title(($delta ? 'Delta' : 'Full') . ' sync queued')
             ->body('Running in the background. Refresh in a bit for updated stats.')
@@ -321,15 +344,15 @@ class Distributors extends Page implements HasForms
     public function getViewData(): array
     {
         $state = DB::table('distributor_sync_state')
-            ->where('distributor_code', $this->code)->where('source_ref', 'catalog')->first();
-        $conn = PlatformDistributorConnection::forCode($this->code);
+            ->where('distributor_code', $this->currentCode())->where('source_ref', 'catalog')->first();
+        $conn = PlatformDistributorConnection::forCode($this->currentCode());
 
         return [
             'conn'   => $conn,
             'state'  => $state,
             'sampleOptions' => collect(self::SAMPLES)->map(fn ($s) => $s['label'])->all(),
             'brandStatuses' => DB::table('distributor_brand_sync_status')
-                ->where('distributor_code', $this->code)->orderBy('brand_name')->get(),
+                ->where('distributor_code', $this->currentCode())->orderBy('brand_name')->get(),
         ];
     }
 }
