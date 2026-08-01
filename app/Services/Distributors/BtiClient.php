@@ -302,7 +302,13 @@ class BtiClient implements DistributorAdapter
      */
     public function products(array $opts = []): array
     {
-        $start = max(0, (int) ($opts['pageStartIndex'] ?? 0));
+        // MARKER-BTI-PAGE-BY-PRODUCT — pageStartIndex is 1-BASED. That's HLC's
+        // API convention and it is literally what syncIdentity() sends
+        // (['pageStartIndex' => 1]). Read as a 0-based offset it would skip
+        // the first product on every sync — harmless when the window was
+        // rows, quietly lossy now that it's products. 0 and 1 both mean
+        // "start at the beginning".
+        $start = max(0, ((int) ($opts['pageStartIndex'] ?? 1)) - 1);
         $size  = (int) ($opts['pageSize'] ?? $this->pageSize);
 
         $upcs  = array_flip(array_map('strval', $opts['upcs'] ?? []));
@@ -312,8 +318,14 @@ class BtiClient implements DistributorAdapter
         ));
         $filtered = $upcs || $parts;
 
+        // MARKER-BTI-PAGE-BY-PRODUCT — page by PRODUCT, not by row.
+        //
+        // The caller's pageSize is HLC's contract: a count of products, each
+        // carrying its own variants. Applying it to raw feed rows capped the
+        // catalog at 8000 variants out of 24,685 and truncated every sync.
         $out = [];
-        $i = 0;
+        $groupPos = [];   // group id => its ordinal position in the feed
+        $nextPos  = 0;
 
         foreach ($this->rows(true) as $r) {
             if ($filtered) {
@@ -324,13 +336,26 @@ class BtiClient implements DistributorAdapter
                 }
             }
 
-            if ($i++ < $start) {
+            // Same grouping key groupIntoProducts() uses, so the window here
+            // and the products it returns can't disagree.
+            $gid = ($r['group_id'] ?? '') !== '' ? $r['group_id'] : ($r['id'] ?? '');
+            if ($gid === '') {
+                continue; // groupIntoProducts drops these anyway
+            }
+
+            if (! array_key_exists($gid, $groupPos)) {
+                $groupPos[$gid] = $nextPos++;
+            }
+            $pos = $groupPos[$gid];
+
+            if ($pos < $start || $pos >= $start + $size) {
+                // No break: a group's rows are not guaranteed contiguous, and
+                // stopping early would drop later variants of a product that
+                // IS in the window. The feed is a local cached file.
                 continue;
             }
+
             $out[] = $r;
-            if (count($out) >= $size) {
-                break;
-            }
         }
 
         return $this->groupIntoProducts($out);
