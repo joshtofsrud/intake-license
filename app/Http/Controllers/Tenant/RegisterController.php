@@ -1421,7 +1421,7 @@ class RegisterController extends Controller
 
         $catalogRows = \App\Models\PlatformDistributorCatalog::query()
             ->whereIn('id', $sources->pluck('distributor_catalog_id')->filter())
-            ->get(['id', 'distributor_code', 'distributor_variant_no'])
+            ->get(['id', 'distributor_code', 'distributor_variant_no', 'upc', 'ean'])
             ->keyBy('id');
 
         foreach ($sources as $src) {
@@ -1458,10 +1458,29 @@ class RegisterController extends Controller
                 'avail'       => $avail === null ? null : (int) $avail,
                 'cost_cents'  => $src->live_cost_cents ?? $src->unit_cost_cents,
                 'checked_at'  => $checkedAt,
+                // MARKER-MODAL-BARCODES — never synced is not the same as
+                // "reported nothing". live_* are written per subscription by
+                // the tenant sync; a distributor with no tenant credentials
+                // has simply never been asked.
+                'synced'      => $src->live_checked_at !== null || $avail !== null,
                 // Which source supplies the name, description and specs —
                 // a different question from which is cheapest.
                 'is_source'   => $src->distributor_catalog_id === $item->distributor_catalog_id,
             ];
+        }
+
+        // MARKER-MODAL-BARCODES — a barcode from whichever source has one.
+        // $item->catalog_upc is a single value copied from the primary source
+        // at import, and HLC has thousands of rows with no UPC (EAN only), so
+        // it left items blank whose other distributor knows the number.
+        $upcs = [];
+        $eans = [];
+        if (! empty($item->catalog_upc)) {
+            $upcs[(string) $item->catalog_upc] = true;
+        }
+        foreach ($catalogRows as $row) {
+            if (! empty($row->upc)) { $upcs[(string) $row->upc] = true; }
+            if (! empty($row->ean)) { $eans[(string) $row->ean] = true; }
         }
 
         // Cheapest first; a source with no cost sorts last rather than as free.
@@ -1475,7 +1494,8 @@ class RegisterController extends Controller
             'subtitle'    => $item->display_subtitle,
             'description' => $item->description,
             'sku'         => $item->sku,
-            'upc'         => $item->catalog_upc,
+            'upc'         => implode(' · ', array_keys($upcs)) ?: null,
+            'ean'         => implode(' · ', array_keys($eans)) ?: null,
             'category'    => $item->category?->name,
             'price_cents' => (int) ($item->effectiveSellPriceCents() ?? 0),
             'taxable'     => (($item->tax_class_code ?? null) !== 'exempt'),

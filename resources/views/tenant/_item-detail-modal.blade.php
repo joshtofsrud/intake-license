@@ -166,7 +166,12 @@
     var rows = '', newest = null;
 
     vendor.forEach( function ( v, i ) {
-      var qty = ( v.avail === null || v.avail === undefined ) ? 'unknown' : v.avail;
+      // MARKER-MODAL-BARCODES — distinguish "asked, got nothing" from
+      // "never asked". A distributor with no tenant credentials has never
+      // been synced for this shop and shouldn't read as unresponsive.
+      var qty = ( v.avail === null || v.avail === undefined )
+        ? ( v.synced ? 'unknown' : 'not synced' )
+        : v.avail;
       var cost = ( v.cost_cents === null || v.cost_cents === undefined )
         ? '&mdash;' : money( v.cost_cents );
 
@@ -196,9 +201,15 @@
 
     el( 'rim-vendor' ).innerHTML = rows;
     var when = ago( newest );
-    el( 'rim-vendor-asof' ).textContent = when
+    var note = when
       ? 'Last checked ' + when + '. Distributor stock is a snapshot, not live.'
       : 'Distributor stock is a snapshot, not live.';
+
+    if ( vendor.some( function ( v ) { return !v.synced; } ) ) {
+      note += ' A vendor showing “not synced” has no connection saved on the'
+           +  ' Connection & sync page yet.';
+    }
+    el( 'rim-vendor-asof' ).textContent = note;
   }
 
   async function open( id, options ) {
@@ -259,6 +270,9 @@
         rows.push( '<td class="k">' + esc( s.location ) + '</td><td class="n">' + s.count + '</td>' );
       } );
       if ( d.upc )      rows.push( '<td class="k">UPC</td><td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + esc( d.upc ) + '</td>' );
+      // MARKER-MODAL-BARCODES — thousands of HLC rows carry an EAN and no
+      // UPC, so hiding it left those items looking like they had no barcode.
+      if ( d.ean )      rows.push( '<td class="k">EAN</td><td class="n" style="font-family:ui-monospace,monospace;font-size:12px">' + esc( d.ean ) + '</td>' );
       if ( d.category ) rows.push( '<td class="k">Category</td><td class="n">' + esc( d.category ) + '</td>' );
 
       var header = rows.length
