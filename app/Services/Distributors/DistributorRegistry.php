@@ -66,15 +66,69 @@ class DistributorRegistry
      *
      * @param  array<string,string> $input
      */
-    public function packCredentials(string $code, array $input): ?string
+    /**
+     * MARKER-PARTIAL-CREDS — merge submitted fields over what is stored.
+     *
+     * This used to require BOTH BTI fields and return null otherwise. The
+     * form tells the user a blank field keeps the saved value, so typing
+     * only a corrected password saved nothing at all and still reported
+     * success — a silent no-op on the one screen where being wrong is
+     * invisible, because the stored value is masked.
+     *
+     * Now each field replaces its own part and a blank one keeps what is
+     * there, which is what the screen already promises.
+     *
+     * @param  array<string,string> $input
+     * @param  string|null $stored  the currently saved credential
+     */
+    public function packCredentials(string $code, array $input, ?string $stored = null): ?string
     {
+        $stored = (string) $stored;
+
         if (strtoupper($code) === 'BTI') {
-            $u = trim($input['username'] ?? '');
-            $p = trim($input['password'] ?? '');
+            $curUser = '';
+            $curPass = '';
+            if (str_contains($stored, ':')) {
+                [$curUser, $curPass] = explode(':', $stored, 2);
+            }
+
+            $u = trim($input['username'] ?? '') ?: $curUser;
+            $p = trim($input['password'] ?? '') ?: $curPass;
+
+            // Still nothing to store if neither side has ever been given.
             return ($u === '' || $p === '') ? null : $u . ':' . $p;
         }
+
         $k = trim($input['api_key'] ?? '');
-        return $k === '' ? null : $k;
+        return $k !== '' ? $k : ($stored !== '' ? $stored : null);
+    }
+
+    /**
+     * MARKER-PARTIAL-CREDS — placeholder per credential field.
+     *
+     * Both BTI fields used to show the same masked string, which is the
+     * username and password joined with a colon, so the username box hinted
+     * at the password.
+     *
+     * @return array<string,string>
+     */
+    public function credentialHints(string $code, ?string $stored, callable $mask): array
+    {
+        $stored = (string) $stored;
+        if ($stored === '') {
+            return [];
+        }
+
+        if (strtoupper($code) === 'BTI' && str_contains($stored, ':')) {
+            [$user, $pass] = explode(':', $stored, 2);
+            return [
+                // An account number, not a secret.
+                'username' => $user,
+                'password' => $mask($pass),
+            ];
+        }
+
+        return ['api_key' => $mask($stored)];
     }
 
     /** @return array<int,string> supported distributor codes */

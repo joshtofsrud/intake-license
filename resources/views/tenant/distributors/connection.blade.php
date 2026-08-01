@@ -102,7 +102,10 @@
               <label>{{ $f['label'] }}</label>
               <input class="dc-input" type="{{ $f['type'] === 'password' ? 'text' : $f['type'] }}"
                      name="{{ $f['name'] }}" autocomplete="off"
-                     placeholder="{{ $b['hasKey'] ? $b['maskedKey'] : 'paste your ' . $b['label'] . ' ' . strtolower($f['label']) }}">
+                     {{-- MARKER-PARTIAL-CREDS — each field hints at ITS OWN stored
+                          value. Both BTI fields used to show the whole joined
+                          credential, so the username box hinted at the password. --}}
+                     placeholder="{{ $b['hints'][$f['name']] ?? ('paste your ' . $b['label'] . ' ' . strtolower($f['label'])) }}">
             </div>
           @endforeach
           <div class="dc-field" style="max-width:180px">
@@ -114,7 +117,7 @@
 
         @if ($b['hasKey'])
           <div style="font-size:11.5px;color:var(--ia-text-dim);margin-bottom:10px">
-            Leave the credential blank to keep the saved one.
+            Leave a field blank to keep the value already saved for it.
           </div>
         @endif
 

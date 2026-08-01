@@ -64,6 +64,11 @@ class DistributorController extends Controller
                 'fields'    => $registry->credentialFields($code),
                 'hasKey'    => filled($creds['api_key'] ?? null),
                 'maskedKey' => $this->mask($creds['api_key'] ?? null),
+                // MARKER-PARTIAL-CREDS — a hint per field, not the whole
+                // joined credential under both of them.
+                'hints'     => $registry->credentialHints(
+                    $code, $creds['api_key'] ?? null, fn ($v) => $this->mask($v)
+                ),
                 'priority'  => (int) ($sub->data_priority ?? 50),
                 'linked'    => TenantInventoryItemVendor::query()
                     ->where('distributor_code', $code)
@@ -125,7 +130,11 @@ class DistributorController extends Controller
         );
 
         $creds = (array) ($sub->credentials_encrypted ?? []);
-        $packed = $registry->packCredentials($code, $data);
+        $before = (string) ($creds['api_key'] ?? '');
+
+        // MARKER-PARTIAL-CREDS — hand the stored value in so a blank field
+        // keeps its part instead of discarding the whole credential.
+        $packed = $registry->packCredentials($code, $data, $before);
         if ($packed !== null) {
             $creds['api_key'] = $packed;
             $creds['region'] = $creds['region'] ?? 'us';
@@ -135,7 +144,16 @@ class DistributorController extends Controller
         $sub->account_number = $data['account_number'] ?? $sub->account_number;
         $sub->save();
 
-        return back()->with('success', $registry->label($code) . ' saved. Test it to confirm access.');
+        // MARKER-PARTIAL-CREDS — say plainly when the credential didn't move.
+        // Reporting "saved" on a no-op is what hid the discarded password.
+        $after = (string) ($sub->credentials_encrypted['api_key'] ?? '');
+        $label = $registry->label($code);
+
+        if ($before !== '' && $after === $before) {
+            return back()->with('success', $label . ' updated. The saved credential is unchanged.');
+        }
+
+        return back()->with('success', $label . ' credentials saved. Test to confirm access.');
     }
 
     /**
