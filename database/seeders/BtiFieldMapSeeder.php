@@ -56,7 +56,10 @@ class BtiFieldMapSeeder extends Seeder
             ['map_cents', 'map', 'direct', ['cast' => 'cents_zero_null'], null, '0.0 means NO MAP'],
 
             // media
-            ['image_urls', 'image_paths', 'split_pipe', [
+            // MARKER-SOURCING-PLACEMENT — the column is `images`, not
+            // `image_urls`. The resolver silently drops canonical fields that
+            // aren't columns, so every BTI row imported with no images.
+            ['images', 'image_paths', 'split_pipe', [
                 'sep'    => '|',
                 'prefix' => 'https://www.bti-usa.com/images',
             ], null, 'relative paths need a host'],

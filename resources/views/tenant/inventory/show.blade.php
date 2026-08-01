@@ -233,6 +233,73 @@
       </div>
     </div>
 
+    {{-- MARKER-SOURCING-PLACEMENT — directly under the hero, above Specs.
+         Sourcing is the question this page exists to answer, so it comes
+         before the descriptive material rather than after it. --}}
+    {{-- MARKER-ITEM-SOURCING — one table answering every vendor question:
+         who has it, your cost, how many, where, and their part number for
+         the purchase order. --}}
+    @if($sources->count())
+    <div class="ia-card" style="margin-bottom:18px">
+      <div class="ia-card-head">
+        <span class="ia-card-title">Sourcing</span>
+        <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">
+          {{ $sources->count() }} distributor{{ $sources->count() === 1 ? '' : 's' }} carry this
+          @if($liveChecked) · checked {{ $liveChecked->diffForHumans() }} @endif
+        </span>
+      </div>
+      <table class="ia-table">
+        <thead>
+          <tr>
+            <th>Distributor</th><th>Their part no.</th>
+            <th style="text-align:right">Your cost</th>
+            <th style="text-align:right">Available</th>
+            <th>Lead time</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($sources as $src)
+            <tr>
+              <td>
+                <strong>{{ $src->code }}</strong>
+                @if($src->cost !== null && $src->cost === $bestCost && $sources->count() > 1)
+                  <span class="ia-badge ia-badge--accent" style="margin-left:6px">Cheapest</span>
+                @endif
+                @if($src->is_info)
+                  <span class="ia-badge" style="margin-left:6px">Info</span>
+                @endif
+              </td>
+              <td style="color:var(--ia-text-muted);font-family:var(--ia-mono);font-size:12px">
+                {{ $src->sku ?: '—' }}
+              </td>
+              <td style="text-align:right">
+                @if($src->cost !== null){{ format_money($src->cost) }}
+                @else<span style="color:var(--ia-text-muted)">—</span>@endif
+              </td>
+              <td style="text-align:right">
+                @if($src->avail !== null){{ $src->avail }}
+                @elseif(! $src->synced)<span style="color:var(--ia-text-muted)">not synced</span>
+                @else<span style="color:var(--ia-text-muted)">unknown</span>@endif
+              </td>
+              <td>@if($src->lead !== null){{ $src->lead }}d @else<span style="color:var(--ia-text-muted)">—</span>@endif</td>
+              <td style="text-align:right">
+                <a class="ia-btn ia-btn--ghost ia-btn--sm"
+                   href="{{ route('tenant.vendors.show', ['id' => $src->vendor->id]) }}">Vendor</a>
+              </td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+      <div class="ia-card-body" style="border-top:.5px solid var(--ia-border);padding-top:11px">
+        <div style="font-size:11.5px;color:var(--ia-text-dim);line-height:1.55">
+          <b>Info</b> marks the distributor supplying this item's name, description and specs — set by
+          your distributor order on Connection &amp; sync, not by price. Availability is each
+          distributor's last reported figure, not live.
+        </div>
+      </div>
+    </div>
+    @endif
+
     {{-- Specs --}}
     @if($specRows->isNotEmpty() || $catDesc)
     <div class="ia-card">
@@ -387,70 +454,6 @@
 
 {{-- ============ tabbed: activity / special orders / sourced from ============ --}}
 <div class="ia-card ia-show-tabs" style="margin-top:4px">
-  {{-- MARKER-ITEM-SOURCING — one table answering every vendor question:
-       who has it, your cost, how many, where, and their part number for
-       the purchase order. --}}
-  @if($sources->count())
-  <div class="ia-card" style="margin-bottom:18px">
-    <div class="ia-card-head">
-      <span class="ia-card-title">Sourcing</span>
-      <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">
-        {{ $sources->count() }} distributor{{ $sources->count() === 1 ? '' : 's' }} carry this
-        @if($liveChecked) · checked {{ $liveChecked->diffForHumans() }} @endif
-      </span>
-    </div>
-    <table class="ia-table">
-      <thead>
-        <tr>
-          <th>Distributor</th><th>Their part no.</th>
-          <th style="text-align:right">Your cost</th>
-          <th style="text-align:right">Available</th>
-          <th>Lead time</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @foreach($sources as $src)
-          <tr>
-            <td>
-              <strong>{{ $src->code }}</strong>
-              @if($src->cost !== null && $src->cost === $bestCost && $sources->count() > 1)
-                <span class="ia-badge ia-badge--accent" style="margin-left:6px">Cheapest</span>
-              @endif
-              @if($src->is_info)
-                <span class="ia-badge" style="margin-left:6px">Info</span>
-              @endif
-            </td>
-            <td style="color:var(--ia-text-muted);font-family:var(--ia-mono);font-size:12px">
-              {{ $src->sku ?: '—' }}
-            </td>
-            <td style="text-align:right">
-              @if($src->cost !== null){{ format_money($src->cost) }}
-              @else<span style="color:var(--ia-text-muted)">—</span>@endif
-            </td>
-            <td style="text-align:right">
-              @if($src->avail !== null){{ $src->avail }}
-              @elseif(! $src->synced)<span style="color:var(--ia-text-muted)">not synced</span>
-              @else<span style="color:var(--ia-text-muted)">unknown</span>@endif
-            </td>
-            <td>@if($src->lead !== null){{ $src->lead }}d @else<span style="color:var(--ia-text-muted)">—</span>@endif</td>
-            <td style="text-align:right">
-              <a class="ia-btn ia-btn--ghost ia-btn--sm"
-                 href="{{ route('tenant.vendors.show', ['id' => $src->vendor->id]) }}">Vendor</a>
-            </td>
-          </tr>
-        @endforeach
-      </tbody>
-    </table>
-    <div class="ia-card-body" style="border-top:.5px solid var(--ia-border);padding-top:11px">
-      <div style="font-size:11.5px;color:var(--ia-text-dim);line-height:1.55">
-        <b>Info</b> marks the distributor supplying this item's name, description and specs — set by
-        your distributor order on Connection &amp; sync, not by price. Availability is each
-        distributor's last reported figure, not live.
-      </div>
-    </div>
-  </div>
-  @endif
-
   <div class="ia-tabbar">
     <button type="button" class="ia-tab is-active" data-tab="activity">Recent activity</button>
     <button type="button" class="ia-tab" data-tab="so">Special orders @if($openSos->count())<span class="ia-tab-badge">{{ $openSos->count() }}</span>@endif</button>
