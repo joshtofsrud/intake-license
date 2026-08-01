@@ -32,14 +32,49 @@ class InboxController extends Controller
         $filter = in_array($request->query('filter'), ['all', 'unread', 'closed'], true)
             ? $request->query('filter') : 'all';
 
+        // MARKER-INBOX-SEARCH — a search spans every bucket. Narrowing by the
+        // status pill while someone is hunting for a conversation is how you
+        // get "it's not there" for a thread that is simply closed.
+        $q = trim((string) $request->query('q', ''));
+        $searching = $q !== '';
+
         $threads = TenantThread::where('tenant_id', $tenant->id)
-            ->when($filter === 'unread', fn ($q) => $q->where(fn ($qq) => $qq->where('unread_count', '>', 0)->orWhere('status', 'needs_reply')))
-            ->when($filter === 'closed', fn ($q) => $q->where('status', 'closed'))
-            ->when($filter === 'all', fn ($q) => $q->where('status', '!=', 'closed'))
-            ->with(['customer:id,first_name,last_name,phone,sms_opt_out_at', 'latestMessage'])
+            ->when(! $searching && $filter === 'unread', fn ($qb) => $qb->where(fn ($qq) => $qq->where('unread_count', '>', 0)->orWhere('status', 'needs_reply')))
+            ->when(! $searching && $filter === 'closed', fn ($qb) => $qb->where('status', 'closed'))
+            ->when(! $searching && $filter === 'all', fn ($qb) => $qb->where('status', '!=', 'closed'))
+            ->when($searching, function ($qb) use ($q) {
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+                $qb->where(function ($w) use ($like) {
+                    $w->whereHas('customer', function ($c) use ($like) {
+                        $c->where('first_name', 'like', $like)
+                          ->orWhere('last_name', 'like', $like)
+                          // Neither column alone matches a full name.
+                          ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) LIKE ?", [$like])
+                          ->orWhere('business_name', 'like', $like)
+                          ->orWhere('email', 'like', $like)
+                          ->orWhere('phone', 'like', $like);
+                    })->orWhereHas('messages', fn ($m) => $m->where('body', 'like', $like));
+                });
+            })
+            ->with(['customer:id,first_name,last_name,business_name,customer_type,phone,email,sms_opt_out_at', 'latestMessage'])
             ->orderByDesc('last_message_at')
             ->limit(100)
             ->get();
+
+        // MARKER-INBOX-SEARCH — when the hit was in a message, show that
+        // message rather than the newest one. One query for the page.
+        $searchHits = [];
+        if ($searching && $threads->isNotEmpty()) {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $searchHits = \App\Models\Tenant\TenantMessage::query()
+                ->whereIn('thread_id', $threads->pluck('id'))
+                ->where('body', 'like', $like)
+                ->orderByDesc('created_at')
+                ->get(['thread_id', 'body', 'created_at'])
+                ->groupBy('thread_id')
+                ->map(fn ($rows) => $rows->first())
+                ->all();
+        }
 
         $needsReplyCount = TenantThread::where('tenant_id', $tenant->id)
             ->where(fn ($q) => $q->where('unread_count', '>', 0)->orWhere('status', 'needs_reply'))
@@ -56,7 +91,7 @@ class InboxController extends Controller
             }
         }
 
-        return view('tenant.inbox.index', compact('threads', 'filter', 'selected', 'needsReplyCount'));
+        return view('tenant.inbox.index', compact('threads', 'filter', 'selected', 'needsReplyCount', 'q', 'searching', 'searchHits'));
     }
 
     public function send(Request $request, string $id)

@@ -10,6 +10,20 @@
   @media (max-width: 980px) { .ib-wrap { grid-template-columns:1fr; } .ib-conv { display:none; } .ib-conv.has-sel { display:flex; } }
   .ib-list { border-right:.5px solid var(--ia-border); display:flex; flex-direction:column; }
   .ib-filters { display:flex; gap:6px; padding:12px; border-bottom:.5px solid var(--ia-border); }
+  /* MARKER-INBOX-SEARCH */
+  .ib-search { padding:12px 12px 0; position:relative; }
+  .ib-search input { width:100%; background:rgba(127,127,127,.10); border:0; border-radius:9px;
+                     padding:9px 30px 9px 32px; font-size:13px; font-family:inherit; color:inherit; }
+  .ib-search input:focus { outline:none; box-shadow:inset 0 0 0 1px var(--ia-border); }
+  .ib-search input::placeholder { color:inherit; opacity:.45; }
+  .ib-search-ico { position:absolute; left:23px; top:50%; transform:translateY(-30%);
+                   font-size:13px; opacity:.4; pointer-events:none; }
+  .ib-search-clear { position:absolute; right:22px; top:50%; transform:translateY(-30%);
+                     font-size:15px; line-height:1; opacity:.4; text-decoration:none; color:inherit; }
+  .ib-search-clear:hover { opacity:.9; }
+  .ib-search-note { padding:10px 14px; font-size:11.5px; opacity:.55;
+                    border-bottom:.5px solid var(--ia-border); }
+  .ib-hit { color:var(--ia-accent); }
   .ib-pill { font-size:11.5px; padding:4px 10px; border-radius:999px; box-shadow:inset 0 0 0 .5px var(--ia-border);
              text-decoration:none; color:inherit; opacity:.7; }
   .ib-pill.is-active { background:var(--ia-text); color:var(--ia-bg, #fff); opacity:1; }
@@ -135,11 +149,27 @@
 
 <div class="ib-wrap">
   <div class="ib-list">
+    {{-- MARKER-INBOX-SEARCH --}}
+    <form class="ib-search" method="GET" action="{{ route('tenant.inbox.index') }}" id="ib-search-form">
+      <span class="ib-search-ico">&#9906;</span>
+      <input type="search" name="q" value="{{ $q ?? '' }}" autocomplete="off"
+             placeholder="Search names and messages" id="ib-search-input">
+      @if(!empty($searching))
+        <a class="ib-search-clear" href="{{ route('tenant.inbox.index') }}" title="Clear search">&times;</a>
+      @endif
+    </form>
+
+    @if(!empty($searching))
+      <div class="ib-search-note">
+        {{ $threads->count() }} {{ Str::plural('conversation', $threads->count()) }} matching &ldquo;{{ $q }}&rdquo; &middot; searching all, including closed
+      </div>
+    @else
     <div class="ib-filters">
       <a class="ib-pill {{ $filter === 'all' ? 'is-active' : '' }}" href="{{ route('tenant.inbox.index') }}">Open</a>
       <a class="ib-pill {{ $filter === 'unread' ? 'is-active' : '' }}" href="{{ route('tenant.inbox.index', ['filter' => 'unread']) }}">Needs reply{{ $needsReplyCount > 0 ? ' (' . $needsReplyCount . ')' : '' }}</a>
       <a class="ib-pill {{ $filter === 'closed' ? 'is-active' : '' }}" href="{{ route('tenant.inbox.index', ['filter' => 'closed']) }}">Closed</a>
     </div>
+    @endif
     <div style="overflow-y:auto;flex:1">
       @forelse($threads as $t)
         <a class="ib-thread {{ $selected && $selected->id === $t->id ? 'is-sel' : '' }}"
@@ -152,7 +182,15 @@
             </span>
             <span class="ib-thread-time">{{ $t->last_message_at ? tlocal_datetime($t->last_message_at, 'M j, g:i A') : '' }}</span>
           </div>
-          <div class="ib-snippet">{{ \Illuminate\Support\Str::limit($t->latestMessage?->body ?? '', 70) }}</div>
+          {{-- MARKER-INBOX-SEARCH — show the message that matched, not the newest --}}
+          @php $sc_hit = ($searchHits[$t->id] ?? null); @endphp
+          <div class="ib-snippet">
+            @if($sc_hit)
+              <span class="ib-hit">&#9906;</span> {{ Str::limit($sc_hit->body, 58) }}
+            @else
+              {{ Str::limit($t->latestMessage?->body ?? '—', 60) }}
+            @endif
+          </div>
         </a>
       @empty
         <div style="padding:30px 16px;font-size:12.5px;opacity:.5;text-align:center">
@@ -241,6 +279,19 @@
 
 <script>
   (function () { var m = document.getElementById('ib-msgs'); if (m) m.scrollTop = m.scrollHeight; })();
+  // MARKER-INBOX-SEARCH — submit as you type, but not on every keystroke.
+  (function () {
+    var f = document.getElementById('ib-search-form');
+    var i = document.getElementById('ib-search-input');
+    if (!f || !i) { return; }
+    var t = null;
+    i.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () { f.submit(); }, 350);
+    });
+    // Keep the caret where it was after the reload.
+    if (i.value) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+  })();
 </script>
 
 @endsection
