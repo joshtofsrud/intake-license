@@ -132,15 +132,49 @@
           </div>
         @endif
 
+        {{-- MARKER-TENANT-TEST-FEEDBACK — a 30s form post with no feedback
+             reads as a hung page. Say what's happening and why. --}}
         <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap;align-items:center">
-          <button class="dc-btn primary" type="submit">Save</button>
-          <button class="dc-btn" type="submit"
+          <button class="dc-btn primary" type="submit" data-dc-save>Save</button>
+          <button class="dc-btn" type="submit" data-dc-test
+                  data-dc-slow="{{ strtoupper($b['code']) === 'BTI' ? '1' : '0' }}"
                   formaction="{{ route('tenant.distributors.connection.test') }}">Test connection</button>
-
         </div>
+        <div data-dc-testnote
+             style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin-top:9px;line-height:1.5"></div>
       </form>
     </div>
   @endforeach
+
+  {{-- MARKER-TENANT-TEST-FEEDBACK --}}
+  <script>
+  (function () {
+    document.querySelectorAll('[data-dc-test]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var form = btn.closest('form');
+        if (!form) { return; }
+
+        var slow = btn.getAttribute('data-dc-slow') === '1';
+        var note = form.querySelector('[data-dc-testnote]');
+        var save = form.querySelector('[data-dc-save]');
+
+        // Let the submit proceed, then lock the row down on the next tick —
+        // disabling before submit would drop the button's formaction.
+        setTimeout(function () {
+          btn.disabled = true;
+          btn.textContent = slow ? 'Checking\u2026 about 30s' : 'Checking\u2026';
+          if (save) { save.disabled = true; }
+          if (note) {
+            note.style.display = '';
+            note.textContent = slow
+              ? 'BTI has no status endpoint \u2014 the only address that answers rebuilds their entire stock feed on every request, so this takes about 30 seconds. Nothing is wrong; the page will reload with the result.'
+              : 'Sending one authenticated request to confirm the credentials work.';
+          }
+        }, 0);
+      });
+    });
+  })();
+  </script>
 
   <div class="dc-card">
     {{-- MARKER-PATCH-559 — sync status + manual runs live on Catalog attention,
