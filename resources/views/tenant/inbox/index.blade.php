@@ -23,12 +23,32 @@
   .ib-conv { display:flex; flex-direction:column; min-width:0; }
   .ib-conv-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 16px; border-bottom:.5px solid var(--ia-border); }
   .ib-msgs { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
-  .ib-msg { max-width:72%; padding:9px 12px; border-radius:12px; font-size:13px; line-height:1.45; white-space:pre-wrap; word-break:break-word; }
+  /* MARKER-INBOX-POLISH — pre-wrap belongs on the body only. On the bubble it
+     rendered the template's own indentation as blank lines. */
+  .ib-msg { position:relative; max-width:72%; padding:9px 24px 9px 12px; border-radius:12px;
+            font-size:13px; line-height:1.45; word-break:break-word; }
+  .ib-msg-body { white-space:pre-wrap; }
   .ib-msg.in  { align-self:flex-start; background:rgba(127,127,127,.10); border-bottom-left-radius:4px; }
-  .ib-msg.out { align-self:flex-end; background:var(--ia-text); color:var(--ia-bg, #fff); border-bottom-right-radius:4px; }
+  .ib-msg.out { align-self:flex-end; background:rgba(190,242,100,.13); color:var(--ia-text);
+                box-shadow:inset 0 0 0 .5px rgba(190,242,100,.26); border-bottom-right-radius:4px; }
+  /* Delete stays out of the way until you go looking for it. */
+  .ib-msg-del { position:absolute; top:5px; right:6px; opacity:0; transition:opacity .12s; }
+  .ib-msg:hover .ib-msg-del { opacity:.4; }
+  .ib-msg-del:hover { opacity:1; }
+  .ib-msg-del button { background:none; border:0; color:inherit; cursor:pointer;
+                       font-size:14px; line-height:1; padding:0; }
+  /* Mid-grey reads on both the light and dark bubble backgrounds. */
+  .ib-chan { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.08em;
+             padding:1px 5px; border-radius:4px; margin-right:6px;
+             background:rgba(127,127,127,.22); vertical-align:1px; }
   .ib-msg.note { align-self:stretch; max-width:none; background:#FAEEDA; color:#854F0B; font-size:12.5px; }
   .ib-msg.sys  { align-self:center; max-width:none; background:transparent; box-shadow:inset 0 0 0 .5px var(--ia-border); font-size:11.5px; opacity:.7; }
-  .ib-msg-time { font-size:10px; opacity:.45; margin-top:4px; }
+  .ib-msg-time { font-size:10px; opacity:.45; margin-top:5px; }
+  /* MARKER-INBOX-POLISH — bound the scroller itself. Guessing the height of
+     the chrome above it would break the next time the header changes. */
+  @media (min-width: 981px) {
+    .ib-msgs { max-height:58vh; }
+  }
   .ib-compose { border-top:.5px solid var(--ia-border); padding:12px 16px; }
   .ib-empty { display:flex; align-items:center; justify-content:center; flex:1; font-size:13px; opacity:.5; padding:40px; text-align:center; }
   /* MARKER-PATCH-433 — mobile: full-screen conversation + back arrow */
@@ -62,9 +82,13 @@
     /* conversation — bigger text, green outbound bubbles */
     .ib-conv-name { font-size:17px; }
     .ib-msgs { padding:14px 16px; }
-    .ib-msg { max-width:80%; padding:10px 13px; border-radius:15px; font-size:14px; }
-    .ib-msg.in  { background:var(--ia-surface-2); border-bottom-left-radius:5px; }
-    .ib-msg.out { background:#2a4a2a; color:#eafce0; border-bottom-right-radius:5px; }
+    .ib-msg { max-width:80%; padding:10px 24px 10px 13px; border-radius:15px; font-size:14px; }
+    /* MARKER-INBOX-POLISH — --ia-surface-2 does not exist in Intake's themes,
+       so this resolved to nothing and inbound bubbles were transparent. */
+    .ib-msg.in  { background:rgba(127,127,127,.14); border-bottom-left-radius:5px; }
+    .ib-msg.out { background:#2a4a2a; color:#eafce0; box-shadow:none; border-bottom-right-radius:5px; }
+    /* Touch has no hover — keep delete permanently visible but quiet. */
+    .ib-msg-del { opacity:.32; }
     /* composer — pill field + round send */
     .ib-compose-field { border-radius:20px; min-height:44px; padding:11px 16px; }
     .ib-compose-row { gap:8px; }
@@ -160,12 +184,12 @@
           @endphp
           <div class="ib-msg {{ $cls }}">
             {{-- MARKER-PATCH-401 — delete a single message --}}
-            <form method="POST" action="{{ route('tenant.inbox.message.delete', $m->id) }}" onsubmit="return confirm('Delete this message? It will be hidden from the conversation.')" style="float:right;margin:-2px -2px 0 8px">
+            <form method="POST" action="{{ route('tenant.inbox.message.delete', $m->id) }}" onsubmit="return confirm('Delete this message? It will be hidden from the conversation.')" class="ib-msg-del">
               @csrf
-              <button type="submit" title="Delete message" style="background:none;border:0;color:inherit;opacity:.3;cursor:pointer;font-size:14px;line-height:1;padding:0">&times;</button>
+              <button type="submit" title="Delete message">&times;</button>
             </form>
-            @if($cls === 'note')<strong>Internal note · </strong>@endif{{ $m->body }}
-            <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out'){{ strtoupper($m->channel) }} · @endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
+            <div class="ib-msg-body">@if($cls === 'note')<strong>Internal note · </strong>@endif{{ $m->body }}</div>
+            <div class="ib-msg-time">@if($cls === 'in' || $cls === 'out')<span class="ib-chan">{{ strtoupper($m->channel) }}</span>@endif{{ tlocal_datetime($m->created_at, 'M j, g:i A') }}</div>
           </div>
         @empty
           <div class="ib-empty">No messages yet.</div>
