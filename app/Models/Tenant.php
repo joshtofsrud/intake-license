@@ -277,26 +277,6 @@ class Tenant extends Model
     }
 
     /**
-     * MARKER-TXN-THREADING — this shop's public inbound address.
-     *
-     * {subdomain}@{inbound domain}, derived from POSTMARK_INBOUND_ADDRESS so
-     * there is one place to change the domain. Mail here routes by localpart
-     * (shop) plus From (customer) — see PostmarkInboundController's cold path.
-     *
-     * Null when inbound isn't configured, which keeps every caller on their
-     * existing fallback rather than printing an address that receives nothing.
-     */
-    public function inboundAddress(): ?string
-    {
-        $base = trim((string) config('services.postmark.inbound_address'));
-        if ($base === '' || ! str_contains($base, '@') || empty($this->subdomain)) {
-            return null;
-        }
-
-        return $this->subdomain . '@' . explode('@', $base, 2)[1];
-    }
-
-    /**
      * MARKER-PATCH-411 — the logo shown on the dark header of every email.
      * Single source driving both render paths (EmailService::renderHtml and the
      * emails/layout Blade). Defaults to the light logo (the header is dark),
