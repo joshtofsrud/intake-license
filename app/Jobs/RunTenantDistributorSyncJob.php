@@ -45,17 +45,44 @@ class RunTenantDistributorSyncJob implements ShouldQueue
         try {
             $subs = TenantDistributorCatalogSubscription::query()
                 ->where('tenant_id', $this->tenantId)->where('is_active', true)->get();
+
+            // MARKER-SYNC-ISOLATE — each distributor in its own try/catch.
+            //
+            // This loop used to sit inside a single outer try, so a throw from
+            // ANY subscription aborted the rest. Connecting a second
+            // distributor with bad credentials therefore stopped the first
+            // one from syncing at all — silently, since the job still
+            // recorded a finished run. A distributor that can't be reached
+            // must not take the others down with it.
             foreach ($subs as $sub) {
-                $res = $service->sync($sub, $this->dryRun);
+                $code = (string) $sub->distributor_code;
+
+                try {
+                    $res = $service->sync($sub, $this->dryRun);
+                } catch (\Throwable $e) {
+                    $agg['errors'][] = $code . ': ' . $e->getMessage();
+                    $agg['failed'] = array_values(array_unique(
+                        array_merge($agg['failed'] ?? [], [$code])
+                    ));
+                    continue;           // the next distributor still runs
+                }
+
                 foreach ($res as $k => $v) {
                     if (is_numeric($v)) $agg[$k] = ($agg[$k] ?? 0) + $v;
                 }
                 if (!empty($res['errors'])) {
-                    $agg['errors'] = array_merge($agg['errors'] ?? [], (array) $res['errors']);
+                    // Name the distributor, so a mixed run says which half
+                    // of it went wrong.
+                    foreach ((array) $res['errors'] as $msg) {
+                        $agg['errors'][] = $code . ': ' . $msg;
+                    }
                 }
             }
+
             if ($subs->isEmpty()) $agg['note'] = 'no active subscriptions';
         } catch (\Throwable $e) {
+            // Reaching here now means the run itself failed — loading the
+            // subscriptions — not one distributor inside it.
             $error = $e->getMessage();
         }
 
