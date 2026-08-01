@@ -436,11 +436,21 @@ class BtiClient implements DistributorAdapter
             }
             $map = (float) ($r['map'] ?? 0);
 
-            // MARKER-BTI-SYNC-SHAPES — VariantNo plus a Prices[] array, which
-            // is what fetchCosts() reads. HLC sends tiers there, so BTI's
-            // single dealer price is emitted as one tier rather than as a
-            // differently-named field the service would ignore.
-            $out[] = [
+            // MARKER-BTI-PRICES-RAW — keep the raw feed row underneath.
+            //
+            // fetchCosts() does NOT read Prices[] directly; it runs the row
+            // through DistributorMapResolver against BTI's field map, and
+            // that map points at raw feed columns:
+            //     cost_cents <- your_price, msrp_cents <- msrp, map_cents <- map
+            //
+            // Emitting only the reshaped HLC-style keys meant the resolver
+            // could never find them, so cost_cents came back null on every
+            // product. Spreading $r first fixes cost, MSRP and MAP together,
+            // and lets a new map row reference any feed column without
+            // touching this file. The capitalised keys below are added on top
+            // for anything that does read the HLC shape; no collision, since
+            // BTI's own columns are lowercase.
+            $out[] = array_merge($r, [
                 'VariantNo' => $id,
                 'Prices'    => [[
                     'PriceTypeId' => 1,
@@ -452,7 +462,7 @@ class BtiClient implements DistributorAdapter
                 'MAP'  => $map == 0.0 ? null : $map,
                 'OnSale'     => (bool) ((int) ($r['is_on_sale'] ?? 0)),
                 'OnCloseout' => (bool) ((int) ($r['is_on_closeout'] ?? 0)),
-            ];
+            ]);
         }
         return $out;
     }
