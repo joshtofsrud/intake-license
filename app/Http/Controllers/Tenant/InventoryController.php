@@ -51,6 +51,9 @@ class InventoryController extends Controller
         $category = $request->input('category');
         $stock    = $request->input('stock'); // 'low', 'out', 'all'
         $sort     = $request->input('sort', 'name_asc');
+        // MARKER-INV-BRAND-DIST
+        $brand       = trim((string) $request->input('brand', ''));
+        $distributor = trim((string) $request->input('distributor', ''));
         $page     = max(1, (int) $request->input('page', 1));
         $perPage  = 25;
 
@@ -138,6 +141,24 @@ class InventoryController extends Controller
             }
         }
 
+        // MARKER-INV-BRAND-DIST — brand lives on the linked catalog row.
+        if ($brand !== '') {
+            $q->whereHas('distributorCatalog', fn ($w) => $w->where('manufacturer', $brand));
+        }
+
+        // MARKER-INV-BRAND-DIST — "available from", not "created by". An item
+        // matched across distributors carries several sources, and a shop
+        // asking what BTI can supply means all of it. whereExists keeps the
+        // row unique — a join would list a two-source item twice.
+        if ($distributor !== '') {
+            $q->whereExists(function ($w) use ($distributor) {
+                $w->selectRaw('1')
+                  ->from('tenant_inventory_item_vendors as iv_f')
+                  ->whereColumn('iv_f.inventory_item_id', 'tenant_inventory_items.id')
+                  ->where('iv_f.distributor_code', $distributor);
+            });
+        }
+
         // patch-98 sort: stock_asc / stock_desc now order by current
         // location's count when multi-location; fall back to total otherwise.
         if (in_array($sort, ['stock_asc', 'stock_desc'], true) && $hereLocId) {
@@ -147,6 +168,16 @@ class InventoryController extends Controller
                     ->where('iil_sort.location_id', '=', $hereLocId);
               })
               ->orderByRaw('COALESCE(iil_sort.computed_stock_count, 0) ' . $dir)
+              ->select('tenant_inventory_items.*');
+        } elseif (in_array($sort, ['brand_asc', 'brand_desc'], true)) {
+            // MARKER-INV-BRAND-DIST — LEFT join, and the select is pinned back
+            // to the items table: a hand-created item has no catalog row and
+            // must not disappear from the list because someone sorted by
+            // brand. Those sort last instead.
+            $dir = $sort === 'brand_asc' ? 'asc' : 'desc';
+            $q->leftJoin('platform_distributor_catalogs as pdc_sort', 'pdc_sort.id', '=', 'tenant_inventory_items.distributor_catalog_id')
+              ->orderByRaw("COALESCE(NULLIF(pdc_sort.manufacturer, ''), 'zzzz') {$dir}")
+              ->orderBy('tenant_inventory_items.name')
               ->select('tenant_inventory_items.*');
         } else {
             switch ($sort) {
@@ -183,6 +214,25 @@ class InventoryController extends Controller
                 $locStocks[$row->inventory_item_id][$row->location_id] = (int) $row->computed_stock_count;
             }
         }
+
+        // MARKER-INV-BRAND-DIST — built from what this tenant carries, not the
+        // whole shared catalog, so the dropdown stays usable.
+        $brandOptions = \App\Models\PlatformDistributorCatalog::query()
+            ->whereIn('id', function ($w) {
+                $w->select('distributor_catalog_id')
+                  ->from('tenant_inventory_items')
+                  ->where('tenant_id', tenant()->id)
+                  ->whereNotNull('distributor_catalog_id');
+            })
+            ->whereNotNull('manufacturer')->where('manufacturer', '!=', '')
+            ->distinct()->orderBy('manufacturer')->pluck('manufacturer');
+
+        $distributorOptions = \Illuminate\Support\Facades\DB::table('tenant_inventory_item_vendors as iv')
+            ->join('tenant_inventory_items as it', 'it.id', '=', 'iv.inventory_item_id')
+            ->where('it.tenant_id', tenant()->id)
+            ->whereNotNull('iv.distributor_code')->where('iv.distributor_code', '!=', '')
+            ->distinct()->orderBy('iv.distributor_code')
+            ->pluck('iv.distributor_code');
 
         $categories    = $allCats;
         $hasCategories = $categories->isNotEmpty();
@@ -224,6 +274,7 @@ class InventoryController extends Controller
             'items', 'categories', 'hasCategories',
             'categoryTree', 'includeSubs', 'locStocks', 'allLocations', // MARKER-CAT-TREE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
+            'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST
             'posCap',
             'currentLocation', 'isMultiLocation', 'hereStocks'
         ));

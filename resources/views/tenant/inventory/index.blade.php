@@ -8,6 +8,8 @@
     'sku_desc'   => 'SKU Z–A',
     'stock_asc'  => 'Stock low → high',
     'stock_desc' => 'Stock high → low',
+    'brand_asc'  => 'Brand A–Z',
+    'brand_desc' => 'Brand Z–A',
   ];
   $stockLabels = [
     ''     => 'All stock levels',
@@ -232,6 +234,25 @@
   </select>
   @unless($includeSubs)<input type="hidden" name="subs" value="0">@endunless
 
+  {{-- MARKER-INV-BRAND-DIST --}}
+  @if($brandOptions->isNotEmpty())
+    <select name="brand" class="ia-input" style="width:auto">
+      <option value="">All brands</option>
+      @foreach($brandOptions as $b)
+        <option value="{{ $b }}" @selected($brand === $b)>{{ $b }}</option>
+      @endforeach
+    </select>
+  @endif
+
+  @if($distributorOptions->count() > 1)
+    <select name="distributor" class="ia-input" style="width:auto">
+      <option value="">All distributors</option>
+      @foreach($distributorOptions as $d)
+        <option value="{{ $d }}" @selected($distributor === $d)>Available from {{ $d }}</option>
+      @endforeach
+    </select>
+  @endif
+
   <select name="stock" class="ia-input" style="width:auto">
     @foreach($stockLabels as $val => $label)
       <option value="{{ $val }}" @selected($stock === $val)>{{ $label }}</option>
@@ -245,7 +266,7 @@
   </select>
 
   <button type="submit" class="ia-btn ia-btn--secondary">Filter</button>
-  @if($search || $category || $stock || $sort !== 'name_asc')
+  @if($search || $category || $stock || $brand || $distributor || $sort !== 'name_asc')
     <a href="{{ route('tenant.inventory.index') }}" class="ia-btn ia-btn--ghost">Reset</a>
   @endif
 </form>
@@ -257,6 +278,8 @@
   <input type="hidden" name="category" value="{{ $category }}">
   <input type="hidden" name="stock" value="{{ $stock }}">
   <input type="hidden" name="sort" value="{{ $sort }}">
+  <input type="hidden" name="brand" value="{{ $brand }}">
+  <input type="hidden" name="distributor" value="{{ $distributor }}">
   <div class="inv-search-m">
     <svg class="inv-search-icon-m" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
     <input type="search" name="s" value="{{ $search }}" placeholder="Search name, SKU, or UPC…">
