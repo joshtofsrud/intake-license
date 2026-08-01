@@ -204,6 +204,39 @@ class AppointmentController extends Controller
         ));
     }
 
+    /**
+     * MARKER-NOTIFY-CHOICE — send the confirmation on purpose.
+     *
+     * Dispatches the SAME job the public booking path uses, narrowed to the
+     * chosen channels, so there is one way to send a confirmation rather than
+     * two that can drift. Tenant notification settings still apply: this
+     * narrows what may go out, it never overrides a shop's own switch.
+     */
+    public function notify(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'channels'   => ['required', 'array', 'min:1'],
+            'channels.*' => ['in:email,sms'],
+        ]);
+
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)
+            ->findOrFail($id);
+
+        \App\Jobs\SendBookingConfirmationJob::dispatch($appointment->id)
+            ->forChannels($data['channels']);
+
+        $what = count($data['channels']) > 1
+            ? 'Text and email'
+            : ($data['channels'][0] === 'sms' ? 'Text' : 'Email');
+
+        return response()->json([
+            'ok'      => true,
+            'message' => $what . ' on its way to the customer.',
+        ]);
+    }
+
     public function store(Request $request)
     {
         $tenant = tenant();
@@ -277,8 +310,12 @@ class AppointmentController extends Controller
         ];
 
         try {
+            // MARKER-NOTIFY-CHOICE — a staff-created appointment notifies nobody
+            // by default. Booking a customer in at the counter shouldn't fire
+            // a confirmation before anyone has checked the details; sending is
+            // an explicit choice via appointments.notify.
             $appointment = app(\App\Services\BookingService::class)
-                ->createAppointment($payload, $tenant->id);
+                ->createAppointment($payload, $tenant->id, false);
         } catch (\App\Exceptions\LockAcquisitionException $e) {
             return response()->json([
                 'ok'      => false,

@@ -34,6 +34,29 @@ class SendBookingConfirmationJob implements ShouldQueue
 
     public function __construct(public readonly string $appointmentId) {}
 
+    /**
+     * MARKER-NOTIFY-CHOICE — which channels this dispatch may use.
+     *
+     * null keeps the original behaviour: both channels, each still gated by
+     * the tenant's own notification settings. A staff member choosing "text
+     * only" passes ['sms'], and the tenant setting can still veto it — this
+     * narrows what may be sent, it never overrides a shop's own switch.
+     *
+     * @var array<int,string>|null
+     */
+    public ?array $onlyChannels = null;
+
+    public function forChannels(?array $channels): self
+    {
+        $this->onlyChannels = $channels;
+        return $this;
+    }
+
+    private function channelAllowed(string $channel): bool
+    {
+        return $this->onlyChannels === null || in_array($channel, $this->onlyChannels, true);
+    }
+
     public function handle(): void
     {
         $appointment = TenantAppointment::with(['tenant', 'customer', 'items'])
@@ -51,7 +74,7 @@ class SendBookingConfirmationJob implements ShouldQueue
         $vars = $this->buildVars($appointment, $tenant);
 
         // ---- Email channel ----
-        if ($emailEnabled && $customer->email) {
+        if ($emailEnabled && $customer->email && $this->channelAllowed('email')) {
             try {
                 EmailService::forTenant($tenant)->send(
                     'booking_confirmation',
@@ -72,7 +95,7 @@ class SendBookingConfirmationJob implements ShouldQueue
         }
 
         // ---- SMS channel ----
-        if ($smsEnabled && $customer->phone) {
+        if ($smsEnabled && $customer->phone && $this->channelAllowed('sms')) {
             try {
                 SmsService::send($tenant, $customer->phone, $this->buildSmsBody($appointment, $tenant));
                 $this->log($tenant, $appointment, 'sms', $customer->phone, 'sent', null);

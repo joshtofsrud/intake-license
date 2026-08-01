@@ -35,7 +35,20 @@ class BookingService
      * per-tenant-per-day, which is wider than the time-slot lock but
      * fires rarely enough that contention is a non-issue.
      */
-    public function createAppointment(array $data, string $tenantId): TenantAppointment
+    /**
+     * MARKER-NOTIFY-CHOICE — $notify.
+     *
+     * This method serves two situations that look identical in code and are
+     * nothing alike in practice: a customer booking themselves, who expects
+     * an instant confirmation, and a shop booking someone in at the counter,
+     * who usually does not want one fired off before anyone has checked the
+     * details. It had no way to tell them apart, so staff-created
+     * appointments emailed and texted the customer automatically.
+     *
+     * Defaults to true, so the public booking path and every existing caller
+     * are unchanged. Only the staff route opts out.
+     */
+    public function createAppointment(array $data, string $tenantId, bool $notify = true): TenantAppointment
     {
         if (empty($data['items']) || !is_array($data['items'])) {
             throw new RuntimeException('At least one service is required.');
@@ -292,7 +305,10 @@ class BookingService
                 // afterCommit() ensures the job only fires if the DB transaction
                 // actually commits — never send a confirmation for a phantom
                 // appointment that got rolled back by a later error in the chain.
-                SendBookingConfirmationJob::dispatch($appointment->id)->afterCommit();
+                // MARKER-NOTIFY-CHOICE — only when the caller asked for it.
+                if ($notify) {
+                    SendBookingConfirmationJob::dispatch($appointment->id)->afterCommit();
+                }
 
                 // MARKER-PATCH-225 — staff alert. emit() defers its own work
                 // to afterCommit, so a rolled-back booking emits nothing.
