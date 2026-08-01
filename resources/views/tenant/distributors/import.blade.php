@@ -1,5 +1,5 @@
 @extends('layouts.tenant.app')
-@php $pageTitle = 'Import from HLC'; @endphp
+@php $pageTitle = 'Import from a distributor'; @endphp
 
 {{-- MARKER-PATCH-HLC7B --}}
 
@@ -30,16 +30,35 @@
 
 @section('content')
 <div style="max-width:880px">
-  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">HLC Catalog</h1>
+  <h1 style="font-size:20px;font-weight:600;margin-bottom:14px">Import from {{ $importCode }}</h1>
+
+  {{-- MARKER-IMPORTER-PER-CODE — brands, categories and counts are per
+       distributor, and there are thousands of each, so switching reloads
+       rather than shipping every distributor's lists to filter in the
+       browser. --}}
+  @if (count($importCodes) > 1)
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600">Distributor</span>
+      @foreach ($importCodes as $c)
+        <a href="{{ route('tenant.distributors.import', ['code' => $c]) }}"
+           style="padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:600;text-decoration:none;
+                  border:1px solid {{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-border)' }};
+                  background:{{ $c === $importCode ? 'var(--ia-text)' : 'var(--ia-surface-2)' }};
+                  color:{{ $c === $importCode ? 'var(--ia-bg)' : 'var(--ia-text-dim)' }}">{{ $c }}</a>
+      @endforeach
+    </div>
+  @endif
   @include('layouts.tenant._inventory-tabs')
 
   @if(session('error'))<div class="im-banner im-err">{{ session('error') }}</div>@endif
 
   <div class="im-card">
     <h2 class="im-h">Import items</h2>
-    <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> HLC items in the shared catalog.</p>
+    <p class="im-sub">Pick a brand and/or category, preview what comes in, then import. Items land catalog-only (no stock) — your normal product search finds them after. <b>{{ number_format($catalogTotal) }}</b> {{ $importCode }} items in the shared catalog.
+      An item another distributor already supplies is added as a second source rather than duplicated.</p>
 
     <form method="POST" action="{{ route('tenant.distributors.import.run') }}">
+            <input type="hidden" name="code" value="{{ $importCode }}">
       @csrf
       <input type="hidden" name="mode" value="preview" id="im-mode">
       <div class="im-row">
@@ -88,6 +107,7 @@
         @else
           <div class="im-banner im-info">Preview only — nothing imported yet. Confirm to add {{ number_format($result['created']) }} new item(s).</div>
           <form method="POST" action="{{ route('tenant.distributors.import.run') }}">
+            <input type="hidden" name="code" value="{{ $importCode }}">
             @csrf
             <input type="hidden" name="mode" value="commit">
             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">

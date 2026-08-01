@@ -235,12 +235,15 @@ class DistributorController extends Controller
         return back()->with('success', 'Refreshing your cost & availability in the background.');
     }
 
-    public function import(): \Illuminate\Contracts\View\View
+    public function import(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
     {
         $this->guard();
 
+        // MARKER-IMPORTER-PER-CODE
+        $code = $this->importCode($request->query('code'));
+
         return view('tenant.distributors.import', array_merge(
-            $this->importFilterOptions(),
+            $this->importFilterOptions($code),
             ['filters' => []],
         ));
     }
@@ -251,10 +254,14 @@ class DistributorController extends Controller
 
         $data = $request->validate([
             'mode'               => ['required', 'in:preview,commit'],
+            'code'               => ['nullable', 'string', 'max:32'],
             'brand'              => ['nullable', 'string', 'max:128'],
             'category'           => ['nullable', 'string', 'max:64'],
             'include_unsellable' => ['nullable'],
         ]);
+
+        // MARKER-IMPORTER-PER-CODE
+        $code = $this->importCode($data['code'] ?? null);
 
         $filters = array_filter([
             'brand'              => $data['brand'] ?? null,
@@ -262,7 +269,7 @@ class DistributorController extends Controller
             'include_unsellable' => ! empty($data['include_unsellable']),
         ], fn ($v) => $v !== null && $v !== '' && $v !== false);
 
-        $view = $this->importFilterOptions();
+        $view = $this->importFilterOptions($code);
         $view['filters'] = $filters;
         $view['mode'] = $data['mode'];
 
@@ -272,24 +279,61 @@ class DistributorController extends Controller
         }
 
         $view['result'] = app(\App\Services\Distributors\DistributorCatalogImportService::class)
-            ->import(tenant()->id, self::CODE, $filters, $data['mode'] !== 'commit', 2000);
+            ->import(tenant()->id, $code, $filters, $data['mode'] !== 'commit', 2000);
 
         return view('tenant.distributors.import', $view);
     }
 
     /** Brand / category options + catalog size for the import filter. */
-    private function importFilterOptions(): array
+    /**
+     * MARKER-IMPORTER-PER-CODE — brands, categories and the item count for
+     * ONE distributor. Was pinned to self::CODE, which left a shop with BTI
+     * connected unable to import any of its 24,643 items.
+     */
+    private function importFilterOptions(string $code): array
     {
         $base = \App\Models\PlatformDistributorCatalog::query()
-            ->where('distributor_code', self::CODE)->where('is_active', true);
+            ->where('distributor_code', $code)->where('is_active', true);
 
         return [
+            'importCode' => $code,
+            'importCodes' => $this->importableCodes(),
             'brands' => (clone $base)->whereNotNull('manufacturer')
                 ->distinct()->orderBy('manufacturer')->pluck('manufacturer'),
             'categories' => (clone $base)->whereNotNull('category')
                 ->distinct()->orderBy('category')->pluck('category'),
             'catalogTotal' => (clone $base)->count(),
         ];
+    }
+
+    /**
+     * Distributors the registry supports AND that have catalog rows. A
+     * supported distributor with an empty catalog would present as a broken
+     * filter rather than as "nothing synced yet".
+     *
+     * @return array<int,string>
+     */
+    private function importableCodes(): array
+    {
+        $supported = app(\App\Services\Distributors\DistributorRegistry::class)->supported();
+
+        return \App\Models\PlatformDistributorCatalog::query()
+            ->whereIn('distributor_code', $supported)
+            ->where('is_active', true)
+            ->select('distributor_code')->distinct()
+            ->orderBy('distributor_code')
+            ->pluck('distributor_code')->all();
+    }
+
+    /** The distributor being imported from, defaulting to the first available. */
+    private function importCode(?string $requested): string
+    {
+        $codes = $this->importableCodes();
+        $requested = strtoupper((string) $requested);
+
+        return in_array($requested, $codes, true)
+            ? $requested
+            : ($codes[0] ?? self::CODE);
     }
 
     public function attention(\Illuminate\Http\Request $request): \Illuminate\Contracts\View\View
