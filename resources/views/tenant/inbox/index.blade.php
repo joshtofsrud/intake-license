@@ -44,10 +44,23 @@
   .ib-msg.note { align-self:stretch; max-width:none; background:#FAEEDA; color:#854F0B; font-size:12.5px; }
   .ib-msg.sys  { align-self:center; max-width:none; background:transparent; box-shadow:inset 0 0 0 .5px var(--ia-border); font-size:11.5px; opacity:.7; }
   .ib-msg-time { font-size:10px; opacity:.45; margin-top:5px; }
-  /* MARKER-INBOX-POLISH — bound the scroller itself. Guessing the height of
-     the chrome above it would break the next time the header changes. */
+  /* MARKER-INBOX-VIEWPORT — give the shell a ceiling so the inner scrollers
+     (.ib-msgs and the thread-list wrapper) actually have somewhere to scroll.
+     min-height:0 on each flex ancestor is the load-bearing part: without it a
+     flex item refuses to shrink below its content and the overflow escapes
+     upward instead of scrolling. Scoped to this page by the pushed styles. */
   @media (min-width: 981px) {
-    .ib-msgs { max-height:58vh; }
+    .ia-shell   { height:100dvh; min-height:0; }
+    .ia-main    { min-height:0; }
+    .ia-content { min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    /* Everything above the inbox keeps its natural height; only the inbox
+       takes the slack. Guards against a flash banner getting squashed. */
+    .ia-content > * { flex:0 0 auto; }
+    .ib-wrap { flex:1 1 auto; min-height:360px; }
+    /* .ib-msgs goes back to plain flex:1 — with a bounded parent it fills the
+       space and scrolls, so the composer sits directly under the last
+       message instead of after a gap. */
+    .ib-msgs { max-height:none; }
   }
   .ib-compose { border-top:.5px solid var(--ia-border); padding:12px 16px; }
   .ib-empty { display:flex; align-items:center; justify-content:center; flex:1; font-size:13px; opacity:.5; padding:40px; text-align:center; }
