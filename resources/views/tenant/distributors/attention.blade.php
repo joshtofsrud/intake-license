@@ -215,7 +215,18 @@
               <td><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
               <td>
                 <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
-                <div class="at-dim at-mono" style="font-size:11px">{{ $item->sku ?? '' }} · {{ $item->computed_stock_count ?? 0 }} in stock@if($flagDist) · <span style="font-weight:700">{{ $flagDist }}</span>@endif</div>
+                {{-- MARKER-BLADE-WORD-BOUNDARY — the directive must not touch the
+                     word before it. Blade's statement regex starts with \B@, so
+                     a directive glued to the preceding word is left as literal
+                     text while the matching
+                     @endif compiled, giving an endif with no if and a fatal
+                     compile error for the whole view. --}}
+                <div class="at-dim at-mono" style="font-size:11px">
+                  {{ $item->sku ?? '' }} · {{ $item->computed_stock_count ?? 0 }} in stock
+                  @if($flagDist)
+                    · <span style="font-weight:700">{{ $flagDist }}</span>
+                  @endif
+                </div>
               </td>
               <td><span class="at-badge {{ $bc }}">{{ $bl }}</span></td>
               <td class="at-chg">
