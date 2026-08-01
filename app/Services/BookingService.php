@@ -180,7 +180,9 @@ class BookingService
         return $lock->withLock($lockKey, function () use (
             $tenant, $mode, $data, $tenantId, $plan,
             $totalCents, $totalDuration, $customerFacingDur, $slotWeight,
-            $appointmentTime, $appointmentEndTime, $resourceId
+            $appointmentTime, $appointmentEndTime, $resourceId,
+            $notify // MARKER-NOTIFY-CLOSURE-SCOPE — must pass through here
+                    // for the nested transaction closure to be able to take it.
         ) {
             // Re-check availability inside the lock. This is the read-your-writes
             // step that makes the lock meaningful — without it, we'd just be
@@ -205,7 +207,9 @@ class BookingService
             return DB::transaction(function () use (
                 $data, $tenantId, $plan,
                 $totalCents, $totalDuration, $slotWeight,
-                $appointmentTime, $appointmentEndTime, $resourceId
+                $appointmentTime, $appointmentEndTime, $resourceId,
+                $notify // MARKER-NOTIFY-CLOSURE-SCOPE — consumed at the
+                        // SendBookingConfirmationJob dispatch below.
             ) {
                 $customer = $this->upsertCustomer($data, $tenantId);
                 $raNumber = TenantAppointment::generateRaNumber($tenantId, $data['date'] ?? null);
