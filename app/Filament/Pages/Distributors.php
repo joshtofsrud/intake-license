@@ -251,8 +251,23 @@ class Distributors extends Page implements HasForms
     public function testConnection(): void
     {
         $conn = PlatformDistributorConnection::forCode($this->code);
-        // persist current form first so we test what's on screen
-        $conn->update($this->form->getState());
+
+        // MARKER-TEST-PACKS-CREDS — persist what's on screen, packed the same
+        // way save() does. This used to be $conn->update($form->getState()),
+        // which for BTI wrote `username` and `password` (not columns) and no
+        // api_key at all — so the test ran against the PREVIOUSLY stored
+        // credential rather than the one just typed.
+        $state = $this->form->getState();
+        $packed = app(DistributorRegistry::class)->packCredentials($this->code, $state);
+        if ($packed !== null) {
+            $conn->api_key = $packed;
+        }
+        $conn->region = $state['region'] ?? ($conn->region ?: 'us');
+        if ($this->usesAuthStyle($this->code)) {
+            $conn->auth_style = $state['auth_style'] ?? $conn->auth_style;
+        }
+        $conn->distributor_code = $this->code;
+        $conn->save();
 
         try {
             $adapter = app(DistributorRegistry::class)
