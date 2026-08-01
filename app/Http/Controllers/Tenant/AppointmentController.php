@@ -778,17 +778,74 @@ class AppointmentController extends Controller
                 ->orderBy('name')
                 ->get();
 
+            // MARKER-SEND-CONFIRMATION
+            [$confirmCanEmail, $confirmCanSms, $confirmSentAt, $confirmChannels, $confirmFailed]
+                = $this->confirmationState($tenant, $appointment);
+
             return view('tenant.appointments.show-multi-asset', compact(
                 'appointment', 'appointmentAssets', 'looseItems', 'looseAddons', 'looseParts',
                 'pickerAssets',
                 'transitions', 'destructive',
                 'availableServices', 'availableAddons', 'availableResources',
-                'specialOrdersForAppt', 'soVendors'));
+                'specialOrdersForAppt', 'soVendors',
+                'confirmCanEmail', 'confirmCanSms', 'confirmSentAt', 'confirmChannels', 'confirmFailed'));
         }
+
+        // MARKER-SEND-CONFIRMATION
+        [$confirmCanEmail, $confirmCanSms, $confirmSentAt, $confirmChannels, $confirmFailed]
+            = $this->confirmationState($tenant, $appointment);
 
         return view('tenant.appointments.show', compact(
             'appointment', 'transitions', 'destructive',
-            'availableServices', 'availableAddons', 'availableResources', 'specialOrdersForAppt', 'soVendors'));
+            'availableServices', 'availableAddons', 'availableResources', 'specialOrdersForAppt', 'soVendors',
+            'confirmCanEmail', 'confirmCanSms', 'confirmSentAt', 'confirmChannels', 'confirmFailed'));
+    }
+
+    /**
+     * MARKER-SEND-CONFIRMATION — what the operator needs to decide whether
+     * to tell this customer anything.
+     *
+     * Reads tenant_notification_log rather than a new column: the job
+     * already records every attempt there, after the send, so the record
+     * covers failures too and needs no backfill. Indexed on
+     * (tenant_id, related_type, related_id).
+     *
+     * @return array{0:bool,1:bool,2:?\Illuminate\Support\Carbon,3:array,4:bool}
+     */
+    private function confirmationState($tenant, $appointment): array
+    {
+        $customer = $appointment->customer;
+
+        $canEmail = filled($customer?->email)
+            && $tenant->notificationEnabled('booking_confirmation_email');
+        $canSms = filled($customer?->phone)
+            && $tenant->notificationEnabled('booking_confirmation_sms');
+
+        $rows = \App\Models\Tenant\TenantNotificationLog::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('related_type', 'appointment')
+            ->where('related_id', $appointment->id)
+            ->where('event_type', 'booking_confirmation')
+            ->orderByDesc('created_at')
+            ->limit(12)
+            ->get();
+
+        $sent    = $rows->where('status', 'sent');
+        $latest  = $sent->first();
+        $sentAt  = $latest?->created_at;
+
+        // One "send" can be two rows (text + email) written seconds apart —
+        // group anything within a minute of the latest as the same act.
+        $channels = $sentAt
+            ? $sent->filter(fn ($r) => $r->created_at->diffInSeconds($sentAt) <= 60)
+                   ->pluck('channel')->unique()->values()->all()
+            : [];
+
+        // Only call it failed when nothing has ever succeeded — a failed
+        // retry after a good send shouldn't erase the good send.
+        $failed = $latest === null && $rows->isNotEmpty();
+
+        return [$canEmail, $canSms, $sentAt, $channels, $failed];
     }
 
     // MARKER-PATCH-313 — render the printable 80mm service tag(s) for a job.

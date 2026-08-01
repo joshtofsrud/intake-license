@@ -737,6 +737,9 @@
       <button type="button" class="ia-btn ia-btn--secondary appt-b-reschedule-btn">↻ Reschedule</button>
       <div class="appt-b-actions-divider"></div>
       <button type="button" class="ia-btn ia-btn--danger appt-b-cancel-btn">Cancel appointment</button>
+      {{-- MARKER-SEND-CONFIRMATION --}}
+      <div class="appt-b-actions-divider"></div>
+      @include('tenant.appointments._send-confirmation')
     </div>
     @endunless
 

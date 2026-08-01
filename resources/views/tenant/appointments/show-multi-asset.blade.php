@@ -1683,6 +1683,10 @@ input.ma-asset-name-edit:focus {
           <button type="button" class="ia-btn ia-btn--secondary ia-btn--sm appt-b-reschedule-btn" style="flex: 1;">↻ Reschedule</button>
           <button type="button" class="ia-btn ia-btn--danger ia-btn--sm ma-cancel-btn" style="flex: 1;">Cancel</button>
         </div>
+        {{-- MARKER-SEND-CONFIRMATION --}}
+        <div style="margin-top:8px">
+          @include('tenant.appointments._send-confirmation')
+        </div>
       @endunless
     </div>
 
