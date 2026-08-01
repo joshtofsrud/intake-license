@@ -70,9 +70,16 @@ class BtiClient implements DistributorAdapter
     public function testConnection(): array
     {
         try {
+            // MARKER-BTI-PROBE — no Range header.
+            //
+            // This sent `Range: bytes=0-2047` so a connection check wouldn't
+            // pull the whole feed. BTI answers that with 503, which read as a
+            // rejected credential — while the very same credentials synced
+            // fine from master admin, because the sync sends no Range. The
+            // light feed is stock and prices only and is far smaller than the
+            // catalog, which is why it's the one used here.
             $res = Http::withBasicAuth($this->user, $this->pass)
-                ->timeout(30)
-                ->withHeaders(['Range' => 'bytes=0-2047'])
+                ->timeout(60)
                 ->get($this->base . '/inventory', ['type' => 'json']);
 
             $body = substr((string) $res->body(), 0, 400);
@@ -86,6 +93,10 @@ class BtiClient implements DistributorAdapter
             return [
                 'ok'     => $res->successful() && $looksLikeData,
                 'status' => $res->status(),
+                // 401/403 means the credentials are wrong. Anything else
+                // means BTI didn't serve us — a different problem with a
+                // different fix.
+                'auth'   => in_array($res->status(), [401, 403], true),
                 'body'   => $looksLikeData ? 'feed reachable' : $body,
             ];
         } catch (\Throwable $e) {

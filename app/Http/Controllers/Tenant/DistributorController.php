@@ -296,13 +296,25 @@ class DistributorController extends Controller
             $res = $adapter->testConnection();
             $ok = (bool) ($res['ok'] ?? false);
 
-            $sub->last_sync_status = $ok ? 'connected' : 'auth_failed';
+            // MARKER-BTI-PROBE — every failure used to be recorded as
+            // auth_failed, so a 503, a timeout or DNS trouble all displayed as
+            // "credentials rejected" and sent someone to re-enter a password
+            // that was already correct.
+            $status = (int) ($res['status'] ?? 0);
+            $isAuth = $res['auth'] ?? in_array($status, [401, 403], true);
+
+            $sub->last_sync_status = $ok
+                ? 'connected'
+                : ($isAuth ? 'auth_failed' : 'unreachable');
             $sub->save();
 
             return back()->with($ok ? 'success' : 'error',
                 $ok
                     ? 'Connected to ' . $label . '.'
-                    : ($label . ' rejected the credentials (HTTP ' . ($res['status'] ?? '?') . ').'));
+                    : ($isAuth
+                        ? ($label . ' rejected the credentials (HTTP ' . $status . ').')
+                        : ('Could not reach ' . $label . ' — it answered HTTP ' . $status
+                           . '. Your credentials look fine; try again shortly.')));
         } catch (\Throwable $e) {
             return back()->with('error', 'Could not reach ' . $label . ': ' . $e->getMessage());
         }

@@ -68,6 +68,9 @@
             <span style="color:var(--ia-accent)">connected</span><br>
           @elseif ($st === 'auth_failed')
             <span style="color:#E24B4A">credentials rejected</span><br>
+          @elseif ($st === 'unreachable')
+            {{-- MARKER-BTI-PROBE — not a credential problem. --}}
+            <span style="color:var(--ia-warn,#D9A441)">couldn't reach it</span><br>
           @elseif ($b['hasKey'])
             <span style="color:var(--ia-text-dim)">saved, not tested</span><br>
           @endif
