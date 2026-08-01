@@ -34,6 +34,19 @@ class BtiClient implements DistributorAdapter
     private int $pageSize;
     private int $cacheHours;
 
+    /**
+     * MARKER-CACHE-PER-RUN — feeds already downloaded by THIS adapter.
+     *
+     * The cache used to be time-based (six hours), which meant a manual sync
+     * could import a file from hours earlier and, during an outage, succeed
+     * without ever reaching the distributor. An adapter is built per run, so
+     * scoping to the instance gives one download per run and no repeats
+     * inside it.
+     *
+     * @var array<string,bool>
+     */
+    private array $fetchedThisRun = [];
+
     public function __construct(
         private readonly string $apiKey,
         private readonly string $region = 'us',
@@ -121,11 +134,16 @@ class BtiClient implements DistributorAdapter
         $name = 'bti-' . ($full ? 'full' : 'light') . '.csv';
         $path = $dir . '/' . $name;
 
-        $fresh = is_file($path)
-            && (time() - filemtime($path)) < ($this->cacheHours * 3600)
-            && filesize($path) > 1024;
+        // MARKER-CACHE-PER-RUN — reuse only within this run.
+        //
+        // Was: any file younger than cacheHours. That let a sync import a
+        // stale copy, and let one "succeed" while the distributor was down.
+        // The file still lands on disk so fgetcsv can stream it without
+        // holding 43 MB in memory; it just isn't reused across runs.
+        $key = $full ? 'full' : 'light';
 
-        if ($fresh) {
+        if (! empty($this->fetchedThisRun[$key])
+            && is_file($path) && filesize($path) > 1024) {
             return $path;
         }
 
@@ -152,6 +170,7 @@ class BtiClient implements DistributorAdapter
                 // Rename only after a complete download, so a failed attempt
                 // can never be served as a valid cache.
                 rename($tmp, $path);
+                $this->fetchedThisRun[$key] = true;   // MARKER-CACHE-PER-RUN
                 return $path;
             } catch (\Throwable $e) {
                 @unlink($tmp);

@@ -33,7 +33,9 @@ return [
         'retries'        => (int) env('BTI_RETRIES', 2),
         'retry_sleep_ms' => (int) env('BTI_RETRY_SLEEP', 1000),
         'page_size'      => (int) env('BTI_PAGE_SIZE', 2000),
-        // How long a downloaded feed is reused before re-fetching.
+        // MARKER-CACHE-PER-RUN — a feed is now reused only within a single
+        // sync run, never across runs, so this is no longer consulted. Kept
+        // so an existing BTI_CACHE_HOURS in .env doesn't look meaningful.
         'cache_hours'    => (int) env('BTI_CACHE_HOURS', 6),
     ],
 
