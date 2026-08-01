@@ -11,13 +11,14 @@
                 background:{{ $ok ? 'rgba(99,153,34,.15)' : 'rgba(186,117,23,.15)' }};
                 border:1px solid {{ $ok ? 'rgba(99,153,34,.4)' : 'rgba(186,117,23,.4)' }};">
         <div style="font-weight:600;font-size:14px">
-            {{ $ok ? '● HLC connected' : '○ HLC not verified' }}
+            {{-- MARKER-PAGE-FOLLOWS-CODE --}}
+            {{ $ok ? '● ' . $this->code . ' connected' : '○ ' . $this->code . ' not verified' }}
         </div>
         <div style="font-size:12px;opacity:.8">
             @if($tested)
                 Last tested {{ $tested->diffForHumans() }} — {{ $conn->last_test_message }}
             @else
-                Enter the platform key and click “Test connection”.
+                Enter {{ $this->code }}'s credentials and click “Test connection”.
             @endif
         </div>
     </div>
@@ -27,7 +28,12 @@
 
     {{-- sync status --}}
     <x-filament::section heading="Catalog sync">
-        <x-slot name="description">Tier-1: pulls the shared catalog through the field map. Cost is nulled here (per-tenant). Use the header buttons to queue a run.</x-slot>
+        <x-slot name="description">Tier-1: pulls the shared catalog through the field map. Cost is nulled here (per-tenant). Use the header buttons to queue a run.
+            @if (strtoupper($this->code) === 'BTI')
+                <br><b>{{ $this->code }} is a bulk file feed</b> — every run downloads the whole
+                catalog, so there is no delta.
+            @endif
+        </x-slot>
         @php
             $running = ($state->last_status ?? '') === 'running'
                 && $state->last_run_at
@@ -76,14 +82,14 @@
             @endif
         </div>
         @if($state?->last_error)
-            {{-- MARKER-MASTER-DIST-PER-CODE — the mapping test uses hardcoded HLC
-     variant shapes, so it's hidden for other distributors rather than
-     shown with data that cannot apply to them. --}}
-@if (strtoupper($this->code) === 'HLC')
 <div style="margin-top:10px;font-size:12px;color:#E24B4A">{{ \Illuminate\Support\Str::limit($state->last_error, 160) }}</div>
         @endif
     </x-filament::section>
 
+    {{-- MARKER-PAGE-FOLLOWS-CODE — the mapping test runs hardcoded HLC variant
+         shapes through the resolver, so it can say nothing about another
+         distributor. Hidden rather than shown with data that cannot apply. --}}
+    @if (strtoupper($this->code) === 'HLC')
     {{-- live mapping test --}}
     <x-filament::section heading="Test mapping">
         <x-slot name="description">Run a real HLC variant through the current field map. Edit a map row, come back, and the output follows.</x-slot>
@@ -108,5 +114,6 @@
         </div>
     </x-filament::section>
 
+    @endif
+
 </x-filament-panels::page>
-@endif

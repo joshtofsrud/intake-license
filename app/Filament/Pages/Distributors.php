@@ -238,7 +238,12 @@ class Distributors extends Page implements HasForms
                 ->modalDescription('Queues a full catalog pull from the selected distributor. Runs in the background.')
                 ->action(fn () => $this->dispatchSync(false)),
 
+            // MARKER-PAGE-FOLLOWS-CODE — BTI has no delta: the client always
+            // downloads the whole feed and the --since watermark has nothing
+            // to filter on. Offering the button would imply an incremental
+            // pull that doesn't exist and quietly run a full one.
             Action::make('runDelta')->label('Run delta sync')->color('gray')
+                ->visible(fn () => strtoupper($this->code) !== 'BTI')
                 ->action(fn () => $this->dispatchSync(true)),
         ];
     }
