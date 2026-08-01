@@ -40,7 +40,10 @@ class EmailService
 
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+        // MARKER-TXN-THREADING — thread it and reply into Intake; the old
+        // fallback pointed at {subdomain}@intake.works, which receives nothing.
+        $replyTo   = $this->threadedReplyTo($toEmail, $templateKey, $subject)
+                  ?: ($this->tenant->email_reply_to ?? $fromEmail);
 
         // MARKER-PATCH-146 — suppression gate
         if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
@@ -90,6 +93,46 @@ class EmailService
     // no inbound address is configured or no token is given (caller falls back
     // to the tenant's normal Reply-To — fail-safe).
     // ----------------------------------------------------------------
+    /**
+     * MARKER-TXN-THREADING — thread this send and hand back its Reply-To.
+     *
+     * Returns null when the recipient is not a customer of this tenant, which
+     * is the guard that keeps staff mail (schedule publishes, announcements,
+     * time-clock) out of the customer inbox — a staff member replying to their
+     * own schedule must not become a customer record.
+     */
+    private function threadedReplyTo(string $toEmail, string $templateKey, string $subject): ?string
+    {
+        if (! config('services.postmark.inbound_address')) {
+            return null;
+        }
+
+        $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $this->tenant->id)
+            ->whereRaw('LOWER(email) = ?', [strtolower(trim($toEmail))])
+            ->first();
+
+        if (! $customer) {
+            return null;
+        }
+
+        try {
+            $inbox  = app(\App\Services\Tenant\InboxService::class);
+            $thread = $inbox->threadFor($this->tenant, $customer, 'email');
+            $inbox->recordTransactionalEmail($thread, $subject, $templateKey);
+
+            return self::inboundReplyAddress($thread->inbound_token);
+        } catch (\Throwable $e) {
+            // Threading is an enhancement — never let it stop the send.
+            logger()->error('email.threading_failed', [
+                'tenant_id' => $this->tenant->id,
+                'template'  => $templateKey,
+                'error'     => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
     public static function inboundReplyAddress(?string $token): ?string
     {
         $token = trim((string) $token);
@@ -117,7 +160,11 @@ class EmailService
     ): bool {
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        $replyTo   = $replyToOverride ?: ($this->tenant->email_reply_to ?? $fromEmail);
+        // MARKER-TXN-THREADING — an override means the inbox already owns this
+        // send (postOutbound records it itself), so don't thread it twice.
+        $replyTo   = $replyToOverride
+                  ?: $this->threadedReplyTo($toEmail, $templateKey, $subject)
+                  ?: ($this->tenant->email_reply_to ?? $fromEmail);
 
         if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
             logger()->info("EmailService::sendRendered skipped (suppressed) [{$templateKey}]", [
@@ -166,7 +213,9 @@ class EmailService
     ): bool {
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();
-        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+        // MARKER-TXN-THREADING — invoices go to customers, same as receipts.
+        $replyTo   = $this->threadedReplyTo($toEmail, $templateKey, $subject)
+                  ?: ($this->tenant->email_reply_to ?? $fromEmail);
 
         if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
             logger()->info("EmailService::sendRenderedWithPdf skipped (suppressed) [{$templateKey}]", [

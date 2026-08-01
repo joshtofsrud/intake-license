@@ -818,6 +818,18 @@
             All your customer emails come from this address. Custom domains coming soon.
           </div>
         </div>
+        {{-- MARKER-TXN-THREADING — the shop's public inbound address --}}
+        @if($currentTenant->inboundAddress())
+          <div class="ia-form-group">
+            <label class="ia-form-label">Your inbox email address</label>
+            <input type="text" class="ia-input" readonly value="{{ $currentTenant->inboundAddress() }}"
+                   onclick="this.select()" style="cursor:text">
+            <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
+              Anyone who emails this lands in your Inbox. Put it on your website or business cards.
+              Replies to emails you send arrive there automatically.
+            </div>
+          </div>
+        @endif
         <div class="ia-form-group">
           <label class="ia-form-label">Reply-to (optional)</label>
           <input type="email" name="email_reply_to" class="ia-input"

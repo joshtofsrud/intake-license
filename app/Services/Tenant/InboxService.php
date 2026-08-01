@@ -128,6 +128,29 @@ class InboxService
     }
 
     /** Internal note — visible to staff only, never sent. */
+    /**
+     * MARKER-TXN-THREADING — record an email the system sent, without sending.
+     *
+     * postOutbound() is the staff reply path and actually dispatches the
+     * message; calling it from EmailService would loop. This is record-only.
+     *
+     * last_message_at is deliberately left alone: a day of booking
+     * confirmations must not push real conversations down the list. Threads
+     * rise when a person writes, not when the system does.
+     */
+    public function recordTransactionalEmail(TenantThread $thread, string $subject, string $templateKey): TenantMessage
+    {
+        return TenantMessage::create([
+            'thread_id'    => $thread->id,
+            'direction'    => 'out',
+            'kind'         => 'transactional',
+            'body'         => $subject,
+            'meta'         => ['template' => $templateKey, 'via' => 'system_email'],
+            'channel'      => 'email',
+            'delivered_at' => now(),
+        ]);
+    }
+
     public function postNote(TenantThread $thread, string $body, ?string $userId = null): TenantMessage
     {
         $message = TenantMessage::create([
