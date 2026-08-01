@@ -111,9 +111,10 @@
            Success → inline green banner (non-blocking, just confirms an action).
            Error   → IntakeConfirm.alert() modal (blocks until acknowledged so
            it can't be missed when the page is long, e.g. class session list). --}}
-      @if(session('success'))
-        <div class="ia-flash ia-flash--success">{{ session('success') }}</div>
-      @endif
+      {{-- MARKER-FLASH-MODAL — the inline success bar pushed the page down and
+           stacked with the clock-in nudge. Both success and error now render
+           through one animated modal. --}}
+      @include('layouts.tenant._flash-modal')
 
       {{-- MARKER-PATCH-613 — clock-in prompt. Off-the-clock staff get a gentle,
            dismissible nudge (dismissal is per page-load, not persisted — it
@@ -137,34 +138,9 @@
         @endif
       @endif
       {{-- MARKER-PATCH-445 — single global flash; per-page success/error banners removed across tenant views --}}
-      @if(session('error'))
-        @push('scripts')
-        <script>
-          (function () {
-            function pop() {
-              if (window.IntakeConfirm && typeof window.IntakeConfirm.alert === 'function') {
-                window.IntakeConfirm.alert({
-                  title:   'Couldn\'t do that',
-                  message: @json(session('error')),
-                });
-              } else {
-                // Fallback if confirm.js hasn't loaded for some reason. Same
-                // visual pattern as the inline banner — never silently swallow.
-                var d = document.createElement('div');
-                d.className = 'ia-flash ia-flash--error';
-                d.textContent = @json(session('error'));
-                document.body.insertBefore(d, document.body.firstChild);
-              }
-            }
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', pop);
-            } else {
-              pop();
-            }
-          })();
-        </script>
-        @endpush
-      @endif
+      {{-- MARKER-FLASH-MODAL — errors used a blocking IntakeConfirm.alert so they
+           couldn't be missed on a long page. The modal keeps that: it waits for
+           acknowledgement, while a success dismisses itself. --}}
 
       @include('layouts.tenant._staff-broadcast-banner')
       @yield('content')

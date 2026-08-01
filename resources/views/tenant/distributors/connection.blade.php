@@ -60,8 +60,16 @@
           <p class="dc-sub" style="margin-bottom:0">Stored encrypted. Used only for your shop's cost &amp; availability.</p>
         </div>
         <div style="font-size:12px;color:var(--ia-text-dim);text-align:right">
-          @if ($b['hasKey'])
+          {{-- MARKER-FLASH-MODAL — this said "connected" whenever a credential
+               was STORED, so a distributor could show connected and
+               auth_failed on the same card. It now reflects the last test. --}}
+          @php $st = $b['sub']->last_sync_status; @endphp
+          @if ($st === 'connected')
             <span style="color:var(--ia-accent)">connected</span><br>
+          @elseif ($st === 'auth_failed')
+            <span style="color:#E24B4A">credentials rejected</span><br>
+          @elseif ($b['hasKey'])
+            <span style="color:var(--ia-text-dim)">saved, not tested</span><br>
           @endif
           {{ number_format($b['linked']) }} linked item{{ $b['linked'] === 1 ? '' : 's' }}
         </div>
@@ -125,11 +133,7 @@
           <button class="dc-btn primary" type="submit">Save</button>
           <button class="dc-btn" type="submit"
                   formaction="{{ route('tenant.distributors.connection.test') }}">Test connection</button>
-          @if ($b['sub']->last_sync_status)
-            <span style="font-size:11.5px;color:var(--ia-text-dim)">
-              last check: {{ $b['sub']->last_sync_status }}
-            </span>
-          @endif
+
         </div>
       </form>
     </div>
