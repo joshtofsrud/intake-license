@@ -342,10 +342,26 @@ class AppointmentController extends Controller
         }
 
         if ($request->expectsJson()) {
+            // MARKER-NOTIFY-MODAL — which channels could actually reach this
+            // customer. A channel needs BOTH the customer's contact detail and
+            // the tenant's notification switch; offering one without both is a
+            // button that silently does nothing.
+            $cust = $appointment->customer;
+            $canEmail = filled($cust?->email)
+                && $tenant->notificationEnabled('booking_confirmation_email');
+            $canSms = filled($cust?->phone)
+                && $tenant->notificationEnabled('booking_confirmation_sms');
+
             return response()->json([
                 'ok'       => true,
                 'id'       => $appointment->id,
                 'ra'       => $appointment->ra_number,
+                'notify'   => [
+                    'email' => $canEmail,
+                    'sms'   => $canSms,
+                    'to'    => trim((string) ($cust?->first_name . ' ' . $cust?->last_name)) ?: 'the customer',
+                ],
+                'notify_url' => route('tenant.appointments.notify', ['id' => $appointment->id]),
                 'redirect' => route('tenant.appointments.show', [
                     'id'        => $appointment->id,
                 ]),
