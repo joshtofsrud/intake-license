@@ -71,6 +71,14 @@
        takes the slack. Guards against a flash banner getting squashed. */
     .ia-content > * { flex:0 0 auto; }
     .ib-wrap { flex:1 1 auto; min-height:360px; }
+    /* MARKER-INBOX-GRID-ROWS — the grid's implicit row is `auto`, so it sizes
+       to the tallest column and blows past the height we just gave .ib-wrap.
+       minmax(0,1fr) pins it to the container AND allows it to shrink below
+       its content; min-height:0 does the same for the two columns. Without
+       both, .ib-msgs and the thread-list wrapper see no overflow and never
+       scroll — the content just gets clipped by .ib-wrap's overflow:hidden. */
+    .ib-wrap { grid-template-rows: minmax(0, 1fr); }
+    .ib-list, .ib-conv { min-height: 0; }
     /* .ib-msgs goes back to plain flex:1 — with a bounded parent it fills the
        space and scrolls, so the composer sits directly under the last
        message instead of after a gap. */
