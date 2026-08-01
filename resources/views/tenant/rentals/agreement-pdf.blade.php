@@ -18,8 +18,26 @@
   <div class="sub">{{ $tenant->name }} · Rental {{ $rental->rental_number }} · {{ tlocal_datetime($rental->starts_at, 'M j, Y g:i A') }} → {{ tlocal_datetime($rental->due_at, 'M j, Y g:i A') }}</div>
   <div class="body">{{ $template->body }}</div>
   <div class="sig">
+    @php
+      // MARKER-RENTAL-WAIVER-DISPLAY-UI — inline the drawn signature. Base64
+      // rather than a path so DomPDF never depends on filesystem access.
+      $sigPath = $signaturePath ?? null;
+      $sigData = null;
+      if ($sigPath && \Illuminate\Support\Facades\Storage::disk('public')->exists($sigPath)) {
+          try {
+              $sigData = 'data:image/png;base64,' . base64_encode(
+                  \Illuminate\Support\Facades\Storage::disk('public')->get($sigPath)
+              );
+          } catch (\Throwable $e) {
+              $sigData = null;
+          }
+      }
+    @endphp
+    @if($sigData)
+      <img src="{{ $sigData }}" alt="Signature" style="max-height:60px;margin-bottom:4px">
+    @endif
     <b>{{ $signerName }}</b>
-    <div class="meta">Signed at the counter · {{ tlocal_datetime($signedAt, 'M j, Y g:i A') }} · Agreement v{{ $template->version }} · Customer: {{ $rental->customer?->fullName() }}</div>
+    <div class="meta">{{ ($rental->agreement_method ?? 'desk') === 'display' ? 'Signed on the customer display' : 'Signed at the counter' }} · {{ tlocal_datetime($signedAt, 'M j, Y g:i A') }} · Agreement v{{ $template->version }} · Customer: {{ $rental->customer?->fullName() }}</div>
   </div>
 </body>
 </html>

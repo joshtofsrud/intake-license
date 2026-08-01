@@ -12,6 +12,8 @@ use App\Models\Tenant\TenantSaleItem;
 use App\Models\Tenant\TenantRentalUnit;
 use App\Models\Tenant\TenantRentalAgreementTemplate;
 use App\Models\Tenant\TenantRentalConditionCheck;
+use App\Models\Tenant\TenantRegister; // MARKER-RENTAL-WAIVER-DISPLAY-BE
+use App\Services\Tenant\RentalAgreementService; // MARKER-RENTAL-WAIVER-DISPLAY-BE
 use Illuminate\Support\Facades\Storage;
 use App\Services\RentalAvailabilityService;
 use App\Support\MySQLLock;
@@ -381,6 +383,126 @@ class RentalBookingController extends Controller
      * confirm. Snapshots the template version AND a rendered PDF — editing
      * the template later never changes what was signed (PATCH-217 intent).
      */
+    /**
+     * MARKER-RENTAL-WAIVER-DISPLAY-BE — push the waiver to the screen paired
+     * with the staff member's current register.
+     *
+     * Every refusal returns a code the check-out page can act on, so the
+     * staff member is never left with a button that silently does nothing.
+     */
+    public function sendAgreementToDisplay(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)
+            ->with('customer')->firstOrFail();
+
+        if ($rental->agreement_signed_at) {
+            return response()->json(['ok' => false, 'code' => 'already_signed'], 200);
+        }
+        if ($rental->status !== 'reserved') {
+            return response()->json(['ok' => false, 'code' => 'not_reserved'], 200);
+        }
+
+        $template = TenantRentalAgreementTemplate::where('tenant_id', $tenant->id)
+            ->orderByDesc('version')->first();
+        if (! $template) {
+            return response()->json(['ok' => false, 'code' => 'no_template'], 200);
+        }
+
+        $registerId = (int) $request->session()->get('current_register_id', 0);
+        $register = $registerId
+            ? TenantRegister::where('tenant_id', $tenant->id)->where('is_active', true)->find($registerId)
+            : null;
+
+        if (! $register) {
+            // Hand back the pickable registers so the page can offer the fix
+            // inline instead of dead-ending on "no register selected".
+            $request->session()->forget('current_register_id');
+            return response()->json([
+                'ok'        => false,
+                'code'      => 'no_register',
+                'registers' => TenantRegister::where('tenant_id', $tenant->id)
+                    ->where('is_active', true)->orderBy('number')
+                    ->get(['id', 'number', 'name'])
+                    ->map(fn ($r) => ['id' => $r->id, 'label' => 'Register ' . $r->number . ' · ' . $r->name])
+                    ->all(),
+            ], 200);
+        }
+
+        $nonce = Str::random(40);
+        $register->update([
+            'display_mode'       => 'agreement',
+            'display_rental_id'  => $rental->id,
+            'display_mode_at'    => now(),
+            'display_sign_nonce' => $nonce,
+        ]);
+
+        return response()->json([
+            'ok'       => true,
+            'register' => ['number' => $register->number, 'name' => $register->name],
+        ]);
+    }
+
+    /**
+     * MARKER-RENTAL-WAIVER-DISPLAY-BE — take the waiver back off the screen.
+     *
+     * Clears every register pointing at this rental, not just the session's
+     * one: staff can switch registers mid-flow, and a waiver left live on an
+     * abandoned screen is exactly the stranded state this must not allow.
+     */
+    public function recallAgreementFromDisplay(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        TenantRegister::where('tenant_id', $tenant->id)
+            ->where('display_rental_id', $rental->id)
+            ->get()
+            ->each(fn (TenantRegister $r) => $r->clearDisplayMode());
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-RENTAL-WAIVER-DISPLAY-BE — status poll for the check-out page.
+     *
+     * Drives the live flip from "waiting" to "signed" without a reload, and
+     * tells staff when a push has aged out so the screen state and the page
+     * state can never disagree.
+     */
+    public function agreementStatus(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $register = TenantRegister::where('tenant_id', $tenant->id)
+            ->where('display_rental_id', $rental->id)->first();
+
+        $displayState = 'none';
+        if ($register) {
+            $displayState = $register->agreementIsLive() ? 'waiting' : 'expired';
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'signed'       => (bool) $rental->agreement_signed_at,
+            'signer_name'  => $rental->agreement_signer_name,
+            'method'       => $rental->agreement_method,
+            'version'      => $rental->agreement_template_version,
+            'signed_at'    => $rental->agreement_signed_at
+                ? tlocal_datetime($rental->agreement_signed_at, 'M j, g:i A') : null,
+            'pdf_url'      => $rental->agreement_pdf_path
+                ? Storage::disk('public')->url($rental->agreement_pdf_path) : null,
+            'signature_url' => $rental->agreement_signature_path
+                ? Storage::disk('public')->url($rental->agreement_signature_path) : null,
+            'display'      => $displayState,
+            'register'     => $register ? ('Register ' . $register->number . ' · ' . $register->name) : null,
+        ]);
+    }
+
     public function signAgreement(Request $request, string $id)
     {
         $tenant = tenant();
@@ -429,6 +551,7 @@ class RentalBookingController extends Controller
             'agreement_template_version' => $template->version,
             'agreement_signed_at'        => now(),
             'agreement_method'           => 'desk',
+            'agreement_signer_name'      => $request->input('signer_name'), // MARKER-RENTAL-WAIVER-DISPLAY-BE
             'agreement_pdf_path'         => $pdfPath,
             'notes'                      => trim(($rental->notes ? $rental->notes . "\n" : '')
                 . 'Agreement v' . $template->version . ' signed at desk by ' . $request->input('signer_name') . '.'),

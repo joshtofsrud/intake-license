@@ -92,28 +92,81 @@
           <p style="font-size:12.5px;opacity:.55;line-height:1.6">You haven't set up a rental agreement yet, so this step is skipped. Add one in Rental Settings and every check-out from then on will require a signature.</p>
         @elseif($agreementSigned)
           <h2 class="ia-h3" style="margin-bottom:8px">Agreement signed</h2>
-          <p style="font-size:12.5px;opacity:.55">v{{ $rental->agreement_template_version }} · {{ tlocal_datetime($rental->agreement_signed_at, 'M j, g:i A') }}
+          @if($rental->agreement_signature_path)
+            <img src="{{ Storage::disk('public')->url($rental->agreement_signature_path) }}" alt="Signature"
+                 style="max-height:64px;background:#F7F7F5;border-radius:7px;padding:5px 9px;margin-bottom:9px;display:block">
+          @endif
+          <p style="font-size:12.5px;opacity:.55">
+            @if($rental->agreement_signer_name){{ $rental->agreement_signer_name }} · @endif
+            v{{ $rental->agreement_template_version }} · {{ tlocal_datetime($rental->agreement_signed_at, 'M j, g:i A') }}
+            @if($rental->agreement_method === 'display') · signed on the customer display @endif
             @if($rental->agreement_pdf_path) · <a href="{{ Storage::disk('public')->url($rental->agreement_pdf_path) }}" target="_blank" style="color:var(--ia-accent);text-decoration:none">PDF →</a>@endif
           </p>
         @else
           <h2 class="ia-h3" style="margin-bottom:10px">{{ $agreementTemplate->title }} <span style="font-size:11px;opacity:.5;font-weight:400">v{{ $agreementTemplate->version }}</span></h2>
           <div class="co-agree-body">{{ $agreementTemplate->body }}</div>
-          <form method="POST" action="{{ route('tenant.rentals.bookings.agreement.sign', $rental->id) }}" style="margin-top:14px">
+
+          {{-- MARKER-RENTAL-WAIVER-DISPLAY-UI — where does the customer sign? --}}
+          <div id="ag-methods" style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:14px 0 4px">
+            <div class="ag-method on" data-method="display" style="border:1.5px solid var(--ia-accent);border-radius:10px;padding:13px;cursor:pointer;background:rgba(190,242,100,.05)">
+              <div style="font-size:13px;font-weight:650;margin-bottom:4px">Send to customer display</div>
+              <div style="font-size:11.5px;opacity:.55;line-height:1.55">They read and sign on the paired screen.</div>
+            </div>
+            <div class="ag-method" data-method="desk" style="border:1.5px solid var(--ia-border,#282828);border-radius:10px;padding:13px;cursor:pointer">
+              <div style="font-size:13px;font-weight:650;margin-bottom:4px">Sign at this screen</div>
+              <div style="font-size:11.5px;opacity:.55;line-height:1.55">Type their name and confirm here.</div>
+            </div>
+          </div>
+
+          {{-- display path --}}
+          <div id="ag-display-pane" style="margin-top:14px">
+            <div id="ag-send-row">
+              <button type="button" id="ag-send" class="ia-btn ia-btn--primary">Send to display →</button>
+              <span id="ag-send-note" style="font-size:11.5px;opacity:.55;margin-left:10px"></span>
+            </div>
+
+            <div id="ag-waiting" style="display:none;border:1px solid #2A3317;background:rgba(190,242,100,.06);border-radius:9px;padding:13px 15px">
+              <div style="font-size:12.5px;font-weight:650;color:var(--ia-accent);margin-bottom:4px">Waiting on the renter</div>
+              <div style="font-size:11.5px;opacity:.7;line-height:1.6" id="ag-waiting-note">The waiver is up on the customer display. This step completes on its own when they sign — you can start the condition check and come back.</div>
+              <div style="margin-top:11px;display:flex;gap:9px;flex-wrap:wrap">
+                <button type="button" id="ag-recall" class="ia-btn">Recall from display</button>
+                <button type="button" class="ia-btn" onclick="coGo(3)">Start condition check →</button>
+              </div>
+            </div>
+
+            <div id="ag-pick" style="display:none;border:1px solid #3A3117;background:rgba(240,198,116,.07);border-radius:9px;padding:13px 15px;margin-top:10px">
+              <div style="font-size:12.5px;font-weight:650;margin-bottom:4px">Pick the register at this counter</div>
+              <div style="font-size:11.5px;opacity:.7;line-height:1.6">The customer display is paired to a register, so choose the one in front of you — or have them sign at this screen instead.</div>
+              <div style="display:flex;gap:9px;margin-top:11px;flex-wrap:wrap">
+                <select id="ag-registers" class="ia-input" style="min-width:220px"></select>
+                <button type="button" id="ag-select-register" class="ia-btn">Use this register</button>
+              </div>
+            </div>
+          </div>
+
+          {{-- desk path --}}
+          <form method="POST" action="{{ route('tenant.rentals.bookings.agreement.sign', $rental->id) }}" style="margin-top:14px;display:none" id="ag-desk-pane">
             @csrf
             <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
               <div style="flex:1;min-width:220px">
                 <label class="ia-label" style="display:block;margin-bottom:5px">Customer signs by typing their full name</label>
-                <input type="text" name="signer_name" maxlength="160" required class="ia-input" style="width:100%" placeholder="{{ $rental->customer?->fullName() }}">
+                <input type="text" name="signer_name" maxlength="160" class="ia-input" style="width:100%" placeholder="{{ $rental->customer?->fullName() }}">
               </div>
               <button type="submit" class="ia-btn ia-btn--primary">Sign agreement</button>
             </div>
             <label style="display:flex;gap:9px;align-items:center;font-size:12.5px;margin-top:10px;cursor:pointer">
-              <input type="checkbox" name="agreed" value="1" required> Customer has read and agrees to the terms above
+              <input type="checkbox" name="agreed" value="1"> Customer has read and agrees to the terms above
             </label>
           </form>
+
+          {{-- filled by the status poll the moment a signature lands --}}
+          <div id="ag-signed-live" style="display:none;margin-top:14px;border:1px solid #2A3317;background:rgba(190,242,100,.06);border-radius:9px;padding:14px 15px">
+            <div style="font-size:13.5px;font-weight:650" id="ag-signed-name"></div>
+            <div style="font-size:11.5px;opacity:.6;margin-top:3px" id="ag-signed-meta"></div>
+          </div>
         @endif
       </div>
-      <div class="co-foot"><button type="button" class="ia-btn" onclick="coGo(1)">← Back</button><button type="button" class="ia-btn ia-btn--primary" onclick="coGo(3)" {{ $agreementDone ? '' : 'disabled' }}>Continue →</button></div>
+      <div class="co-foot"><button type="button" class="ia-btn" onclick="coGo(1)">← Back</button><button type="button" id="ag-continue" class="ia-btn ia-btn--primary" onclick="coGo(3)" {{ $agreementDone ? '' : 'disabled' }}>Continue →</button></div>
     </div>
 
     {{-- ------------------------------------------------- step 3 condition --}}
@@ -322,6 +375,144 @@ document.querySelectorAll('.co-seg').forEach(function (seg) {
       });
     });
   });
+})();
+</script>
+@endif
+
+{{-- MARKER-RENTAL-WAIVER-DISPLAY-UI — push, recall, and live status --}}
+@if($agreementTemplate && !$agreementSigned)
+<script>
+(function () {
+  var SEND   = @json(route('tenant.rentals.bookings.agreement.send_display', $rental->id));
+  var RECALL = @json(route('tenant.rentals.bookings.agreement.recall_display', $rental->id));
+  var STATUS = @json(route('tenant.rentals.bookings.agreement.status', $rental->id));
+  var SELECT = @json(route('tenant.register.select'));
+  var CSRF   = @json(csrf_token());
+
+  var sendRow = document.getElementById('ag-send-row');
+  var waiting = document.getElementById('ag-waiting');
+  var pick    = document.getElementById('ag-pick');
+  var note    = document.getElementById('ag-send-note');
+  var signed  = document.getElementById('ag-signed-live');
+  var timer   = null;
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+      body: JSON.stringify(body || {})
+    }).then(function (r) { return r.json(); });
+  }
+
+  // method chooser
+  document.querySelectorAll('.ag-method').forEach(function (m) {
+    m.addEventListener('click', function () {
+      var isDisplay = m.dataset.method === 'display';
+      document.querySelectorAll('.ag-method').forEach(function (x) {
+        var on = x === m;
+        x.classList.toggle('on', on);
+        x.style.borderColor = on ? 'var(--ia-accent)' : '#282828';
+        x.style.background  = on ? 'rgba(190,242,100,.05)' : 'transparent';
+      });
+      document.getElementById('ag-display-pane').style.display = isDisplay ? '' : 'none';
+      document.getElementById('ag-desk-pane').style.display    = isDisplay ? 'none' : '';
+    });
+  });
+
+  function showWaiting(on, label) {
+    sendRow.style.display = on ? 'none' : '';
+    waiting.style.display = on ? '' : 'none';
+    if (on && label) {
+      document.getElementById('ag-waiting-note').textContent =
+        'The waiver is up on ' + label + '. This step completes on its own when they sign — you can start the condition check and come back.';
+    }
+  }
+
+  document.getElementById('ag-send').addEventListener('click', function () {
+    note.textContent = 'Sending…';
+    post(SEND).then(function (j) {
+      note.textContent = '';
+      if (j.ok) {
+        pick.style.display = 'none';
+        showWaiting(true, 'Register ' + j.register.number + ' · ' + j.register.name);
+        start();
+        return;
+      }
+      if (j.code === 'no_register') {
+        var sel = document.getElementById('ag-registers');
+        sel.innerHTML = '';
+        (j.registers || []).forEach(function (r) {
+          var o = document.createElement('option');
+          o.value = r.id; o.textContent = r.label; sel.appendChild(o);
+        });
+        if (!(j.registers || []).length) {
+          sel.innerHTML = '<option value="">No registers set up yet</option>';
+        }
+        pick.style.display = '';
+        return;
+      }
+      if (j.code === 'already_signed') { check(); return; }
+      note.textContent = j.code === 'no_template'
+        ? 'No agreement template is configured.'
+        : 'This rental is no longer reserved.';
+    }).catch(function () { note.textContent = 'Could not reach the server — try again.'; });
+  });
+
+  document.getElementById('ag-select-register').addEventListener('click', function () {
+    var v = document.getElementById('ag-registers').value;
+    if (!v) { return; }
+    post(SELECT, { register_id: parseInt(v, 10) }).then(function () {
+      pick.style.display = 'none';
+      document.getElementById('ag-send').click();
+    });
+  });
+
+  document.getElementById('ag-recall').addEventListener('click', function () {
+    post(RECALL).then(function () { showWaiting(false); stop(); });
+  });
+
+  function check() {
+    return fetch(STATUS, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { return; }
+      if (j.signed) {
+        stop();
+        showWaiting(false);
+        sendRow.style.display = 'none';
+        pick.style.display = 'none';
+        document.getElementById('ag-methods').style.display = 'none';
+        document.getElementById('ag-desk-pane').style.display = 'none';
+        document.getElementById('ag-signed-name').textContent = 'Signed by ' + (j.signer_name || 'the renter');
+        document.getElementById('ag-signed-meta').textContent =
+          'v' + j.version + ' \u00b7 ' + (j.method === 'display' ? 'on the customer display' : 'at the desk') + ' \u00b7 ' + j.signed_at;
+        signed.style.display = '';
+        var cont = document.getElementById('ag-continue');
+        if (cont) { cont.removeAttribute('disabled'); }
+        var chip = document.querySelector('.co-step[data-step="2"]');
+        if (chip) { chip.classList.add('done'); chip.querySelector('.co-n').textContent = '\u2713'; }
+        return;
+      }
+      if (j.display === 'expired') {
+        // The push aged out. Say so rather than leaving a Waiting box that
+        // will never resolve.
+        showWaiting(false);
+        note.textContent = 'That waiver timed out on the screen — send it again.';
+        stop();
+      }
+    }).catch(function () { /* transient; next tick */ });
+  }
+
+  function start() { stop(); timer = setInterval(check, 3000); }
+  function stop()  { if (timer) { clearInterval(timer); timer = null; } }
+
+  // If a waiver is already live for this rental (staff reloaded the page or
+  // came back from the condition step), pick the waiting state back up.
+  check().then(function () {
+    fetch(STATUS, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.ok && !j.signed && j.display === 'waiting') { showWaiting(true, j.register); start(); }
+    }).catch(function () {});
+  });
+
+  window.addEventListener('beforeunload', stop);
 })();
 </script>
 @endif

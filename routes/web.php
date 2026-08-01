@@ -132,6 +132,10 @@ $tenantRoutes = function () {
     Route::get('/offline-fallback', fn () => view('tenant.offline-fallback'))->name('tenant.offline_fallback');
     Route::get('/pay-display/{token}',            [TenantControllers\RegisterDisplayController::class, 'display'])->name('tenant.pay_display.show');
     Route::get('/pay-display/{token}/state.json', [TenantControllers\RegisterDisplayController::class, 'displayPoll'])->name('tenant.pay_display.poll');
+    // MARKER-RENTAL-WAIVER-DISPLAY-BE — customer signs the rental waiver on
+    // the paired screen. Token + nonce are the credential (CSRF-exempt: the
+    // tablet may sit for hours and a 419 would be an unclearable dead end).
+    Route::post('/pay-display/{token}/agreement/sign', [TenantControllers\RegisterDisplayController::class, 'signAgreementFromDisplay'])->name('tenant.pay_display.agreement.sign');
     Route::post('/booking/abandon',      [TenantControllers\AbandonedBookingController::class, 'store'])->name('tenant.booking.abandon'); // MARKER-RECOVERY
     Route::get('/book/availability',     [TenantControllers\BookingController::class, 'availability'])->name('tenant.booking.availability');
     Route::post('/book/submit',          [TenantControllers\BookingController::class, 'submit'])->name('tenant.booking.submit');
@@ -447,6 +451,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-PATCH-232 — guided check-out flow.
                 Route::get( '/rentals/bookings/{id}/check-out-flow',   [TenantControllers\RentalBookingController::class, 'checkOutFlow'])->name('rentals.bookings.checkout.flow');
                 Route::post('/rentals/bookings/{id}/agreement/sign',   [TenantControllers\RentalBookingController::class, 'signAgreement'])->name('rentals.bookings.agreement.sign');
+                // MARKER-RENTAL-WAIVER-DISPLAY-BE — waiver on the paired customer screen.
+                Route::post('/rentals/bookings/{id}/agreement/send-to-display', [TenantControllers\RentalBookingController::class, 'sendAgreementToDisplay'])->name('rentals.bookings.agreement.send_display');
+                Route::post('/rentals/bookings/{id}/agreement/recall-display',  [TenantControllers\RentalBookingController::class, 'recallAgreementFromDisplay'])->name('rentals.bookings.agreement.recall_display');
+                Route::get( '/rentals/bookings/{id}/agreement/status.json',     [TenantControllers\RentalBookingController::class, 'agreementStatus'])->name('rentals.bookings.agreement.status');
                 Route::post('/rentals/bookings/{id}/condition-check',  [TenantControllers\RentalBookingController::class, 'storeConditionCheck'])->name('rentals.bookings.condition.store');
                 Route::post('/rentals/bookings/{id}/check-out-complete', [TenantControllers\RentalBookingController::class, 'completeCheckOut'])->name('rentals.bookings.checkout.complete');
                 // MARKER-PATCH-233 — guided return flow.

@@ -37,7 +37,7 @@ class TenantRental extends Model
         'subtotal_cents', 'tax_cents', 'total_cents', 'paid_cents',
         'deposit_hold_cents', 'deposit_status', 'stripe_deposit_intent_id',
         'agreement_template_version', 'agreement_signed_at',
-        'agreement_method', 'agreement_pdf_path',
+        'agreement_method', 'agreement_signer_name', 'agreement_signature_path', 'agreement_signed_ip', 'agreement_pdf_path',
         'notes',
     ];
 
