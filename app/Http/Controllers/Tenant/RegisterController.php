@@ -1399,29 +1399,66 @@ class RegisterController extends Controller
             ];
         }
 
-        // MARKER-ITEM-MODAL-VENDOR — what the distributor last reported for
-        // this variant. Deliberately the stored snapshot, not a live call:
-        // this endpoint fires every time someone taps "i", and hitting the
-        // distributor that often to refresh a number that moves slowly is a
-        // bad trade. checked_at travels with it so the age is visible.
+        // MARKER-MODAL-ALL-VENDORS — every distributor that carries this item,
+        // not just the one supplying its product info.
+        //
+        // Was $item->distributorCatalog, a single row, so a matched item
+        // showed one vendor and the shop had nothing to compare. Sources live
+        // on tenant_item_vendors: the importer writes one per distributor and
+        // the tenant sync keeps live_cost_cents / live_avail there. Cost is
+        // per-tenant, which is why it's on this pivot and deliberately null
+        // on the shared catalog.
+        //
+        // Still the stored snapshot rather than a live call — this endpoint
+        // fires every time anyone taps "i".
         $vendor = [];
-        $dc = $item->distributorCatalog;
-        if ($dc && ! empty($dc->distributor_variant_no)) {
-            $snap = \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')
-                ->where('distributor_code', $dc->distributor_code)
-                ->where('distributor_variant_no', $dc->distributor_variant_no)
-                ->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenant->id))
-                ->orderByDesc('checked_at')
-                ->first(['distributor_code', 'avail', 'checked_at']);
 
-            if ($snap) {
-                $vendor[] = [
-                    'distributor' => $snap->distributor_code,
-                    'avail'       => $snap->avail === null ? null : (int) $snap->avail,
-                    'checked_at'  => $snap->checked_at,
-                ];
+        $sources = \App\Models\Tenant\TenantInventoryItemVendor::query()
+            ->where('inventory_item_id', $item->id)
+            ->whereNotNull('distributor_catalog_id')
+            ->get(['distributor_code', 'distributor_catalog_id',
+                   'live_cost_cents', 'unit_cost_cents', 'live_avail', 'live_checked_at']);
+
+        $catalogRows = \App\Models\PlatformDistributorCatalog::query()
+            ->whereIn('id', $sources->pluck('distributor_catalog_id')->filter())
+            ->get(['id', 'distributor_code', 'distributor_variant_no'])
+            ->keyBy('id');
+
+        foreach ($sources as $src) {
+            $row = $catalogRows[$src->distributor_catalog_id] ?? null;
+
+            $avail     = $src->live_avail;
+            $checkedAt = $src->live_checked_at;
+
+            // Fall back to the stored snapshot when the pivot has no live
+            // figure — an item imported but never cost-synced has none.
+            if ($avail === null && $row && ! empty($row->distributor_variant_no)) {
+                $snap = \Illuminate\Support\Facades\DB::table('distributor_availability_snapshots')
+                    ->where('distributor_code', $row->distributor_code)
+                    ->where('distributor_variant_no', $row->distributor_variant_no)
+                    ->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenant->id))
+                    ->orderByDesc('checked_at')
+                    ->first(['avail', 'checked_at']);
+
+                if ($snap) {
+                    $avail     = $snap->avail === null ? null : (int) $snap->avail;
+                    $checkedAt = $snap->checked_at;
+                }
             }
+
+            $vendor[] = [
+                'distributor' => $src->distributor_code,
+                'avail'       => $avail === null ? null : (int) $avail,
+                'cost_cents'  => $src->live_cost_cents ?? $src->unit_cost_cents,
+                'checked_at'  => $checkedAt,
+                // Which source supplies the name, description and specs —
+                // a different question from which is cheapest.
+                'is_source'   => $src->distributor_catalog_id === $item->distributor_catalog_id,
+            ];
         }
+
+        // Cheapest first; a source with no cost sorts last rather than as free.
+        usort($vendor, fn ($a, $b) => ($a['cost_cents'] ?? PHP_INT_MAX) <=> ($b['cost_cents'] ?? PHP_INT_MAX));
 
         return response()->json([
             'ok'          => true,

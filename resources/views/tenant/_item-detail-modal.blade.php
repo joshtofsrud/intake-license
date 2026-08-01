@@ -153,18 +153,38 @@
     } );
   }
 
-  // MARKER-ITEM-MODAL-VENDOR — what the distributor last told us, with its age.
+  // MARKER-MODAL-ALL-VENDORS — one line per distributor that carries the item.
+  // Cost comes from the per-tenant pivot, so it's this shop's cost, not a
+  // list price. "info" marks which source supplies the product data, which is
+  // a separate question from which is cheapest.
   function paintVendor( vendor ) {
     if ( !vendor || !vendor.length ) return;
     var rows = '', newest = null;
 
-    vendor.forEach( function ( v ) {
+    vendor.forEach( function ( v, i ) {
       var qty = ( v.avail === null || v.avail === undefined ) ? 'unknown' : v.avail;
+      var cost = ( v.cost_cents === null || v.cost_cents === undefined )
+        ? '&mdash;' : money( v.cost_cents );
+
+      var tags = '';
+      if ( i === 0 && vendor.length > 1 && v.cost_cents !== null && v.cost_cents !== undefined ) {
+        tags += ' <span style="font-size:9.5px;font-weight:700;color:#8FD14F;letter-spacing:.04em">CHEAPEST</span>';
+      }
+      if ( v.is_source ) {
+        tags += ' <span style="font-size:9.5px;font-weight:700;color:var(--ia-text-muted);letter-spacing:.04em">INFO</span>';
+      }
+
       rows += '<tr style="border-top:0.5px solid var(--ia-border)">'
-           +  '<td class="k">' + esc( v.distributor ) + '</td>'
+           +  '<td class="k">' + esc( v.distributor ) + tags + '</td>'
+           +  '<td class="n">' + cost + '</td>'
            +  '<td class="n">' + esc( qty ) + '</td></tr>';
       if ( !newest || ( v.checked_at && v.checked_at > newest ) ) newest = v.checked_at;
     } );
+
+    rows = '<tr><td class="k" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)">Vendor</td>'
+         + '<td class="n" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)">Your cost</td>'
+         + '<td class="n" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ia-text-muted)">Available</td></tr>'
+         + rows;
 
     el( 'rim-vendor' ).innerHTML = rows;
     var when = ago( newest );
