@@ -85,6 +85,21 @@ class SendAppointmentReminders extends Command
                 ->where('tenant_id', $tenant->id)
                 ->whereNotIn('status', ['cancelled', 'refunded'])
                 ->whereNull('reminded_at')
+                // MARKER-REMINDER-CONFIRMATION-GATE — only appointments the
+                // customer was actually told about. Presence of a row is the
+                // whole test: status is ignored on purpose, because a failed
+                // confirmation should still get its reminder, and because
+                // the job logs 'skipped' rows too. A work-up dispatches no
+                // job at all, so it has no rows and stays silent.
+                // Uses the (tenant_id, related_type, related_id) index.
+                ->whereExists(function ($q) use ($tenant) {
+                    $q->selectRaw('1')
+                      ->from('tenant_notification_log as ncf')
+                      ->whereColumn('ncf.related_id', 'tenant_appointments.id')
+                      ->where('ncf.tenant_id', $tenant->id)
+                      ->where('ncf.related_type', 'appointment')
+                      ->where('ncf.event_type', 'booking_confirmation');
+                })
                 ->whereBetween('appointment_date', [
                     $windowStart->copy()->startOfDay()->toDateString(),
                     $windowEnd->copy()->endOfDay()->toDateString(),
