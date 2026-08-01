@@ -84,6 +84,9 @@ class AdminPanelProvider extends PanelProvider
                 // MARKER-MATCH-REVIEW — explicit registration; this panel does
                 // not auto-discover, so the page has no route until listed.
                 \App\Filament\Pages\CatalogMatchReview::class,
+                // MARKER-CATALOG-COVERAGE — explicit registration; this panel
+                // does not auto-discover.
+                \App\Filament\Pages\CatalogCoverage::class,
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
