@@ -839,70 +839,10 @@ window.ApptModal = (function () {
   })();
 
   // ── Submit ──
-  // MARKER-NOTIFY-MODAL — the appointment is saved and nobody has been told.
-  //
-  // "Don't notify" is a plain equal choice, not a dismissal: booking someone
-  // in at the counter while they're standing there is the common case, and a
-  // confirmation then is noise.
-  function askNotify(body) {
-    var n = (body && body.notify) || {};
-    var go = function () {
-      if (body.redirect) window.location.href = body.redirect;
-      else window.location.reload();
-    };
+  // MARKER-NOTIFY-MODAL-REMOVED — askNotify() lived here and is gone.
+  // Creating an appointment redirects to the appointment page; the
+  // Send confirmation action belongs there, not in a stacked overlay.
 
-    // Nothing could be sent anyway — don't ask a question with one answer.
-    if (!n.email && !n.sms) { go(); return; }
-
-    var bg = document.createElement('div');
-    bg.setAttribute('style',
-      'position:fixed;inset:0;z-index:500;display:grid;place-items:center;' +
-      'background:rgba(0,0,0,.55)');
-
-    var opts = '';
-    if (n.sms)   { opts += '<button type="button" class="appt-btn appt-btn--cancel" data-ch="sms" style="width:100%;padding:11px;margin-bottom:8px">Text ' + esc(n.to) + '</button>'; }
-    if (n.email) { opts += '<button type="button" class="appt-btn appt-btn--cancel" data-ch="email" style="width:100%;padding:11px;margin-bottom:8px">Email ' + esc(n.to) + '</button>'; }
-    if (n.sms && n.email) { opts += '<button type="button" class="appt-btn appt-btn--cancel" data-ch="both" style="width:100%;padding:11px;margin-bottom:8px">Text and email</button>'; }
-
-    bg.innerHTML =
-      '<div style="background:var(--ia-surface,#151517);border:0.5px solid var(--ia-border,rgba(255,255,255,.1));' +
-      'border-radius:16px;padding:26px 26px 22px;width:min(380px,calc(100vw - 32px))">' +
-        '<div style="font-size:16px;font-weight:600;margin-bottom:4px">Appointment saved</div>' +
-        '<div style="font-size:12.5px;opacity:.6;margin-bottom:18px">Nothing has been sent yet.</div>' +
-        opts +
-        '<button type="button" class="appt-btn appt-btn--create" data-ch="none" style="width:100%;padding:11px">Don\'t notify</button>' +
-      '</div>';
-
-    document.body.appendChild(bg);
-
-    bg.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-ch]');
-      if (!b) return;
-      var ch = b.getAttribute('data-ch');
-
-      if (ch === 'none') { go(); return; }
-
-      var channels = ch === 'both' ? ['sms', 'email'] : [ch];
-      b.disabled = true;
-      b.textContent = 'Sending…';
-
-      var meta = document.querySelector('meta[name="csrf-token"]');
-      fetch(body.notify_url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': meta ? meta.getAttribute('content') : ''
-        },
-        credentials: 'same-origin',
-        body: JSON.stringify({ channels: channels }),
-      })
-      // Queued or not, the appointment is saved — never strand someone on
-      // this modal because a message failed to dispatch.
-      .then(go)
-      .catch(go);
-    });
-  }
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -954,8 +894,11 @@ window.ApptModal = (function () {
     .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
     .then(function (res) {
       if (res.ok && res.body.ok) {
-        // MARKER-NOTIFY-MODAL — saved. Nothing has been sent; ask first.
-        askNotify(res.body);
+        // MARKER-NOTIFY-MODAL-REMOVED — saved, and nobody has been told.
+        // Straight to the appointment; notifying is a deliberate action
+        // there, never a side effect of creating the record.
+        if (res.body.redirect) { window.location.href = res.body.redirect; }
+        else { window.location.reload(); }
         return;
       }
       // If the slot got taken between fetch and submit, refresh week-times.
