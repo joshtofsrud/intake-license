@@ -83,14 +83,28 @@ class BtiClient implements DistributorAdapter
     public function testConnection(): array
     {
         try {
-            // MARKER-BTI-PROBE — no Range header.
+            // MARKER-BTI-PROBE-TRUTH — measured, not inferred (Aug 1, from the
+            // production server):
             //
-            // This sent `Range: bytes=0-2047` so a connection check wouldn't
-            // pull the whole feed. BTI answers that with 503, which read as a
-            // rejected credential — while the very same credentials synced
-            // fine from master admin, because the sync sends no Range. The
-            // light feed is stock and prices only and is far smaller than the
-            // catalog, which is why it's the one used here.
+            //     range      200, 3,848,122 bytes, ~22s
+            //     no range   200, 3,848,122 bytes, ~22s
+            //     HEAD       200, ~19.5s
+            //     ttfb       24.8s of a 28.4s total
+            //
+            // The previous note here said BTI answers Range with a 503. It
+            // does not — it IGNORES Range and sends the whole body. That 503
+            // was almost certainly an outage misread as a Range rejection.
+            //
+            // What the ttfb line means: BTI renders the entire feed before
+            // sending a byte, so NOTHING client-side makes this fast. Range,
+            // HEAD and streaming all still wait ~25s for generation. An
+            // authenticated request to a nonexistent path returns in 0.49s
+            // but 404s for bad credentials too, so it proves nothing.
+            //
+            // There is no cheap authenticated endpoint. Don't go looking
+            // again — set expectations in the UI instead. The light feed
+            // (stock and prices) is what's used here; the full catalog is
+            // an order of magnitude bigger.
             $res = Http::withBasicAuth($this->user, $this->pass)
                 ->timeout(60)
                 ->get($this->base . '/inventory', ['type' => 'json']);
