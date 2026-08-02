@@ -214,7 +214,18 @@
             <tr>
               <td><input class="at-cb" type="checkbox" name="flag_ids[]" value="{{ $f->id }}"></td>
               <td>
-                <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="font-weight:600">{{ $item->name ?? '—' }}</div>
+                  {{-- MARKER-ATTENTION-ITEM-INFO — deciding on a rename needs to
+                       see the item. Button, not a link: this row sits inside the
+                       bulk-action form and a stray submit would act on other
+                       flags. --}}
+                  @if($item)
+                    <button type="button" title="Item details"
+                            onclick="event.stopPropagation(); window.IntakeItemModal.open('{{ $item->id }}')"
+                            style="flex:none;width:18px;height:18px;border-radius:50%;border:1px solid var(--ia-border);background:none;color:var(--ia-text-dim);font-size:11px;font-weight:700;line-height:1;cursor:pointer;padding:0">i</button>
+                  @endif
+                </div>
                 {{-- MARKER-BLADE-WORD-BOUNDARY — the directive must not touch the
                      word before it. Blade's statement regex starts with \B@, so
                      a directive glued to the preceding word is left as literal
@@ -298,4 +309,7 @@
     </form>
   @endif
 </div>
+{{-- MARKER-ATTENTION-ITEM-INFO — the same modal the register uses. --}}
+@include('tenant._item-detail-modal')
+
 @endsection
