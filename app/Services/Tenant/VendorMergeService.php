@@ -139,7 +139,15 @@ class VendorMergeService
             TenantInventoryItem::where('default_vendor_id', $source->id)
                 ->update(['default_vendor_id' => $target->id]);
 
-            // 3. Inherit blanks. Never overwrite something the shop typed.
+            // 3. MARKER-MERGE-CODE-RELEASE — hand the code over before the
+            //    target claims it. (tenant_id, distributor_code) is unique, so
+            //    two rows holding 'bti' for even one statement is rejected.
+            //    The source cannot be deleted first to free it:
+            //    tenant_inventory_item_vendors cascades on delete and the rows
+            //    have only just been moved off it.
+            $source->update(['distributor_code' => null]);
+
+            // 4. Inherit blanks. Never overwrite something the shop typed.
             $fill = [];
             foreach (self::FILLABLE_BLANKS as $f) {
                 if (blank($target->{$f}) && filled($source->{$f})) {
@@ -149,7 +157,7 @@ class VendorMergeService
             $fill['distributor_code'] = strtolower($code);
             $target->update($fill);
 
-            // 4. Nothing references the source now, so the cascade on
+            // 5. Nothing references the source now, so the cascade on
             //    tenant_inventory_item_vendors has nothing left to take.
             $source->delete();
         });
