@@ -47,7 +47,8 @@
       @endforeach
       @if($sale->payment_method || $sale->card_last4)
         <p style="font-size:11.5px;opacity:.5;margin-top:8px">
-          {{ tender_label($sale->payment_method) }}@if($sale->card_brand) · {{ ucfirst($sale->card_brand) }}@endif@if($sale->card_last4) ····{{ $sale->card_last4 }}@endif
+          {{ tender_label($sale->payment_method) }}@if($sale->card_brand) · {{ ucfirst($sale->card_brand) }}@endif
+      @if($sale->card_last4) ····{{ $sale->card_last4 }}@endif
         </p>
       @endif
     @endif

@@ -110,7 +110,8 @@
            is zero, and needs the PO reference to process the invoice. --}}
       @if($sale->tax_exempt_applied)
         <tr><td colspan="2" style="font-size:11px;opacity:.7">
-          Tax exempt@if($sale->tax_exempt_certificate) — certificate {{ $sale->tax_exempt_certificate }}@endif
+          Tax exempt
+            @if($sale->tax_exempt_certificate) — certificate {{ $sale->tax_exempt_certificate }}@endif
         </td></tr>
       @endif
       @if($sale->po_number)

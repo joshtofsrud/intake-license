@@ -764,7 +764,8 @@
         <div style="font-size:12.5px;opacity:.6;margin-bottom:6px">
           {{ $appointment->customer->termsLabel() }}
           @if($appointment->customer->tax_exempt)
-            · Tax exempt@if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
+            · Tax exempt
+              @if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
           @endif
           @if($appointment->customer->po_required) · <span style="color:#E8A33D">PO required</span>@endif
         </div>
@@ -1455,7 +1456,8 @@
         <div style="font-size:12.5px;opacity:.6;margin-bottom:6px">
           {{ $appointment->customer->termsLabel() }}
           @if($appointment->customer->tax_exempt)
-            · Tax exempt@if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
+            · Tax exempt
+              @if($appointment->customer->tax_exempt_certificate) (cert {{ $appointment->customer->tax_exempt_certificate }})@endif
           @endif
           @if($appointment->customer->po_required) · <span style="color:#E8A33D">PO required</span>@endif
         </div>

@@ -21,7 +21,10 @@
   </div>
 @endif
 
-<form method="POST" action="{{ route('tenant.inventory.update', $item->id) }}">
+{{-- MARKER-BLADE-GLUE-FIX — the Archive form used to be nested INSIDE this
+     one. Nested forms are invalid HTML and the inner submit can post to the
+     outer action. The two are siblings now; Save reaches this form by id. --}}
+<form id="item-edit-form" method="POST" action="{{ route('tenant.inventory.update', $item->id) }}">
   @csrf
   @method('PATCH')
 
@@ -154,6 +157,8 @@
     </div>
   </div>
 
+</form>
+
   <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
     <form method="POST" action="{{ route('tenant.inventory.destroy', $item->id) }}"
       onsubmit="return confirm('Archive this item? It will be hidden but not permanently deleted. You can restore it from the master admin.')">
@@ -163,9 +168,8 @@
     </form>
     <div style="display:flex;gap:8px">
       <a href="{{ route('tenant.inventory.show', $item->id) }}" class="ia-btn ia-btn--ghost">Cancel</a>
-      <button type="submit" class="ia-btn ia-btn--primary">Save changes</button>
+      <button type="submit" form="item-edit-form" class="ia-btn ia-btn--primary">Save changes</button>
     </div>
   </div>
-</form>
 
 @endsection
