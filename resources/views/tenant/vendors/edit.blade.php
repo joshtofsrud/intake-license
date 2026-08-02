@@ -7,7 +7,16 @@
     <div class="ia-text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">
       <a href="{{ route('tenant.vendors.show', ['id' => $vendor->id]) }}" style="color:inherit;text-decoration:none">← {{ $vendor->name }}</a>
     </div>
-    <h1 class="ia-page-title">Edit vendor</h1>
+    <h1 class="ia-page-title">
+      Edit vendor
+      {{-- MARKER-VENDOR-CODE-BADGE — set by linking on Connection & sync, not
+           editable here: a free-text field would let a shop claim a feed it has
+           no credentials for. --}}
+      @if($vendor->distributor_code)
+        <span class="ia-badge" style="margin-left:8px;vertical-align:middle"
+              title="This vendor is your {{ strtoupper($vendor->distributor_code) }} catalog feed. Change it from Distributors → Connection &amp; sync.">{{ strtoupper($vendor->distributor_code) }}</span>
+      @endif
+    </h1>
   </div>
 </div>
 

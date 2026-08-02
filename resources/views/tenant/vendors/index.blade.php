@@ -180,6 +180,12 @@
           <tr style="cursor:pointer" onclick="window.location.href='{{ route('tenant.vendors.show', ['id' => $v->id]) }}'">
             <td>
               <strong>{{ $v->name }}</strong>
+              {{-- MARKER-VENDOR-CODE-BADGE — which feed this vendor IS. Survives
+                   any rename, which a name-based convention could not. --}}
+              @if($v->distributor_code)
+                <span class="ia-badge" style="margin-left:6px"
+                      title="Linked to your {{ strtoupper($v->distributor_code) }} catalog feed">{{ strtoupper($v->distributor_code) }}</span>
+              @endif
               @if(!$v->is_active)
                 <span class="ia-pill ia-pill--muted" style="margin-left:6px">Inactive</span>
               @endif
@@ -222,6 +228,10 @@
          class="vendor-card">
         <div class="vendor-card-top">
           <span class="vendor-card-name">{{ $v->name }}</span>
+          {{-- MARKER-VENDOR-CODE-BADGE --}}
+          @if($v->distributor_code)
+            <span class="ia-badge" style="margin-left:6px">{{ strtoupper($v->distributor_code) }}</span>
+          @endif
           @php $openCount = (int) ($openSoCounts[$v->id] ?? 0); @endphp
           @if($openCount > 0)
             <span class="vendor-card-so">{{ $openCount }} open</span>
