@@ -87,6 +87,8 @@ class AdminPanelProvider extends PanelProvider
                 // MARKER-CATALOG-COVERAGE — explicit registration; this panel
                 // does not auto-discover.
                 \App\Filament\Pages\CatalogCoverage::class,
+                // MARKER-CATALOG-LOOKUP-REG — same: no route without this line.
+                \App\Filament\Pages\CatalogItemLookup::class,
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
