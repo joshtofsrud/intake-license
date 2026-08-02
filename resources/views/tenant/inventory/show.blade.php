@@ -57,13 +57,21 @@
   // nothing, so the page showed blanks while Identity said "Source BTI".
   $infoCatalogId = $item->distributor_catalog_id;
 
+  // MARKER-SOURCING-MANUAL — no filter. This used to keep only rows with a
+  // distributor_code, which silently hid every hand-added vendor and left an
+  // item sourced only from those with no Sourcing card at all.
   $sources = $item->vendors
-      ->filter(fn ($v) => filled($v->pivot->distributor_code ?? null))
       ->map(function ($v) use ($infoCatalogId) {
           $cost = $v->pivot->live_cost_cents ?? $v->pivot->unit_cost_cents;
           return (object) [
               'vendor'    => $v,
               'code'      => $v->pivot->distributor_code,
+              // MARKER-SOURCING-MANUAL — what to show in the first column, and
+              // whether tier-2 owns this row's cost.
+              'label'     => filled($v->pivot->distributor_code ?? null)
+                  ? $v->pivot->distributor_code
+                  : $v->name,
+              'manual'    => ! filled($v->pivot->distributor_code ?? null),
               'sku'       => $v->pivot->vendor_sku,
               'cost'      => $cost,
               'avail'     => $v->pivot->live_avail,
@@ -258,14 +266,14 @@
       <div class="ia-card-head">
         <span class="ia-card-title">Sourcing</span>
         <span style="margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)">
-          {{ $sources->count() }} distributor{{ $sources->count() === 1 ? '' : 's' }} carry this
+          {{ $sources->count() }} source{{ $sources->count() === 1 ? '' : 's' }} for this
           @if($liveChecked) · checked {{ $liveChecked->diffForHumans() }} @endif
         </span>
       </div>
       <table class="ia-table">
         <thead>
           <tr>
-            <th>Distributor</th><th>Their part no.</th>
+            <th>Source</th><th>Their part no.</th>
             <th style="text-align:right">Your cost</th>
             <th style="text-align:right">Available</th>
             <th>Lead time</th><th></th>
@@ -275,7 +283,10 @@
           @foreach($sources as $src)
             <tr>
               <td>
-                <strong>{{ $src->code }}</strong>
+                <strong>{{ $src->label }}</strong>
+                @if($src->manual)
+                  <span class="ia-badge" style="margin-left:6px" title="Cost you entered — not refreshed from a distributor feed">Manual</span>
+                @endif
                 @if($src->cost !== null && $src->cost === $bestCost && $sources->count() > 1)
                   <span class="ia-badge ia-badge--accent" style="margin-left:6px">Cheapest</span>
                 @endif
