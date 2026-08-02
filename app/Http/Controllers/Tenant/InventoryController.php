@@ -309,6 +309,44 @@ class InventoryController extends Controller
     /**
      * MARKER-PATCH-HLC24 — bucket worklist + size sub-groups + destination tree.
      */
+    /**
+     * MARKER-ITEM-CAT-TREE — categories as roots with their children, for a
+     * select that shows nesting instead of a flat alphabetical jumble.
+     *
+     * Returns a flat list of ['cat' => model, 'depth' => 0|1] so the view
+     * stays simple. Orphans — a category whose parent is missing or
+     * inactive — are appended at depth 0 rather than dropped; an item you
+     * cannot file is worse than a category shown in the wrong place.
+     *
+     * @return array<int, array{cat: TenantInventoryCategory, depth: int}>
+     */
+    public static function categoryOptions(string $tenantId): array
+    {
+        $all = TenantInventoryCategory::where('tenant_id', $tenantId)
+            ->orderBy('sort_order')->orderBy('name')->get();
+
+        $out  = [];
+        $seen = [];
+
+        foreach ($all->whereNull('parent_id') as $root) {
+            $out[]        = ['cat' => $root, 'depth' => 0];
+            $seen[$root->id] = true;
+
+            foreach ($all->where('parent_id', $root->id) as $child) {
+                $out[]         = ['cat' => $child, 'depth' => 1];
+                $seen[$child->id] = true;
+            }
+        }
+
+        foreach ($all as $cat) {
+            if (! isset($seen[$cat->id])) {
+                $out[] = ['cat' => $cat, 'depth' => 0];
+            }
+        }
+
+        return $out;
+    }
+
     public function uncategorized(Request $request): View
     {
         $tenant = tenant();
@@ -573,10 +611,9 @@ class InventoryController extends Controller
                 ]);
         }
 
-        $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        // MARKER-ITEM-CAT-TREE — same parent/children shape the index filter
+        // uses, so the picker reads like the rest of inventory.
+        $categories = self::categoryOptions($tenant->id);
 
         if ($categories->isEmpty()) {
             return redirect()->route('tenant.inventory.categories.index')
@@ -731,10 +768,9 @@ class InventoryController extends Controller
             ->where('tenant_id', $tenant->id)
             ->findOrFail($id);
 
-        $categories = TenantInventoryCategory::where('tenant_id', $tenant->id)
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
+        // MARKER-ITEM-CAT-TREE — same parent/children shape the index filter
+        // uses, so the picker reads like the rest of inventory.
+        $categories = self::categoryOptions($tenant->id);
 
         return view('tenant.inventory.edit', compact('item', 'categories'));
     }

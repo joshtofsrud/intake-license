@@ -43,8 +43,9 @@
       <div class="ia-form-group">
         <label class="ia-form-label">Category <span class="ia-required">*</span></label>
         <select name="category_id" class="ia-input" required>
-          @foreach($categories as $cat)
-            <option value="{{ $cat->id }}" @selected(old('category_id', $item->category_id) === $cat->id)>{{ $cat->name }}</option>
+          {{-- MARKER-ITEM-CAT-TREE --}}
+          @foreach($categories as $opt)
+            <option value="{{ $opt['cat']->id }}" @selected(old('category_id', $item->category_id) === $opt['cat']->id)>{{ $opt['depth'] ? '   └ ' : '' }}{{ $opt['cat']->name }}</option>
           @endforeach
         </select>
       </div>
