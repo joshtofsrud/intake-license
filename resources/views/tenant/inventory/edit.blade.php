@@ -159,6 +159,8 @@
 
   {{-- MARKER-ARCHIVE-MOVE — Archive lives on the item page now. A
        destructive control next to Save is what turned a save into a delete. --}}
+  @include('tenant.inventory._sources')
+
   <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
     <a href="{{ route('tenant.inventory.show', $item->id) }}" class="ia-btn ia-btn--ghost">Cancel</a>
     <button type="submit" class="ia-btn ia-btn--primary">Save changes</button>

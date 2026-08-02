@@ -1,7 +1,6 @@
 {{-- MARKER-ITEM-SOURCES-EDIT — shared by create and edit.
      Expects $vendors, and $item when editing. --}}
 @php
-  // Rows the importer owns. Shown for context, never edited here.
   // TenantInventoryItem has only vendors() (BelongsToMany), so read the
   // pivot model directly — it's the row ids the form needs to post back.
   $srcRows = isset($item)

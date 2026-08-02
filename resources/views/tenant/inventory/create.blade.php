@@ -140,6 +140,8 @@
     </div>
   </div>
 
+  @include('tenant.inventory._sources')
+
   <div style="display:flex;gap:8px;justify-content:flex-end">
     <a href="{{ route('tenant.inventory.index') }}" class="ia-btn ia-btn--ghost">Cancel</a>
     <button type="submit" class="ia-btn ia-btn--primary">Create item</button>

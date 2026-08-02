@@ -626,6 +626,11 @@ class InventoryController extends Controller
         // uses, so the picker reads like the rest of inventory.
         $categories = self::categoryOptions($tenant->id);
 
+        // MARKER-ITEM-SOURCES-EDIT — an item can come from several vendors,
+        // same as everywhere else in the system.
+        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)->orderBy('name')->get();
+
         if ($categories->isEmpty()) {
             return redirect()->route('tenant.inventory.categories.index')
                 ->with('flash', ['type' => 'info', 'message' => 'Create at least one category before adding items.']);
@@ -713,8 +718,79 @@ class InventoryController extends Controller
             }
         }
 
+        $this->syncItemSources($request, $item); // MARKER-ITEM-SOURCES-EDIT
+
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => "Item '{$item->name}' created."]);
+    }
+
+    /**
+     * MARKER-ITEM-SOURCES-EDIT — write the manual vendor rows from the form.
+     *
+     * Only touches rows with a NULL distributor_code. Anything the importer
+     * owns is left alone: tier-2 refreshes its cost and availability, so a
+     * value typed here would be silently reverted on the next sync.
+     *
+     * Rows the form no longer lists are deleted, so removing a vendor in the
+     * UI actually removes it.
+     */
+    private function syncItemSources(Request $request, TenantInventoryItem $item): void
+    {
+        $tenantId = $item->tenant_id;
+
+        $rows = collect((array) $request->input('sources', []))
+            ->filter(fn ($r) => filled($r['vendor_id'] ?? null));
+
+        $validVendorIds = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)
+            ->pluck('id')->flip();
+
+        $keptIds = [];
+
+        foreach ($rows as $r) {
+            if (! $validVendorIds->has($r['vendor_id'])) {
+                continue; // not this tenant's vendor
+            }
+
+            $cost = $r['unit_cost'] ?? null;
+
+            $payload = [
+                'vendor_sku'      => filled($r['vendor_sku'] ?? null) ? $r['vendor_sku'] : null,
+                'unit_cost_cents' => ($cost === null || $cost === '') ? null : (int) round((float) $cost * 100),
+                'lead_time_days'  => filled($r['lead_time_days'] ?? null) ? (int) $r['lead_time_days'] : null,
+            ];
+
+            // firstOrNew on the pair, because (inventory_item_id, vendor_id)
+            // is unique — the same vendor twice in the form must not collide.
+            $row = \App\Models\Tenant\TenantInventoryItemVendor::firstOrNew([
+                'inventory_item_id' => $item->id,
+                'vendor_id'         => $r['vendor_id'],
+            ]);
+
+            if ($row->exists && $row->distributor_code !== null) {
+                $keptIds[] = $row->id; // synced row, leave it be
+                continue;
+            }
+
+            $row->fill($payload)->save();
+            $keptIds[] = $row->id;
+        }
+
+        // Drop manual rows the form dropped. Synced rows are never removed
+        // here — only the importer owns those.
+        \App\Models\Tenant\TenantInventoryItemVendor::where('inventory_item_id', $item->id)
+            ->whereNull('distributor_code')
+            ->whereNotIn('id', $keptIds ?: ['-'])
+            ->delete();
+
+        // Preferred is single-choice across every source, synced included,
+        // because autoAssignVendor's `preferred` rule reads exactly one flag.
+        $preferred = (string) $request->input('preferred_source', '');
+        if ($preferred !== '') {
+            \App\Models\Tenant\TenantInventoryItemVendor::where('inventory_item_id', $item->id)
+                ->update(['is_preferred' => false]);
+            \App\Models\Tenant\TenantInventoryItemVendor::where('inventory_item_id', $item->id)
+                ->where('id', $preferred)->update(['is_preferred' => true]);
+        }
     }
 
     public function show(Request $request, string $id): View
@@ -786,6 +862,11 @@ class InventoryController extends Controller
         // uses, so the picker reads like the rest of inventory.
         $categories = self::categoryOptions($tenant->id);
 
+        // MARKER-ITEM-SOURCES-EDIT — an item can come from several vendors,
+        // same as everywhere else in the system.
+        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
+            ->where('is_active', true)->orderBy('name')->get();
+
         return view('tenant.inventory.edit', compact('item', 'categories'));
     }
 
@@ -845,6 +926,8 @@ class InventoryController extends Controller
             'allow_oversell'         => (bool) ($data['allow_oversell'] ?? true),
             'is_active'              => (bool) ($data['is_active'] ?? true),
         ]);
+
+        $this->syncItemSources($request, $item); // MARKER-ITEM-SOURCES-EDIT
 
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => 'Item updated.']);
