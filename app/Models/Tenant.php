@@ -252,8 +252,13 @@ class Tenant extends Model
 
     public function emailFromAddress(): string
     {
+        // MARKER-FROM-REPLYABLE — prefer the inbound domain so the From is an
+        // address customers can actually write to. The old apex fallback
+        // stays last: it keeps sending working if inbound is unconfigured,
+        // and it is the address Postmark is already verified for.
         return $this->email_from_address
-            ?: ($this->subdomain . '@intake.works');
+            ?: ($this->inboundAddress()
+            ?: ($this->subdomain . '@intake.works'));
     }
 
     /**

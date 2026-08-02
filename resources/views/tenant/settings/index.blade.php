@@ -807,15 +807,17 @@
           value="{{ old('email_from_name', $currentTenant->email_from_name) }}"
           placeholder="{{ $currentTenant->name }}">
       </div>
-      {{-- MARKER-PATCH-143 — From address locked to <subdomain>@intake.works until custom domains land --}}
+      {{-- MARKER-FROM-REPLYABLE — reads emailFromAddress() rather than rebuilding
+           the string, so the field can't disagree with what actually sends --}}
       <div class="ia-input-grid-2">
         <div class="ia-form-group">
           <label class="ia-form-label">From email address</label>
           <input type="email" class="ia-input" readonly disabled
-            value="{{ $currentTenant->subdomain }}@intake.works"
+            value="{{ $currentTenant->emailFromAddress() }}"
             style="opacity:.7;cursor:not-allowed">
           <div style="font-size:11px;color:var(--ia-text-dim);margin-top:4px">
-            All your customer emails come from this address. Custom domains coming soon.
+            All your customer emails come from this address, and customers can write
+            back to it — replies land in your Inbox. Custom domains coming soon.
           </div>
         </div>
         {{-- MARKER-TXN-THREADING — the shop's public inbound address --}}
