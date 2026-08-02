@@ -61,6 +61,13 @@ class DistributorController extends Controller
                 'code'      => $code,
                 'label'     => $registry->label($code),
                 'sub'       => $sub,
+                // MARKER-DIST-VENDOR-PROMPT — which of the shop's vendors IS
+                // this distributor. Asked here because it's the one moment the
+                // answer is unambiguous.
+                'vendors'   => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+                    ->where('is_active', true)->orderBy('name')->get(['id', 'name', 'distributor_code']),
+                'linkedVendorId' => \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+                    ->where('distributor_code', strtolower($code))->value('id'),
                 'fields'    => $registry->credentialFields($code),
                 'hasKey'    => filled($creds['api_key'] ?? null),
                 'maskedKey' => $this->mask($creds['api_key'] ?? null),
@@ -124,6 +131,7 @@ class DistributorController extends Controller
             'username'         => ['nullable', 'string', 'max:128'],
             'password'         => ['nullable', 'string', 'max:255'],
             'account_number'   => ['nullable', 'string', 'max:64'],
+            'vendor_id'        => ['nullable', 'string', 'max:64'], // MARKER-DIST-VENDOR-PROMPT
         ]);
 
         $registry = app(\App\Services\Distributors\DistributorRegistry::class);
@@ -144,6 +152,27 @@ class DistributorController extends Controller
         if ($packed !== null) {
             $creds['api_key'] = $packed;
             $creds['region'] = $creds['region'] ?? 'us';
+        }
+
+        // MARKER-DIST-VENDOR-PROMPT — bind the distributor to a vendor the shop
+        // already has, so the importer stops inventing a duplicate.
+        $vendorId = trim((string) ($data['vendor_id'] ?? ''));
+        if ($vendorId !== '') {
+            $target = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+                ->where('id', $vendorId)->first();
+
+            if ($target) {
+                // One vendor per distributor per tenant. Two rows claiming the
+                // same code means vendorFor() picks whichever the DB returns
+                // first, so imports attach to one while existing items hang off
+                // the other.
+                \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+                    ->where('distributor_code', strtolower($code))
+                    ->where('id', '!=', $target->id)
+                    ->update(['distributor_code' => null]);
+
+                $target->update(['distributor_code' => strtolower($code)]);
+            }
         }
 
         $sub->credentials_encrypted = $creds;

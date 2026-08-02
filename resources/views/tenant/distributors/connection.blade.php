@@ -126,6 +126,33 @@
           </div>
         </div>
 
+        {{-- MARKER-DIST-VENDOR-PROMPT — which vendor is this distributor --}}
+        <div class="dc-row">
+          <div class="dc-field" style="max-width:320px">
+            <label>This distributor is which of your vendors?</label>
+            <select class="dc-input" name="vendor_id">
+              <option value="">Not linked — create one on first import</option>
+              @foreach ($b['vendors'] as $v)
+                <option value="{{ $v->id }}" @selected($b['linkedVendorId'] === $v->id)>
+                  {{ $v->name }}@if($v->distributor_code && $v->distributor_code !== strtolower($b['code'])) (linked to {{ strtoupper($v->distributor_code) }})@endif
+                </option>
+              @endforeach
+            </select>
+            <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:5px;line-height:1.5">
+              @if ($b['linkedVendorId'])
+                Imported items, costs and stock attach to this vendor, and its
+                free-freight minimum and program discount are what the
+                lowest-price rule compares.
+              @else
+                Pick the vendor you already use for {{ $b['label'] }}. Leave it
+                unlinked and the first import creates a separate vendor called
+                {{ strtoupper($b['code']) }}, leaving your own record — and its
+                freight minimum and discount — out of the picture.
+              @endif
+            </div>
+          </div>
+        </div>
+
         @if ($b['hasKey'])
           <div style="font-size:11.5px;color:var(--ia-text-dim);margin-bottom:10px">
             Leave a field blank to keep the value already saved for it.
