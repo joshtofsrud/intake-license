@@ -72,7 +72,7 @@ echo "==> building $REL"
 mkdir -p "$REL"
 rsync -a --delete \
   --exclude '.git' --exclude '.env' --exclude 'storage' \
-  --exclude 'node_modules' \
+  --exclude 'node_modules' --exclude 'bootstrap/cache/*.php' \
   "$SHARED/repo/" "$REL/"
 
 ln -sfn "$SHARED/.env"    "$REL/.env"
@@ -84,7 +84,7 @@ mkdir -p "$REL/bootstrap/cache"
 chown -R www-data:www-data "$REL"
 
 cd "$REL"
-sudo -u www-data composer install --no-interaction --no-dev --optimize-autoloader --no-scripts
+sudo -u www-data composer install --no-interaction --optimize-autoloader --no-scripts
 
 echo "==> migrations (additive only — see the header)"
 sudo -u www-data php artisan migrate --force
