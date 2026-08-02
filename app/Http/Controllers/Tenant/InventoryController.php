@@ -636,7 +636,8 @@ class InventoryController extends Controller
                 ->with('flash', ['type' => 'info', 'message' => 'Create at least one category before adding items.']);
         }
 
-        return view('tenant.inventory.create', compact('categories'));
+        // MARKER-ITEM-SOURCES-COMPACT — _sources.blade.php loops $vendors.
+        return view('tenant.inventory.create', compact('categories', 'vendors'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -867,7 +868,8 @@ class InventoryController extends Controller
         $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenant->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        return view('tenant.inventory.edit', compact('item', 'categories'));
+        // MARKER-ITEM-SOURCES-COMPACT
+        return view('tenant.inventory.edit', compact('item', 'categories', 'vendors'));
     }
 
     public function update(Request $request, string $id): RedirectResponse
