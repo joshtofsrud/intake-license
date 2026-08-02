@@ -214,10 +214,36 @@ class DistributorCatalogImportService
 
     private function vendorFor(string $tenantId, string $code): TenantVendor
     {
-        return TenantVendor::firstOrCreate(
-            ['tenant_id' => $tenantId, 'name' => $code],
-            ['is_active' => true],
-        );
+        // MARKER-VENDOR-NET-COST — prefer the explicit link.
+        //
+        // This used to match on NAME alone, so the vendor ended up literally
+        // called "BTI" and a shop that already had "Bicycle Technologies
+        // International" quietly got a second one, with every imported item
+        // pointing at it. Matching on distributor_code first means a vendor
+        // the shop linked by hand wins, whatever it's called.
+        $linked = TenantVendor::where('tenant_id', $tenantId)
+            ->where('distributor_code', strtolower($code))
+            ->first();
+        if ($linked) {
+            return $linked;
+        }
+
+        // Fallback for installs that predate the link: match the old naming
+        // convention and stamp the code, so this heals on first import.
+        $byName = TenantVendor::where('tenant_id', $tenantId)
+            ->whereRaw('LOWER(name) = ?', [strtolower($code)])
+            ->first();
+        if ($byName) {
+            $byName->update(['distributor_code' => strtolower($code)]);
+            return $byName;
+        }
+
+        return TenantVendor::create([
+            'tenant_id'        => $tenantId,
+            'name'             => $code,
+            'distributor_code' => strtolower($code),
+            'is_active'        => true,
+        ]);
     }
 
     private function createItem(string $tenantId, PlatformDistributorCatalog $cat): TenantInventoryItem

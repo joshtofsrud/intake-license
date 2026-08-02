@@ -710,8 +710,12 @@ class SpecialOrderService
             return $none;
         }
 
-        $vendorIds = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)
-            ->where('is_active', true)->pluck('id');
+        // MARKER-VENDOR-NET-COST — keep the models, not just the ids: the
+        // lowest-price rule needs each vendor's program discount to compare
+        // net cost rather than list.
+        $vendors = \App\Models\Tenant\TenantVendor::where('tenant_id', $tenantId)
+            ->where('is_active', true)->get()->keyBy('id');
+        $vendorIds = $vendors->keys();
         if ($vendorIds->isEmpty()) {
             return $none;
         }
@@ -732,7 +736,16 @@ class SpecialOrderService
             } else {
                 $inStock = $priced->filter(fn ($r) => (int) ($r->live_avail ?? 0) > 0);
                 $pool    = $inStock->isNotEmpty() ? $inStock : $priced;
-                $pick    = $pool->sortBy(fn ($r) => $r->live_cost_cents ?? $r->unit_cost_cents)->first();
+
+                // MARKER-VENDOR-NET-COST — sort on what the shop actually
+                // pays. Comparing list cost picked the wrong vendor whenever
+                // one of them had a program and another didn't.
+                $pick = $pool->sortBy(function ($r) use ($vendors) {
+                    $list = $r->live_cost_cents ?? $r->unit_cost_cents;
+                    $v    = $vendors->get($r->vendor_id);
+
+                    return $v ? ($v->netCostCents($list) ?? $list) : $list;
+                })->first();
 
                 return ['vendor_id' => $pick->vendor_id, 'rule' => 'lowest_price'];
             }

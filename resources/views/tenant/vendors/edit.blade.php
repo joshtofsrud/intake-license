@@ -46,6 +46,24 @@
                  value="{{ old('free_freight', $vendor->free_freight_cents !== null ? number_format($vendor->free_freight_cents / 100, 2, '.', '') : '') }}">
           <div class="ia-form-hint">Order total that earns free shipping. Leave blank if this vendor has none — the placement board only shows a freight bar when it is set.</div>
         </div>
+        {{-- MARKER-VENDOR-NET-COST --}}
+        <div class="ia-form-group">
+          <label class="ia-form-label">Program discount %</label>
+          <input type="number" step="0.01" min="0" max="100" name="program_discount_pct" class="ia-input"
+                 placeholder="e.g. 5" value="{{ old('program_discount_pct', $vendor->program_discount_pct) }}">
+          <div class="ia-form-hint">Flat percentage off this vendor's cost. Used when auto-assigning by lowest price, so the comparison reflects what you actually pay. Leave blank if there's no program.</div>
+        </div>
+        <div class="ia-form-group">
+          <label class="ia-form-label">Catalog feed</label>
+          <select name="distributor_code" class="ia-input">
+            <option value="">Not a catalog distributor</option>
+            @foreach(array_keys((array) config('distributors', [])) as $dcode)
+              <option value="{{ $dcode }}" @selected(old('distributor_code', $vendor->distributor_code) === $dcode)>{{ strtoupper($dcode) }}</option>
+            @endforeach
+          </select>
+          <div class="ia-form-hint">Links this vendor to its catalog import, so imported items attach here instead of creating a duplicate vendor. Only one vendor per feed.</div>
+        </div>
+
       </div>
 
       <div class="ia-input-grid-2">

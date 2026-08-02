@@ -226,6 +226,9 @@ class VendorController extends Controller
             // means "no threshold", and the placement board simply shows no
             // freight bar for this vendor rather than inventing one.
             'free_freight'      => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            // MARKER-VENDOR-NET-COST
+            'program_discount_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'distributor_code'     => ['nullable', 'string', 'max:32'],
             'notes'             => ['nullable', 'string'],
             'is_active'         => ['nullable'],
         ]);
@@ -236,6 +239,17 @@ class VendorController extends Controller
             ? null
             : (int) round(((float) $freight) * 100);
         unset($data['free_freight']);
+
+        // MARKER-VENDOR-NET-COST — blank means "no program", not zero.
+        $pct = $request->input('program_discount_pct');
+        $data['program_discount_pct'] = ($pct === null || $pct === '') ? null : (float) $pct;
+
+        // Only accept a code the registry actually knows, so a typo can't
+        // orphan the link from the importer.
+        $code = strtolower(trim((string) $request->input('distributor_code')));
+        $data['distributor_code'] = ($code !== '' && array_key_exists($code, (array) config('distributors', [])))
+            ? $code
+            : null;
 
         // Soft-cast is_active. Checkboxes send 'on'/null; explicit
         // boolean values come through from API/edit form.
