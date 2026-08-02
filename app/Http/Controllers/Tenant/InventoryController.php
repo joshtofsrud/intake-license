@@ -81,9 +81,19 @@ class InventoryController extends Controller
             ->orderBy('name')
             ->get();
 
+        // MARKER-ARCHIVE-MOVE — an archived item is soft-deleted AND
+        // is_active=false, so it is invisible twice over. This is the only
+        // way back to it.
+        $archived = $request->boolean('archived');
+
         $q = TenantInventoryItem::with(['category.parent']) // MARKER-CAT-TREE — path without N+1
-            ->where('tenant_id', $tenant->id)
-            ->where('is_active', true);
+            ->where('tenant_id', $tenant->id);
+
+        if ($archived) {
+            $q->onlyTrashed();
+        } else {
+            $q->where('is_active', true);
+        }
 
         if ($search !== '') {
             // MARKER-PATCH-552 — tokenized any-field match
@@ -273,6 +283,7 @@ class InventoryController extends Controller
         return view('tenant.inventory.index', compact(
             'items', 'categories', 'hasCategories',
             'categoryTree', 'includeSubs', 'locStocks', 'allLocations', // MARKER-CAT-TREE
+            'archived', // MARKER-ARCHIVE-MOVE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
             'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST
             'posCap',
@@ -711,7 +722,10 @@ class InventoryController extends Controller
         $tenant = tenant();
         $this->assertRetailEnabled($tenant);
 
-        $item = TenantInventoryItem::with(['category', 'distributorCatalog', 'locations.location', 'specialOrders.vendor', 'specialOrders.customer', 'specialOrders.appointment', 'vendors'])
+        // MARKER-ARCHIVE-MOVE — withTrashed, otherwise the archived list links
+        // to a 404 and Restore is unreachable.
+        $item = TenantInventoryItem::withTrashed()
+            ->with(['category', 'distributorCatalog', 'locations.location', 'specialOrders.vendor', 'specialOrders.customer', 'specialOrders.appointment', 'vendors'])
             ->where('tenant_id', $tenant->id)
             ->findOrFail($id);
 
@@ -888,6 +902,29 @@ class InventoryController extends Controller
 
         return redirect()->route('tenant.inventory.show', $item->id)
             ->with('flash', ['type' => 'success', 'message' => 'Stock adjusted.']);
+    }
+
+    /**
+     * MARKER-ARCHIVE-MOVE — undo an archive.
+     *
+     * destroy() does two things, so this undoes both: the soft delete and
+     * the is_active flag. Nothing else is touched by either, so the item
+     * returns exactly as it was — stock, vendor sources and history
+     * included.
+     */
+    public function restore(string $id): RedirectResponse
+    {
+        $tenant = tenant();
+        $this->assertRetailEnabled($tenant);
+
+        $item = TenantInventoryItem::withTrashed()
+            ->where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $item->restore();
+        $item->update(['is_active' => true]);
+
+        return redirect()->route('tenant.inventory.show', $item->id)
+            ->with('flash', ['type' => 'success', 'message' => "'{$item->name}' restored."]);
     }
 
     public function destroy(string $id): RedirectResponse

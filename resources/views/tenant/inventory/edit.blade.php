@@ -24,7 +24,7 @@
 {{-- MARKER-BLADE-GLUE-FIX — the Archive form used to be nested INSIDE this
      one. Nested forms are invalid HTML and the inner submit can post to the
      outer action. The two are siblings now; Save reaches this form by id. --}}
-<form id="item-edit-form" method="POST" action="{{ route('tenant.inventory.update', $item->id) }}">
+<form method="POST" action="{{ route('tenant.inventory.update', $item->id) }}">
   @csrf
   @method('PATCH')
 
@@ -157,19 +157,12 @@
     </div>
   </div>
 
-</form>
-
-  <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
-    <form method="POST" action="{{ route('tenant.inventory.destroy', $item->id) }}"
-      onsubmit="return confirm('Archive this item? It will be hidden but not permanently deleted. You can restore it from the master admin.')">
-      @csrf
-      @method('DELETE')
-      <button type="submit" class="ia-btn ia-btn--ghost" style="color:var(--ia-error)">Archive item</button>
-    </form>
-    <div style="display:flex;gap:8px">
-      <a href="{{ route('tenant.inventory.show', $item->id) }}" class="ia-btn ia-btn--ghost">Cancel</a>
-      <button type="submit" form="item-edit-form" class="ia-btn ia-btn--primary">Save changes</button>
-    </div>
+  {{-- MARKER-ARCHIVE-MOVE — Archive lives on the item page now. A
+       destructive control next to Save is what turned a save into a delete. --}}
+  <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+    <a href="{{ route('tenant.inventory.show', $item->id) }}" class="ia-btn ia-btn--ghost">Cancel</a>
+    <button type="submit" class="ia-btn ia-btn--primary">Save changes</button>
   </div>
+</form>
 
 @endsection

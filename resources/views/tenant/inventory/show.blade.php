@@ -132,8 +132,22 @@
     </p>
   </div>
   <div class="ia-page-actions">
-    <a href="{{ route('tenant.inventory.edit', $item->id) }}" class="ia-btn ia-btn--secondary">Edit</a>
-    <button type="button" class="ia-btn ia-btn--primary" onclick="iaShowAdjust()">Adjust stock</button>
+    {{-- MARKER-ARCHIVE-MOVE — archiving belongs here, away from Save. --}}
+    @if($item->trashed())
+      <form method="POST" action="{{ route('tenant.inventory.restore', $item->id) }}">
+        @csrf
+        <button type="submit" class="ia-btn ia-btn--primary">Restore item</button>
+      </form>
+    @else
+      <form method="POST" action="{{ route('tenant.inventory.destroy', $item->id) }}"
+            onsubmit="return confirm('Archive this item? It disappears from search and the register, but nothing is lost — you can restore it from Inventory → Archived.')">
+        @csrf
+        @method('DELETE')
+        <button type="submit" class="ia-btn ia-btn--ghost" style="color:var(--ia-error)">Archive</button>
+      </form>
+      <a href="{{ route('tenant.inventory.edit', $item->id) }}" class="ia-btn ia-btn--secondary">Edit</a>
+      <button type="button" class="ia-btn ia-btn--primary" onclick="iaShowAdjust()">Adjust stock</button>
+    @endif
   </div>
 </div>
 

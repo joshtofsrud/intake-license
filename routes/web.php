@@ -680,6 +680,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::patch('/{id}',            [TenantControllers\InventoryController::class, 'update'])->name('update');
                 Route::post('/{id}/stock',       [TenantControllers\InventoryController::class, 'adjustStock'])->name('stock');
                 Route::delete('/{id}',           [TenantControllers\InventoryController::class, 'destroy'])->name('destroy');
+                Route::post('/{id}/restore',     [TenantControllers\InventoryController::class, 'restore'])->name('restore'); // MARKER-ARCHIVE-MOVE
             });
 
             // Vendors — added in patch 86 (Special Orders Stage 4a).

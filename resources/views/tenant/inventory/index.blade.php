@@ -146,6 +146,8 @@
     {{-- MARKER-PATCH-158-G10 — Categories link always visible (was only shown
          when categories were empty, leaving no entry point once 1+ existed). --}}
     <a href="{{ route('tenant.inventory.categories.index') }}" class="ia-btn">Categories</a>
+    {{-- MARKER-ARCHIVE-MOVE --}}
+    <a href="{{ route('tenant.inventory.index', ['archived' => 1]) }}" class="ia-btn">Archived</a>
     <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn">Receiving ↓</a>
     @if($hasCategories)
       <a href="{{ route('tenant.inventory.create') }}" class="ia-btn ia-btn--primary">+ New item</a>
@@ -217,6 +219,15 @@
     </div>
   </div>
 @else
+
+{{-- MARKER-ARCHIVE-MOVE — reachable, because nobody guesses a URL parameter
+     when an item goes missing. --}}
+@if($archived)
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 14px;border:.5px solid var(--ia-border);border-radius:var(--ia-r-md)">
+    <span style="font-size:13px">Showing archived items. Open one to restore it.</span>
+    <a href="{{ route('tenant.inventory.index') }}" class="ia-btn ia-btn--sm" style="margin-left:auto">Back to inventory</a>
+  </div>
+@endif
 
 <form method="get" action="{{ route('tenant.inventory.index') }}" class="ia-toolbar">
   <input type="search" name="s" class="ia-input" value="{{ $search }}"
