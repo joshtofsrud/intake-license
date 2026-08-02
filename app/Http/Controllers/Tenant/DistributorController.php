@@ -154,12 +154,26 @@ class DistributorController extends Controller
             $creds['region'] = $creds['region'] ?? 'us';
         }
 
-        // MARKER-DIST-VENDOR-PROMPT — bind the distributor to a vendor the shop
-        // already has, so the importer stops inventing a duplicate.
+        // MARKER-VENDOR-MERGE — if another vendor is already carrying this
+        // distributor's items, linking without absorbing it splits the
+        // catalog. Send the shop to a confirmation screen instead.
         $vendorId = trim((string) ($data['vendor_id'] ?? ''));
         if ($vendorId !== '') {
             $target = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
                 ->where('id', $vendorId)->first();
+
+            if ($target) {
+                $merge  = app(\App\Services\Tenant\VendorMergeService::class);
+                $source = $merge->currentSourceFor(tenant()->id, $code, $target->id);
+
+                if ($source) {
+                    $sub->save();
+
+                    return redirect()->route('tenant.distributors.vendor_merge', [
+                        'code' => $code, 'source' => $source->id, 'target' => $target->id,
+                    ]);
+                }
+            }
 
             if ($target) {
                 // One vendor per distributor per tenant. Two rows claiming the
@@ -203,6 +217,49 @@ class DistributorController extends Controller
      * default), the mover is nudged one below its neighbour so the order is
      * still definite.
      */
+    /**
+     * MARKER-VENDOR-MERGE — show what absorbing the old vendor will do.
+     *
+     * The merge is irreversible and deletes a vendor, so the counts and the
+     * surviving name are the sanity check that the right target was picked.
+     */
+    public function vendorMerge(Request $request): View
+    {
+        $this->guard();
+
+        $code   = strtoupper((string) $request->query('code'));
+        $source = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+            ->findOrFail($request->query('source'));
+        $target = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+            ->findOrFail($request->query('target'));
+
+        return view('tenant.distributors.vendor-merge', [
+            'code'    => $code,
+            'source'  => $source,
+            'target'  => $target,
+            'preview' => app(\App\Services\Tenant\VendorMergeService::class)->preview($source, $target),
+        ]);
+    }
+
+    public function vendorMergeRun(Request $request): RedirectResponse
+    {
+        $this->guard();
+
+        $code   = strtoupper((string) $request->input('code'));
+        $source = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+            ->findOrFail($request->input('source'));
+        $target = \App\Models\Tenant\TenantVendor::where('tenant_id', tenant()->id)
+            ->findOrFail($request->input('target'));
+
+        $res = app(\App\Services\Tenant\VendorMergeService::class)->merge($source, $target, $code);
+
+        return redirect()->route('tenant.distributors.connection')->with(
+            'status',
+            "Merged {$res['source_name']} into {$res['target_name']} — {$res['items']} items, "
+            . "{$res['special_orders']} special orders and {$res['shipments']} receipts moved."
+        );
+    }
+
     public function movePriority(Request $request): RedirectResponse
     {
         $this->guard();

@@ -889,6 +889,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             // MARKER-PATCH-HLC7A — tenant distributor surface
             Route::prefix('distributors')->name('distributors.')->group(function () {
+                // MARKER-VENDOR-MERGE — confirm before absorbing a vendor.
+                Route::get('/vendor-merge',  [TenantControllers\DistributorController::class, 'vendorMerge'])->name('vendor_merge');
+                Route::post('/vendor-merge', [TenantControllers\DistributorController::class, 'vendorMergeRun'])->name('vendor_merge.run');
                 Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
                 Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
                 Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
