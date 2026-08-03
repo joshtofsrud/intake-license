@@ -33,6 +33,12 @@ return [
         'retries'        => (int) env('BTI_RETRIES', 2),
         'retry_sleep_ms' => (int) env('BTI_RETRY_SLEEP', 1000),
         'page_size'      => (int) env('BTI_PAGE_SIZE', 2000),
+        // MARKER-SYNC-PAGE-SIZE — how many PRODUCTS one tier-1 pull may
+        // return. Distinct from page_size above, which is the feed reader's
+        // chunk hint. The feed is ~7,750 product groups; 25000 is headroom,
+        // not a target — BtiClient reads a local cached file, so a larger
+        // window costs nothing.
+        'sync_page_size' => (int) env('BTI_SYNC_PAGE_SIZE', 25000),
         // MARKER-CACHE-PER-RUN — a feed is now reused only within a single
         // sync run, never across runs, so this is no longer consulted. Kept
         // so an existing BTI_CACHE_HOURS in .env doesn't look meaningful.

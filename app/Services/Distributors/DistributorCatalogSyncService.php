@@ -56,6 +56,16 @@ class DistributorCatalogSyncService
         // So pull once and process in chunks, checkpointing every 200 rows so the
         // live counter still climbs. ($maxPages is unused — offset paging is dead.)
         try {
+            // MARKER-SYNC-PAGE-SIZE — per-distributor override, falling back to
+            // the caller's value. HLC keeps 8000 (its API is asked for this
+            // number, so changing it is a live third-party behaviour change);
+            // BTI sets its own, because it reads a local file and 8000 leaves
+            // barely 250 products of headroom.
+            $pageSize = (int) config(
+                'distributors.' . strtolower($code) . '.sync_page_size',
+                $pageSize
+            );
+
             $batch = $adapter->products(['pageStartIndex' => 1, 'pageSize' => $pageSize]);
         } catch (\Throwable $e) {
             $res['errors'][] = 'catalog fetch: ' . $e->getMessage();
@@ -69,7 +79,11 @@ class DistributorCatalogSyncService
 
         if (count($products) >= $pageSize) {
             // Returned exactly the cap — the catalog may be larger than one pull.
-            $res['errors'][] = "catalog returned the full pageSize ({$pageSize}); it may be truncated — raise HLC_API_PAGE_SIZE.";
+            // MARKER-SYNC-PAGE-SIZE — name the distributor and the env var that
+            // actually applies. The old text said HLC_API_PAGE_SIZE whoever
+            // tripped it, which sends the next reader to the wrong knob.
+            $envVar = strtoupper($code) . '_SYNC_PAGE_SIZE';
+            $res['errors'][] = "{$code} returned the full pageSize ({$pageSize}); the catalog is probably larger than one pull — raise {$envVar}.";
         }
 
         // Group by brand so we can write brand-by-brand and report per-brand
