@@ -163,6 +163,15 @@ HELPERS_SRC = """    /**
 p = 'app/Filament/Resources/DistributorFieldMapResource.php'
 s = io.open(p, encoding='utf-8').read()
 
+# This patch rewrites the form from its ORIGINAL shape. Running it on top of
+# the earlier picker patch consumes the whole form and table section and
+# leaves a class with neither — which parses fine and renders blank pages.
+assert 'FIELDMAP-PICKERS' not in s, (
+    'This file already carries a picker patch. Restore it from git first:\n'
+    '  git log --oneline -6 -- app/Filament/Resources/DistributorFieldMapResource.php\n'
+    '  git checkout <sha-before-the-pickers> -- app/Filament/Resources/DistributorFieldMapResource.php'
+)
+
 # ---------------------------------------------------------------- source path
 # Two possible current states: the original TextInput, or the datalist version
 # from the first picker patch.

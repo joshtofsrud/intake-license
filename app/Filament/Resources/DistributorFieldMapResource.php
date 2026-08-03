@@ -31,6 +31,145 @@ class DistributorFieldMapResource extends Resource
     protected static ?string $pluralModelLabel = 'field maps';
     protected static ?string $slug             = 'distributor-field-maps';
 
+    /** The transform vocabulary the resolver understands. */
+    public const TRANSFORMS = [
+        'direct'              => 'direct — copy as-is',
+        'bool'                => 'bool — truthy → boolean',
+        'pick_from_array'     => 'pick_from_array — select element by match',
+        'lookup'              => 'lookup — value → value table',
+        'coalesce'            => 'coalesce — first non-empty',
+        'pick_category_level' => 'pick_category_level — choose a level',
+        'join_array'          => 'join_array — join a list',
+        'json_passthrough'    => 'json_passthrough — store the whole value',
+    ];
+
+    public static function form(Form $form): Form
+    {
+        return $form->schema([
+            Forms\Components\Section::make('Mapping')
+                ->description('Which canonical field, filled from which source path, transformed how.')
+                ->schema([
+                    Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\Select::make('distributor_code')
+                            ->label('Distributor')
+                            ->required()->native(false)->searchable()
+                            ->options(fn () => self::distributorOptions())
+                            ->default('HLC')
+                            ->live(),
+                        Forms\Components\Select::make('canonical_field')
+                            ->label('Intake field')
+                            ->required()->native(false)->searchable()
+                            ->options(fn () => self::canonicalFieldOptions())
+                            ->helperText('What this becomes inside Intake'),
+                        // MARKER-FIELDMAP-PICKERS2 — a real dropdown. Nested
+                        // paths are flattened into the options, and rows with
+                        // no path (coalesce, computed) pick "none" explicitly
+                        // instead of being left to guess at an empty box.
+                        Forms\Components\Select::make('source_path')
+                            ->label('Feed column')
+                            ->native(false)->searchable()
+                            ->options(fn (Forms\Get $get) => self::sourcePathOptions((string) $get('distributor_code')))
+                            ->helperText('Columns seen in this distributor\'s feed'),
+                    ]),
+                    Forms\Components\Grid::make(2)->schema([
+                        Forms\Components\Select::make('transform')
+                            ->required()->native(false)
+                            ->options(self::TRANSFORMS)
+                            ->default('direct')
+                            ->live(),
+                        Forms\Components\TextInput::make('sort_order')
+                            ->numeric()->default(0),
+                    ]),
+                ]),
+
+            Forms\Components\Section::make('Transform args')
+                ->description('JSON arguments for the transform. Examples: pick_from_array → {"match":{"TypeId":0},"field":"Amount","cast":"cents"} · pick_category_level → {"level":1,"field":"CategoryName"} · coalesce → {"order":[{"path":"UPC"},{"path":"EAN"},{"concat":["BrandId","MFGPartNumber"],"sep":"-"}]}')
+                ->collapsed(fn (Forms\Get $get) => blank($get('transform_args')))
+                ->schema([
+                    Forms\Components\Textarea::make('transform_args')
+                        ->label('transform_args (JSON)')
+                        ->rows(5)->rules(['nullable', 'json'])
+                        ->formatStateUsing(fn ($state) => filled($state) ? json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : null)
+                        ->dehydrateStateUsing(fn ($state) => filled($state) ? json_decode($state, true) : null)
+                        ->extraAttributes(['style' => 'font-family:ui-monospace,monospace;font-size:12px']),
+                ]),
+
+            Forms\Components\Section::make('Lookup table')
+                ->description('Only for the lookup transform — value → value. e.g. StatusId map 7 → sellable, 9 → discontinued.')
+                ->collapsed(fn (Forms\Get $get) => $get('transform') !== 'lookup' && blank($get('lookup_table')))
+                ->schema([
+                    Forms\Components\KeyValue::make('lookup_table')
+                        ->keyLabel('source value')->valueLabel('canonical value')
+                        ->reorderable(false),
+                ]),
+
+            Forms\Components\Section::make('Status')->schema([
+                Forms\Components\Grid::make(2)->schema([
+                    Forms\Components\Toggle::make('is_active')->default(true),
+                    Forms\Components\TextInput::make('notes')->maxLength(255),
+                ]),
+            ]),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('canonical_field')
+                    ->label('Canonical field')->searchable()->sortable()
+                    ->weight('bold')->fontFamily('mono'),
+                Tables\Columns\TextColumn::make('source_path')
+                    ->label('Source')->fontFamily('mono')->color('info')
+                    ->placeholder('—'),
+                Tables\Columns\TextColumn::make('transform')
+                    ->badge()->color('gray'),
+                Tables\Columns\TextColumn::make('args_summary')
+                    ->label('Args / lookup')->fontFamily('mono')
+                    ->limit(56)->tooltip(fn ($state) => $state)
+                    ->state(fn (DistributorFieldMap $r) => self::argsSummary($r))
+                    ->color('gray'),
+                Tables\Columns\TextColumn::make('sort_order')
+                    ->label('#')->sortable()->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\ToggleColumn::make('is_active')->label('On'),
+            ])
+            ->defaultSort('sort_order')
+            ->groups([
+                Tables\Grouping\Group::make('distributor_code')->label('Distributor')->collapsible(),
+            ])
+            ->defaultGroup('distributor_code')
+            ->filters([
+                Tables\Filters\SelectFilter::make('distributor_code')
+                    ->options(fn () => DistributorFieldMap::query()
+                        ->distinct()->pluck('distributor_code', 'distributor_code')->all()),
+                Tables\Filters\SelectFilter::make('transform')->options(self::TRANSFORMS),
+                Tables\Filters\TernaryFilter::make('is_active'),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\ReplicateAction::make()
+                    ->excludeAttributes(['id'])
+                    ->beforeReplicaSaved(fn (DistributorFieldMap $replica) => $replica->canonical_field = $replica->canonical_field . '_copy'),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+
+    protected static function argsSummary(DistributorFieldMap $r): string
+    {
+        $parts = [];
+        if (! empty($r->transform_args)) {
+            $parts[] = json_encode($r->transform_args, JSON_UNESCAPED_SLASHES);
+        }
+        if (! empty($r->lookup_table)) {
+            $parts[] = json_encode($r->lookup_table, JSON_UNESCAPED_SLASHES);
+        }
+        return $parts ? implode('  ', $parts) : '—';
+    }
+
     /**
      * MARKER-FIELDMAP-PICKERS2 — codes that already have maps, plus every code
      * the registry supports, so a newly registered adapter is selectable
