@@ -312,6 +312,71 @@ class CatalogTitleComposer
      * Returns the matched row, or null when only the built-in fallback
      * applies. Callers that want a usable object should use setting().
      */
+    /**
+     * MARKER-TITLE-CONTROL — which rule supplied EACH field, not just the row
+     * that matched first.
+     *
+     * setting() already fills every field from the first rule that has a
+     * value for it, so a scope can own its title while inheriting its
+     * subtitle from the distributor and its search text from global. That
+     * provenance is thrown away when setting() synthesises its return value,
+     * which is why no screen has ever been able to say where a field came
+     * from. This walks the same ladder and keeps it.
+     *
+     * @return array<string,array{value:string,from:string,code:?string,key:?string}>
+     */
+    public function fieldSources(string $code, string $categoryPath = ''): array
+    {
+        $rows   = $this->settingRows();
+        $fields = ['title_template', 'subtitle_template', 'search_template'];
+
+        $out = [];
+        foreach ($fields as $f) {
+            $out[$f] = ['value' => null, 'from' => null, 'code' => null, 'key' => null];
+        }
+
+        foreach ([$code, '*'] as $dist) {
+            foreach ($this->categoryCandidates($categoryPath) as $cand) {
+                foreach ($rows as $row) {
+                    if ($row->distributor_code !== $dist
+                        || $this->normKey((string) $row->category_key) !== $this->normKey($cand)) {
+                        continue;
+                    }
+                    foreach ($fields as $f) {
+                        if ($out[$f]['value'] !== null || trim((string) $row->$f) === '') {
+                            continue;
+                        }
+                        $out[$f] = [
+                            'value' => (string) $row->$f,
+                            'from'  => $row->distributor_code === '*'
+                                ? 'Global default'
+                                : $row->distributor_code . ' · '
+                                  . ($row->category_key !== '' ? $row->category_key : 'any category'),
+                            'code'  => (string) $row->distributor_code,
+                            'key'   => (string) $row->category_key,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Nothing in the ladder had a value — this is the built-in, which is
+        // real and worth naming rather than letting a title appear from
+        // nowhere.
+        $builtin = [
+            'title_template'    => self::FALLBACK_TITLE,
+            'subtitle_template' => self::FALLBACK_SUBTITLE,
+            'search_template'   => '',
+        ];
+        foreach ($fields as $f) {
+            if ($out[$f]['value'] === null) {
+                $out[$f] = ['value' => $builtin[$f], 'from' => 'built-in fallback', 'code' => null, 'key' => null];
+            }
+        }
+
+        return $out;
+    }
+
     public function matchedSetting(string $code, string $categoryPath = ''): ?CatalogTitleSetting
     {
         $rows = $this->settingRows();

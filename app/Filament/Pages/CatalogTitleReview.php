@@ -30,6 +30,14 @@ class CatalogTitleReview extends Page
     protected static ?int    $navigationSort  = 20;
     protected static ?string $title = 'Catalog titles';
 
+    // MARKER-TITLE-CONTROL — superseded by the merged Titles page. Left
+    // routable so bookmarks and any link still resolve, hidden from nav so
+    // there is one place to edit a rule.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     protected static string $view = 'filament.pages.catalog-title-review';
 
     /** Filters. */

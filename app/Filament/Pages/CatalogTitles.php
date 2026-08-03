@@ -31,6 +31,14 @@ class CatalogTitles extends Page implements HasForms
     protected static ?string $navigationGroup = 'Distribution';
     protected static ?int    $navigationSort  = 21;
 
+    // MARKER-TITLE-CONTROL — superseded by the merged Titles page. Left
+    // routable so bookmarks and any link still resolve, hidden from nav so
+    // there is one place to edit a rule.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     protected static string $view = 'filament.pages.catalog-titles';
 
     public ?array $data = [];
