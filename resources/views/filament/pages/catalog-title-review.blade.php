@@ -187,8 +187,13 @@
                         @endforeach
                     </div>
 
-                    {{-- MARKER-DRAWER-TOKENS — chains have no chip, so say so once. --}}
+    {{-- MARKER-DRAWER-ATTR-HINT — both shapes that have no chip. Shown
+         regardless of whether the attribute row below renders, because a
+         category whose sampled items carry no attributes would otherwise
+         give no clue that {attr:...} exists at all. --}}
                     <div class="text-[11px] opacity-60 mb-3 leading-relaxed">
+                        <span class="font-mono">{attr:Casing}</span> works for any attribute name this
+                        distributor sends, not only the ones shown below.
                         Separate tokens with <span class="font-mono">|</span> to try them in order —
                         <span class="font-mono">{size|attr:Labeled Size|size_code}</span> uses the first
                         one that has a value.
