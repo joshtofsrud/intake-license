@@ -79,12 +79,10 @@ class AdminPanelProvider extends PanelProvider
                 // MARKER-REVIEW-PAGE — list-first Catalog Titles page. This panel
                 // lists pages explicitly, so a new page class is invisible until
                 // it appears here, cache or no cache.
-                \App\Filament\Pages\CatalogTitleReview::class,
                 // MARKER-TITLE-CONTROL — the merged surface. The two below stay
                 // registered so their URLs keep working and reverting is one
                 // line, but they are hidden from navigation.
                 \App\Filament\Pages\CatalogTitleControl::class,
-                \App\Filament\Pages\CatalogTitles::class, // MARKER-PATCH-HLCE2 title editor
                 // MARKER-MATCH-REVIEW — explicit registration; this panel does
                 // not auto-discover, so the page has no route until listed.
                 \App\Filament\Pages\CatalogMatchReview::class,
