@@ -49,17 +49,33 @@ class DistributorFieldMapResource extends Resource
             Forms\Components\Section::make('Mapping')
                 ->description('Which canonical field, filled from which source path, transformed how.')
                 ->schema([
+                    // MARKER-FIELDMAP-PICKERS — every one of these lists is
+                    // derivable, so none of them should be typed from memory.
                     Forms\Components\Grid::make(3)->schema([
-                        Forms\Components\TextInput::make('distributor_code')
-                            ->required()->maxLength(32)
+                        Forms\Components\Select::make('distributor_code')
+                            ->required()->native(false)->searchable()
+                            ->options(fn () => self::distributorOptions())
                             ->default('HLC')
-                            ->helperText('e.g. HLC, QBP'),
-                        Forms\Components\TextInput::make('canonical_field')
-                            ->required()->maxLength(64)
-                            ->helperText('Intake column, e.g. cost_cents'),
+                            ->live()
+                            ->helperText('Codes in use, plus any the registry supports'),
+
+                        Forms\Components\Select::make('canonical_field')
+                            ->required()->native(false)->searchable()
+                            ->options(fn () => self::canonicalFieldOptions())
+                            ->helperText('The Intake column this fills'),
+
+                        // TextInput with a datalist, NOT a Select: a Select can
+                        // only return one of its options, and a nested path like
+                        // CaseDimensions.Quantity never appears as a top-level
+                        // key — nor does a coalesce row, which has no path at
+                        // all. The datalist suggests the feed's real columns
+                        // while still accepting anything typed.
                         Forms\Components\TextInput::make('source_path')
                             ->maxLength(255)
-                            ->helperText('Feed path, e.g. Prices or CaseDimensions.Quantity'),
+                            ->datalist(fn (Forms\Get $get) => array_keys(
+                                self::sourcePathOptions((string) $get('distributor_code'))
+                            ))
+                            ->helperText('Columns seen in this feed — or type a nested path, or leave blank for coalesce.'),
                     ]),
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\Select::make('transform')
@@ -158,6 +174,104 @@ class DistributorFieldMapResource extends Resource
             $parts[] = json_encode($r->lookup_table, JSON_UNESCAPED_SLASHES);
         }
         return $parts ? implode('  ', $parts) : '—';
+    }
+
+    /**
+     * MARKER-FIELDMAP-PICKERS — codes that already have maps, plus everything
+     * the registry supports, so a newly registered adapter is selectable
+     * before it has a single mapping row.
+     *
+     * @return array<string,string>
+     */
+    public static function distributorOptions(): array
+    {
+        $used = \App\Models\DistributorFieldMap::query()
+            ->select('distributor_code')->distinct()
+            ->pluck('distributor_code')->all();
+
+        $supported = [];
+        try {
+            $supported = app(\App\Services\Distributors\DistributorRegistry::class)->supported();
+        } catch (\Throwable) {
+            // Registry unavailable in some contexts; the used list still works.
+        }
+
+        $codes = collect($used)
+            ->merge(array_map('strtoupper', (array) $supported))
+            ->map(fn ($c) => strtoupper((string) $c))
+            ->filter()->unique()->sort()->values();
+
+        return $codes->mapWithKeys(fn ($c) => [$c => $c])->all();
+    }
+
+    /**
+     * The columns the resolver may write. Read from the model's fillable so it
+     * cannot drift from the schema, minus the ones the sync fills itself —
+     * offering those would invite a map that is silently overwritten.
+     *
+     * @return array<string,string>
+     */
+    public static function canonicalFieldOptions(): array
+    {
+        $owned = [
+            'source_raw', 'display_name', 'display_subtitle', 'search_text',
+            'distributor_name', 'last_synced_at', 'is_active',
+            'prev_cost_cents', 'prev_map_cents', 'prev_msrp_cents',
+            'cost_cents', // deliberately nulled at platform level; cost is per-tenant
+        ];
+
+        return collect((new \App\Models\PlatformDistributorCatalog())->getFillable())
+            ->reject(fn ($f) => in_array($f, $owned, true))
+            ->sort()->values()
+            ->mapWithKeys(fn ($f) => [$f => $f])
+            ->all();
+    }
+
+    /**
+     * The feed's own column names, read from source_raw on real rows.
+     *
+     * This is the list that was impossible to know: the distributor's columns
+     * are not written down anywhere in Intake except inside the rows they
+     * produced. Sampling a handful covers optional columns that a single row
+     * might omit.
+     *
+     * @return array<string,string>
+     */
+    public static function sourcePathOptions(string $code): array
+    {
+        $code = strtoupper(trim($code));
+        if ($code === '') {
+            return [];
+        }
+
+        static $cache = [];
+        if (isset($cache[$code])) {
+            return $cache[$code];
+        }
+
+        $rows = \App\Models\PlatformDistributorCatalog::query()
+            ->where('distributor_code', $code)
+            ->whereNotNull('source_raw')
+            ->latest('last_synced_at')
+            ->limit(25)
+            ->pluck('source_raw');
+
+        $keys = [];
+        foreach ($rows as $raw) {
+            $arr = is_string($raw) ? json_decode($raw, true) : $raw;
+            if (! is_array($arr)) {
+                continue;
+            }
+            foreach (array_keys($arr) as $k) {
+                $keys[(string) $k] = true;
+            }
+        }
+
+        ksort($keys);
+
+        return $cache[$code] = collect(array_keys($keys))
+            ->mapWithKeys(fn ($k) => [$k => $k])
+            ->all();
     }
 
     public static function getPages(): array
