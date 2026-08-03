@@ -24,6 +24,14 @@ return [
     // MARKER-BTI-ADAPTER — bulk download over HTTP Basic, not a query API.
     // Tenant credentials still live encrypted on the subscription row; only
     // transport settings belong here.
+    // MARKER-QBP-ADAPTER — host only. The KEY is not here: it belongs on
+    // platform_distributor_connections, entered in master admin like every
+    // other distributor's.
+    'qbp' => [
+        'base_url' => env('QBP_BASE_URL', 'https://api1.qbp.com/api/'),
+        'timeout'  => (int) env('QBP_TIMEOUT', 60),
+    ],
+
     'bti' => [
         'name'           => 'BTI',
         'base_url'       => env('BTI_BASE', 'https://www.bti-usa.com'),

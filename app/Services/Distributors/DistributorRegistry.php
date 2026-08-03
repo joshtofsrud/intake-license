@@ -5,6 +5,7 @@ namespace App\Services\Distributors;
 
 use App\Models\Tenant\TenantDistributorCatalogSubscription;
 use InvalidArgumentException;
+// QbpClient, HlcClient and BtiClient share this namespace, so no import.
 
 /**
  * Resolves the right DistributorAdapter for a distributor code or a tenant
@@ -21,6 +22,9 @@ class DistributorRegistry
         // "username:password"; BtiClient splits on the first colon, so the
         // shared (apiKey, region) constructor shape still holds.
         'BTI' => BtiClient::class,
+        // MARKER-QBP-ADAPTER — present so master admin can hold the key and
+        // test it. Only testConnection() works; the data methods throw.
+        'QBP' => QbpClient::class,
     ];
 
     /**
