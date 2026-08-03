@@ -52,6 +52,21 @@ class CatalogTitles extends Page implements HasForms
         '{color}'      => 'Color attribute',
         '{attr:NAME}'  => 'A single named attribute, e.g. {attr:Disc Pad Material}',
         '{allattr}'    => 'Every attribute, "Name Value" — exhaustive, for search',
+
+        // MARKER-TITLE-TOKENS
+        '{desc}'          => 'Full description text — usually only for search',
+        '{category_path}' => 'Whole category path — "Tires > Mountain Tires"',
+        '{group}'         => 'Item group — ties variants of one product together',
+        '{size_code}'     => 'Size code the distributor uses (when there is no size attribute)',
+        '{color_code}'    => 'Colour code the distributor uses',
+        '{case_qty}'      => 'Units per case',
+        '{weight}'        => 'Weight',
+        '{dimensions}'    => 'Dimensions',
+        '{upc}'           => 'UPC barcode — for search',
+        '{ean}'           => 'EAN barcode — for search',
+        '{variant_no}'    => 'Distributor variant number',
+        '{product_no}'    => 'Distributor product number',
+        '{a|b|c}'         => 'FALLBACK: first one that has a value wins, e.g. {size|attr:Labeled Size|size_code}',
     ];
 
     public function mount(): void

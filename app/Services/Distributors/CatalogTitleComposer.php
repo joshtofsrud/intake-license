@@ -104,10 +104,26 @@ class CatalogTitleComposer
         }
         $unit = trim((string) ($parts['unit'] ?? ''));
 
+        // MARKER-TITLE-TOKENS — everything the parts array carries is
+        // reachable. Anything added to $parts must be added here too, or it
+        // silently resolves to empty.
         $tokens = [
             'brand' => $brand, 'model' => $model, 'size' => $size,
             'color' => $color, 'mpn' => $mpn,
             'type'  => $type,  'type0' => $type0, 'unit' => $unit,
+
+            'desc'          => trim((string) ($parts['description'] ?? '')),
+            'category_path' => trim((string) ($parts['category_path'] ?? '')),
+            'group'         => trim((string) ($parts['item_group'] ?? '')),
+            'size_code'     => trim((string) ($parts['size_id'] ?? '')),
+            'color_code'    => trim((string) ($parts['color_id'] ?? '')),
+            'case_qty'      => trim((string) ($parts['case_quantity'] ?? '')),
+            'weight'        => trim((string) ($parts['weight'] ?? '')),
+            'dimensions'    => trim((string) ($parts['dimensions'] ?? '')),
+            'upc'           => trim((string) ($parts['upc'] ?? '')),
+            'ean'           => trim((string) ($parts['ean'] ?? '')),
+            'variant_no'    => trim((string) ($parts['variant_no'] ?? '')),
+            'product_no'    => trim((string) ($parts['product_no'] ?? '')),
         ];
 
         $resolve = function (string $name) use ($tokens, $attrs): string {
@@ -160,13 +176,37 @@ class CatalogTitleComposer
             'category'      => $row->category,
             'category_path' => $row->category_path,
             'unit'          => $row->uom,
+            // MARKER-TITLE-TOKENS — must mirror the sync's parts array below,
+            // or the preview shows something the sync will not produce.
+            'item_group'    => $row->item_group,
+            'size_id'       => $row->size_id,
+            'color_id'      => $row->color_id,
+            'case_quantity' => $row->case_quantity,
+            'weight'        => $row->weight,
+            'dimensions'    => is_array($row->dimensions) ? implode(' x ', $row->dimensions) : $row->dimensions,
+            'upc'           => $row->upc,
+            'ean'           => $row->ean,
+            'variant_no'    => $row->distributor_variant_no,
+            'product_no'    => $row->distributor_product_no,
         ];
     }
 
     private function render(string $template, callable $resolve): string
     {
         if ($template === '') { return ''; }
-        $out = preg_replace_callback('/\{([^}]+)\}/', fn ($m) => $resolve($m[1]), $template);
+        // MARKER-TITLE-TOKENS — a token may be a chain: {size|attr:Width|desc}
+        // takes the first part that resolves to something. Lets one rule cope
+        // with a distributor that files the same fact under different names,
+        // instead of needing a category rule for each.
+        $out = preg_replace_callback('/\{([^}]+)\}/', function ($m) use ($resolve) {
+            foreach (explode('|', $m[1]) as $candidate) {
+                $v = trim((string) $resolve(trim($candidate)));
+                if ($v !== '') {
+                    return $v;
+                }
+            }
+            return '';
+        }, $template);
         $out = preg_replace('/\s{2,}/', ' ', (string) $out);   // collapse gaps left by empty tokens
         return trim((string) $out, " \t\n\r\0\x0B-·|,");        // trim stray separators too
     }

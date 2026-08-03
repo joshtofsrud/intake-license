@@ -202,6 +202,20 @@ class DistributorCatalogSyncService
             'category'      => $canonical['category'] ?? null,
             'category_path' => $canonical['category_path'] ?? null,
             'unit'          => $canonical['uom'] ?? null,
+            // MARKER-TITLE-TOKENS — mirrors CatalogTitleComposer::partsFromRow().
+            // If these two drift, the editor preview and the real title differ.
+            'item_group'    => $canonical['item_group'] ?? null,
+            'size_id'       => $canonical['size_id'] ?? null,
+            'color_id'      => $canonical['color_id'] ?? null,
+            'case_quantity' => $canonical['case_quantity'] ?? null,
+            'weight'        => $canonical['weight'] ?? null,
+            'dimensions'    => is_array($canonical['dimensions'] ?? null)
+                ? implode(' x ', $canonical['dimensions'])
+                : ($canonical['dimensions'] ?? null),
+            'upc'           => $canonical['upc'] ?? null,
+            'ean'           => $canonical['ean'] ?? null,
+            'variant_no'    => $canonical['distributor_variant_no'] ?? null,
+            'product_no'    => $canonical['distributor_product_no'] ?? null,
         ]);
         $canonical['display_name']     = $composed['title'] !== '' ? $composed['title'] : ($canonical['name'] ?? null);
         $canonical['display_subtitle'] = $composed['subtitle'] !== '' ? $composed['subtitle'] : null;
