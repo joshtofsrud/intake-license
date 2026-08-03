@@ -105,6 +105,20 @@
       $groupTotal += (int) $unit * (int) $r->quantity;
     }
     $min = $vendor->free_freight_cents ?? null;
+
+    // MARKER-SO-COPY-EXPORT — build the two columns for this vendor.
+    // Quantities for the same part number are summed: two lines for one part
+    // is a common way to get shorted, and vendors' paste boxes rarely add.
+    $sogExport = [];
+    $sogNoSku  = 0;
+    foreach ($rows as $r) {
+      $o   = collect($voptions[$r->inventory_item_id] ?? [])->firstWhere('vendor_id', $vendorId);
+      $sku = trim((string) ($o['sku'] ?? ''));
+      if ($sku === '') { $sogNoSku++; continue; }
+      $sogExport[$sku] = ($sogExport[$sku] ?? 0) + (int) $r->quantity;
+    }
+    $sogLines = [];
+    foreach ($sogExport as $sku => $qty) { $sogLines[] = [$sku, $qty]; }
   @endphp
 
   <div class="sog-box" data-vendor="{{ $vendorId }}">
@@ -115,6 +129,18 @@
         <span class="sog-tot">${{ number_format($groupTotal / 100, 2) }}</span>
         <input type="text" class="sog-in" placeholder="PO #" data-sog-po style="width:92px">
         <input type="date" class="sog-in" data-sog-eta value="{{ now()->addDays(7)->toDateString() }}">
+        {{-- MARKER-SO-COPY-EXPORT --}}
+        <button type="button" class="ia-btn" style="padding:7px 13px;font-size:11.5px"
+                data-sog-copy data-sog-rows='@json($sogLines)'
+                @disabled(! count($sogLines))>
+          Copy order
+        </button>
+        @if($sogNoSku)
+          <span style="font-size:11px;color:var(--ia-warning,#d9a441)"
+                title="These have no part number for this vendor, so they are left out of the copied text">
+            {{ $sogNoSku }} without a part no.
+          </span>
+        @endif
         <button type="button" class="ia-btn ia-btn--primary" style="padding:7px 13px;font-size:11.5px" data-sog-order>
           Mark ordered
         </button>
@@ -235,4 +261,54 @@
 
   document.querySelectorAll('.sog-box[data-vendor]').forEach(refresh);
 })();
+</script>
+
+{{-- MARKER-SO-COPY-EXPORT --}}
+<script>
+(function () {
+  function toText(rows) {
+    // Real tabs are built HERE, never carried through an HTML attribute.
+    return rows.map(function (r) { return r[0] + '\t' + r[1]; }).join('\n');
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-sog-copy]');
+    if (!btn) { return; }
+    e.preventDefault();
+
+    var rows;
+    try { rows = JSON.parse(btn.getAttribute('data-sog-rows') || '[]'); }
+    catch (err) { rows = []; }
+    if (!rows.length) { return; }
+
+    var text = toText(rows);
+    var label = btn.textContent;
+
+    function done(ok) {
+      btn.textContent = ok ? ('Copied ' + rows.length + ' line' + (rows.length === 1 ? '' : 's')) : 'Copy failed';
+      setTimeout(function () { btn.textContent = label; }, 2200);
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { done(true); },
+                                              function () { done(fallbackCopy(text)); });
+    } else {
+      done(fallbackCopy(text));
+    }
+  });
+}());
 </script>

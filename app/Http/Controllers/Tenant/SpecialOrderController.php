@@ -463,6 +463,9 @@ class SpecialOrderController extends Controller
                 $options[$p->inventory_item_id][] = [
                     'vendor_id' => $p->vendor_id,
                     'name'      => $vendors[$p->vendor_id]->name,
+                    // MARKER-SO-COPY-EXPORT — THEIR part number. The export is
+                    // per vendor because this number is too.
+                    'sku'       => $p->vendor_sku,
                     'cost'      => $p->live_cost_cents ?? $p->unit_cost_cents,
                     'avail'     => $p->live_avail,
                     'lead'      => $p->lead_time_days,
