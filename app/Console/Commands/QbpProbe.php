@@ -43,7 +43,7 @@ class QbpProbe extends Command
         $this->line('Key: from master admin (' . strlen($this->key) . ' chars, not shown)');
         $this->newLine();
 
-        $brands = $this->call('1/brand', 'Brands');
+        $brands = $this->probeGet('1/brand', 'Brands');
         if (is_array($brands)) {
             $list = $this->listish($brands);
             $this->line('  ' . count($list) . ' brands. First three:');
@@ -53,7 +53,7 @@ class QbpProbe extends Command
         }
         $this->newLine();
 
-        $cats = $this->call('1/category', 'Categories');
+        $cats = $this->probeGet('1/category', 'Categories');
         if (is_array($cats)) {
             $list = $this->listish($cats);
             $this->line('  ' . count($list) . ' top-level nodes. First one:');
@@ -62,7 +62,7 @@ class QbpProbe extends Command
         $this->newLine();
 
         $sku  = (string) $this->argument('sku');
-        $skus = $this->call('1/product/skulist', 'SKU list');
+        $skus = $this->probeGet('1/product/skulist', 'SKU list');
         if (is_array($skus)) {
             $list = $this->listish($skus);
             $this->line('  ' . count($list) . ' SKUs.');
@@ -82,7 +82,7 @@ class QbpProbe extends Command
         }
 
         $this->line('=== FULL PRODUCT DETAIL — ' . $sku . ' ===');
-        $product = $this->call('1/product/sku/' . rawurlencode($sku), 'Product detail', true);
+        $product = $this->probeGet('1/product/sku/' . rawurlencode($sku), 'Product detail', true);
 
         if (is_array($product)) {
             $this->newLine();
@@ -104,15 +104,21 @@ class QbpProbe extends Command
         }
         $this->newLine();
 
-        $this->call('1/availability/sku/' . rawurlencode($sku), 'Availability for ' . $sku, true);
+        $this->probeGet('1/availability/sku/' . rawurlencode($sku), 'Availability for ' . $sku, true);
 
         $this->newLine();
         $this->info('Done. Nothing was written.');
         return self::SUCCESS;
     }
 
-    /** A 404 here is information, not a failure — never throws. */
-    private function call(string $path, string $label, bool $dump = false): mixed
+    /**
+     * MARKER-QBP-PROBE-CLASH — NOT named call(). Illuminate\Console\Command
+     * declares a public call() for invoking other artisan commands, and a
+     * private override is a fatal at class load.
+     *
+     * A 404 here is information, not a failure — this never throws.
+     */
+    private function probeGet(string $path, string $label, bool $dump = false): mixed
     {
         $this->line('--- ' . $label . '  (' . $path . ')');
 
