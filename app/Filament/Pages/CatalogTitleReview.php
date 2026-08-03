@@ -158,9 +158,22 @@ class CatalogTitleReview extends Page
     }
 
     /** The standard tokens, offered as chips alongside the attribute ones. */
+    /**
+     * MARKER-DRAWER-TOKENS — one list, shared with the Title templates page.
+     *
+     * This used to hard-code eight, so every token added to CatalogTitles::TOKENS
+     * was invisible on the screen where rules are actually written.
+     *
+     * {attr:NAME} is excluded because the drawer offers something better below:
+     * a chip per attribute genuinely present on these items. {a|b|c} is
+     * excluded because a fallback chain is a shape rather than a token —
+     * inserting it literally would just put nonsense in the template.
+     */
     public function getBaseTokensProperty(): array
     {
-        return ['{brand}', '{model}', '{size}', '{color}', '{unit}', '{type}', '{type0}', '{mpn}'];
+        return collect(array_keys(\App\Filament\Pages\CatalogTitles::TOKENS))
+            ->reject(fn ($t) => in_array($t, ['{attr:NAME}', '{a|b|c}'], true))
+            ->values()->all();
     }
 
     public function getEditingProperty(): ?CatalogTitleScope

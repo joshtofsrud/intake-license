@@ -187,6 +187,13 @@
                         @endforeach
                     </div>
 
+                    {{-- MARKER-DRAWER-TOKENS — chains have no chip, so say so once. --}}
+                    <div class="text-[11px] opacity-60 mb-3 leading-relaxed">
+                        Separate tokens with <span class="font-mono">|</span> to try them in order —
+                        <span class="font-mono">{size|attr:Labeled Size|size_code}</span> uses the first
+                        one that has a value.
+                    </div>
+
                     @if (count($this->attrNames))
                         <div class="text-xs font-semibold mb-2">Attributes on these items</div>
                         <div class="flex flex-wrap gap-1.5">
