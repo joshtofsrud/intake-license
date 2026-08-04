@@ -542,6 +542,13 @@
   $bannerPaidFull = ($appointment->payment_status === 'paid');
 @endphp
 
+{{-- MARKER-OLD-SCHOOL-BANNER — above the payment banners: a note written
+     about this person is context for everything below it, including whether
+     to take the money yet. Also sets $noteCustomer so the pad button
+     pre-attaches them. --}}
+@php $noteCustomer = $appointment->customer ?? null; @endphp
+@include('tenant._notes-banner', ['bannerCustomer' => $noteCustomer])
+
 @if($bannerPendingLink)
   {{-- MARKER-PATCH-194 — a payment link is out and awaiting the customer. --}}
   <div style="background:rgba(96,165,250,.10);border:0.5px solid rgba(96,165,250,.35);border-radius:var(--ia-r-md);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px">

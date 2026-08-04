@@ -85,7 +85,10 @@
                border-radius:999px; background:#B8860B; color:#fff; font-size:10px; font-weight:700;
                display:flex; align-items:center; justify-content:center; }
 
-  .pad-panel { position:fixed; width:320px; z-index:9000; border-radius:12px; overflow:hidden;
+  /* MARKER-OLD-SCHOOL-BANNER — 9990: above page furniture, below the 9999
+     that real modals use, so a dialog still covers the pad. The number alone
+     is not enough; see the reparent in the script below. */
+  .pad-panel { position:fixed; width:320px; z-index:9990; border-radius:12px; overflow:hidden;
                background:#F4ECD8; color:#2A2419;
                box-shadow:0 8px 30px rgba(0,0,0,.28), inset 0 0 0 .5px rgba(0,0,0,.12); }
 
@@ -132,10 +135,23 @@
     panel.style.left = Math.max( 10, left ) + 'px';
   }
 
+  // MARKER-OLD-SCHOOL-BANNER — move the panel to <body> before it is ever
+  // shown. A fixed element inside an ancestor that has position + z-index is
+  // trapped in that ancestor's stacking context, so it can be painted behind
+  // page content that declares no z-index at all. Reparenting escapes every
+  // such context; raising the number would only appear to fix it.
+  var moved = false;
+  function liftOut() {
+    if ( moved ) { return; }
+    document.body.appendChild( panel );
+    moved = true;
+  }
+
   btn.addEventListener( 'click', function ( e ) {
     e.stopPropagation();
     var showing = !panel.hasAttribute( 'hidden' );
     if ( showing ) { panel.setAttribute( 'hidden', '' ); return; }
+    liftOut();
     place();
     panel.removeAttribute( 'hidden' );
     var ta = panel.querySelector( 'textarea' );
@@ -143,7 +159,12 @@
   } );
 
   document.addEventListener( 'click', function ( e ) {
-    if ( !panel.hasAttribute( 'hidden' ) && !wrap.contains( e.target ) ) {
+    // panel.contains is required as well as wrap.contains: after liftOut()
+    // the panel is a child of <body>, so a click inside it is no longer
+    // inside .pad and would otherwise close the thing being typed into.
+    if ( !panel.hasAttribute( 'hidden' )
+         && !wrap.contains( e.target )
+         && !panel.contains( e.target ) ) {
       panel.setAttribute( 'hidden', '' );
     }
   } );
