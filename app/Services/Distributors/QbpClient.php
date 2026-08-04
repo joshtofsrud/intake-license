@@ -308,6 +308,18 @@ class QbpClient implements DistributorAdapter
         $row['CategoryId']   = trim((string) ($row['productCategories']['productCategory']['id'] ?? ''));
         $row['ImageFile']    = trim((string) ($row['images']['image']['fileName'] ?? ''));
 
+        // MARKER-QBP-DIMS — flattened here because a dotted path cannot
+        // assemble three elements into one JSON column, and zip_pipe zips
+        // pipe strings, not element triples — checked, not assumed.
+        $dims = [];
+        foreach (['Length', 'Width', 'Height'] as $d) {
+            $v = $row['freight'][$d]['value'] ?? null;
+            if ($v !== null && trim((string) $v) !== '') {
+                $dims[$d] = (float) $v;
+            }
+        }
+        $row['Dimensions'] = $dims ?: null;
+
         // Barcodes arrive typed. Length alone cannot separate UPC from EAN —
         // a 13-digit EAN and a UPC with a leading zero look the same — so the
         // type is carried through and the decision left to the map.
