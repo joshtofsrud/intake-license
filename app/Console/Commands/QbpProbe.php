@@ -50,9 +50,10 @@ class QbpProbe extends Command
         $this->line('Key: from master admin (' . strlen($this->key) . ' chars, not shown)');
         $this->newLine();
 
+        // MARKER-QBP-PATHS — brands.brand, by name.
         $brands = $this->probeGet('1/brand', 'Brands');
         if (is_array($brands)) {
-            $list = $this->listish($brands);
+            $list = $this->asList($brands['brands']['brand'] ?? null);
             $this->line('  ' . count($list) . ' brands. First three:');
             foreach (array_slice($list, 0, 3) as $b) {
                 $this->line('    ' . json_encode($b));
@@ -60,25 +61,38 @@ class QbpProbe extends Command
         }
         $this->newLine();
 
+        // MARKER-QBP-PATHS — a FLAT list of nodes, each naming its parent and
+        // its children by id. Not a nested tree, so category_path has to be
+        // assembled by walking parent links rather than read off a node.
         $cats = $this->probeGet('1/category', 'Categories');
         if (is_array($cats)) {
-            $list = $this->listish($cats);
-            $this->line('  ' . count($list) . ' top-level nodes. First one:');
-            $this->line('    ' . substr((string) json_encode($list[0] ?? null), 0, 600));
+            $list = $this->asList($cats['productCategories']['productCategory'] ?? null);
+            $this->line('  ' . count($list) . ' category nodes (flat; parent links, not nesting).');
+            $this->line('  First one:');
+            $this->line('    ' . substr((string) json_encode($list[0] ?? null), 0, 500));
+            $roots = array_values(array_filter($list, fn ($c) => ($c['parent'] ?? '') === ''));
+            $this->line('  ' . count($roots) . ' root node(s).');
         }
         $this->newLine();
 
+        // MARKER-QBP-PATHS — skus.sku is a list of plain strings.
         $sku  = (string) $this->argument('sku');
         $skus = $this->probeGet('1/product/skulist', 'SKU list');
         if (is_array($skus)) {
-            $list = $this->listish($skus);
+            $list = $this->asList($skus['skus']['sku'] ?? null);
             $this->line('  ' . count($list) . ' SKUs.');
             $this->line('  First five: ' . json_encode(array_slice($list, 0, 5)));
-            if ($sku === '' && $list) {
-                $first = $list[0];
-                $sku = is_array($first)
-                    ? (string) ($first['sku'] ?? $first['Sku'] ?? reset($first))
-                    : (string) $first;
+
+            // Take the first entry that is genuinely a string. Guarding here
+            // because handing an array to a string cast is exactly what
+            // killed the previous run before it reached product detail.
+            if ($sku === '') {
+                foreach ($list as $candidate) {
+                    if (is_string($candidate) && trim($candidate) !== '') {
+                        $sku = trim($candidate);
+                        break;
+                    }
+                }
             }
         }
         $this->newLine();
@@ -291,17 +305,25 @@ class QbpProbe extends Command
         return $walk($sx);
     }
 
-    private function listish(array $payload): array
+    /**
+     * MARKER-QBP-PATHS — one child or many.
+     *
+     * SimpleXML hands back an object for a single child and a list for two,
+     * so every collection read goes through this. Replaces listish(), which
+     * searched a payload for any list it could find — a JSON habit that has
+     * no place against XML, where the collection is named.
+     *
+     * @return array<int,mixed>
+     */
+    private function asList(mixed $value): array
     {
-        if (array_is_list($payload)) {
-            return $payload;
+        if ($value === null || $value === '') {
+            return [];
         }
-        foreach ($payload as $v) {
-            if (is_array($v) && array_is_list($v)) {
-                return $v;
-            }
+        if (is_array($value) && array_is_list($value)) {
+            return $value;
         }
-        return [$payload];
+        return [$value];
     }
 
     private function firstAssoc(array $payload): array
