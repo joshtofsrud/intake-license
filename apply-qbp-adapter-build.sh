@@ -1,154 +1,50 @@
-<?php
+#!/usr/bin/env bash
+# apply-qbp-adapter-build.sh
+# MARKER-QBP-BUILD — the real adapter.
+#
+# Every shape here was measured, not read from the guide:
+#   brands            brands.brand           {id, description}
+#   categories        productCategories.productCategory — FLAT, parent links
+#   products          products.product       full rows, price and stock inline
+#   attributes        classifications.classification.features.feature
+#                       .featureValues.featureValue.value
+#   stock (bulk)      liteStockLevel         {code, quantity, inStock}
+#
+# PAGING BY BRAND, and it is not optional. syncIdentity calls products() ONCE
+# and holds the result. One brand measured 7 MB of XML — parsed, several times
+# that — and there are 892 brands. Returning the catalog in one array would
+# OOM the worker before a row was written. So pageStartIndex is a 1-based
+# BRAND offset and pageSize is a count of BRANDS, and the caller loops.
+#
+# That also buys something HLC and BTI cannot do: opts['brands'] fetches only
+# the brands named. A shop stocking forty brands syncs forty calls instead of
+# the whole world.
+#
+# GROUPING. QBP returns one row per SKU; the catalog wants products with
+# variants. modelCode is the grouping key — the same role group_id plays for
+# BTI — so rows are grouped by modelCode and each row becomes a Variant.
+#
+# COST IS NOT RETURNED HERE. dealerPrice is the authenticated account's own
+# price and the shared catalog is read by every tenant, so products() drops it
+# deliberately; prices() returns it for the per-tenant tier. The two live one
+# element apart in QBP's payload, which is exactly why this is stated twice.
+set -e
 
-// MARKER-QBP-ADAPTER
+python3 <<'PY'
+import io
 
-namespace App\Services\Distributors;
+p = 'app/Services/Distributors/QbpClient.php'
+s = io.open(p, encoding='utf-8').read()
 
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
+assert 'MARKER-QBP-BUILD' not in s, 'already applied'
 
-/**
- * QBP Point-of-Sale API (API1).
- *
- * A skeleton. testConnection() works; the data methods do not exist yet and
- * say so loudly instead of returning empty arrays — an adapter that returns
- * nothing lets a sync "succeed" while writing no rows, which is a failure
- * that hides for weeks.
- *
- * Shape notes from QBP's developer guide, to be confirmed against a real
- * payload before any of it is relied on:
- *
- *   - Auth is a single key in an X-QBPAPI-KEY header.
- *   - A "model" groups related products (a size run, colour variants), which
- *     maps to our product/variant split: model -> distributor_product_no,
- *     sku -> distributor_variant_no.
- *   - Categories come back as a real tree, so category_path can be built
- *     properly rather than concatenated as BTI's is.
- *   - Bullet points exist at BOTH model and product level and must be
- *     combined to get the full set.
- *   - Images: API1 returns file NAMES; the files themselves need CLS.
- *
- * MARKER-QBP-API-SPLIT — settled against a live response:
- *
- *   COST IS ON API1. dealerPrice comes back on product detail alongside
- *   basePrice, mapPrice and msrp. CLS's exclusion of "Your Price" turned out
- *   not to matter, because CLS is not where cost lives.
- *
- *   Everything transactional is API1 and free: identity, model grouping,
- *   barcodes, categories, dimensions, freight, the price ladder, warehouse
- *   stock with estimatedArrivalDate, plus bulletPoints and classifications.
- *
- *   CLS is needed for ONE thing: the image files. Anything that only needs
- *   to know an image exists can read the file name from API1.
- *
- *   TIER DISCIPLINE. dealerPrice is the authenticated ACCOUNT's price, so it
- *   belongs on the per-tenant sync, never in platform_distributor_catalogs,
- *   which every tenant reads. syncIdentity already nulls cost_cents; keep it
- *   that way. The hazard is that in QBP's payload dealerPrice sits inline
- *   with the identity fields, so it is easy to map by accident.
- */
-class QbpClient implements DistributorAdapter
-{
-    private string $apiKey;
-    private string $base;
-
-    public function __construct(string $apiKey, string $region = 'us')
-    {
-        $this->apiKey = trim($apiKey);
-        $this->base = rtrim((string) config('distributors.qbp.base_url', 'https://api1.qbp.com/api/'), '/') . '/';
-    }
-
-    public function code(): string
-    {
-        return 'QBP';
-    }
-
-    public function name(): string
-    {
-        return 'QBP';
-    }
-
-    /**
-     * Real. 1/brand is the smallest call that requires a valid key, so a
-     * success here proves the credential rather than merely reaching a host.
-     */
-    public function testConnection(): array
-    {
-        // MARKER-QBP-TEST-SHAPE — ok/status/body, matching HlcClient and
-        // BtiClient. The page reads 'status'; returning only a message meant
-        // it rendered "HTTP ?" and discarded the explanation.
-        if ($this->apiKey === '') {
-            return ['ok' => false, 'status' => null, 'body' => 'No API key saved for QBP.'];
-        }
-
-        try {
-            $res = $this->get('1/brand');
-        } catch (\Throwable $e) {
-            return ['ok' => false, 'status' => null, 'body' => 'Could not reach QBP: ' . $e->getMessage()];
-        }
-
-        $status = $res->status();
-
-        if ($status === 401 || $status === 403) {
-            return [
-                'ok' => false, 'status' => $status,
-                'body' => 'QBP rejected the key. This must be the API1 (Point-of-Sale) key — '
-                        . 'a Content License Service key will not work here.',
-            ];
-        }
-
-        if (! $res->successful()) {
-            return [
-                'ok' => false, 'status' => $status,
-                'body' => 'QBP returned HTTP ' . $status . '. ' . mb_substr((string) $res->body(), 0, 200),
-            ];
-        }
-
-        // MARKER-QBP-XML — parse the envelope, then the payload.
-        $doc = $this->xml((string) $res->body());
-
-        if ($doc === null) {
-            return [
-                'ok' => false, 'status' => $status,
-                'body' => 'QBP answered with something that is not XML: '
-                        . mb_substr((string) $res->body(), 0, 120),
-            ];
-        }
-
-        // A 200 can still carry a failure in the envelope, so the status
-        // attribute is checked rather than trusted from the HTTP code.
-        $envelope = (string) ($doc['responseStatus']['@type'] ?? 'OK');
-        if ($envelope !== '' && strtoupper($envelope) !== 'OK') {
-            $err = $doc['errors']['errorMessage'] ?? null;
-            return [
-                'ok' => false, 'status' => $status,
-                'body' => 'QBP reported ' . $envelope
-                        . (is_string($err) && $err !== '' ? ': ' . $err : '.'),
-            ];
-        }
-
-        $count = count($this->asList($doc['brands']['brand'] ?? null));
-
-        // A 200 carrying no brands is not a working connection — it usually
-        // means the key is valid but the account has no catalog access.
-        if ($count === 0) {
-            return [
-                'ok' => false, 'status' => $status,
-                'body' => 'QBP answered but returned no brands. The key works; the account may not '
-                        . 'have product access yet.',
-            ];
-        }
-
-        return [
-            'ok'     => true,
-            'status' => $status,
-            'body'   => 'Connected. QBP returned ' . $count . ' brands.',
-        ];
-    }
-
-    // ---------------------------------------------------------------- todo
-
-    /**
+old = """    public function brands(): array      { throw $this->pending('brands'); }
+    public function categories(): array  { throw $this->pending('categories'); }
+    public function products(array $opts = []): array { throw $this->pending('products'); }
+    public function inventory(array $skus): array     { throw $this->pending('inventory'); }
+    public function prices(array $skus): array        { throw $this->pending('prices'); }"""
+assert s.count(old) == 1, 'B1 stub block anchor'
+s = s.replace(old, """    /**
      * MARKER-QBP-BUILD — every brand QBP carries.
      *
      * @return array<int,array{id:string,name:string}>
@@ -255,7 +151,7 @@ class QbpClient implements DistributorAdapter
 
             try {
                 $doc = $this->fetch('1/product/brand/id/' . rawurlencode($brandId));
-            } catch (\Throwable $e) {
+            } catch (\\Throwable $e) {
                 // One bad brand must not abandon the page. A brand with no
                 // products is normal; a 500 on one is not worth losing the
                 // other twenty-four.
@@ -408,7 +304,7 @@ class QbpClient implements DistributorAdapter
 
             try {
                 $doc = $this->fetch('1/availability/sku/' . rawurlencode($sku));
-            } catch (\Throwable $e) {
+            } catch (\\Throwable $e) {
                 continue;
             }
 
@@ -495,7 +391,7 @@ class QbpClient implements DistributorAdapter
 
             try {
                 $doc = $this->fetch('1/product/sku/' . rawurlencode($sku));
-            } catch (\Throwable $e) {
+            } catch (\\Throwable $e) {
                 continue;
             }
 
@@ -562,168 +458,91 @@ class QbpClient implements DistributorAdapter
         }
 
         return $doc;
-    }
-    /**
-     * MARKER-QBP-API-SPLIT — the one method that is not API1.
-     *
-     * Product detail gives a file NAME. Retrieving the file needs a Content
-     * License Service subscription: an active QBP account with order
-     * history, a signed licensing agreement, and QBP's intake process.
-     *
-     * This throws with that explanation rather than returning an empty list,
-     * because "no images" and "not licensed for images" are different
-     * problems with different fixes, and only one of them is solved by code.
-     */
-    public function images(array $skus): array
-    {
-        throw new RuntimeException(
-            'QBP images require a Content License Service (API3) subscription. API1 returns image '
-            . 'file names only. Product content, attributes, stock and dealer cost all come from '
-            . 'API1 and need no licence.'
-        );
-    }
+    }""")
 
-    /**
-     * Loud on purpose. Returning [] here would let a catalog sync finish,
-     * write zero rows and report success.
-     */
-    private function pending(string $method): RuntimeException
-    {
-        return new RuntimeException(
-            "QbpClient::{$method}() is not built yet. The QBP adapter currently supports "
-            . 'testing the connection only — run `php artisan qbp:probe` to capture a real '
-            . 'payload, then the field map and this method can be written against it.'
-        );
-    }
+io.open(p, 'w', encoding='utf-8').write(s)
+print('patched', p)
+PY
 
-    // ---------------------------------------------------------------- http
+echo
+echo "--- every method implemented, none still throwing 'pending' ---"
+python3 - <<'PY'
+import io, re
+s = io.open('app/Services/Distributors/QbpClient.php', encoding='utf-8').read()
+iface = io.open('app/Services/Distributors/DistributorAdapter.php', encoding='utf-8').read()
+need = set(re.findall(r'public function (\w+)\(', iface))
+have = set(re.findall(r'public function (\w+)\(', s))
+print('  interface methods :', len(need))
+print('  missing           :', sorted(need - have) or 'none')
+still = re.findall(r'public function (\w+)\([^)]*\)[^{]*\{\s*throw \$this->pending', s)
+print('  still stubbed     :', still or 'none')
+assert not (need - have)
+PY
 
-    /**
-     * MARKER-QBP-XML — Accept: application/xml.
-     *
-     * Measured, not assumed: application/json returns 406 with an empty body
-     * on every endpoint tried. XML is the only format the service actually
-     * produces, and the only one that returns a readable error.
-     */
-    private function get(string $path, array $query = [])
-    {
-        return Http::withHeaders([
-                'X-QBPAPI-KEY' => $this->apiKey,
-                'Accept'       => 'application/xml',
-            ])
-            ->timeout((int) config('distributors.qbp.timeout', 60))
-            ->get($this->base . $path, $query);
-    }
+echo
+echo "--- dealerPrice is stripped from the shared path, kept on the tenant path ---"
+python3 - <<'PY'
+import io, re
+s = io.open('app/Services/Distributors/QbpClient.php', encoding='utf-8').read()
+var = re.search(r'private function variant\(array \$row\): array.*?\n    \}', s, re.S).group(0)
+pri = re.search(r'public function prices\(array \$skus\): array.*?\n    \}', s, re.S).group(0)
+print('  variant() unsets dealerPrice :', "unset($row['dealerPrice'])" in var)
+print('  prices() returns dealer_price:', 'dealer_price' in pri)
+PY
 
-    /**
-     * MARKER-QBP-API-SPLIT — element paths confirmed on a live response, so
-     * the field map is written against real names rather than the guide.
-     *
-     *   TIER 1, shared catalog (no cost):
-     *     sku                      distributor_variant_no
-     *     modelCode                distributor_product_no
-     *     manufacturerPartNumber   manufacturer_sku
-     *     barcodes.barcode         upc / ean
-     *     brand.name               manufacturer
-     *     productCategory.id       resolve via the category tree
-     *     Length/Width/Height      dimensions
-     *     Weight                   weight
-     *     bulletPoints             description material
-     *     classifications          attributes
-     *     blocked / discontinued / hazmat / ormd / markets
-     *                              gate whether an item is offerable at all
-     *
-     *   TIER 2, per tenant:
-     *     dealerPrice.value        cost_cents      ← the account's own price
-     *     mapPrice.value           map_cents
-     *     msrp.value               msrp_cents
-     *     basePrice.value          list, for reference
-     *     stockLevel.quantityAvailable / .stockLevelStatus / .warehouse
-     *     stockLevel.estimatedArrivalDate
-     *                              nothing else we carry has an ETA; it is
-     *                              the difference between "we will call you"
-     *                              and "it lands Thursday"
-     *
-     * Prices nest as {currencyIso, value, formattedValue, priceType} — read
-     * `value`, never `formattedValue`, which is a display string.
-     */
+echo
+echo "--- products() returns the shape extractProducts expects ---"
+python3 -c "
+import io, re
+s = io.open('app/Services/Distributors/QbpClient.php', encoding='utf-8').read()
+p = re.search(r'public function products\(array \\\$opts = \[\]\): array.*?\n    \}', s, re.S).group(0)
+print('  returns Products key :', \"'Products' =>\" in p)
+print('  each has Brand       :', \"'Brand'\" in p)
+print('  each has Variants    :', \"'Variants'\" in p)
+print('  pages by brand       :', 'pageStartIndex' in p and 'array_slice' in p)
+"
 
-    /**
-     * MARKER-QBP-XML — XML body to a plain array.
-     *
-     * Attributes are prefixed with @ so responseStatus type="OK" survives as
-     * ['@type' => 'OK'] rather than being dropped, which is how the envelope
-     * reports failure on an HTTP 200.
-     */
-    private function xml(string $body): ?array
-    {
-        if (trim($body) === '') {
-            return null;
-        }
+echo
+echo "--- attribute flattener handles multiple values ---"
+python3 - <<'PY'
+import io, re
+s = io.open('app/Services/Distributors/QbpClient.php', encoding='utf-8').read()
+a = re.search(r'private function attributes\(mixed \$classifications\): array.*?\n    \}', s, re.S).group(0)
+print('  joins values      :', "implode(', ', $values)" in a)
+print('  keeps stable code :', "'Code'" in a)
+print('  reads feature name:', "$feature['name']" in a)
+PY
 
-        $prev = libxml_use_internal_errors(true);
-        $sx = simplexml_load_string($body, 'SimpleXMLElement', LIBXML_NOCDATA);
-        libxml_clear_errors();
-        libxml_use_internal_errors($prev);
+echo
+echo "--- balance ---"
+python3 - <<'PY'
+import io
+s = io.open('app/Services/Distributors/QbpClient.php', encoding='utf-8').read()
+i, n, d, par, brk = 0, len(s), 0, 0, 0
+while i < n:
+    c = s[i]
+    if c == '#' or (c == '/' and i+1 < n and s[i+1] == '/'):
+        while i < n and s[i] != '\n': i += 1
+    elif c == '/' and i+1 < n and s[i+1] == '*':
+        i += 2
+        while i+1 < n and not (s[i] == '*' and s[i+1] == '/'): i += 1
+        i += 2
+    elif c in '"\'':
+        q = c; i += 1
+        while i < n and s[i] != q:
+            if s[i] == '\\': i += 1
+            i += 1
+        i += 1
+    else:
+        if c == '{': d += 1
+        elif c == '}': d -= 1
+        elif c == '(': par += 1
+        elif c == ')': par -= 1
+        elif c == '[': brk += 1
+        elif c == ']': brk -= 1
+        i += 1
+print('QbpClient braces', d, 'parens', par, 'brackets', brk)
+PY
 
-        return $sx === false ? null : $this->sxToArray($sx);
-    }
-
-    private function sxToArray(\SimpleXMLElement $el): array
-    {
-        $out = [];
-
-        foreach ($el->attributes() as $k => $v) {
-            $out['@' . $k] = (string) $v;
-        }
-
-        foreach ($el->children() as $name => $child) {
-            $value = ($child->count() > 0 || $child->attributes()->count() > 0)
-                ? $this->sxToArray($child)
-                : trim((string) $child);
-
-            if (array_key_exists($name, $out)) {
-                // Second occurrence: promote to a list and keep both.
-                if (! is_array($out[$name]) || ! array_is_list($out[$name])) {
-                    $out[$name] = [$out[$name]];
-                }
-                $out[$name][] = $value;
-            } else {
-                $out[$name] = $value;
-            }
-        }
-
-        if ($out === [] ) {
-            $text = trim((string) $el);
-            if ($text !== '') {
-                return ['#text' => $text];
-            }
-        }
-
-        return $out;
-    }
-
-    /**
-     * MARKER-QBP-XML — SimpleXML gives an object for one child and a list for
-     * two. Every collection read goes through this so one-item and many-item
-     * responses take the same path.
-     *
-     * @return array<int,mixed>
-     */
-    private function asList(mixed $value): array
-    {
-        if ($value === null || $value === '') {
-            return [];
-        }
-        if (is_array($value) && array_is_list($value)) {
-            return $value;
-        }
-        return [$value];
-    }
-
-    /* MARKER-QBP-XML — the JSON-shaped listish() helper is gone; asList()
-       above replaces it, and the difference matters: listish() hunted for
-       whichever key held an array, which is a JSON habit. XML names its
-       collections, so the path is known and only the one-versus-many shape
-       needs normalising. */
-}
+echo
+echo "apply-qbp-adapter-build: OK"
