@@ -26,11 +26,26 @@ use RuntimeException;
  *     properly rather than concatenated as BTI's is.
  *   - Bullet points exist at BOTH model and product level and must be
  *     combined to get the full set.
- *   - Images require a separate CLS subscription; product detail carries
- *     file names only.
- *   - Dealer cost is NOT documented as present on product detail. CLS
- *     explicitly excludes "Your Price". Confirm with the probe before
- *     designing anything that depends on cost arriving here.
+ *   - Images: API1 returns file NAMES; the files themselves need CLS.
+ *
+ * MARKER-QBP-API-SPLIT — settled against a live response:
+ *
+ *   COST IS ON API1. dealerPrice comes back on product detail alongside
+ *   basePrice, mapPrice and msrp. CLS's exclusion of "Your Price" turned out
+ *   not to matter, because CLS is not where cost lives.
+ *
+ *   Everything transactional is API1 and free: identity, model grouping,
+ *   barcodes, categories, dimensions, freight, the price ladder, warehouse
+ *   stock with estimatedArrivalDate, plus bulletPoints and classifications.
+ *
+ *   CLS is needed for ONE thing: the image files. Anything that only needs
+ *   to know an image exists can read the file name from API1.
+ *
+ *   TIER DISCIPLINE. dealerPrice is the authenticated ACCOUNT's price, so it
+ *   belongs on the per-tenant sync, never in platform_distributor_catalogs,
+ *   which every tenant reads. syncIdentity already nulls cost_cents; keep it
+ *   that way. The hazard is that in QBP's payload dealerPrice sits inline
+ *   with the identity fields, so it is easy to map by accident.
  */
 class QbpClient implements DistributorAdapter
 {
@@ -138,7 +153,25 @@ class QbpClient implements DistributorAdapter
     public function products(array $opts = []): array { throw $this->pending('products'); }
     public function inventory(array $skus): array     { throw $this->pending('inventory'); }
     public function prices(array $skus): array        { throw $this->pending('prices'); }
-    public function images(array $skus): array        { throw $this->pending('images'); }
+    /**
+     * MARKER-QBP-API-SPLIT — the one method that is not API1.
+     *
+     * Product detail gives a file NAME. Retrieving the file needs a Content
+     * License Service subscription: an active QBP account with order
+     * history, a signed licensing agreement, and QBP's intake process.
+     *
+     * This throws with that explanation rather than returning an empty list,
+     * because "no images" and "not licensed for images" are different
+     * problems with different fixes, and only one of them is solved by code.
+     */
+    public function images(array $skus): array
+    {
+        throw new RuntimeException(
+            'QBP images require a Content License Service (API3) subscription. API1 returns image '
+            . 'file names only. Product content, attributes, stock and dealer cost all come from '
+            . 'API1 and need no licence.'
+        );
+    }
 
     /**
      * Loud on purpose. Returning [] here would let a catalog sync finish,
@@ -171,6 +204,39 @@ class QbpClient implements DistributorAdapter
             ->timeout((int) config('distributors.qbp.timeout', 60))
             ->get($this->base . $path, $query);
     }
+
+    /**
+     * MARKER-QBP-API-SPLIT — element paths confirmed on a live response, so
+     * the field map is written against real names rather than the guide.
+     *
+     *   TIER 1, shared catalog (no cost):
+     *     sku                      distributor_variant_no
+     *     modelCode                distributor_product_no
+     *     manufacturerPartNumber   manufacturer_sku
+     *     barcodes.barcode         upc / ean
+     *     brand.name               manufacturer
+     *     productCategory.id       resolve via the category tree
+     *     Length/Width/Height      dimensions
+     *     Weight                   weight
+     *     bulletPoints             description material
+     *     classifications          attributes
+     *     blocked / discontinued / hazmat / ormd / markets
+     *                              gate whether an item is offerable at all
+     *
+     *   TIER 2, per tenant:
+     *     dealerPrice.value        cost_cents      ← the account's own price
+     *     mapPrice.value           map_cents
+     *     msrp.value               msrp_cents
+     *     basePrice.value          list, for reference
+     *     stockLevel.quantityAvailable / .stockLevelStatus / .warehouse
+     *     stockLevel.estimatedArrivalDate
+     *                              nothing else we carry has an ETA; it is
+     *                              the difference between "we will call you"
+     *                              and "it lands Thursday"
+     *
+     * Prices nest as {currencyIso, value, formattedValue, priceType} — read
+     * `value`, never `formattedValue`, which is a display string.
+     */
 
     /**
      * MARKER-QBP-XML — XML body to a plain array.
