@@ -22,7 +22,8 @@ class QbpProbe extends Command
         {sku? : SKU to fetch in full. Omitted, one is taken from the SKU list}
         {--raw : Print whole payloads instead of trimmed ones}
         {--negotiate : Try several header combinations and report which QBP answers}
-        {--bulk : Probe the bulk endpoints a real sync would have to use}';
+        {--bulk : Probe the bulk endpoints a real sync would have to use}
+        {--brand= : Probe products-by-brand, e.g. --brand=DRW (Wheels Manufacturing)}';
 
     protected $description = 'Read-only probe of the QBP POS API. Prints responses; writes nothing.';
 
@@ -50,6 +51,11 @@ class QbpProbe extends Command
         // MARKER-QBP-BULK — run this before designing the sync.
         if ($this->option('bulk')) {
             return $this->bulk();
+        }
+
+        // MARKER-QBP-BRAND — the likely tier-1 path.
+        if ($this->option('brand')) {
+            return $this->byBrand((string) $this->option('brand'));
         }
 
         $this->line('Base URL: ' . $this->base);
@@ -145,6 +151,72 @@ class QbpProbe extends Command
      *
      * A 404 here is information, not a failure — this never throws.
      */
+    /**
+     * MARKER-QBP-BRAND — one brand's products.
+     *
+     * Reports the shape rather than the payload: how many products, and what
+     * fields the first one carries. A field list is what the map is written
+     * from; the values are already known from the single-product probe.
+     */
+    private function byBrand(string $brandId): int
+    {
+        $brandId = trim($brandId);
+        $this->line('Base URL: ' . $this->base);
+        $this->line('Brand id: ' . $brandId);
+        $this->newLine();
+
+        $doc = $this->probeGet('1/product/brand/id/' . rawurlencode($brandId), 'Products for brand ' . $brandId);
+
+        if (! is_array($doc)) {
+            $this->error('No parseable response. If this 404s, the path shape differs from the guide.');
+            return self::FAILURE;
+        }
+
+        $products = $this->asList($doc['products']['product'] ?? null);
+
+        if (! $products) {
+            $this->warn('Parsed, but no products.product list. Lists found in the response:');
+            foreach ($this->collections($doc) as $path => $items) {
+                $this->line('  ' . $path . ' -> ' . count($items));
+            }
+            return self::SUCCESS;
+        }
+
+        $this->line('  ' . count($products) . ' products for this brand.');
+        $this->newLine();
+
+        $first = $products[0];
+        $this->line('--- fields on the first product ---');
+        $this->line('  ' . implode(', ', array_keys(is_array($first) ? $first : [])));
+        $this->newLine();
+
+        // The two that decide whether this is one pass or three.
+        $this->line('--- is it a full product, or a stub? ---');
+        foreach (['dealerPrice', 'stockLevels', 'barcodes', 'productCategories', 'classifications', 'bulletPoints'] as $key) {
+            $present = array_key_exists($key, is_array($first) ? $first : []);
+            $value   = $present ? $first[$key] : null;
+            $note    = ! $present ? 'ABSENT'
+                : (($value === '' || $value === null) ? 'present but empty'
+                : (is_array($value) ? 'present, ' . count($value) . ' key(s)' : 'present'));
+            $this->line(sprintf('  %-18s %s', $key, $note));
+        }
+
+        // Sanity: does the dealer price actually carry a number here?
+        $price = $first['dealerPrice']['value'] ?? null;
+        $this->newLine();
+        $this->line('  dealerPrice.value on the first product: ' . ($price === null ? 'MISSING' : $price));
+
+        $this->newLine();
+        $this->comment('Read it this way:');
+        $this->line('  Full products with dealerPrice and stockLevels inline means the whole');
+        $this->line('  catalog is ~892 calls, identity and price and stock in one pass.');
+        $this->line('  Stubs mean a second call per product, which puts us back at 30,000.');
+        $this->line('  Remember dealerPrice is THIS account\'s price — it belongs on the');
+        $this->line('  per-tenant sync, never in the shared catalog.');
+
+        return self::SUCCESS;
+    }
+
     /**
      * MARKER-QBP-BULK — measure the three endpoints a sync would live on.
      *
