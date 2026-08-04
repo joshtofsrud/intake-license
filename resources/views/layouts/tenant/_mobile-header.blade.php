@@ -61,6 +61,10 @@
 
     {{-- MARKER-OFFLINE-SYNC stage 4 — status pill mount, in the header flow --}}
     <span id="ioMountMobile" style="position:absolute;right:54px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center"></span>
+    {{-- MARKER-PAD-MOBILE — the pad, beside the bell. A scratch pad matters
+         more on the phone than at the desk. --}}
+    @include('layouts.tenant._notes-pad')
+
     {{-- MARKER-PATCH-363 — alerts bell -> full notifications page, with unread badge --}}
     <a href="{{ route('tenant.notifications') }}" class="ia-mobile-header-bell"
        aria-label="Notifications{{ $mhdrAlertsUnread > 0 ? ' — '.$mhdrAlertsUnread.' unread' : '' }}">

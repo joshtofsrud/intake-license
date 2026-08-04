@@ -94,6 +94,8 @@
   </div>
 </div>
 
+{{-- MARKER-PAD-MOBILE — markup renders per instance; these do not. --}}
+@once
 <style>
   .pad { position:relative; }
   .pad-btn { position:relative; width:36px; height:36px; border-radius:10px; display:flex; align-items:center;
@@ -163,9 +165,14 @@
 </style>
 
 <script>
+/* MARKER-PAD-MOBILE — the partial renders in BOTH headers, so there are two
+   instances in the DOM and CSS decides which is visible. querySelector bound
+   only the first, which left the mobile button dead while a hidden desktop
+   panel held all the wiring. Bind each one. */
 ( function () {
-  var wrap = document.querySelector( '[data-pad]' );
-  if ( !wrap ) { return; }
+  document.querySelectorAll( '[data-pad]' ).forEach( function ( wrap ) { bindPad( wrap ); } );
+
+  function bindPad( wrap ) {
   var btn   = wrap.querySelector( '[data-pad-toggle]' );
   var panel = wrap.querySelector( '[data-pad-panel]' );
   if ( !btn || !panel ) { return; }
@@ -337,5 +344,7 @@
       if ( e.key === 'Escape' ) { results.setAttribute( 'hidden', '' ); e.stopPropagation(); }
     } );
   }
+  }
 }() );
 </script>
+@endonce
