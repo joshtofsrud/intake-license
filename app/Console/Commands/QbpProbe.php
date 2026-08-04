@@ -20,7 +20,8 @@ class QbpProbe extends Command
 {
     protected $signature = 'qbp:probe
         {sku? : SKU to fetch in full. Omitted, one is taken from the SKU list}
-        {--raw : Print whole payloads instead of trimmed ones}';
+        {--raw : Print whole payloads instead of trimmed ones}
+        {--negotiate : Try several header combinations and report which QBP answers}';
 
     protected $description = 'Read-only probe of the QBP POS API. Prints responses; writes nothing.';
 
@@ -39,6 +40,12 @@ class QbpProbe extends Command
         }
 
         $this->base = rtrim((string) config('distributors.qbp.base_url'), '/') . '/';
+
+        // MARKER-QBP-NEGOTIATE — run this when the normal probe 406s.
+        if ($this->option('negotiate')) {
+            return $this->negotiate();
+        }
+
         $this->line('Base URL: ' . $this->base);
         $this->line('Key: from master admin (' . strlen($this->key) . ' chars, not shown)');
         $this->newLine();
@@ -118,6 +125,71 @@ class QbpProbe extends Command
      *
      * A 404 here is information, not a failure — this never throws.
      */
+    /**
+     * MARKER-QBP-NEGOTIATE — the same call with different headers.
+     *
+     * A 406 means content negotiation failed, so the variable is the headers
+     * and nothing else. Printing every combination's status side by side
+     * turns "which header does it want" into one command rather than a
+     * sequence of deploys.
+     */
+    private function negotiate(): int
+    {
+        $variants = [
+            'documented json'      => ['Accept' => 'application/json'],
+            'json + charset'       => ['Accept' => 'application/json; charset=utf-8'],
+            'anything'             => ['Accept' => '*/*'],
+            'no accept header'     => [],
+            'xml'                  => ['Accept' => 'application/xml'],
+            'json + user-agent'    => ['Accept' => 'application/json', 'User-Agent' => 'Intake/1.0'],
+            'browserish'           => [
+                'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'User-Agent' => 'Mozilla/5.0 (compatible; Intake/1.0)',
+            ],
+        ];
+
+        // Two paths: one that needs the key, one that should 404 regardless —
+        // if BOTH 406, the refusal is happening before routing and the answer
+        // is a gateway, not the endpoint.
+        $paths = ['1/brand', '1/definitely-not-a-real-endpoint'];
+
+        foreach ($paths as $path) {
+            $this->newLine();
+            $this->line('=== ' . $this->base . $path);
+
+            foreach ($variants as $label => $headers) {
+                $h = $headers + ['X-QBPAPI-KEY' => $this->key];
+
+                try {
+                    $res = Http::withHeaders($h)
+                        ->timeout((int) config('distributors.qbp.timeout', 60))
+                        ->get($this->base . $path);
+
+                    $body = trim((string) $res->body());
+                    $this->line(sprintf(
+                        '  %-20s HTTP %-4s %6s bytes  %s',
+                        $label,
+                        $res->status(),
+                        strlen($body),
+                        mb_substr(preg_replace('/\s+/', ' ', $body), 0, 70)
+                    ));
+                } catch (\Throwable $e) {
+                    $this->line(sprintf('  %-20s failed: %s', $label, mb_substr($e->getMessage(), 0, 70)));
+                }
+            }
+        }
+
+        $this->newLine();
+        $this->comment('Read it this way:');
+        $this->line('  Any row returning 200 names the headers to use.');
+        $this->line('  If 1/brand 406s but the fake path 404s, the endpoint is refusing the');
+        $this->line('  Accept header. If BOTH 406, something in front of QBP is rejecting the');
+        $this->line('  request before it reaches the API and the headers are not the problem.');
+        $this->line('  If every row is 401, the key is wrong rather than the headers.');
+
+        return self::SUCCESS;
+    }
+
     private function probeGet(string $path, string $label, bool $dump = false): mixed
     {
         $this->line('--- ' . $label . '  (' . $path . ')');
