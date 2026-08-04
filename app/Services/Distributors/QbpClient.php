@@ -63,6 +63,16 @@ class QbpClient implements DistributorAdapter
         return 'QBP';
     }
 
+    /**
+     * MARKER-QBP-SYNC — tells syncIdentity to page products() by brand
+     * rather than fetching the catalog in one call. One brand measured 7 MB
+     * of XML; 892 brands in one array is an OOM, not a sync.
+     */
+    public function pagesByBrand(): bool
+    {
+        return true;
+    }
+
     public function name(): string
     {
         return 'QBP';

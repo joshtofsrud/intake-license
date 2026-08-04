@@ -50,6 +50,13 @@ class DistributorCatalogSyncService
 
         $this->markProgress($code, 0, true);
 
+        // MARKER-QBP-SYNC — adapters with big catalogs page by brand instead
+        // of one giant fetch. The adapter declares it; nothing here names a
+        // distributor.
+        if (method_exists($adapter, 'pagesByBrand') && $adapter->pagesByBrand()) {
+            return $this->syncIdentityByBrand($adapter, $since, $res);
+        }
+
         // HLC's Catalog/Products ignores pageStartIndex on the public API (every
         // offset returns the first page), but it honours pageSize: a pageSize at
         // or above the catalog total returns the whole catalog in one response.
@@ -125,6 +132,94 @@ class DistributorCatalogSyncService
             $this->setBrandStatus($code, $brandName, 'done', $brandWritten);
             $this->markProgress($code, $res['written']);
             unset($brandProducts);
+            gc_collect_cycles();
+        }
+
+        $this->recordState($code, $res);
+        return $res;
+    }
+
+    /**
+     * MARKER-QBP-SYNC — fetch, write, release, one small page of brands at a
+     * time. Memory stays flat at a few brands' worth no matter how large the
+     * catalog is; progress and per-brand status behave exactly like the
+     * single-fetch path.
+     *
+     * Chunk size 10: DRW measured 7 MB / ~1,000 products, so a page tops out
+     * around 70 MB of XML before parsing — well inside a worker.
+     */
+    private function syncIdentityByBrand(DistributorAdapter $adapter, ?Carbon $since, array $res): array
+    {
+        $code = $res['code'];
+
+        try {
+            $brandList = $adapter->brands();
+        } catch (\Throwable $e) {
+            $res['errors'][] = 'brand list: ' . $e->getMessage();
+            $this->recordState($code, $res);
+            return $res;
+        }
+
+        // Seed every brand as pending up front so the progress panel shows
+        // the full run's shape immediately, matching the existing path.
+        $pendingNames = [];
+        foreach ($brandList as $b) {
+            $pendingNames[$b['name']] = [];
+        }
+        ksort($pendingNames);
+        $this->seedBrandStatuses($code, $pendingNames);
+        unset($pendingNames);
+
+        foreach (array_chunk($brandList, 10) as $chunk) {
+            $ids = array_column($chunk, 'id');
+
+            try {
+                $batch = $adapter->products(['brands' => $ids]);
+            } catch (\Throwable $e) {
+                $res['errors'][] = 'brands ' . implode(',', $ids) . ': ' . $e->getMessage();
+                continue;
+            }
+
+            $products = $this->extractProducts($batch);
+            unset($batch);
+            $res['pages']++;
+
+            $byBrand = [];
+            foreach ($products as $product) {
+                $byBrand[$product['Brand'] ?? 'Unknown'][] = $product;
+            }
+            unset($products);
+
+            foreach ($byBrand as $brandName => $brandProducts) {
+                $this->setBrandStatus($code, $brandName, 'syncing', null);
+                $brandWritten = 0;
+
+                foreach ($brandProducts as $product) {
+                    foreach (($product['Variants'] ?? []) as $variant) {
+                        $res['seen']++;
+                        if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
+                            $res['skipped_delta']++;
+                            continue;
+                        }
+                        try {
+                            $this->upsertVariant($code, $adapter->name(), $variant, $product, $res);
+                            $res['written']++;
+                            $brandWritten++;
+                        } catch (\Throwable $e) {
+                            $res['errors'][] = ($variant['sku'] ?? $variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
+                        }
+                        if ($brandWritten % 100 === 0) {
+                            $this->setBrandStatus($code, $brandName, 'syncing', $brandWritten);
+                            $this->markProgress($code, $res['written']);
+                        }
+                    }
+                }
+
+                $this->setBrandStatus($code, $brandName, 'done', $brandWritten);
+                $this->markProgress($code, $res['written']);
+            }
+
+            unset($byBrand);
             gc_collect_cycles();
         }
 
