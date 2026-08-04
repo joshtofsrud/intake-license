@@ -195,9 +195,10 @@ class QbpProbe extends Command
         $this->line('--- ' . $label . '  (' . $path . ')');
 
         try {
+            // MARKER-QBP-XML — XML, measured. JSON 406s on every endpoint.
             $res = Http::withHeaders([
                     'X-QBPAPI-KEY' => $this->key,
-                    'Accept'       => 'application/json',
+                    'Accept'       => 'application/xml',
                 ])
                 ->timeout((int) config('distributors.qbp.timeout', 60))
                 ->get($this->base . $path);
@@ -213,21 +214,81 @@ class QbpProbe extends Command
             return null;
         }
 
-        $json = $res->json();
-        if ($json === null) {
-            $this->warn('  not JSON: ' . substr($res->body(), 0, 200));
-            return null;
-        }
+        // MARKER-QBP-XML — dump the RAW XML, not a converted array. The field
+        // map is written against QBP's own element names, and a conversion
+        // step between what they send and what is on screen is exactly the
+        // gap a mapping bug hides in.
+        $body = (string) $res->body();
 
         if ($dump) {
-            $pretty = (string) json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $this->line($this->option('raw') ? $pretty : substr($pretty, 0, 6000));
-            if (! $this->option('raw') && strlen($pretty) > 6000) {
+            $pretty = $this->prettyXml($body);
+            $this->line($this->option('raw') ? $pretty : mb_substr($pretty, 0, 6000));
+            if (! $this->option('raw') && mb_strlen($pretty) > 6000) {
                 $this->comment('  … trimmed. Re-run with --raw for all of it.');
             }
         }
 
-        return $json;
+        $arr = $this->xmlToArray($body);
+        if ($arr === null) {
+            $this->warn('  not XML: ' . mb_substr($body, 0, 200));
+            return null;
+        }
+
+        return $arr;
+    }
+
+    /** MARKER-QBP-XML — indent the XML so a nested product is readable. */
+    private function prettyXml(string $body): string
+    {
+        $prev = libxml_use_internal_errors(true);
+        $doc = new \DOMDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput = true;
+        $ok = $doc->loadXML($body);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+
+        return $ok ? (string) $doc->saveXML() : $body;
+    }
+
+    /** MARKER-QBP-XML — attributes kept, prefixed with @. */
+    private function xmlToArray(string $body): ?array
+    {
+        if (trim($body) === '') {
+            return null;
+        }
+
+        $prev = libxml_use_internal_errors(true);
+        $sx = simplexml_load_string($body, 'SimpleXMLElement', LIBXML_NOCDATA);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+
+        if ($sx === false) {
+            return null;
+        }
+
+        $walk = function (\SimpleXMLElement $el) use (&$walk): array {
+            $out = [];
+            foreach ($el->attributes() as $k => $v) {
+                $out['@' . $k] = (string) $v;
+            }
+            foreach ($el->children() as $name => $child) {
+                $value = ($child->count() > 0 || $child->attributes()->count() > 0)
+                    ? $walk($child)
+                    : trim((string) $child);
+                if (array_key_exists($name, $out)) {
+                    if (! is_array($out[$name]) || ! array_is_list($out[$name])) {
+                        $out[$name] = [$out[$name]];
+                    }
+                    $out[$name][] = $value;
+                } else {
+                    $out[$name] = $value;
+                }
+            }
+            return $out;
+        };
+
+        return $walk($sx);
     }
 
     private function listish(array $payload): array

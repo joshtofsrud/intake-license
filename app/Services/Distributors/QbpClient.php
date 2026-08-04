@@ -89,8 +89,30 @@ class QbpClient implements DistributorAdapter
             ];
         }
 
-        $json  = $res->json();
-        $count = is_array($json) ? count($this->listish($json)) : 0;
+        // MARKER-QBP-XML — parse the envelope, then the payload.
+        $doc = $this->xml((string) $res->body());
+
+        if ($doc === null) {
+            return [
+                'ok' => false, 'status' => $status,
+                'body' => 'QBP answered with something that is not XML: '
+                        . mb_substr((string) $res->body(), 0, 120),
+            ];
+        }
+
+        // A 200 can still carry a failure in the envelope, so the status
+        // attribute is checked rather than trusted from the HTTP code.
+        $envelope = (string) ($doc['responseStatus']['@type'] ?? 'OK');
+        if ($envelope !== '' && strtoupper($envelope) !== 'OK') {
+            $err = $doc['errors']['errorMessage'] ?? null;
+            return [
+                'ok' => false, 'status' => $status,
+                'body' => 'QBP reported ' . $envelope
+                        . (is_string($err) && $err !== '' ? ': ' . $err : '.'),
+            ];
+        }
+
+        $count = count($this->asList($doc['brands']['brand'] ?? null));
 
         // A 200 carrying no brands is not a working connection — it usually
         // means the key is valid but the account has no catalog access.
@@ -133,27 +155,99 @@ class QbpClient implements DistributorAdapter
 
     // ---------------------------------------------------------------- http
 
+    /**
+     * MARKER-QBP-XML — Accept: application/xml.
+     *
+     * Measured, not assumed: application/json returns 406 with an empty body
+     * on every endpoint tried. XML is the only format the service actually
+     * produces, and the only one that returns a readable error.
+     */
     private function get(string $path, array $query = [])
     {
         return Http::withHeaders([
                 'X-QBPAPI-KEY' => $this->apiKey,
-                'Accept'       => 'application/json',
+                'Accept'       => 'application/xml',
             ])
             ->timeout((int) config('distributors.qbp.timeout', 60))
             ->get($this->base . $path, $query);
     }
 
-    /** QBP wraps lists in a named key; find it without assuming the name. */
-    private function listish(array $payload): array
+    /**
+     * MARKER-QBP-XML — XML body to a plain array.
+     *
+     * Attributes are prefixed with @ so responseStatus type="OK" survives as
+     * ['@type' => 'OK'] rather than being dropped, which is how the envelope
+     * reports failure on an HTTP 200.
+     */
+    private function xml(string $body): ?array
     {
-        if (array_is_list($payload)) {
-            return $payload;
+        if (trim($body) === '') {
+            return null;
         }
-        foreach ($payload as $v) {
-            if (is_array($v) && array_is_list($v)) {
-                return $v;
+
+        $prev = libxml_use_internal_errors(true);
+        $sx = simplexml_load_string($body, 'SimpleXMLElement', LIBXML_NOCDATA);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+
+        return $sx === false ? null : $this->sxToArray($sx);
+    }
+
+    private function sxToArray(\SimpleXMLElement $el): array
+    {
+        $out = [];
+
+        foreach ($el->attributes() as $k => $v) {
+            $out['@' . $k] = (string) $v;
+        }
+
+        foreach ($el->children() as $name => $child) {
+            $value = ($child->count() > 0 || $child->attributes()->count() > 0)
+                ? $this->sxToArray($child)
+                : trim((string) $child);
+
+            if (array_key_exists($name, $out)) {
+                // Second occurrence: promote to a list and keep both.
+                if (! is_array($out[$name]) || ! array_is_list($out[$name])) {
+                    $out[$name] = [$out[$name]];
+                }
+                $out[$name][] = $value;
+            } else {
+                $out[$name] = $value;
             }
         }
-        return [$payload];
+
+        if ($out === [] ) {
+            $text = trim((string) $el);
+            if ($text !== '') {
+                return ['#text' => $text];
+            }
+        }
+
+        return $out;
     }
+
+    /**
+     * MARKER-QBP-XML — SimpleXML gives an object for one child and a list for
+     * two. Every collection read goes through this so one-item and many-item
+     * responses take the same path.
+     *
+     * @return array<int,mixed>
+     */
+    private function asList(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+        if (is_array($value) && array_is_list($value)) {
+            return $value;
+        }
+        return [$value];
+    }
+
+    /* MARKER-QBP-XML — the JSON-shaped listish() helper is gone; asList()
+       above replaces it, and the difference matters: listish() hunted for
+       whichever key held an array, which is a JSON habit. XML names its
+       collections, so the path is known and only the one-versus-many shape
+       needs normalising. */
 }
