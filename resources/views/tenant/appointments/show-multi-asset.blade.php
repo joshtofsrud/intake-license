@@ -1346,7 +1346,13 @@ input.ma-asset-name-edit:focus {
 
 @section('content')
 {{-- MARKER-PATCH-158-G8 — Removed max-width:1400px + margin:0 auto. No other tenant page uses centered wrapper; this one shouldn't either. --}}
+{{-- MARKER-OLD-SCHOOL-BANNER-MA — this view renders whenever the appointment
+     has assets, which is most of them. $noteCustomer also makes the pad
+     button pre-attach this customer. --}}
+@php $noteCustomer = $appointment->customer ?? null; @endphp
 <div class="ia-page" id="ma-appt" style="padding: 24px 28px 60px;">
+
+  @include('tenant._notes-banner', ['bannerCustomer' => $noteCustomer])
 
   {{-- Header --}}
   <div class="ma-page-head">
