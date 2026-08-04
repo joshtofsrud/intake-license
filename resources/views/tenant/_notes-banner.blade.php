@@ -36,6 +36,14 @@
         </form>
         <div class="nb-body">
           <div class="nb-text">{{ $bn->body }}</div>
+          {{-- MARKER-OLD-SCHOOL-PHOTO --}}
+          @if($bn->photos)
+            <div class="np-shots">
+              @foreach($bn->photoUrls() as $u)
+                <a href="{{ $u }}" target="_blank" rel="noopener"><img src="{{ $u }}" alt="" loading="lazy"></a>
+              @endforeach
+            </div>
+          @endif
           <div class="nb-meta">
             {{ $bn->author?->name ?? 'someone' }} · {{ $bn->created_at?->diffForHumans() }}
             @if($bn->ageInDays() >= 14)
@@ -63,6 +71,10 @@
     .nb-text { font-size:13.5px; line-height:1.5; word-break:break-word; }
     .nb-meta { font-size:10.5px; color:#7A7159; margin-top:4px; }
     .nb-age { color:#A8622A; font-weight:600; margin-left:6px; }
+    /* MARKER-OLD-SCHOOL-PHOTO */
+    .np-shots { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
+    .np-shots img { width:64px; height:64px; object-fit:cover; border-radius:6px; display:block;
+                    border:1px solid #D9CDB0; }
     .nb-foot { border-top:1px solid #D9CDB0; margin-top:6px; padding-top:8px; font-size:11px; color:#7A7159; }
   </style>
 @endif

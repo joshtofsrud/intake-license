@@ -10,6 +10,8 @@ use App\Models\Tenant\TenantNote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class NoteController extends Controller
@@ -171,7 +173,11 @@ class NoteController extends Controller
         $tenant = tenant();
 
         $data = $request->validate([
-            'body'        => ['required', 'string', 'max:2000'],
+            // MARKER-OLD-SCHOOL-PHOTO — a photo alone is a valid note, so the
+            // body is only required when no photo came with it.
+            'body'        => ['required_without:photos', 'nullable', 'string', 'max:2000'],
+            'photos'      => ['nullable', 'array', 'max:4'],
+            'photos.*'    => ['image', 'max:20480'],
             'customer_id' => ['nullable', 'string', 'max:64'],
             'back'        => ['nullable', 'string', 'max:2000'],
         ]);
@@ -184,10 +190,19 @@ class NoteController extends Controller
                 ->where('id', $data['customer_id'])->value('id');
         }
 
+        $photos = [];
+        foreach ((array) $request->file('photos', []) as $file) {
+            $stored = $this->storePhoto($tenant->id, $file);
+            if ($stored !== null) {
+                $photos[] = $stored;
+            }
+        }
+
         TenantNote::create([
             'tenant_id'   => $tenant->id,
             'location_id' => $request->session()->get('current_location_id'),
-            'body'        => trim($data['body']),
+            'body'        => trim((string) ($data['body'] ?? '')),
+            'photos'      => $photos ?: null,
             'customer_id' => $customerId,
             'created_by'  => Auth::guard('tenant')->id(),
         ]);
@@ -221,6 +236,17 @@ class NoteController extends Controller
     public function destroy(Request $request, string $id): RedirectResponse
     {
         $note = TenantNote::where('tenant_id', tenant()->id)->findOrFail($id);
+
+        // MARKER-OLD-SCHOOL-PHOTO — take the files with it. A scratch pad
+        // that leaves images on disk forever is not a scratch pad.
+        foreach ((array) ($note->photos ?? []) as $path) {
+            try {
+                Storage::disk('public')->delete($path);
+            } catch (\Throwable $e) {
+                Log::warning('note.photo_delete_failed', ['note' => $note->id, 'path' => $path]);
+            }
+        }
+
         $note->delete();
 
         return $this->backTo($request->input('back'))->with('flash', [
@@ -233,6 +259,77 @@ class NoteController extends Controller
     {
         return TenantNote::where('tenant_id', tenant()->id)
             ->whereNull('completed_at')->count();
+    }
+
+    /**
+     * MARKER-OLD-SCHOOL-PHOTO — store one photo, downscaled and upright.
+     *
+     * A phone photo is 4-12 MB and records its rotation in EXIF rather than
+     * in the pixels. Stored raw, a busy pad fills a disk and half the images
+     * appear sideways. Scaled to a 1600px long edge at quality 82 — ample for
+     * "it looked like this" — and rotated to match the EXIF orientation.
+     *
+     * Every step is best-effort. If GD is unavailable, or the file is not a
+     * format it can read, the original is stored untouched: an oversized
+     * photo beats a lost one.
+     *
+     * @return string|null storage path, or null if it could not be saved
+     */
+    private function storePhoto(string $tenantId, $file): ?string
+    {
+        $dir = 'tenants/' . $tenantId . '/notes';
+
+        try {
+            if (! function_exists('imagecreatefromstring')) {
+                return Storage::disk('public')->putFile($dir, $file);
+            }
+
+            $raw = @file_get_contents($file->getRealPath());
+            $img = $raw ? @imagecreatefromstring($raw) : false;
+
+            if ($img === false) {
+                return Storage::disk('public')->putFile($dir, $file);
+            }
+
+            // EXIF first: rotating after scaling would scale to the wrong
+            // aspect for a portrait shot.
+            if (function_exists('exif_read_data')) {
+                $exif = @exif_read_data($file->getRealPath());
+                $o = (int) ($exif['Orientation'] ?? 0);
+                if ($o === 3)      { $img = imagerotate($img, 180, 0); }
+                elseif ($o === 6)  { $img = imagerotate($img, -90, 0); }
+                elseif ($o === 8)  { $img = imagerotate($img, 90, 0); }
+            }
+
+            $w = imagesx($img);
+            $h = imagesy($img);
+            $long = max($w, $h);
+
+            if ($long > 1600) {
+                $scaled = imagescale($img, (int) round($w * 1600 / $long), (int) round($h * 1600 / $long));
+                if ($scaled !== false) {
+                    imagedestroy($img);
+                    $img = $scaled;
+                }
+            }
+
+            $tmp = tempnam(sys_get_temp_dir(), 'note');
+            imagejpeg($img, $tmp, 82);
+            imagedestroy($img);
+
+            $path = $dir . '/' . \Illuminate\Support\Str::uuid() . '.jpg';
+            Storage::disk('public')->put($path, file_get_contents($tmp));
+            @unlink($tmp);
+
+            return $path;
+        } catch (\Throwable $e) {
+            Log::error('note.photo_failed', ['tenant' => $tenantId, 'error' => $e->getMessage()]);
+            try {
+                return Storage::disk('public')->putFile($dir, $file);
+            } catch (\Throwable $e2) {
+                return null;
+            }
+        }
     }
 
     /**

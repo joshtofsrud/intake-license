@@ -42,6 +42,14 @@
 
       <div class="np-body">
         <div class="np-text">{{ $n->body }}</div>
+        {{-- MARKER-OLD-SCHOOL-PHOTO --}}
+        @if($n->photos)
+          <div class="np-shots">
+            @foreach($n->photoUrls() as $u)
+              <a href="{{ $u }}" target="_blank" rel="noopener"><img src="{{ $u }}" alt="" loading="lazy"></a>
+            @endforeach
+          </div>
+        @endif
         <div class="np-meta">
           @if($n->customer)
             <a class="np-who" href="{{ route('tenant.customers.show', $n->customer->id) }}">
@@ -101,6 +109,10 @@
             text-decoration:none; }
   .np-age { color:#A8622A; font-weight:600; }
   .np-done-by { color:#5F7A55; }
+  /* MARKER-OLD-SCHOOL-PHOTO */
+  .np-shots { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
+  .np-shots img { width:64px; height:64px; object-fit:cover; border-radius:6px; display:block;
+                  border:1px solid #D9CDB0; }
   .np-del { background:none; border:none; color:#8D8267; font-size:17px; line-height:1; cursor:pointer;
             padding:0 2px; }
   .np-del:hover { color:#A8622A; }

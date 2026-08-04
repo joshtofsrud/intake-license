@@ -25,7 +25,10 @@
   </button>
 
   <div class="pad-panel" data-pad-panel hidden>
-    <form method="POST" action="{{ route('tenant.notes.store') }}" class="pad-new">
+    {{-- MARKER-OLD-SCHOOL-PHOTO — enctype is required or the files are
+         silently dropped and the note saves without them. --}}
+    <form method="POST" action="{{ route('tenant.notes.store') }}" class="pad-new"
+          enctype="multipart/form-data">
       @csrf
       <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
       <textarea name="body" rows="3" placeholder="Write it down…" required></textarea>
@@ -46,6 +49,15 @@
           <button type="button" data-pad-chip-clear aria-label="Detach">×</button>
         </span>
         <span class="pad-hint" data-pad-hint @if($padCustomer) hidden @endif>no customer</span>
+        {{-- MARKER-OLD-SCHOOL-PHOTO — capture="environment" makes a phone
+             open the rear camera rather than the photo library. --}}
+        <label class="pad-cam" title="Add a photo">
+          <input type="file" name="photos[]" accept="image/*" capture="environment" multiple hidden data-pad-photos>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.5"/>
+          </svg>
+          <span data-pad-photo-count hidden></span>
+        </label>
         <button type="submit" class="pad-add">Add note</button>
       </div>
     </form>
@@ -126,7 +138,12 @@
   .pad-chip button { background:none; border:0; color:#33452C; cursor:pointer; font-size:13px;
                      line-height:1; padding:0 0 0 5px; opacity:.6; }
   .pad-chip button:hover { opacity:1; }
-  .pad-add { margin-left:auto; background:#B8860B; color:#fff; border:none; border-radius:8px;
+  /* MARKER-OLD-SCHOOL-PHOTO */
+  .pad-cam { margin-left:auto; display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+             border:1px solid #D9CDB0; border-radius:8px; padding:6px 9px; color:#5A5343;
+             background:#FBF7EC; font-size:11.5px; }
+  .pad-cam:hover { background:#EDE3CC; }
+  .pad-add {  background:#B8860B; color:#fff; border:none; border-radius:8px;
              padding:7px 13px; font-size:12px; font-weight:650; cursor:pointer; font-family:inherit; }
 
   .pad-list { max-height:320px; overflow-y:auto; }
@@ -202,6 +219,22 @@
   window.addEventListener( 'resize', function () {
     if ( !panel.hasAttribute( 'hidden' ) ) { place(); }
   } );
+
+  /* MARKER-OLD-SCHOOL-PHOTO — a hidden file input gives no feedback that
+     anything was picked, so say how many. */
+  var photos = panel.querySelector( '[data-pad-photos]' );
+  var pcount = panel.querySelector( '[data-pad-photo-count]' );
+  if ( photos && pcount ) {
+    photos.addEventListener( 'change', function () {
+      var n = photos.files ? photos.files.length : 0;
+      if ( n > 0 ) {
+        pcount.textContent = n;
+        pcount.removeAttribute( 'hidden' );
+      } else {
+        pcount.setAttribute( 'hidden', '' );
+      }
+    } );
+  }
 
   /* MARKER-PAD-CUSTOMER — a small picker against the same endpoint the
      shared component uses. Kept inside this IIFE so nothing it declares can
