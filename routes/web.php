@@ -686,6 +686,14 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Vendors — added in patch 86 (Special Orders Stage 4a).
             // Tenant-scoped vendor catalog. Distinct from
             // platform_distributor_catalogs which is the global sync source.
+            // MARKER-OLD-SCHOOL — the pad.
+            Route::prefix('notes')->name('notes.')->group(function () {
+                Route::get('/',              [TenantControllers\NoteController::class, 'index'])->name('index');
+                Route::post('/',             [TenantControllers\NoteController::class, 'store'])->name('store');
+                Route::post('/{id}/toggle',  [TenantControllers\NoteController::class, 'toggle'])->name('toggle');
+                Route::delete('/{id}',       [TenantControllers\NoteController::class, 'destroy'])->name('destroy');
+            });
+
             Route::prefix('vendors')->name('vendors.')->group(function () {
                 Route::get('/',           [TenantControllers\VendorController::class, 'index'])->name('index');
                 Route::post('/',          [TenantControllers\VendorController::class, 'store'])->name('store');

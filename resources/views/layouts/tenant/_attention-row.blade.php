@@ -21,6 +21,10 @@
     </a>
   @endif
 
+  {{-- MARKER-OLD-SCHOOL — the pad. Sits with the things that want attention
+       now, because an open note is exactly that. --}}
+  @include('layouts.tenant._notes-pad')
+
   {{-- alerts bell (existing dropdown, rebuilt) --}}
   @include('layouts.tenant._staff-alerts-bell')
 </div>
