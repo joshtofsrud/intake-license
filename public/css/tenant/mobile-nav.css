@@ -810,9 +810,11 @@
    Absolutely positioned so the centered logo / back chevron is undisturbed. */
 @media (max-width: 1023px) {
   .ia-mobile-header-inner { position: relative; }
+  /* MARKER-PAD-MOBILE-POS — the notes pad now sits outermost at right:10px,
+     so the bell moves in by one slot: 10 + 38 wide + 8 gap. */
   .ia-mobile-header-bell {
     position: absolute;
-    right: 10px;
+    right: 56px;
     top: 50%;
     transform: translateY(-50%);
     width: 38px;

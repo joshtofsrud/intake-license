@@ -162,6 +162,40 @@
   .pad-foot { display:block; padding:10px 12px; font-size:12px; color:#5A5343; text-decoration:none;
               border-top:1px solid #D9CDB0; background:#EDE3CC; }
   .pad-foot:hover { background:#E5DAC0; }
+
+  /* MARKER-PAD-MOBILE-POS — below 1024px the mobile header is the one on
+     screen (the desktop attention row is hidden), so this only ever restyles
+     the visible instance. Matched to .ia-mobile-header-bell: 38x38, 10px
+     radius, 20px icon, and the same absolute anchoring from the right edge —
+     that header lays its icons out by offset, not by flow. */
+  @media (max-width: 1023px) {
+    .pad {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+    }
+    .pad-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      opacity: 1;
+      color: rgba(255, 255, 255, .9);
+    }
+    body.ia-theme-b .pad-btn { color: rgba(0, 0, 0, .78); }
+    .pad-btn:active { background: rgba(127, 127, 127, .12); }
+    .pad-btn svg { width: 20px; height: 20px; }
+    /* Same 18px circle the bell badge uses, so two adjacent counts sit level. */
+    .pad-badge {
+      min-width: 18px;
+      height: 18px;
+      top: 2px;
+      right: 2px;
+      font-size: 10.5px;
+    }
+  }
 </style>
 
 <script>

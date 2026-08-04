@@ -60,11 +60,7 @@
     @include('layouts.tenant._location-switcher')
 
     {{-- MARKER-OFFLINE-SYNC stage 4 — status pill mount, in the header flow --}}
-    <span id="ioMountMobile" style="position:absolute;right:54px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center"></span>
-    {{-- MARKER-PAD-MOBILE — the pad, beside the bell. A scratch pad matters
-         more on the phone than at the desk. --}}
-    @include('layouts.tenant._notes-pad')
-
+    <span id="ioMountMobile" style="position:absolute;right:102px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center"></span>
     {{-- MARKER-PATCH-363 — alerts bell -> full notifications page, with unread badge --}}
     <a href="{{ route('tenant.notifications') }}" class="ia-mobile-header-bell"
        aria-label="Notifications{{ $mhdrAlertsUnread > 0 ? ' — '.$mhdrAlertsUnread.' unread' : '' }}">
@@ -73,5 +69,10 @@
       </svg>
       @if($mhdrAlertsUnread > 0)<span class="ia-mobile-header-bell-badge">{{ $mhdrAlertsUnread > 99 ? '99+' : $mhdrAlertsUnread }}</span>@endif
     </a>
+
+    {{-- MARKER-PAD-MOBILE-POS — after the bell in the markup and outermost on
+         screen. These are absolutely positioned, so DOM order alone decides
+         nothing; the offsets below do. --}}
+    @include('layouts.tenant._notes-pad')
   </div>
 </header>
