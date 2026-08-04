@@ -204,7 +204,27 @@
    only the first, which left the mobile button dead while a hidden desktop
    panel held all the wiring. Bind each one. */
 ( function () {
-  document.querySelectorAll( '[data-pad]' ).forEach( function ( wrap ) { bindPad( wrap ); } );
+  /* MARKER-PAD-READY — wait for the document.
+
+     @once emits this block at the FIRST include (the mobile header), and the
+     desktop attention row is further down the page. Running immediately meant
+     querySelectorAll found only the instance that had already been parsed,
+     leaving the desktop button with no handler at all. */
+  function initPads() {
+    document.querySelectorAll( '[data-pad]' ).forEach( function ( wrap ) {
+      // Idempotent: a second pass must not stack a second set of listeners
+      // on a button that already has them.
+      if ( wrap.hasAttribute( 'data-pad-bound' ) ) { return; }
+      wrap.setAttribute( 'data-pad-bound', '' );
+      bindPad( wrap );
+    } );
+  }
+
+  if ( document.readyState === 'loading' ) {
+    document.addEventListener( 'DOMContentLoaded', initPads );
+  } else {
+    initPads();
+  }
 
   function bindPad( wrap ) {
   var btn   = wrap.querySelector( '[data-pad-toggle]' );
