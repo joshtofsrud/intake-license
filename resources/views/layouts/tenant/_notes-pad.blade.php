@@ -239,6 +239,21 @@
 
     chipX.addEventListener( 'click', detach );
 
+    /* MARKER-PAD-PICKER-SHAPE — the endpoint wraps its rows in a key
+       ("customers" today). Hunting for the first array rather than naming
+       the key means a rename upstream cannot silently turn every search into
+       "No match", which is exactly what happened. */
+    function rowsOf( d ) {
+      if ( Array.isArray( d ) ) { return d; }
+      if ( !d || typeof d !== 'object' ) { return []; }
+      for ( var k in d ) {
+        if ( Object.prototype.hasOwnProperty.call( d, k ) && Array.isArray( d[ k ] ) ) {
+          return d[ k ];
+        }
+      }
+      return [];
+    }
+
     function render( rows ) {
       results.innerHTML = '';
       if ( !rows.length ) {
@@ -280,7 +295,7 @@
             credentials: 'same-origin'
           } )
           .then( function ( r ) { return r.ok ? r.json() : []; } )
-          .then( function ( d ) { render( Array.isArray( d ) ? d : ( d.data || [] ) ); } )
+          .then( function ( d ) { render( rowsOf( d ) ); } )
           .catch( function () { results.setAttribute( 'hidden', '' ); } );
       }, 250 );
     } );
