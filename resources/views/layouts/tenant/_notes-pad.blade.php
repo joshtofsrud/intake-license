@@ -206,10 +206,16 @@
 ( function () {
   /* MARKER-PAD-READY — wait for the document.
 
-     @once emits this block at the FIRST include (the mobile header), and the
-     desktop attention row is further down the page. Running immediately meant
-     querySelectorAll found only the instance that had already been parsed,
-     leaving the desktop button with no handler at all. */
+     MARKER-PAD-COMMENT-DIRECTIVE — the once-directive emits this block at
+     the FIRST include (the mobile header), and the desktop attention row is
+     further down the page. Running immediately meant querySelectorAll found
+     only the instance already parsed, leaving the desktop button with no
+     handler at all.
+
+     NOTE: that directive is deliberately NOT written by name here. Blade
+     compiles the file as text before any of it is script or comment, so the
+     word in prose became a second opening directive against one closer and
+     took every tenant page down. */
   function initPads() {
     document.querySelectorAll( '[data-pad]' ).forEach( function ( wrap ) {
       // Idempotent: a second pass must not stack a second set of listeners
