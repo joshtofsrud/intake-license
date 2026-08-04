@@ -75,8 +75,11 @@ class QbpFieldMapSeeder extends Seeder
             // media ------------------------------------------------------
             // File NAMES from API1. The files themselves are CLS/API3 —
             // fetched lazily when something displays them, never bulk.
-            ['images', 'ImageFile', 'json_passthrough', null, null,
-                'file name only; binary requires the CLS licence'],
+            // MARKER-QBP-FIXES — ImageFiles (plural). ImageFile held only the
+            // first, and before the multi-image fix it held none at all on
+            // any product carrying more than one.
+            ['images', 'ImageFiles', 'json_passthrough', null, null,
+                'all file names; the binaries need the CLS licence'],
 
             // offerability ----------------------------------------------
             ['is_sellable', 'IsOfferable', 'bool', null, null,

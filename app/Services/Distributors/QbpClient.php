@@ -316,7 +316,20 @@ class QbpClient implements DistributorAdapter
         $row['Attributes']   = $this->attributes($row['classifications'] ?? null);
         $row['CategoryName'] = trim((string) ($row['productCategories']['productCategory']['name'] ?? ''));
         $row['CategoryId']   = trim((string) ($row['productCategories']['productCategory']['id'] ?? ''));
-        $row['ImageFile']    = trim((string) ($row['images']['image']['fileName'] ?? ''));
+        // MARKER-QBP-FIXES — images.image is an OBJECT for one image and a
+        // LIST for several. Reading ['fileName'] directly worked on
+        // single-image products and returned nothing on the rest, silently.
+        // Every collection here goes through asList() for exactly this.
+        $files = [];
+        foreach ($this->asList($row['images']['image'] ?? null) as $img) {
+            $fn = is_array($img) ? ($img['fileName'] ?? '') : $img;
+            $fn = trim((string) $fn);
+            if ($fn !== '') {
+                $files[] = $fn;
+            }
+        }
+        $row['ImageFiles'] = $files;
+        $row['ImageFile']  = $files[0] ?? '';
 
         // MARKER-QBP-DIMS — flattened here because a dotted path cannot
         // assemble three elements into one JSON column, and zip_pipe zips
