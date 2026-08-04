@@ -21,7 +21,8 @@ class QbpProbe extends Command
     protected $signature = 'qbp:probe
         {sku? : SKU to fetch in full. Omitted, one is taken from the SKU list}
         {--raw : Print whole payloads instead of trimmed ones}
-        {--negotiate : Try several header combinations and report which QBP answers}';
+        {--negotiate : Try several header combinations and report which QBP answers}
+        {--bulk : Probe the bulk endpoints a real sync would have to use}';
 
     protected $description = 'Read-only probe of the QBP POS API. Prints responses; writes nothing.';
 
@@ -44,6 +45,11 @@ class QbpProbe extends Command
         // MARKER-QBP-NEGOTIATE — run this when the normal probe 406s.
         if ($this->option('negotiate')) {
             return $this->negotiate();
+        }
+
+        // MARKER-QBP-BULK — run this before designing the sync.
+        if ($this->option('bulk')) {
+            return $this->bulk();
         }
 
         $this->line('Base URL: ' . $this->base);
@@ -139,6 +145,121 @@ class QbpProbe extends Command
      *
      * A 404 here is information, not a failure — this never throws.
      */
+    /**
+     * MARKER-QBP-BULK — measure the three endpoints a sync would live on.
+     *
+     * Prints sizes and the first slice of each, not whole payloads: the
+     * question is shape and volume, and a full model list is megabytes.
+     */
+    private function bulk(): int
+    {
+        $this->line('Base URL: ' . $this->base);
+        $this->newLine();
+
+        // ---- 1. How many models, against how many SKUs?
+        $this->line('=== 1/product/modellist');
+        $models = $this->probeGet('1/product/modellist', 'Model list');
+        $modelIds = [];
+        if (is_array($models)) {
+            // The collection name is unknown; report every list found so the
+            // real path is visible rather than assumed.
+            foreach ($this->collections($models) as $path => $items) {
+                $this->line('  ' . $path . ' -> ' . count($items) . ' entries');
+                $this->line('    first three: ' . mb_substr((string) json_encode(array_slice($items, 0, 3)), 0, 300));
+                if (count($items) > count($modelIds)) {
+                    $modelIds = $items;
+                }
+            }
+        }
+        $this->newLine();
+
+        // ---- 2. Does POST /1/model/id accept a batch, and what comes back?
+        $sample = [];
+        foreach (array_slice($modelIds, 0, 3) as $m) {
+            $sample[] = is_array($m) ? (string) reset($m) : (string) $m;
+        }
+        $sample = array_values(array_filter($sample, fn ($v) => $v !== ''));
+
+        $this->line('=== POST 1/model/id  with ' . count($sample) . ' ids: ' . implode(', ', $sample));
+        if ($sample) {
+            foreach ([
+                'xml list of <id>' => '<modelIdList>' . implode('', array_map(fn ($i) => '<id>' . htmlspecialchars($i) . '</id>', $sample)) . '</modelIdList>',
+                'xml list of <modelId>' => '<modelIdList>' . implode('', array_map(fn ($i) => '<modelId>' . htmlspecialchars($i) . '</modelId>', $sample)) . '</modelIdList>',
+            ] as $label => $body) {
+                try {
+                    $res = Http::withHeaders([
+                            'X-QBPAPI-KEY' => $this->key,
+                            'Accept'       => 'application/xml',
+                            'Content-Type' => 'application/xml',
+                        ])
+                        ->timeout((int) config('distributors.qbp.timeout', 60))
+                        ->withBody($body, 'application/xml')
+                        ->post($this->base . '1/model/id');
+
+                    $this->line(sprintf('  %-24s HTTP %-4s %8s bytes', $label, $res->status(), strlen($res->body())));
+                    if ($res->successful()) {
+                        $this->line('    ' . mb_substr(preg_replace('/\s+/', ' ', (string) $res->body()), 0, 400));
+                    } else {
+                        $this->warn('    ' . mb_substr((string) $res->body(), 0, 200));
+                    }
+                } catch (\Throwable $e) {
+                    $this->error('  ' . $label . ' failed: ' . mb_substr($e->getMessage(), 0, 120));
+                }
+            }
+        } else {
+            $this->warn('  No model ids to try — the model list did not parse.');
+        }
+        $this->newLine();
+
+        // ---- 3. Whole-warehouse stock. Codes seen on a real product.
+        $this->line('=== 1/availability/warehouse/{code}   (1000 = Minnesota)');
+        $avail = $this->probeGet('1/availability/warehouse/1000', 'Warehouse 1000');
+        if (is_array($avail)) {
+            foreach ($this->collections($avail) as $path => $items) {
+                $this->line('  ' . $path . ' -> ' . count($items) . ' entries');
+                $this->line('    first: ' . mb_substr((string) json_encode($items[0] ?? null), 0, 300));
+            }
+        }
+
+        $this->newLine();
+        $this->comment('What the answers mean:');
+        $this->line('  If the warehouse call returns thousands of rows, stock is 4 calls a night.');
+        $this->line('  If POST 1/model/id returns many products with price inside, the whole');
+        $this->line('  catalog is a few hundred batched calls rather than 30,000 single ones.');
+        $this->line('  If either only answers for one item, this cannot be a nightly sync and');
+        $this->line('  the design has to change — better to know now than after it is built.');
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * MARKER-QBP-BULK — every list in a payload, with its path.
+     *
+     * Used only for exploration. Production code names its collections; this
+     * exists precisely because the names are what is being discovered.
+     *
+     * @return array<string,array<int,mixed>>
+     */
+    private function collections(array $node, string $path = '', int $depth = 0): array
+    {
+        $found = [];
+        if ($depth > 4) {
+            return $found;
+        }
+        foreach ($node as $k => $v) {
+            if (! is_array($v)) {
+                continue;
+            }
+            $here = $path === '' ? (string) $k : $path . '.' . $k;
+            if (array_is_list($v)) {
+                $found[$here] = $v;
+            } else {
+                $found += $this->collections($v, $here, $depth + 1);
+            }
+        }
+        return $found;
+    }
+
     /**
      * MARKER-QBP-NEGOTIATE — the same call with different headers.
      *
