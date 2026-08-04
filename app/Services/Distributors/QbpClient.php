@@ -59,30 +59,53 @@ class QbpClient implements DistributorAdapter
      */
     public function testConnection(): array
     {
+        // MARKER-QBP-TEST-SHAPE — ok/status/body, matching HlcClient and
+        // BtiClient. The page reads 'status'; returning only a message meant
+        // it rendered "HTTP ?" and discarded the explanation.
         if ($this->apiKey === '') {
-            return ['ok' => false, 'message' => 'No API key saved for QBP.'];
+            return ['ok' => false, 'status' => null, 'body' => 'No API key saved for QBP.'];
         }
 
         try {
             $res = $this->get('1/brand');
         } catch (\Throwable $e) {
-            return ['ok' => false, 'message' => 'Could not reach QBP: ' . $e->getMessage()];
+            return ['ok' => false, 'status' => null, 'body' => 'Could not reach QBP: ' . $e->getMessage()];
         }
 
-        if ($res->status() === 401 || $res->status() === 403) {
-            return ['ok' => false, 'message' => 'QBP rejected the key (HTTP ' . $res->status() . ').'];
+        $status = $res->status();
+
+        if ($status === 401 || $status === 403) {
+            return [
+                'ok' => false, 'status' => $status,
+                'body' => 'QBP rejected the key. This must be the API1 (Point-of-Sale) key — '
+                        . 'a Content License Service key will not work here.',
+            ];
         }
 
         if (! $res->successful()) {
-            return ['ok' => false, 'message' => 'QBP returned HTTP ' . $res->status() . '.'];
+            return [
+                'ok' => false, 'status' => $status,
+                'body' => 'QBP returned HTTP ' . $status . '. ' . mb_substr((string) $res->body(), 0, 200),
+            ];
         }
 
-        $json = $res->json();
+        $json  = $res->json();
         $count = is_array($json) ? count($this->listish($json)) : 0;
 
+        // A 200 carrying no brands is not a working connection — it usually
+        // means the key is valid but the account has no catalog access.
+        if ($count === 0) {
+            return [
+                'ok' => false, 'status' => $status,
+                'body' => 'QBP answered but returned no brands. The key works; the account may not '
+                        . 'have product access yet.',
+            ];
+        }
+
         return [
-            'ok'      => true,
-            'message' => 'Connected. QBP returned ' . $count . ' brands.',
+            'ok'     => true,
+            'status' => $status,
+            'body'   => 'Connected. QBP returned ' . $count . ' brands.',
         ];
     }
 

@@ -320,15 +320,26 @@ class Distributors extends Page implements HasForms
             $res = $adapter->testConnection();
             $ok = (bool) ($res['ok'] ?? false);
 
+            // MARKER-QBP-TEST-SHAPE — show the adapter's own words. Every
+            // adapter already returns a 'body' explaining what happened, and
+            // this used to discard it for a bare status code — which is
+            // useless when the request never completed and there is no code.
+            $detail = trim((string) ($res['body'] ?? ''));
+            if ($detail === '') {
+                $detail = 'HTTP ' . ($res['status'] ?? '?');
+            }
+
             $conn->update([
-                'last_tested_at' => now(),
-                'last_test_status' => $ok ? 'ok' : 'fail',
-                'last_test_message' => $ok ? 'Connected' : ('HTTP ' . ($res['status'] ?? '?')),
+                'last_tested_at'    => now(),
+                'last_test_status'  => $ok ? 'ok' : 'fail',
+                'last_test_message' => mb_substr($detail, 0, 255),
             ]);
 
             $ok
-                ? Notification::make()->success()->title('Connected to ' . $this->currentCode())->send()
-                : Notification::make()->danger()->title('Connection failed')->body('HTTP ' . ($res['status'] ?? '?'))->send();
+                ? Notification::make()->success()
+                    ->title('Connected to ' . $this->currentCode())->body($detail)->send()
+                : Notification::make()->danger()
+                    ->title('Connection failed')->body($detail)->persistent()->send();
         } catch (\Throwable $e) {
             $conn->update(['last_tested_at' => now(), 'last_test_status' => 'fail', 'last_test_message' => $e->getMessage()]);
             Notification::make()->danger()->title('Connection failed')->body($e->getMessage())->send();
