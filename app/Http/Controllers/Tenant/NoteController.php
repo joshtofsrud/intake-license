@@ -18,7 +18,19 @@ class NoteController extends Controller
     public function index(Request $request): View
     {
         $tenant = tenant();
-        $tab = $request->input('tab') === 'done' ? 'done' : 'open';
+        $tab = in_array($request->input('tab'), ['done', 'report'], true)
+            ? $request->input('tab')
+            : 'open';
+
+        // MARKER-OLD-SCHOOL-REPORT — the report needs no note list.
+        if ($tab === 'report') {
+            return view('tenant.notes.report', $this->reportData() + [
+                'tab'       => $tab,
+                'openCount' => self::openCount(),
+                'doneCount' => TenantNote::where('tenant_id', $tenant->id)
+                    ->whereNotNull('completed_at')->count(),
+            ]);
+        }
 
         $q = TenantNote::where('tenant_id', $tenant->id)
             ->with(['customer', 'author', 'completer']);
@@ -42,6 +54,116 @@ class NoteController extends Controller
             'oldest'    => TenantNote::where('tenant_id', $tenant->id)
                 ->whereNull('completed_at')->orderBy('created_at')->first(),
         ]);
+    }
+
+    /**
+     * MARKER-OLD-SCHOOL-REPORT — everything the report shows.
+     *
+     * Computed in PHP from open notes and eight weeks of timestamps. A pad is
+     * small, and grouping by week in SQL would mean MySQL-only date functions
+     * for no benefit.
+     */
+    private function reportData(): array
+    {
+        $tenantId = tenant()->id;
+        $now      = now();
+        $weekAgo  = $now->copy()->startOfWeek();
+
+        $open = TenantNote::where('tenant_id', $tenantId)
+            ->whereNull('completed_at')
+            ->with(['author', 'customer'])
+            ->orderBy('created_at')
+            ->get();
+
+        // Age buckets. The shape of these is the health of the pad: weight on
+        // the left is a pad being worked, weight on the right is one being
+        // ignored.
+        $buckets = ['0-2' => 0, '3-7' => 0, '8-30' => 0, '30+' => 0];
+        foreach ($open as $n) {
+            $d = $n->ageInDays();
+            if ($d <= 2)       { $buckets['0-2']++; }
+            elseif ($d <= 7)   { $buckets['3-7']++; }
+            elseif ($d <= 30)  { $buckets['8-30']++; }
+            else               { $buckets['30+']++; }
+        }
+
+        // Eight weeks of written-against-cleared.
+        $since = $now->copy()->subWeeks(8)->startOfWeek();
+        $rows = TenantNote::where('tenant_id', $tenantId)
+            ->where(fn ($q) => $q->where('created_at', '>=', $since)
+                ->orWhere('completed_at', '>=', $since))
+            ->get(['created_at', 'completed_at']);
+
+        $weeks = [];
+        for ($i = 7; $i >= 0; $i--) {
+            $start = $now->copy()->subWeeks($i)->startOfWeek();
+            $weeks[$start->toDateString()] = [
+                'label'   => $start->format('M j'),
+                'written' => 0,
+                'cleared' => 0,
+            ];
+        }
+        foreach ($rows as $r) {
+            if ($r->created_at && $r->created_at >= $since) {
+                $k = $r->created_at->copy()->startOfWeek()->toDateString();
+                if (isset($weeks[$k])) { $weeks[$k]['written']++; }
+            }
+            if ($r->completed_at && $r->completed_at >= $since) {
+                $k = $r->completed_at->copy()->startOfWeek()->toDateString();
+                if (isset($weeks[$k])) { $weeks[$k]['cleared']++; }
+            }
+        }
+        $peak = max(1, max(array_merge(
+            array_column($weeks, 'written'),
+            array_column($weeks, 'cleared')
+        )));
+
+        // People. Written is shown and never ranked — see the header comment.
+        $people = [];
+        $touch = function (?string $id, ?string $name) use (&$people) {
+            $id = $id ?: 'unknown';
+            $people[$id] ??= [
+                'name' => $name ?: 'Someone', 'written' => 0, 'cleared' => 0,
+                'still_open' => 0, 'oldest' => 0,
+            ];
+            return $id;
+        };
+
+        $recent = TenantNote::where('tenant_id', $tenantId)
+            ->where(fn ($q) => $q->where('created_at', '>=', $weekAgo)
+                ->orWhere('completed_at', '>=', $weekAgo))
+            ->with(['author', 'completer'])
+            ->get();
+
+        foreach ($recent as $n) {
+            if ($n->created_at >= $weekAgo) {
+                $people[$touch($n->created_by, $n->author?->name)]['written']++;
+            }
+            if ($n->completed_at && $n->completed_at >= $weekAgo) {
+                $people[$touch($n->completed_by, $n->completer?->name)]['cleared']++;
+            }
+        }
+        foreach ($open as $n) {
+            $k = $touch($n->created_by, $n->author?->name);
+            $people[$k]['still_open']++;
+            $people[$k]['oldest'] = max($people[$k]['oldest'], $n->ageInDays());
+        }
+        uasort($people, fn ($a, $b) => $b['still_open'] <=> $a['still_open']);
+
+        return [
+            'openCount'   => $open->count(),
+            'oldest'      => $open->first(),
+            'clearedWeek' => TenantNote::where('tenant_id', $tenantId)
+                ->where('completed_at', '>=', $weekAgo)->count(),
+            'writtenWeek' => TenantNote::where('tenant_id', $tenantId)
+                ->where('created_at', '>=', $weekAgo)->count(),
+            'buckets'     => $buckets,
+            'weeks'       => array_values($weeks),
+            'peak'        => $peak,
+            'people'      => $people,
+            // Stuck: over a week old, oldest first. The point of the page.
+            'stuck'       => $open->filter(fn ($n) => $n->ageInDays() >= 7)->take(10),
+        ];
     }
 
     public function store(Request $request): RedirectResponse

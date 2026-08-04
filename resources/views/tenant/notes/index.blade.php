@@ -25,6 +25,9 @@
      class="np-tab {{ $tab === 'open' ? 'on' : '' }}">Open {{ $openCount }}</a>
   <a href="{{ route('tenant.notes.index', ['tab' => 'done']) }}"
      class="np-tab {{ $tab === 'done' ? 'on' : '' }}">Crossed off {{ $doneCount }}</a>
+  {{-- MARKER-OLD-SCHOOL-REPORT --}}
+  <a href="{{ route('tenant.notes.index', ['tab' => 'report']) }}"
+     class="np-tab {{ $tab === 'report' ? 'on' : '' }}">How it's going</a>
 </div>
 
 <div class="np-list">
