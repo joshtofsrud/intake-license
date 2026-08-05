@@ -331,6 +331,21 @@ class QbpClient implements DistributorAdapter
         $row['ImageFiles'] = $files;
         $row['ImageFile']  = $files[0] ?? '';
 
+        // MARKER-QBP-BULLETS — one bullet is an object, several are a list.
+        // Kept as both a joined string (the description column is text) and
+        // the raw array, so a storefront can render them as bullets later
+        // without re-parsing a paragraph.
+        $bullets = [];
+        foreach ($this->asList($row['bulletPoints']['bulletPoint'] ?? null) as $bp) {
+            $text = is_array($bp) ? ($bp['text'] ?? '') : $bp;
+            $text = trim((string) $text);
+            if ($text !== '') {
+                $bullets[] = $text;
+            }
+        }
+        $row['BulletPoints'] = $bullets;
+        $row['Description']  = $bullets ? implode("\n", $bullets) : null;
+
         // MARKER-QBP-DIMS — flattened here because a dotted path cannot
         // assemble three elements into one JSON column, and zip_pipe zips
         // pipe strings, not element triples — checked, not assumed.

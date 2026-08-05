@@ -42,6 +42,13 @@ class QbpFieldMapSeeder extends Seeder
             // descriptive ------------------------------------------------
             ['name', 'name', 'direct', null, null,
                 'carries real detail like BTI, unlike HLC bare names'],
+            // MARKER-QBP-BULLETS — real copy, e.g. "The maximum allowable rim
+            // thickness at the valve hole is 18mm". Adapter joins the bullets
+            // with newlines; BulletPoints holds the array if a list render is
+            // wanted later.
+            ['description', 'Description', 'direct', null, null,
+                'QBP bulletPoints, newline-joined by the adapter'],
+
             ['manufacturer', 'brand.description', 'direct', null, null,
                 'match cross-distributor on THIS, not brand.id'],
             ['brand_id', 'brand.id', 'direct', ['cast' => 'string'], null,
