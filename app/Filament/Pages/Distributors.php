@@ -135,12 +135,22 @@ class Distributors extends Page implements HasForms
             [$user, $pass] = explode(':', (string) $conn->api_key, 2);
         }
 
+        // MARKER-CLS-FIELD-ADMIN — QBP packs "api1:cls" in the same slot.
+        // API1 is free and carries the catalog; CLS is licensed and carries
+        // only the images.
+        $apiKeyShown = (string) $conn->api_key;
+        $clsKey      = '';
+        if (strtoupper($this->code) === 'QBP' && str_contains($apiKeyShown, ':')) {
+            [$apiKeyShown, $clsKey] = explode(':', $apiKeyShown, 2);
+        }
+
         $this->form->fill([
             // MARKER-DIST-FORM-FILL — without this the selector rendered
             // "Select an option" and every field under it looked empty,
             // including a stored key and an active connection.
             'code'       => $this->code,
-            'api_key'    => $conn->api_key,
+            'api_key'    => $apiKeyShown,
+            'cls_key'    => $clsKey,
             'username'   => $user,
             'password'   => $pass,
             'region'     => $conn->region ?: 'us',
@@ -185,6 +195,15 @@ class Distributors extends Page implements HasForms
                             ->password()->revealable()->autocomplete('off')
                             ->helperText('Encrypted at rest. Leave blank to keep the saved key.')
                             ->visible(fn () => strtoupper($this->currentCode()) !== 'BTI')
+                            ->columnSpanFull(),
+
+                        // MARKER-CLS-FIELD-ADMIN — QBP's second key. Optional:
+                        // without it the catalog, cost and stock all still
+                        // work and only images stop.
+                        TextInput::make('cls_key')->label('API3 key (Content License Service)')
+                            ->password()->revealable()->autocomplete('off')
+                            ->helperText('Optional. Licensed separately by QBP and needed only for product images. Leave blank to keep the saved key.')
+                            ->visible(fn () => strtoupper($this->currentCode()) === 'QBP')
                             ->columnSpanFull(),
 
                         TextInput::make('username')->label('Username')
