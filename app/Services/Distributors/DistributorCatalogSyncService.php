@@ -244,6 +244,24 @@ class DistributorCatalogSyncService
     private function isUnchanged(array $variant, array $product, Carbon $since): bool
     {
         $ts = $variant['DateLastModified'] ?? $product['DateLastModified'] ?? null;
+
+        // MARKER-DELTA-REAL — QBP states its timestamp as milliseconds since
+        // epoch under modifiedTime.iMillis. Without this the key was never
+        // found, isUnchanged always returned false, and --delta wrote every
+        // row on every run for every distributor.
+        if ($ts === null) {
+            $ms = $variant['modifiedTime']['iMillis']
+                ?? $product['modifiedTime']['iMillis']
+                ?? null;
+            if ($ms !== null && is_numeric($ms)) {
+                try {
+                    return Carbon::createFromTimestampMs((int) $ms)->lessThanOrEqualTo($since);
+                } catch (\Throwable) {
+                    return false;
+                }
+            }
+        }
+
         if (! $ts) {
             return false; // unknown modified date -> always sync
         }

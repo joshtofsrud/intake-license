@@ -99,10 +99,19 @@ Schedule::command('distributors:sync-catalog HLC --delta')
     ->withoutOverlapping()
     ->runInBackground();
 
-// QBP has no delta mode — products() pages by brand, 892 calls. Long-running,
-// so it starts with HLC rather than after it.
-Schedule::command('distributors:sync-catalog QBP')
+// MARKER-DELTA-REAL — QBP pages by brand: 892 calls regardless, so --delta
+// saves database writes rather than fetches. It carries modifiedTime.iMillis,
+// which isUnchanged now reads, so unchanged rows are skipped on write.
+Schedule::command('distributors:sync-catalog QBP --delta')
     ->dailyAt('04:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// MARKER-DELTA-REAL — BTI was never scheduled at all; its catalog last moved
+// by hand. Full, not delta: BTI supplies no per-row timestamp, and its feed
+// regenerates whole on every request anyway.
+Schedule::command('distributors:sync-catalog BTI')
+    ->dailyAt('04:30')
     ->withoutOverlapping()
     ->runInBackground();
 
