@@ -253,6 +253,10 @@ class DistributorCatalogImportService
             'sku'                    => $cat->product_key ?: $cat->distributor_variant_no,
             'name'                   => $cat->display_name ?: ($cat->name ?: $cat->distributor_variant_no),
             'display_subtitle'       => $cat->display_subtitle,
+            // MARKER-IMPORT-DESC — vendor copy, on create only. HLC and BTI
+            // rarely supply it; QBP's bullet points do. Never written on a
+            // merge: a shop's own description outranks a distributor's.
+            'description'            => $cat->description ?: null,
             'distributor_catalog_id' => $cat->id,
             'catalog_cost_cents'     => null, // per-tenant cost arrives via tier-2 on the pivot
             'catalog_msrp_cents'     => $cat->msrp_cents,
