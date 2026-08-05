@@ -90,13 +90,41 @@ Schedule::command('orders:reap-abandoned')
     ->withoutOverlapping()
     ->runInBackground();
 
+// MARKER-CATALOG-SCHEDULE — the catalog chain. Order matters: each step
+// reads what the one before it wrote, and a step that runs early produces a
+// half-built index rather than an error.
+
 Schedule::command('distributors:sync-catalog HLC --delta')
     ->dailyAt('04:00')
     ->withoutOverlapping()
     ->runInBackground();
 
+// QBP has no delta mode — products() pages by brand, 892 calls. Long-running,
+// so it starts with HLC rather than after it.
+Schedule::command('distributors:sync-catalog QBP')
+    ->dailyAt('04:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Reads the rows both syncs just wrote. Without this, matching sees nothing
+// new — which is exactly why 55,773 QBP rows were invisible to the importer.
+Schedule::command('catalog:index-identifiers')
+    ->dailyAt('05:30')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Reads the identifiers the index just wrote. Links the same product across
+// distributors so the importer can say "already carried" instead of creating
+// a duplicate.
+Schedule::command('catalog:match')
+    ->dailyAt('06:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Moved from 05:00 to 06:30: per-tenant cost and stock should land after
+// matching, so a newly linked source is priced on the same night it links.
 Schedule::command('distributors:sync-tenant --all')
-    ->dailyAt('05:00')
+    ->dailyAt('06:30')
     ->withoutOverlapping()
     ->runInBackground();
 
