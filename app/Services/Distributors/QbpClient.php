@@ -54,6 +54,14 @@ class QbpClient implements DistributorAdapter
 
     public function __construct(string $apiKey, string $region = 'us')
     {
+        // MARKER-QBP-CLS-CREDS — the credential may carry both keys as
+        // "api1:cls". API1 is the part before the colon. Splitting here means
+        // nothing else has to know the packing.
+        $apiKey = trim($apiKey);
+        if (str_contains($apiKey, ':')) {
+            $apiKey = explode(':', $apiKey, 2)[0];
+        }
+
         $this->apiKey = trim($apiKey);
         $this->base = rtrim((string) config('distributors.qbp.base_url', 'https://api1.qbp.com/api/'), '/') . '/';
     }

@@ -46,11 +46,33 @@ class DistributorRegistry
                 ['name' => 'password', 'label' => 'BTI password', 'type' => 'password',
                  'hint' => 'The long code on the same page.'],
             ],
+            // MARKER-QBP-CLS-CREDS — two services, two keys, one header name.
+            'QBP' => [
+                ['name' => 'api_key', 'label' => 'API1 key (Point-of-Sale)', 'type' => 'password',
+                 'hint' => 'Free from QBP. Supplies the catalog, dealer cost and stock.'],
+                ['name' => 'cls_key', 'label' => 'API3 key (Content License Service)', 'type' => 'password',
+                 'hint' => 'Optional, and licensed separately. Needed only for product images.'],
+            ],
             default => [
                 ['name' => 'api_key', 'label' => 'API key', 'type' => 'password',
                  'hint' => 'Issued by the distributor for your dealer account.'],
             ],
         };
+    }
+
+    /**
+     * MARKER-QBP-CLS-CREDS — pull the CLS half out of a stored credential.
+     *
+     * Stored as "api1:cls". Returns '' when no CLS key has been given, which
+     * is a supported state: everything except images still works.
+     */
+    public static function clsKey(?string $stored): string
+    {
+        $stored = (string) $stored;
+        if (! str_contains($stored, ':')) {
+            return '';
+        }
+        return trim(explode(':', $stored, 2)[1] ?? '');
     }
 
     /** Human label for a code, without building an adapter. */
@@ -101,6 +123,24 @@ class DistributorRegistry
 
             // Still nothing to store if neither side has ever been given.
             return ($u === '' || $p === '') ? null : $u . ':' . $p;
+        }
+
+        // MARKER-QBP-CLS-CREDS — same colon packing BTI uses. A blank field
+        // keeps whatever is stored, so saving one key never wipes the other.
+        if (strtoupper($code) === 'QBP') {
+            $curApi = $stored;
+            $curCls = '';
+            if (str_contains($stored, ':')) {
+                [$curApi, $curCls] = explode(':', $stored, 2);
+            }
+
+            $api = trim($input['api_key'] ?? '') ?: $curApi;
+            $cls = trim($input['cls_key'] ?? '') ?: $curCls;
+
+            if ($api === '') {
+                return null;   // no API1 key means no QBP at all
+            }
+            return $cls === '' ? $api : $api . ':' . $cls;
         }
 
         $k = trim($input['api_key'] ?? '');
