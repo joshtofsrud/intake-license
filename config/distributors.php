@@ -32,6 +32,17 @@ return [
         'timeout'  => (int) env('QBP_TIMEOUT', 60),
     ],
 
+    // MARKER-QBP-CLS — API3. Different host and different key from API1;
+    // the header name happens to be the same, which is a good way to spend an
+    // afternoon confused.
+    'qbp_cls' => [
+        'base_url' => env('QBP_CLS_BASE_URL', 'https://cls.qbp.com/api3/'),
+        'timeout'  => (int) env('QBP_CLS_TIMEOUT', 30),
+        // Default display size from the documented list:
+        // prodt, prodh, prods, prodm, p350x350m, prodl, prodxl
+        'image_size' => env('QBP_CLS_IMAGE_SIZE', 'p350x350m'),
+    ],
+
     'bti' => [
         'name'           => 'BTI',
         'base_url'       => env('BTI_BASE', 'https://www.bti-usa.com'),
