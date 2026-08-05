@@ -487,15 +487,26 @@ class QbpClient implements DistributorAdapter
                 ];
             }
 
-            $out[$sku] = [
-                'sku'         => $sku,
-                'total'       => $total,
-                'warehouses'  => $levels,
-                'unavailable' => (string) ($first['temporarilyUnavailableToOrderCode'] ?? '0') !== '0',
+            // MARKER-QBP-TIER2 — TotalQtyAvailable is the first key
+            // normalizeInventory looks for; Warehouses is the array it would
+            // fall back to summing. Both are provided so the per-warehouse
+            // detail survives for anything that wants it, while the simple
+            // total is what the pivot stores.
+            $out[] = [
+                'VariantNo'         => $sku,
+                'TotalQtyAvailable' => $total,
+                'Warehouses'        => array_map(fn ($l) => [
+                    'Code'         => $l['warehouse'],
+                    'Name'         => $l['name'],
+                    'QtyAvailable' => $l['quantity'],
+                    'Status'       => $l['status'],
+                    'EtaMs'        => $l['eta_ms'],
+                ], $levels),
+                'Unavailable' => (string) ($first['temporarilyUnavailableToOrderCode'] ?? '0') !== '0',
             ];
         }
 
-        return $out;
+        return ['Products' => $out];
     }
 
     /**
@@ -554,19 +565,27 @@ class QbpClient implements DistributorAdapter
                 continue;
             }
 
+            // MARKER-QBP-TIER2 — the service reads {Products:[...]} and keys
+            // rows by VariantNo. The raw price nodes ride along so the field
+            // map resolves cost from dealerPrice.value exactly as tier 1
+            // resolves msrp — one resolver, one definition of cost.
+            //
             // `value` is the number; `formattedValue` is "$8.40" and would
             // parse to 0 or 8 depending on how hard something tried.
-            $out[$sku] = [
-                'sku'         => $sku,
-                'dealer_price'=> $this->money($p['dealerPrice']['value'] ?? null),
-                'base_price'  => $this->money($p['basePrice']['value'] ?? null),
-                'map_price'   => $this->money($p['mapPrice']['value'] ?? null),
-                'msrp'        => $this->money($p['msrp']['value'] ?? null),
-                'currency'    => trim((string) ($p['dealerPrice']['currencyIso'] ?? 'USD')),
+            $out[] = [
+                'VariantNo'   => $sku,
+                'dealerPrice' => $p['dealerPrice'] ?? null,
+                'basePrice'   => $p['basePrice'] ?? null,
+                'mapPrice'    => $p['mapPrice'] ?? null,
+                'msrp'        => $p['msrp'] ?? null,
+                // Pre-computed cents kept for callers not going via the map.
+                'cost_cents'  => $this->money($p['dealerPrice']['value'] ?? null),
+                'map_cents'   => $this->money($p['mapPrice']['value'] ?? null),
+                'msrp_cents'  => $this->money($p['msrp']['value'] ?? null),
             ];
         }
 
-        return $out;
+        return ['Products' => $out];
     }
 
     /** Decimal string to cents, without float rounding. */

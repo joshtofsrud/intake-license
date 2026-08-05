@@ -13,9 +13,10 @@ use Illuminate\Support\Str;
  * element names from the XML, plus the flattened keys the adapter adds for
  * structures a dotted path cannot walk.
  *
- * No cost_cents on purpose — dealerPrice is the platform account's own price
- * and is stripped before rows reach the shared catalog. Cost arrives per
- * tenant through tier 2.
+ * cost_cents IS mapped, and safely: tier 1 nulls it after resolving, so it
+ * cannot reach the shared catalog, while tier 2 resolves tenant cost through
+ * this same map. The leak is prevented in the adapter — products() strips
+ * dealerPrice entirely; only prices() returns it.
  */
 class QbpFieldMapSeeder extends Seeder
 {
@@ -70,6 +71,15 @@ class QbpFieldMapSeeder extends Seeder
                 'adapter flattens classifications 3 levels deep into {Name,Value,Code,Unit}; multiple featureValues joined'],
 
             // money — value is numeric; formattedValue is "$8.40" ---------
+            // MARKER-QBP-TIER2 — cost_cents belongs here after all. Tier 1
+            // sets it to null unconditionally after resolving (see
+            // DistributorCatalogSyncService: "Shared catalog never holds
+            // tenant cost"), so this row cannot reach the shared catalog.
+            // Tier 2 reads cost THROUGH this map, so omitting it left QBP
+            // cost null forever. The real protection is in the adapter:
+            // products() strips dealerPrice, prices() returns it.
+            ['cost_cents', 'dealerPrice.value', 'direct', ['cast' => 'cents'], null,
+                'dealer cost — tier 2 only; tier 1 nulls it after resolve'],
             ['msrp_cents', 'msrp.value', 'direct', ['cast' => 'cents'], null, null],
             ['map_cents', 'mapPrice.value', 'direct', ['cast' => 'cents_zero_null'], null,
                 'observed equal to msrp on sample rows; zero means no MAP'],
