@@ -172,7 +172,15 @@ class MatchCatalogRows extends Command
                 cb.msrp_cents as msrp_b
             from catalog_identifiers a
             join catalog_identifiers b
-              on a.identifier_type = b.identifier_type
+              on (
+                   -- MARKER-BARCODE-TYPE: upc and ean label the SAME barcode.
+                   -- One distributor files 4717784034485 as ean and another
+                   -- as upc; joining on the label made identical products
+                   -- invisible to each other. mpn must still meet mpn.
+                   a.identifier_type = b.identifier_type
+                   or (a.identifier_type in ('upc','ean')
+                       and b.identifier_type in ('upc','ean'))
+                 )
              and a.value_norm      = b.value_norm
              and a.distributor_code < b.distributor_code
             join platform_distributor_catalogs ca

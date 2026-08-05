@@ -372,6 +372,21 @@ class QbpClient implements DistributorAdapter
         $row['BarcodeList']  = $codes;
         $row['FirstBarcode'] = $codes[0]['value'] ?? null;
 
+        // MARKER-BARCODE-TYPE — route by LENGTH, not by QBP's type code.
+        // 12 digits is a UPC-A, 13 an EAN-13. Y1 and Y3 both appear on real
+        // rows and nobody has told us what they mean, so the standard is a
+        // safer authority than a guess about a vendor's private codes.
+        $row['UpcCode'] = null;
+        $row['EanCode'] = null;
+        foreach ($codes as $c) {
+            $digits = preg_replace('/\D+/', '', (string) $c['value']);
+            if (strlen($digits) === 12 && $row['UpcCode'] === null) {
+                $row['UpcCode'] = $digits;
+            } elseif (strlen($digits) === 13 && $row['EanCode'] === null) {
+                $row['EanCode'] = $digits;
+            }
+        }
+
         // Offerable at all? These are QBP-only; neither HLC nor BTI says.
         $row['IsOfferable'] = ! $this->truthy($row['blocked'] ?? null)
             && ! $this->truthy($row['discontinued'] ?? null);

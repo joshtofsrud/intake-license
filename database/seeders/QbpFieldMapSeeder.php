@@ -37,8 +37,12 @@ class QbpFieldMapSeeder extends Seeder
             // the first entry. Length cannot separate UPC from EAN (leading
             // zeros), so if QBP ships both types this becomes a lookup on
             // BarcodeList — for now every observed row carried a single Y3.
-            ['upc', 'FirstBarcode', 'direct', null, null,
-                'type Y3 observed = UPC; BarcodeList carries {type,value} if this needs refining'],
+            // MARKER-BARCODE-TYPE — routed by length in the adapter. Mapping
+            // every barcode to upc put 13-digit EANs in the UPC column, which
+            // is how a Maxxis tyre BTI files as ean failed to match QBP's
+            // identical number.
+            ['upc', 'UpcCode', 'direct', null, null, '12-digit UPC-A only'],
+            ['ean', 'EanCode', 'direct', null, null, '13-digit EAN-13 only'],
 
             // descriptive ------------------------------------------------
             ['name', 'name', 'direct', null, null,
