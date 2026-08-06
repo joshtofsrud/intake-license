@@ -128,6 +128,10 @@ class DistributorController extends Controller
         $data = $request->validate([
             'distributor_code' => ['required', 'string', 'max:32'],
             'api_key'          => ['nullable', 'string', 'max:255'],
+            // MARKER-CLS-RENDER — QBP's second key. Absent from this list it
+            // was stripped before packCredentials ever saw it, so the field
+            // rendered, accepted a paste, and saved nothing.
+            'cls_key'          => ['nullable', 'string', 'max:255'],
             'username'         => ['nullable', 'string', 'max:128'],
             'password'         => ['nullable', 'string', 'max:255'],
             'account_number'   => ['nullable', 'string', 'max:64'],
