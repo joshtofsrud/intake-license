@@ -542,11 +542,20 @@
   <div class="ia-pagination">
     @php
       $pages = (int) ceil($total / $perPage);
-      $qs = function($p) use ($search, $category, $stock, $sort) {
+      // MARKER-PAGER-FILTERS — brand and distributor were missing here, so
+      // paging out of a filtered list landed on the unfiltered one. Every
+      // filter the page reads lives in this one array; anything added to the
+      // form belongs here too, and nowhere else.
+      $qs = function ($p) use ($search, $category, $stock, $sort, $brand, $distributor) {
         return http_build_query(array_filter([
-          's' => $search, 'category' => $category, 'stock' => $stock,
-          'sort' => $sort, 'page' => $p,
-        ]));
+          's'           => $search,
+          'category'    => $category,
+          'brand'       => $brand,
+          'distributor' => $distributor,
+          'stock'       => $stock,
+          'sort'        => $sort,
+          'page'        => $p,
+        ], fn ($v) => $v !== null && $v !== ''));
       };
     @endphp
     @if($page > 1)
