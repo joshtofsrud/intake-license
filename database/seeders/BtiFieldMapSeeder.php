@@ -61,7 +61,9 @@ class BtiFieldMapSeeder extends Seeder
             // aren't columns, so every BTI row imported with no images.
             ['images', 'image_paths', 'split_pipe', [
                 'sep'    => '|',
-                'prefix' => 'https://www.bti-usa.com/images',
+                // MARKER-BTI-IMAGE-BASE — /images 404s; photos are under
+                // /images/pictures. Verified: bti-usa.com/images/pictures/ma/ma3512a.jpg
+                'prefix' => 'https://bti-usa.com/images/pictures',
             ], null, 'relative paths need a host'],
         ];
 

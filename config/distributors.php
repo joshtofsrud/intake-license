@@ -47,7 +47,11 @@ return [
         'name'           => 'BTI',
         'base_url'       => env('BTI_BASE', 'https://www.bti-usa.com'),
         // Where relative image_path values hang off.
-        'image_base'     => env('BTI_IMAGE_BASE', 'https://www.bti-usa.com/images'),
+        // MARKER-BTI-IMAGE-BASE — product photos live under /images/pictures,
+        // not /images. Confirmed against a live BTI page:
+        //   https://bti-usa.com/images/pictures/ma/ma3512a.jpg
+        // BTI sends image_paths as "/1k/1k506009.jpg", which appends to this.
+        'image_base'     => env('BTI_IMAGE_BASE', 'https://bti-usa.com/images/pictures'),
         'timeout'        => (int) env('BTI_TIMEOUT', 600),   // 43 MB download
         'retries'        => (int) env('BTI_RETRIES', 2),
         'retry_sleep_ms' => (int) env('BTI_RETRY_SLEEP', 1000),
