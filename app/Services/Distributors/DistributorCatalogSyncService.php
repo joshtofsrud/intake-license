@@ -336,7 +336,20 @@ class DistributorCatalogSyncService
 
         // MARKER-PATCH-372 — capture distributor product images. Public CDN URLs
         // ({Format,Url,Hash}) already embedded per-variant in the Products payload.
-        $canonical['images'] = $variant['Images'] ?? [];
+        //
+        // MARKER-IMAGES-OVERWRITE — but ONLY when the field map produced
+        // nothing. This line used to run unconditionally and wrote
+        // $variant['Images'] over whatever the map had resolved. 'Images' is
+        // HLC's key: QBP emits ImageFiles and BTI emits image_paths, so for
+        // both of those it missed and overwrote good data with an empty array.
+        //
+        // Verified on QBP RM9022 — the map resolved two file names and this
+        // line discarded them, which is why every QBP product showed no image
+        // while the mapping page reported images <- ImageFiles, correctly.
+        $mappedImages = $canonical['images'] ?? null;
+        if ($mappedImages === null || $mappedImages === [] || $mappedImages === '') {
+            $canonical['images'] = $variant['Images'] ?? [];
+        }
 
         PlatformDistributorCatalog::query()->updateOrCreate(
             ['distributor_code' => $code, 'distributor_variant_no' => $vno],
