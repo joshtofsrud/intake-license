@@ -172,6 +172,21 @@ class DistributorRegistry
             ];
         }
 
+        // MARKER-CLS-HINT — QBP packs "api1:cls". Without this the API1 box
+        // showed a mask of the JOINED string and the CLS box showed nothing,
+        // so a saved licence key looked like an empty field on every reload.
+        if (strtoupper($code) === 'QBP') {
+            if (str_contains($stored, ':')) {
+                [$api, $cls] = explode(':', $stored, 2);
+                return [
+                    'api_key' => $mask($api),
+                    'cls_key' => $mask($cls),
+                ];
+            }
+            // API1 only — a valid state. Images are the sole casualty.
+            return ['api_key' => $mask($stored)];
+        }
+
         return ['api_key' => $mask($stored)];
     }
 
