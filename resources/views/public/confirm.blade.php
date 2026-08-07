@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
 {{-- MARKER-PATCH-450 — booking finished: record completion + clear the abandoned-booking row --}}
 <script>
   // Both endpoints read the anonymous fnl_sid cookie server-side and are CSRF-exempt,

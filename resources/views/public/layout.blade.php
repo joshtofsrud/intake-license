@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
   <meta name="csrf-token" content="{{ csrf_token() }}">
   {{-- MARKER-PATCH-150 — analytics + funnel tracking --}}
   @include('public._funnel_tracker')
