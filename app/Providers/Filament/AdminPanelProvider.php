@@ -93,6 +93,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\CatalogItemLookup::class,
                 ThemeEditor::class,
                 \App\Filament\Pages\BillingConfiguration::class,
+                \App\Filament\Pages\PasswordEditor::class,
                 \App\Filament\Pages\ChangelogImportPreview::class,
                 \App\Filament\Pages\EmailHealth::class,  // MARKER-PATCH-148
                 \App\Filament\Pages\PlatformEmail::class, // MARKER-PLATFORM-MAIL — this panel lists pages explicitly; it does NOT auto-discover

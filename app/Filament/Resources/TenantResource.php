@@ -160,6 +160,60 @@ class TenantResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (Tenant $t) => redirect()->route('admin.impersonate', $t->id)),
 
+                Tables\Actions\Action::make('reset_password')
+                    ->label('Reset password')
+                    ->icon('heroicon-o-key')
+                    ->color('gray')
+                    ->modalHeading('Reset owner password')
+                    ->modalDescription('Sets a new password for this tenant\'s owner. Share it with them directly — it is shown only once.')
+                    ->modalSubmitActionLabel('Set password')
+                    ->fillForm(fn (Tenant $t) => [
+                        'new_password' => \Illuminate\Support\Str::random(14),
+                    ])
+                    ->form([
+                        Forms\Components\Placeholder::make('owner_target')
+                            ->label('Owner')
+                            ->content(function (Tenant $t) {
+                                $o = \App\Models\Tenant\TenantUser::where('tenant_id', $t->id)
+                                    ->where('role', 'owner')->where('is_active', true)->first();
+                                return $o ? ($o->name . ' — ' . $o->email) : 'No active owner on this tenant.';
+                            }),
+                        Forms\Components\TextInput::make('new_password')
+                            ->label('New password')
+                            ->required()
+                            ->minLength(10)
+                            ->helperText('Auto-generated. Edit if you like, then Set password. Copy it before closing.'),
+                    ])
+                    ->action(function (Tenant $t, array $data) {
+                        $owner = \App\Models\Tenant\TenantUser::where('tenant_id', $t->id)
+                            ->where('role', 'owner')->where('is_active', true)->first();
+
+                        if (! $owner) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No active owner found for this tenant.')
+                                ->danger()->send();
+                            return;
+                        }
+
+                        $owner->update([
+                            'password' => \Illuminate\Support\Facades\Hash::make($data['new_password']),
+                        ]);
+
+                        debug_log()->audit(
+                            'tenant_password_reset',
+                            'Master admin reset the owner password for ' . $t->name,
+                            $owner,
+                            ['tenant_id' => $t->id, 'owner_email' => $owner->email],
+                        );
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Password updated for ' . $owner->name)
+                            ->body('New password: ' . $data['new_password'] . "\nCopy it now — it will not be shown again.")
+                            ->success()
+                            ->persistent()
+                            ->send();
+                    }),
+
                 Tables\Actions\Action::make('suspend')
                     ->label(fn (Tenant $t) => $t->onboarding_status === 'suspended' ? 'Unsuspend' : 'Suspend')
                     ->icon('heroicon-o-no-symbol')

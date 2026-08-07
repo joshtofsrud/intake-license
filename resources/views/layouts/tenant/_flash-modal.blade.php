@@ -3,7 +3,7 @@
      why errors were a blocking alert before this and still behave that way. --}}
 @php
   $flashOk  = session('success');
-  $flashErr = session('error');
+  $flashErr = session('error') ?: ((isset($errors) && $errors->any()) ? $errors->first() : null);
 @endphp
 
 @if($flashOk || $flashErr)
