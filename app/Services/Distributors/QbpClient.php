@@ -5,6 +5,7 @@
 namespace App\Services\Distributors;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -264,6 +265,8 @@ class QbpClient implements DistributorAdapter
         }
 
         $byModel = [];
+        // MARKER-QBP-VISIBILITY — a brand that fails is reported, not dropped.
+        $failures = [];
 
         foreach ($ids as $brandId) {
             $brandId = trim((string) $brandId);
@@ -274,9 +277,15 @@ class QbpClient implements DistributorAdapter
             try {
                 $doc = $this->fetch('1/product/brand/id/' . rawurlencode($brandId));
             } catch (\Throwable $e) {
-                // One bad brand must not abandon the page. A brand with no
-                // products is normal; a 500 on one is not worth losing the
-                // other twenty-four.
+                // MARKER-QBP-VISIBILITY — one bad brand still must not abandon
+                // the page, but it no longer vanishes without trace. fetch()
+                // already puts the HTTP status and QBP's own error text in the
+                // message, so this is the whole reason.
+                $failures[] = $brandId . ': ' . $e->getMessage();
+                Log::warning('QBP brand fetch failed', [
+                    'brand_id' => $brandId,
+                    'error'    => $e->getMessage(),
+                ]);
                 continue;
             }
 
@@ -309,7 +318,9 @@ class QbpClient implements DistributorAdapter
             unset($doc);
         }
 
-        return ['Products' => array_values($byModel)];
+        // MARKER-QBP-VISIBILITY — Failures rides alongside Products so the
+        // sync service can surface it. extractProducts() reads Products only.
+        return ['Products' => array_values($byModel), 'Failures' => $failures];
     }
 
     /**

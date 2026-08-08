@@ -67,9 +67,35 @@ class DistributorsSyncCatalogCommand extends Command
             collect($res)->except('errors')->map(fn ($v, $k) => [$k, is_array($v) ? json_encode($v) : $v])->values()->all()
         );
 
+        // MARKER-QBP-VISIBILITY — a per-brand breakdown, so a run that reports
+        // "done" cannot hide four hundred brands that returned nothing.
+        $byStatus = DB::table('distributor_brand_sync_status')
+            ->where('distributor_code', $code)
+            ->selectRaw('status, COUNT(*) AS n')
+            ->groupBy('status')->orderBy('status')->get();
+
+        if ($byStatus->isNotEmpty()) {
+            $this->line('');
+            $this->info('Brands by status:');
+            foreach ($byStatus as $row) {
+                $this->line("  {$row->status}: {$row->n}");
+            }
+
+            $stuck = DB::table('distributor_brand_sync_status')
+                ->where('distributor_code', $code)
+                ->whereIn('status', ['failed', 'empty', 'pending'])
+                ->orderBy('status')->orderBy('brand_name')
+                ->limit(15)->pluck('brand_name', 'status');
+
+            if ($stuck->isNotEmpty()) {
+                $this->line('  e.g. ' . $stuck->implode(', '));
+            }
+        }
+
         if (! empty($res['errors'])) {
-            $this->warn(count($res['errors']) . ' error(s) (first 5):');
-            foreach (array_slice($res['errors'], 0, 5) as $e) {
+            $this->line('');
+            $this->warn(count($res['errors']) . ' error(s) (first 25):');
+            foreach (array_slice($res['errors'], 0, 25) as $e) {
                 $this->line("  - {$e}");
             }
         }

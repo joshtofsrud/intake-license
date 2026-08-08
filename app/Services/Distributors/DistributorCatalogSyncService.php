@@ -246,6 +246,13 @@ class DistributorCatalogSyncService
                 continue;
             }
 
+            // MARKER-QBP-VISIBILITY — per-brand failures the adapter swallowed.
+            $chunkFailures = [];
+            foreach ((array) ($batch['Failures'] ?? []) as $f) {
+                $res['errors'][] = 'brand fetch ' . $f;
+                $chunkFailures[strtok((string) $f, ':')] = true;
+            }
+
             $products = $this->extractProducts($batch);
             unset($batch);
             $res['pages']++;
@@ -283,6 +290,23 @@ class DistributorCatalogSyncService
 
                 $this->setBrandStatus($code, $brandName, 'done', $brandWritten);
                 $this->markProgress($code, $res['written']);
+            }
+
+            // MARKER-QBP-VISIBILITY — every brand in this chunk ends in a
+            // terminal state. Without this a brand that returned nothing stays
+            // 'pending' forever and reads as "never reached", which is what
+            // made a half-finished catalog look like a mapping bug.
+            foreach ($chunk as $b) {
+                $name = (string) ($b['name'] ?? '');
+                if ($name === '' || array_key_exists($name, $byBrand)) {
+                    continue;
+                }
+                $this->setBrandStatus(
+                    $code,
+                    $name,
+                    isset($chunkFailures[(string) ($b['id'] ?? '')]) ? 'failed' : 'empty',
+                    0
+                );
             }
 
             unset($byBrand);
