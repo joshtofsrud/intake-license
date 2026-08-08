@@ -281,23 +281,29 @@ class QbpClient implements DistributorAdapter
             }
 
             foreach ($this->asList($doc['products']['product'] ?? null) as $row) {
-                $sku = trim((string) ($row['sku'] ?? ''));
-                if ($sku === '') {
+                try {
+                    $sku = $this->scalar($row['sku'] ?? '');
+                    if ($sku === '') {
+                        continue;
+                    }
+
+                    // modelCode groups variants of one product. Missing means
+                    // the SKU stands alone, so it becomes its own group.
+                    $model = $this->scalar($row['modelCode'] ?? '') ?: $sku;
+
+                    $byModel[$model] ??= [
+                        'ModelCode' => $model,
+                        'Brand'     => $this->scalar($row['brand']['description'] ?? '') ?: $brandId,
+                        'BrandId'   => $this->scalar($row['brand']['id'] ?? $brandId),
+                        'Variants'  => [],
+                    ];
+
+                    $byModel[$model]['Variants'][] = $this->variant($row);
+                } catch (\Throwable $e) {
+                    // MARKER-QBP-SCALAR — a single malformed row must not lose
+                    // the rest of the brand's products.
                     continue;
                 }
-
-                // modelCode groups variants of one product. Missing means the
-                // SKU stands alone, so it becomes its own group.
-                $model = trim((string) ($row['modelCode'] ?? '')) ?: $sku;
-
-                $byModel[$model] ??= [
-                    'ModelCode' => $model,
-                    'Brand'     => trim((string) ($row['brand']['description'] ?? '')) ?: $brandId,
-                    'BrandId'   => trim((string) ($row['brand']['id'] ?? $brandId)),
-                    'Variants'  => [],
-                ];
-
-                $byModel[$model]['Variants'][] = $this->variant($row);
             }
 
             unset($doc);
@@ -322,8 +328,8 @@ class QbpClient implements DistributorAdapter
         unset($row['dealerPrice']);
 
         $row['Attributes']   = $this->attributes($row['classifications'] ?? null);
-        $row['CategoryName'] = trim((string) ($row['productCategories']['productCategory']['name'] ?? ''));
-        $row['CategoryId']   = trim((string) ($row['productCategories']['productCategory']['id'] ?? ''));
+        $row['CategoryName'] = $this->scalar($row['productCategories']['productCategory']['name'] ?? ''); // MARKER-QBP-SCALAR
+        $row['CategoryId']   = $this->scalar($row['productCategories']['productCategory']['id'] ?? '');
         // MARKER-QBP-FIXES — images.image is an OBJECT for one image and a
         // LIST for several. Reading ['fileName'] directly worked on
         // single-image products and returned nothing on the rest, silently.
@@ -802,6 +808,32 @@ class QbpClient implements DistributorAdapter
      *
      * @return array<int,mixed>
      */
+    // MARKER-QBP-SCALAR — QBP is XML-derived, so a leaf that carries an XML
+    // attribute (or repeats) arrives as an array, not a string; casting it
+    // with (string) throws "Array to string conversion", and because that
+    // happens outside the per-brand fetch try it kills a whole 10-brand
+    // chunk. Coerce safely: an attribute-wrapped leaf keeps its text node,
+    // else the first scalar; a non-scalar collapses to ''.
+    private function scalar(mixed $v): string
+    {
+        if (is_array($v)) {
+            if (isset($v['#text']) && is_scalar($v['#text'])) {
+                return trim((string) $v['#text']);
+            }
+            if (isset($v['value']) && is_scalar($v['value'])) {
+                return trim((string) $v['value']);
+            }
+            foreach ($v as $inner) {
+                if (is_scalar($inner)) {
+                    return trim((string) $inner);
+                }
+            }
+            return '';
+        }
+
+        return $v === null ? '' : trim((string) $v);
+    }
+
     private function asList(mixed $value): array
     {
         if ($value === null || $value === '') {
