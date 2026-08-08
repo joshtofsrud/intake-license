@@ -365,6 +365,22 @@ class Distributors extends Page implements HasForms
         }
     }
 
+    // MARKER-BRAND-SYNC — queue a single-brand refresh from the brand list.
+    public function syncBrand(string $brand): void
+    {
+        $code = $this->currentCode();
+        \App\Jobs\SyncDistributorBrandJob::dispatch($code, $brand);
+
+        DB::table('distributor_brand_sync_status')
+            ->where('distributor_code', $code)
+            ->where('brand_name', $brand)
+            ->update(['status' => 'syncing', 'updated_at' => now()]);
+
+        \Filament\Notifications\Notification::make()
+            ->title($brand . ' sync queued')
+            ->success()->send();
+    }
+
     protected function dispatchSync(bool $delta): void
     {
         // HLC8 running checkpoint — show progress immediately, before the

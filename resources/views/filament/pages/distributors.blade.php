@@ -75,6 +75,11 @@
                                         <span style="opacity:.5">pending</span>
                                     @endif
                                 </td>
+                                {{-- MARKER-BRAND-SYNC — inline single-brand refresh --}}
+                                <td style="padding:7px 12px;text-align:right">
+                                    <button type="button" wire:click="syncBrand(@js($b->brand_name))" wire:loading.attr="disabled"
+                                            style="font-size:11px;padding:3px 10px;border:.5px solid rgba(255,255,255,.2);border-radius:6px;background:transparent;color:#BEF264;cursor:pointer">Sync</button>
+                                </td>
                             </tr>
                         @endforeach
                     </table>

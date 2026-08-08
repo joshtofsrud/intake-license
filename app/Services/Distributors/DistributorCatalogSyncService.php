@@ -148,6 +148,72 @@ class DistributorCatalogSyncService
      * Chunk size 10: DRW measured 7 MB / ~1,000 products, so a page tops out
      * around 70 MB of XML before parsing — well inside a worker.
      */
+    // MARKER-BRAND-SYNC — refresh one brand. pagesByBrand adapters (QBP)
+    // fetch only that brand; others pull the full feed and keep just this one.
+    public function syncBrand(DistributorAdapter $adapter, string $brandName): array
+    {
+        $code = strtoupper($adapter->code());
+
+        if (empty($this->resolver->mapsFor($code))) {
+            throw new \RuntimeException("No field map for {$code}. Seed DistributorFieldMapSeeder before syncing.");
+        }
+
+        $res = [
+            'code' => $code, 'pages' => 0, 'seen' => 0, 'written' => 0,
+            'skipped_delta' => 0, 'map_vanished' => 0, 'msrp_vanished' => 0, 'errors' => [],
+        ];
+
+        DB::connection()->disableQueryLog();
+        $this->setBrandStatus($code, $brandName, 'syncing', null);
+
+        try {
+            if (method_exists($adapter, 'pagesByBrand') && $adapter->pagesByBrand()) {
+                $id = null;
+                foreach ($adapter->brands() as $b) {
+                    if (strcasecmp((string) ($b['name'] ?? ''), $brandName) === 0) { $id = $b['id'] ?? null; break; }
+                }
+                if ($id === null) {
+                    $res['errors'][] = "brand '{$brandName}' not found in {$code} brand list";
+                    $this->setBrandStatus($code, $brandName, 'done', 0);
+                    return $res;
+                }
+                $products = $this->extractProducts($adapter->products(['brands' => [$id]]));
+            } else {
+                $all = $this->extractProducts($adapter->products());
+                $products = array_values(array_filter($all, function ($prod) use ($brandName) {
+                    return strcasecmp((string) ($prod['Brand'] ?? ''), $brandName) === 0;
+                }));
+                unset($all);
+            }
+
+            $res['pages'] = 1;
+            $written = 0;
+            foreach ($products as $product) {
+                foreach (($product['Variants'] ?? []) as $variant) {
+                    $res['seen']++;
+                    try {
+                        $this->upsertVariant($code, $adapter->name(), $variant, $product, $res);
+                        $res['written']++;
+                        $written++;
+                    } catch (\Throwable $e) {
+                        $res['errors'][] = ($variant['sku'] ?? $variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
+                    }
+                    if ($written % 100 === 0) {
+                        $this->setBrandStatus($code, $brandName, 'syncing', $written);
+                    }
+                }
+            }
+            unset($products);
+
+            $this->setBrandStatus($code, $brandName, 'done', $written);
+        } catch (\Throwable $e) {
+            $res['errors'][] = $e->getMessage();
+            $this->setBrandStatus($code, $brandName, 'done', $res['written']);
+        }
+
+        return $res;
+    }
+
     private function syncIdentityByBrand(DistributorAdapter $adapter, ?Carbon $since, array $res): array
     {
         $code = $res['code'];
