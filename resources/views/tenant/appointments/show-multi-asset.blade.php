@@ -712,6 +712,23 @@
   opacity: .4;
   margin: 4px 0 12px;
 }
+/* MARKER-PARTS-EMPTY — real empty state for the per-asset parts block */
+.ma-parts-blank {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 16px; margin: 2px 0 4px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--ia-border);
+  border-radius: 8px;
+}
+.ma-parts-blank-txt { font-size: 12px; line-height: 1.5; opacity: .6; }
+.ma-parts-blank-txt b { display: block; font-size: 12.5px; opacity: .85; margin-bottom: 1px; font-weight: 600; }
+.ma-parts-blank-btn {
+  margin-left: auto; white-space: nowrap;
+  font: inherit; font-size: 12px; padding: 7px 13px;
+  background: transparent; border: 1px solid var(--ia-border);
+  border-radius: 7px; color: var(--ia-text-dim); cursor: pointer;
+}
+.ma-parts-blank-btn:hover { border-color: var(--ia-accent, #BEF264); color: var(--ia-accent, #BEF264); }
 
 /* Per-asset picker: same styles as the loose .ma-part-picker, but scoped */
 .ma-asset-part-pickerwrap {
@@ -1846,10 +1863,13 @@ input.ma-asset-name-edit:focus {
           </div>
 
           {{-- MARKER-PATCH-158-G4 — Parts section per asset (collapsible) --}}
-          <details class="ma-asset-parts" data-aa-id="{{ $aa->id }}" @if($aa->parts->isNotEmpty()) open @endif>
+          {{-- MARKER-PARTS-EMPTY — empty parts blocks open with no count chip --}}
+          <details class="ma-asset-parts" data-aa-id="{{ $aa->id }}" open>
             <summary class="ma-asset-parts-head">
               <span class="ma-asset-parts-title">Parts &amp; products</span>
-              <span class="ma-asset-parts-count">{{ $aa->parts->count() }}</span>
+              @if($aa->parts->isNotEmpty())
+                <span class="ma-asset-parts-count">{{ $aa->parts->count() }}</span>
+              @endif
               <span class="ma-asset-parts-chev">▾</span>
             </summary>
             <div class="ma-asset-parts-body">
@@ -1919,11 +1939,24 @@ input.ma-asset-name-edit:focus {
                   </tbody>
                 </table>
               @else
-                <p class="ma-asset-parts-empty">No products yet.</p>
+                {{-- MARKER-PARTS-EMPTY --}}
+                <div class="ma-parts-blank">
+                  <div class="ma-parts-blank-txt">
+                    <b>No parts on this {{ tenant()->asset_label_singular ?: 'item' }} yet</b>
+                    Anything fitted during the job — and anything sold alongside it — gets added
+                    here and priced on the ticket.
+                  </div>
+                  <button type="button" class="ma-parts-blank-btn"
+                          onclick="this.closest('.ma-asset-parts-body').querySelector('.ma-asset-part-pickerwrap').hidden = false;
+                                   this.closest('.ma-asset-parts-body').querySelector('.ma-asset-part-picker').focus();
+                                   this.closest('.ma-parts-blank').hidden = true;">
+                    + Add a part
+                  </button>
+                </div>
               @endif
 
               {{-- Per-asset picker. Same UI as the loose picker but scoped via data-aa-id. --}}
-              <div class="ma-asset-part-pickerwrap">
+              <div class="ma-asset-part-pickerwrap" @if($aa->parts->isEmpty()) hidden @endif>
                 <input type="text" class="ia-input ma-asset-part-picker"
                        data-aa-id="{{ $aa->id }}"
                        placeholder="+ Add product or custom item to this {{ tenant()->asset_label_singular ?: 'item' }}…"
@@ -1968,11 +2001,16 @@ input.ma-asset-name-edit:focus {
               $aaIdentifierValue  = $aaIdentifierField ? ($aaResponses[$aaIdentifierField->id]->response_value ?? null) : null;
               $aaNonIdentifier    = $appointment->workOrderFields->filter(fn($f) => !$f->is_identifier);
               $aaFilledCount      = $appointment->workOrderFields->filter(fn($f) => !empty($aaResponses[$f->id]->response_value ?? null))->count();
+              // MARKER-PARTS-EMPTY — prose instead of "0/4"
+              $aaWoTotal          = $appointment->workOrderFields->count();
+              $aaWoLabel          = $aaFilledCount === 0
+                                      ? $aaWoTotal . ($aaWoTotal === 1 ? ' field, none filled' : ' fields, none filled')
+                                      : $aaFilledCount . ' of ' . $aaWoTotal . ' filled';
             @endphp
             <details class="ma-asset-wo" data-aa-id="{{ $aa->id }}" @if($aaFilledCount > 0) open @endif>
               <summary class="ma-asset-parts-head">
                 <span class="ma-asset-parts-title">Work order details</span>
-                <span class="ma-asset-parts-count">{{ $aaFilledCount }}/{{ $appointment->workOrderFields->count() }}</span>
+                <span class="ma-asset-parts-count">{{ $aaWoLabel }}</span>
                 <span class="ma-asset-parts-chev">▾</span>
               </summary>
               <div class="ma-asset-wo-body">
