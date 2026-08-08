@@ -597,6 +597,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/appointments',         [TenantControllers\AppointmentController::class, 'index'])->name('appointments.index');
             Route::get('/appointments/picker-data', [TenantControllers\AppointmentController::class, 'pickerData'])->name('appointments.picker-data');
+            Route::get('/appointments/customer-assets', [TenantControllers\AppointmentController::class, 'customerAssets'])->name('appointments.customer-assets'); // MARKER-APPT-ASSET
             Route::get('/appointments/day-strip',   [TenantControllers\AppointmentController::class, 'dayStrip'])->name('appointments.day-strip');
             // SEQUENTIAL-PICKER-ROUTES v1
             Route::get('/appointments/eligible-resources', [TenantControllers\AppointmentController::class, 'eligibleResources'])->name('appointments.eligible-resources');

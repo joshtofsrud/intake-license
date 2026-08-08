@@ -1624,6 +1624,7 @@ class BookingService
                     'tenant_id'           => $tenantId,
                     'customer_id'         => $customer->id,
                     'name'                => $name,
+                    'identifier'          => (isset($entry['identifier']) && $entry['identifier'] !== '') ? (string) $entry['identifier'] : null, // MARKER-APPT-ASSET
                     'last_seen_at'        => now(),
                     'last_appointment_id' => $appointment->id,
                 ]);

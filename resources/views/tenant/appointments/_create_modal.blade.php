@@ -264,6 +264,25 @@
           </div>
         </div>
 
+        {{-- MARKER-APPT-ASSET — single-asset select/create; multi lives on the work order page --}}
+        @if($currentTenant->multi_asset_enabled)
+        @php $aSing = strtolower($currentTenant->asset_label_singular ?: 'item'); $aPlur = strtolower($currentTenant->asset_label_plural ?: ($aSing.'s')); @endphp
+        <div class="appt-section" id="appt-asset-section">
+          <div class="appt-section-h">{{ ucfirst($aSing) }}</div>
+          <div id="appt-asset-need-customer" style="font-size:11px;opacity:.55">Choose a customer to pick or add a {{ $aSing }}.</div>
+          <select id="appt-asset-select" class="appt-input" style="display:none"
+                  onchange="var n=document.getElementById('appt-asset-new'); if(n) n.style.display=(this.value==='__new__'?'block':'none');"></select>
+          <div id="appt-asset-new" style="display:none; margin-top:8px">
+            <div class="appt-row">
+              <input type="text" id="appt-asset-name" class="appt-input" placeholder="Make &amp; model">
+              <input type="text" id="appt-asset-id"   class="appt-input" placeholder="Serial (optional)">
+            </div>
+            <div style="font-size:11px;opacity:.55;margin-top:6px">Saved to the customer for next time.</div>
+          </div>
+          <p style="font-size:11px;opacity:.55;margin-top:8px">For multi-{{ $aPlur }} work orders, create the appointment and add {{ $aPlur }} on the work order screen.</p>
+        </div>
+        @endif
+
         {{-- SEQUENTIAL-PICKER v1 --}}
         <div class="appt-section">
           <div class="appt-section-h">Service</div>
@@ -398,6 +417,13 @@ window.ApptModal = (function () {
     store:      "{{ route('tenant.appointments.store') }}",
     eligibleResources: "{{ route('tenant.appointments.eligible-resources') }}",
     weekTimes:         "{{ route('tenant.appointments.week-times') }}",
+  };
+
+  // MARKER-APPT-ASSET — asset picker config (label + endpoint from the tenant)
+  var assetsCfg = {
+    enabled: {{ $currentTenant->multi_asset_enabled ? 'true' : 'false' }},
+    singular: @json(strtolower($currentTenant->asset_label_singular ?: 'item')),
+    url: "{{ route('tenant.appointments.customer-assets') }}",
   };
 
   var custSearchTimer = null;
@@ -541,6 +567,7 @@ window.ApptModal = (function () {
     if (customers.length === 0) {
       box.style.display = 'none';
       el('appt-cust-new-fields').style.display = 'block';
+      assetNewOnly();
       var parts = query.split(/\s+/);
       if (parts.length >= 2 && !query.includes('@') && !/\d/.test(query)) {
         el('appt-first').value = parts[0];
@@ -567,6 +594,7 @@ window.ApptModal = (function () {
     el('appt-cust-attached-meta').textContent = c.email || c.phone || '';
     el('appt-cust-attached').style.display = 'flex';
     el('appt-cust-search-wrap').style.display = 'none';
+    assetLoadFor(c.id);
   }
 
   function clearCustomer() {
@@ -575,6 +603,46 @@ window.ApptModal = (function () {
     el('appt-cust-search-wrap').style.display = 'block';
     el('appt-cust-search').value = '';
     el('appt-cust-search').focus();
+    assetReset();
+  }
+
+  // ── MARKER-APPT-ASSET — single asset select/create ──
+  function assetOpt(v, label){ var o=document.createElement('option'); o.value=v; o.textContent=label; return o; }
+  function assetReset(){
+    if(!assetsCfg.enabled) return;
+    var need=el('appt-asset-need-customer'); if(need) need.style.display='block';
+    var sel=el('appt-asset-select'); if(sel){ sel.innerHTML=''; sel.style.display='none'; }
+    var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
+    var nm=el('appt-asset-name'); if(nm) nm.value='';
+    var ni=el('appt-asset-id'); if(ni) ni.value='';
+  }
+  function assetNewOnly(){
+    if(!assetsCfg.enabled) return;
+    var need=el('appt-asset-need-customer'); if(need) need.style.display='none';
+    var sel=el('appt-asset-select'); if(sel) sel.style.display='none';
+    var nw=el('appt-asset-new'); if(nw) nw.style.display='block';
+  }
+  function assetLoadFor(customerId){
+    if(!assetsCfg.enabled) return;
+    assetReset();
+    var need=el('appt-asset-need-customer'); if(need) need.style.display='none';
+    fetch(assetsCfg.url + '?customer_id=' + encodeURIComponent(customerId), { headers:{'Accept':'application/json'}, credentials:'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var assets=(d && d.assets) || [];
+        var sel=el('appt-asset-select');
+        if(assets.length && sel){
+          sel.innerHTML='';
+          sel.appendChild(assetOpt('', 'Select ' + assetsCfg.singular + '\u2026'));
+          assets.forEach(function(a){ sel.appendChild(assetOpt(a.id, a.name + (a.identifier ? ' \u00b7 ' + a.identifier : ''))); });
+          sel.appendChild(assetOpt('__new__', '+ Add new ' + assetsCfg.singular));
+          sel.style.display='block';
+          var nw=el('appt-asset-new'); if(nw) nw.style.display='none';
+        } else {
+          assetNewOnly();
+        }
+      })
+      .catch(function(){ assetNewOnly(); });
   }
 
   // ── Service picker ──
@@ -881,6 +949,21 @@ window.ApptModal = (function () {
         showError('First name, last name, and email are required for a new customer.');
         btn.disabled = false; btn.innerHTML = 'Save appointment';
         return;
+      }
+    }
+
+    if (assetsCfg.enabled) {
+      var _an = el('appt-asset-name'), _ai = el('appt-asset-id'), _as = el('appt-asset-select');
+      var _nw = el('appt-asset-new');
+      var _newVisible = _nw && _nw.style.display !== 'none';
+      var _name = _an ? _an.value.trim() : '';
+      var _selVal = _as ? _as.value : '';
+      if (_newVisible && _name) {
+        payload.assets = [{ client_key: 'a1', name_snapshot: _name, identifier: (_ai && _ai.value.trim()) || null }];
+        payload.items[0].asset_client_key = 'a1';
+      } else if (_selVal && _selVal !== '__new__') {
+        payload.assets = [{ client_key: 'a1', customer_asset_id: _selVal }];
+        payload.items[0].asset_client_key = 'a1';
       }
     }
 

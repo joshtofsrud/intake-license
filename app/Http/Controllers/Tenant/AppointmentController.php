@@ -237,6 +237,31 @@ class AppointmentController extends Controller
         ]);
     }
 
+    // MARKER-APPT-ASSET — customer's assets for the create-appointment picker.
+    // Gated on multi_asset_enabled (the flag that turns on asset tracking).
+    public function customerAssets(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = tenant();
+        abort_unless((bool) ($tenant->multi_asset_enabled ?? false), 404);
+
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', (string) $request->query('customer_id'))
+            ->first();
+        if (! $customer) {
+            return response()->json(['assets' => []]);
+        }
+
+        $assets = \App\Models\Tenant\TenantCustomerAsset::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->whereNull('archived_at')
+            ->orderBy('name')
+            ->get(['id', 'name', 'identifier'])
+            ->map(fn ($a) => ['id' => (string) $a->id, 'name' => $a->name, 'identifier' => $a->identifier])
+            ->values()->all();
+
+        return response()->json(['assets' => $assets]);
+    }
+
     public function store(Request $request)
     {
         $tenant = tenant();
@@ -258,6 +283,12 @@ class AppointmentController extends Controller
             'items'               => ['required', 'array', 'min:1'],
             'items.*.service_item_id'      => ['required', 'string', 'uuid'],
             'items.*.price_override_cents' => ['nullable', 'integer', 'min:0'],
+            'items.*.asset_client_key'     => ['nullable', 'string', 'max:64'],
+            'assets'                       => ['nullable', 'array', 'max:1'],
+            'assets.*.client_key'          => ['nullable', 'string', 'max:64'],
+            'assets.*.customer_asset_id'   => ['nullable', 'string', 'uuid'],
+            'assets.*.name_snapshot'       => ['nullable', 'string', 'max:120'],
+            'assets.*.identifier'          => ['nullable', 'string', 'max:120'],
         ]);
 
         // If customer_id provided, hydrate name/email/phone from the existing record.
@@ -303,9 +334,11 @@ class AppointmentController extends Controller
                 return [
                     'service_item_id'      => $item['service_item_id'],
                     'price_override_cents' => $item['price_override_cents'] ?? null,
+                    'asset_client_key'     => $item['asset_client_key'] ?? null,
                     'addon_ids'            => [],
                 ];
             }, $data['items']),
+            'assets'           => $data['assets'] ?? [],
             'payment_method'   => 'none',
         ];
 
