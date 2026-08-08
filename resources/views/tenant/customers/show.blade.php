@@ -1,3 +1,4 @@
+{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle  = $customer->fullName();
@@ -1334,12 +1335,12 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
           <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="openAssetModal()">+ Add asset</button>
         </div>
         <div style="font-size:12px;color:var(--ia-text-dim);margin-bottom:14px;line-height:1.55">
-          Bikes, vehicles, or other items that belong to this customer. Pickable when scheduling an appointment.
+          {{ ucfirst(tenant()->asset_label_plural ?: 'items') }} that belong to this customer. Pickable when scheduling an appointment.
         </div>
 
         @if($customerActiveAssets->isEmpty())
           <div class="asset-empty">
-            No assets yet. Click <strong>+ Add asset</strong> to add the customer's first bike, vehicle, or pet.
+            No assets yet. Click <strong>+ Add asset</strong> to add the customer's first {{ tenant()->asset_label_singular ?: 'item' }}.
           </div>
         @else
           <div class="asset-grid">

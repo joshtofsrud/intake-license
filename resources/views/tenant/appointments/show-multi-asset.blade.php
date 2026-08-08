@@ -1,3 +1,4 @@
+{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
 {{-- MARKER-PATCH-158-D — Multi-asset appointment show view (read-only) --}}
 @extends('layouts.tenant.app')
 @php
@@ -1723,7 +1724,7 @@ input.ma-asset-name-edit:focus {
             @if($pickerAssets->isNotEmpty())
               Pick from {{ $appointment->customer->first_name ?? 'this customer' }}'s {{ $pickerAssets->count() }} saved {{ \Illuminate\Support\Str::plural('asset', $pickerAssets->count()) }}, or add a new one.
             @else
-              Attach a bike, vehicle, or other item to this appointment.
+              Attach a {{ tenant()->asset_label_singular ?: 'item' }} to this appointment.
             @endif
           </div>
           <button type="button" class="ia-btn ia-btn--primary" onclick="maOpenAttachAssetModal()">+ Attach asset</button>
@@ -1840,7 +1841,7 @@ input.ma-asset-name-edit:focus {
 
             <button type="button" class="ma-add-svc-btn"
                     onclick="maOpenAddServiceModal('{{ $aa->id }}', '{{ addslashes($aa->asset_name_snapshot) }}')">
-              + Add service or add-on to this bike
+              + Add service or add-on to this {{ tenant()->asset_label_singular ?: 'item' }}
             </button>
           </div>
 
@@ -1925,7 +1926,7 @@ input.ma-asset-name-edit:focus {
               <div class="ma-asset-part-pickerwrap">
                 <input type="text" class="ia-input ma-asset-part-picker"
                        data-aa-id="{{ $aa->id }}"
-                       placeholder="+ Add product or custom item to this bike…"
+                       placeholder="+ Add product or custom item to this {{ tenant()->asset_label_singular ?: 'item' }}…"
                        autocomplete="off">
                 <div class="ma-asset-part-results" data-aa-id="{{ $aa->id }}" hidden></div>
               </div>
@@ -3427,7 +3428,7 @@ input.ma-asset-name-edit:focus {
           ev.stopPropagation();
           var row = btn.closest('.ma-part-picker-result');
           window.IntakeItemModal.open(btn.dataset.infoId, {
-            actionLabel: 'Add to this bike',
+            actionLabel: 'Add to this ' + (window.maLooseAssetSingular || 'item'),
             onAdd: function() { if (row) row.click(); },
           });
         });
@@ -3589,7 +3590,7 @@ input.ma-asset-name-edit:focus {
             ev.stopPropagation();
             var row = btn.closest('.ma-part-picker-result');
             window.IntakeItemModal.open(btn.dataset.infoId, {
-              actionLabel: 'Add to this bike',
+              actionLabel: 'Add to this ' + (window.maLooseAssetSingular || 'item'),
               onAdd: function() { if (row) row.click(); },
             });
           });

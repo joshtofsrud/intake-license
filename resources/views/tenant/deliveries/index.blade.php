@@ -1,3 +1,4 @@
+{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
 @extends('layouts.tenant.app')
 @section('title', 'Schedule · Deliveries')
 
@@ -887,7 +888,7 @@
           <div class="del-type-tile is-pickup is-selected" id="del-tile-pickup" onclick="delSelectType('pickup')">
             <div class="icon" style="color: var(--del-pickup);">→</div>
             <div class="label">Pickup</div>
-            <div class="sub">Bike to shop</div>
+            <div class="sub">{{ ucfirst(tenant()->asset_label_singular ?: 'item') }} to shop</div>
           </div>
           <div class="del-type-tile is-dropoff" id="del-tile-dropoff" onclick="delSelectType('dropoff')">
             <div class="icon" style="color: var(--del-dropoff);">←</div>
@@ -906,9 +907,9 @@
 
       {{-- Bikes on this run — MARKER-PATCH-427 --}}
       <div class="del-row" id="del-assets-row" style="display:none;">
-        <label class="del-label">Bikes on this run</label>
+        <label class="del-label">{{ ucfirst(tenant()->asset_label_plural ?: 'items') }} on this run</label>
         <div id="del-assets" class="del-assets"></div>
-        <div id="del-assets-empty" class="del-assets-empty" style="display:none;">No saved bikes for this customer.</div>
+        <div id="del-assets-empty" class="del-assets-empty" style="display:none;">No saved {{ tenant()->asset_label_plural ?: 'items' }} for this customer.</div>
       </div>
 
       {{-- Date + start time --}}
@@ -960,7 +961,7 @@
       {{-- Notes --}}
       <div class="del-row">
         <label class="del-label">Notes</label>
-        <textarea name="notes" class="del-textarea" id="del-notes" placeholder="Gate code, dog warning, where to leave the bike…"></textarea>
+        <textarea name="notes" class="del-textarea" id="del-notes" placeholder="Gate code, dog warning, where to leave the {{ tenant()->asset_label_singular ?: 'item' }}…"></textarea>
       </div>
 
       {{-- Notify banner — MARKER-PATCH-152C / MARKER-PATCH-157 --}}

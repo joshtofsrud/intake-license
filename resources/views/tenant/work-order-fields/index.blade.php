@@ -1,3 +1,4 @@
+{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
 @extends('layouts.tenant.app')
 @php
   $pageTitle = 'Work Order Fields';
@@ -260,7 +261,7 @@
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Work order fields</h1>
-    <p class="ia-page-subtitle">Fields your team fills in when receiving a bike.</p>
+    <p class="ia-page-subtitle">Fields your team fills in when receiving a {{ tenant()->asset_label_singular ?: 'item' }}.</p>
   </div>
   <div class="ia-page-actions">
     <button type="button" class="ia-btn ia-btn--primary" id="wof-add-btn">+ Add field</button>
@@ -270,7 +271,7 @@
 <div class="wof-layout">
 
   <div class="wof-info-banner">
-    One field can be marked as a <strong>searchable identifier</strong> — used to look up work orders across appointments. Usually the bike's serial number.
+    One field can be marked as a <strong>searchable identifier</strong> — used to look up work orders across appointments. Usually the {{ tenant()->asset_label_singular ?: 'item' }}'s serial number.
   </div>
 
   <div class="wof-table" id="wof-list">

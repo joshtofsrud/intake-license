@@ -1,3 +1,4 @@
+{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
 {{--
   Shared appointment drawer. (MARKER-PATCH-212 — enriched)
   Public API: window.ApptDrawer.open(apptId, fullUrl) / .close()
@@ -186,7 +187,7 @@
             });
             ah += '</div>';
           });
-          html += sec('Bikes / assets', ah);
+          html += sec(@json(ucfirst(tenant()->asset_label_plural ?: 'items')) + ' / assets', ah);
         } else if (a.items && a.items.length){
           var sh = '';
           a.items.forEach(function(it){ sh += '<div class="appt-drawer-row"><span>' + esc(it.name) + '</span><span>' + esc(it.price) + '</span></div>'; });

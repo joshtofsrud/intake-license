@@ -1,3 +1,4 @@
+{{-- MARKER-ASSET-NOUN — asset labels read tenant()->asset_label_* --}}
 {{-- MARKER-PATCH-313 — standalone 80mm thermal service-tag print view.
      Its own minimal HTML document (not the admin layout) for clean output.
      Auto-fires the print dialog. Reads appointment_date and promised_at off
@@ -115,7 +116,7 @@
         <tr><td>PROMISED</td><td class="r">{{ $promised }}</td></tr>
       @endif
       @if($tag['show_bike'] && !empty($slip['bike']))
-        <tr><td>BIKE</td><td class="r" style="font-weight:400">{{ $slip['bike'] }}</td></tr>
+        <tr><td>{{ strtoupper(tenant()->asset_label_singular ?: 'item') }}</td><td class="r" style="font-weight:400">{{ $slip['bike'] }}</td></tr>
       @endif
     </table>
 
