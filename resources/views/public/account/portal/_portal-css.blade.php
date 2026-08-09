@@ -1,5 +1,24 @@
 {{-- MARKER-PORTAL-V2 — shared portal styles, pushed by each portal view --}}
 <style>
+/* MARKER-PORTAL-CSS — list primitives. These lived in the old single-page
+   portal.blade.php, which v2 orphaned; every section uses them, so they
+   belong here. Values carried over unchanged from that view. */
+.ac-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.4;margin-bottom:10px}
+.ac-list{border:1px solid var(--p-border);border-radius:var(--p-r-lg);overflow:hidden;margin-bottom:20px}
+.ac-list-row{padding:12px 15px;border-bottom:1px solid var(--p-border);display:flex;align-items:center;justify-content:space-between;font-size:14px;gap:12px;color:inherit;text-decoration:none}
+.ac-list-row:last-child{border-bottom:none}
+a.ac-list-row:hover{background:var(--p-surface)}
+.ac-list-name{font-weight:500}
+.ac-list-meta{font-size:12px;opacity:.5;margin-top:2px}
+.ac-list-right{text-align:right;flex-shrink:0;margin-left:12px}
+.ac-empty{padding:28px;text-align:center;font-size:14px;opacity:.35}
+.ac-pill{display:inline-flex;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
+.ac-pill--registered,.ac-pill--checked_in,.ac-pill--confirmed,.ac-pill--active,.ac-pill--paid{background:#EAF3DE;color:#3B6D11}
+.ac-pill--pending{background:#E6F1FB;color:#185FA5}
+.ac-pill--waitlisted,.ac-pill--in_progress,.ac-pill--due{background:#FAEEDA;color:#633806}
+.ac-pill--no_show,.ac-pill--cancelled,.ac-pill--completed,.ac-pill--returned{background:var(--p-surface);color:rgba(0,0,0,.4)}
+.ac-pill--refunded{background:#FCEBEB;color:#A32D2D}
+
 .ac-nav{display:flex;gap:2px;border-bottom:1px solid var(--p-border);margin:-6px 0 26px;overflow-x:auto}
 .ac-nav a{padding:9px 13px;font-size:13.5px;opacity:.45;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .ac-nav a:hover{opacity:.75}

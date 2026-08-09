@@ -69,6 +69,11 @@
   $logoUrl = \App\Support\ColorHelper::pickLogo($currentTenant, $currentTenant->bg_color ?? '#ffffff');
   $customer = Auth::guard('customer')->user();
 @endphp
+{{-- MARKER-PORTAL-CSS — the builder nav above already shows the logo and the
+     signed-in customer, so this bar would be a second copy of both. It still
+     renders for a tenant with no site chrome. --}}
+@php $acHasChrome = (bool) \App\Services\Tenant\SiteChromeService::parts($currentTenant)['nav']; @endphp
+@unless($acHasChrome)
 <div class="ac-top">
   <a href="{{ route('tenant.home') }}" class="ac-logo">
     @if($logoUrl)
@@ -90,6 +95,7 @@
     @endif
   </div>
 </div>
+@endunless
 
 <div class="ac-body">
   @yield('content')
