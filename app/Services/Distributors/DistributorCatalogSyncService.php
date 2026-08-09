@@ -107,12 +107,14 @@ class DistributorCatalogSyncService
         foreach ($byBrand as $brandName => $brandProducts) {
             $this->setBrandStatus($code, $brandName, 'syncing', null);
             $brandWritten = 0;
+            $brandSkipped = 0; // MARKER-BRAND-TOTALS
 
             foreach ($brandProducts as $product) {
                 foreach (($product['Variants'] ?? []) as $variant) {
                     $res['seen']++;
                     if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
                         $res['skipped_delta']++;
+                        $brandSkipped++; // MARKER-BRAND-TOTALS
                         continue;
                     }
                     try {
@@ -123,13 +125,21 @@ class DistributorCatalogSyncService
                         $res['errors'][] = ($variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
                     }
                     if ($brandWritten % 100 === 0) {
-                        $this->setBrandStatus($code, $brandName, 'syncing', $brandWritten);
+                        $this->setBrandStatus($code, $brandName, 'syncing', $brandWritten, null, $brandSkipped);
                         $this->markProgress($code, $res['written']);
                     }
                 }
             }
 
-            $this->setBrandStatus($code, $brandName, 'done', $brandWritten);
+            // MARKER-BRAND-TOTALS — 'fresh' = delta looked and nothing changed.
+            $this->setBrandStatus(
+                $code,
+                $brandName,
+                ($brandWritten === 0 && $brandSkipped > 0) ? 'fresh' : 'done',
+                $brandWritten,
+                null,
+                $brandSkipped
+            );
             $this->markProgress($code, $res['written']);
             unset($brandProducts);
             gc_collect_cycles();
@@ -187,6 +197,15 @@ class DistributorCatalogSyncService
             }
 
             $res['pages'] = 1;
+
+            // MARKER-BRAND-TOTALS — single-brand refresh writes the real
+            // denominator too, so one Sync click heals a 0-total row.
+            $brandTotal = 0;
+            foreach ($products as $p) {
+                $brandTotal += count($p['Variants'] ?? []);
+            }
+            $this->setBrandStatus($code, $brandName, 'syncing', 0, $brandTotal);
+
             $written = 0;
             foreach ($products as $product) {
                 foreach (($product['Variants'] ?? []) as $variant) {
@@ -264,14 +283,22 @@ class DistributorCatalogSyncService
             unset($products);
 
             foreach ($byBrand as $brandName => $brandProducts) {
-                $this->setBrandStatus($code, $brandName, 'syncing', null);
+                // MARKER-BRAND-TOTALS — products for this brand are finally in
+                // hand, so the denominator can be written. Seeding left it 0.
+                $brandTotal = 0;
+                foreach ($brandProducts as $p) {
+                    $brandTotal += count($p['Variants'] ?? []);
+                }
+                $this->setBrandStatus($code, $brandName, 'syncing', null, $brandTotal);
                 $brandWritten = 0;
+                $brandSkipped = 0;
 
                 foreach ($brandProducts as $product) {
                     foreach (($product['Variants'] ?? []) as $variant) {
                         $res['seen']++;
                         if ($since !== null && $this->isUnchanged($variant, $product, $since)) {
                             $res['skipped_delta']++;
+                            $brandSkipped++; // MARKER-BRAND-TOTALS
                             continue;
                         }
                         try {
@@ -282,13 +309,21 @@ class DistributorCatalogSyncService
                             $res['errors'][] = ($variant['sku'] ?? $variant['VariantNo'] ?? '?') . ': ' . $e->getMessage();
                         }
                         if ($brandWritten % 100 === 0) {
-                            $this->setBrandStatus($code, $brandName, 'syncing', $brandWritten);
+                            $this->setBrandStatus($code, $brandName, 'syncing', $brandWritten, null, $brandSkipped);
                             $this->markProgress($code, $res['written']);
                         }
                     }
                 }
 
-                $this->setBrandStatus($code, $brandName, 'done', $brandWritten);
+                // MARKER-BRAND-TOTALS — 'fresh' = delta looked and nothing changed.
+                $this->setBrandStatus(
+                    $code,
+                    $brandName,
+                    ($brandWritten === 0 && $brandSkipped > 0) ? 'fresh' : 'done',
+                    $brandWritten,
+                    null,
+                    $brandSkipped
+                );
                 $this->markProgress($code, $res['written']);
             }
 
@@ -459,7 +494,7 @@ class DistributorCatalogSyncService
             }
             $rows[] = [
                 'distributor_code' => $code, 'brand_name' => (string) $bn,
-                'total' => $total, 'written' => 0, 'status' => 'pending',
+                'total' => $total, 'written' => 0, 'skipped' => 0, 'status' => 'pending',
                 'created_at' => now(), 'updated_at' => now(),
             ];
         }
@@ -468,11 +503,20 @@ class DistributorCatalogSyncService
         }
     }
 
-    private function setBrandStatus(string $code, string $brandName, string $status, ?int $written): void
+    // MARKER-BRAND-TOTALS — total/skipped write only when known, so the
+    // panel's denominator is real on the by-brand path and delta runs can
+    // say "unchanged" instead of looking like a write failure.
+    private function setBrandStatus(string $code, string $brandName, string $status, ?int $written, ?int $total = null, ?int $skipped = null): void
     {
         $vals = ['status' => $status, 'updated_at' => now()];
         if ($written !== null) {
             $vals['written'] = $written;
+        }
+        if ($total !== null) {
+            $vals['total'] = $total;
+        }
+        if ($skipped !== null) {
+            $vals['skipped'] = $skipped;
         }
         DB::table('distributor_brand_sync_status')
             ->where('distributor_code', $code)->where('brand_name', $brandName)

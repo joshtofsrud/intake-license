@@ -62,15 +62,21 @@
                 <div style="max-height:340px;overflow:auto;border:1px solid rgba(255,255,255,.1);border-radius:8px">
                     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
                         @foreach($brandStatuses as $b)
-                            @php $done = $b->status === 'done'; $sync = $b->status === 'syncing'; @endphp
+                            @php /* MARKER-BRAND-TOTALS — skipped-unchanged is part of the truth */ $done = $b->status === 'done'; $sync = $b->status === 'syncing'; $bSkipped = (int) ($b->skipped ?? 0); @endphp
                             <tr style="border-bottom:.5px solid rgba(255,255,255,.07)">
                                 <td style="padding:7px 12px;font-weight:600">{{ $b->brand_name }}</td>
-                                <td style="padding:7px 12px;font-family:ui-monospace,monospace;opacity:.85">{{ number_format($b->written) }} / {{ number_format($b->total) }}</td>
+                                <td style="padding:7px 12px;font-family:ui-monospace,monospace;opacity:.85">{{ number_format($b->written) }} / {{ number_format($b->total) }} @if($bSkipped > 0)<span style="opacity:.55">&middot; {{ number_format($bSkipped) }} unchanged</span> @endif</td>
                                 <td style="padding:7px 12px;text-align:right">
                                     @if($done)
                                         <span style="color:#BEF264">✓ done</span>
                                     @elseif($sync)
                                         <span style="color:#BEF264">● syncing</span>
+                                    @elseif($b->status === 'fresh')
+                                        <span style="color:#BEF264;opacity:.8">✓ up to date</span>
+                                    @elseif($b->status === 'failed')
+                                        <span style="color:#E24B4A">✕ failed</span>
+                                    @elseif($b->status === 'empty')
+                                        <span style="opacity:.4">&mdash; empty</span>
                                     @else
                                         <span style="opacity:.5">pending</span>
                                     @endif
