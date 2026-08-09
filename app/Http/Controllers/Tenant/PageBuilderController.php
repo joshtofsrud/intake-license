@@ -809,6 +809,11 @@ class PageBuilderController extends Controller
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         $op = $request->input('op', 'update_page');
 
+        if ($op === 'update_page') { // MARKER-REWIND
+            app(\App\Services\Tenant\PageRevisionService::class)
+                ->snapshot($page, 'Edited page settings');
+        }
+
         if ($op === 'update_page') {
             $page->update([
                 'title'            => $request->input('title', $page->title),
@@ -850,6 +855,12 @@ class PageBuilderController extends Controller
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
         if ($page->is_home) return back()->with('error', 'Cannot delete the home page.');
         if ($page->slug === 'book') return back()->with('error', 'The Booking page cannot be deleted.'); // MARKER-PATCH-603
+
+        // MARKER-REWIND — the revision outlives the page (no FK on page_id),
+        // so History can rebuild a deleted page.
+        app(\App\Services\Tenant\PageRevisionService::class)
+            ->snapshot($page, 'Deleted page "' . $page->title . '"', true);
+
         $page->delete();
         return redirect()->route('tenant.pages.index')->with('success', 'Page deleted.');
     }
@@ -859,6 +870,19 @@ class PageBuilderController extends Controller
         $op = $request->input('section_op');
         $pageId = $request->input('page_id');
         $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)->firstOrFail();
+
+        // MARKER-REWIND — capture BEFORE the change, labelled with what is
+        // about to happen. 'add' is skipped: adding a section is undone by
+        // deleting it, and snapshotting every add buries the useful points.
+        if ($op !== 'add') {
+            $label = match ($op) {
+                'delete'  => 'Deleted ' . $this->sectionLabel($page, $request->input('section_id')),
+                'reorder' => 'Reordered sections',
+                default   => 'Edited ' . $this->sectionLabel($page, $request->input('section_id')),
+            };
+            app(\App\Services\Tenant\PageRevisionService::class)
+                ->snapshot($page, $label, $op === 'delete');
+        }
 
         if ($op === 'add') {
             $type = $request->input('type', 'hero');
@@ -1037,5 +1061,21 @@ class PageBuilderController extends Controller
     {
         return self::DEFAULTS;
     }
-}
 
+    /** MARKER-REWIND — human label for a section, for the history list. */
+    private function sectionLabel(TenantPage $page, $sectionId): string
+    {
+        if (! $sectionId) {
+            return 'a section';
+        }
+
+        $section = TenantPageSection::where('page_id', $page->id)
+            ->where('id', $sectionId)->first();
+
+        if (! $section) {
+            return 'a section';
+        }
+
+        return ucwords(str_replace('_', ' ', $section->section_type));
+    }
+}

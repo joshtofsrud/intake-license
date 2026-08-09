@@ -1570,11 +1570,9 @@
     </div>
 
     <div class="pb2-topbar-right">
-      <button class="pb2-icon-btn disabled" title="Undo (coming in phase 4)">
+      {{-- MARKER-REWIND — replaces the phase-4 undo/redo placeholders --}}
+      <button class="pb2-icon-btn" type="button" id="pb2-history-btn" title="History — rewind this page">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-      </button>
-      <button class="pb2-icon-btn disabled" title="Redo (coming in phase 4)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
       </button>
       <div class="pb2-topbar-divider"></div>
       @unless($isMarketing ?? false)
@@ -1867,6 +1865,129 @@
   <input type="hidden" id="pg-is-in-nav" value="{{ $page->is_in_nav ? '1' : '0' }}">
   <input type="hidden" id="pg-nav-order" value="{{ $page->nav_order ?? 0 }}">
 </form>
+
+
+{{-- MARKER-REWIND — history drawer --}}
+<style>
+#pb2-hist{position:fixed;top:0;right:0;bottom:0;width:352px;z-index:1300;background:#151515;
+  border-left:.5px solid rgba(255,255,255,.16);box-shadow:-26px 0 64px -22px rgba(0,0,0,.85);
+  color:#f1f1f1;font-size:13px;display:flex;flex-direction:column}
+#pb2-hist[hidden]{display:none}
+#pb2-hist .hh{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;
+  border-bottom:.5px solid rgba(255,255,255,.09);background:#1d1d1d}
+#pb2-hist .hh b{font-size:13px;font-weight:600}
+#pb2-hist .hx{background:0;border:0;color:rgba(255,255,255,.4);font-size:19px;line-height:1;cursor:pointer}
+#pb2-hist .hx:hover{color:#fff}
+#pb2-hist .hnote{padding:10px 15px;font-size:11px;color:rgba(255,255,255,.55);line-height:1.5;
+  border-bottom:.5px solid rgba(255,255,255,.09)}
+#pb2-hist-rows{flex:1;overflow-y:auto;padding:8px}
+#pb2-hist .hrow{padding:10px 11px;border-radius:9px;display:flex;gap:10px;align-items:flex-start}
+#pb2-hist .hrow:hover{background:rgba(255,255,255,.05)}
+#pb2-hist .hrow .hmain{flex:1;min-width:0}
+#pb2-hist .hlbl{font-weight:600;font-size:12.5px}
+#pb2-hist .hmeta{font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
+#pb2-hist .hbtn{background:#242424;border:.5px solid rgba(255,255,255,.16);color:#f1f1f1;
+  font:inherit;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;flex:0 0 auto}
+#pb2-hist .hbtn:hover{border-color:var(--ia-accent,#3FD16B);color:var(--ia-accent,#3FD16B)}
+#pb2-hist .hempty{padding:26px 15px;text-align:center;color:rgba(255,255,255,.35);font-size:12.5px}
+</style>
+
+<div id="pb2-hist" hidden aria-label="Page history">
+  <div class="hh"><b>History</b><button type="button" class="hx" id="pb2-hist-x" aria-label="Close">&times;</button></div>
+  <div class="hnote">Rewinding changes your draft only &mdash; your live page stays as it is until you publish. Every rewind can itself be undone.</div>
+  <div id="pb2-hist-rows"><div class="hempty">Loading&hellip;</div></div>
+</div>
+
+<form method="POST" id="pb2-hist-form" style="display:none">@csrf</form>
+
+<script>
+  (function () {
+    var btn   = document.getElementById('pb2-history-btn');
+    var panel = document.getElementById('pb2-hist');
+    var rows  = document.getElementById('pb2-hist-rows');
+    var form  = document.getElementById('pb2-hist-form');
+    if (!btn || !panel) { return; }
+
+    var listUrl = @json(route('tenant.pages.history', $page->id));
+    // Built from the named route so any group prefix is honoured.
+    var restoreTpl = @json(route('tenant.pages.history.restore', [$page->id, '__RID__']));
+
+    function close() { panel.hidden = true; }
+
+    document.getElementById('pb2-hist-x').addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !panel.hidden) { close(); }
+    });
+
+    btn.addEventListener('click', function () {
+      if (!panel.hidden) { close(); return; }
+      panel.hidden = false;
+      rows.textContent = '';
+      var loading = document.createElement('div');
+      loading.className = 'hempty';
+      loading.textContent = 'Loading\u2026';
+      rows.appendChild(loading);
+
+      fetch(listUrl, { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : { revisions: [] }; })
+        .then(function (data) { render(data.revisions || []); })
+        .catch(function () { render(null); });
+    });
+
+    function render(list) {
+      rows.textContent = '';
+      if (list === null) {
+        var err = document.createElement('div');
+        err.className = 'hempty';
+        err.textContent = "Couldn't load history \u2014 try again.";
+        rows.appendChild(err);
+        return;
+      }
+      if (!list.length) {
+        var none = document.createElement('div');
+        none.className = 'hempty';
+        none.textContent = 'No restore points yet. One is saved automatically before each change.';
+        rows.appendChild(none);
+        return;
+      }
+
+      list.forEach(function (r, i) {
+        var row = document.createElement('div');
+        row.className = 'hrow';
+
+        var main = document.createElement('div');
+        main.className = 'hmain';
+        var lbl = document.createElement('div');
+        lbl.className = 'hlbl';
+        lbl.textContent = r.label;
+        var meta = document.createElement('div');
+        meta.className = 'hmeta';
+        var bits = [];
+        if (r.when) { bits.push(r.when); }
+        if (r.actor) { bits.push(r.actor); }
+        bits.push(r.sections + (r.sections === 1 ? ' section' : ' sections'));
+        meta.textContent = bits.join(' \u00b7 ');
+        if (r.exact) { meta.title = r.exact; }
+        main.appendChild(lbl);
+        main.appendChild(meta);
+        row.appendChild(main);
+
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'hbtn';
+        b.textContent = i === 0 ? 'Restore' : 'Rewind';
+        b.addEventListener('click', function () {
+          if (!confirm('Rewind this page to \u201C' + r.label + '\u201D?\n\nYour current draft is saved first, so you can undo this.')) { return; }
+          form.action = restoreTpl.replace('__RID__', r.id);
+          form.submit();
+        });
+        row.appendChild(b);
+
+        rows.appendChild(row);
+      });
+    }
+  })();
+</script>
 
 @push('scripts')
 <script>

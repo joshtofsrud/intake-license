@@ -38,6 +38,18 @@ class SiteTemplateController extends Controller
         $name = SiteTemplate::name($key);
         $msg  = $name . ' applied. Your site has been restyled — page content is unchanged.';
 
+        // MARKER-REWIND — rebuilding the homepage replaces every section, so
+        // take a labelled restore point first. This is what makes the rebuild
+        // a safe action instead of a one-way door.
+        if ($request->boolean('seed_layout')) {
+            $home = \App\Models\Tenant\TenantPage::where('tenant_id', tenant()->id)
+                ->where('is_home', true)->first();
+            if ($home) {
+                app(\App\Services\Tenant\PageRevisionService::class)
+                    ->snapshot($home, 'Before applying ' . $name . ' layout', true);
+            }
+        }
+
         // MARKER-PATCH-264 — opt-in: also rebuild the home page from the blueprint.
         if ($request->boolean('seed_layout') && $this->templates->seedLayout(tenant(), $key)) {
             $msg = $name . ' applied. Your homepage was rebuilt with this template’s layout and restyled to match. Other pages are untouched.';

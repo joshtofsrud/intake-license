@@ -864,6 +864,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::patch('/pages/{id}/sections/{sid}',    [TenantControllers\PageBuilderController::class, 'updateSection'])->name('pages.sections.update');
             Route::delete('/pages/{id}/sections/{sid}',   [TenantControllers\PageBuilderController::class, 'deleteSection'])->name('pages.sections.delete');
             Route::post('/pages/{id}/sections/reorder',   [TenantControllers\PageBuilderController::class, 'reorderSections'])->name('pages.sections.reorder');
+            // MARKER-REWIND
+            Route::get('/pages/{id}/history',                        [TenantControllers\PageRevisionController::class, 'index'])->name('pages.history');
+            Route::post('/pages/{id}/history/{revisionId}/restore',  [TenantControllers\PageRevisionController::class, 'restore'])->name('pages.history.restore');
 
             // MARKER-PATCH-261 — site template gallery
             Route::get('/website/templates',               [TenantControllers\SiteTemplateController::class, 'index'])->name('templates.index');
