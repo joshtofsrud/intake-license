@@ -220,6 +220,15 @@
   background: rgba(245,158,11,.06) !important;
 }
 
+/* MARKER-CUST-ACCOUNT — portal account state on the detail header */
+.cust-acct-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.cust-acct-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.07em;
+  text-transform:uppercase;border-radius:100px;padding:3px 9px;border:.5px solid var(--ia-border);color:var(--ia-text-dim)}
+.cust-acct-badge.on{border-color:var(--ia-accent);color:var(--ia-accent)}
+.cust-acct-btn{background:none;border:0;padding:0;font:inherit;font-size:12px;font-weight:600;
+  color:var(--ia-text-muted);cursor:pointer;border-bottom:1px solid currentColor}
+.cust-acct-btn:hover{color:var(--ia-text)}
+
 /* Customer list — small ★ next to VIP customer names */
 .vip-list-star {
   color: #F59E0B;
@@ -871,6 +880,14 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
 <x-tenant.sale-detail-modal />
 
+{{-- MARKER-CUST-ACCOUNT — this page had no flash render at all --}}
+@if(session('success'))
+  <div class="ia-flash ia-flash--success" style="margin-bottom:14px">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+  <div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('error') }}</div>
+@endif
+
 {{-- Header — VIP-DESKTOP-INTEGRATION v1 --}}
 <div class="ia-page-head">
   <div class="ia-page-head-left">
@@ -889,6 +906,26 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       @if($customer->phone) · {{ $customer->phone }} @endif
       · Added {{ $customer->created_at->format('M j, Y') }}
     </p>
+    {{-- MARKER-CUST-ACCOUNT — portal account state + staff actions. The
+         button emails a link; staff never set a customer's password. --}}
+    @php
+      $caHasAccount = $customer->password !== null;
+      $caCanManage  = (bool) auth('tenant')->user()?->can('customers.account_manage');
+    @endphp
+    <div class="cust-acct-row">
+      <span class="cust-acct-badge {{ $caHasAccount ? 'on' : '' }}">
+        {{ $caHasAccount ? 'Portal account' : 'No portal account' }}
+      </span>
+      @if($caCanManage && $customer->email)
+        <form method="POST" action="{{ route('tenant.customers.account_link', $customer->id) }}"
+              onsubmit="return confirm('{{ $caHasAccount ? 'Email a password reset link to ' : 'Email an account invite to ' }}{{ $customer->email }}?')">
+          @csrf
+          <button type="submit" class="cust-acct-btn">
+            {{ $caHasAccount ? 'Send password reset' : 'Send account invite' }}
+          </button>
+        </form>
+      @endif
+    </div>
   </div>
   <div class="ia-page-actions">
     <a href="{{ route('tenant.customers.index') }}" class="ia-btn ia-btn--ghost cust-desktop-only">← Back</a>

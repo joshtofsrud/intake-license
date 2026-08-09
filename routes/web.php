@@ -645,6 +645,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             // MARKER-PATCH-158-C — customer asset CRUD (gated by multi_asset_enabled in controller)
             // MARKER-BIZ-CONTACTS — people at a business customer
+            // MARKER-CUST-ACCOUNT — capability-gated inside the controller.
+            Route::post('/customers/{id}/account-link',                    [TenantControllers\CustomerController::class, 'sendAccountLink'])->name('customers.account_link');
             Route::post('/customers/{customerId}/contacts',                [TenantControllers\CustomerController::class, 'storeContact'])->name('customers.contacts.store');
             Route::patch('/customers/{customerId}/contacts/{contactId}',   [TenantControllers\CustomerController::class, 'updateContact'])->name('customers.contacts.update');
             Route::delete('/customers/{customerId}/contacts/{contactId}',  [TenantControllers\CustomerController::class, 'destroyContact'])->name('customers.contacts.destroy');

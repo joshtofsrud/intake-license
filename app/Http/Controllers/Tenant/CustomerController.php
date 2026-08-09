@@ -52,6 +52,15 @@ class CustomerController extends Controller
             $q->where('is_vip', true);
         }
 
+        // MARKER-CUST-ACCOUNT — same pseudo-sort pattern. A portal account
+        // is exactly "has set a password".
+        if ($sort === 'has_account') {
+            $q->whereNotNull('password');
+        }
+        if ($sort === 'no_account') {
+            $q->whereNull('password');
+        }
+
         // MARKER-BIZ-LIST — same pattern as VIPs. Also the practical route to
         // finding records where a business was typed into a person's name.
         if ($sort === 'businesses_only') {
@@ -603,5 +612,48 @@ class CustomerController extends Controller
         }
 
         return $payload;
+    }
+
+    /**
+     * MARKER-CUST-ACCOUNT — email the customer a link to set (or reset) their
+     * portal password. Staff never see or choose the password; this issues the
+     * same token the customer-facing reset flow already validates.
+     */
+    public function sendAccountLink(Request $request, string $id)
+    {
+        abort_unless(auth('tenant')->user()?->can('customers.account_manage'), 403);
+
+        $tenant   = tenant();
+        $customer = TenantCustomer::where('tenant_id', $tenant->id)
+            ->where('id', $id)->firstOrFail();
+
+        if (blank($customer->email)) {
+            return back()->with('error', 'This customer has no email address on file.');
+        }
+
+        $isInvite = $customer->password === null;
+
+        $token = \Illuminate\Support\Str::random(64);
+        $customer->update([
+            'password_reset_token'   => \Illuminate\Support\Facades\Hash::make($token),
+            'password_reset_sent_at' => now(),
+        ]);
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($customer->email)->send(
+                $isInvite
+                    ? new \App\Mail\CustomerAccountInvite($customer, $token, $tenant)
+                    : new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('customer account link send failed', [
+                'customer_id' => $customer->id, 'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'The email could not be sent — check your email settings and try again.');
+        }
+
+        return back()->with('success', $isInvite
+            ? 'Account invite sent to ' . $customer->email . '.'
+            : 'Password reset link sent to ' . $customer->email . '.');
     }
 }

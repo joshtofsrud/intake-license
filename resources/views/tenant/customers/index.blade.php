@@ -11,6 +11,8 @@
     'last_service' => 'Last service',
     'vips_only'    => 'VIPs only',
     'businesses_only' => 'Businesses only', // MARKER-BIZ-LIST
+    'has_account'  => 'Has portal account',   // MARKER-CUST-ACCOUNT
+    'no_account'   => 'No portal account',    // MARKER-CUST-ACCOUNT
   ];
   $currentSortLabel = $sortLabels[$sort] ?? 'Name A–Z';
 @endphp
@@ -277,6 +279,8 @@
                 <span class="biz-pill">Business</span>
                 @if($c->tax_exempt)<span class="biz-pill exempt">Tax exempt</span>@endif
               @endif
+              {{-- MARKER-CUST-ACCOUNT --}}
+              @if($c->password)<span class="biz-pill acct-pill" title="Has a portal account">Account</span>@endif
             </td>
             <td class="ia-muted-cell">{{ $c->email }}</td>
             <td class="ia-muted-cell">{{ $c->phone ?: '—' }}</td>
@@ -315,6 +319,7 @@
         <div class="cust-card-meta">
           @if($lastSvc)Last service {{ $lastSvc }} · @endif
           Added {{ $c->created_at->format('M j, Y') }}
+          @if($c->password) · Account @endif{{-- MARKER-CUST-ACCOUNT --}}
         </div>
       </button>
     @endforeach
@@ -687,6 +692,8 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
 <style>
   .biz-pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:2px 7px;margin-left:6px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);vertical-align:1px}
   .biz-pill.exempt{border-color:rgba(232,163,61,.4);color:#E8A33D}
+  /* MARKER-CUST-ACCOUNT */
+  .biz-pill.acct-pill{border-color:var(--ia-accent);color:var(--ia-accent)}
 </style>
 
 @endsection

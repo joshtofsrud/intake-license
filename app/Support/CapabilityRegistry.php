@@ -50,6 +50,15 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
+            // ---- Customers ---- MARKER-CUST-ACCOUNT
+            'customers.account_manage' => [
+                'label'   => 'Manage customer portal accounts',
+                'section' => 'customers',
+                'desc'    => 'Send account invites and password reset links to customers.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+
             // ---- Scheduling ----
             'scheduling.build' => [
                 'label'   => 'Build & publish schedules',
