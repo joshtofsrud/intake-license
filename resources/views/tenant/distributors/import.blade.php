@@ -115,4 +115,39 @@
     </div>
   @endisset
 </div>
+
+{{-- MARKER-SSEL-SCOPE — picking a brand narrows the category list live --}}
+<script>
+  (function () {
+    var brand = document.querySelector('.ssel[data-name="brand"]');
+    var cat   = document.querySelector('.ssel[data-name="category"]');
+    if (!brand || !cat) { return; }
+    var url = @json(route('tenant.distributors.import.categories'));
+    var code = @json($importCode);
+
+    function refresh() {
+      var b = brand.querySelector('.ssel-val').value;
+      var catBtn = cat.querySelector('.ssel-btn');
+      catBtn.disabled = true;
+      catBtn.style.opacity = '.55';
+      fetch(url + '?code=' + encodeURIComponent(code) + '&brand=' + encodeURIComponent(b), {
+        headers: { 'Accept': 'application/json' }
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (data && cat.__sselApi) { cat.__sselApi.setOptions(data.categories || []); }
+        })
+        .catch(function () {})
+        .finally(function () {
+          catBtn.disabled = false;
+          catBtn.style.opacity = '';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      brand.querySelector('.ssel-val').addEventListener('change', refresh);
+    });
+  })();
+</script>
+
 @endsection

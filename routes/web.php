@@ -903,6 +903,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/vendor-merge',  [TenantControllers\DistributorController::class, 'vendorMerge'])->name('vendor_merge');
                 Route::post('/vendor-merge', [TenantControllers\DistributorController::class, 'vendorMergeRun'])->name('vendor_merge.run');
                 Route::get('/import',             [TenantControllers\DistributorController::class, 'import'])->name('import');
+                Route::get('/import/categories',  [TenantControllers\DistributorController::class, 'importCategories'])->name('import.categories'); // MARKER-SSEL-SCOPE
                 Route::get('/attention',          [TenantControllers\DistributorController::class, 'attention'])->name('attention');
                 Route::post('/attention/resolve', [TenantControllers\DistributorController::class, 'attentionResolve'])->name('attention.resolve');
                 Route::post('/attention/sync',    [TenantControllers\DistributorController::class, 'attentionSync'])->name('attention.sync'); // MARKER-PATCH-555

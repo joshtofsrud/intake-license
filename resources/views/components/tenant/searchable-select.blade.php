@@ -3,7 +3,7 @@
      its controller. Options are server-rendered; JS only filters/highlights.
      Styling reads the app CSS vars, so it follows the tenant theme. --}}
 @props(['name', 'options' => [], 'selected' => '', 'any' => 'Any', 'noun' => 'options'])
-<div class="ssel" data-noun="{{ $noun }}">
+<div class="ssel" data-noun="{{ $noun }}" data-name="{{ $name }}">{{-- MARKER-SSEL-SCOPE --}}
   <input type="hidden" name="{{ $name }}" value="{{ $selected }}" class="ssel-val">
   <button type="button" class="ssel-btn" aria-haspopup="listbox">
     <span class="ssel-cur {{ $selected === '' ? 'is-any' : '' }}">{{ $selected !== '' ? $selected : $any }}</span>
@@ -137,6 +137,8 @@
       opts.forEach(function (x) { x.classList.toggle('is-sel', x === o); });
       close();
       btn.focus();
+      // MARKER-SSEL-SCOPE — behave like a native select for listeners.
+      val.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     btn.addEventListener('click', function () { panel.hidden ? open() : close(); });
@@ -154,6 +156,46 @@
     document.addEventListener('click', function (e) {
       if (!root.contains(e.target)) { close(); }
     });
+
+    // MARKER-SSEL-SCOPE — replace the option list in place. Keeps the current
+    // value when it survives the new list; otherwise resets to the Any row
+    // WITHOUT dispatching change (the caller initiated this, no loops).
+    function setOptions(labels) {
+      opts.forEach(function (o) { if (o !== anyOpt) { o.remove(); } });
+      opts = [anyOpt];
+      labels.forEach(function (l) {
+        var o = document.createElement('div');
+        o.className = 'ssel-opt';
+        o.setAttribute('role', 'option');
+        o.setAttribute('data-v', l);
+        o.setAttribute('data-l', l);
+        var t = document.createElement('span');
+        t.className = 't';
+        t.textContent = l;
+        var tick = document.createElement('span');
+        tick.className = 'ssel-tick';
+        tick.textContent = '\u2713';
+        o.appendChild(t);
+        o.appendChild(tick);
+        list.appendChild(o);
+        opts.push(o);
+      });
+      var keep = null;
+      opts.forEach(function (o) {
+        if (o !== anyOpt && o.getAttribute('data-v') === val.value) { keep = o; }
+      });
+      if (val.value !== '' && !keep) {
+        val.value = '';
+        cur.textContent = anyOpt.getAttribute('data-l');
+        cur.classList.add('is-any');
+      }
+      opts.forEach(function (o) {
+        o.classList.toggle('is-sel', o === (keep || anyOpt));
+      });
+      if (none) { none.remove(); none = null; }
+    }
+
+    root.__sselApi = { setOptions: setOptions, getValue: function () { return val.value; } };
   }
 
   function boot() {

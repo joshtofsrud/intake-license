@@ -463,7 +463,7 @@ class DistributorController extends Controller
             'include_unsellable' => ! empty($data['include_unsellable']),
         ], fn ($v) => $v !== null && $v !== '' && $v !== false);
 
-        $view = $this->importFilterOptions($code);
+        $view = $this->importFilterOptions($code, $filters['brand'] ?? null); // MARKER-SSEL-SCOPE
         $view['filters'] = $filters;
         $view['mode'] = $data['mode'];
 
@@ -484,7 +484,7 @@ class DistributorController extends Controller
      * ONE distributor. Was pinned to self::CODE, which left a shop with BTI
      * connected unable to import any of its 24,643 items.
      */
-    private function importFilterOptions(string $code): array
+    private function importFilterOptions(string $code, ?string $brand = null): array
     {
         $base = \App\Models\PlatformDistributorCatalog::query()
             ->where('distributor_code', $code)->where('is_active', true);
@@ -494,10 +494,30 @@ class DistributorController extends Controller
             'importCodes' => $this->importableCodes(),
             'brands' => (clone $base)->whereNotNull('manufacturer')
                 ->distinct()->orderBy('manufacturer')->pluck('manufacturer'),
+            // MARKER-SSEL-SCOPE — categories narrow to the chosen brand so
+            // the picker never offers a category the brand has no items in.
             'categories' => (clone $base)->whereNotNull('category')
+                ->when($brand !== null && $brand !== '', fn ($q) => $q->where('manufacturer', $brand))
                 ->distinct()->orderBy('category')->pluck('category'),
             'catalogTotal' => (clone $base)->count(),
         ];
+    }
+
+    /** MARKER-SSEL-SCOPE — categories for one brand, for the live picker. */
+    public function importCategories(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->guard();
+
+        $code  = $this->importCode($request->query('code'));
+        $brand = trim((string) $request->query('brand', ''));
+
+        $categories = \App\Models\PlatformDistributorCatalog::query()
+            ->where('distributor_code', $code)->where('is_active', true)
+            ->whereNotNull('category')
+            ->when($brand !== '', fn ($q) => $q->where('manufacturer', $brand))
+            ->distinct()->orderBy('category')->pluck('category');
+
+        return response()->json(['categories' => $categories]);
     }
 
     /**
