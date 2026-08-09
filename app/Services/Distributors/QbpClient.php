@@ -300,6 +300,12 @@ class QbpClient implements DistributorAdapter
                     // the SKU stands alone, so it becomes its own group.
                     $model = $this->scalar($row['modelCode'] ?? '') ?: $sku;
 
+                    // MARKER-QBP-ROWFAIL — build the variant BEFORE creating
+                    // the model entry. Creating it first meant a throwing
+                    // variant() left a product with an empty Variants array,
+                    // so the brand looked complete and wrote nothing.
+                    $builtVariant = $this->variant($row);
+
                     $byModel[$model] ??= [
                         'ModelCode' => $model,
                         'Brand'     => $this->scalar($row['brand']['description'] ?? '') ?: $brandId,
@@ -307,10 +313,19 @@ class QbpClient implements DistributorAdapter
                         'Variants'  => [],
                     ];
 
-                    $byModel[$model]['Variants'][] = $this->variant($row);
+                    $byModel[$model]['Variants'][] = $builtVariant;
                 } catch (\Throwable $e) {
-                    // MARKER-QBP-SCALAR — a single malformed row must not lose
-                    // the rest of the brand's products.
+                    // MARKER-QBP-ROWFAIL — a single malformed row still must
+                    // not lose the rest of the brand, but it no longer fails
+                    // silently. This catch hid the whole QBP write failure.
+                    $failures[] = $brandId . ' row ' . ($sku ?: '?') . ': ' . $e->getMessage();
+                    Log::warning('QBP row build failed', [
+                        'brand_id'  => $brandId,
+                        'sku'       => $sku ?: null,
+                        'exception' => get_class($e),
+                        'error'     => $e->getMessage(),
+                        'at'        => basename($e->getFile()) . ':' . $e->getLine(),
+                    ]);
                     continue;
                 }
             }
