@@ -75,13 +75,15 @@ class InboxService
 
         // MARKER-PATCH-396 — reply channel: explicit choice, else the customer's
         // last inbound channel, else the thread's seed channel.
+        // MARKER-INBOX-NEW — the last inbound also decides the email subject
+        // below: "Re:" is only honest when the customer actually wrote first.
+        $lastIn = TenantMessage::where('thread_id', $thread->id)
+            ->where('direction', 'in')
+            ->orderByDesc('created_at')
+            ->first();
+
         $channel = $channel
-            ?? optional(
-                TenantMessage::where('thread_id', $thread->id)
-                    ->where('direction', 'in')
-                    ->orderByDesc('created_at')
-                    ->first()
-            )->channel
+            ?? optional($lastIn)->channel
             ?? $thread->channel;
 
         if (in_array($channel, ['web', 'email'], true)) {
@@ -89,7 +91,9 @@ class InboxService
                 throw new \RuntimeException('This customer has no email address on file.');
             }
             $mailer  = \App\Services\EmailService::forTenant($tenant);
-            $subject = 'Re: your message to ' . $tenant->emailFromName();
+            $subject = $lastIn
+                ? 'Re: your message to ' . $tenant->emailFromName()
+                : 'Message from ' . $tenant->emailFromName(); // MARKER-INBOX-NEW
             $html    = $mailer->renderHtml(nl2br(e($body)));
             // MARKER-PATCH-403 — stamp the thread's inbound token into Reply-To so the
             // customer's reply routes back into THIS thread via the Postmark inbound webhook.

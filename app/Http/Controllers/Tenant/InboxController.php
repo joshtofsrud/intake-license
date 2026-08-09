@@ -154,15 +154,20 @@ class InboxController extends Controller
         $request->validate([
             'customer_id' => ['required', 'string', 'uuid'],
             'body'        => ['required', 'string', 'max:1200'],
+            'channel'     => ['nullable', 'in:sms,email'], // MARKER-INBOX-NEW
         ]);
 
         $customer = TenantCustomer::where('tenant_id', $tenant->id)
             ->where('id', $request->input('customer_id'))->firstOrFail();
 
-        $thread = $this->inbox->threadFor($tenant, $customer, 'sms');
+        // MARKER-INBOX-NEW — channel comes from the compose panel; it seeds the
+        // thread when new and is passed explicitly so postOutbound can't infer.
+        $channel = $request->input('channel', 'sms');
+
+        $thread = $this->inbox->threadFor($tenant, $customer, $channel);
 
         try {
-            $this->inbox->postOutbound($tenant, $thread, $request->input('body'), auth('tenant')->id());
+            $this->inbox->postOutbound($tenant, $thread, $request->input('body'), auth('tenant')->id(), $channel);
         } catch (\RuntimeException $e) {
             return back()->withErrors(['body' => $e->getMessage()]);
         }
