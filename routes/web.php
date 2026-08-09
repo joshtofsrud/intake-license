@@ -184,7 +184,18 @@ $tenantRoutes = function () {
     Route::post('/account/forgot',       [TenantControllers\CustomerAccountController::class, 'sendReset'])->name('tenant.customer.forgot.submit');
     Route::get('/account/reset',         [TenantControllers\CustomerAccountController::class, 'showReset'])->name('tenant.customer.reset');
     Route::post('/account/reset',        [TenantControllers\CustomerAccountController::class, 'resetPassword'])->name('tenant.customer.reset.submit');
-    Route::get('/account',               [TenantControllers\CustomerAccountController::class, 'portal'])->name('tenant.customer.portal');
+    // MARKER-PORTAL-V2 — portal sections. The old single-page portal() is
+    // superseded; tenant.customer.portal now lands on Home so every existing
+    // login/redirect keeps working.
+    Route::get('/account',                [TenantControllers\CustomerPortalController::class, 'home'])->name('tenant.customer.portal');
+    Route::get('/account/bookings',       [TenantControllers\CustomerPortalController::class, 'bookings'])->name('tenant.customer.portal.bookings');
+    Route::get('/account/orders',         [TenantControllers\CustomerPortalController::class, 'orders'])->name('tenant.customer.portal.orders');
+    Route::get('/account/rentals',        [TenantControllers\CustomerPortalController::class, 'rentals'])->name('tenant.customer.portal.rentals');
+    Route::get('/account/messages',       [TenantControllers\CustomerPortalController::class, 'messages'])->name('tenant.customer.portal.messages');
+    Route::post('/account/messages',      [TenantControllers\CustomerPortalController::class, 'messagesSend'])->name('tenant.customer.portal.messages.send');
+    Route::post('/account/profile',       [TenantControllers\CustomerPortalController::class, 'accountUpdate'])->name('tenant.customer.portal.profile');
+    Route::get('/account/settings',       [TenantControllers\CustomerPortalController::class, 'account'])->name('tenant.customer.portal.account');
+    Route::post('/account/notifications', [TenantControllers\CustomerPortalController::class, 'notificationsUpdate'])->name('tenant.customer.portal.notifications');
 
     // Customer-facing class booking
     Route::get('/classes',                          [TenantControllers\CustomerClassController::class, 'index'])->name('tenant.customer.classes');
