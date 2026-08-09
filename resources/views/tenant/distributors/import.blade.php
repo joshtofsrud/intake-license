@@ -63,16 +63,11 @@
       <input type="hidden" name="mode" value="preview" id="im-mode">
       <div class="im-row">
         <div class="im-field"><label>Brand</label>
-          <select class="im-input" name="brand">
-            <option value="">— any brand —</option>
-            @foreach($brands as $b)<option value="{{ $b }}" @selected(($filters['brand'] ?? '')===$b)>{{ $b }}</option>@endforeach
-          </select>
+          {{-- MARKER-SSEL — searchable picker, same field name --}}
+          <x-tenant.searchable-select name="brand" :options="$brands" :selected="$filters['brand'] ?? ''" any="Any brand" noun="brands" />
         </div>
         <div class="im-field"><label>Category</label>
-          <select class="im-input" name="category">
-            <option value="">— any category —</option>
-            @foreach($categories as $c)<option value="{{ $c }}" @selected(($filters['category'] ?? '')===$c)>{{ $c }}</option>@endforeach
-          </select>
+          <x-tenant.searchable-select name="category" :options="$categories" :selected="$filters['category'] ?? ''" any="Any category" noun="categories" />
         </div>
       </div>
       <label class="im-check"><input type="checkbox" name="include_unsellable" value="1" @checked(!empty($filters['include_unsellable']))> Include discontinued / unsellable items</label>
