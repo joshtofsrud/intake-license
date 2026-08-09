@@ -209,6 +209,25 @@
   flex-shrink: 0;
 }
 
+/* MARKER-NAV-ACCOUNT — reads as a nav link, not a second CTA */
+.{{ $instId }} .p-nav-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  color: {{ $linkColor }};
+  opacity: .7;
+  text-decoration: none;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.{{ $instId }} .p-nav-account:hover { opacity: 1; }
+.{{ $instId }} .p-nav-account svg { flex: 0 0 auto; }
+@media (max-width: 860px) { .{{ $instId }} .p-nav-account { display: none; } }
+
 .{{ $instId }} .p-nav-cta {
   display: inline-flex;
   align-items: center;
@@ -304,6 +323,18 @@
               <div class="p-nav-search-results"></div>
             </div>
           </div>
+        @endif
+        {{-- MARKER-NAV-ACCOUNT — the only route into the customer portal --}}
+        @php
+          $navShowAccount = (bool) ($c['show_account'] ?? true);
+          $navCustomer    = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+        @endphp
+        @if($navShowAccount)
+          <a href="{{ $navCustomer ? route('tenant.customer.portal') : route('tenant.customer.login') }}"
+             class="p-nav-account">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.2" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M2.6 14c.8-2.6 2.9-4 5.4-4s4.6 1.4 5.4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            {{ $navCustomer ? $navCustomer->first_name : 'Sign in' }}
+          </a>
         @endif
         @if($showCta)
           <a href="{{ $ctaUrl }}" class="p-nav-cta p-nav-cta--{{ $ctaStyle }}">

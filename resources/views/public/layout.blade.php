@@ -161,6 +161,9 @@
       gap: 8px;
     }
     .p-mobile-nav.open { display: flex; }
+    /* MARKER-NAV-ACCOUNT */
+    .p-mobile-account { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; }
+    .p-mobile-account small { display: block; font-size: 12.5px; font-weight: 400; opacity: .5; margin-top: 1px; }
     .p-mobile-nav a {
       font-size: 22px;
       font-weight: 600;
@@ -215,6 +218,20 @@
     style="position:absolute;top:20px;right:20px;background:none;border:none;font-size:28px;cursor:pointer;color:var(--p-text)">
     ×
   </button>
+  {{-- MARKER-NAV-ACCOUNT — first row, so the portal is reachable on a phone --}}
+  @php
+    $mnNav          = $sections->firstWhere('section_type', 'nav');
+    $mnShowAccount  = (bool) (($mnNav?->content['show_account']) ?? true);
+    $mnCustomer     = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+  @endphp
+  @if($mnShowAccount)
+    <a href="{{ $mnCustomer ? route('tenant.customer.portal') : route('tenant.customer.login') }}"
+       onclick="closeMobileNav()" class="p-mobile-account">
+      <svg width="22" height="22" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.2" r="3" stroke="currentColor" stroke-width="1.6"/><path d="M2.6 14c.8-2.6 2.9-4 5.4-4s4.6 1.4 5.4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>{{ $mnCustomer ? $mnCustomer->first_name : 'Sign in' }}
+        <small>{{ $mnCustomer ? 'My account' : 'Bookings, orders, rentals & messages' }}</small></span>
+    </a>
+  @endif
   @foreach($navItems as $item)
     <a href="{{ $item->url }}" onclick="closeMobileNav()">{{ $item->label }}</a>
   @endforeach

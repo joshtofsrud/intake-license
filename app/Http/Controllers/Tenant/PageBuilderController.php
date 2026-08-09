@@ -36,6 +36,8 @@ class PageBuilderController extends Controller
             'logo_variant'    => 'auto',     // auto (contrast) | light | dark — MARKER-PATCH-274
             'logo_alignment'  => 'left',     // left | center
             'logo_size'       => 'medium',   // small | medium | large | xl
+            // Customer account — MARKER-NAV-ACCOUNT
+            'show_account'    => true,
             // CTA
             'show_cta'        => true,
             'cta_label'       => 'Book Now',

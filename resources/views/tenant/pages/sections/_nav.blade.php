@@ -126,6 +126,18 @@
     <div class="pb2-navlist-status" id="pb2-nav-status" style="margin-top:8px"></div>
   </div>
 
+  {{-- MARKER-NAV-ACCOUNT --}}
+  <div class="pb2-group">
+    <div class="pb2-group-title">Customer account</div>
+
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="show_account" value="1" {{ $get('show_account', true) ? 'checked' : '' }}>
+      <span>Show account link</span>
+    </label>
+
+    <div class="pb2-field-hint" style="margin-top:6px">Lets customers sign in to see their bookings, orders, rentals and messages.</div>
+  </div>
+
   <div class="pb2-group">
     <div class="pb2-group-title">CTA button</div>
 
