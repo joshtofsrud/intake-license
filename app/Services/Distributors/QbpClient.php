@@ -465,17 +465,23 @@ class QbpClient implements DistributorAdapter
 
                 $values = [];
                 foreach ($this->asList($feature['featureValues']['featureValue'] ?? null) as $fv) {
-                    $v = is_array($fv) ? ($fv['value'] ?? '') : $fv;
-                    $v = trim((string) $v);
-                    if ($v !== '') {
-                        $values[] = $v;
+                    // MARKER-QBP-ATTRVAL — ['value'] is itself an OBJECT for one
+                    // value and a LIST for several. Casting it straight to string
+                    // threw "Array to string conversion" and lost the whole row.
+                    $raw = is_array($fv) ? ($fv['value'] ?? $fv) : $fv;
+                    foreach ($this->asList($raw) as $one) {
+                        $one = $this->scalar($one);
+                        if ($one !== '') {
+                            $values[] = $one;
+                        }
                     }
                 }
                 if (! $values) {
                     continue;
                 }
 
-                $name = trim((string) ($feature['name'] ?? $cls['name'] ?? ''));
+                // MARKER-QBP-ATTRVAL — same nesting risk on every field here.
+                $name = $this->scalar($feature['name'] ?? $cls['name'] ?? '');
                 if ($name === '') {
                     continue;
                 }
@@ -483,8 +489,8 @@ class QbpClient implements DistributorAdapter
                 $out[] = [
                     'Name'  => $name,
                     'Value' => implode(', ', $values),
-                    'Code'  => trim((string) ($feature['code'] ?? $cls['code'] ?? '')),
-                    'Unit'  => trim((string) ($feature['featureUnit'] ?? '')),
+                    'Code'  => $this->scalar($feature['code'] ?? $cls['code'] ?? ''),
+                    'Unit'  => $this->scalar($feature['featureUnit'] ?? ''),
                 ];
             }
         }
