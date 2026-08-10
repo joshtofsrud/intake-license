@@ -48,15 +48,16 @@ class CustomerAccountController extends Controller
             ->where('email', $data['email'])
             ->first();
 
+        // MARKER-CUST-AUTH — an email already on file is NEVER claimed from
+        // this form. Existing customers get a link to their own inbox instead,
+        // and both branches return the same screen so the form can't be used
+        // to enumerate who has an account.
         if ($existing) {
-            if ($existing->password) {
-                return back()->withErrors(['email' => 'An account with this email already exists.']);
-            }
-            // Guest customer exists — attach password and log them in
-            $existing->update(['password' => $data['password']]);
-            $this->guard()->login($existing, true);
-            return redirect()->route('tenant.customer.portal')
-                ->with('success', 'Welcome back! Your account has been set up.');
+            $this->sendClaimLink($existing, $tenant);
+
+            return response()->view('public.account.check-email', [
+                'email' => $data['email'],
+            ]);
         }
 
         $customer = TenantCustomer::create([
@@ -67,7 +68,9 @@ class CustomerAccountController extends Controller
             'password'   => $data['password'],
         ]);
 
+        $request->session()->regenerate(); // MARKER-CUST-AUTH — fixation
         $this->guard()->login($customer, true);
+        $this->stampTenant($request, $tenant);
 
         return redirect()->intended(route('tenant.customer.portal'))
             ->with('success', 'Account created. Welcome!');
@@ -102,7 +105,9 @@ class CustomerAccountController extends Controller
             return back()->withErrors(['email' => 'These credentials do not match our records.'])->withInput();
         }
 
+        $request->session()->regenerate(); // MARKER-CUST-AUTH — fixation
         $this->guard()->login($customer, $request->boolean('remember'));
+        $this->stampTenant($request, $tenant);
 
         return redirect()->intended(route('tenant.customer.portal'));
     }
@@ -202,7 +207,9 @@ class CustomerAccountController extends Controller
             'password_reset_sent_at' => null,
         ]);
 
+        $request->session()->regenerate(); // MARKER-CUST-AUTH — fixation
         $this->guard()->login($customer, true);
+        $this->stampTenant($request, $tenant);
 
         return redirect()->route('tenant.customer.portal')
             ->with('success', 'Password updated. You are now logged in.');
@@ -273,5 +280,44 @@ class CustomerAccountController extends Controller
             'activeMembership',
             'activePacks'
         ));
+    }
+
+    /**
+     * MARKER-CUST-AUTH — email an existing customer a link to claim or reset
+     * their account. Uses the SAME token the reset flow already validates, so
+     * there is exactly one token path and no password is ever chosen by anyone
+     * but the customer. Failures are swallowed on purpose: the caller shows an
+     * identical screen either way, and surfacing a send error here would leak
+     * whether the address exists.
+     */
+    private function sendClaimLink(TenantCustomer $customer, $tenant): void
+    {
+        try {
+            $token = Str::random(64);
+            $customer->update([
+                'password_reset_token'   => Hash::make($token),
+                'password_reset_sent_at' => now(),
+            ]);
+
+            $mailable = $customer->password
+                ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
+                : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant);
+
+            \Mail::to($customer->email)->send($mailable);
+        } catch (\Throwable $e) {
+            \Log::warning('customer claim link send failed', [
+                'customer_id' => $customer->id,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** MARKER-CUST-AUTH — bind this session to the tenant it was created on. */
+    private function stampTenant(Request $request, $tenant): void
+    {
+        $request->session()->put(
+            \App\Http\Middleware\EnsureCustomerTenant::SESSION_KEY,
+            $tenant->id
+        );
     }
 }

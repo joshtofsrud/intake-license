@@ -17,6 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // in the stack so it sees the real response status.
         $middleware->append(\App\Http\Middleware\LogRequests::class);
 
+        // MARKER-CUST-AUTH — verify a signed-in customer belongs to the tenant
+        // being served. Appended globally rather than pinned to the account
+        // routes so it also covers every portal page, present and future.
+        $middleware->append(\App\Http\Middleware\EnsureCustomerTenant::class);
+
         // Exclude Stripe webhook from CSRF — Stripe signs the request body.
         // Tenant booking webhook (/webhooks/stripe) and addon subscription
         // webhook (/webhooks/stripe/subscriptions) both need this.

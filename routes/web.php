@@ -176,14 +176,14 @@ $tenantRoutes = function () {
 
     // Customer account — register, login, logout, forgot, reset, portal
     Route::get('/account/register',      [TenantControllers\CustomerAccountController::class, 'showRegister'])->name('tenant.customer.register');
-    Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit');
+    Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
     Route::get('/account/login',         [TenantControllers\CustomerAccountController::class, 'showLogin'])->name('tenant.customer.login');
-    Route::post('/account/login',        [TenantControllers\CustomerAccountController::class, 'login'])->name('tenant.customer.login.submit');
+    Route::post('/account/login',        [TenantControllers\CustomerAccountController::class, 'login'])->name('tenant.customer.login.submit')->middleware('throttle:10,1'); // MARKER-CUST-AUTH
     Route::post('/account/logout',       [TenantControllers\CustomerAccountController::class, 'logout'])->name('tenant.customer.logout');
     Route::get('/account/forgot',        [TenantControllers\CustomerAccountController::class, 'showForgot'])->name('tenant.customer.forgot');
-    Route::post('/account/forgot',       [TenantControllers\CustomerAccountController::class, 'sendReset'])->name('tenant.customer.forgot.submit');
+    Route::post('/account/forgot',       [TenantControllers\CustomerAccountController::class, 'sendReset'])->name('tenant.customer.forgot.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
     Route::get('/account/reset',         [TenantControllers\CustomerAccountController::class, 'showReset'])->name('tenant.customer.reset');
-    Route::post('/account/reset',        [TenantControllers\CustomerAccountController::class, 'resetPassword'])->name('tenant.customer.reset.submit');
+    Route::post('/account/reset',        [TenantControllers\CustomerAccountController::class, 'resetPassword'])->name('tenant.customer.reset.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH
     // MARKER-PORTAL-V2 — portal sections. The old single-page portal() is
     // superseded; tenant.customer.portal now lands on Home so every existing
     // login/redirect keeps working.
