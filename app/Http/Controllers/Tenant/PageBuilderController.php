@@ -49,7 +49,7 @@ class PageBuilderController extends Controller
             'height'          => 'normal',   // compact | normal | spacious
             // Background
             'bg_mode'         => 'solid',    // solid | transparent | blur
-            'bg_color'        => '#ffffff',
+            'bg_color'        => 'inherit',
             'border_bottom'   => 'hairline', // none | hairline | shadow
             // Colors
             'text_color'      => '',
@@ -100,7 +100,7 @@ class PageBuilderController extends Controller
             'subheading_size'     => 'medium',
             // Style
             'bg_mode'             => 'color', // color | image | gradient
-            'bg_color'            => '#1a1a1a',
+            'bg_color'            => 'inherit',
             'bg_gradient_from'    => '#1a1a1a',
             'bg_gradient_to'      => '#0a0a0a',
             'bg_gradient_angle'   => 135,
@@ -141,7 +141,7 @@ class PageBuilderController extends Controller
             'padding_bottom'  => 'normal',
             // Style
             'bg_mode'         => 'none', // none | color | gradient
-            'bg_color'        => '#ffffff',
+            'bg_color'        => 'inherit',
             'bg_gradient_from'=> '#ffffff',
             'bg_gradient_to'  => '#fafafa',
             'text_color'      => '',
@@ -213,7 +213,7 @@ class PageBuilderController extends Controller
             'padding_bottom'  => 'normal',
             // Style
             'bg_mode'         => 'color',
-            'bg_color'        => '#0a0a0a',
+            'bg_color'        => 'inherit',
             'bg_gradient_from'=> '#0a0a0a',
             'bg_gradient_to'  => '#1a1a1a',
             'bg_image_url'    => '',
@@ -256,7 +256,7 @@ class PageBuilderController extends Controller
             'padding_bottom'  => 'normal',
             // Style
             'bg_mode'         => 'none',
-            'bg_color'        => '#ffffff',
+            'bg_color'        => 'inherit',
             'bg_gradient_from'=> '#ffffff',
             'bg_gradient_to'  => '#fafafa',
             'input_style'     => 'default',
@@ -311,7 +311,7 @@ class PageBuilderController extends Controller
             'padding_bottom'  => 'normal',
             // Style
             'bg_mode'         => 'color',
-            'bg_color'        => '#0a0a0a',
+            'bg_color'        => 'inherit',
             'bg_gradient_from'=> '#0a0a0a',
             'bg_gradient_to'  => '#1a1a1a',
             'border_top'      => 'none',
@@ -350,7 +350,7 @@ class PageBuilderController extends Controller
             'padding_bottom'   => 'normal',
             // Style
             'bg_mode'          => 'none',
-            'bg_color'         => '#0a0f1a',
+            'bg_color'         => 'inherit',
             'bg_gradient_from' => '#0a0f1a',
             'bg_gradient_to'   => '#0f1828',
             'card_bg'          => '',
@@ -386,7 +386,7 @@ class PageBuilderController extends Controller
             'padding_bottom'   => 'normal',
             // Style
             'bg_mode'          => 'none',
-            'bg_color'         => '#0a0f1a',
+            'bg_color'         => 'inherit',
             'bg_gradient_from' => '#0a0f1a',
             'bg_gradient_to'   => '#0f1828',
             'card_bg'          => '',
@@ -423,7 +423,7 @@ class PageBuilderController extends Controller
             'padding_bottom'   => 'normal',
             // Style
             'bg_mode'          => 'none',
-            'bg_color'         => '#ffffff',
+            'bg_color'         => 'inherit',
             'bg_gradient_from' => '#ffffff',
             'bg_gradient_to'   => '#fafafa',
             'text_color'       => '',
@@ -457,7 +457,7 @@ class PageBuilderController extends Controller
             'padding_bottom'   => 'compact',
             // Style
             'bg_mode'          => 'none',
-            'bg_color'         => '#ffffff',
+            'bg_color'         => 'inherit',
             'bg_gradient_from' => '#ffffff',
             'bg_gradient_to'   => '#fafafa',
             'logo_treatment'   => 'grayscale_hover', // color | grayscale | grayscale_hover | muted
@@ -493,7 +493,7 @@ class PageBuilderController extends Controller
             'padding_bottom'   => 'normal',
             // Style
             'bg_mode'          => 'none',
-            'bg_color'         => '#ffffff',
+            'bg_color'         => 'inherit',
             'bg_gradient_from' => '#ffffff',
             'bg_gradient_to'   => '#fafafa',
             'text_color'       => '',
@@ -529,7 +529,7 @@ class PageBuilderController extends Controller
             'padding_bottom'  => 'normal',
             // Style
             'bg_mode'         => 'none',
-            'bg_color'        => '#ffffff',
+            'bg_color'        => 'inherit',
             'bg_gradient_from'=> '#ffffff',
             'bg_gradient_to'  => '#fafafa',
             'text_color'      => '',

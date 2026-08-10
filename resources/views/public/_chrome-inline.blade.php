@@ -16,12 +16,7 @@
   <style>
     /* MARKER-PATCH-588 — scoped, NOT :root: booking pages own their vars */
     .p-chrome-scope {
-      --p-accent:       {{ $ciTenant->accent_color ?? '#BEF264' }};
-      --p-text:         {{ $ciTenant->text_color   ?? '#111111' }};
-      --p-bg:           {{ $ciTenant->bg_color     ?? '#ffffff' }};
-      --p-font-heading: '{{ $ciTenant->font_heading ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-font-body:    '{{ $ciTenant->font_body    ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-accent-text:  {{ \App\Support\ColorHelper::accentTextColor($ciTenant->accent_color ?? '#BEF264') }};
+{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($ciTenant)) !!} {{-- MARKER-TOKENS --}}
       --p-r: 8px; --p-r-lg: 12px; --p-max: 1160px;
       --p-gutter: clamp(16px, 5vw, 64px);
     }

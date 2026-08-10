@@ -20,8 +20,10 @@
 
   {{-- Fonts --}}
   @php
-    $headingFont = $currentTenant->font_heading ?? 'Inter';
-    $bodyFont    = $currentTenant->font_body    ?? 'Inter';
+    // MARKER-TOKENS — one resolve for the whole page.
+    $dt = \App\Support\DesignTokens::resolve($currentTenant);
+    $headingFont = $dt['font_heading'];
+    $bodyFont    = $dt['font_body'];
     $fontFamilies = array_unique([$headingFont, $bodyFont]);
     $fontQuery = implode('&family=', array_map(fn($f) => str_replace(' ', '+', $f) . ':wght@400;500;600;700', $fontFamilies));
   @endphp
@@ -33,12 +35,7 @@
        Public site CSS — completely separate from admin themes
        ================================================================ */
     :root {
-      --p-accent:       {{ $currentTenant->accent_color  ?? '#BEF264' }};
-      --p-text:         {{ $currentTenant->text_color    ?? '#111111' }};
-      --p-bg:           {{ $currentTenant->bg_color      ?? '#ffffff' }};
-      --p-font-heading: '{{ $headingFont }}', -apple-system, sans-serif;
-      --p-font-body:    '{{ $bodyFont }}',    -apple-system, sans-serif;
-      --p-accent-text:  {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};
+{!! \App\Support\DesignTokens::cssVars($dt) !!} {{-- MARKER-TOKENS --}}
       --p-r:            8px;
       --p-r-lg:         12px;
       --p-max:          1160px;
@@ -72,7 +69,8 @@
     h1,h2,h3,h4 {
       font-family: var(--p-font-heading);
       line-height: 1.2;
-      font-weight: 700;
+      font-weight: var(--p-heading-weight, 700);      /* MARKER-TOKENS */
+      text-transform: var(--p-heading-transform, none);
     }
 
     /* Buttons */
@@ -81,7 +79,7 @@
       align-items: center;
       gap: 8px;
       padding: 12px 24px;
-      border-radius: var(--p-r);
+      border-radius: var(--p-btn-r, var(--p-r));      /* MARKER-TOKENS */
       font-size: 15px;
       font-weight: 600;
       border: 2px solid transparent;
@@ -94,6 +92,24 @@
       color: var(--p-accent-text);
       border-color: var(--p-accent);
     }
+    /* MARKER-TOKENS — template button styles. Outline and ghost keep the
+       accent as the visible edge or fill hint rather than a solid slab. */
+    body.p-btn-outline .p-btn--primary {
+      background: transparent;
+      color: var(--p-text);
+      border-color: var(--p-accent);
+    }
+    body.p-btn-outline .p-btn--primary:hover {
+      background: var(--p-accent);
+      color: var(--p-accent-text);
+      filter: none;
+    }
+    body.p-btn-ghost .p-btn--primary {
+      background: var(--p-surface);
+      color: var(--p-text);
+      border-color: transparent;
+    }
+    body.p-btn-ghost .p-btn--primary:hover { filter: brightness(.96); }
     .p-btn--primary:hover { filter: brightness(.93); }
     .p-btn--outline {
       background: transparent;
@@ -210,7 +226,7 @@
   @stack('styles')
 </head>
 
-<body>
+<body class="p-btn-{{ $dt['button_style'] }}">
 
 {{-- Mobile nav overlay --}}
 <div class="p-mobile-nav" id="p-mobile-nav">
@@ -251,8 +267,17 @@
          this, an unknown type causes a ViewException → 500 for the whole page. --}}
     @php $partial = 'public.sections._' . $section->section_type; @endphp
     @if(view()->exists($partial))
+      {{-- MARKER-TOKENS — resolve an inheriting background here, once, rather
+           than in 19 section partials. An explicit hex passes through
+           untouched, so nothing a tenant chose in the builder changes. --}}
+      @php
+        $sc = $section->content ?? [];
+        $sc['bg_color'] = \App\Support\DesignTokens::sectionBg(
+            $sc['bg_color'] ?? null, $section->section_type, $dt
+        );
+      @endphp
       @include($partial, [
-        'c'        => $section->content ?? [],
+        'c'        => $sc,
         'section'  => $section,
         'navItems' => $navItems,
         'catalog'  => $catalog,

@@ -11,15 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family={{ str_replace(' ', '+', $currentTenant->font_heading ?? 'Inter') }}:wght@400;500;600;700&family={{ str_replace(' ', '+', $currentTenant->font_body ?? 'Inter') }}:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --p-accent:      {{ $currentTenant->accent_color ?? '#BEF264' }};
-      --p-accent-text: {{ \App\Support\ColorHelper::accentTextColor($currentTenant->accent_color ?? '#BEF264') }};
-      --p-text:        {{ $currentTenant->text_color ?? '#111111' }};
-      --p-bg:          {{ $currentTenant->bg_color ?? '#ffffff' }};
-      --p-muted:       rgba(0,0,0,.5);
-      --p-border:      rgba(0,0,0,.1);
-      --p-surface:     rgba(0,0,0,.03);
-      --p-font-heading:'{{ $currentTenant->font_heading ?? 'Inter' }}', -apple-system, sans-serif;
-      --p-font-body:   '{{ $currentTenant->font_body ?? 'Inter' }}', -apple-system, sans-serif;
+{!! \App\Support\DesignTokens::cssVars(\App\Support\DesignTokens::resolve($currentTenant)) !!} {{-- MARKER-TOKENS --}}
       --p-r: 8px; --p-r-lg: 12px; --p-max: 680px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
