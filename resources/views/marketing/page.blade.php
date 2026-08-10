@@ -236,5 +236,6 @@
     }
 </script>
 @include('marketing._plan-quiz')
+@include('marketing._funnel_tracker') {{-- MARKER-MKTTRAFFIC --}}
 </body>
 </html>

@@ -31,6 +31,13 @@ Route::domain($domain)->group(function () {
         [\App\Http\Controllers\Webhooks\StripeWebhookController::class, 'handle']
     )->name('webhooks.stripe.subscriptions');
 
+    // --- Marketing funnel tracking (MARKER-MKTTRAFFIC) ---
+    // The tenant tracker's /funnel/track lives in the TENANT host group and
+    // resolves a tenant from the host, so intake.works could never reach it.
+    Route::post('/mkt/track',
+        [Platform\MarketingFunnelController::class, 'store']
+    )->name('platform.mkt.track');
+
     // --- Plan quiz analytics (marketing funnel) ---
     // Client-side quiz POSTs here on completion. CSRF exempted so the quiz
     // can run on any cached marketing page without needing a fresh token.

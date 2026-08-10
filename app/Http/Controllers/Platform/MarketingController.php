@@ -74,6 +74,14 @@ class MarketingController extends Controller
 
     public function contact(Request $request)
     {
+        // MARKER-MKTTRAFFIC — only a real POST is a submission.
+        if ($request->isMethod('post')) {
+            \App\Http\Controllers\Platform\MarketingFunnelController::record('contact_submitted', [
+                'session_id' => (string) $request->input('session_id', 'server'),
+                'path'       => '/contact',
+            ]);
+        }
+
         if ($request->isMethod('GET')) {
             return $this->renderPage('contact');
         }

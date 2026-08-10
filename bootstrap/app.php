@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Tenant booking webhook (/webhooks/stripe) and addon subscription
         // webhook (/webhooks/stripe/subscriptions) both need this.
         $middleware->validateCsrfTokens(except: [
+            'mkt/track', // MARKER-MKTTRAFFIC — beacon from cached marketing pages
             'webhooks/stripe',
             'webhooks/stripe/*',
             'webhooks/cloudflare', // MARKER-PATCH-118
