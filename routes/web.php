@@ -871,6 +871,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-PATCH-261 — site template gallery
             Route::get('/website/templates',               [TenantControllers\SiteTemplateController::class, 'index'])->name('templates.index');
             Route::post('/website/templates/revert',       [TenantControllers\SiteTemplateController::class, 'revert'])->name('templates.revert');
+            Route::post('/website/templates/customize',    [TenantControllers\SiteTemplateController::class, 'customize'])->name('templates.customize'); // MARKER-CUSTOMIZER
             Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
 
             Route::get('/emails',               [TenantControllers\EmailController::class, 'index'])->name('emails.index');

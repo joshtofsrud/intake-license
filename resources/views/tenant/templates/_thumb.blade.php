@@ -3,36 +3,60 @@
      draws its own SHAPE, not just its own colours. Same markup serves the
      card crop and the big modal (block CSS lives in templates/index). --}}
 @php
+  /* MARKER-CUSTOMIZER — every value is now a CSS variable read off this
+     preview's own root, so the same markup serves the static template cards
+     and the live customizer (which repaints by setting those variables).
+     $tokenVars below is what declares them. */
   $t = $tokens;
-  $accent   = $t['accent'] ?? '#BEF264';
-  $bg       = $t['bg'] ?? '#ffffff';
-  $text     = $t['text'] ?? '#111';
-  $surface  = $t['surface'] ?? '#f2f2f2';
-  $muted    = $t['muted'] ?? '#777';
-  $heroBg   = $t['hero_bg'] ?? $bg;
-  $heroText = $t['hero_text'] ?? $text;
-  $radius   = (int)($t['button_radius'] ?? 8);
+  $rawAccent = $t['accent'] ?? '#BEF264';
+
+  $tokenVars = implode(';', [
+      '--t-accent: '      . $rawAccent,
+      '--t-accent-text: ' . \App\Support\ColorHelper::accentTextColor($rawAccent),
+      '--t-bg: '          . ($t['bg'] ?? '#ffffff'),
+      '--t-text: '        . ($t['text'] ?? '#111'),
+      '--t-surface: '     . ($t['surface'] ?? '#f2f2f2'),
+      '--t-muted: '       . ($t['muted'] ?? '#777'),
+      '--t-hero-bg: '     . ($t['hero_bg'] ?? $t['bg'] ?? '#ffffff'),
+      '--t-hero-text: '   . ($t['hero_text'] ?? $t['text'] ?? '#111'),
+      '--t-btn-r: '       . (int) ($t['button_radius'] ?? 8) . 'px',
+      "--t-f-head: '"     . ($t['font_heading'] ?? 'Inter') . "', sans-serif",
+      "--t-f-body: '"     . ($t['font_body'] ?? 'Inter') . "', sans-serif",
+      '--t-h-weight: '    . (int) ($t['heading_weight'] ?? 700),
+      '--t-h-case: '      . ($t['heading_transform'] ?? 'none'),
+  ]);
+
+  $accent   = 'var(--t-accent)';
+  $bg       = 'var(--t-bg)';
+  $text     = 'var(--t-text)';
+  $surface  = 'var(--t-surface)';
+  $muted    = 'var(--t-muted)';
+  $heroBg   = 'var(--t-hero-bg)';
+  $heroText = 'var(--t-hero-text)';
+  $radius   = 'var(--t-btn-r)';
+  $accentText = 'var(--t-accent-text)';
+
+  /* Button style can't be a variable (it changes which properties apply), so
+     it stays server-rendered; the customizer swaps a class instead. */
   $btnStyle = $t['button_style'] ?? 'solid';
-  $hWeight  = (int)($t['heading_weight'] ?? 700);
-  $hCase    = $t['heading_transform'] ?? 'none';
-  $fHead    = $t['font_heading'] ?? 'Inter';
-  $fBody    = $t['font_body'] ?? 'Inter';
-  $accentText = \App\Support\ColorHelper::accentTextColor($accent);
   $btn = $btnStyle === 'outline'
-      ? "background:transparent;border:1.5px solid {$accent};color:{$text}"
-      : "background:{$accent};border:1.5px solid {$accent};color:{$accentText}";
-  $hStyle = "font-family:'{$fHead}',sans-serif;font-weight:{$hWeight};text-transform:{$hCase}";
+      ? 'background:transparent;border:1.5px solid var(--t-accent);color:var(--t-text)'
+      : ($btnStyle === 'ghost'
+          ? 'background:var(--t-surface);border:1.5px solid transparent;color:var(--t-text)'
+          : 'background:var(--t-accent);border:1.5px solid var(--t-accent);color:var(--t-accent-text)');
+
+  $hStyle = 'font-family:var(--t-f-head);font-weight:var(--t-h-weight);text-transform:var(--t-h-case)';
   $shop   = $currentTenant->name ?? 'Your Business';
   $blocks = $layout ?? [];
 @endphp
-<div class="fs" style="background:{{ $bg }};color:{{ $text }};font-family:'{{ $fBody }}',sans-serif">
+<div class="fs" data-fs-preview style="{{ $tokenVars }};background:var(--t-bg);color:var(--t-text);font-family:var(--t-f-body)">
 
   <div class="fs-nav" style="border-bottom:.5px solid {{ $surface }}">
     <span class="fs-logo" style="{{ $hStyle }};color:{{ $accent }}">{{ $shop }}</span>
     <span style="color:{{ $muted }}">Services</span>
     <span style="color:{{ $muted }}">About</span>
     <span style="color:{{ $muted }}">Contact</span>
-    <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">Book</span>
+    <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}">Book</span>
   </div>
 
   @foreach($blocks as $b)
@@ -52,14 +76,14 @@
               <div class="fs-eyebrow" style="color:{{ $accent }}">Now booking</div>
               <h1 style="{{ $hStyle }}">{{ $h }}</h1>
               <p style="opacity:.7">{{ $sub }}</p>
-              <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">{{ $cta }} →</span>
+              <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}">{{ $cta }} →</span>
             </div>
             <div class="fs-hero-img" style="background:{{ $surface }}"></div>
           @else
             <div class="fs-eyebrow" style="color:{{ $accent }}">Now booking</div>
             <h1 style="{{ $hStyle }}">{{ $h }}</h1>
             <p style="opacity:.7">{{ $sub }}</p>
-            <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">{{ $cta }} →</span>
+            <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}">{{ $cta }} →</span>
           @endif
         </div>
         @break
@@ -67,7 +91,7 @@
       @case('cta')
         <div class="fs-cta" style="background:{{ $surface }}">
           <div class="fs-sec-h" style="{{ $hStyle }}">{{ $h ?: 'Ready when you are.' }}</div>
-          <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">{{ $cta }}</span>
+          <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}">{{ $cta }}</span>
         </div>
         @break
 
@@ -146,7 +170,7 @@
           <div class="fs-contact">
             <div class="fs-input" style="background:{{ $surface }}"></div>
             <div class="fs-input" style="background:{{ $surface }}"></div>
-            <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}px">Send</span>
+            <span class="fs-btn" style="{{ $btn }};border-radius:{{ $radius }}">Send</span>
           </div>
         </div>
         @break
