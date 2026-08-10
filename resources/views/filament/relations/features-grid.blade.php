@@ -54,12 +54,33 @@
         </div>
 
         @php
-            $categoryLabels = [
+            /* MARKER-FGCATS — this list used to be the ONLY thing rendered, so
+               any addon in another category (e.g. 'retail', which is where
+               online_store lives) was invisible here and could not be granted
+               or revoked at all. Curated labels and order are kept for the
+               categories we know; everything else is appended rather than
+               dropped, so a category added by a future migration can't
+               silently disappear. */
+            $knownLabels = [
                 'communication' => 'Communication',
                 'operations'    => 'Operations',
+                'retail'        => 'Retail & ecommerce',
+                'team'          => 'Team',
                 'feature'       => 'Tier features',
                 'onboarding'    => 'Onboarding',
             ];
+
+            $categoryLabels = [];
+            foreach ($knownLabels as $ckey => $clabel) {
+                if (isset($grouped[$ckey]) && $grouped[$ckey]->count()) {
+                    $categoryLabels[$ckey] = $clabel;
+                }
+            }
+            foreach ($grouped as $ckey => $rows) {
+                if (! isset($categoryLabels[$ckey]) && $rows->count()) {
+                    $categoryLabels[$ckey] = ucfirst(str_replace('_', ' ', (string) $ckey));
+                }
+            }
         @endphp
 
         @foreach($categoryLabels as $catKey => $catLabel)
