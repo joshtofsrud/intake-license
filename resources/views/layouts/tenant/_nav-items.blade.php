@@ -234,6 +234,13 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5C4.8 1.5 3 3.3 3 5.5c0 3 4 7 4 7s4-4 4-7c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="7" cy="5.5" r="1.3" stroke="currentColor" stroke-width="1.2"/></svg>',
       'group'  => 'settings',
     ],
+    // MARKER-IMPORT1 — CSV import lives with the other setup surfaces
+    [
+      'route'  => 'tenant.imports.index',
+      'label'  => 'Import',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v7M4.5 6L7 8.5 9.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 10.5v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => 'settings',
+    ],
     // MARKER-PATCH-570 — storefront settings (online store control panel)
     [
       'route'  => 'tenant.storefront.settings',

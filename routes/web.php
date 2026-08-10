@@ -644,6 +644,17 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::match(['get','post'], '/appointments/{id}/invoice/preview-html', [TenantControllers\InvoiceExportController::class, 'previewHtml'])->name('appointments.invoice.preview-html');
             Route::get('/appointments-inventory-search', [TenantControllers\AppointmentController::class, 'searchInventoryItems'])->name('appointments.inventory-search');
 
+            // MARKER-IMPORT1 — CSV import wizard (capability-gated in the controller)
+            Route::get('/imports',                      [TenantControllers\ImportController::class, 'index'])->name('imports.index');
+            Route::get('/imports/new',                  [TenantControllers\ImportController::class, 'create'])->name('imports.create');
+            Route::post('/imports',                     [TenantControllers\ImportController::class, 'store'])->name('imports.store');
+            Route::get('/imports/{id}/map',             [TenantControllers\ImportController::class, 'map'])->name('imports.map');
+            Route::post('/imports/{id}/map',            [TenantControllers\ImportController::class, 'saveMapping'])->name('imports.mapping');
+            Route::get('/imports/{id}/preview',         [TenantControllers\ImportController::class, 'preview'])->name('imports.preview');
+            Route::post('/imports/{id}/run',            [TenantControllers\ImportController::class, 'run'])->name('imports.run');
+            Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
+            Route::get('/imports/{id}/errors',          [TenantControllers\ImportController::class, 'errors'])->name('imports.errors');
+
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
             Route::get('/customers/search',     [TenantControllers\CustomerController::class, 'search'])->name('customers.search');
             Route::get('/customers/{id}',       [TenantControllers\CustomerController::class, 'show'])->name('customers.show');

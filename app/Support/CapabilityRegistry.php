@@ -50,6 +50,15 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
+            // ---- Customers ---- MARKER-IMPORT1
+            'customers.import' => [
+                'label'   => 'Import from a spreadsheet',
+                'section' => 'customers',
+                'desc'    => 'Upload a CSV to create or update customers in bulk.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+
             // ---- Customers ---- MARKER-CUST-ACCOUNT
             'customers.account_manage' => [
                 'label'   => 'Manage customer portal accounts',
