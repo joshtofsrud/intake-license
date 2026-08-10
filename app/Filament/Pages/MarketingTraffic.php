@@ -58,7 +58,7 @@ class MarketingTraffic extends Page
             'sessions'   => (new MarketingSessionsService( // MARKER-MKTSESSIONS
                 CarbonImmutable::instance($report->curStart()),
                 CarbonImmutable::instance($report->curEnd())
-            ))->recent(),
+            ))->recent(200), // MARKER-MKTSESSTYLE — the scroll box bounds height now
         ];
     }
 }
