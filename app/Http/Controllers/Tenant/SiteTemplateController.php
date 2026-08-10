@@ -83,14 +83,15 @@ class SiteTemplateController extends Controller
     {
         $tenant = tenant();
 
+        // MARKER-CZFIX — colours may be hex OR rgba (the seeded fallbacks).
         $data = $request->validate([
-            'accent'            => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'text'              => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'bg'                => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'surface'           => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'muted'             => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'hero_bg'           => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'hero_text'         => ['nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'accent'            => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
+            'text'              => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
+            'bg'                => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
+            'surface'           => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
+            'muted'             => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
+            'hero_bg'           => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
+            'hero_text'         => ['nullable', 'string', 'regex:/^(#[0-9a-fA-F]{6}|rgba?\([\d.,\s]+\))$/'],
             'font_heading'      => ['nullable', 'string', 'max:40'],
             'font_body'         => ['nullable', 'string', 'max:40'],
             'heading_weight'    => ['nullable', 'integer', 'min:300', 'max:900'],

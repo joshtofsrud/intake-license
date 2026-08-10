@@ -47,6 +47,19 @@
   $czFonts = ['Inter','Poppins','DM Sans','Nunito','Lato','Raleway','Montserrat','Playfair Display','Merriweather'];
 @endphp
 
+{{-- MARKER-CZFIX — without this a validation failure was completely silent --}}
+@if($errors->any())
+  <div class="ia-flash ia-flash--error" style="margin-bottom:14px">
+    Couldn't save your changes: {{ $errors->first() }}
+  </div>
+@endif
+@if(session('flash'))
+  <div class="ia-flash ia-flash--success" style="margin-bottom:14px">{{ session('flash') }}</div>
+@endif
+@if(session('flash_error'))
+  <div class="ia-flash ia-flash--error" style="margin-bottom:14px">{{ session('flash_error') }}</div>
+@endif
+
 <div class="cz-wrap">
   <div class="cz-stage">
     <div class="cz-stage-bar">
@@ -83,7 +96,10 @@
             @foreach($czFields as [$czKey, $czLabel, $czType])
               @php
                 $czVal = $czTokens[$czKey] ?? '';
-                $czDef = $czTemplate[$czKey] ?? null;
+                /* MARKER-CZFIX — with no template applied there is no
+                   template default, and reset had nothing to reset TO. The
+                   pipeline fallback is the honest answer. */
+                $czDef = $czTemplate[$czKey] ?? (\App\Support\DesignTokens::FALLBACKS[$czKey] ?? null);
               @endphp
               <div class="cz-row" data-k="{{ $czKey }}" data-default="{{ $czDef }}">
                 <label class="cz-lbl">{{ $czLabel }}
@@ -92,7 +108,7 @@
                 <div class="cz-ctl">
                   @if($czType === 'color')
                     <input type="text" class="cz-hex" value="{{ $czVal }}" data-role="hex" autocomplete="off">
-                    <input type="color" class="cz-sw" value="{{ \Illuminate\Support\Str::startsWith($czVal, '#') ? $czVal : '#ffffff' }}" data-role="pick">
+                    <input type="color" class="cz-sw" value="{{ \App\Support\DesignTokens::toHex($czVal, \App\Support\DesignTokens::toHex($czTokens['bg'] ?? '#ffffff')) }}" data-role="pick"> {{-- MARKER-CZFIX --}}
                   @elseif($czType === 'font')
                     <select class="cz-select" data-role="val">
                       @foreach($czFonts as $czFont)
@@ -428,7 +444,7 @@
 
     row.querySelector('.cz-reset').addEventListener('click', function () {
       var def = row.getAttribute('data-default');
-      if (def !== null && def !== '') { setRow(row, def); }
+      if (def) { setRow(row, def); } // MARKER-CZFIX
     });
 
     mark(row);
@@ -439,7 +455,7 @@
   document.getElementById('cz-reset-all').addEventListener('click', function () {
     document.querySelectorAll('.cz-row').forEach(function (row) {
       var def = row.getAttribute('data-default');
-      if (def !== null && def !== '') { setRow(row, def); }
+      if (def) { setRow(row, def); } // MARKER-CZFIX
     });
   });
 })();
