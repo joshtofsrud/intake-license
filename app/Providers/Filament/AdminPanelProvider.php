@@ -97,6 +97,10 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\ChangelogImportPreview::class,
                 \App\Filament\Pages\EmailHealth::class,  // MARKER-PATCH-148
                 \App\Filament\Pages\PlatformEmail::class, // MARKER-PLATFORM-MAIL — this panel lists pages explicitly; it does NOT auto-discover
+                // MARKER-MKTREG — same trap again: without this line the page
+                // has no route and 404s, nav or no nav. Any NEW Filament page
+                // must be added here.
+                \App\Filament\Pages\MarketingTraffic::class,
             ])
             ->widgets([
                 ServerHealthWidget::class,
