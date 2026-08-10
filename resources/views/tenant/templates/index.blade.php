@@ -363,8 +363,9 @@
 .tpl-section-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;opacity:.45;margin:0 0 12px}
 </style>
 
-@endsection
-
+{{-- MARKER-CZJS — this block used to sit past the end of the content
+     section, where Blade discards it in an extending view, so the
+     customizer had no JS at all. --}}
 {{-- MARKER-CUSTOMIZER --}}
 <script>
 (function () {
@@ -460,3 +461,5 @@
   });
 })();
 </script>
+
+@endsection
