@@ -15,7 +15,7 @@ class Tenant extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
-        'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'name',
+        'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'licensed_locations', 'name',
         'is_active', 'settings',
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'logo_size_admin', 'logo_size_booking',
@@ -468,6 +468,25 @@ class Tenant extends Model
     public function getPosEnabledAttribute(): bool
     {
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'pos');
+    }
+
+    /**
+     * MARKER-LOCGATE — can this tenant create another location?
+     *
+     * Counts ACTIVE locations only, so archiving one frees a slot. The
+     * allowance is hand-set in master admin today; when per-location billing
+     * lands it becomes derived from the subscription quantity and this method
+     * does not change.
+     */
+    public function canAddLocation(): bool
+    {
+        return $this->activeLocationCount() < (int) ($this->licensed_locations ?? 1);
+    }
+
+    /** MARKER-LOCGATE */
+    public function activeLocationCount(): int
+    {
+        return (int) $this->locations()->where('is_active', true)->count();
     }
 
     /**

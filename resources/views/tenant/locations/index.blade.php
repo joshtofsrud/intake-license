@@ -86,8 +86,18 @@
     <h1 class="ia-page-title">Locations</h1>
     <p class="ia-page-subtitle">{{ $locations->count() }} {{ Str::plural('location', $locations->count()) }}</p>
   </div>
+  {{-- MARKER-LOCGATE — at the cap the button goes away and says why, rather
+       than letting someone fill in a form that the server will refuse. --}}
   <div class="ia-page-actions">
-    <button type="button" class="ia-btn ia-btn--primary" id="loc-add-toggle">+ Add location</button>
+    @if($currentTenant->canAddLocation())
+      <button type="button" class="ia-btn ia-btn--primary" id="loc-add-toggle">+ Add location</button>
+    @else
+      <span style="font-size:12.5px;opacity:.55">
+        Licensed for {{ (int) ($currentTenant->licensed_locations ?? 1) }}
+        {{ \Illuminate\Support\Str::plural('location', (int) ($currentTenant->licensed_locations ?? 1)) }}
+        &middot; get in touch to add another
+      </span>
+    @endif
   </div>
 </div>
 

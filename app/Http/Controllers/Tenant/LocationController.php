@@ -52,8 +52,19 @@ class LocationController extends Controller
             return back()->with('error', 'Owner only.');
         }
 
-        // NOTE: gate (Branded+ tier / additional_locations addon / quantity)
-        // is deferred. When ready, add the check here.
+        // MARKER-LOCGATE — the gate this comment used to defer. A location is
+        // priced at the base subscription, so an ungated create is revenue
+        // straight out the door. Server-side because hiding the button is not
+        // a control.
+        if (! $tenant->canAddLocation()) {
+            $allowed = (int) ($tenant->licensed_locations ?? 1);
+
+            return back()->with('error',
+                'This account is licensed for ' . $allowed . ' ' .
+                \Illuminate\Support\Str::plural('location', $allowed) .
+                '. Get in touch to add another.'
+            );
+        }
 
         $validated = $request->validate([
             'name'           => ['required', 'string', 'max:128'],

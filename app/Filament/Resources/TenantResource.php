@@ -33,6 +33,16 @@ class TenantResource extends Resource
                         'custom' => 'Custom (enterprise)',
                     ])
                     ->required(),
+                // MARKER-LOCGATE — the allowance. A location bills at the base
+                // subscription rate, so raising this is a pricing decision.
+                Forms\Components\TextInput::make('licensed_locations')
+                    ->label('Licensed locations')
+                    ->helperText('Each location beyond the first bills at the tenant\'s plan rate.')
+                    ->numeric()
+                    ->minValue(1)
+                    ->maxValue(100)
+                    ->default(1)
+                    ->required(),
                 Forms\Components\Select::make('onboarding_status')
                     ->options(['pending' => 'Pending', 'complete' => 'Complete', 'suspended' => 'Suspended'])
                     ->required(),
