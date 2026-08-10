@@ -79,11 +79,15 @@ class MarketingFunnelController extends Controller
                 'utm_campaign'    => $data['utm_campaign'] ?? null,
                 'device'          => $data['device'] ?? null,
                 'step'            => $data['step'] ?? null,
+                // MARKER-MKTFIX — this table has created_at ONLY (declared
+                // useCurrent, no updated_at). Writing updated_at threw on every
+                // insert, and the catch below made it silent.
                 'created_at'      => now(),
-                'updated_at'      => now(),
             ]);
         } catch (\Throwable $e) {
-            \Log::warning('marketing funnel event failed', [
+            // Still swallowed on purpose — analytics must not break a page —
+            // but at error level so it surfaces in any log scan. MARKER-MKTFIX
+            \Log::error('marketing funnel event failed', [
                 'event' => $eventType, 'error' => $e->getMessage(),
             ]);
         }
