@@ -7,6 +7,7 @@ namespace App\Filament\Pages;
 // than reimplementing windows, comparisons and daily series.
 
 use App\Models\Tenant;
+use App\Services\Platform\MarketingSessionsService; // MARKER-MKTSESSIONS
 use App\Services\Platform\SignupFunnelService;
 use App\Services\Tenant\TrafficReportService;
 use Carbon\CarbonImmutable;
@@ -54,6 +55,10 @@ class MarketingTraffic extends Page
             'daily'      => $report->dailyVisitors(),
             'stages'     => $funnel->stages(),
             'intent'     => $funnel->intent(),
+            'sessions'   => (new MarketingSessionsService( // MARKER-MKTSESSIONS
+                CarbonImmutable::instance($report->curStart()),
+                CarbonImmutable::instance($report->curEnd())
+            ))->recent(),
         ];
     }
 }

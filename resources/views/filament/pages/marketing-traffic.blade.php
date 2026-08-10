@@ -107,5 +107,58 @@
   <div class="mt-empty">No traffic recorded yet — data starts accumulating once this deploys.</div>
 @endif
 
+{{-- MARKER-MKTSESSIONS — per-session explorer. Click a row to expand. --}}
+<style>
+.ms-row{border-radius:10px;background:rgba(255,255,255,.04);margin-bottom:6px;overflow:hidden}
+.ms-row summary{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;list-style:none}
+.ms-row summary::-webkit-details-marker{display:none}
+.ms-time{font-size:12px;opacity:.6;width:78px;flex:0 0 auto}
+.ms-time span{display:block;font-size:10.5px;opacity:.6}
+.ms-land{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-meta{font-size:11.5px;opacity:.5;flex:0 0 auto}
+.ms-dur{font-variant-numeric:tabular-nums;font-size:12.5px;opacity:.7;width:60px;text-align:right;flex:0 0 auto}
+.ms-badge{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 8px;border-radius:99px;flex:0 0 auto}
+.ms-badge.converted{background:rgba(120,200,110,.18);color:#8fd082}
+.ms-badge.browsed{background:rgba(255,255,255,.10);opacity:.8}
+.ms-badge.bounced{background:rgba(255,255,255,.06);opacity:.45}
+.ms-detail{padding:4px 14px 14px 92px;font-size:12.5px}
+.ms-dmeta{display:flex;gap:14px;flex-wrap:wrap;opacity:.5;font-size:11.5px;margin-bottom:8px}
+.ms-ev{display:flex;gap:12px;padding:3px 0}
+.ms-ev .t{opacity:.45;font-variant-numeric:tabular-nums;width:82px;flex:0 0 auto}
+.ms-note{font-size:11.5px;opacity:.4;margin:8px 0 14px;line-height:1.5}
+</style>
+
+<div class="mt-sec">Sessions</div>
+<div class="ms-note">
+  Newest first. Duration is first event to last, so a single-page visit reads 0:00 however long it was read &mdash;
+  and &ldquo;pages&rdquo; means pages visited, not in-page clicks.
+</div>
+
+@forelse($sessions as $sess)
+  <details class="ms-row">
+    <summary>
+      <span class="ms-time">{{ $sess['time'] }}<span>{{ $sess['day'] }}</span></span>
+      <span class="ms-land">{{ $sess['landing'] }}</span>
+      <span class="ms-meta">{{ $sess['page_count'] }} {{ \Illuminate\Support\Str::plural('page', $sess['page_count']) }}</span>
+      @if($sess['device'])<span class="ms-meta">{{ $sess['device'] }}</span>@endif
+      <span class="ms-dur">{{ $sess['duration'] }}</span>
+      <span class="ms-badge {{ $sess['status'] }}">{{ $sess['status'] }}</span>
+    </summary>
+    <div class="ms-detail">
+      <div class="ms-dmeta">
+        <span>Session {{ $sess['session'] }}</span>
+        @if($sess['referrer'])<span>From {{ $sess['referrer'] }}</span>@endif
+        @if($sess['utm'])<span>utm_source {{ $sess['utm'] }}</span>@endif
+      </div>
+      @foreach($sess['timeline'] as $ev)
+        <div class="ms-ev"><span class="t">{{ $ev['at'] }}</span><span>{{ $ev['what'] }}</span></div>
+      @endforeach
+    </div>
+  </details>
+@empty
+  <div class="mt-empty">No sessions in this window yet.</div>
+@endforelse
+
 @endif
 </x-filament-panels::page>
