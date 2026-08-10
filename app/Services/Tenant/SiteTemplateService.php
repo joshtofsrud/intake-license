@@ -44,6 +44,13 @@ class SiteTemplateService
 
         return DB::transaction(function () use ($tenant, $key, $tokens) {
             // Snapshot current design so a switch is reversible.
+            // MARKER-PREVFIX — drop the existing _prev before storing. Without
+            // this the snapshot contains the previous snapshot, which contains
+            // the one before it: the column doubles on every apply and revert
+            // still only ever reads the top level.
+            $currentTokens = (array) ($tenant->design_tokens ?? []);
+            unset($currentTokens['_prev']);
+
             $prev = [
                 'site_template' => $tenant->site_template,
                 'accent_color'  => $tenant->accent_color,
@@ -51,7 +58,7 @@ class SiteTemplateService
                 'bg_color'      => $tenant->bg_color,
                 'font_heading'  => $tenant->font_heading,
                 'font_body'     => $tenant->font_body,
-                'design_tokens' => $tenant->design_tokens,
+                'design_tokens' => $currentTokens ?: null,
             ];
 
             foreach (self::MAPPED as $tokenKey => $column) {
