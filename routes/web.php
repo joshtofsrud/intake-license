@@ -652,9 +652,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/imports/{id}/map',            [TenantControllers\ImportController::class, 'saveMapping'])->name('imports.mapping');
             Route::get('/imports/{id}/preview',         [TenantControllers\ImportController::class, 'preview'])->name('imports.preview');
             Route::post('/imports/{id}/run',            [TenantControllers\ImportController::class, 'run'])->name('imports.run');
+            Route::get('/imports/template/{type}',      [TenantControllers\ImportController::class, 'template'])->name('imports.template');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             Route::get('/imports/{id}/errors',          [TenantControllers\ImportController::class, 'errors'])->name('imports.errors');
             Route::post('/imports/{id}/reverse',        [TenantControllers\ImportController::class, 'reverse'])->name('imports.reverse'); // MARKER-IMPORT2
+            // MARKER-IMPORT3 — template must be declared BEFORE /imports/{id},
+            // or 'template' would be swallowed as an id.
+            Route::delete('/imports/{id}',              [TenantControllers\ImportController::class, 'destroy'])->name('imports.destroy');
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
             Route::get('/customers/search',     [TenantControllers\CustomerController::class, 'search'])->name('customers.search');

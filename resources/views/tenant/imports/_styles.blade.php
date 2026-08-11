@@ -38,4 +38,60 @@
 .chip--unchanged,.chip--skipped,.chip--unmatched,.chip--draft,.chip--running{
       background:rgba(255,255,255,.05);color:var(--ia-text-dim);border:.5px solid rgba(255,255,255,.1)}
 .mono{font-family:ui-monospace,monospace;font-size:12px}
+
+/* MARKER-IMPORT3 — hub hierarchy, type cards, richer history rows */
+.imp-sec{margin-bottom:30px}
+.imp-sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+.imp-sec-n{font-size:10px;font-weight:800;letter-spacing:.09em;color:var(--ia-accent);
+  border:.5px solid var(--ia-accent);border-radius:100px;padding:2px 8px}
+.imp-sec-t{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.imp-sec-s{font-size:12.5px;color:var(--ia-text-dim);margin:0 0 14px}
+.imp-types{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.imp-types{grid-template-columns:1fr}}
+.imp-type{background:var(--ia-surface);border-radius:var(--ia-r-lg);
+  box-shadow:inset 0 0 0 .5px var(--ia-border);padding:20px 24px}
+.imp-type:hover{background:var(--ia-surface-2)}
+.imp-type-hit{display:flex;flex-direction:column;gap:9px;text-decoration:none;color:var(--ia-text)}
+.imp-type-top{display:flex;align-items:center;gap:10px}
+.imp-type-ico{width:30px;height:30px;border-radius:8px;background:var(--ia-input-bg);
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.imp-type h4{font-size:14.5px;font-weight:650}
+.imp-type-count{margin-left:auto;font-size:11.5px;color:var(--ia-text-dim)}
+.imp-type-fields{font-size:12px;color:var(--ia-text-dim);line-height:1.6}
+.imp-type-meta{display:flex;gap:8px;flex-wrap:wrap}
+.imp-tag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:100px;
+  background:var(--ia-input-bg);color:var(--ia-text-dim)}
+.imp-tag.key{color:var(--ia-accent)}
+.imp-type-links{display:flex;gap:12px;margin-top:10px;font-size:11.5px}
+.imp-type-links a{color:var(--ia-accent);text-decoration:none;border-bottom:.5px solid currentColor}
+.imp-when{font-weight:600}
+.imp-when span{display:block;font-size:10.5px;font-weight:400;color:var(--ia-text-dim)}
+.imp-file{font-family:ui-monospace,monospace;font-size:11.5px}
+.imp-file span{display:block;font-family:inherit;font-size:10.5px;color:var(--ia-text-dim);margin-top:1px}
+.imp-nums{display:flex;gap:12px;font-variant-numeric:tabular-nums}
+.imp-num b{font-size:13.5px}
+.imp-num i{font-style:normal;font-size:10px;color:var(--ia-text-dim);display:block;
+  letter-spacing:.03em;text-transform:uppercase}
+.imp-num.ok b{color:#7FD98F}.imp-num.acc b{color:var(--ia-accent)}.imp-num.bad b{color:#F09595}
+.imp-acts{display:flex;gap:6px;justify-content:flex-end;align-items:center}
+.imp-acts form{display:inline}
+.imp-empty b{display:block;color:var(--ia-text);font-size:14px;font-weight:600;margin-bottom:4px}
+.imp-drop.has{border-style:solid;border-color:var(--ia-accent);background:rgba(190,242,100,.05);
+  text-align:left;display:flex;align-items:center;gap:14px;padding:18px 20px}
+.imp-drop.has[hidden]{display:none}
+.imp-drop h4{font-size:14px;font-weight:600;margin-bottom:3px;color:var(--ia-text)}
+.imp-file-ico{width:34px;height:34px;border-radius:8px;background:var(--ia-input-bg);display:flex;
+  align-items:center;justify-content:center;flex:0 0 auto;font-size:11px;font-weight:700}
+details.imp-ref{border-top:.5px solid var(--ia-border);padding-top:12px;margin-top:14px}
+details.imp-ref summary{font-size:12.5px;color:var(--ia-text-dim);cursor:pointer;list-style:none;
+  display:flex;align-items:center;gap:7px}
+details.imp-ref summary::-webkit-details-marker{display:none}
+details.imp-ref summary::before{content:'\25B8';font-size:9px}
+details.imp-ref[open] summary::before{content:'\25BE'}
+.imp-ref-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));
+  gap:5px 14px;margin-top:11px;font-size:12px;color:var(--ia-text-muted)}
+.imp-ref-grid b{color:var(--ia-accent);font-weight:600}
+.imp-ref-no{margin-top:12px;font-size:11.5px;color:var(--ia-text-dim);line-height:1.6;
+  border-left:2px solid var(--ia-border);padding-left:11px}
+.chip--reversed{background:rgba(255,255,255,.05);color:var(--ia-text-dim);border:.5px solid rgba(255,255,255,.12)}
 </style>

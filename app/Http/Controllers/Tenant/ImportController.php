@@ -37,17 +37,99 @@ class ImportController extends Controller
     {
         $this->guard();
 
-        $imports = TenantImport::where('tenant_id', tenant()->id)
-            ->orderByDesc('created_at')->limit(50)->get();
+        $tenant = tenant();
 
-        return view('tenant.imports.index', compact('imports'));
+        $imports = TenantImport::where('tenant_id', $tenant->id)
+            ->orderByDesc('created_at')->limit(25)->get();
+
+        // MARKER-IMPORT3 — who ran each one, resolved in one query rather than
+        // per row.
+        $actors = \App\Models\Tenant\TenantUser::where('tenant_id', $tenant->id)
+            ->whereIn('id', $imports->pluck('created_by_user_id')->filter()->unique())
+            ->pluck('name', 'id');
+
+        $counts = [
+            'customers' => \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->count(),
+            'inventory' => \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)->count(),
+        ];
+
+        $total = TenantImport::where('tenant_id', $tenant->id)->count();
+
+        return view('tenant.imports.index', compact('imports', 'actors', 'counts', 'total'));
     }
 
-    public function create()
+    /**
+     * MARKER-IMPORT3 — a starter CSV, generated FROM the field registry.
+     *
+     * Header row plus one example row, so it can never drift from what the
+     * importer actually accepts: add a field to the registry and it appears
+     * here automatically.
+     */
+    public function template(string $type)
     {
         $this->guard();
 
-        return view('tenant.imports.create');
+        abort_unless(in_array($type, ['customers', 'inventory'], true), 404);
+
+        $fields  = ImportFieldRegistry::for($type);
+        $headers = array_map(fn ($d) => $d['label'], $fields);
+
+        $example = $type === 'customers'
+            ? ['Marcus', 'Lee', 'marcus@example.com', '(509) 555-0142', '1200 W Riverside Ave', '',
+               'Spokane', 'WA', '99201', 'US', 'Prefers text', 'no', 'person', '', 'no', '', '', 'no']
+            : ['SH-BR-1042', 'Shimano BR-M6100 Caliper', '', 'Hydraulic disc brake caliper',
+               'Brakes > Hydraulic', 'QBP', '42.10', '79.99', '1', '2', '5', 'A-14', '4',
+               'Black', '', '4550170512347', '', 'yes', 'yes', 'yes', 'no'];
+
+        // Pad or trim so a registry change can't misalign the example row.
+        $example = array_slice(array_pad($example, count($headers), ''), 0, count($headers));
+
+        $out = fopen('php://temp', 'r+');
+        fputcsv($out, $headers);
+        fputcsv($out, $example);
+        rewind($out);
+        $csv = stream_get_contents($out);
+        fclose($out);
+
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="intake-' . $type . '-template.csv"',
+        ]);
+    }
+
+    /** MARKER-IMPORT3 — throw away an upload that never got mapped. */
+    public function destroy(string $id)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        if (! in_array($import->status, ['draft', 'previewed'], true)) {
+            return back()->with('error', 'Only an unfinished import can be discarded.');
+        }
+
+        if ($import->stored_path && is_file($import->stored_path)) {
+            @unlink($import->stored_path);
+        }
+        $import->delete();
+
+        return redirect()->route('tenant.imports.index')->with('success', 'Import discarded.');
+    }
+
+    public function create(Request $request)
+    {
+        $this->guard();
+
+        // MARKER-IMPORT3 — the type is chosen on the hub, so this page is the
+        // upload step for one type rather than a type picker plus a file box.
+        $type = $request->query('type');
+        if (! in_array($type, ['customers', 'inventory'], true)) {
+            return redirect()->route('tenant.imports.index');
+        }
+
+        return view('tenant.imports.create', [
+            'type'   => $type,
+            'fields' => ImportFieldRegistry::for($type),
+        ]);
     }
 
     public function store(Request $request)
@@ -74,6 +156,15 @@ class ImportController extends Controller
             'status'            => 'draft',
             'created_by_user_id'=> auth('tenant')->id(),
         ]);
+
+        // MARKER-IMPORT3 — count once, here, so the hub and the upload summary
+        // don't each re-read the file.
+        try {
+            $stats = (new CsvFile($abs, $import->delimiter, $import->encoding))->stats(true);
+            $import->update(['options' => ['row_count' => $stats['rows'], 'ragged' => $stats['ragged']]]);
+        } catch (\Throwable $e) {
+            \Log::warning('import row count failed', ['import' => $import->id, 'error' => $e->getMessage()]);
+        }
 
         return redirect()->route('tenant.imports.map', $import->id);
     }
