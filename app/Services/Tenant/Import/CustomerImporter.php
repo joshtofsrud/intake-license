@@ -281,14 +281,28 @@ class CustomerImporter
 
                     switch ($row['outcome']) {
                         case 'create':
-                            TenantCustomer::create(array_merge($row['values'], [
+                            // MARKER-IMPORT2 — ledger the creation so it can be undone
+                            $made = TenantCustomer::create(array_merge($row['values'], [
                                 'tenant_id' => $this->tenant->id,
                             ]));
+                            \App\Models\Tenant\TenantImportRow::create([
+                                'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
+                                'action' => 'created', 'record_type' => 'customer',
+                                'record_id' => $made->id, 'created_at' => now(),
+                            ]);
                             $counts['created']++;
                             break;
 
                         case 'update':
+                            // MARKER-IMPORT2 — record prior values so they can be restored
+                            $before = [];
+                            foreach ($row['changes'] as $k => $v) { $before[$k] = $row['match']->{$k}; }
                             $row['match']->update($row['changes']);
+                            \App\Models\Tenant\TenantImportRow::create([
+                                'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
+                                'action' => 'updated', 'record_type' => 'customer',
+                                'record_id' => $row['match']->id, 'before' => $before, 'created_at' => now(),
+                            ]);
                             $counts['updated']++;
                             break;
 

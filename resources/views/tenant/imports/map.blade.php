@@ -99,6 +99,40 @@
     </div>
   </div>
 
+  @if($import->type === 'inventory')
+    {{-- MARKER-IMPORT2 — stock is a movement at a location, so it needs one --}}
+    <div class="ia-card" style="margin-top:16px">
+      <div class="ia-card-head"><span class="ia-card-title">Stock &amp; records</span></div>
+      <div class="ia-card-body">
+        <div class="imp-two" style="margin-top:0">
+          <div>
+            <label class="ia-form-label">Count quantities at</label>
+            <select name="location_id" class="ia-input">
+              @foreach($locations as $loc)
+                <option value="{{ $loc->id }}">{{ $loc->name }}</option>
+              @endforeach
+            </select>
+            <p class="imp-hint" style="margin-top:6px">Recorded as a counted movement here, so the
+              ledger, transfers and reports stay consistent.</p>
+          </div>
+          <div>
+            <label class="ia-form-label">If the item already has stock</label>
+            <label class="imp-radio"><input type="radio" name="stock_mode" value="set" checked>
+              <span><b>Set to the file's number</b><span>Records the difference as a counted adjustment.</span></span></label>
+            <label class="imp-radio"><input type="radio" name="stock_mode" value="add">
+              <span><b>Add to what's there</b><span>Treats the file as a received shipment.</span></span></label>
+            <label class="imp-radio"><input type="radio" name="stock_mode" value="leave">
+              <span><b>Leave stock alone</b></span></label>
+          </div>
+        </div>
+        <label class="imp-radio"><input type="checkbox" name="create_categories" value="1" checked>
+          <span><b>Create categories that don't exist</b><span>Matched on name. "Parts &gt; Brakes" creates the parent too.</span></span></label>
+        <label class="imp-radio"><input type="checkbox" name="create_vendors" value="1" checked>
+          <span><b>Create vendors that don't exist</b><span>Existing vendors are matched on name first.</span></span></label>
+      </div>
+    </div>
+  @endif
+
   <div class="imp-foot">
     <a href="{{ route('tenant.imports.index') }}" class="ia-btn ia-btn--secondary">Cancel</a>
     <button type="submit" class="ia-btn ia-btn--primary">Check the file</button>

@@ -654,6 +654,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/imports/{id}/run',            [TenantControllers\ImportController::class, 'run'])->name('imports.run');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             Route::get('/imports/{id}/errors',          [TenantControllers\ImportController::class, 'errors'])->name('imports.errors');
+            Route::post('/imports/{id}/reverse',        [TenantControllers\ImportController::class, 'reverse'])->name('imports.reverse'); // MARKER-IMPORT2
 
             Route::get('/customers',            [TenantControllers\CustomerController::class, 'index'])->name('customers.index');
             Route::get('/customers/search',     [TenantControllers\CustomerController::class, 'search'])->name('customers.search');

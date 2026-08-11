@@ -19,15 +19,22 @@
 
 <form method="POST" action="{{ route('tenant.imports.store') }}" enctype="multipart/form-data">
   @csrf
-  <input type="hidden" name="type" value="customers">
+  {{-- MARKER-IMPORT2 — pick what you're importing --}}
+  <div class="ia-card">
+    <div class="ia-card-head"><span class="ia-card-title">What are you importing?</span></div>
+    <div class="ia-card-body">
+      <label class="imp-radio"><input type="radio" name="type" value="customers" checked>
+        <span><b>Customers</b><span>Names, contact details, address, notes, VIP, and the business
+          fields — business name, tax exemption, payment terms, PO required. Matched on email.</span></span></label>
+      <label class="imp-radio"><input type="radio" name="type" value="inventory">
+        <span><b>Inventory</b><span>SKU, name, description, cost and price, reorder points, bin,
+          size and colour, plus category, vendor and stock on hand. Matched on SKU.</span></span></label>
+    </div>
+  </div>
 
   <div class="ia-card">
-    <div class="ia-card-head"><span class="ia-card-title">Customers</span></div>
+    <div class="ia-card-head"><span class="ia-card-title">Your file</span></div>
     <div class="ia-card-body">
-      <p style="font-size:12.5px;color:var(--ia-text-dim);margin-bottom:16px">
-        Names, contact details, address, notes, VIP flag, and the business fields — business name,
-        tax exemption, payment terms, PO required. Matched on email address.
-      </p>
 
       <div class="imp-drop">
         <input type="file" name="file" accept=".csv,.txt" required class="ia-input" style="max-width:420px;margin:0 auto">

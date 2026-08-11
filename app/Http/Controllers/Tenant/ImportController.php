@@ -20,6 +20,14 @@ class ImportController extends Controller
         abort_unless(auth('tenant')->user()?->can('customers.import'), 403);
     }
 
+    /** MARKER-IMPORT2 — one importer per type, same contract. */
+    private function importer(TenantImport $import)
+    {
+        return $import->type === 'inventory'
+            ? new \App\Services\Tenant\Import\InventoryImporter(tenant(), $import)
+            : new CustomerImporter(tenant(), $import);
+    }
+
     private function find(string $id): TenantImport
     {
         return TenantImport::where('tenant_id', tenant()->id)->where('id', $id)->firstOrFail();
@@ -47,7 +55,7 @@ class ImportController extends Controller
         $this->guard();
 
         $data = $request->validate([
-            'type' => ['required', 'in:customers'],
+            'type' => ['required', 'in:customers,inventory'], // MARKER-IMPORT2
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:20480'],
         ]);
 
@@ -91,7 +99,11 @@ class ImportController extends Controller
             $import->update(['columns' => $preview['header'], 'mapping' => $mapping]);
         }
 
-        return view('tenant.imports.map', compact('import', 'preview', 'stats', 'fields', 'mapping'));
+        // MARKER-IMPORT2 — inventory needs a location to count stock at
+        $locations = \App\Models\Tenant\TenantLocation::where('tenant_id', tenant()->id)
+            ->where('is_active', true)->orderBy('name')->get();
+
+        return view('tenant.imports.map', compact('import', 'preview', 'stats', 'fields', 'mapping', 'locations'));
     }
 
     public function saveMapping(Request $request, string $id)
@@ -126,6 +138,12 @@ class ImportController extends Controller
                                ? $request->input('mode') : 'upsert',
                 'direction' => in_array($request->input('direction'), ['csv', 'keep', 'blank'], true)
                                ? $request->input('direction') : 'csv',
+                // MARKER-IMPORT2 — inventory only
+                'location_id'       => $request->input('location_id'),
+                'stock_mode'        => in_array($request->input('stock_mode'), ['set', 'add', 'leave'], true)
+                                       ? $request->input('stock_mode') : 'set',
+                'create_categories' => $request->boolean('create_categories'),
+                'create_vendors'    => $request->boolean('create_vendors'),
             ]),
         ]);
 
@@ -137,7 +155,7 @@ class ImportController extends Controller
         $this->guard();
         $import = $this->find($id);
 
-        $result = (new CustomerImporter(tenant(), $import))->preview();
+        $result = $this->importer($import)->preview();
         $import->update(['status' => 'previewed']);
 
         return view('tenant.imports.preview', compact('import', 'result'));
@@ -151,7 +169,7 @@ class ImportController extends Controller
         $import->update(['status' => 'running', 'started_at' => now()]);
 
         try {
-            $result = (new CustomerImporter(tenant(), $import))->run();
+            $result = $this->importer($import)->run();
         } catch (\Throwable $e) {
             $import->update(['status' => 'failed', 'failure_reason' => $e->getMessage(),
                              'finished_at' => now()]);
@@ -210,5 +228,37 @@ class ImportController extends Controller
 
         return response()->download($import->error_path,
             'import-errors-' . $import->original_filename);
+    }
+
+    /**
+     * MARKER-IMPORT2 — reverse an import.
+     *
+     * Anything that has been used since is kept rather than deleted, and the
+     * result says so plainly. Undoing twice is harmless: reversed rows are
+     * stamped and skipped.
+     */
+    public function reverse(string $id)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        if ($import->status !== 'done') {
+            return back()->with('error', 'Only a finished import can be reversed.');
+        }
+
+        $result = (new \App\Services\Tenant\Import\ImportReverser(tenant(), $import))->reverse();
+
+        $import->update([
+            'status' => 'reversed',
+            'totals' => array_merge((array) $import->totals, ['reversal' => $result]),
+        ]);
+
+        $msg = 'Reversed: ' . $result['deleted'] . ' deleted, ' . $result['restored'] . ' restored';
+        if ($result['stock_reversed']) { $msg .= ', ' . $result['stock_reversed'] . ' stock changes undone'; }
+        if ($result['kept']) {
+            $msg .= '. ' . $result['kept'] . ' kept because they have been used since.';
+        }
+
+        return redirect()->route('tenant.imports.show', $import->id)->with('success', $msg);
     }
 }
