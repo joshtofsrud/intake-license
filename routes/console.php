@@ -173,3 +173,11 @@ Schedule::command('search:build-terms')
     ->withoutOverlapping()
     ->runInBackground();
 
+// ----------------------------------------------------------------
+// MARKER-REG-SETTINGS — reap stale register drafts/quotes nightly,
+// per each tenant's retention setting (default: keep forever).
+// ----------------------------------------------------------------
+Schedule::command('sales:reap-drafts')
+    ->dailyAt('03:15')
+    ->withoutOverlapping()
+    ->runInBackground();

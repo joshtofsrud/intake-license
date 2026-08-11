@@ -2565,4 +2565,36 @@ class RegisterController extends Controller
             'services'    => $services,
         ]);
     }
+
+    // MARKER-REG-SETTINGS -- register settings tab (draft/quote retention)
+
+    public function settingsPage(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $cfg = (array) ($tenant->settings ?? []);
+
+        return view('tenant.register.settings', [
+            'tenant'         => $tenant,
+            'draftRetention' => (int) ($cfg['register_draft_retention_days'] ?? 0),
+            'quoteRetention' => (int) ($cfg['register_quote_retention_days'] ?? 0),
+        ]);
+    }
+
+    public function settingsSave(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'register_draft_retention_days' => 'required|integer|in:0,7,14,30,90',
+            'register_quote_retention_days' => 'required|integer|in:0,30,90,180,365',
+        ]);
+
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['register_draft_retention_days'] = (int) $data['register_draft_retention_days'];
+        $settings['register_quote_retention_days'] = (int) $data['register_quote_retention_days'];
+        $tenant->settings = $settings;
+        $tenant->save();
+
+        return redirect()->route('tenant.register.settings')->with('status', 'Register settings saved.');
+    }
 }

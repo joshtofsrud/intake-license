@@ -368,6 +368,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/register/drafts/{id}/commit',[TenantControllers\RegisterController::class, 'commitDraft'])->name('register.drafts.commit');
                 Route::get('/register/quotes',           [TenantControllers\RegisterController::class, 'quotesIndex'])->name('register.quotes.index');
                 Route::post('/register/quotes',          [TenantControllers\RegisterController::class, 'storeQuote'])->name('register.quotes.store');
+                // MARKER-REG-SETTINGS -- register settings tab
+                Route::get('/register/settings',         [TenantControllers\RegisterController::class, 'settingsPage'])->name('register.settings');
+                Route::post('/register/settings',        [TenantControllers\RegisterController::class, 'settingsSave'])->name('register.settings.save');
                 Route::get('/register/lookup-sale',       [TenantControllers\RegisterController::class, 'lookupSaleForRefund'])->name('register.lookup-sale');
                 Route::post('/register/transactions',     [TenantControllers\RegisterController::class, 'storeTransaction'])->name('register.transactions.store');
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');

@@ -1542,6 +1542,13 @@
     t.addEventListener('click', function() { switchTab(t.dataset.tab); });
   });
 
+  // MARKER-REG-SETTINGS -- hash deep-links: /settings#payments opens that
+  // pane. Only names that match a real pane switch; anything else ignored.
+  (function() {
+    var h = (window.location.hash || '').replace('#', '');
+    if (h && document.getElementById('pane-' + h)) switchTab(h);
+  })();
+
   /* -----------------------------------------------------------------------
    * Dirty tracking — per form, save bar dims when no changes
    * ----------------------------------------------------------------------- */

@@ -119,6 +119,7 @@
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link active">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
 </div>
 
 @if($rows->isEmpty())

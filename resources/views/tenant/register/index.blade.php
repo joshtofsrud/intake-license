@@ -419,6 +419,7 @@
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
   <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a> {{-- MARKER-REGISTER-RECON-DISPLAY --}}
+  <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
   {{-- MARKER-REGISTER-RECON-DISPLAY — register picker (only when registers exist) --}}
   @if (($registers ?? collect())->isNotEmpty())
     <select id="registerPicker" class="ia-input" style="margin-left:auto;max-width:220px;font-size:13px"
