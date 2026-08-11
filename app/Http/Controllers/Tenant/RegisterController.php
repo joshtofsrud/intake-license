@@ -2568,7 +2568,7 @@ class RegisterController extends Controller
 
     // MARKER-REG-SETTINGS -- register settings tab (draft/quote retention)
 
-    public function settingsPage(Request $request, string $id)
+    public function settingsPage(Request $request)
     {
         $tenant = tenant();
         $cfg = (array) ($tenant->settings ?? []);
@@ -2580,7 +2580,7 @@ class RegisterController extends Controller
         ]);
     }
 
-    public function settingsSave(Request $request, string $id)
+    public function settingsSave(Request $request)
     {
         $tenant = tenant();
 
