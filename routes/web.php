@@ -1069,3 +1069,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 Route::middleware(['App\Http\Middleware\ResolveTenant'])
     ->group($tenantRoutes);
 
+
+// MARKER-INVEST-SITE — shareable, rotatable investment page (not linked, not indexed)
+Route::prefix('invest/{token}')->group(function () {
+    Route::get('/', [\App\Http\Controllers\InvestController::class, 'show'])->name('invest.show');
+    Route::get('/doc/{doc}', [\App\Http\Controllers\InvestController::class, 'document'])->name('invest.doc');
+    Route::post('/lead', [\App\Http\Controllers\InvestController::class, 'lead'])
+        ->middleware('throttle:10,1')
+        ->name('invest.lead');
+});
