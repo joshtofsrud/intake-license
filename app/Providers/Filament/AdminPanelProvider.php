@@ -101,6 +101,7 @@ class AdminPanelProvider extends PanelProvider
                 // has no route and 404s, nav or no nav. Any NEW Filament page
                 // must be added here.
                 \App\Filament\Pages\MarketingTraffic::class,
+                \App\Filament\Pages\Raise::class, // MARKER-RAISE-ADMIN — panel lists pages explicitly, no auto-discovery
             ])
             ->widgets([
                 ServerHealthWidget::class,

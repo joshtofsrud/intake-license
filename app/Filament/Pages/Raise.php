@@ -1,0 +1,117 @@
+<?php
+
+namespace App\Filament\Pages;
+
+use App\Models\InvestLead;
+use App\Models\Investor;
+use App\Models\InvestToken;
+use Filament\Pages\Page;
+use Filament\Notifications\Notification;
+
+// MARKER-RAISE-ADMIN
+class Raise extends Page
+{
+    protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
+    protected static ?string $navigationLabel = 'Raise';
+    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $title           = 'Raise';
+    protected static ?int    $navigationSort  = 90;
+
+    protected static string $view = 'filament.pages.raise';
+
+    // add-investor form
+    public string $name   = '';
+    public string $email  = '';
+    public string $entity = '';
+    public $amount        = '';
+
+    public function addInvestor(): void
+    {
+        $data = $this->validate([
+            'name'   => ['required', 'string', 'max:190'],
+            'email'  => ['nullable', 'email', 'max:190'],
+            'entity' => ['nullable', 'string', 'max:190'],
+            'amount' => ['required', 'numeric', 'min:0', 'max:100000000'],
+        ]);
+
+        Investor::create([
+            'name'         => $data['name'],
+            'email'        => $data['email'] ?: null,
+            'entity'       => $data['entity'] ?: null,
+            'amount'       => (int) $data['amount'],
+            'committed_at' => now(),
+        ]);
+
+        $this->reset(['name', 'email', 'entity', 'amount']);
+
+        Notification::make()->title('Investor added')->success()->send();
+    }
+
+    public function markSigned(int $id): void
+    {
+        $investor = Investor::findOrFail($id);
+        $investor->forceFill(['signed_at' => now(), 'declined_at' => null])->save();
+
+        Notification::make()->title($investor->name . ' marked signed')->success()->send();
+    }
+
+    public function markFunded(int $id): void
+    {
+        $investor = Investor::findOrFail($id);
+        $investor->forceFill([
+            'funded_at'       => now(),
+            'signed_at'       => $investor->signed_at ?: now(),
+            'amount_received' => $investor->amount_received ?: $investor->amount,
+            'declined_at'     => null,
+        ])->save();
+
+        Notification::make()->title('Funds recorded for ' . $investor->name)->success()->send();
+    }
+
+    public function markDeclined(int $id): void
+    {
+        $investor = Investor::findOrFail($id);
+        $investor->forceFill(['declined_at' => now()])->save();
+
+        Notification::make()->title($investor->name . ' marked declined')->send();
+    }
+
+    public function reopen(int $id): void
+    {
+        $investor = Investor::findOrFail($id);
+        $investor->forceFill(['declined_at' => null])->save();
+
+        Notification::make()->title($investor->name . ' reopened')->send();
+    }
+
+    public function rotateInviteLink(): void
+    {
+        $token = InvestToken::rotate('rotated from master admin');
+
+        Notification::make()
+            ->title('New link issued')
+            ->body('Every previously shared link is now dead.')
+            ->warning()
+            ->send();
+    }
+
+    public function getViewData(): array
+    {
+        $investors = Investor::orderByRaw('funded_at is null')
+            ->orderByDesc('amount')
+            ->get();
+
+        $active = $investors->whereNull('declined_at');
+
+        return [
+            'investors'  => $investors,
+            'committed'  => (int) $active->sum('amount'),
+            'received'   => (int) $active->sum('amount_received'),
+            'target'     => Investor::TARGET,
+            'cap'        => Investor::CAP,
+            'token'      => InvestToken::current(),
+            'leads'      => InvestLead::latest()->limit(25)->get(),
+            'leadCount'  => InvestLead::count(),
+        ];
+    }
+}
