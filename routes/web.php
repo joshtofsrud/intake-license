@@ -165,6 +165,13 @@ $tenantRoutes = function () {
     Route::post('/checkout/place',       [TenantControllers\CheckoutController::class, 'place'])->name('tenant.checkout.place');
     Route::get('/checkout/return',       [TenantControllers\CheckoutController::class, 'returnLeg'])->name('tenant.checkout.return');
     Route::get('/order/{token}',         [TenantControllers\CheckoutController::class, 'confirmation'])->name('tenant.order.confirmation');
+    // MARKER-GIFTCARDS-PUBLIC -- public gift card pages
+    Route::get('/gift-cards',                 [TenantControllers\GiftCardPublicController::class, 'buy'])->name('tenant.gift-cards.public.buy');
+    Route::post('/gift-cards/purchase',       [TenantControllers\GiftCardPublicController::class, 'purchase'])->name('tenant.gift-cards.public.purchase')->middleware('throttle:10,1');
+    Route::get('/gift-cards/return',          [TenantControllers\GiftCardPublicController::class, 'returnLeg'])->name('tenant.gift-cards.public.return');
+    Route::get('/gift-cards/thanks',          [TenantControllers\GiftCardPublicController::class, 'thanks'])->name('tenant.gift-cards.public.thanks');
+    Route::get('/gift-cards/balance',         [TenantControllers\GiftCardPublicController::class, 'balance'])->name('tenant.gift-cards.public.balance');
+    Route::post('/gift-cards/balance',        [TenantControllers\GiftCardPublicController::class, 'balanceCheck'])->name('tenant.gift-cards.public.balance.check')->middleware('throttle:10,1');
     Route::get('/rentals',               [TenantControllers\RentalBrowseController::class, 'index'])->name('tenant.rentals.browse');
     // MARKER-PATCH-240 — public reservation checkout.
     Route::get( '/rentals/reserve',          [TenantControllers\RentalReserveController::class, 'show'])->name('tenant.rentals.reserve');
@@ -372,6 +379,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/register/settings',         [TenantControllers\RegisterController::class, 'settingsPage'])->name('register.settings');
                 Route::post('/register/settings',        [TenantControllers\RegisterController::class, 'settingsSave'])->name('register.settings.save');
                 Route::get('/register/lookup-sale',       [TenantControllers\RegisterController::class, 'lookupSaleForRefund'])->name('register.lookup-sale');
+                Route::get('/register/gift-cards/lookup', [TenantControllers\RegisterController::class, 'giftCardLookup'])->name('register.gift-cards.lookup'); // MARKER-GIFTCARDS
+                // MARKER-GIFTCARDS-ADMIN -- staff gift card manager
+                Route::get('/gift-cards',                     [TenantControllers\GiftCardController::class, 'index'])->name('gift-cards.index');
+                Route::post('/gift-cards',                    [TenantControllers\GiftCardController::class, 'store'])->name('gift-cards.store');
+                Route::get('/gift-cards/{cardId}',            [TenantControllers\GiftCardController::class, 'show'])->name('gift-cards.show');
+                Route::post('/gift-cards/{cardId}/adjust',    [TenantControllers\GiftCardController::class, 'adjust'])->name('gift-cards.adjust');
+                Route::post('/gift-cards/{cardId}/deactivate',[TenantControllers\GiftCardController::class, 'deactivate'])->name('gift-cards.deactivate');
                 Route::post('/register/transactions',     [TenantControllers\RegisterController::class, 'storeTransaction'])->name('register.transactions.store');
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');

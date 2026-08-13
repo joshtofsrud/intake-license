@@ -131,6 +131,17 @@ class SaleService
 
             $finalSale = $this->recalculate($sale->fresh('items'));
 
+            // MARKER-GIFTCARDS -- inside the sale transaction, BEFORE the
+            // fail-open payment-ledger block: debit any gift-card tenders
+            // (throws on unknown code / short balance, rolling everything
+            // back) and activate any gift cards sold on this sale. Paid
+            // sales only -- an unpaid sale must never activate a card.
+            if (($finalSale->payment_status ?? null) === 'paid') {
+                $gifts = app(\App\Services\Tenant\GiftCardService::class);
+                $gifts->redeemTenders($finalSale, $data);
+                $gifts->issueForSale($finalSale);
+            }
+
             // MARKER-PATCH-176 — record payment on the SALE ledger (createSale
             // path). Mirrors the commit path; appointment reads it through its
             // sale. Refresh appointment paid_cents cache afterward.
@@ -386,6 +397,15 @@ class SaleService
 
             $finalSale = $this->recalculate($sale->fresh('items'));
 
+            // MARKER-GIFTCARDS -- same as createSale, but only when this
+            // commit is actually taking payment (quotes/drafts committing to
+            // unpaid states neither debit nor activate).
+            if ($newPaymentStatus === 'paid') {
+                $gifts = app(\App\Services\Tenant\GiftCardService::class);
+                $gifts->redeemTenders($finalSale, $data);
+                $gifts->issueForSale($finalSale);
+            }
+
             // Appointment-payment hook. If this sale is linked to an
             // appointment (auto-created from Completed, or manual deposit
             // collection), write a payment row to the appointment ledger.
@@ -490,6 +510,22 @@ class SaleService
         $inventoryItemId= $data['inventory_item_id'] ?? null;
         $giftCardId     = $data['gift_card_id'] ?? null;
 
+        // MARKER-GIFTCARDS -- gift lines carry their gift details in metadata
+        // (survives drafts/quotes; commitDraft activates from the row). Tax
+        // is charged when the card is SPENT, never when it is sold.
+        $metadata = null;
+        if ($type === 'gift_card') {
+            $isTaxable = false;
+            $gc = (array) ($data['gift_card'] ?? []);
+            $metadata = [
+                'kind'            => ($gc['kind'] ?? 'physical') === 'egift' ? 'egift' : 'physical',
+                'code'            => isset($gc['code']) ? \App\Models\Tenant\TenantGiftCard::normalizeCode((string) $gc['code']) : null,
+                'recipient_name'  => $gc['recipient_name'] ?? null,
+                'recipient_email' => $gc['recipient_email'] ?? null,
+                'gift_message'    => $gc['gift_message'] ?? null,
+            ];
+        }
+
         // Snapshot from source records when available
         if ($type === 'service' && $serviceId) {
             $service = TenantServiceItem::find($serviceId);
@@ -534,6 +570,7 @@ class SaleService
             'service_id'          => $serviceId,
             'inventory_item_id'   => $inventoryItemId,
             'gift_card_id'        => $giftCardId,
+            'metadata'            => $metadata ?? null, // MARKER-GIFTCARDS
             'name_snapshot'       => $name,
             'description_snapshot'=> $description,
             'cost_cents_snapshot' => $costCents,

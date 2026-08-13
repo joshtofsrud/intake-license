@@ -181,3 +181,11 @@ Schedule::command('sales:reap-drafts')
     ->dailyAt('03:15')
     ->withoutOverlapping()
     ->runInBackground();
+// ----------------------------------------------------------------
+// MARKER-GIFTCARDS-PUBLIC — e-gift delivery: scheduled deliver_on
+// dates plus a backstop for failed issue-time sends. Idempotent.
+// ----------------------------------------------------------------
+Schedule::command('gift-cards:deliver')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();

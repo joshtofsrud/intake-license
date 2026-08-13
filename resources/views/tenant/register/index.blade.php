@@ -473,6 +473,7 @@
       </div>
 
       <button type="button" class="reg-open-item" id="addOpenItemBtn">+ Add custom item</button>
+      <button type="button" class="reg-open-item" id="sellGiftCardBtn">+ Sell gift card</button> {{-- MARKER-GIFTCARDS --}}
     </div>
 
     <div class="reg-panel">
@@ -552,6 +553,7 @@
       </button>
       <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
+      <button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button> {{-- MARKER-GIFTCARDS --}}
       {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
       @foreach(($manualTenders ?? []) as $mt)
         <button type="button" class="reg-tender-btn" data-tender="{{ $mt['key'] }}"
@@ -577,6 +579,19 @@
     </div>
     <div id="splitHint" style="display:none;font-size:11.5px;color:var(--ia-text-dim);margin:-6px 0 12px">
       Type a partial amount to split tenders — cash above the remainder computes change.
+    </div>
+    {{-- MARKER-GIFTCARDS -- code entry + live balance for the gift tender --}}
+    <div id="gcTenderRow" style="display:none;margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Gift card code</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="gcTenderCode" placeholder="GC-0000-0000-0000" style="flex:1;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:var(--ia-font-mono)">
+        <button type="button" class="reg-btn-secondary" id="gcTenderCheckBtn" style="flex:0 0 auto;padding:10px 16px">Check</button>
+      </div>
+      <div id="gcTenderBalance" style="display:none;justify-content:space-between;align-items:center;border:1px solid var(--ia-border);border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13px">
+        <span>Balance on this card</span>
+        <b id="gcTenderBalanceAmt" style="font-variant-numeric:tabular-nums;color:var(--ia-accent);font-size:15px"></b>
+      </div>
+      <div id="gcTenderErr" style="display:none;font-size:12.5px;color:#f87171;margin-top:8px"></div>
     </div>
     <div id="tenderRefRow" style="display:none;margin-bottom:14px">
       <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Reference (optional)</label>
@@ -755,6 +770,50 @@
   </div>
 </div>
 
+{{-- MARKER-GIFTCARDS -- sell a gift card. Card is issued & activated when the
+     sale COMPLETES, not when the line is added. --}}
+<div class="reg-modal-bg" id="gcSellModal">
+  <div class="reg-modal">
+    <h2>Sell a gift card</h2>
+    <div class="lede">Card is issued and activated when this sale is completed.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <button type="button" class="reg-tender-btn selected" id="gcKindPhysical">Physical card<br><span style="font-size:11.5px;color:var(--ia-text-dim);font-weight:400">Scan or type the card code</span></button>
+      <button type="button" class="reg-tender-btn" id="gcKindEgift">E-gift card<br><span style="font-size:11.5px;color:var(--ia-text-dim);font-weight:400">Emailed to the recipient</span></button>
+    </div>
+
+    <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin:12px 0 6px;font-weight:500">Amount</label>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px" id="gcAmountGrid">
+      <button type="button" class="reg-tender-btn" data-cents="2500" style="text-align:center;font-weight:600">$25</button>
+      <button type="button" class="reg-tender-btn" data-cents="5000" style="text-align:center;font-weight:600">$50</button>
+      <button type="button" class="reg-tender-btn" data-cents="10000" style="text-align:center;font-weight:600">$100</button>
+      <button type="button" class="reg-tender-btn" data-cents="15000" style="text-align:center;font-weight:600">$150</button>
+    </div>
+    <input type="text" id="gcCustomAmount" placeholder="Custom amount" inputmode="decimal">
+
+    <div id="gcPhysicalFields">
+      <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin:12px 0 6px;font-weight:500">Card code</label>
+      <input type="text" id="gcSellCode" placeholder="Scan or type the printed code" style="font-family:var(--ia-font-mono)">
+      <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px">Scan the barcode on the physical card, or type its printed code. Codes must be unused.</div>
+    </div>
+
+    <div id="gcEgiftFields" style="display:none">
+      <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin:12px 0 6px;font-weight:500">Recipient email</label>
+      <input type="email" id="gcSellEmail" placeholder="who@example.com">
+      <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin:12px 0 6px;font-weight:500">Gift message <span style="font-weight:400;color:var(--ia-text-dim)">(optional)</span></label>
+      <textarea id="gcSellMessage" maxlength="500"></textarea>
+      <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px">Code is generated automatically and emailed when the sale completes.</div>
+    </div>
+
+    <div id="gcSellErr" style="display:none;font-size:12.5px;color:#f87171;margin-top:10px"></div>
+
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" data-close-modal="gcSellModal">Cancel</button>
+      <button type="button" class="reg-btn-primary" id="gcSellAddBtn">Add to sale</button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="customerModal">
   <div class="reg-modal">
     <h2>Attach customer</h2>
@@ -880,6 +939,7 @@ function openItemInfo( id ) {
 @push('scripts')
 <script>
 const ROUTES = {
+  giftCardLookup: '{{ route('tenant.register.gift-cards.lookup') }}', // MARKER-GIFTCARDS
   search:      @json(route('tenant.register.search')),
   storeSale:   @json(route('tenant.register.sales.store')),
   offlineCatalog: @json(route('tenant.register.offline_catalog')), // MARKER-OFFLINE-SYNC
@@ -1805,6 +1865,111 @@ document.getElementById('openItemAddBtn').addEventListener('click', () => {
   closeModal('openItemModal');
 });
 
+// MARKER-GIFTCARDS -- sell-modal + tender balance check --------------------
+window.gcTender = null;
+const gcSell = { kind: 'physical', cents: null };
+
+document.getElementById('sellGiftCardBtn').addEventListener('click', () => {
+  gcSell.kind = 'physical'; gcSell.cents = null;
+  document.getElementById('gcKindPhysical').classList.add('selected');
+  document.getElementById('gcKindEgift').classList.remove('selected');
+  document.getElementById('gcPhysicalFields').style.display = '';
+  document.getElementById('gcEgiftFields').style.display = 'none';
+  document.querySelectorAll('#gcAmountGrid .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  ['gcCustomAmount','gcSellCode','gcSellEmail','gcSellMessage'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('gcSellErr').style.display = 'none';
+  openModal('gcSellModal');
+});
+
+function gcSetKind(kind) {
+  gcSell.kind = kind;
+  document.getElementById('gcKindPhysical').classList.toggle('selected', kind === 'physical');
+  document.getElementById('gcKindEgift').classList.toggle('selected', kind === 'egift');
+  document.getElementById('gcPhysicalFields').style.display = kind === 'physical' ? '' : 'none';
+  document.getElementById('gcEgiftFields').style.display = kind === 'egift' ? '' : 'none';
+}
+document.getElementById('gcKindPhysical').addEventListener('click', () => gcSetKind('physical'));
+document.getElementById('gcKindEgift').addEventListener('click', () => gcSetKind('egift'));
+
+document.querySelectorAll('#gcAmountGrid .reg-tender-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#gcAmountGrid .reg-tender-btn').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+    gcSell.cents = parseInt(b.dataset.cents, 10);
+    document.getElementById('gcCustomAmount').value = '';
+  });
+});
+document.getElementById('gcCustomAmount').addEventListener('input', () => {
+  document.querySelectorAll('#gcAmountGrid .reg-tender-btn').forEach(x => x.classList.remove('selected'));
+  gcSell.cents = null;
+});
+
+function gcSellError(msg) {
+  const el = document.getElementById('gcSellErr');
+  el.textContent = msg; el.style.display = '';
+}
+
+document.getElementById('gcSellAddBtn').addEventListener('click', async () => {
+  document.getElementById('gcSellErr').style.display = 'none';
+  let cents = gcSell.cents;
+  const custom = document.getElementById('gcCustomAmount').value.trim();
+  if (!cents && custom) {
+    const f = parseFloat(custom.replace(/[^0-9.]/g, ''));
+    if (!isNaN(f) && f > 0) cents = Math.round(f * 100);
+  }
+  if (!cents || cents < 100) { gcSellError('Pick or enter an amount of at least $1.00.'); return; }
+
+  const gift = { kind: gcSell.kind };
+  let label;
+  if (gcSell.kind === 'physical') {
+    const code = document.getElementById('gcSellCode').value.trim();
+    if (!code) { gcSellError('Scan or type the card code.'); return; }
+    // Reject a code already in use before it can poison the commit.
+    try {
+      const r = await fetch(ROUTES.giftCardLookup + '?code=' + encodeURIComponent(code), { headers: { 'Accept': 'application/json' } });
+      if (r.ok) { gcSellError('That card code is already in use.'); return; }
+    } catch (e) { /* offline: server re-checks at commit */ }
+    gift.code = code;
+    label = 'Gift card \u00b7 ' + code.slice(-4);
+  } else {
+    const email = document.getElementById('gcSellEmail').value.trim();
+    if (!email || !email.includes('@')) { gcSellError('Recipient email is required for an e-gift card.'); return; }
+    gift.recipient_email = email;
+    const msg = document.getElementById('gcSellMessage').value.trim();
+    if (msg) gift.gift_message = msg;
+    label = 'E-gift card \u00b7 ' + email;
+  }
+
+  const line = {type:'gift_card', source_id:null, name:label, price_cents:cents, is_taxable:false};
+  addToCart(line);
+  cart.items[cart.items.length - 1].gift = gift;
+  queueDraftSave();
+  closeModal('gcSellModal');
+});
+
+document.getElementById('gcTenderCheckBtn').addEventListener('click', async () => {
+  const code = document.getElementById('gcTenderCode').value.trim();
+  const err = document.getElementById('gcTenderErr');
+  const bal = document.getElementById('gcTenderBalance');
+  err.style.display = 'none'; bal.style.display = 'none';
+  window.gcTender = null;
+  if (!code) return;
+  try {
+    const r = await fetch(ROUTES.giftCardLookup + '?code=' + encodeURIComponent(code), { headers: { 'Accept': 'application/json' } });
+    const data = await r.json();
+    if (!r.ok || !data.ok) { err.textContent = (data && data.error) || 'No gift card found for that code.'; err.style.display = ''; return; }
+    if (data.status !== 'active') { err.textContent = 'Card ' + data.masked + ' is ' + data.status + '.'; err.style.display = ''; return; }
+    window.gcTender = { code: code, balance: data.balance_cents };
+    document.getElementById('gcTenderBalanceAmt').textContent = fmt(data.balance_cents);
+    bal.style.display = 'flex';
+    const inp = document.getElementById('splitAmountInput');
+    if (inp) { inp.value = (Math.min(data.balance_cents, splitRemaining()) / 100).toFixed(2); }
+  } catch (e) {
+    err.textContent = 'Could not check the card — network error.'; err.style.display = '';
+  }
+});
+// MARKER-GIFTCARDS end ------------------------------------------------------
+
 function openCustomerModal() {
   document.getElementById('customerSearchInput').value = '';
   document.getElementById('customerResults').style.display = 'none';
@@ -2097,12 +2262,19 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
     openCardPaymentModal();
     return;
   }
+  // MARKER-GIFTCARDS -- gift leg needs a checked card; cap at its balance
+  if (cart.payment_method === 'gift_card') {
+    if (!window.gcTender || !gcTender.code) { showError('Check the gift card first.'); return; }
+    if (c > gcTender.balance) c = gcTender.balance;
+    if (c <= 0) return;
+  }
   const selBtn = document.querySelector('#tenderModal .reg-tender-btn.selected');
   cart.payments.push({
     method: cart.payment_method,
     amount_cents: c,
     change_cents: change,
-    reference: (document.getElementById('tenderRefInput').value || '').trim() || null,
+    reference: cart.payment_method === 'gift_card' ? gcTender.code
+             : ((document.getElementById('tenderRefInput').value || '').trim() || null),
     label: selBtn ? selBtn.textContent.trim().split('\n')[0].trim() : cart.payment_method,
   });
   cart.payment_method = null;
@@ -2162,6 +2334,16 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
     } else {
       manualRow.style.display = 'none';
     }
+    // MARKER-GIFTCARDS -- gift tender: code row + block on refund carts
+    (function () {
+      const isGift = btn.dataset.tender === 'gift_card';
+      const gr = document.getElementById('gcTenderRow');
+      if (gr) gr.style.display = isGift ? '' : 'none';
+      if (isGift && cart.refund_lines.length > 0) {
+        showError('Gift card tender isn\'t available on transactions with refund lines yet — ring the sale separately.');
+      }
+      if (!isGift) { window.gcTender = null; const b = document.getElementById('gcTenderBalance'); if (b) b.style.display = 'none'; }
+    })();
     renderTotals();
   });
 });
@@ -2474,6 +2656,18 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   }
 
   cart.payment_reference = document.getElementById('tenderRefInput').value.trim() || null;
+
+  // MARKER-GIFTCARDS -- single gift tender: require a checked card whose
+  // balance covers the full total; otherwise it belongs in a split.
+  if (cart.payment_method === 'gift_card' && cart.payments.length === 0) {
+    if (!window.gcTender || !gcTender.code) { showError('Check the gift card balance first.'); return; }
+    const gcDue = (calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents) - (calcRefundSubtotal() + calcRefundTax());
+    if (gcTender.balance < gcDue) {
+      showError('Gift card covers ' + fmt(gcTender.balance) + ' of ' + fmt(gcDue) + ' — add it as a split payment for the part it covers.');
+      return;
+    }
+    cart.payment_reference = gcTender.code;
+  }
 
   // MARKER-SPLIT-TENDER — split path: tenders recorded row by row; the tip
   // modal is skipped (set tips before splitting so remaining math is stable).
@@ -2828,6 +3022,11 @@ function serializeLine(i) {
   if (i.type === 'open_item') {
     out.name_snapshot = i.name;
     out.unit_price_cents = i.price_cents;
+  }
+  if (i.type === 'gift_card') { // MARKER-GIFTCARDS
+    out.name_snapshot = i.name;
+    out.unit_price_cents = i.price_cents;
+    out.gift_card = i.gift || {};
   }
   return out;
 }

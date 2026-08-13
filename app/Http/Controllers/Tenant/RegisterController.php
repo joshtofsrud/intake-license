@@ -283,6 +283,13 @@ class RegisterController extends Controller
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.discount_cents'   => 'nullable|integer|min:0',
             'items.*.is_taxable'       => 'nullable|boolean',
+            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            'items.*.gift_card'                  => 'nullable|array',
+            'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
+            'items.*.gift_card.code'             => 'nullable|string|max:40',
+            'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
+            'items.*.gift_card.recipient_email'  => 'nullable|email|max:160',
+            'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
             // MARKER-PATCH-161 — per-sale receipt skip
@@ -394,6 +401,13 @@ class RegisterController extends Controller
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.discount_cents'   => 'nullable|integer|min:0',
             'items.*.is_taxable'       => 'nullable|boolean',
+            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            'items.*.gift_card'                  => 'nullable|array',
+            'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
+            'items.*.gift_card.code'             => 'nullable|string|max:40',
+            'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
+            'items.*.gift_card.recipient_email'  => 'nullable|email|max:160',
+            'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
         ]);
@@ -859,6 +873,16 @@ class RegisterController extends Controller
         $tenant = tenant();
         $locationId = $request->session()->get('current_location_id');
 
+        // MARKER-GIFTCARDS -- gift-card tender is not wired into the mixed
+        // sale+refund transaction path yet; rejecting loudly beats accepting
+        // a tender that never debits the card. Plain sales support it fully.
+        $pm = (string) $request->input('payment_method', '');
+        $giftInSplit = collect((array) $request->input('payments', []))
+            ->contains(fn ($p) => ($p['method'] ?? null) === 'gift_card');
+        if ($pm === 'gift_card' || $giftInSplit) {
+            return response()->json(['ok' => false, 'error' => 'Gift card tender isn\'t available on transactions with refund lines yet — ring the sale separately.'], 422);
+        }
+
         if (!$locationId) {
             return response()->json(['ok' => false, 'error' => 'No location selected.'], 409);
         }
@@ -876,6 +900,13 @@ class RegisterController extends Controller
             'items.*.unit_price_cents' => 'nullable|integer|min:0',
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.is_taxable'       => 'nullable|boolean',
+            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            'items.*.gift_card'                  => 'nullable|array',
+            'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
+            'items.*.gift_card.code'             => 'nullable|string|max:40',
+            'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
+            'items.*.gift_card.recipient_email'  => 'nullable|email|max:160',
+            'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             // MARKER-SPLIT-TENDER — optional multi-tender payments. When
             // present, payment_method is 'split' and applied amounts must sum
             // to the authoritative server-side total (checked in SaleService).
@@ -1320,6 +1351,13 @@ class RegisterController extends Controller
             'items.*.quantity'         => 'nullable|numeric|min:0.001',
             'items.*.discount_cents'   => 'nullable|integer|min:0',
             'items.*.is_taxable'       => 'nullable|boolean',
+            // MARKER-GIFTCARDS -- gift line details, stored as line metadata
+            'items.*.gift_card'                  => 'nullable|array',
+            'items.*.gift_card.kind'             => 'nullable|string|in:physical,egift',
+            'items.*.gift_card.code'             => 'nullable|string|max:40',
+            'items.*.gift_card.recipient_name'   => 'nullable|string|max:120',
+            'items.*.gift_card.recipient_email'  => 'nullable|email|max:160',
+            'items.*.gift_card.gift_message'     => 'nullable|string|max:500',
             'items.*.assigned_staff_id'=> 'nullable|uuid',
             'items.*.notes'            => 'nullable|string',
         ]);
@@ -2266,7 +2304,7 @@ class RegisterController extends Controller
         $manual = \App\Models\Tenant\TenantPaymentMethod::where('tenant_id', tenant()->id)
             ->where('enabled', true)->where('kind', 'manual')
             ->pluck('method_key')->all();
-        $all = array_unique(array_merge(['cash', 'card', 'check', 'store_credit', 'mark_paid', 'split'], $extra, $manual));
+        $all = array_unique(array_merge(['cash', 'card', 'check', 'store_credit', 'gift_card', 'mark_paid', 'split'], $extra, $manual));
         return 'required|string|in:' . implode(',', $all);
     }
 
@@ -2596,5 +2634,24 @@ class RegisterController extends Controller
         $tenant->save();
 
         return redirect()->route('tenant.register.settings')->with('status', 'Register settings saved.');
+    }
+
+    // MARKER-GIFTCARDS -- live balance check for the tender + sell modals.
+
+    public function giftCardLookup(Request $request): JsonResponse
+    {
+        $code = (string) $request->query('code', '');
+        $card = app(\App\Services\Tenant\GiftCardService::class)->lookup(tenant()->id, $code);
+
+        if (! $card) {
+            return response()->json(['ok' => false, 'error' => 'No gift card found for that code.'], 404);
+        }
+
+        return response()->json([
+            'ok'            => true,
+            'status'        => $card->status,
+            'balance_cents' => (int) $card->balance_cents,
+            'masked'        => $card->maskedCode(),
+        ]);
     }
 }

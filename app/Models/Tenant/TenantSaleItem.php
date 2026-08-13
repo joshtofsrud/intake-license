@@ -15,7 +15,7 @@ class TenantSaleItem extends Model
 
     protected $fillable = [
         'tenant_id', 'sale_id', 'type',
-        'service_id', 'inventory_item_id', 'gift_card_id',
+        'service_id', 'inventory_item_id', 'gift_card_id', 'metadata', // MARKER-GIFTCARDS
         'name_snapshot', 'description_snapshot', 'cost_cents_snapshot',
         'quantity', 'unit_price_cents', 'discount_cents',
         'tax_rate_snapshot', 'is_taxable', 'tax_cents',
@@ -25,6 +25,7 @@ class TenantSaleItem extends Model
     ];
 
     protected $casts = [
+        'metadata' => 'array', // MARKER-GIFTCARDS
         'quantity'            => 'decimal:3',
         'unit_price_cents'    => 'integer',
         'discount_cents'      => 'integer',

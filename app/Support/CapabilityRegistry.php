@@ -68,6 +68,15 @@ class CapabilityRegistry
                 'default_roles' => ['Manager'],
             ],
 
+            // ---- Register ---- MARKER-GIFTCARDS-ADMIN
+            'giftcards.manage' => [
+                'label'   => 'Manage gift cards',
+                'section' => 'register',
+                'desc'    => 'Issue cards manually, adjust balances, and deactivate lost or stolen cards.',
+                'gate'    => null,
+                'default_roles' => ['Manager'],
+            ],
+
             // ---- Scheduling ----
             'scheduling.build' => [
                 'label'   => 'Build & publish schedules',
