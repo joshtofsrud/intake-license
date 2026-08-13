@@ -46,9 +46,46 @@ class MarketingFunnelController extends Controller
             return response()->json(['ok' => false], 204);
         }
 
+        // MARKER-MKTBOTFIX -- classify from the User-Agent server-side (the
+        // client's own guess is advisory) and drop crawler traffic before it
+        // is written, exactly as the tenant tracker does. Every crawler page
+        // hit was arriving with a fresh sessionStorage id, so each one
+        // surfaced as its own 1-page session.
+        $data['device'] = self::deviceFromUserAgent($request->userAgent() ?? '');
+
+        if ($data['device'] === 'bot') {
+            return response()->json(['ok' => true, 'skipped' => 'bot']);
+        }
+
         self::record($data['event_type'], $data);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * MARKER-MKTBOTFIX -- same coarse buckets as the tenant tracker's
+     * FunnelTrackController. Enough for the mobile/desktop/tablet split;
+     * deliberately not fingerprinting.
+     */
+    public static function deviceFromUserAgent(string $ua): string
+    {
+        $ua = strtolower($ua);
+
+        if ($ua === '') {
+            return 'unknown';
+        }
+        if (preg_match('/bot|crawl|spider|slurp|bingpreview|facebookexternalhit/', $ua)) {
+            return 'bot';
+        }
+        if (str_contains($ua, 'ipad') || str_contains($ua, 'tablet')
+            || (str_contains($ua, 'android') && ! str_contains($ua, 'mobile'))) {
+            return 'tablet';
+        }
+        if (str_contains($ua, 'iphone') || str_contains($ua, 'mobile') || str_contains($ua, 'android')) {
+            return 'mobile';
+        }
+
+        return 'desktop';
     }
 
     /**

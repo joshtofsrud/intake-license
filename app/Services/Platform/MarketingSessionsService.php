@@ -61,6 +61,12 @@ class MarketingSessionsService
             ->where('tenant_id', $tenant->id)
             ->where('created_at', '>=', $this->start)
             ->where('created_at', '<',  $this->end)
+            // MARKER-MKTBOTFIX -- rows written before the ingest-side skip
+            // existed. Filtering here (not in PHP) also means EVENT_LIMIT is
+            // spent on real traffic instead of crawler noise.
+            ->where(function ($w) {
+                $w->whereNull('device')->orWhere('device', '!=', 'bot');
+            })
             ->orderBy('created_at')
             ->limit(self::EVENT_LIMIT)
             ->get(['session_id', 'event_type', 'path', 'device', 'referrer_domain', 'utm_source', 'created_at']);
@@ -118,7 +124,10 @@ class MarketingSessionsService
         $out = [];
         foreach ($sessions as $s) {
             $pageCount = count($s['pages']);
-            $seconds   = $s['last_at']->diffInSeconds($s['first_at']);
+            // MARKER-MKTBOTFIX -- first -> last. Carbon 3 diffs are SIGNED,
+            // so the old last -> first returned a negative and every session
+            // rendered as 0:00. Cast: Carbon 3 returns a float.
+            $seconds   = (int) $s['first_at']->diffInSeconds($s['last_at']);
 
             $out[] = [
                 'session'    => $s['session'],
