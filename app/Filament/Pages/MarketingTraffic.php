@@ -28,7 +28,8 @@ class MarketingTraffic extends Page
     public function mount(): void
     {
         $this->window = request()->query('window', '30d');
-        if (! in_array($this->window, ['7d', '30d', '90d'], true)) {
+        // MARKER-MKTSID -- '1d' is TrafficReportService's existing today window.
+        if (! in_array($this->window, ['1d', '7d', '30d', '90d'], true)) {
             $this->window = '30d';
         }
     }

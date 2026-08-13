@@ -16,7 +16,10 @@
       sessionStorage.setItem(KEY, sid);
     }
   } catch (e) {
-    sid = 'nostore';
+    // MARKER-MKTSID -- storage unavailable: send NO id and let the server's
+    // mkt_sid cookie identify this visitor. The old 'nostore' literal made
+    // every storage-blocked visitor share one session.
+    sid = null;
   }
 
   var params = new URLSearchParams(window.location.search);
@@ -31,7 +34,7 @@
 
   function send(eventType, step) {
     var payload = JSON.stringify({
-      session_id:   sid,
+      session_id:   sid || null, // MARKER-MKTSID
       event_type:   eventType,
       path:         window.location.pathname,
       referrer_url: document.referrer || null,

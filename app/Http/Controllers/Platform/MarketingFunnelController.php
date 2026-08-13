@@ -14,6 +14,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cookie; // MARKER-MKTSID
+use Illuminate\Support\Str;             // MARKER-MKTSID
 
 class MarketingFunnelController extends Controller
 {
@@ -31,7 +33,7 @@ class MarketingFunnelController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'session_id'   => ['required', 'string', 'max:64'],
+            'session_id'   => ['nullable', 'string', 'max:64'], // MARKER-MKTSID
             'event_type'   => ['required', 'string', 'max:32'],
             'path'         => ['nullable', 'string', 'max:255'],
             'referrer_url' => ['nullable', 'string', 'max:2048'],
@@ -57,9 +59,43 @@ class MarketingFunnelController extends Controller
             return response()->json(['ok' => true, 'skipped' => 'bot']);
         }
 
+        // MARKER-MKTSID -- resolve the visitor's id, then persist it as a
+        // cookie so it survives a tab close and a blocked sessionStorage.
+        $data['session_id'] = $this->resolveSession($request);
+
         self::record($data['event_type'], $data);
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true])->withCookie(
+            Cookie::make('mkt_sid', $data['session_id'], 60 * 24 * 90, '/', null, true, true, false, 'lax')
+        );
+    }
+
+    /**
+     * MARKER-MKTSID -- anonymous session id, same shape as the tenant
+     * tracker's resolveSession().
+     *
+     * The client id wins when present and well-formed: several first-visit
+     * beacons can be in flight before any Set-Cookie lands, and preferring
+     * the cookie would mint a separate id for each of them (the bug the
+     * tenant side fixed in MARKER-FUNNEL-SESSION-FIX). The regex allows 12
+     * chars because this tracker mints base36 time + random (~18), shorter
+     * than the tenant's 40-char ids -- and it rejects the old 'nostore'
+     * literal, which used to merge every storage-blocked visitor into one
+     * shared session.
+     */
+    protected function resolveSession(Request $request): string
+    {
+        $fromPayload = (string) $request->input('session_id', '');
+        if ($fromPayload !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $fromPayload)) {
+            return $fromPayload;
+        }
+
+        $cookie = (string) $request->cookie('mkt_sid', '');
+        if ($cookie !== '' && preg_match('/^[a-zA-Z0-9]{12,64}$/', $cookie)) {
+            return $cookie;
+        }
+
+        return (string) Str::random(40);
     }
 
     /**
