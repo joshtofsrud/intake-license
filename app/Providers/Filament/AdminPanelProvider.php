@@ -103,6 +103,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\MarketingTraffic::class,
                 \App\Filament\Pages\Raise::class, // MARKER-RAISE-ADMIN — panel lists pages explicitly, no auto-discovery
                 \App\Filament\Pages\InvestorRecord::class, // MARKER-RAISE-RECORDS
+                \App\Filament\Pages\RaiseSetup::class, // MARKER-RAISE-SETUP
             ])
             ->widgets([
                 ServerHealthWidget::class,

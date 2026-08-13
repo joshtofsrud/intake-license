@@ -182,7 +182,7 @@ class InvestorRecord extends Page
             'investor' => $investor,
             'documents' => $investor->documents()->get(),
             'events'    => $investor->events()->limit(50)->get(),
-            'cap'       => Investor::CAP,
+            'cap'       => Investor::cap(),
             'templates' => \App\Services\InvestorMessenger::templates(),
             'preview'   => $this->previewKey
                 ? \App\Services\InvestorMessenger::render($this->previewKey, $investor)

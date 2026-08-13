@@ -8,8 +8,19 @@ use Illuminate\Database\Eloquent\Model;
 class Investor extends Model
 {
     /** The SAFE cap the round is priced against. Change here and the cap table follows. */
+    // MARKER-RAISE-SETUP — constants are now DEFAULTS; the live values come from raise_settings.
     public const CAP    = 1000000;
     public const TARGET = 100000;
+
+    public static function cap(): int
+    {
+        return (int) (RaiseSetting::get('cap') ?: self::CAP);
+    }
+
+    public static function target(): int
+    {
+        return (int) (RaiseSetting::get('target') ?: self::TARGET);
+    }
 
     protected $fillable = [
         'name', 'email', 'entity', 'token', 'amount', 'amount_received',
@@ -65,7 +76,9 @@ class Investor extends Model
 
     public function getPercentAttribute(): float
     {
-        return self::CAP > 0 ? round($this->amount / self::CAP * 100, 2) : 0.0;
+        $cap = self::cap();
+
+        return $cap > 0 ? round($this->amount / $cap * 100, 2) : 0.0;
     }
 
     public function scopeActive($query)

@@ -35,9 +35,12 @@ class InvestController extends Controller
             'summary-light'  => 'invest/Intake-One-Page-Summary-Light.pdf',
         ];
 
-        abort_unless(isset($files[$doc]), 404);
+        // MARKER-RAISE-SETUP — uploaded documents win over the shipped filenames.
+        $uploaded = \App\Models\InvestDocument::where('slug', $doc)->where('is_active', true)->first();
 
-        $path = storage_path('app/' . $files[$doc]);
+        abort_unless($uploaded || isset($files[$doc]), 404);
+
+        $path = storage_path('app/' . ($uploaded->path ?? $files[$doc]));
         abort_unless(is_file($path), 404);
 
         return response()->file($path, [

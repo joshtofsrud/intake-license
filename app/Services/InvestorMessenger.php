@@ -13,7 +13,7 @@ class InvestorMessenger
 {
     public static function templates(): array
     {
-        return config('investor_messages', []);
+        return \App\Models\RaiseMessageTemplate::merged();
     }
 
     public static function render(string $key, Investor $investor): ?array
@@ -30,7 +30,7 @@ class InvestorMessenger
             '{name}'      => $investor->name,
             '{amount}'    => '$' . number_format((int) $investor->amount),
             '{percent}'   => $investor->percent . '%',
-            '{cap}'       => '$' . number_format(Investor::CAP),
+            '{cap}'       => '$' . number_format(Investor::cap()),
             '{portal}'    => $investor->portalUrl(),
             '{bank}'      => $wire['bank']      ?: '[not set]',
             '{account}'   => $wire['account']   ?: '[not set]',

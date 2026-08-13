@@ -13,7 +13,7 @@ class Raise extends Page
 {
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Raise';
-    protected static ?string $navigationGroup = 'Platform';
+    protected static ?string $navigationGroup = 'Raise';
     protected static ?string $title           = 'Raise';
     protected static ?int    $navigationSort  = 90;
 
@@ -146,8 +146,8 @@ class Raise extends Page
             'investors'  => $investors,
             'committed'  => (int) $active->sum('amount'),
             'received'   => (int) $active->sum('amount_received'),
-            'target'     => Investor::TARGET,
-            'cap'        => Investor::CAP,
+            'target'     => Investor::target(),
+            'cap'        => Investor::cap(),
             'token'      => InvestToken::current(),
             'leads'      => InvestLead::latest()->limit(25)->get(),
             'leadCount'  => InvestLead::count(),

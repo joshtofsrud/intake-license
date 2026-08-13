@@ -27,7 +27,7 @@ class InvestorPortalController extends Controller
             'investor'  => $investor,
             'documents' => $investor->documents()->where('visible_to_investor', true)->get(),
             'wire'      => RaiseSetting::wireInstructions(),
-            'cap'       => Investor::CAP,
+            'cap'       => Investor::cap(),
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
