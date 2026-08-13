@@ -368,6 +368,20 @@ class Tenant extends Model
         return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'online_store');
     }
 
+    // MARKER-GIFTCARDS-GATE -- selling is gated by the addon; the manager
+    // and the tender stay visible while any card exists, so a revoked
+    // tenant can still honor and administer outstanding balances.
+    public function getGiftCardsEnabledAttribute(): bool
+    {
+        return app(\App\Services\FeatureAccessService::class)->hasAddon($this, 'gift_cards');
+    }
+
+    public function getGiftCardsVisibleAttribute(): bool
+    {
+        return $this->gift_cards_enabled
+            || \App\Models\Tenant\TenantGiftCard::where('tenant_id', $this->id)->exists();
+    }
+
     // MARKER-PATCH-HLC7A — distributor catalog/sync addon gate.
     public function getDistributorSyncEnabledAttribute(): bool
     {

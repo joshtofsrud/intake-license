@@ -14,11 +14,12 @@ use Illuminate\Support\Facades\Log;
 // MARKER-GIFTCARDS-PUBLIC — public buy + balance-check pages.
 class GiftCardPublicController extends Controller
 {
-    /** Buy page rides the storefront addon, like /shop. */
+    /** MARKER-GIFTCARDS-GATE -- buy page rides the gift_cards addon (its own
+     * gate, independent of the product storefront: a shop can sell gift cards
+     * online without running ecommerce). Balance check stays ungated. */
     protected function guardShop(): void
     {
-        $ok = app(\App\Services\FeatureAccessService::class)->hasAddon(tenant(), 'online_store');
-        abort_unless($ok, 404);
+        abort_unless(tenant()->gift_cards_enabled, 404);
     }
 
     public function buy(Request $request)

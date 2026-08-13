@@ -54,6 +54,13 @@ class GiftCardService
                 continue;
             }
 
+            // MARKER-GIFTCARDS-GATE -- selling requires the addon. Checked at
+            // activation so it holds for every path (register, drafts, quotes
+            // committed later). Redemption is deliberately NOT gated.
+            if (! \App\Models\Tenant::find($sale->tenant_id)?->gift_cards_enabled) {
+                throw new SaleValidationException('Gift cards are not enabled for this shop.');
+            }
+
             $meta = (array) ($line->metadata ?? []);
             $kind = ($meta['kind'] ?? 'physical') === 'egift' ? 'egift' : 'physical';
             $amount = (int) round($line->unit_price_cents * (float) $line->quantity);

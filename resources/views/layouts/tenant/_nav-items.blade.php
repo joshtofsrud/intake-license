@@ -78,7 +78,7 @@
       'label'  => 'Gift Cards',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="4" width="11" height="7.5" rx="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 6.8h11M7 4v7.5M7 4c-.8-1.6-3.2-2.1-3.2-.6C3.8 4.6 5.8 4 7 4zm0 0c.8-1.6 3.2-2.1 3.2-.6C10.2 4.6 8.2 4 7 4z" stroke="currentColor" stroke-width="1.1"/></svg>',
       'group'  => null,
-      'gate'   => 'retail_enabled',
+      'gate'   => 'gift_cards_visible', // MARKER-GIFTCARDS-GATE
     ],
     [
       // patch-100b transfer-requests nav — between SOs and Vendors

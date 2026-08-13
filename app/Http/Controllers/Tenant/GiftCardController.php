@@ -18,6 +18,7 @@ class GiftCardController extends Controller
     public function index(Request $request)
     {
         $tenant = tenant();
+        abort_unless($tenant->gift_cards_visible, 404); // MARKER-GIFTCARDS-GATE
         $q      = trim((string) $request->query('q', ''));
         $status = $request->query('status');
         $type   = $request->query('type');
@@ -69,6 +70,7 @@ class GiftCardController extends Controller
     public function show(Request $request, string $cardId)
     {
         $tenant = tenant();
+        abort_unless($tenant->gift_cards_visible, 404); // MARKER-GIFTCARDS-GATE
         $card = TenantGiftCard::where('tenant_id', $tenant->id)->findOrFail($cardId);
         $card->load('transactions');
 
@@ -84,6 +86,7 @@ class GiftCardController extends Controller
     {
         abort_unless(auth('tenant')->user()?->can('giftcards.manage'), 403);
         $tenant = tenant();
+        abort_unless($tenant->gift_cards_enabled, 404); // MARKER-GIFTCARDS-GATE -- manual issue = selling
 
         $data = $request->validate([
             'type'            => 'required|in:physical,egift',

@@ -473,7 +473,7 @@
       </div>
 
       <button type="button" class="reg-open-item" id="addOpenItemBtn">+ Add custom item</button>
-      <button type="button" class="reg-open-item" id="sellGiftCardBtn">+ Sell gift card</button> {{-- MARKER-GIFTCARDS --}}
+      @if(tenant()->gift_cards_enabled)<button type="button" class="reg-open-item" id="sellGiftCardBtn">+ Sell gift card</button>@endif {{-- MARKER-GIFTCARDS-GATE --}}
     </div>
 
     <div class="reg-panel">
@@ -553,7 +553,7 @@
       </button>
       <button type="button" class="reg-tender-btn" data-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-tender="store_credit">Store credit</button>
-      <button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button> {{-- MARKER-GIFTCARDS --}}
+      @if(tenant()->gift_cards_visible)<button type="button" class="reg-tender-btn" data-tender="gift_card">Gift card</button>@endif {{-- MARKER-GIFTCARDS-GATE --}}
       {{-- MARKER-PATCH-630 — manual tenders from tenant_payment_methods (Venmo, Cash App, custom) --}}
       @foreach(($manualTenders ?? []) as $mt)
         <button type="button" class="reg-tender-btn" data-tender="{{ $mt['key'] }}"
@@ -1869,7 +1869,7 @@ document.getElementById('openItemAddBtn').addEventListener('click', () => {
 window.gcTender = null;
 const gcSell = { kind: 'physical', cents: null };
 
-document.getElementById('sellGiftCardBtn').addEventListener('click', () => {
+if (document.getElementById('sellGiftCardBtn')) document.getElementById('sellGiftCardBtn').addEventListener('click', () => {
   gcSell.kind = 'physical'; gcSell.cents = null;
   document.getElementById('gcKindPhysical').classList.add('selected');
   document.getElementById('gcKindEgift').classList.remove('selected');
