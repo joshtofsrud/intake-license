@@ -1078,3 +1078,10 @@ Route::prefix('invest/{token}')->group(function () {
         ->middleware('throttle:10,1')
         ->name('invest.lead');
 });
+
+// MARKER-RAISE-PORTAL — one investor's own position, no login, token in the URL
+Route::get('/invest/i/{token}', [\App\Http\Controllers\InvestorPortalController::class, 'show'])
+    ->name('invest.portal');
+Route::get('/invest/i/{token}/doc/{documentId}', [\App\Http\Controllers\InvestorPortalController::class, 'document'])
+    ->whereNumber('documentId')
+    ->name('invest.portal.doc');

@@ -69,6 +69,18 @@ class InvestController extends Controller
             'ip'              => $request->ip(),
         ]);
 
+        // MARKER-RAISE-MESSAGES — welcome the lead without creating an investor record
+        try {
+            \Illuminate\Support\Facades\Mail::raw(
+                "Hi " . $data['name'] . ",\n\nThanks for leaving your details. I'll be in touch directly — if you have questions before then, just reply to this message.\n\nJosh",
+                function ($mail) use ($data) {
+                    $mail->to($data['email'], $data['name'])->subject('Thanks for the interest in Intake');
+                }
+            );
+        } catch (\Throwable $e) {
+            Log::error('MARKER-RAISE-MESSAGES lead welcome failed', ['error' => $e->getMessage()]);
+        }
+
         Log::info('MARKER-INVEST-SITE lead captured', ['email' => $data['email'], 'token_id' => $record->id]);
 
         return back()->with('invest_lead_ok', true);

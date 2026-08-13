@@ -56,7 +56,8 @@
         @forelse ($investors as $investor)
             <tr class="border-t border-gray-100 dark:border-white/5 {{ $investor->declined_at ? 'opacity-50' : '' }}">
                 <td class="p-3">
-                    <div class="font-medium">{{ $investor->name }}</div>
+                    <a class="font-medium hover:underline"
+                       href="{{ \App\Filament\Pages\InvestorRecord::getUrl() }}?investor={{ $investor->id }}">{{ $investor->name }}</a>
                     <div class="text-xs text-gray-500">{{ $investor->email }}{{ $investor->entity ? ' · ' . $investor->entity : '' }}</div>
                 </td>
                 <td class="p-3">{{ $investor->status }}</td>
@@ -152,5 +153,30 @@
     </table>
 </div>
 @endif
+
+
+<!-- MARKER-RAISE-RECORDS -->
+<div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
+    <div class="text-xs uppercase tracking-wide text-gray-500 mb-3">Round settings</div>
+    <div class="grid gap-3 md:grid-cols-4">
+        <label class="block"><span class="text-xs text-gray-500">Bank</span>
+            <input wire:model="wireBank" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+        <label class="block"><span class="text-xs text-gray-500">Account</span>
+            <input wire:model="wireAccount" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+        <label class="block"><span class="text-xs text-gray-500">Routing</span>
+            <input wire:model="wireRouting" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+        <label class="block"><span class="text-xs text-gray-500">Reference</span>
+            <input wire:model="wireReference" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+        <label class="block"><span class="text-xs text-gray-500">Form D filed</span>
+            <input wire:model="formDFiledAt" placeholder="YYYY-MM-DD" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+        <label class="block md:col-span-2"><span class="text-xs text-gray-500">Blue-sky notes</span>
+            <input wire:model="blueSkyNotes" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+        <div class="flex items-end"><x-filament::button wire:click="saveWireInstructions">Save</x-filament::button></div>
+    </div>
+    <p class="mt-3 text-xs text-gray-500">
+        These are reminders that record what you say you filed. Intake files nothing with the SEC or any state.
+        Form D is due within 15 days of the first sale.
+    </p>
+</div>
 
 </x-filament-panels::page>

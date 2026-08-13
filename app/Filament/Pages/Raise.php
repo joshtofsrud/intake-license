@@ -25,6 +25,23 @@ class Raise extends Page
     public string $entity = '';
     public $amount        = '';
 
+    public string $wireBank      = '';
+    public string $wireAccount   = '';
+    public string $wireRouting   = '';
+    public string $wireReference = '';
+    public string $formDFiledAt  = '';
+    public string $blueSkyNotes  = '';
+
+    public function mount(): void
+    {
+        $this->wireBank      = (string) \App\Models\RaiseSetting::get('wire_bank');
+        $this->wireAccount   = (string) \App\Models\RaiseSetting::get('wire_account');
+        $this->wireRouting   = (string) \App\Models\RaiseSetting::get('wire_routing');
+        $this->wireReference = (string) \App\Models\RaiseSetting::get('wire_reference');
+        $this->formDFiledAt  = (string) \App\Models\RaiseSetting::get('form_d_filed_at');
+        $this->blueSkyNotes  = (string) \App\Models\RaiseSetting::get('blue_sky_notes');
+    }
+
     public function addInvestor(): void
     {
         $data = $this->validate([
@@ -34,13 +51,16 @@ class Raise extends Page
             'amount' => ['required', 'numeric', 'min:0', 'max:100000000'],
         ]);
 
-        Investor::create([
+        $investor = Investor::create([
             'name'         => $data['name'],
             'email'        => $data['email'] ?: null,
             'entity'       => $data['entity'] ?: null,
             'amount'       => (int) $data['amount'],
             'committed_at' => now(),
         ]);
+
+        \App\Models\InvestorEvent::log($investor->id, 'committed', 'Commitment recorded: $' . number_format($investor->amount));
+        \App\Services\InvestorMessenger::send('commitment', $investor); // MARKER-RAISE-MESSAGES
 
         $this->reset(['name', 'email', 'entity', 'amount']);
 
@@ -51,6 +71,8 @@ class Raise extends Page
     {
         $investor = Investor::findOrFail($id);
         $investor->forceFill(['signed_at' => now(), 'declined_at' => null])->save();
+        \App\Models\InvestorEvent::log($investor->id, 'signed', 'Marked signed');
+        \App\Services\InvestorMessenger::send('signed', $investor); // MARKER-RAISE-MESSAGES
 
         Notification::make()->title($investor->name . ' marked signed')->success()->send();
     }
@@ -65,6 +87,9 @@ class Raise extends Page
             'declined_at'     => null,
         ])->save();
 
+        \App\Models\InvestorEvent::log($investor->id, 'funded', 'Funds received: $' . number_format($investor->amount_received));
+        \App\Services\InvestorMessenger::send('funded', $investor); // MARKER-RAISE-MESSAGES
+
         Notification::make()->title('Funds recorded for ' . $investor->name)->success()->send();
     }
 
@@ -72,6 +97,7 @@ class Raise extends Page
     {
         $investor = Investor::findOrFail($id);
         $investor->forceFill(['declined_at' => now()])->save();
+        \App\Models\InvestorEvent::log($investor->id, 'declined', 'Marked declined');
 
         Notification::make()->title($investor->name . ' marked declined')->send();
     }
@@ -93,6 +119,19 @@ class Raise extends Page
             ->body('Every previously shared link is now dead.')
             ->warning()
             ->send();
+    }
+
+    // MARKER-RAISE-RECORDS
+    public function saveWireInstructions(): void
+    {
+        \App\Models\RaiseSetting::put('wire_bank', $this->wireBank ?: null);
+        \App\Models\RaiseSetting::put('wire_account', $this->wireAccount ?: null);
+        \App\Models\RaiseSetting::put('wire_routing', $this->wireRouting ?: null);
+        \App\Models\RaiseSetting::put('wire_reference', $this->wireReference ?: null);
+        \App\Models\RaiseSetting::put('form_d_filed_at', $this->formDFiledAt ?: null);
+        \App\Models\RaiseSetting::put('blue_sky_notes', $this->blueSkyNotes ?: null);
+
+        Notification::make()->title('Round settings saved')->success()->send();
     }
 
     public function getViewData(): array
