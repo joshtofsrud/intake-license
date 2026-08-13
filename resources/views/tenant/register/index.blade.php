@@ -313,8 +313,10 @@
   .reg-btn-primary:hover:not(:disabled){filter:brightness(.93)}
   .reg-btn-primary:disabled{opacity:.4;cursor:not-allowed}
 
-  .reg-modal input[type=text]{width:100%;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
-  .reg-modal input[type=text]:focus{outline:none;border-color:var(--ia-accent)}
+  /* MARKER-GC-FIELDSTYLE -- email + textarea joined by the gift card modal */
+  .reg-modal input[type=text],.reg-modal input[type=email],.reg-modal textarea{width:100%;padding:10px;background:var(--ia-input-bg);border:0.5px solid var(--ia-border);border-radius:var(--ia-r-sm);color:var(--ia-text);font-size:14px;font-family:inherit}
+  .reg-modal textarea{resize:vertical;min-height:64px}
+  .reg-modal input[type=text]:focus,.reg-modal input[type=email]:focus,.reg-modal textarea:focus{outline:none;border-color:var(--ia-accent)}
 
   .reg-receipt{text-align:center}
   .reg-receipt h2{font-size:24px;margin-bottom:6px}
