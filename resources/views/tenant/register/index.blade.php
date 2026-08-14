@@ -12,6 +12,15 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
+  /* MARKER-REGPICKER-ALIGN — the picker is an .ia-input in a flex row, so it
+     stretched to the bar's full height and sat below the tab underline.
+     Centre it and size it to the tab links instead. Scoped to the picker:
+     .reg-tab-link needs the bar to stay stretch-aligned so its -0.5px bottom
+     margin keeps the active underline on the border. */
+  .reg-tabs-bar #registerPicker{
+    align-self:center;height:30px;padding:0 10px;line-height:1
+  }
+
   /* MARKER-OFFLINE-SYNC stage 3b — mobile: picker on its own full-width row
      instead of floating beside wrapped tabs */
   @media (max-width: 760px) {
