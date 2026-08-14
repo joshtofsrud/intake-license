@@ -153,9 +153,11 @@
 
     .h-table tbody tr:last-child td{border-bottom:0}
     .h-table tbody tr{
-      display:grid;grid-template-columns:1fr auto;
-      column-gap:12px;row-gap:3px;align-items:baseline;
-      padding:11px 2px 11px 11px;
+      /* MARKER-HIST-TIGHTEN — 3 columns so sale # and items share row 2
+         instead of stacking into a third line. */
+      display:grid;grid-template-columns:auto 1fr auto;
+      column-gap:8px;row-gap:2px;align-items:baseline;
+      padding:9px 2px 9px 11px;
       border-bottom:.5px solid var(--ia-border);
       border-left:3px solid rgba(255,255,255,.10)
     }
@@ -170,11 +172,11 @@
     .h-table tbody td::before{content:none}          /* labels off */
 
     .h-table tbody td[data-label="Customer"]{
-      grid-column:1;grid-row:1;font-size:13.5px;font-weight:600;
+      grid-column:1 / 3;grid-row:1;font-size:13.5px;font-weight:600;
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap
     }
     .h-table tbody td[data-label="Total"]{
-      grid-column:2;grid-row:1;text-align:right;
+      grid-column:3;grid-row:1;text-align:right;
       font-size:14.5px;font-weight:650;letter-spacing:-.01em
     }
     .h-table tbody td[data-label="Sale #"]{
@@ -182,24 +184,25 @@
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap
     }
     .h-table tbody td[data-label="Date"]{
-      grid-column:2;grid-row:2;text-align:right;font-size:11px;
+      grid-column:3;grid-row:2;text-align:right;font-size:11px;
       color:var(--ia-text-dim)
     }
     .h-table tbody td[data-label="Items"]{
-      grid-column:1;grid-row:3;font-size:11.5px;color:var(--ia-text-dim);
+      grid-column:2;grid-row:2;font-size:11.5px;color:var(--ia-text-dim);
       overflow:hidden;text-overflow:ellipsis;white-space:nowrap
     }
-    .h-table tbody td[data-label="Staff"]{
-      grid-column:2;grid-row:3;text-align:right;font-size:11px;
-      color:var(--ia-text-dim)
-    }
+
     /* location sits inline after the item count rather than on its own line */
     .h-table tbody td[data-label="Items"] .h-meta{display:inline;font-size:11.5px}
     .h-table tbody td[data-label="Items"] .h-meta::before{content:" \00b7 "}
+    /* items now sits beside the sale number, so it needs its own leading dot
+       (the blanket td::before above turns labels off). */
+    .h-table tbody td[data-label="Items"]::before{content:"\00b7 ";color:var(--ia-text-dim)}
 
     /* carried elsewhere on this row, or too long to scan */
     .h-table tbody td[data-label="Status"],
     .h-table tbody td[data-label="Tx group"],
+    .h-table tbody td[data-label="Staff"],
     .h-table tbody td[data-label="Customer"] .h-meta{display:none}
 
     .h-table tbody td.h-empty-search{grid-column:1 / -1;text-align:center}
