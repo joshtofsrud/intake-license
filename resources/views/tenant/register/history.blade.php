@@ -36,6 +36,51 @@
   .h-search:focus{outline:none;border-color:var(--ia-accent)}
   .h-count{font-size:13px;color:var(--ia-text-dim)}
 
+  /* MARKER-HIST-MOBILE ------------------------------------------------ */
+  .h-sortbar{display:none}
+  .h-more{display:none;margin:14px 0 4px;width:100%;padding:12px;
+    background:transparent;border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;
+    font-family:inherit;cursor:pointer}
+  .h-more:hover{background:rgba(127,127,127,.06)}
+  .h-more.on{display:block}
+
+  @media (max-width: 760px){
+    /* count above a full-width search rather than squeezed beside it */
+    .h-toolbar{flex-wrap:wrap;gap:8px}
+    .h-count{flex:1 1 100%;order:-1}
+    .h-search{flex:1 1 100%;max-width:none;min-width:0}
+
+    /* sort lives in the header row on desktop; the cards have no header */
+    .h-sortbar{display:flex;gap:8px;align-items:center;margin:0 0 12px}
+    .h-sortbar select{flex:1;min-width:0;padding:9px 12px;font-size:13px;
+      font-family:inherit;color:var(--ia-text);background:var(--ia-input-bg);
+      border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md)}
+
+    /* table -> cards. Desktop markup is unchanged; only the box model is. */
+    .h-table-wrap{overflow:visible}
+    .h-table, .h-table tbody, .h-table tr, .h-table td{display:block;width:auto}
+    .h-table thead{display:none}
+    .h-table tr{
+      border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);
+      padding:12px 14px;margin-bottom:10px;background:var(--ia-surface)
+    }
+    .h-table td{
+      display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+      padding:3px 0;border:0;text-align:left;font-size:13px
+    }
+    .h-table td::before{
+      content:attr(data-label);flex:0 0 auto;font-size:10.5px;font-weight:600;
+      letter-spacing:.05em;text-transform:uppercase;color:var(--ia-text-dim)
+    }
+    /* the identifying pair reads as the card's heading */
+    .h-table td[data-label="Sale #"]{padding-bottom:6px;font-size:15px;font-weight:600}
+    .h-table td[data-label="Total"]{font-size:15px;font-weight:600}
+    .h-table td .h-meta{text-align:right}
+    .h-table td.h-empty-search{display:block;text-align:center}
+    .h-table td.h-empty-search::before{content:none}
+  }
+
   .h-filters{
     display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px
   }
@@ -137,6 +182,19 @@
     <button type="button" class="h-chip" data-filter="refunded">Refunded</button>
   </div>
 
+  {{-- MARKER-HIST-MOBILE — the cards have no column headers to click --}}
+  <div class="h-sortbar">
+    <select id="hSortSelect" aria-label="Sort transactions">
+      <option value="date:desc">Newest first</option>
+      <option value="date:asc">Oldest first</option>
+      <option value="total:desc">Largest total</option>
+      <option value="total:asc">Smallest total</option>
+      <option value="sale_number:asc">Sale #</option>
+      <option value="customer:asc">Customer</option>
+      <option value="status:asc">Status</option>
+    </select>
+  </div>
+
   <div class="h-toolbar">
     <div class="h-count">
       <span id="hShownCount">{{ $rows->count() }}</span> of {{ $rows->count() }}
@@ -167,32 +225,32 @@
               data-email="{{ strtolower($r['customer_email'] ?? '') }}"
               data-total="{{ $r['total_cents'] }}"
               data-date="{{ $r['paid_at'] ?? $r['updated_at'] }}">
-            <td>
+            <td data-label="Sale #">{{-- MARKER-HIST-MOBILE --}}
               @if($r['sale_number'])
                 <span class="h-sale-num">{{ $r['sale_number'] }}</span>
               @else
                 <span class="h-sale-num muted">—</span>
               @endif
             </td>
-            <td>
+            <td data-label="Status">
               <span class="h-status {{ $r['payment_status'] }}">{{ $r['payment_status'] }}</span>
             </td>
-            <td>
+            <td data-label="Customer">
               {{ $r['customer'] ?? '—' }}
               @if($r['customer_email'])
                 <div class="h-meta">{{ $r['customer_email'] }}</div>
               @endif
             </td>
-            <td>
+            <td data-label="Items">
               {{ $r['item_count'] }} {{ $r['item_count'] === 1 ? 'item' : 'items' }}
               @if($r['location_name'])
                 <div class="h-meta">{{ $r['location_name'] }}</div>
               @endif
             </td>
-            <td class="h-total {{ $r['is_refund'] ? 'refund' : '' }}">
+            <td data-label="Total" class="h-total {{ $r['is_refund'] ? 'refund' : '' }}">
               {{ $r['is_refund'] ? '-' : '' }}${{ number_format($r['total_cents'] / 100, 2) }}
             </td>
-            <td>
+            <td data-label="Tx group">
               @if($r['transaction_id'])
                 <span class="h-tx-group linked" title="{{ $r['transaction_id'] }}">
                   {{ substr($r['transaction_id'], -6) }}
@@ -208,15 +266,18 @@
               $dateRaw = $r['paid_at'] ?? $r['updated_at'];
               $dateObj = $dateRaw ? \Carbon\Carbon::parse($dateRaw) : null;
             @endphp
-            <td class="h-meta" title="{{ $dateObj?->format('M j, Y g:i A') ?? '' }}">
+            <td data-label="Date" class="h-meta" title="{{ $dateObj?->format('M j, Y g:i A') ?? '' }}">
               {{ $dateObj?->format('Y-m-d') ?? '—' }}
             </td>
-            <td class="h-meta">{{ $r['started_by'] ?? '—' }}</td>
+            <td data-label="Staff" class="h-meta">{{ $r['started_by'] ?? '—' }}</td>
           </tr>
         @endforeach
       </tbody>
     </table>
   </div>
+
+  {{-- MARKER-HIST-MOBILE --}}
+  <button type="button" class="h-more" id="hShowMore"></button>
 @endif
 
 @endsection
@@ -227,6 +288,12 @@ const tbody = document.getElementById('hTbody');
 const allRows = tbody ? Array.from(tbody.querySelectorAll('tr[data-id]')) : [];
 const totalCount = allRows.length;
 const shownCount = document.getElementById('hShownCount');
+
+// MARKER-HIST-MOBILE — render in chunks. Filtering, search and sorting all
+// run client-side over the rows already in the DOM, so this caps what is
+// PAINTED, never what is searched: every behaviour stays exact.
+const HIST_CHUNK = 25;
+let shownLimit = HIST_CHUNK;
 
 let currentSort = { key: 'date', dir: 'desc' };
 let currentSearch = '';
@@ -279,9 +346,19 @@ function applyFilters() {
     return 0;
   });
 
-  // Re-render
+  // Re-render — MARKER-HIST-MOBILE: only the current chunk lands in the DOM.
   allRows.forEach(r => r.remove());
-  filtered.forEach(r => tbody.appendChild(r));
+  const visible = filtered.slice(0, shownLimit);
+  visible.forEach(r => tbody.appendChild(r));
+
+  const moreBtn = document.getElementById('hShowMore');
+  if (moreBtn) {
+    const remaining = filtered.length - visible.length;
+    moreBtn.classList.toggle('on', remaining > 0);
+    if (remaining > 0) {
+      moreBtn.textContent = 'Show ' + Math.min(HIST_CHUNK, remaining) + ' more · ' + remaining + ' not shown';
+    }
+  }
 
   let emptyMsg = tbody.querySelector('.empty-search-row');
   if (filtered.length === 0) {
@@ -299,14 +376,32 @@ function applyFilters() {
     emptyMsg.remove();
   }
 
-  if (shownCount) shownCount.textContent = filtered.length;
+  // MARKER-HIST-MOBILE — the count reflects what is on screen, so it never
+  // claims to be showing rows the chunk is holding back.
+  if (shownCount) shownCount.textContent = Math.min(filtered.length, shownLimit);
 }
+
+// MARKER-HIST-MOBILE — any change to what matches starts the chunk over.
+function resetChunk() { shownLimit = HIST_CHUNK; }
+
+document.getElementById('hShowMore')?.addEventListener('click', () => {
+  shownLimit += HIST_CHUNK;
+  applyFilters();
+});
+
+document.getElementById('hSortSelect')?.addEventListener('change', (e) => {
+  const [key, dir] = e.target.value.split(':');
+  currentSort = { key, dir };
+  resetChunk();
+  applyFilters();
+});
 
 // Search input
 const searchInput = document.getElementById('hSearch');
 if (searchInput) {
   searchInput.addEventListener('input', (e) => {
     currentSearch = e.target.value;
+    resetChunk(); // MARKER-HIST-MOBILE
     applyFilters();
   });
 }
@@ -333,6 +428,7 @@ document.querySelectorAll('.h-chip').forEach(chip => {
     document.querySelectorAll('.h-chip').forEach(c => {
       c.classList.toggle('active', activeFilters.has(c.dataset.filter));
     });
+    resetChunk(); // MARKER-HIST-MOBILE (chips)
     applyFilters();
   });
 });

@@ -163,6 +163,30 @@
                         font-size:15px; line-height:1; padding:0; opacity:.55; }
   .ib-new-chip button:hover { opacity:1; }
   .ib-new-meta { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:10px 0 8px; }
+
+  /* MARKER-INBOX-MOBILE ---------------------------------------------- */
+  .ib-more { display:none; width:100%; margin:10px 0 4px; padding:12px;
+    background:transparent; border:.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md); color:var(--ia-text); font-size:13px;
+    font-family:inherit; cursor:pointer; }
+  .ib-more:hover { background:rgba(127,127,127,.06); }
+  .ib-more.on { display:block; }
+  .ib-capnote { display:none; padding:12px 16px; font-size:12px; opacity:.5;
+    text-align:center; line-height:1.5; }
+  .ib-capnote.on { display:block; }
+
+  @media (max-width: 980px) {
+    /* the app header is sticky at 52px on <=1023px; sit directly under it */
+    .ib-sticky { position:sticky; top:52px; z-index:20;
+      background:var(--ia-bg); padding-top:8px; }
+    /* the list scroller must not clip the sticky child */
+    .ib-scroll { overflow:visible !important; }
+
+    /* header: title and action on one line, subtitle gone */
+    .ia-page-head { align-items:center; gap:10px; }
+    .ia-page-subtitle { display:none; }
+    .ia-page-actions .ia-btn { white-space:nowrap; padding:9px 14px; font-size:13px; }
+  }
 </style>
 @endpush
 
@@ -223,6 +247,9 @@
 
 <div class="ib-wrap">
   <div class="ib-list">
+    {{-- MARKER-INBOX-MOBILE — search and pills stay reachable while the
+         list scrolls; they used to scroll away with it. --}}
+    <div class="ib-sticky">
     {{-- MARKER-INBOX-SEARCH --}}
     <form class="ib-search" method="GET" action="{{ route('tenant.inbox.index') }}" id="ib-search-form">
       <span class="ib-search-ico">&#9906;</span>
@@ -244,7 +271,8 @@
       <a class="ib-pill {{ $filter === 'closed' ? 'is-active' : '' }}" href="{{ route('tenant.inbox.index', ['filter' => 'closed']) }}">Closed</a>
     </div>
     @endif
-    <div style="overflow-y:auto;flex:1">
+    </div>{{-- /ib-sticky MARKER-INBOX-MOBILE --}}
+    <div class="ib-scroll" id="ib-scroll" style="overflow-y:auto;flex:1">
       @forelse($threads as $t)
         <a class="ib-thread {{ $selected && $selected->id === $t->id ? 'is-sel' : '' }}"
            href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null, 'thread' => $t->id])) }}">
@@ -271,6 +299,17 @@
           No conversations here yet. Inbound texts to your business number land here automatically &mdash; or start one with &ldquo;+ New conversation&rdquo;.
         </div>
       @endforelse
+
+      {{-- MARKER-INBOX-MOBILE --}}
+      <button type="button" class="ib-more" id="ib-more"></button>
+
+      {{-- MARKER-INBOX-MOBILE — the controller stops at 100. Saying so beats
+           a list that quietly ends. --}}
+      @if($threads->count() >= 100)
+        <div class="ib-capnote on">
+          Showing the 100 most recent conversations. Search to reach older ones.
+        </div>
+      @endif
     </div>
   </div>
 
@@ -485,6 +524,46 @@
       showChip(clabel.value);
     }
   })();
+</script>
+
+{{-- MARKER-INBOX-MOBILE — cap what is painted, not what is loaded. The
+     rows stay in the DOM (display:none) so every href and the selected-thread
+     highlight keep working. --}}
+<script>
+(function () {
+  var CHUNK = 20;
+  var scroll = document.getElementById('ib-scroll');
+  var btn = document.getElementById('ib-more');
+  if (!scroll || !btn) return;
+
+  var rows = Array.prototype.slice.call(scroll.querySelectorAll('.ib-thread'));
+  var shown = CHUNK;
+
+  function paint() {
+    rows.forEach(function (row, i) {
+      row.style.display = i < shown ? '' : 'none';
+    });
+    var remaining = rows.length - shown;
+    btn.classList.toggle('on', remaining > 0);
+    if (remaining > 0) {
+      btn.textContent = 'Show ' + Math.min(CHUNK, remaining) + ' more \u00b7 ' + remaining + ' not shown';
+    }
+  }
+
+  // A thread opened from a link must never be one of the hidden ones.
+  var sel = scroll.querySelector('.ib-thread.is-sel');
+  if (sel) {
+    var at = rows.indexOf(sel);
+    if (at >= shown) shown = Math.ceil((at + 1) / CHUNK) * CHUNK;
+  }
+
+  btn.addEventListener('click', function () {
+    shown += CHUNK;
+    paint();
+  });
+
+  paint();
+})();
 </script>
 
 @endsection
