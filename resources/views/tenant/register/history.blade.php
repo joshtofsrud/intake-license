@@ -53,86 +53,7 @@
   .h-search:focus{outline:none;border-color:var(--ia-accent)}
   .h-count{font-size:13px;color:var(--ia-text-dim)}
 
-  /* MARKER-HIST-MOBILE ------------------------------------------------ */
-  .h-sortbar{display:none}
-  .h-more{display:none;margin:14px 0 4px;width:100%;padding:12px;
-    background:transparent;border:0.5px solid var(--ia-border);
-    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;
-    font-family:inherit;cursor:pointer}
-  .h-more:hover{background:rgba(127,127,127,.06)}
-  .h-more.on{display:block}
 
-  @media (max-width: 760px){
-    /* count above a full-width search rather than squeezed beside it */
-    .h-toolbar{flex-wrap:wrap;gap:8px}
-    .h-count{flex:1 1 100%;order:-1}
-    .h-search{flex:1 1 100%;max-width:none;min-width:0}
-
-    /* sort lives in the header row on desktop; the cards have no header */
-    .h-sortbar{display:flex;gap:8px;align-items:center;margin:0 0 12px}
-    .h-sortbar select{flex:1;min-width:0;padding:9px 12px;font-size:13px;
-      font-family:inherit;color:var(--ia-text);background:var(--ia-input-bg);
-      border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md)}
-
-    /* MARKER-HIST-LEDGER — table -> ledger rows. No labels: a 3x2 grid over
-       the same <td>s, with status carried by a stripe on the row. Desktop
-       markup, data attributes and the sort JS are all untouched. */
-    .h-table-wrap{overflow:visible}
-    .h-table, .h-table tbody{display:block;width:auto}
-    .h-table thead{display:none}
-
-    .h-table tr{
-      display:grid;grid-template-columns:1fr auto;
-      column-gap:12px;row-gap:3px;align-items:baseline;
-      padding:11px 2px 11px 11px;
-      border-bottom:.5px solid var(--ia-border);
-      border-left:3px solid rgba(255,255,255,.10)
-    }
-    /* status, as a stripe — same palette as the chips it replaces */
-    .h-table tr[data-status="paid"]{border-left-color:#78c878}
-    .h-table tr[data-status="partial"],
-    .h-table tr[data-status="unpaid"]{border-left-color:#FFB450}
-    .h-table tr[data-status="refunded"]{border-left-color:#F09595}
-    .h-table tr[data-status="quote"]{border-left-color:var(--ia-accent)}
-
-    .h-table td{display:block;padding:0;border:0;text-align:left;min-width:0}
-    .h-table td::before{content:none}          /* labels off */
-
-    .h-table td[data-label="Customer"]{
-      grid-column:1;grid-row:1;font-size:13.5px;font-weight:600;
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-    }
-    .h-table td[data-label="Total"]{
-      grid-column:2;grid-row:1;text-align:right;
-      font-size:14.5px;font-weight:650;letter-spacing:-.01em
-    }
-    .h-table td[data-label="Sale #"]{
-      grid-column:1;grid-row:2;font-size:11.5px;color:var(--ia-text-dim);
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-    }
-    .h-table td[data-label="Date"]{
-      grid-column:2;grid-row:2;text-align:right;font-size:11px;
-      color:var(--ia-text-dim)
-    }
-    .h-table td[data-label="Items"]{
-      grid-column:1;grid-row:3;font-size:11.5px;color:var(--ia-text-dim);
-      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-    }
-    .h-table td[data-label="Staff"]{
-      grid-column:2;grid-row:3;text-align:right;font-size:11px;
-      color:var(--ia-text-dim)
-    }
-    /* location sits inline after the item count rather than on its own line */
-    .h-table td[data-label="Items"] .h-meta{display:inline;font-size:11.5px}
-    .h-table td[data-label="Items"] .h-meta::before{content:" \00b7 "}
-
-    /* carried elsewhere on this row, or too long to scan */
-    .h-table td[data-label="Status"],
-    .h-table td[data-label="Tx group"],
-    .h-table td[data-label="Customer"] .h-meta{display:none}
-
-    .h-table td.h-empty-search{grid-column:1 / -1;text-align:center}
-  }
 
   .h-filters{
     display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px
@@ -198,6 +119,90 @@
 
   .h-empty-search{
     padding:40px 20px;text-align:center;color:var(--ia-text-dim);font-size:13px
+  }
+  /* MARKER-HIST-MOBILE ------------------------------------------------ */
+  /* MARKER-HIST-CSSORDER — this block MUST stay last in the stylesheet:
+     media queries add no specificity, so it has to out-order the base
+     .h-table tbody td rules above, and match their specificity. */
+  .h-sortbar{display:none}
+  .h-more{display:none;margin:14px 0 4px;width:100%;padding:12px;
+    background:transparent;border:0.5px solid var(--ia-border);
+    border-radius:var(--ia-r-md);color:var(--ia-text);font-size:13px;
+    font-family:inherit;cursor:pointer}
+  .h-more:hover{background:rgba(127,127,127,.06)}
+  .h-more.on{display:block}
+
+  @media (max-width: 760px){
+    /* count above a full-width search rather than squeezed beside it */
+    .h-toolbar{flex-wrap:wrap;gap:8px}
+    .h-count{flex:1 1 100%;order:-1}
+    .h-search{flex:1 1 100%;max-width:none;min-width:0}
+
+    /* sort lives in the header row on desktop; the cards have no header */
+    .h-sortbar{display:flex;gap:8px;align-items:center;margin:0 0 12px}
+    .h-sortbar select{flex:1;min-width:0;padding:9px 12px;font-size:13px;
+      font-family:inherit;color:var(--ia-text);background:var(--ia-input-bg);
+      border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md)}
+
+    /* MARKER-HIST-LEDGER — table -> ledger rows. No labels: a 3x2 grid over
+       the same <td>s, with status carried by a stripe on the row. Desktop
+       markup, data attributes and the sort JS are all untouched. */
+    .h-table-wrap{overflow:visible}
+    .h-table, .h-table tbody{display:block;width:auto}
+    .h-table thead{display:none}
+
+    .h-table tbody tr:last-child td{border-bottom:0}
+    .h-table tbody tr{
+      display:grid;grid-template-columns:1fr auto;
+      column-gap:12px;row-gap:3px;align-items:baseline;
+      padding:11px 2px 11px 11px;
+      border-bottom:.5px solid var(--ia-border);
+      border-left:3px solid rgba(255,255,255,.10)
+    }
+    /* status, as a stripe — same palette as the chips it replaces */
+    .h-table tbody tr[data-status="paid"]{border-left-color:#78c878}
+    .h-table tbody tr[data-status="partial"],
+    .h-table tbody tr[data-status="unpaid"]{border-left-color:#FFB450}
+    .h-table tbody tr[data-status="refunded"]{border-left-color:#F09595}
+    .h-table tbody tr[data-status="quote"]{border-left-color:var(--ia-accent)}
+
+    .h-table tbody td{display:block;padding:0;border:0;text-align:left;min-width:0}
+    .h-table tbody td::before{content:none}          /* labels off */
+
+    .h-table tbody td[data-label="Customer"]{
+      grid-column:1;grid-row:1;font-size:13.5px;font-weight:600;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+    }
+    .h-table tbody td[data-label="Total"]{
+      grid-column:2;grid-row:1;text-align:right;
+      font-size:14.5px;font-weight:650;letter-spacing:-.01em
+    }
+    .h-table tbody td[data-label="Sale #"]{
+      grid-column:1;grid-row:2;font-size:11.5px;color:var(--ia-text-dim);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+    }
+    .h-table tbody td[data-label="Date"]{
+      grid-column:2;grid-row:2;text-align:right;font-size:11px;
+      color:var(--ia-text-dim)
+    }
+    .h-table tbody td[data-label="Items"]{
+      grid-column:1;grid-row:3;font-size:11.5px;color:var(--ia-text-dim);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+    }
+    .h-table tbody td[data-label="Staff"]{
+      grid-column:2;grid-row:3;text-align:right;font-size:11px;
+      color:var(--ia-text-dim)
+    }
+    /* location sits inline after the item count rather than on its own line */
+    .h-table tbody td[data-label="Items"] .h-meta{display:inline;font-size:11.5px}
+    .h-table tbody td[data-label="Items"] .h-meta::before{content:" \00b7 "}
+
+    /* carried elsewhere on this row, or too long to scan */
+    .h-table tbody td[data-label="Status"],
+    .h-table tbody td[data-label="Tx group"],
+    .h-table tbody td[data-label="Customer"] .h-meta{display:none}
+
+    .h-table tbody td.h-empty-search{grid-column:1 / -1;text-align:center}
   }
 </style>
 @endpush
