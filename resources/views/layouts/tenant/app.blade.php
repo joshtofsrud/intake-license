@@ -7,9 +7,17 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $pageTitle ?? 'Dashboard' }} — {{ $currentTenant->name }}</title>
 
-  {{-- Fonts --}}
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  {{-- Fonts — MARKER-SELFHOST-FONTS. Self-hosted from public/fonts; the
+       @font-face rules live in base.css. Preloading the two weights that
+       carry almost all of the UI means they are normally decoded before
+       first paint, so there is no metric swap to watch. crossorigin is
+       required on font preloads even same-origin, or the browser fetches
+       the file twice. 600 and the mono faces are not preloaded — they are
+       used sparsely enough that a late swap is not noticeable. --}}
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+        href="{{ asset('fonts/inter-latin-400-normal.woff2') }}">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+        href="{{ asset('fonts/inter-latin-500-normal.woff2') }}">
 
   {{-- Favicon --}}
   @if($currentTenant->favicon_url)
