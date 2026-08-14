@@ -293,7 +293,9 @@
   .reg-split-row .x{color:var(--ia-text-dim);cursor:pointer;padding:2px 6px;border-radius:6px}
   .reg-split-row .x:hover{color:#F09595}
   .reg-split-row .chg{flex-basis:100%;font-size:11px;color:var(--ia-accent)}
-  .reg-tender-btn.split-disabled{opacity:.35;pointer-events:none}
+  /* MARKER-TENDERUX — no pointer-events:none: it kills the title tooltip and
+     swallows the tap, leaving a touchscreen user no way to learn why. */
+  .reg-tender-btn.split-disabled{opacity:.35;cursor:not-allowed}
   .reg-tender-btn.selected{border-color:var(--ia-accent);background:var(--ia-accent-soft)}
 
   .reg-tip-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
@@ -552,11 +554,6 @@
   <div class="reg-modal">
     <h2>Choose tender</h2>
     <div class="lede">How is the customer paying?</div>
-    {{-- MARKER-SPLIT-TENDER — running remaining + recorded split payments --}}
-    <div class="reg-split-remaining" id="splitRemainRow" style="display:none">
-      <span>Remaining</span><b id="splitRemain"></b>
-    </div>
-    <div id="splitPayList"></div>
     <div class="reg-tender-grid">
       <button type="button" class="reg-tender-btn" data-tender="cash">Cash</button>
       <button type="button" class="reg-tender-btn" data-tender="card">Card</button>
@@ -623,6 +620,15 @@
       </div>
       <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
     </div>
+    {{-- MARKER-SPLIT-TENDER — running remaining + recorded split payments.
+         MARKER-TENDERUX — moved BELOW the tender grid: stacking legs above it
+         pushed the grid and the action buttons down as payments were added,
+         moving the target under the cashier's finger mid-transaction. --}}
+    <div id="splitPayList"></div>
+    <div class="reg-split-remaining" id="splitRemainRow" style="display:none">
+      <span>Remaining</span><b id="splitRemain"></b>
+    </div>
+
     {{-- MARKER-TENDERFIX --}}
     <div id="tenderModalErr" style="display:none;font-size:12.5px;color:#f87171;margin-bottom:10px"></div>
     <div class="reg-modal-actions">
@@ -2254,6 +2260,12 @@ function splitDueCents() {
 }
 function splitPaidCents() { return cart.payments.reduce((s, p) => s + p.amount_cents, 0); }
 function splitRemaining() { return Math.max(0, splitDueCents() - splitPaidCents()); }
+// MARKER-TENDERUX -- why a tender can't join a split that still owes money.
+const SPLIT_BLOCK_REASON = {
+  payment_link: "The customer pays this from their phone later, after they've left — it can't cover the rest of a split here. Take the remainder another way, or clear the payments above and send the link for the whole sale.",
+  mark_paid:    "This records the sale as already paid elsewhere, so it can't cover a balance the register is still asking for. Clear the payments above to use it for the whole sale.",
+};
+
 function renderSplit() {
   const list = document.getElementById('splitPayList');
   const remRow = document.getElementById('splitRemainRow');
@@ -2300,6 +2312,12 @@ function renderSplit() {
     // (it charges exactly the remaining balance). Link + mark_paid wait.
     const stage2 = t === 'payment_link' || t === 'mark_paid';
     b.classList.toggle('split-disabled', active && stage2);
+    // MARKER-TENDERUX — say why, on hover and on tap.
+    if (active && stage2) {
+      b.setAttribute('title', SPLIT_BLOCK_REASON[t] || '');
+    } else {
+      b.removeAttribute('title');
+    }
   });
   const confirmBtn = document.getElementById('tenderConfirmBtn');
   if (active) {
@@ -2355,6 +2373,12 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
 
 document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    // MARKER-TENDERUX — the button stays clickable so a tap can explain
+    // itself; a touchscreen has no hover to reveal the title.
+    if (btn.classList.contains('split-disabled')) {
+      tenderModalError(SPLIT_BLOCK_REASON[btn.dataset.tender] || 'That tender is not available while a split is open.');
+      return;
+    }
     document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     cart.payment_method = btn.dataset.tender;
