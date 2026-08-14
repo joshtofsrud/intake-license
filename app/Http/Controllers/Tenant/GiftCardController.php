@@ -70,6 +70,7 @@ class GiftCardController extends Controller
     public function show(Request $request, string $cardId)
     {
         $tenant = tenant();
+        // MARKER-GC-LOCATION -- shown in the header when the shop has 2+ locations.
         abort_unless($tenant->gift_cards_visible, 404); // MARKER-GIFTCARDS-GATE
         $card = TenantGiftCard::where('tenant_id', $tenant->id)->findOrFail($cardId);
         $card->load('transactions');
@@ -111,7 +112,15 @@ class GiftCardController extends Controller
             }
         }
 
-        $card = \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $data, $amount, $code) {
+        // MARKER-GC-LOCATION -- a manual issue has no sale behind it, so
+        // attribute it to wherever the staff member is working. Falls back to
+        // the default location, then to none at all (single-location tenants
+        // that never configured one).
+        $issueLocationId = $request->session()->get('current_location_id')
+            ?: $tenant->locations()->where('is_active', true)
+                ->orderByDesc('is_default')->value('id');
+
+        $card = \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $data, $amount, $code, $issueLocationId) {
             $card = TenantGiftCard::create([
                 'tenant_id'         => $tenant->id,
                 'code'              => $code,
@@ -122,6 +131,7 @@ class GiftCardController extends Controller
                 'recipient_name'    => $data['recipient_name'] ?? null,
                 'recipient_email'   => $data['recipient_email'] ?? null,
                 'issued_by_user_id' => auth('tenant')->id(),
+                'location_id'       => $issueLocationId, // MARKER-GC-LOCATION
             ]);
             TenantGiftCardTransaction::create([
                 'tenant_id'           => $tenant->id,
@@ -131,6 +141,7 @@ class GiftCardController extends Controller
                 'balance_after_cents' => $amount,
                 'note'                => 'Issued manually' . (filled($data['note'] ?? null) ? ' — ' . $data['note'] : ''),
                 'user_id'             => auth('tenant')->id(),
+                'location_id'         => $issueLocationId, // MARKER-GC-LOCATION
             ]);
             return $card;
         });

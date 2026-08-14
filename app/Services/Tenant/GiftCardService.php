@@ -139,6 +139,8 @@ class GiftCardService
 
             $card = TenantGiftCard::create([
                 'tenant_id'             => $sale->tenant_id,
+                // MARKER-GC-LOCATION -- the register that rang the sale.
+                'location_id'           => $sale->location_id,
                 'code'                  => $code,
                 'type'                  => $kind,
                 'status'                => 'active',
@@ -281,6 +283,7 @@ class GiftCardService
             'original_cents'  => $amount,
             'balance_cents'   => $amount,
             'issued_sale_id'  => $refund->id,
+            'location_id'     => $refund->location_id, // MARKER-GC-LOCATION
         ]);
 
         $this->ledger($card, 'issue', $amount, $refund->id, $note, $userId);
@@ -365,8 +368,15 @@ class GiftCardService
         });
     }
 
-    protected function ledger(TenantGiftCard $card, string $kind, int $amountCents, ?string $saleId, ?string $note, ?string $userId): void
+    protected function ledger(TenantGiftCard $card, string $kind, int $amountCents, ?string $saleId, ?string $note, ?string $userId, ?string $locationId = null): void
     {
+        // MARKER-GC-LOCATION -- when the movement came from a sale, take that
+        // sale's location rather than the staff member's current one: a
+        // redemption belongs to the store that gave up the goods.
+        if ($locationId === null && $saleId !== null) {
+            $locationId = TenantSale::whereKey($saleId)->value('location_id');
+        }
+
         TenantGiftCardTransaction::create([
             'tenant_id'           => $card->tenant_id,
             'gift_card_id'        => $card->id,
@@ -374,6 +384,7 @@ class GiftCardService
             'amount_cents'        => $amountCents,
             'balance_after_cents' => $card->balance_cents,
             'sale_id'             => $saleId,
+            'location_id'         => $locationId, // MARKER-GC-LOCATION
             'note'                => $note,
             'user_id'             => $userId,
         ]);

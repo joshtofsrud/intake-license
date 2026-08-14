@@ -20,6 +20,7 @@ class TenantGiftCard extends Model
         'recipient_name', 'recipient_email', 'gift_message',
         'deliver_on', 'delivered_at',
         'issued_sale_id', 'issued_by_user_id', 'stripe_payment_intent_id',
+        'location_id', // MARKER-GC-LOCATION
         'deactivated_at', 'deactivated_reason',
     ];
 
@@ -28,6 +29,13 @@ class TenantGiftCard extends Model
         'delivered_at'   => 'datetime',
         'deactivated_at' => 'datetime',
     ];
+
+    // MARKER-GC-LOCATION -- issuing location; null for online buys until the
+    // checkout-level pickup choice exists.
+    public function location()
+    {
+        return $this->belongsTo(TenantLocation::class, 'location_id');
+    }
 
     public function purchaser()
     {

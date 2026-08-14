@@ -16,6 +16,7 @@ class TenantGiftCardTransaction extends Model
     protected $fillable = [
         'tenant_id', 'gift_card_id', 'kind', 'amount_cents',
         'balance_after_cents', 'sale_id', 'note', 'user_id',
+        'location_id', // MARKER-GC-LOCATION
     ];
 
     public function card(): BelongsTo

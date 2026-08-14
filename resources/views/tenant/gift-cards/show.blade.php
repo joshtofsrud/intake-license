@@ -45,6 +45,8 @@
       @if($card->purchaser) · Purchased by {{ $card->purchaser->fullName() }}
       @elseif($card->purchaser_name) · Purchased by {{ $card->purchaser_name }} @endif
       · Issued {{ tlocal_date($card->created_at) }}{{-- MARKER-GC-TLOCAL --}}
+      {{-- MARKER-GC-LOCATION -- pointless noise for a single-location shop --}}
+      @if(tenant()->multi_location_active && $card->location) · at {{ $card->location->name }} @endif
       @if($card->recipient_email) · To {{ $card->recipient_email }} @endif
     </div>
   </div>
