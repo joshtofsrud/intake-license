@@ -74,28 +74,64 @@
       font-family:inherit;color:var(--ia-text);background:var(--ia-input-bg);
       border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md)}
 
-    /* table -> cards. Desktop markup is unchanged; only the box model is. */
+    /* MARKER-HIST-LEDGER — table -> ledger rows. No labels: a 3x2 grid over
+       the same <td>s, with status carried by a stripe on the row. Desktop
+       markup, data attributes and the sort JS are all untouched. */
     .h-table-wrap{overflow:visible}
-    .h-table, .h-table tbody, .h-table tr, .h-table td{display:block;width:auto}
+    .h-table, .h-table tbody{display:block;width:auto}
     .h-table thead{display:none}
+
     .h-table tr{
-      border:0.5px solid var(--ia-border);border-radius:var(--ia-r-md);
-      padding:12px 14px;margin-bottom:10px;background:var(--ia-surface)
+      display:grid;grid-template-columns:1fr auto;
+      column-gap:12px;row-gap:3px;align-items:baseline;
+      padding:11px 2px 11px 11px;
+      border-bottom:.5px solid var(--ia-border);
+      border-left:3px solid rgba(255,255,255,.10)
     }
-    .h-table td{
-      display:flex;justify-content:space-between;align-items:baseline;gap:14px;
-      padding:3px 0;border:0;text-align:left;font-size:13px
+    /* status, as a stripe — same palette as the chips it replaces */
+    .h-table tr[data-status="paid"]{border-left-color:#78c878}
+    .h-table tr[data-status="partial"],
+    .h-table tr[data-status="unpaid"]{border-left-color:#FFB450}
+    .h-table tr[data-status="refunded"]{border-left-color:#F09595}
+    .h-table tr[data-status="quote"]{border-left-color:var(--ia-accent)}
+
+    .h-table td{display:block;padding:0;border:0;text-align:left;min-width:0}
+    .h-table td::before{content:none}          /* labels off */
+
+    .h-table td[data-label="Customer"]{
+      grid-column:1;grid-row:1;font-size:13.5px;font-weight:600;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
     }
-    .h-table td::before{
-      content:attr(data-label);flex:0 0 auto;font-size:10.5px;font-weight:600;
-      letter-spacing:.05em;text-transform:uppercase;color:var(--ia-text-dim)
+    .h-table td[data-label="Total"]{
+      grid-column:2;grid-row:1;text-align:right;
+      font-size:14.5px;font-weight:650;letter-spacing:-.01em
     }
-    /* the identifying pair reads as the card's heading */
-    .h-table td[data-label="Sale #"]{padding-bottom:6px;font-size:15px;font-weight:600}
-    .h-table td[data-label="Total"]{font-size:15px;font-weight:600}
-    .h-table td .h-meta{text-align:right}
-    .h-table td.h-empty-search{display:block;text-align:center}
-    .h-table td.h-empty-search::before{content:none}
+    .h-table td[data-label="Sale #"]{
+      grid-column:1;grid-row:2;font-size:11.5px;color:var(--ia-text-dim);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+    }
+    .h-table td[data-label="Date"]{
+      grid-column:2;grid-row:2;text-align:right;font-size:11px;
+      color:var(--ia-text-dim)
+    }
+    .h-table td[data-label="Items"]{
+      grid-column:1;grid-row:3;font-size:11.5px;color:var(--ia-text-dim);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+    }
+    .h-table td[data-label="Staff"]{
+      grid-column:2;grid-row:3;text-align:right;font-size:11px;
+      color:var(--ia-text-dim)
+    }
+    /* location sits inline after the item count rather than on its own line */
+    .h-table td[data-label="Items"] .h-meta{display:inline;font-size:11.5px}
+    .h-table td[data-label="Items"] .h-meta::before{content:" \00b7 "}
+
+    /* carried elsewhere on this row, or too long to scan */
+    .h-table td[data-label="Status"],
+    .h-table td[data-label="Tx group"],
+    .h-table td[data-label="Customer"] .h-meta{display:none}
+
+    .h-table td.h-empty-search{grid-column:1 / -1;text-align:center}
   }
 
   .h-filters{
