@@ -12,6 +12,38 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
+  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* display:contents keeps the links as direct flex children of the bar on
+     desktop, so nothing about the existing layout changes. */
+  .reg-tabs-scroll{display:contents}
+
+  @media (max-width: 760px){
+    .ia-page-subtitle{display:none}
+
+    .reg-tabs-bar{display:block;flex-wrap:nowrap}
+    .reg-tabs-scroll{
+      display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+      -webkit-overflow-scrolling:touch
+    }
+    .reg-tabs-scroll::-webkit-scrollbar{display:none}
+    .reg-tab-link{white-space:nowrap;flex:0 0 auto;padding:10px 14px}
+  }
+
+  /* MARKER-REG-MOBILE — these three were inline on the <select>, which meant
+     no media query could override them and the stage-3b mobile rule below
+     silently did nothing. */
+  .reg-tabs-bar #registerPicker{margin-left:auto;max-width:220px;font-size:13px}
+
+  @media (max-width: 760px){
+    /* now reachable: its own full-width row under the tabs */
+    .reg-tabs-bar #registerPicker{
+      display:block;width:100%;max-width:none;margin:8px 0 2px
+    }
+    /* the checkout banner stacks rather than wrapping around its button */
+    #appointment-tray-banner{flex-wrap:wrap}
+    #appointment-tray-banner > button{flex:1 1 100%}
+  }
+
   /* MARKER-REGPICKER-ALIGN — the picker is an .ia-input in a flex row, so it
      stretched to the bar's full height and sat below the tab underline.
      Centre it and size it to the tab links instead. Scoped to the picker:
@@ -430,14 +462,19 @@
 </div>
 
 <div class="reg-tabs-bar">
+  <div class="reg-tabs-scroll">{{-- MARKER-REG-MOBILE --}}
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link active">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
   <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a> {{-- MARKER-REGISTER-RECON-DISPLAY --}}
   <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link">Settings</a> {{-- MARKER-REG-SETTINGS --}}
+  </div>{{-- /reg-tabs-scroll MARKER-REG-MOBILE — the picker sits OUTSIDE the
+        scroller so it can take its own row on a phone. --}}
   {{-- MARKER-REGISTER-RECON-DISPLAY — register picker (only when registers exist) --}}
   @if (($registers ?? collect())->isNotEmpty())
-    <select id="registerPicker" class="ia-input" style="margin-left:auto;max-width:220px;font-size:13px"
+    {{-- MARKER-REG-MOBILE — margin/max-width/font-size moved to CSS so the
+         mobile rule can override them. --}}
+    <select id="registerPicker" class="ia-input"
             title="Pay-station display this device drives">
       <option value="0">No register / display</option>
       @foreach ($registers as $r)

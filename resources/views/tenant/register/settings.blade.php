@@ -10,6 +10,23 @@
     display:flex;gap:4px;margin:0 0 18px;border-bottom:0.5px solid var(--ia-border);
     flex-wrap:wrap
   }
+  /* MARKER-REG-MOBILE ------------------------------------------------- */
+  /* display:contents keeps the links as direct flex children of the bar on
+     desktop, so nothing about the existing layout changes. */
+  .reg-tabs-scroll{display:contents}
+
+  @media (max-width: 760px){
+    .ia-page-subtitle{display:none}
+
+    .reg-tabs-bar{display:block;flex-wrap:nowrap}
+    .reg-tabs-scroll{
+      display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+      -webkit-overflow-scrolling:touch
+    }
+    .reg-tabs-scroll::-webkit-scrollbar{display:none}
+    .reg-tab-link{white-space:nowrap;flex:0 0 auto;padding:10px 14px}
+  }
+
   .reg-tab-link{
     padding:10px 18px;font-size:13px;font-weight:500;color:var(--ia-text-dim);
     text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-0.5px;
@@ -40,11 +57,13 @@
 @section('content')
 
 <div class="reg-tabs-bar">
+  <div class="reg-tabs-scroll">{{-- MARKER-REG-MOBILE --}}
   <a href="{{ route('tenant.register.index') }}" class="reg-tab-link">Transaction</a>
   <a href="{{ route('tenant.register.history.index') }}" class="reg-tab-link">Transaction History</a>
   <a href="{{ route('tenant.register.quotes.index') }}" class="reg-tab-link">Quotes</a>
   <a href="{{ route('tenant.register.registers') }}" class="reg-tab-link">Registers</a>
   <a href="{{ route('tenant.register.settings') }}" class="reg-tab-link active">Settings</a>
+  </div>
 </div>
 
 @if (session('status'))
