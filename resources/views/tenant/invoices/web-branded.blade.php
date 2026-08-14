@@ -7,8 +7,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
 <style>
   :root{ --acc:{{ $acc }}; --acc-deep:#9c3a14; --acc-tint:#FBEDE7; --ink:#111; --ink2:#444; --ink3:#666; --ink4:#8a8a8a; --line:#f0f0ee; --line2:#e8e8e4; --paper2:#f8f8f6; }
   *{margin:0;padding:0;box-sizing:border-box}

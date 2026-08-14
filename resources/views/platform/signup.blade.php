@@ -6,8 +6,7 @@
   @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Start your free trial — Intake</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
   <style>
     :root{--accent:#BEF264;--accent-text:#0a0a0a;--bg:#0c0c0c;--bg2:#141414;--bg3:#1a1a1a;--text:#f0f0f0;--muted:rgba(255,255,255,.45);--dim:rgba(255,255,255,.2);--border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);--r:8px;--r-lg:12px}
     *{box-sizing:border-box;margin:0;padding:0}

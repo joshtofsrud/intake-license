@@ -115,8 +115,7 @@
 @extends($layoutName)
 
 @push('styles')
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
 <style>
 /* ============================================================================
    MARKER-PATCH-158-G15 — Page builder v2 chrome

@@ -10,8 +10,6 @@
   @include('partials.mobile-input-zoom') {{-- MARKER-MOBILE-INPUT-ZOOM --}}
   <title>@yield('title', 'intake — Retail, booking, and classes — built for communication and efficiency.')</title>
   <meta name="description" content="@yield('meta_description', 'Retail, booking, and classes — built for communication and efficiency. For service, retail, fitness, and appointment-based businesses.')">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Logo system v1 (patch #44) — favicons + OG/Twitter meta -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -33,6 +31,7 @@
   <meta name="twitter:title" content="@yield('og_title', 'intake — Retail, booking, and classes — built for communication and efficiency.')">
   <meta name="twitter:description" content="@yield('og_description', 'For service, retail, fitness, and appointment-based businesses.')">
   <meta name="twitter:image" content="{{ url('/og-image.png') }}">
+  <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
   <style>
     /* ================================================================
        Intake Marketing Site

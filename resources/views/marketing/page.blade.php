@@ -33,9 +33,6 @@
     @endif
     <meta property="og:site_name" content="Intake">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     {{-- Patch #44 favicon links + OG meta — match the static-layout shell --}}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -52,6 +49,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="{{ url('/og-image.png') }}">
 
+    <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
     <style>
         /* ================================================================
            Intake Marketing Site
