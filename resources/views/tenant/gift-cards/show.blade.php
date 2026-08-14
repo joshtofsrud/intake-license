@@ -44,7 +44,7 @@
       {{ $card->type === 'egift' ? 'E-gift' : 'Physical' }}
       @if($card->purchaser) · Purchased by {{ $card->purchaser->fullName() }}
       @elseif($card->purchaser_name) · Purchased by {{ $card->purchaser_name }} @endif
-      · Issued {{ tlocal($card->created_at)->format('M j, Y') }}
+      · Issued {{ tlocal_date($card->created_at) }}{{-- MARKER-GC-TLOCAL --}}
       @if($card->recipient_email) · To {{ $card->recipient_email }} @endif
     </div>
   </div>
@@ -153,7 +153,7 @@
           · <a href="{{ route('tenant.register.sales.receipt', ['id' => $t->sale_id]) }}" style="color:var(--ia-text);border-bottom:1px dotted var(--ia-border-strong)" onclick="event.stopPropagation()">View sale</a>
         @endif
       </span>
-      <span class="gcd-when">{{ tlocal($t->created_at)->format('M j, g:i A') }}</span>
+      <span class="gcd-when">{{ tlocal($t->created_at, 'M j, g:i A') }}{{-- MARKER-GC-TLOCAL --}}</span>
       <span class="gcd-amt {{ $t->amount_cents >= 0 ? 'credit' : 'debit' }}">{{ $t->amount_cents >= 0 ? '+' : '−' }}{{ $money(abs($t->amount_cents)) }}</span>
       <span class="gcd-bal">{{ $money($t->balance_after_cents) }}</span>
     </div>

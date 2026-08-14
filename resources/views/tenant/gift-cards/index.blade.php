@@ -144,7 +144,7 @@
               @endphp
               <span class="ia-badge ia-badge--{{ $badge }}">{{ ucfirst($r->status) }}</span>
             </td>
-            <td style="opacity:.55">{{ tlocal($r->updated_at)->format('M j, Y') }}</td>
+            <td style="opacity:.55">{{ tlocal_date($r->updated_at) }}{{-- MARKER-GC-TLOCAL --}}</td>
           </tr>
         @endforeach
       </tbody>
