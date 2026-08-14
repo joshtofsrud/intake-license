@@ -60,7 +60,21 @@
     @include('layouts.tenant._location-switcher')
 
     {{-- MARKER-OFFLINE-SYNC stage 4 — status pill mount, in the header flow --}}
-    <span id="ioMountMobile" style="position:absolute;right:102px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center"></span>
+    {{-- MARKER-IOFLASH — see the sidebar mount. Online renders as a bare dot
+         (renderMobilePill only shows a label when something is wrong). --}}
+    <span id="ioMountMobile" style="position:absolute;right:102px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center">
+      @php
+          // MARKER-IOFLASH — resolved here rather than inherited: these
+          // partials render before the layout's $ioEnabled block runs.
+          $ioStatusEnabled = app()->bound('tenant')
+              && app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync');
+        @endphp
+        @if($ioStatusEnabled)
+        <span class="io-status io-mstat" role="button" tabindex="0" aria-label="Offline sync status and settings">
+          <span class="io-dot"></span>
+        </span>
+      @endif
+    </span>
     {{-- MARKER-PATCH-363 — alerts bell -> full notifications page, with unread badge --}}
     <a href="{{ route('tenant.notifications') }}" class="ia-mobile-header-bell"
        aria-label="Notifications{{ $mhdrAlertsUnread > 0 ? ' — '.$mhdrAlertsUnread.' unread' : '' }}">

@@ -91,7 +91,27 @@
     </details>
 
     {{-- MARKER-OFFLINE-SYNC stage 6 — status row just below the user block --}}
-    <div id="ioMountSidebar"></div>
+    {{-- MARKER-IOFLASH — rendered server-side in the online state, identical
+         to renderSidebarBlock()'s output, so the pill is present at first
+         paint instead of appearing once the script runs. offline-sync.js
+         replaces this with the same markup on init; if the connection is
+         actually down, navigator.onLine corrects it in milliseconds.
+         Gated on the same addon check renderMounts() uses. --}}
+    <div id="ioMountSidebar">
+      @php
+          // MARKER-IOFLASH — resolved here rather than inherited: these
+          // partials render before the layout's $ioEnabled block runs.
+          $ioStatusEnabled = app()->bound('tenant')
+              && app(\App\Services\FeatureAccessService::class)->hasAddon(app('tenant'), 'offline_sync');
+        @endphp
+        @if($ioStatusEnabled)
+        <div class="io-status io-srow" role="button" tabindex="0" aria-label="Offline sync status and settings">
+          <span class="io-dot"></span>
+          <span>Online</span>
+          <span class="io-chev">&#9662;</span>
+        </div>
+      @endif
+    </div>
 
     {{-- Location row: rendered as the same partial used elsewhere, but
          styled as a sidebar row instead of a floating pill. The partial
