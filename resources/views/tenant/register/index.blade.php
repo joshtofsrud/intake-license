@@ -623,6 +623,8 @@
       </div>
       <div style="font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.4));margin-top:8px">Confirm the payment arrived in your app, then continue — the sale records as paid by this method.</div>
     </div>
+    {{-- MARKER-TENDERFIX --}}
+    <div id="tenderModalErr" style="display:none;font-size:12.5px;color:#f87171;margin-bottom:10px"></div>
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-secondary" data-close-modal="tenderModal">Cancel</button>
       <button type="button" class="reg-btn-primary" id="tenderConfirmBtn" disabled>Continue</button>
@@ -1078,6 +1080,7 @@ async function osTryQueueCommit(){
   cart.po_number = null; // MARKER-BIZ-REGISTER
   (function(){ var r = document.getElementById('taxExemptRow'); if (r) r.style.display = 'none'; })();
   cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
+  if (typeof resetGiftTender === 'function') resetGiftTender(); // MARKER-TENDERFIX
   cart.draft_id = null; cart.skipReceipt = false;
   renderCart();
   showError('Saved offline — this sale will sync automatically when the connection returns.');
@@ -1926,6 +1929,33 @@ document.getElementById('gcCustomAmount').addEventListener('input', () => {
 // MARKER-GC-SETTINGS -- limits + default message from register settings.
 const GC_CFG = @json(['min' => $gcCfg['min_cents'], 'max' => $gcCfg['max_cents'], 'default_message' => $gcCfg['default_message']]);
 
+// MARKER-TENDERFIX -- clear every trace of a checked gift card. The balance
+// shown in this modal is a snapshot taken at Check time; carrying it into the
+// next sale shows a cashier money that may already be spent.
+function resetGiftTender() {
+  window.gcTender = null;
+  const code = document.getElementById('gcTenderCode');
+  if (code) code.value = '';
+  const row = document.getElementById('gcTenderRow');
+  if (row) row.style.display = 'none';
+  const bal = document.getElementById('gcTenderBalance');
+  if (bal) bal.style.display = 'none';
+  const amt = document.getElementById('gcTenderBalanceAmt');
+  if (amt) amt.textContent = '';
+  const err = document.getElementById('gcTenderErr');
+  if (err) { err.textContent = ''; err.style.display = 'none'; }
+}
+
+// MARKER-TENDERFIX -- errors raised while the tender modal is open must land
+// INSIDE it. showError() writes to #errBanner on the page behind the dialog,
+// where it is invisible to whoever is looking at the modal.
+function tenderModalError(msg) {
+  const el = document.getElementById('tenderModalErr');
+  if (!el) { showError(msg); return; }
+  el.textContent = msg;
+  el.style.display = msg ? '' : 'none';
+}
+
 function gcSellError(msg) {
   const el = document.getElementById('gcSellErr');
   el.textContent = msg; el.style.display = '';
@@ -1991,6 +2021,9 @@ document.getElementById('gcTenderCheckBtn').addEventListener('click', async () =
     bal.style.display = 'flex';
     const inp = document.getElementById('splitAmountInput');
     if (inp) { inp.value = (Math.min(data.balance_cents, splitRemaining()) / 100).toFixed(2); }
+    // MARKER-TENDERFIX -- if the card can't cover what's left, say so on the
+    // button itself and make pressing it start the split.
+    gcSyncTenderButton();
   } catch (e) {
     err.textContent = 'Could not check the card — network error.'; err.style.display = '';
   }
@@ -2186,6 +2219,8 @@ document.getElementById('payBtn').addEventListener('click', () => {
   document.getElementById('tenderRefInput').value = '';
   document.getElementById('tenderConfirmBtn').disabled = true;
   document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
+  resetGiftTender();          // MARKER-TENDERFIX -- fresh card check every sale
+  tenderModalError('');
   openModal('tenderModal');
 });
 
@@ -2313,6 +2348,8 @@ document.getElementById('splitAddBtn').addEventListener('click', () => {
   document.getElementById('splitHint').style.display = 'none';
   document.getElementById('tenderRefRow').style.display = 'none';
   document.getElementById('tenderRefInput').value = '';
+  resetGiftTender();   // MARKER-TENDERFIX -- the leg holds the code now
+  tenderModalError('');
   renderSplit();
 });
 
@@ -2338,7 +2375,17 @@ document.querySelectorAll('#tenderModal .reg-tender-btn').forEach(btn => {
         rowEl.style.display = 'none'; if (hintEl) hintEl.style.display = 'none';
       }
     })();
-    document.getElementById('tenderConfirmBtn').disabled = false;
+    // MARKER-TENDERFIX -- do NOT force-enable: while a split is open,
+    // renderSplit() owns this button (disabled until the remainder is
+    // covered). Force-enabling it produced a button that looked ready and
+    // then did nothing when pressed.
+    if (cart.payments.length > 0) {
+      renderSplit();
+    } else {
+      document.getElementById('tenderConfirmBtn').disabled = false;
+      document.getElementById('tenderConfirmBtn').textContent = 'Confirm';
+    }
+    tenderModalError('');
     // MARKER-PATCH-170C — reference field only meaningful for checks now.
     // Card no longer needs a hand-typed reference (with direct payments the
     // brand+last4 becomes the reference automatically; without direct payments
@@ -2598,6 +2645,8 @@ async function confirmCardPayment() {
     DirectPay.inFlight = false;
     if (splitRemaining() > 0) {
       renderSplit();
+      resetGiftTender();      // MARKER-TENDERFIX
+      tenderModalError('');
       openModal('tenderModal');
       return;
     }
@@ -2669,6 +2718,29 @@ function computeTotalsForCommit() {
   return { subtotal_cents: sub, tax_cents: tax, total_cents: Math.max(0, total) };
 }
 
+// MARKER-TENDERFIX -- what is the sale still asking for right now?
+function tenderDueCents() {
+  return (calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents)
+       - (calcRefundSubtotal() + calcRefundTax());
+}
+
+// MARKER-TENDERFIX -- a checked card that can't cover the remainder is not an
+// error, it's a split waiting to happen. Label the button with the action.
+function gcSyncTenderButton() {
+  const btn = document.getElementById('tenderConfirmBtn');
+  if (!btn) return;
+  const due = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
+  if (cart.payment_method === 'gift_card' && window.gcTender && gcTender.balance < due) {
+    btn.disabled = false;
+    btn.textContent = 'Add gift card ' + fmt(gcTender.balance) + ' — ' + fmt(due - gcTender.balance) + ' left';
+  } else if (cart.payments.length > 0) {
+    renderSplit();
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Confirm';
+  }
+}
+
 document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
   // MARKER-BIZ-REGISTER — a PO-required customer is asked once, here, rather
   // than the invoice being rejected weeks later for a missing reference.
@@ -2689,20 +2761,32 @@ document.getElementById('tenderConfirmBtn').addEventListener('click', () => {
 
   // MARKER-GIFTCARDS -- single gift tender: require a checked card whose
   // balance covers the full total; otherwise it belongs in a split.
-  if (cart.payment_method === 'gift_card' && cart.payments.length === 0) {
-    if (!window.gcTender || !gcTender.code) { showError('Check the gift card balance first.'); return; }
-    const gcDue = (calcSubtotal() - cart.discountCents + calcTax() + calcSurcharge() + cart.tipCents) - (calcRefundSubtotal() + calcRefundTax());
+  // MARKER-TENDERFIX -- gift tender. A short balance now STARTS the split
+  // (the button already said it would) instead of erroring behind the modal.
+  if (cart.payment_method === 'gift_card') {
+    if (!window.gcTender || !gcTender.code) { tenderModalError('Check the gift card balance first.'); return; }
+    const gcDue = cart.payments.length > 0 ? splitRemaining() : tenderDueCents();
     if (gcTender.balance < gcDue) {
-      showError('Gift card covers ' + fmt(gcTender.balance) + ' of ' + fmt(gcDue) + ' — add it as a split payment for the part it covers.');
+      const amtEl = document.getElementById('splitAmountInput');
+      if (amtEl) amtEl.value = (gcTender.balance / 100).toFixed(2);
+      document.getElementById('splitAddBtn').click();
+      tenderModalError('');
       return;
     }
-    cart.payment_reference = gcTender.code;
+    if (cart.payments.length === 0) {
+      cart.payment_reference = gcTender.code;
+    }
   }
 
   // MARKER-SPLIT-TENDER — split path: tenders recorded row by row; the tip
   // modal is skipped (set tips before splitting so remaining math is stable).
   if (cart.payments.length > 0) {
-    if (splitRemaining() !== 0) return;
+    // MARKER-TENDERFIX -- was a bare `return`: the button did nothing and
+    // never said why, so the split got abandoned and re-rung as one tender.
+    if (splitRemaining() !== 0) {
+      tenderModalError(fmt(splitRemaining()) + ' still to collect — add a payment for the rest, or remove a line above.');
+      return;
+    }
     cart.payment_method = 'split';
     cart.payment_reference = null;
     closeModal('tenderModal');
@@ -3135,6 +3219,7 @@ async function resetRegisterToFresh() {
   cart.refund_meta = null;
   cart.tipCents = 0; cart.discountCents = 0;
   cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
+  if (typeof resetGiftTender === 'function') resetGiftTender(); // MARKER-TENDERFIX
   closeModal('receiptModal');
   renderCart();
   searchInput.value = '';

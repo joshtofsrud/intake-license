@@ -114,7 +114,43 @@ class TenantSalePayment extends Model
             'mark_paid'     => 'Marked paid (no charge)',
             'stripe'        => 'Stripe',
             'paypal'        => 'PayPal',
-            default         => 'Other',
+            'gift_card'     => 'Gift card',   // MARKER-TENDERFIX
+            'split'         => 'Split tender', // MARKER-TENDERFIX -- only appears if legs failed to record
+            default         => $this->manualMethodLabel(),
         };
+    }
+
+    /**
+     * MARKER-TENDERFIX -- manual tenders are tenant-defined: any method_key,
+     * any display name ('custom_zelle' shown as 'Zelle — shop account'), so
+     * the name has to come from the shop's own row, not from prettifying the
+     * key. Deliberately NOT filtered on `enabled` — a shop that retires a
+     * tender still needs old receipts to print the name it was taken under.
+     * Cached per tenant per request: a receipt renders one row per leg.
+     */
+    protected function manualMethodLabel(): string
+    {
+        $key = (string) $this->method;
+        if ($key === '') {
+            return 'Other';
+        }
+
+        static $cache = [];
+        $tenantId = (string) $this->tenant_id;
+
+        if (! array_key_exists($tenantId, $cache)) {
+            $cache[$tenantId] = \App\Models\Tenant\TenantPaymentMethod::query()
+                ->where('tenant_id', $tenantId)
+                ->pluck('name', 'method_key')
+                ->all();
+        }
+
+        if (! empty($cache[$tenantId][$key])) {
+            return (string) $cache[$tenantId][$key];
+        }
+
+        // No row at all (deleted method, or a key from an older build):
+        // a readable version of the key beats the word "Other".
+        return \Illuminate\Support\Str::of($key)->replace('_', ' ')->title()->toString();
     }
 }
