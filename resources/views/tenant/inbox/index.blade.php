@@ -175,18 +175,9 @@
     text-align:center; line-height:1.5; }
   .ib-capnote.on { display:block; }
 
-  @media (max-width: 980px) {
-    /* the app header is sticky at 52px on <=1023px; sit directly under it */
-    .ib-sticky { position:sticky; top:52px; z-index:20;
-      background:var(--ia-bg); padding-top:8px; }
-    /* the list scroller must not clip the sticky child */
-    .ib-scroll { overflow:visible !important; }
-
-    /* header: title and action on one line, subtitle gone */
-    .ia-page-head { align-items:center; gap:10px; }
-    .ia-page-subtitle { display:none; }
-    .ia-page-actions .ia-btn { white-space:nowrap; padding:9px 14px; font-size:13px; }
-  }
+  /* MARKER-INBOX-MOBILE-2 — the sticky controls and header overrides that
+     lived here are removed: they left a dead gap under the header and clipped
+     the first conversation. The list keeps its original layout. */
 </style>
 @endpush
 
@@ -247,9 +238,6 @@
 
 <div class="ib-wrap">
   <div class="ib-list">
-    {{-- MARKER-INBOX-MOBILE — search and pills stay reachable while the
-         list scrolls; they used to scroll away with it. --}}
-    <div class="ib-sticky">
     {{-- MARKER-INBOX-SEARCH --}}
     <form class="ib-search" method="GET" action="{{ route('tenant.inbox.index') }}" id="ib-search-form">
       <span class="ib-search-ico">&#9906;</span>
@@ -271,8 +259,9 @@
       <a class="ib-pill {{ $filter === 'closed' ? 'is-active' : '' }}" href="{{ route('tenant.inbox.index', ['filter' => 'closed']) }}">Closed</a>
     </div>
     @endif
-    </div>{{-- /ib-sticky MARKER-INBOX-MOBILE --}}
-    <div class="ib-scroll" id="ib-scroll" style="overflow-y:auto;flex:1">
+    {{-- MARKER-INBOX-MOBILE-2 — original container; the id is retained only
+         so the chunking script can find it. --}}
+    <div id="ib-scroll" style="overflow-y:auto;flex:1">
       @forelse($threads as $t)
         <a class="ib-thread {{ $selected && $selected->id === $t->id ? 'is-sel' : '' }}"
            href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null, 'thread' => $t->id])) }}">
