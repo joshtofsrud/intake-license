@@ -26,6 +26,14 @@
   .rs-links{display:flex;flex-direction:column;gap:8px}
   .rs-links a{font-size:13px;color:var(--ia-text-muted);transition:color var(--ia-t)}
   .rs-links a:hover{color:var(--ia-text)}
+  /* MARKER-GC-SETTINGS */
+  .gc-presets{display:grid;grid-template-columns:repeat(4,90px);gap:8px}
+  .gc-presets input{text-align:center}
+  .gc-inline{display:flex;align-items:center;gap:8px}
+  .gc-sm{width:110px}
+  .gc-hint{font-size:11.5px;color:var(--ia-text-dim);margin-top:6px;line-height:1.5;max-width:460px}
+  .gc-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ia-text-muted);min-width:0;margin-bottom:6px}
+  .gc-check input[type=checkbox]{width:15px;height:15px;accent-color:var(--ia-accent)}
 </style>
 @endpush
 
@@ -84,6 +92,111 @@
       </select>
     </div>
   </div>
+
+  {{-- MARKER-GC-SETTINGS --}}
+  @if($tenant->gift_cards_visible)
+  <div class="rs-card">
+    <h2>Gift cards</h2>
+    <div class="rs-desc">
+      What staff and customers see when buying a card. Amounts already sold are
+      never affected by changes here &mdash; outstanding balances stay redeemable
+      whatever you set.
+    </div>
+
+    <div class="rs-row" style="align-items:flex-start;margin-bottom:14px">
+      <label>Preset amounts</label>
+      <div>
+        <div class="gc-presets">
+          @for($i = 0; $i < 4; $i++)
+            <input type="text" inputmode="decimal" class="ia-input"
+                   name="gift_card_presets[]"
+                   value="{{ isset($gift['presets'][$i]) ? number_format($gift['presets'][$i] / 100, 2, '.', '') : '' }}"
+                   placeholder="&mdash;">
+          @endfor
+        </div>
+        <div class="gc-hint">Leave a box empty to show fewer buttons. Staff and customers can always type a custom amount.</div>
+      </div>
+    </div>
+
+    <div class="rs-row" style="margin-bottom:14px">
+      <label>Amount limits</label>
+      <div class="gc-inline">
+        <span class="gc-hint">Min</span>
+        <input type="text" inputmode="decimal" class="ia-input gc-sm" name="gift_card_min"
+               value="{{ number_format($gift['min_cents'] / 100, 2, '.', '') }}">
+        <span class="gc-hint">Max</span>
+        <input type="text" inputmode="decimal" class="ia-input gc-sm" name="gift_card_max"
+               value="{{ number_format($gift['max_cents'] / 100, 2, '.', '') }}">
+      </div>
+    </div>
+
+    <div class="rs-row" style="align-items:flex-start;margin-bottom:14px">
+      <label>Sell online</label>
+      <div>
+        <label class="gc-check">
+          <input type="hidden" name="gift_card_online_egift" value="0">
+          <input type="checkbox" name="gift_card_online_egift" value="1" @checked($gift['online_egift'])>
+          E-gift cards, emailed to the recipient
+        </label>
+        <label class="gc-check">
+          <input type="hidden" name="gift_card_online_physical" value="0">
+          <input type="checkbox" name="gift_card_online_physical" value="1" @checked($gift['online_physical'])>
+          Physical cards, picked up in store
+        </label>
+        <div class="gc-hint">
+          Turn both off to keep gift cards register-only &mdash; your public
+          <code>/gift-cards</code> page then shows a call-us message instead of checkout.
+          The balance check stays available either way.
+        </div>
+      </div>
+    </div>
+
+    <div class="rs-row" style="align-items:flex-start;margin-bottom:14px">
+      <label>Refunds</label>
+      <div>
+        <label class="gc-check">
+          <input type="hidden" name="gift_card_refund_to_card" value="0">
+          <input type="checkbox" name="gift_card_refund_to_card" value="1" @checked($gift['refund_to_card'])>
+          Allow refunding onto a gift card
+        </label>
+        <div class="gc-hint">Adds &ldquo;Gift card&rdquo; as a refund method: credits the customer&rsquo;s existing card, or issues a new one for the refund amount.</div>
+      </div>
+    </div>
+
+    <div class="rs-row" style="margin-bottom:14px">
+      <label for="rs-gc-pending">Abandoned online</label>
+      <div>
+        <select id="rs-gc-pending" name="gift_card_pending_retention_days" class="ia-input" style="width:auto;min-width:180px">
+          <option value="0"  @selected($gift['pending_days'] === 0)>Keep forever</option>
+          <option value="1"  @selected($gift['pending_days'] === 1)>Purge after 1 day</option>
+          <option value="3"  @selected($gift['pending_days'] === 3)>Purge after 3 days</option>
+          <option value="7"  @selected($gift['pending_days'] === 7)>Purge after 7 days</option>
+          <option value="30" @selected($gift['pending_days'] === 30)>Purge after 30 days</option>
+        </select>
+        <div class="gc-hint">An online purchase that never finished payment leaves an unpaid card row. Only rows with no payment and no balance history are ever purged.</div>
+      </div>
+    </div>
+
+    <div class="rs-row" style="align-items:flex-start;margin-bottom:14px">
+      <label for="rs-gc-msg">Default message</label>
+      <div style="flex:1">
+        <input type="text" id="rs-gc-msg" class="ia-input" name="gift_card_default_message"
+               maxlength="200" style="width:100%;max-width:420px"
+               value="{{ $gift['default_message'] }}" placeholder="Optional — prefills the gift message box">
+      </div>
+    </div>
+
+    <div class="rs-row" style="align-items:flex-start">
+      <label for="rs-gc-policy">Terms line</label>
+      <div style="flex:1">
+        <input type="text" id="rs-gc-policy" class="ia-input" name="gift_card_policy_line"
+               maxlength="160" style="width:100%;max-width:420px"
+               value="{{ $gift['policy_line'] }}">
+        <div class="gc-hint">Shown on your buy page, the balance check and the e-gift email. Check your state&rsquo;s rules before promising an expiry.</div>
+      </div>
+    </div>
+  </div>
+  @endif
 
   <div style="max-width:720px;margin-bottom:24px">
     <button type="submit" class="ia-btn ia-btn--primary">Save settings</button>

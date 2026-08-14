@@ -19,6 +19,54 @@ use Illuminate\Support\Facades\DB;
 class GiftCardService
 {
     /** Generate a unique, unused code for this tenant: GC-####-####-####. */
+    /**
+     * MARKER-GC-SETTINGS -- normalized gift card configuration. Every surface
+     * (register modal, public buy page, and the validation behind both) reads
+     * this, so a default lives in exactly one place. Values are clamped here
+     * rather than trusted: settings rows predate the validation that now
+     * writes them, and a bad max would otherwise reject every sale.
+     */
+    public static function config(\App\Models\Tenant $tenant): array
+    {
+        $s = (array) ($tenant->settings ?? []);
+
+        $presets = array_values(array_filter(array_map(
+            fn ($v) => (int) $v,
+            (array) ($s['gift_card_presets'] ?? [2500, 5000, 10000, 15000])
+        ), fn ($v) => $v > 0));
+        $presets = array_slice($presets, 0, 4);
+
+        $min = (int) ($s['gift_card_min_cents'] ?? 500);
+        $max = (int) ($s['gift_card_max_cents'] ?? 200000);
+        $min = max(100, $min);
+        $max = max($min, $max);
+
+        return [
+            'presets'          => $presets,
+            'min_cents'        => $min,
+            'max_cents'        => $max,
+            'online_egift'     => (bool) ($s['gift_card_online_egift'] ?? true),
+            'online_physical'  => (bool) ($s['gift_card_online_physical'] ?? true),
+            'refund_to_card'   => (bool) ($s['gift_card_refund_to_card'] ?? false),
+            'pending_days'     => (int) ($s['gift_card_pending_retention_days'] ?? 7),
+            'default_message'  => (string) ($s['gift_card_default_message'] ?? ''),
+            'policy_line'      => (string) ($s['gift_card_policy_line'] ?? 'Never expires. Redeemable in store and online.'),
+        ];
+    }
+
+    /** MARKER-GC-SETTINGS -- shared amount check for every sell path. */
+    public static function assertAmountAllowed(\App\Models\Tenant $tenant, int $cents): void
+    {
+        $cfg = self::config($tenant);
+        if ($cents < $cfg['min_cents'] || $cents > $cfg['max_cents']) {
+            throw new SaleValidationException(sprintf(
+                'Gift card amounts must be between $%s and $%s.',
+                number_format($cfg['min_cents'] / 100, 2),
+                number_format($cfg['max_cents'] / 100, 2)
+            ));
+        }
+    }
+
     public function generateCode(string $tenantId): string
     {
         do {
@@ -57,9 +105,15 @@ class GiftCardService
             // MARKER-GIFTCARDS-GATE -- selling requires the addon. Checked at
             // activation so it holds for every path (register, drafts, quotes
             // committed later). Redemption is deliberately NOT gated.
-            if (! \App\Models\Tenant::find($sale->tenant_id)?->gift_cards_enabled) {
+            $sellTenant = \App\Models\Tenant::find($sale->tenant_id);
+            if (! $sellTenant?->gift_cards_enabled) {
                 throw new SaleValidationException('Gift cards are not enabled for this shop.');
             }
+
+            // MARKER-GC-SETTINGS -- the configured floor/ceiling, enforced at
+            // activation so it also covers a draft rung up before the limits
+            // changed rather than only the modal that created the line.
+            self::assertAmountAllowed($sellTenant, (int) round($line->unit_price_cents * (float) $line->quantity));
 
             $meta = (array) ($line->metadata ?? []);
             $kind = ($meta['kind'] ?? 'physical') === 'egift' ? 'egift' : 'physical';
@@ -165,6 +219,111 @@ class GiftCardService
         $card->save();
 
         $this->ledger($card, 'redeem', -$amountCents, $sale->id, 'Tender on sale ' . ($sale->sale_number ?? $sale->id), $sale->rang_up_by_user_id);
+    }
+
+    /**
+     * MARKER-GC-FUNCTIONS -- put a refund onto a gift card.
+     *
+     * With a code: credits that card (must exist and not be deactivated; a
+     * fully-used card comes back to life, which is the point of handing it
+     * back). Without one: issues a new physical card for the refund amount.
+     * Returns the card so the register can show or print its code.
+     *
+     * Runs inside the caller's transaction: if anything downstream of the
+     * refund fails, the credit rolls back with it rather than leaving money
+     * on a card for goods that were never returned.
+     */
+    public function refundToCard(TenantSale $refund, ?string $code, ?string $userId = null): TenantGiftCard
+    {
+        $tenant = \App\Models\Tenant::find($refund->tenant_id);
+        $amount = abs((int) $refund->total_cents);
+
+        if ($amount < 1) {
+            throw new SaleValidationException('A gift card refund needs an amount.');
+        }
+        if (! $tenant || ! self::config($tenant)['refund_to_card']) {
+            throw new SaleValidationException('Refunding to a gift card is turned off for this shop.');
+        }
+
+        $note = 'Refund from ' . ($refund->sale_number ?? $refund->id);
+
+        if (filled($code)) {
+            $norm = TenantGiftCard::normalizeCode((string) $code);
+            $card = TenantGiftCard::where('tenant_id', $refund->tenant_id)
+                ->where('code', $norm)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $card) {
+                throw new SaleValidationException('Gift card ' . ($norm ?: '(blank)') . ' was not found.');
+            }
+            if ($card->status === 'deactivated') {
+                throw new SaleValidationException('Gift card ' . $card->maskedCode() . ' is deactivated — issue a new one instead.');
+            }
+            if ($card->status === 'pending') {
+                throw new SaleValidationException('Gift card ' . $card->maskedCode() . ' has not been paid for yet.');
+            }
+
+            $card->balance_cents += $amount;
+            $card->status = 'active'; // a used card is spendable again once credited
+            $card->save();
+
+            $this->ledger($card, 'refund', $amount, $refund->id, $note, $userId);
+
+            return $card;
+        }
+
+        $card = TenantGiftCard::create([
+            'tenant_id'       => $refund->tenant_id,
+            'code'            => $this->generateCode($refund->tenant_id),
+            'type'            => 'physical',
+            'status'          => 'active',
+            'original_cents'  => $amount,
+            'balance_cents'   => $amount,
+            'issued_sale_id'  => $refund->id,
+        ]);
+
+        $this->ledger($card, 'issue', $amount, $refund->id, $note, $userId);
+
+        return $card;
+    }
+
+    /**
+     * MARKER-GC-FUNCTIONS -- bind a preprinted card to an online physical
+     * purchase, replacing the generated code at pickup. Balance and history
+     * are untouched; the swap itself is recorded, because a code changing
+     * with no trace is exactly the kind of thing a manager needs to be able
+     * to explain later.
+     */
+    public function bindPrintedCode(TenantGiftCard $card, string $printedCode, ?string $userId): void
+    {
+        $norm = TenantGiftCard::normalizeCode($printedCode);
+
+        if ($norm === '') {
+            throw new SaleValidationException('Enter the code printed on the card.');
+        }
+        if ($card->type !== 'physical') {
+            throw new SaleValidationException('Only a physical card can be bound to a printed code.');
+        }
+        if ($card->status === 'deactivated') {
+            throw new SaleValidationException('This card is deactivated.');
+        }
+
+        $taken = TenantGiftCard::where('tenant_id', $card->tenant_id)
+            ->where('code', $norm)
+            ->where('id', '!=', $card->id)
+            ->exists();
+        if ($taken) {
+            throw new SaleValidationException('That code is already in use on another card.');
+        }
+
+        DB::transaction(function () use ($card, $norm, $userId) {
+            $locked = TenantGiftCard::whereKey($card->id)->lockForUpdate()->first();
+            $was = $locked->maskedCode();
+            $locked->update(['code' => $norm]);
+
+            $this->ledger($locked, 'adjust', 0, null, 'Code bound to printed card (was ' . $was . ')', $userId);
+        });
     }
 
     /** Manual balance adjustment (± cents). Requires a reason. */

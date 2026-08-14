@@ -21,7 +21,7 @@
 <div class="spg-gcbal">
   <div class="wrap">
     <h1>Check a balance</h1>
-    <div class="sub">Enter the code from your card or e-gift email.</div>
+    <div class="sub">Enter the code from your card or e-gift email.@if(!empty($gift['policy_line'])) {{ $gift['policy_line'] }}@endif</div>
 
     <form class="panel" method="POST" action="/gift-cards/balance">
       @csrf

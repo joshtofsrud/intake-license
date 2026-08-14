@@ -1,5 +1,7 @@
 @extends('layouts.tenant.app')
 
+@php $gcCfg = \App\Services\Tenant\GiftCardService::config(tenant()); @endphp {{-- MARKER-GC-SETTINGS --}}
+
 @php $pageTitle = 'Register'; @endphp
 
 @push('styles')
@@ -528,6 +530,16 @@
       <button type="button" class="reg-tender-btn" data-refund-tender="cash">Cash from drawer</button>
       <button type="button" class="reg-tender-btn" data-refund-tender="check">Check</button>
       <button type="button" class="reg-tender-btn" data-refund-tender="store_credit">Store credit</button>
+      {{-- MARKER-GC-FUNCTIONS --}}
+      @if(tenant()->gift_cards_enabled && $gcCfg['refund_to_card'])
+      <button type="button" class="reg-tender-btn" data-refund-tender="gift_card">Gift card</button>
+      @endif
+    </div>
+    {{-- MARKER-GC-FUNCTIONS --}}
+    <div id="refundGiftRow" style="display:none;margin-top:12px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin-bottom:6px;font-weight:500">Existing card code <span style="font-weight:400;color:var(--ia-text-dim)">(optional)</span></label>
+      <input type="text" id="refundGiftCode" placeholder="Scan the customer's card, or leave blank" style="font-family:var(--ia-font-mono)">
+      <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:6px">Leave blank to issue a new card for the refund amount — the code appears on the receipt screen.</div>
     </div>
     <div class="reg-modal-actions">
       <button type="button" class="reg-btn-secondary" data-close-modal="refundTenderModal">Cancel</button>
@@ -785,12 +797,16 @@
     </div>
 
     <label style="display:block;font-size:12px;color:var(--ia-text-muted);margin:12px 0 6px;font-weight:500">Amount</label>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px" id="gcAmountGrid">
-      <button type="button" class="reg-tender-btn" data-cents="2500" style="text-align:center;font-weight:600">$25</button>
-      <button type="button" class="reg-tender-btn" data-cents="5000" style="text-align:center;font-weight:600">$50</button>
-      <button type="button" class="reg-tender-btn" data-cents="10000" style="text-align:center;font-weight:600">$100</button>
-      <button type="button" class="reg-tender-btn" data-cents="15000" style="text-align:center;font-weight:600">$150</button>
+    {{-- MARKER-GC-SETTINGS -- presets come from register settings --}}
+    @if(count($gcCfg['presets']))
+    <div style="display:grid;grid-template-columns:repeat({{ count($gcCfg['presets']) }},1fr);gap:8px;margin-bottom:10px" id="gcAmountGrid">
+      @foreach($gcCfg['presets'] as $gcAmt)
+      <button type="button" class="reg-tender-btn" data-cents="{{ $gcAmt }}" style="text-align:center;font-weight:600">${{ rtrim(rtrim(number_format($gcAmt / 100, 2), '0'), '.') }}</button>
+      @endforeach
     </div>
+    @else
+    <div id="gcAmountGrid" style="display:none"></div>
+    @endif
     <input type="text" id="gcCustomAmount" placeholder="Custom amount" inputmode="decimal">
 
     <div id="gcPhysicalFields">
@@ -1879,6 +1895,7 @@ if (document.getElementById('sellGiftCardBtn')) document.getElementById('sellGif
   document.getElementById('gcEgiftFields').style.display = 'none';
   document.querySelectorAll('#gcAmountGrid .reg-tender-btn').forEach(b => b.classList.remove('selected'));
   ['gcCustomAmount','gcSellCode','gcSellEmail','gcSellMessage'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('gcSellMessage').value = GC_CFG.default_message || ''; // MARKER-GC-SETTINGS
   document.getElementById('gcSellErr').style.display = 'none';
   openModal('gcSellModal');
 });
@@ -1906,6 +1923,9 @@ document.getElementById('gcCustomAmount').addEventListener('input', () => {
   gcSell.cents = null;
 });
 
+// MARKER-GC-SETTINGS -- limits + default message from register settings.
+const GC_CFG = @json(['min' => $gcCfg['min_cents'], 'max' => $gcCfg['max_cents'], 'default_message' => $gcCfg['default_message']]);
+
 function gcSellError(msg) {
   const el = document.getElementById('gcSellErr');
   el.textContent = msg; el.style.display = '';
@@ -1919,7 +1939,12 @@ document.getElementById('gcSellAddBtn').addEventListener('click', async () => {
     const f = parseFloat(custom.replace(/[^0-9.]/g, ''));
     if (!isNaN(f) && f > 0) cents = Math.round(f * 100);
   }
-  if (!cents || cents < 100) { gcSellError('Pick or enter an amount of at least $1.00.'); return; }
+  // MARKER-GC-SETTINGS -- same floor/ceiling the server enforces at activation.
+  if (!cents) { gcSellError('Pick or enter an amount.'); return; }
+  if (cents < GC_CFG.min || cents > GC_CFG.max) {
+    gcSellError('Gift card amounts must be between $' + (GC_CFG.min / 100).toFixed(2) + ' and $' + (GC_CFG.max / 100).toFixed(2) + '.');
+    return;
+  }
 
   const gift = { kind: gcSell.kind };
   let label;
@@ -2170,6 +2195,9 @@ document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(btn => {
     document.querySelectorAll('#refundTenderModal .reg-tender-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     cart.payment_method = btn.dataset.refundTender;
+    // MARKER-GC-FUNCTIONS -- reveal the code box only for the gift tender.
+    const rgr = document.getElementById('refundGiftRow');
+    if (rgr) rgr.style.display = cart.payment_method === 'gift_card' ? '' : 'none';
     document.getElementById('refundTenderConfirmBtn').disabled = false;
   });
 });
@@ -2951,6 +2979,10 @@ async function commitTransaction(opts = {}) {
           })),
           item_ids: cart.refund_lines.map(r => r.original_item_id),
           refund_method: cart.payment_method,
+          // MARKER-GC-FUNCTIONS
+          gift_card_code: (cart.payment_method === 'gift_card'
+            ? (document.getElementById('refundGiftCode')?.value || '').trim() || null
+            : null),
         },
       };
     } else if (cart.draft_id) {

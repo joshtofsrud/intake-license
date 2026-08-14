@@ -189,3 +189,12 @@ Schedule::command('gift-cards:deliver')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
+// ----------------------------------------------------------------
+// MARKER-GC-FUNCTIONS — clear abandoned (never paid) online gift card
+// purchases per each shop's retention setting. Rows with any ledger
+// history are never in scope.
+// ----------------------------------------------------------------
+Schedule::command('gift-cards:reap-pending')
+    ->dailyAt('03:25')
+    ->withoutOverlapping()
+    ->runInBackground();

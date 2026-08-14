@@ -14,6 +14,7 @@
     'redeem' => ['partial', 'Redeemed'],
     'adjust' => ['shipped', 'Adjustment'],
     'deactivate' => ['cancelled', 'Deactivated'],
+    'refund' => ['completed', 'Refunded'], // MARKER-GC-FUNCTIONS
     default => ['pending', ucfirst($k)],
   };
 @endphp
@@ -119,6 +120,26 @@
     @endif
   </div>
 </div>
+
+{{-- MARKER-GC-FUNCTIONS -- physical cards bought online carry a generated
+     code until a preprinted card is handed over at pickup. --}}
+@if($card->type === 'physical' && $card->status !== 'deactivated')
+<div class="ia-card" style="margin-bottom:18px">
+  <div class="ia-card-head"><div class="ia-card-title">Printed card</div></div>
+  <div style="padding:16px">
+    <div style="font-size:12.5px;color:var(--ia-text-dim);margin-bottom:12px">
+      Handing this customer a preprinted card? Scan it here and it takes over from
+      the generated code. The balance and history stay with the card.
+    </div>
+    <form method="POST" action="{{ route('tenant.gift-cards.bind-code', $card->id) }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      @csrf
+      <input type="text" name="printed_code" class="ia-input" placeholder="Scan or type the printed code"
+             style="font-family:var(--ia-font-mono);min-width:260px" required>
+      <button type="submit" class="ia-btn ia-btn--secondary">Bind card</button>
+    </form>
+  </div>
+</div>
+@endif
 
 <div class="ia-card">
   <div class="ia-card-head"><div class="ia-card-title">Ledger</div></div>

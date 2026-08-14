@@ -342,6 +342,37 @@ HTML;
 <p>We'll be in touch when your work is ready.</p>
 <p>— The {$shop} team</p>",
             ],
+            // MARKER-GC-EMAILS -- the card visual sits INSIDE the editable body
+            // so a shop that customizes the copy keeps the design, and one that
+            // never opens the editor still sends something that looks made.
+            'gift_card_delivery' => [
+                'subject'   => "You've received a {$shop} gift card",
+                'body_html' => "<p>{{recipient_name}}, you've been sent a gift card for {$shop}.</p>
+<p>{{gift_message}}</p>
+<table role='presentation' width='100%' style='margin:20px 0;border-collapse:collapse'>
+  <tr><td style='background:#161616;color:#ffffff;border-radius:14px;padding:24px 26px'>
+    <div style='font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.55'>{$shop}</div>
+    <div style='font-size:34px;font-weight:800;padding-top:10px'>{{card_amount}}</div>
+    <div style='font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;opacity:.45;padding-top:16px'>Card code</div>
+    <div style='font-family:monospace;font-size:16px;letter-spacing:.16em;padding-top:6px'>{{card_code}}</div>
+  </td></tr>
+</table>
+<p>Use it in store or online — just give this code at checkout. {{gift_policy}}</p>
+<p>Check the balance any time at <a href='{{balance_url}}'>{{balance_url}}</a>.</p>
+<p>— The {$shop} team</p>",
+            ],
+            'gift_card_purchase_receipt' => [
+                'subject'   => "Your {$shop} gift card purchase",
+                'body_html' => "<p>Hi {{first_name}},</p>
+<p>Thanks — your gift card purchase went through.</p>
+<table style='font-size:14px;line-height:1.8'>
+  <tr><td style='color:#666;padding-right:16px'>Amount</td><td><strong>{{card_amount}}</strong></td></tr>
+  <tr><td style='color:#666'>Type</td><td>{{card_type}}</td></tr>
+  <tr><td style='color:#666'>Delivery</td><td>{{card_delivery}}</td></tr>
+</table>
+<p>{{card_next_step}}</p>
+<p>— The {$shop} team</p>",
+            ],
             'status_update' => [
                 'subject'   => 'Your work order {{ra_number}} has been updated',
                 'body_html' => "<p>Hi {{first_name}},</p>

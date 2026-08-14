@@ -926,7 +926,9 @@ class RegisterController extends Controller
             'refund.items.*.sale_item_id'  => 'required|uuid',
             'refund.items.*.quantity'      => 'required|numeric|min:0.001',
             'refund.items.*.disposition'   => 'nullable|string|in:' . implode(',', \App\Services\Tenant\SaleService::DISPOSITIONS),
-            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange',
+            // MARKER-GC-FUNCTIONS
+            'refund.refund_method'         => 'required|string|in:cash,card,check,store_credit,mark_paid,even_exchange,gift_card',
+            'refund.gift_card_code'        => 'nullable|string|max:40',
         ]);
 
         try {
@@ -963,6 +965,36 @@ class RegisterController extends Controller
                 $stripeRefundError = $this->fireStripeRefund($tenant, $refund);
             }
 
+            // MARKER-GC-FUNCTIONS -- put the refund onto a gift card. A failure
+            // here is loud: the refund row exists, so silently not crediting the
+            // card would hand the customer nothing and tell them it worked.
+            $giftRefundCard = null;
+            if ($refund && ($validated['refund']['refund_method'] ?? null) === 'gift_card') {
+                try {
+                    $giftRefundCard = \Illuminate\Support\Facades\DB::transaction(
+                        fn () => app(\App\Services\Tenant\GiftCardService::class)->refundToCard(
+                            $refund,
+                            $validated['refund']['gift_card_code'] ?? null,
+                            auth('tenant')->id()
+                        )
+                    );
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('gift_card.refund_failed', [
+                        'tenant_id' => $tenant->id,
+                        'refund_id' => $refund->id,
+                        'error'     => $e->getMessage(),
+                    ]);
+
+                    return response()->json([
+                        'ok'    => false,
+                        'error' => 'The refund was recorded but could not be put on a gift card: '
+                                   . $e->getMessage()
+                                   . ' Credit the card from Gift Cards, or refund another way.',
+                        'transaction_id' => $result['transaction_id'],
+                    ], 422);
+                }
+            }
+
             return response()->json([
                 'ok'             => true,
                 'transaction_id' => $result['transaction_id'],
@@ -971,6 +1003,12 @@ class RegisterController extends Controller
                 'total_cents'    => ($sale?->total_cents ?? 0) - ($refund?->total_cents ?? 0),
                 'sale_total'     => $sale?->total_cents ?? 0,
                 'refund_total'   => $refund?->total_cents ?? 0,
+                // MARKER-GC-FUNCTIONS -- the card to write on / hand back.
+                'gift_refund_card' => $giftRefundCard ? [
+                    'code'          => $giftRefundCard->code,
+                    'balance_cents' => (int) $giftRefundCard->balance_cents,
+                    'is_new'        => (string) $giftRefundCard->issued_sale_id === (string) $refund?->id,
+                ] : null,
                 // MARKER-PATCH-171 — Stripe refund outcome
                 'stripe_refund_error' => $stripeRefundError ?? null,
                 'stripe_refund_id'    => $refund?->fresh()?->stripe_refund_id,
@@ -2615,6 +2653,8 @@ class RegisterController extends Controller
             'tenant'         => $tenant,
             'draftRetention' => (int) ($cfg['register_draft_retention_days'] ?? 0),
             'quoteRetention' => (int) ($cfg['register_quote_retention_days'] ?? 0),
+            // MARKER-GC-SETTINGS
+            'gift'           => \App\Services\Tenant\GiftCardService::config($tenant),
         ]);
     }
 
@@ -2625,11 +2665,49 @@ class RegisterController extends Controller
         $data = $request->validate([
             'register_draft_retention_days' => 'required|integer|in:0,7,14,30,90',
             'register_quote_retention_days' => 'required|integer|in:0,30,90,180,365',
+            // MARKER-GC-SETTINGS -- dollars in the form, cents in storage.
+            'gift_card_presets'                  => 'nullable|array|max:4',
+            'gift_card_presets.*'                => 'nullable|numeric|min:0|max:20000',
+            'gift_card_min'                      => 'nullable|numeric|min:1|max:20000',
+            'gift_card_max'                      => 'nullable|numeric|min:1|max:20000',
+            'gift_card_online_egift'             => 'nullable|boolean',
+            'gift_card_online_physical'          => 'nullable|boolean',
+            'gift_card_refund_to_card'           => 'nullable|boolean',
+            'gift_card_pending_retention_days'   => 'nullable|integer|in:0,1,3,7,30',
+            'gift_card_default_message'          => 'nullable|string|max:200',
+            'gift_card_policy_line'              => 'nullable|string|max:160',
         ]);
 
         $settings = (array) ($tenant->settings ?? []);
         $settings['register_draft_retention_days'] = (int) $data['register_draft_retention_days'];
         $settings['register_quote_retention_days'] = (int) $data['register_quote_retention_days'];
+
+        // MARKER-GC-SETTINGS -- only written when the gift card section was on
+        // the page. A shop without the add-on never renders those inputs, and a
+        // blind write would silently reset its presets to nothing.
+        if ($tenant->gift_cards_visible) {
+            $presets = array_values(array_filter(array_map(
+                fn ($v) => (int) round(((float) $v) * 100),
+                (array) ($data['gift_card_presets'] ?? [])
+            ), fn ($v) => $v > 0));
+
+            $min = (int) round(((float) ($data['gift_card_min'] ?? 5)) * 100);
+            $max = (int) round(((float) ($data['gift_card_max'] ?? 2000)) * 100);
+            if ($max < $min) {
+                [$min, $max] = [$max, $min]; // reversed pair: swap rather than reject
+            }
+
+            $settings['gift_card_presets']   = $presets;
+            $settings['gift_card_min_cents'] = max(100, $min);
+            $settings['gift_card_max_cents'] = max(max(100, $min), $max);
+            $settings['gift_card_online_egift']    = (bool) ($data['gift_card_online_egift'] ?? false);
+            $settings['gift_card_online_physical'] = (bool) ($data['gift_card_online_physical'] ?? false);
+            $settings['gift_card_refund_to_card']  = (bool) ($data['gift_card_refund_to_card'] ?? false);
+            $settings['gift_card_pending_retention_days'] = (int) ($data['gift_card_pending_retention_days'] ?? 7);
+            $settings['gift_card_default_message'] = trim((string) ($data['gift_card_default_message'] ?? ''));
+            $settings['gift_card_policy_line']     = trim((string) ($data['gift_card_policy_line'] ?? ''));
+        }
+
         $tenant->settings = $settings;
         $tenant->save();
 

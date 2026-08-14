@@ -28,6 +28,11 @@ class CommunicationController extends Controller
         return [
             ['group'=>'Transactional','key'=>'sale_receipt','label'=>'Sale receipt','desc'=>'Itemized POS receipt with totals','fires'=>'A register sale is paid','channels'=>['email'],'template'=>'sale_receipt','editor'=>'receipt','vars'=>['first_name','shop_name','sale_number','date','total'],'def_subject'=>'Receipt from {{shop_name}} — #{{sale_number}}','def_body'=>'Thanks for your purchase, {{first_name}}. Your receipt for {{date}} is below.'],
             ['group'=>'Transactional','key'=>'appointment_receipt','label'=>'Work-order receipt','desc'=>'“Your work is complete” plus what it cost','fires'=>'Appointment hits Completed','channels'=>['email'],'template'=>'appointment_receipt','editor'=>'receipt','vars'=>['first_name','shop_name','ra_number','date','total'],'def_subject'=>'Your {{shop_name}} work is complete — #{{ra_number}}','def_body'=>'Hi {{first_name}} — we finished the work on your service request. Here is what we did and what it cost.'],
+            // MARKER-GC-EMAILS -- only listed for shops that actually have gift
+            // cards; the catalog drives the toggles, the editor and the test
+            // send, so a shop without them never sees dead switches.
+            ['group'=>'Transactional','key'=>'gift_card_delivery','label'=>'Gift card delivery','desc'=>'The card itself, sent to whoever it is for','fires'=>'An e-gift is paid for, or its delivery date arrives','channels'=>['email'],'template'=>'gift_card_delivery','editor'=>'body','vars'=>['recipient_name','shop_name','card_amount','card_code','gift_message','gift_policy','balance_url'],'def_subject'=>'You\'ve received a {{shop_name}} gift card','def_body'=>'{{recipient_name}}, you\'ve been sent a gift card for {{shop_name}}.'],
+            ['group'=>'Transactional','key'=>'gift_card_purchase_receipt','label'=>'Gift card purchase receipt','desc'=>'Confirmation to whoever bought the card','fires'=>'A gift card is bought on your website','channels'=>['email'],'template'=>'gift_card_purchase_receipt','editor'=>'body','vars'=>['first_name','shop_name','card_amount','card_type','card_delivery','card_next_step'],'def_subject'=>'Your {{shop_name}} gift card purchase','def_body'=>'Thanks — your gift card purchase went through.'],
             ['group'=>'Lifecycle','key'=>'booking_confirmation','label'=>'Booking confirmation','desc'=>'Sent right after a customer books','fires'=>'Customer finishes booking','channels'=>['email','sms'],'template'=>'booking_confirmation','editor'=>'body','vars'=>['first_name','shop_name','appointment_date','total'],'def_subject'=>'Your booking is confirmed — {{shop_name}}','def_body'=>'Hi {{first_name}}, you are booked with {{shop_name}} on {{appointment_date}}. We will send a reminder the day before. Reply to this email if anything changes.'],
             ['group'=>'Lifecycle','key'=>'delivery_scheduled','label'=>'Delivery scheduled','desc'=>'Tells the customer your pickup or dropoff window','fires'=>'You schedule a pickup or dropoff','channels'=>['email','sms'],'template'=>'delivery_scheduled','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'{{shop_name}}: your pickup or dropoff is scheduled','def_body'=>'Hi {{first_name}}, your {{shop_name}} pickup or dropoff is scheduled for {{date}}. Reply to this email if you need to change anything.'],
             ['group'=>'Lifecycle','key'=>'appointment_reminder','label'=>'Appointment reminder','desc'=>'24 hours before the appointment','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'appointment_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: your {{shop_name}} appointment is tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your appointment with {{shop_name}} is tomorrow, {{date}}.'],
@@ -44,6 +49,14 @@ class CommunicationController extends Controller
     {
         $tenant  = tenant();
         $catalog = $this->catalog();
+
+        // MARKER-GC-EMAILS
+        if (! $tenant->gift_cards_visible) {
+            $catalog = array_values(array_filter(
+                $catalog,
+                fn ($m) => ! str_starts_with($m['key'], 'gift_card_')
+            ));
+        }
 
         $templates = \App\Models\Tenant\TenantEmailTemplate::where('tenant_id', $tenant->id)
             ->get()->keyBy('template_type');
@@ -93,6 +106,10 @@ class CommunicationController extends Controller
 
         $settings = $tenant->settings ?? [];
         foreach ($this->catalog() as $m) {
+            // MARKER-GC-EMAILS -- skip gift messages the shop cannot send.
+            if (str_starts_with($m['key'], 'gift_card_') && ! $tenant->gift_cards_visible) {
+                continue;
+            }
             foreach ($m['channels'] as $ch) {
                 // Never persist SMS on when texting cannot deliver.
                 if ($ch === 'sms' && ! $smsReady) {
@@ -234,6 +251,16 @@ class CommunicationController extends Controller
             'shop_name'        => $tenant->name,
             'ra_number'        => 'ITO-TEST-0001',
             'sale_number'      => 'S-TEST-0001',
+            // MARKER-GC-EMAILS
+            'recipient_name'   => 'Sam',
+            'card_amount'      => '$50.00',
+            'card_code'        => 'GC-TEST-0000-0000',
+            'gift_message'     => 'Happy birthday — go get something good.',
+            'gift_policy'      => \App\Services\Tenant\GiftCardService::config($tenant)['policy_line'],
+            'balance_url'      => rtrim((string) $tenant->publicUrl(), '/') . '/gift-cards/balance',
+            'card_type'        => 'E-gift card',
+            'card_delivery'    => 'Sent to sam@example.com',
+            'card_next_step'   => 'The code is in the recipient\'s email.',
             'date'             => now()->format('M j, Y'),
             'date_short'       => now()->addDay()->format('M j'),
             'date_human'       => now()->addDay()->format('l, F j'),

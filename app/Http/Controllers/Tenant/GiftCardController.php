@@ -169,6 +169,26 @@ class GiftCardController extends Controller
         return back()->with('success', sprintf('Balance adjusted %s$%s — %s.', $verb, number_format(abs($delta) / 100, 2), $data['reason']));
     }
 
+    /** MARKER-GC-FUNCTIONS -- bind a preprinted card at pickup. */
+    public function bindCode(Request $request, string $cardId)
+    {
+        abort_unless(auth('tenant')->user()?->can('giftcards.manage'), 403);
+        $tenant = tenant();
+        abort_unless($tenant->gift_cards_visible, 404);
+
+        $data = $request->validate(['printed_code' => 'required|string|max:40']);
+
+        $card = TenantGiftCard::where('tenant_id', $tenant->id)->findOrFail($cardId);
+
+        try {
+            app(GiftCardService::class)->bindPrintedCode($card, $data['printed_code'], auth('tenant')->id());
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Card bound to the printed code.');
+    }
+
     public function deactivate(Request $request, string $cardId)
     {
         abort_unless(auth('tenant')->user()?->can('giftcards.manage'), 403);

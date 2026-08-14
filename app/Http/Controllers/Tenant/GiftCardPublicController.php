@@ -31,6 +31,7 @@ class GiftCardPublicController extends Controller
         return \App\Services\Tenant\SiteChromeService::render($tenant, 'gift_shop', [
             'tenant'    => $tenant,
             'stripePk'  => $pk,
+            'gift'      => GiftCardService::config($tenant), // MARKER-GC-SETTINGS
         ], ['title' => 'Gift cards', 'description' => 'Buy a ' . $tenant->name . ' gift card.']);
     }
 
@@ -56,7 +57,25 @@ class GiftCardPublicController extends Controller
             'deliver_on'      => 'nullable|date|required_if:deliver_mode,date|after_or_equal:today|before:+1 year',
         ]);
 
+        // MARKER-GC-SETTINGS -- the shop's own limits and channel switches,
+        // enforced server-side: the buy form is public, so its client checks
+        // are a convenience, not a control.
+        $cfg = GiftCardService::config($tenant);
+        if ($data['type'] === 'egift' && ! $cfg['online_egift']) {
+            return response()->json(['ok' => false, 'message' => 'E-gift cards aren\'t available online right now.'], 422);
+        }
+        if ($data['type'] === 'physical' && ! $cfg['online_physical']) {
+            return response()->json(['ok' => false, 'message' => 'Physical cards aren\'t available online right now.'], 422);
+        }
+
         $amount = (int) round(((float) $data['amount']) * 100);
+        if ($amount < $cfg['min_cents'] || $amount > $cfg['max_cents']) {
+            return response()->json(['ok' => false, 'message' => sprintf(
+                'Gift card amounts must be between $%s and $%s.',
+                number_format($cfg['min_cents'] / 100, 2),
+                number_format($cfg['max_cents'] / 100, 2)
+            )], 422);
+        }
         $deliverOn = ($data['type'] === 'egift' && ($data['deliver_mode'] ?? 'now') === 'date')
             ? $data['deliver_on'] : null;
 
@@ -131,6 +150,10 @@ class GiftCardPublicController extends Controller
                     if ($card->type === 'egift' && $deliverToday) {
                         \App\Jobs\DeliverGiftCardJob::dispatch($card->id);
                     }
+
+                    // MARKER-GC-EMAILS -- the buyer gets their own confirmation;
+                    // before this, closing the thanks page left them with nothing.
+                    \App\Jobs\SendGiftCardPurchaseReceiptJob::dispatch($card->id);
                 }
             } catch (\Throwable $e) {
                 Log::error('gift_card.return_activate_failed', ['card' => $card->id, 'error' => $e->getMessage()]);
@@ -164,6 +187,7 @@ class GiftCardPublicController extends Controller
             'tenant' => $tenant,
             'result' => null,
             'error'  => null,
+            'gift'   => GiftCardService::config($tenant), // MARKER-GC-SETTINGS
         ], ['title' => 'Gift card balance']);
     }
 
@@ -186,6 +210,7 @@ class GiftCardPublicController extends Controller
             'tenant' => $tenant,
             'result' => $result,
             'error'  => $result ? null : 'No gift card found for that code.',
+            'gift'   => GiftCardService::config($tenant), // MARKER-GC-SETTINGS
         ], ['title' => 'Gift card balance']);
     }
 }

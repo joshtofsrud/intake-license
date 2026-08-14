@@ -45,11 +45,14 @@
 <div class="spg-gift">
   <div class="wrap">
     <h1>Gift cards</h1>
-    <div class="sub">Good for anything — service, parts, rentals. Never expires. <a href="/gift-cards/balance" style="text-decoration:underline">Check a balance</a></div>
+    {{-- MARKER-GC-SETTINGS --}}
+    <div class="sub">Good for anything — service, parts, rentals.@if($gift['policy_line']) {{ $gift['policy_line'] }}@endif <a href="/gift-cards/balance" style="text-decoration:underline">Check a balance</a></div>
 
-    @if(!$stripePk)
+    {{-- MARKER-GC-SETTINGS -- both channels off is a deliberate "register only"
+         setting, so say so plainly instead of showing a dead form. --}}
+    @if(!$stripePk || (!$gift['online_egift'] && !$gift['online_physical']))
       <div class="panel" style="margin-top:24px;max-width:560px">
-        Online gift card purchase isn't available right now — call or visit us in store to buy one.
+        Gift cards aren't available to buy online right now — call or visit us in store and we'll set one up.
       </div>
     @else
     <div class="cols">
@@ -57,22 +60,25 @@
         <div class="panel">
           <h2>1 · Choose a type</h2>
           <div class="ful" id="gp-type">
+            @if($gift['online_egift'])
             <label class="on" data-type="egift"><b>E-gift card</b><span class="fee">Emailed instantly, or on a date you pick</span><input type="radio" name="gp_type" value="egift" checked></label>
-            <label data-type="physical"><b>Physical card</b><span class="fee">Pick up in store</span><input type="radio" name="gp_type" value="physical"></label>
+            @endif
+            @if($gift['online_physical'])
+            <label class="{{ $gift['online_egift'] ? '' : 'on' }}" data-type="physical"><b>Physical card</b><span class="fee">Pick up in store</span><input type="radio" name="gp_type" value="physical"></label>
+            @endif
           </div>
         </div>
 
         <div class="panel">
           <h2>2 · Amount</h2>
           <div class="amounts" id="gp-amounts">
-            <button type="button" class="amt" data-cents="2500">$25</button>
-            <button type="button" class="amt on" data-cents="5000">$50</button>
-            <button type="button" class="amt" data-cents="10000">$100</button>
-            <button type="button" class="amt" data-cents="15000">$150</button>
-            <button type="button" class="amt" data-cents="">Custom</button>
+            @foreach($gift['presets'] as $gpI => $gpAmt)
+            <button type="button" class="amt {{ $gpI === 1 || count($gift['presets']) === 1 ? 'on' : '' }}" data-cents="{{ $gpAmt }}">${{ rtrim(rtrim(number_format($gpAmt / 100, 2), '0'), '.') }}</button>
+            @endforeach
+            <button type="button" class="amt {{ count($gift['presets']) ? '' : 'on' }}" data-cents="">Custom</button>
           </div>
-          <div id="gp-custom-wrap" style="display:none;margin-top:10px">
-            <input type="text" id="gp-custom" inputmode="decimal" placeholder="Amount in dollars ($5–$2,000)">
+          <div id="gp-custom-wrap" style="{{ count($gift['presets']) ? 'display:none;' : '' }}margin-top:10px">
+            <input type="text" id="gp-custom" inputmode="decimal" placeholder="Amount in dollars (${{ rtrim(rtrim(number_format($gift['min_cents'] / 100, 2), '0'), '.') }}–${{ number_format($gift['max_cents'] / 100) }})">
           </div>
         </div>
 
@@ -146,7 +152,19 @@
 @if($stripePk)
 <script>
 (function () {
-  var state = { type: 'egift', cents: 5000 };
+  // MARKER-GC-SETTINGS -- shop config drives the defaults and the client checks.
+  var CFG = @json([
+    'presets'         => $gift['presets'],
+    'min'             => $gift['min_cents'],
+    'max'             => $gift['max_cents'],
+    'egift'           => $gift['online_egift'],
+    'physical'        => $gift['online_physical'],
+    'default_message' => $gift['default_message'],
+  ]);
+  var state = {
+    type:  CFG.egift ? 'egift' : 'physical',
+    cents: CFG.presets.length > 1 ? CFG.presets[1] : (CFG.presets[0] || null)
+  };
   var stripe = null, elements = null;
 
   function fmt(c) { return '$' + (c / 100).toFixed(2); }
@@ -208,7 +226,11 @@
   document.getElementById('gp-continue').addEventListener('click', function () {
     err('');
     var cents = sync();
-    if (!cents || cents < 500) { err('Pick or enter an amount of at least $5.'); return; }
+    if (!cents) { err('Pick or enter an amount.'); return; }
+    if (cents < CFG.min || cents > CFG.max) {
+      err('Gift card amounts must be between $' + (CFG.min / 100).toFixed(2) + ' and $' + (CFG.max / 100).toFixed(2) + '.');
+      return;
+    }
     var payload = {
       type: state.type,
       amount: (cents / 100).toFixed(2),
@@ -264,6 +286,15 @@
       });
   });
 
+  if (CFG.default_message) {
+    document.getElementById('gp-message').value = CFG.default_message;
+    document.getElementById('gp-message-count').textContent = String(CFG.default_message.length);
+  }
+  if (!CFG.egift) {
+    document.getElementById('gp-egift-fields').style.display = 'none';
+    document.getElementById('gp-physical-note').style.display = '';
+    document.getElementById('gp-send-title').textContent = '3 · Your details';
+  }
   sync();
 })();
 </script>

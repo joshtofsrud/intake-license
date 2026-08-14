@@ -386,6 +386,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/gift-cards/{cardId}',            [TenantControllers\GiftCardController::class, 'show'])->name('gift-cards.show');
                 Route::post('/gift-cards/{cardId}/adjust',    [TenantControllers\GiftCardController::class, 'adjust'])->name('gift-cards.adjust');
                 Route::post('/gift-cards/{cardId}/deactivate',[TenantControllers\GiftCardController::class, 'deactivate'])->name('gift-cards.deactivate');
+                // MARKER-GC-FUNCTIONS -- bind a preprinted card at pickup
+                Route::post('/gift-cards/{cardId}/bind-code', [TenantControllers\GiftCardController::class, 'bindCode'])->name('gift-cards.bind-code');
                 Route::post('/register/transactions',     [TenantControllers\RegisterController::class, 'storeTransaction'])->name('register.transactions.store');
                 Route::get('/register/history',          [TenantControllers\RegisterController::class, 'historyIndex'])->name('register.history.index');
                 Route::get('/register/sales/{id}/json',  [TenantControllers\RegisterController::class, 'showSaleJson'])->name('register.sales.show');
