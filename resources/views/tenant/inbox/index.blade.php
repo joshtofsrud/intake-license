@@ -178,6 +178,50 @@
   /* MARKER-INBOX-MOBILE-2 — the sticky controls and header overrides that
      lived here are removed: they left a dead gap under the header and clipped
      the first conversation. The list keeps its original layout. */
+
+  /* MARKER-INBOX-AVATAR — style A. This block MUST remain the last thing in
+     the stylesheet: media queries carry no specificity, so it has to
+     out-order MARKER-PATCH-434's .ib-thread rules above at equal weight. */
+  .ib-av, .ib-count, .ib-you { display:none; }   /* desktop keeps its compact rows */
+
+  @media (max-width: 980px) {
+    .ib-thread { display:flex; align-items:flex-start; gap:12px; padding:11px 14px; }
+    .ib-thread-body { flex:1; min-width:0; }
+
+    .ib-av {
+      display:flex; align-items:center; justify-content:center; position:relative;
+      flex:0 0 42px; width:42px; height:42px; border-radius:50%;
+      font-size:14.5px; font-weight:650; color:#0d0d0d; letter-spacing:.01em;
+    }
+    .ib-av-1{background:#8FB8DE} .ib-av-2{background:#C9A96A} .ib-av-3{background:#9FC49A}
+    .ib-av-4{background:#D3A0A0} .ib-av-5{background:#B0A5CE} .ib-av-6{background:#8FC7C2}
+    .ib-av-ch {
+      position:absolute; right:-2px; bottom:-2px; width:16px; height:16px;
+      border-radius:50%; background:var(--ia-bg); border:1px solid var(--ia-border);
+      display:flex; align-items:center; justify-content:center;
+      font-size:8.5px; color:var(--ia-text-dim);
+    }
+
+    .ib-thread-name { font-size:15px; font-weight:500; }
+    .ib-thread.is-unread .ib-thread-name { font-weight:700; }
+    .ib-thread.is-unread .ib-thread-time { color:var(--ia-accent); opacity:1; }
+
+    /* two-line clamp beats a character count: it fills the width it has */
+    .ib-snippet {
+      font-size:13.5px; margin-top:3px; line-height:1.35; white-space:normal;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .ib-you { display:inline; color:rgba(255,255,255,.38); }
+
+    .ib-count {
+      display:flex; align-items:center; justify-content:center; align-self:center;
+      flex:0 0 auto; min-width:19px; height:19px; padding:0 6px; border-radius:99px;
+      background:var(--ia-accent); color:var(--ia-accent-text);
+      font-size:11px; font-weight:700;
+    }
+    /* the dot and the count say the same thing; the count is the richer one */
+    .ib-thread.is-unread .ib-dot { display:none; }
+  }
 </style>
 @endpush
 
@@ -263,25 +307,49 @@
          so the chunking script can find it. --}}
     <div id="ib-scroll" style="overflow-y:auto;flex:1">
       @forelse($threads as $t)
-        <a class="ib-thread {{ $selected && $selected->id === $t->id ? 'is-sel' : '' }}"
+        {{-- MARKER-INBOX-AVATAR --}}
+        @php
+          $ibName    = trim((string) ($t->customer?->fullName() ?? ''));
+          // Initials from the first two words; a business name gives its
+          // first two words, a person gives first + last.
+          $ibParts   = preg_split('/\s+/', $ibName, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+          $ibInit    = strtoupper(implode('', array_map(
+                         fn ($w) => mb_substr($w, 0, 1),
+                         array_slice($ibParts, 0, 2)
+                       ))) ?: '?';
+          // Stable per-customer colour: same person, same swatch every time.
+          $ibHue     = (crc32((string) ($t->customer_id ?? $t->id)) % 6) + 1;
+          $ibUnread  = (int) $t->unread_count > 0 || $t->status === 'needs_reply';
+          $ibOut     = ($t->latestMessage?->direction ?? null) === 'out';
+        @endphp
+        <a class="ib-thread {{ $selected && $selected->id === $t->id ? 'is-sel' : '' }} {{ $ibUnread ? 'is-unread' : '' }}"
            href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null, 'thread' => $t->id])) }}">
-          <div class="ib-thread-top">
-            <span class="ib-thread-name">
-              @if((int) $t->unread_count > 0 || $t->status === 'needs_reply')<span class="ib-dot"></span>@endif
-              {{ $t->customer?->fullName() }}
-              @if($t->status === 'needs_reply')<span class="ib-nr">Needs reply</span>@endif
-            </span>
-            <span class="ib-thread-time">{{ $t->last_message_at ? tlocal_datetime($t->last_message_at, 'M j, g:i A') : '' }}</span>
-          </div>
-          {{-- MARKER-INBOX-SEARCH — show the message that matched, not the newest --}}
-          @php $sc_hit = ($searchHits[$t->id] ?? null); @endphp
-          <div class="ib-snippet">
-            @if($sc_hit)
-              <span class="ib-hit">&#9906;</span> {{ Str::limit($sc_hit->body, 58) }}
-            @else
-              {{ Str::limit($t->latestMessage?->body ?? '—', 60) }}
-            @endif
-          </div>
+          <span class="ib-av ib-av-{{ $ibHue }}" aria-hidden="true">
+            {{ $ibInit }}
+            @if($t->channel === 'email')<span class="ib-av-ch">&#9993;</span>@endif
+          </span>
+          <span class="ib-thread-body">
+            <div class="ib-thread-top">
+              <span class="ib-thread-name">
+                @if($ibUnread)<span class="ib-dot"></span>@endif
+                {{ $ibName }}
+                @if($t->status === 'needs_reply')<span class="ib-nr">Needs reply</span>@endif
+              </span>
+              <span class="ib-thread-time">{{ $t->last_message_at ? tlocal_datetime($t->last_message_at, 'M j, g:i A') : '' }}</span>
+            </div>
+            {{-- MARKER-INBOX-SEARCH — show the message that matched, not the newest --}}
+            @php $sc_hit = ($searchHits[$t->id] ?? null); @endphp
+            <div class="ib-snippet">
+              @if($sc_hit)
+                <span class="ib-hit">&#9906;</span> {{ Str::limit($sc_hit->body, 58) }}
+              @else
+                @if($ibOut)<span class="ib-you">You:</span> @endif{{ Str::limit($t->latestMessage?->body ?? '—', 140) }}
+              @endif
+            </div>
+          </span>
+          @if((int) $t->unread_count > 0)
+            <span class="ib-count">{{ (int) $t->unread_count > 9 ? '9+' : (int) $t->unread_count }}</span>
+          @endif
         </a>
       @empty
         <div style="padding:30px 16px;font-size:12.5px;opacity:.5;text-align:center">
