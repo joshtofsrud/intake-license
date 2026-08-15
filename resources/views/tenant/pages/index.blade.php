@@ -237,27 +237,41 @@
 @endpush
 
 @push('scripts')
+@php
+  // MARKER-SPLASH-2-JSONFIX — computed here so @json() receives a single
+  // variable. A multi-line array literal inside a Blade directive's
+  // parentheses cannot be parsed and fatals the whole view.
+  $spPagesJs = $splashablePages->map(function ($p) {
+      return [
+          'id'    => $p->id,
+          'title' => $p->title,
+          'path'  => $p->is_home ? '/' : '/' . $p->slug,
+      ];
+  })->values();
+
+  $spRowsJs = $splashRows->map(function ($p) {
+      return [
+          'visit_page_id'  => $p->id,
+          'splash_page_id' => $p->splash_page_id,
+          'mode'           => $p->splash_mode ?: 'overlay',
+          'style'          => $p->splash_style ?: 'full',
+          'frequency'      => (string) ($p->splash_frequency ?: 'session'),
+          'starts_at'      => $p->splash_starts_at ? $p->splash_starts_at->format('Y-m-d') : '',
+          'ends_at'        => $p->splash_ends_at ? $p->splash_ends_at->format('Y-m-d') : '',
+      ];
+  })->values();
+
+  $spPreviewUrl = route('tenant.pages.preview', ['id' => '__ID__']);
+@endphp
 <script>
 (function () {
   // MARKER-SPLASH-2-UI — the table is edited client-side and submitted as
   // rows[]; the server replaces the whole set, so a removed row really is
   // removed.
-  var PAGES = @json($splashablePages->map(fn ($p) => [
-        'id' => $p->id, 'title' => $p->title,
-        'path' => $p->is_home ? '/' : '/' . $p->slug,
-      ])->values());
+  var PAGES = @json($spPagesJs);
+  var rows  = @json($spRowsJs);
 
-  var rows = @json($splashRows->map(fn ($p) => [
-        'visit_page_id'  => $p->id,
-        'splash_page_id' => $p->splash_page_id,
-        'mode'           => $p->splash_mode ?: 'overlay',
-        'style'          => $p->splash_style ?: 'full',
-        'frequency'      => (string) ($p->splash_frequency ?: 'session'),
-        'starts_at'      => optional($p->splash_starts_at)->format('Y-m-d') ?? '',
-        'ends_at'        => optional($p->splash_ends_at)->format('Y-m-d') ?? '',
-      ])->values());
-
-  var PREVIEW = @json(route('tenant.pages.preview', ['id' => '__ID__']));
+  var PREVIEW = @json($spPreviewUrl);
   var sel = rows.length ? 0 : -1;
 
   var $ = function (id) { return document.getElementById(id); };
