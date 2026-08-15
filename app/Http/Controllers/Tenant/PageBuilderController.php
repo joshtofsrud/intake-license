@@ -8,6 +8,7 @@ use App\Models\Tenant\TenantPageSection;
 use App\Models\Tenant\TenantNavItem;
 use App\Models\Tenant\TenantServiceCategory; // MARKER-PATCH-267
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB; // MARKER-SPLASH-2
 use Illuminate\Support\Str;
 
 class PageBuilderController extends Controller
@@ -569,57 +570,90 @@ class PageBuilderController extends Controller
             $pages = TenantPage::where('tenant_id', $tenant->id)->get();
         }
 
-        // MARKER-SPLASH
-        $splashCfg = \App\Support\SplashSettings::config($tenant);
+        // MARKER-SPLASH-2
+        $splashEnabled = \App\Support\SplashSettings::enabled($tenant);
+        $splashRows = $pages->whereNotNull('splash_page_id')->values();
 
-        return view('tenant.pages.index', compact('pages', 'splashCfg'));
+        return view('tenant.pages.index', compact('pages', 'splashEnabled', 'splashRows'));
     }
 
     /**
-     * MARKER-SPLASH — save the splash settings and which page serves as it.
-     * Marking a page as the splash clears the flag from every other page and
-     * pulls it out of the nav: a page that interrupts visitors should not
-     * also sit in the menu.
+     * MARKER-SPLASH-2 — save the pairing table.
+     *
+     * Rows are "when someone visits page A, show them splash B". The whole
+     * set is replaced on save: anything not submitted is cleared, which is
+     * what makes removing a row in the UI actually remove it.
      */
     public function saveSplash(Request $request)
     {
         $tenant = tenant();
 
         $data = $request->validate([
-            'splash_enabled'   => 'nullable|boolean',
-            'splash_page_id'   => 'nullable|string',
-            'splash_mode'      => 'required|in:overlay,page',
-            'splash_frequency' => 'required|in:session,7,30,always',
-            'splash_style'     => 'required|in:full,sheet',
+            'splash_enabled'          => 'nullable|boolean',
+            'rows'                    => 'nullable|array|max:20',
+            'rows.*.visit_page_id'    => 'required|string',
+            'rows.*.splash_page_id'   => 'required|string',
+            'rows.*.mode'             => 'required|in:overlay,page',
+            'rows.*.style'            => 'required|in:full,sheet',
+            'rows.*.frequency'        => 'required|in:session,7,30,always',
+            'rows.*.starts_at'        => 'nullable|date',
+            'rows.*.ends_at'          => 'nullable|date|after_or_equal:rows.*.starts_at',
         ]);
 
-        $pageId = $data['splash_page_id'] ?? null;
+        $rows  = $data['rows'] ?? [];
+        $pages = TenantPage::where('tenant_id', $tenant->id)->get()->keyBy('id');
 
-        if ($pageId) {
-            $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)->first();
-            if (! $page) {
-                return back()->with('flash_error', 'That page no longer exists.');
+        // Validate before writing anything, so a bad row cannot leave the
+        // table half-saved.
+        $seen = [];
+        foreach ($rows as $r) {
+            $visit  = $pages[$r['visit_page_id']]  ?? null;
+            $splash = $pages[$r['splash_page_id']] ?? null;
+
+            if (! $visit || ! $splash) {
+                return back()->with('flash_error', 'One of those pages no longer exists — reload and try again.');
             }
-            if ($page->is_home) {
-                return back()->with('flash_error', 'Your homepage cannot also be the splash — the splash is what appears before it.');
+            if ($visit->id === $splash->id) {
+                return back()->with('flash_error', 'A page cannot be its own splash: "' . $visit->title . '".');
             }
+            if (isset($seen[$visit->id])) {
+                return back()->with('flash_error', '"' . $visit->title . '" is listed twice. Each page can have one splash.');
+            }
+            $seen[$visit->id] = true;
         }
 
-        TenantPage::where('tenant_id', $tenant->id)->where('is_splash', true)
-            ->update(['is_splash' => false]);
+        DB::transaction(function () use ($tenant, $rows, $data) {
+            // Clear every pairing and every is_splash flag, then rewrite from
+            // the submitted set.
+            TenantPage::where('tenant_id', $tenant->id)->update([
+                'splash_page_id'   => null,
+                'is_splash'        => false,
+                'splash_starts_at' => null,
+                'splash_ends_at'   => null,
+            ]);
 
-        if ($pageId) {
-            TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)
-                ->update(['is_splash' => true, 'is_in_nav' => false]);
-        }
+            foreach ($rows as $r) {
+                TenantPage::where('tenant_id', $tenant->id)->where('id', $r['visit_page_id'])->update([
+                    'splash_page_id'   => $r['splash_page_id'],
+                    'splash_mode'      => $r['mode'],
+                    'splash_style'     => $r['style'],
+                    'splash_frequency' => $r['frequency'],
+                    'splash_starts_at' => $r['starts_at'] ?: null,
+                    'splash_ends_at'   => $r['ends_at'] ?: null,
+                ]);
 
-        $settings = (array) ($tenant->settings ?? []);
-        $settings['splash_enabled']   = (bool) ($data['splash_enabled'] ?? false);
-        $settings['splash_mode']      = $data['splash_mode'];
-        $settings['splash_frequency'] = $data['splash_frequency'];
-        $settings['splash_style']     = $data['splash_style'];
-        $tenant->settings = $settings;
-        $tenant->save();
+                // Being used as a splash keeps a page out of the navigation.
+                TenantPage::where('tenant_id', $tenant->id)->where('id', $r['splash_page_id'])->update([
+                    'is_splash'  => true,
+                    'is_in_nav'  => false,
+                ]);
+            }
+
+            $settings = (array) ($tenant->settings ?? []);
+            $settings['splash_enabled'] = (bool) ($data['splash_enabled'] ?? false);
+            $tenant->settings = $settings;
+            $tenant->save();
+        });
 
         return back()->with('flash', 'Splash settings saved.');
     }
@@ -689,7 +723,39 @@ class PageBuilderController extends Controller
             }])
             ->get();
 
-        return view('public.page', compact('page', 'sections', 'navItems', 'catalog'));
+        // MARKER-SPLASH-2 -- ?over=1 composites this page's splash on top, so
+        // the settings screen previews what a visitor actually gets rather
+        // than the splash page in isolation. Ignores the cookie and the date
+        // window on purpose: the shop is asking to see it.
+        $splashPage = null; $splashSections = null; $splashCfg = [];
+        if ($request->boolean('over') && $page->splash_page_id) {
+            $splashPage = TenantPage::where('tenant_id', $tenant->id)
+                ->where('id', $page->splash_page_id)->first();
+
+            if ($splashPage) {
+                $splashSections = $splashPage->sections()->where('is_visible', true)->get();
+                $splashSections = TenantPageSection::withInheritedChrome(
+                    $splashSections, $splashPage->tenant_id, $splashPage->id
+                );
+                $splashCfg = [
+                    'style'     => in_array($page->splash_style, ['full','sheet'], true) ? $page->splash_style : 'full',
+                    'frequency' => 'always',   // never let a preview write a cookie
+                    'cookie'    => 'intake_splash_preview',
+                ];
+
+                // In page mode the visitor never sees this page, so neither
+                // should the preview.
+                if ($page->splash_mode === 'page') {
+                    $sections = $splashSections;
+                    $splashPage = null; $splashSections = null; $splashCfg = [];
+                }
+            }
+        }
+
+        return view('public.page', compact(
+            'page', 'sections', 'navItems', 'catalog',
+            'splashPage', 'splashSections', 'splashCfg'
+        ));
     }
 
     public function store(Request $request)

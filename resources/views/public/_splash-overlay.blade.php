@@ -64,12 +64,13 @@
   el.style.display = 'flex';                 // only ever shown with JS available
   document.body.style.overflow = 'hidden';
 
-  var FREQ = @json($spFreq);
+  var FREQ   = @json($spFreq);
+  var COOKIE = @json($splashCfg['cookie'] ?? 'intake_splash'); // MARKER-SPLASH-2 — per splash
 
   function remember() {
     if (FREQ === 'always') return;           // deliberately never remembered
     var days = FREQ === '7' ? 7 : (FREQ === '30' ? 30 : 0);
-    var bits = '{{ \App\Support\SplashSettings::COOKIE }}=1; path=/; samesite=lax';
+    var bits = COOKIE + '=1; path=/; samesite=lax';
     if (days) bits += '; max-age=' + (days * 86400);
     if (location.protocol === 'https:') bits += '; secure';
     document.cookie = bits;

@@ -1,90 +1,38 @@
-@extends('layouts.tenant.app')
-@php $pageTitle = 'Pages'; @endphp
+#!/bin/bash
+# apply-splash-pairings-ui.sh
+#
+# MARKER-SPLASH-2-UI — replaces the single-splash card on the Pages screen
+# with the approved pairing table (intake-splash-pairing-table.html):
+# full-width card, rows on the left reading "when someone visits X, show
+# them Y", a live preview taking the other half.
+#
+# The preview is a real iframe pointing at the existing authenticated
+# preview route with ?over=1, so it renders the shop's actual sections and
+# tokens with the splash composited exactly as a visitor gets it — including
+# page mode, where the underlying page is deliberately not rendered.
+#
+# Requires apply-splash-pairings.sh (the server half).
+set -e
 
-@section('content')
+MARKER="MARKER-SPLASH-2-UI"
+V="resources/views/tenant/pages/index.blade.php"
 
-<div class="ia-page-head">
-  <div class="ia-page-head-left">
-    <h1 class="ia-page-title">Pages</h1>
-    <p class="ia-page-subtitle">Build your public-facing website.</p>
-  </div>
-  <div class="ia-page-actions">
-    <a href="{{ tenant_url() }}" target="_blank" class="ia-btn ia-btn--secondary">
-      View site →
-    </a>
-    <button type="button" class="ia-btn ia-btn--primary"
-      onclick="document.getElementById('new-page-form').style.display='block';this.style.display='none'">
-      + New page
-    </button>
-  </div>
-</div>
+[ -f "$V" ] || { echo "ERROR: run from the repo root"; exit 1; }
+grep -q "MARKER-SPLASH-2" app/Support/SplashSettings.php || { echo "ERROR: requires apply-splash-pairings.sh"; exit 1; }
+if grep -q "$MARKER" "$V" 2>/dev/null; then
+  echo "ok: already applied ($MARKER present) — no-op"
+  exit 0
+fi
 
-<div id="new-page-form" class="ia-card ia-card--tight" style="display:none;margin-bottom:20px">
-  <form method="POST" action="{{ route('tenant.pages.store') }}" style="display:flex;gap:10px;align-items:flex-end">
-    @csrf
-    <div class="ia-form-group" style="flex:1;margin-bottom:0">
-      <label class="ia-form-label">Page title</label>
-      <input type="text" name="title" class="ia-input" placeholder="e.g. About us" required autofocus>
-    </div>
-    <button type="submit" class="ia-btn ia-btn--primary">Create page</button>
-    <button type="button" class="ia-btn ia-btn--ghost"
-      onclick="document.getElementById('new-page-form').style.display='none';document.querySelector('.ia-btn--primary').style.display=''">
-      Cancel
-    </button>
-  </form>
-</div>
+python3 - <<'PY'
+import io
+p = 'resources/views/tenant/pages/index.blade.php'
+src = io.open(p, encoding='utf-8').read()
 
-<div class="ia-table-wrap">
-  <table class="ia-table">
-    <thead>
-      <tr>
-        <th>Page</th>
-        <th>URL</th>
-        <th>Status</th>
-        <th>In nav</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      @foreach($pages as $page)
-        <tr>
-          <td>
-            <div style="font-weight:500">{{ $page->title }}</div>
-            @if($page->is_home)
-              <div style="font-size:11px;opacity:.4">Home page</div>
-            @endif
-          </td>
-          <td class="ia-muted-cell">
-            {{ $page->is_home ? '/' : '/' . $page->slug }}
-          </td>
-          <td>
-            @if($page->is_published)
-              <span class="ia-badge ia-badge--completed">Published</span>
-            @else
-              <span class="ia-badge ia-badge--pending">Draft</span>
-            @endif
-          </td>
-          <td>
-            <span style="font-size:13px;opacity:.5">{{ $page->is_in_nav ? 'Yes' : 'No' }}</span>
-          </td>
-          <td style="text-align:right;white-space:nowrap">
-            <a href="{{ route('tenant.pages.index', ['edit' => $page->id]) }}"
-               class="ia-btn ia-btn--secondary ia-btn--sm">Edit</a>
-            @if(!$page->is_home && $page->slug !== 'book')
-              <form method="POST" action="{{ route('tenant.pages.store', ['delete' => $page->id]) }}"
-                style="display:inline" data-confirm="Delete '{{ $page->title }}'?">
-                @csrf
-                <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Delete</button>
-              </form>
-            @endif
-          </td>
-        </tr>
-      @endforeach
-    </tbody>
-  </table>
-</div>
+start = src.index("{{-- MARKER-SPLASH --}}")
+end   = src.index("@endsection", start)
 
-{{-- MARKER-SPLASH-2-UI — pairing table. Each row is a sentence: when
+card = r"""{{-- MARKER-SPLASH-2-UI — pairing table. Each row is a sentence: when
      someone visits THIS page, show them THAT splash. --}}
 @php
   $splashablePages = $pages->where('is_published', true);
@@ -454,5 +402,13 @@
 </script>
 @endpush
 
-@endsection
+"""
 
+src = src[:start] + card + src[end:]
+io.open(p, 'w', encoding='utf-8').write(src)
+print('ok: pairing table replaces the single-splash card')
+PY
+
+echo ""
+echo "== splash pairing UI applied =="
+echo "Post-deploy: migrations run in deploy; php artisan optimize:clear"

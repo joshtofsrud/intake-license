@@ -25,22 +25,9 @@ class PublicController extends Controller
             return view('public.coming-soon');
         }
 
-        // MARKER-SPLASH -- the homepage is the ONLY route that consults the
-        // splash. page($slug) deliberately does not: a visitor arriving at
-        // /shop from a campaign is never interrupted.
-        $splashCfg  = \App\Support\SplashSettings::config($tenant);
-        $splashPage = \App\Support\SplashSettings::shouldShow(request(), $splashCfg)
-            ? \App\Support\SplashSettings::page($tenant)
-            : null;
-
-        if ($splashPage && $splashCfg['mode'] === 'page') {
-            // A true gate: the homepage is not served at all until they
-            // click through. The shop was warned in settings that this is
-            // what search engines will index.
-            return redirect('/' . $splashPage->slug);
-        }
-
-        return $this->renderPage($page, $splashPage, $splashCfg);
+        // MARKER-SPLASH-2 -- the homepage asks for its OWN pairing, exactly
+        // like every other page now does.
+        return $this->renderWithSplash($page);
     }
 
     public function page(string $slug)
@@ -55,20 +42,10 @@ class PublicController extends Controller
             ->where('is_published', true)
             ->firstOrFail();
 
-        // MARKER-SPLASH -- viewing the splash directly counts as seeing it, so
-        // clicking through to the homepage is not bounced straight back here.
-        if ($page->is_splash) {
-            $cfg = \App\Support\SplashSettings::config($tenant);
-            if ($cfg['frequency'] !== 'always') {
-                return response($this->renderPage($page))->cookie(
-                    \App\Support\SplashSettings::COOKIE, '1',
-                    \App\Support\SplashSettings::cookieMinutes($cfg),
-                    '/', null, request()->isSecure(), false, false, 'lax'
-                );
-            }
-        }
-
-        return $this->renderPage($page);
+        // MARKER-SPLASH-2 -- any page can carry a splash now, so this route
+        // resolves one too. Direct links to a page WITH a pairing are
+        // interrupted on purpose: the shop opted that page in.
+        return $this->renderWithSplash($page);
     }
 
     public function booking(Request $request)
@@ -196,6 +173,52 @@ class PublicController extends Controller
         }
 
         return back()->with('contact_success', true);
+    }
+
+    /**
+     * MARKER-SPLASH-2 -- resolve this page's pairing and render accordingly.
+     *
+     * Viewing a page that IS somebody's splash writes that splash's cookie,
+     * so clicking through to the page behind it is not bounced straight back
+     * -- the trap v1 hit in page mode.
+     */
+    private function renderWithSplash(TenantPage $page)
+    {
+        $tenant = tenant();
+
+        // Seeing a splash counts as seeing it, whichever route served it.
+        $servedAsSplash = (bool) $page->is_splash;
+
+        $pairing = \App\Support\SplashSettings::forPage($tenant, $page);
+        $show    = $pairing && ! \App\Support\SplashSettings::alreadySeen(request(), $pairing);
+
+        if ($show && $pairing['mode'] === 'page') {
+            return redirect('/' . $pairing['page']->slug);
+        }
+
+        $response = response($this->renderPage(
+            $page,
+            $show ? $pairing['page'] : null,
+            $show ? $pairing : []
+        ));
+
+        if ($servedAsSplash) {
+            $ownCookie = \App\Support\SplashSettings::cookieName($page->id);
+            // Mirror the frequency of whichever pairing points at this page.
+            $owner = TenantPage::where('tenant_id', $tenant->id)
+                ->where('splash_page_id', $page->id)
+                ->first();
+            $freq = $owner?->splash_frequency ?? 'session';
+
+            if ($freq !== 'always') {
+                $minutes = \App\Support\SplashSettings::cookieMinutes(['frequency' => (string) $freq]);
+                $response = $response->cookie(
+                    $ownCookie, '1', $minutes, '/', null, request()->isSecure(), false, false, 'lax'
+                );
+            }
+        }
+
+        return $response;
     }
 
     private function renderPage(TenantPage $page, ?TenantPage $splashPage = null, array $splashCfg = [])
