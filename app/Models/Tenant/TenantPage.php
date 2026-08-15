@@ -8,8 +8,8 @@ class TenantPage extends Model
 {
     use HasUuids;
     protected $table    = 'tenant_pages';
-    protected $fillable = ['tenant_id','title','slug','meta_title','meta_description','is_home','is_published','is_in_nav','nav_order'];
-    protected $casts    = ['is_home' => 'boolean', 'is_published' => 'boolean', 'is_in_nav' => 'boolean'];
+    protected $fillable = ['tenant_id','title','slug','meta_title','meta_description','is_home','is_splash','is_published','is_in_nav','nav_order']; // MARKER-SPLASH
+    protected $casts    = ['is_home' => 'boolean', 'is_splash' => 'boolean', 'is_published' => 'boolean', 'is_in_nav' => 'boolean']; // MARKER-SPLASH
 
     public function sections(): HasMany
     {

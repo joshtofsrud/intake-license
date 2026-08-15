@@ -25,7 +25,22 @@ class PublicController extends Controller
             return view('public.coming-soon');
         }
 
-        return $this->renderPage($page);
+        // MARKER-SPLASH -- the homepage is the ONLY route that consults the
+        // splash. page($slug) deliberately does not: a visitor arriving at
+        // /shop from a campaign is never interrupted.
+        $splashCfg  = \App\Support\SplashSettings::config($tenant);
+        $splashPage = \App\Support\SplashSettings::shouldShow(request(), $splashCfg)
+            ? \App\Support\SplashSettings::page($tenant)
+            : null;
+
+        if ($splashPage && $splashCfg['mode'] === 'page') {
+            // A true gate: the homepage is not served at all until they
+            // click through. The shop was warned in settings that this is
+            // what search engines will index.
+            return redirect('/' . $splashPage->slug);
+        }
+
+        return $this->renderPage($page, $splashPage, $splashCfg);
     }
 
     public function page(string $slug)
@@ -39,6 +54,19 @@ class PublicController extends Controller
             ->where('slug', $slug)
             ->where('is_published', true)
             ->firstOrFail();
+
+        // MARKER-SPLASH -- viewing the splash directly counts as seeing it, so
+        // clicking through to the homepage is not bounced straight back here.
+        if ($page->is_splash) {
+            $cfg = \App\Support\SplashSettings::config($tenant);
+            if ($cfg['frequency'] !== 'always') {
+                return response($this->renderPage($page))->cookie(
+                    \App\Support\SplashSettings::COOKIE, '1',
+                    \App\Support\SplashSettings::cookieMinutes($cfg),
+                    '/', null, request()->isSecure(), false, false, 'lax'
+                );
+            }
+        }
 
         return $this->renderPage($page);
     }
@@ -170,7 +198,7 @@ class PublicController extends Controller
         return back()->with('contact_success', true);
     }
 
-    private function renderPage(TenantPage $page)
+    private function renderPage(TenantPage $page, ?TenantPage $splashPage = null, array $splashCfg = [])
     {
         $tenant   = tenant();
         $sections = $page->sections()->where('is_visible', true)->get();
@@ -188,6 +216,20 @@ class PublicController extends Controller
             }])
             ->get();
 
-        return view('public.page', compact('page', 'sections', 'navItems', 'catalog'));
+        // MARKER-SPLASH -- overlay mode: the homepage renders exactly as it
+        // always did and the splash draws on top, so the real HTML is still
+        // served to crawlers and to anyone with JS off.
+        $splashSections = null;
+        if ($splashPage) {
+            $splashSections = $splashPage->sections()->where('is_visible', true)->get();
+            $splashSections = \App\Models\Tenant\TenantPageSection::withInheritedChrome(
+                $splashSections, $splashPage->tenant_id, $splashPage->id
+            );
+        }
+
+        return view('public.page', compact(
+            'page', 'sections', 'navItems', 'catalog',
+            'splashPage', 'splashSections', 'splashCfg'
+        ));
     }
 }

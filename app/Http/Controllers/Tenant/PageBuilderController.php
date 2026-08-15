@@ -569,7 +569,59 @@ class PageBuilderController extends Controller
             $pages = TenantPage::where('tenant_id', $tenant->id)->get();
         }
 
-        return view('tenant.pages.index', compact('pages'));
+        // MARKER-SPLASH
+        $splashCfg = \App\Support\SplashSettings::config($tenant);
+
+        return view('tenant.pages.index', compact('pages', 'splashCfg'));
+    }
+
+    /**
+     * MARKER-SPLASH — save the splash settings and which page serves as it.
+     * Marking a page as the splash clears the flag from every other page and
+     * pulls it out of the nav: a page that interrupts visitors should not
+     * also sit in the menu.
+     */
+    public function saveSplash(Request $request)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'splash_enabled'   => 'nullable|boolean',
+            'splash_page_id'   => 'nullable|string',
+            'splash_mode'      => 'required|in:overlay,page',
+            'splash_frequency' => 'required|in:session,7,30,always',
+            'splash_style'     => 'required|in:full,sheet',
+        ]);
+
+        $pageId = $data['splash_page_id'] ?? null;
+
+        if ($pageId) {
+            $page = TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)->first();
+            if (! $page) {
+                return back()->with('flash_error', 'That page no longer exists.');
+            }
+            if ($page->is_home) {
+                return back()->with('flash_error', 'Your homepage cannot also be the splash — the splash is what appears before it.');
+            }
+        }
+
+        TenantPage::where('tenant_id', $tenant->id)->where('is_splash', true)
+            ->update(['is_splash' => false]);
+
+        if ($pageId) {
+            TenantPage::where('tenant_id', $tenant->id)->where('id', $pageId)
+                ->update(['is_splash' => true, 'is_in_nav' => false]);
+        }
+
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['splash_enabled']   = (bool) ($data['splash_enabled'] ?? false);
+        $settings['splash_mode']      = $data['splash_mode'];
+        $settings['splash_frequency'] = $data['splash_frequency'];
+        $settings['splash_style']     = $data['splash_style'];
+        $tenant->settings = $settings;
+        $tenant->save();
+
+        return back()->with('flash', 'Splash settings saved.');
     }
 
     private function editPage($tenant, string $id)

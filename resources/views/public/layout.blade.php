@@ -260,6 +260,12 @@
   @endif
 </div>
 
+{{-- MARKER-SPLASH — drawn OVER the homepage, which is fully rendered below.
+     Included before the sections so it exists even if a section throws. --}}
+@if(!empty($splashPage) && !empty($splashSections) && count($splashSections))
+  @include('public._splash-overlay')
+@endif
+
 {{-- Page sections --}}
 @foreach($sections as $section)
   @if($section->is_visible)
