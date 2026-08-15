@@ -150,17 +150,24 @@
   </div>
 </div>
 @if($stripePk)
+@php
+  // MARKER-GC-JSONFIX
+  $gcShopCfg = [
+      'presets'         => $gift['presets'],
+      'min'             => $gift['min_cents'],
+      'max'             => $gift['max_cents'],
+      'egift'           => $gift['online_egift'],
+      'physical'        => $gift['online_physical'],
+      'default_message' => $gift['default_message'],
+  ];
+@endphp
 <script>
 (function () {
   // MARKER-GC-SETTINGS -- shop config drives the defaults and the client checks.
-  var CFG = @json([
-    'presets'         => $gift['presets'],
-    'min'             => $gift['min_cents'],
-    'max'             => $gift['max_cents'],
-    'egift'           => $gift['online_egift'],
-    'physical'        => $gift['online_physical'],
-    'default_message' => $gift['default_message'],
-  ]);
+  // MARKER-GC-JSONFIX -- the array is built above and passed as ONE variable:
+  // Blade splits a @json argument on commas and keeps only three parts, so an
+  // inline array literal here silently truncated and fataled the page.
+  var CFG = @json($gcShopCfg);
   var state = {
     type:  CFG.egift ? 'egift' : 'physical',
     cents: CFG.presets.length > 1 ? CFG.presets[1] : (CFG.presets[0] || null)
