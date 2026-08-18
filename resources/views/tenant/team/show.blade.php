@@ -98,6 +98,23 @@
       </div>
     </div>
   </form>
+
+  {{-- MARKER-TIMECLOCK-EXEMPT — owners/salaried staff opt-out of the clock-in nudge --}}
+  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}" style="margin-top:12px">
+    @csrf @method('PATCH')
+    <input type="hidden" name="op" value="toggle_timeclock_exempt">
+    <div class="pd-field">
+      <div class="pd-field-label">Time clock</div>
+      <div class="pd-field-value" style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12.5px;color:var(--ia-text-dim)">
+          {{ $member->exempt_from_timeclock ? 'Never clocks in — no clock-in prompts.' : 'Clocks in — sees the clock-in prompt when off the clock.' }}
+        </span>
+        <button class="ia-btn ia-btn--ghost ia-btn--sm">
+          {{ $member->exempt_from_timeclock ? 'Require clock-in' : 'Mark as never clocks in' }}
+        </button>
+      </div>
+    </div>
+  </form>
 </div>
 
 {{-- Credentials --}}

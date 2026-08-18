@@ -290,6 +290,14 @@ class TeamController extends Controller
                 return back()->with('success', "Password reset. New temporary password: {$newPassword}");
             }
 
+            case 'toggle_timeclock_exempt': {
+                // MARKER-TIMECLOCK-EXEMPT
+                $member->update(['exempt_from_timeclock' => ! $member->exempt_from_timeclock]);
+                return back()->with('success', $member->exempt_from_timeclock
+                    ? $member->name . ' will no longer be prompted to clock in.'
+                    : $member->name . ' will be prompted to clock in again.');
+            }
+
             case 'toggle_active': {
                 $member->update(['is_active' => ! $member->is_active]);
                 return back()->with('success', $member->is_active ? 'Member reactivated.' : 'Member deactivated.');

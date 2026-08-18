@@ -10,9 +10,9 @@ class TenantUser extends Authenticatable
 {
     use HasUuids;
     protected $table = 'tenant_users';
-    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','admin_theme','is_active','last_login_at','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
+    protected $fillable = ['tenant_id','name','email','phone','password','role','role_id','admin_theme','is_active','exempt_from_timeclock','last_login_at','pin_hash','pin_set_at','pin_failed_count','pin_locked_until','pin_last_used_at'];
     protected $hidden   = ['password','remember_token','pin_hash'];
-    protected $casts    = ['is_active' => 'boolean', 'last_login_at' => 'datetime', 'pin_set_at' => 'datetime', 'pin_locked_until' => 'datetime', 'pin_last_used_at' => 'datetime'];
+    protected $casts    = ['is_active' => 'boolean', 'exempt_from_timeclock' => 'boolean', 'last_login_at' => 'datetime', 'pin_set_at' => 'datetime', 'pin_locked_until' => 'datetime', 'pin_last_used_at' => 'datetime'];
 
     public function tenant(): BelongsTo { return $this->belongsTo(Tenant::class); }
 

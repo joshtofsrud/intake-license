@@ -130,7 +130,7 @@
       {{-- MARKER-PATCH-613 — clock-in prompt. Off-the-clock staff get a gentle,
            dismissible nudge (dismissal is per page-load, not persisted — it
            reappears next visit so a forgotten clock-in gets caught). --}}
-      @if(!empty($authUser) && empty($pinLockPending))
+      @if(!empty($authUser) && empty($pinLockPending) && !$authUser->exempt_from_timeclock)
         @php
           $tcOpen = \App\Models\Tenant\TenantTimePunch::openFor($currentTenant->id, $authUser->id);
         @endphp
