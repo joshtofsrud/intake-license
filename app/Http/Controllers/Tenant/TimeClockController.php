@@ -247,7 +247,7 @@ class TimeClockController extends Controller
         // Group by user, then by tenant-local day index (0..6 from weekStart).
         $byUser = [];
         foreach ($staff as $m) {
-            $byUser[$m->id] = ['name' => $m->name, 'role' => $m->role, 'days' => array_fill(0, 7, 0), 'flags' => array_fill(0, 7, null), 'total' => 0];
+            $byUser[$m->id] = ['name' => $m->name, 'role' => $m->role, 'days' => array_fill(0, 7, 0), 'flags' => array_fill(0, 7, null), 'total' => 0, 'sessions' => array_fill(0, 7, [])]; // MARKER-TIMECLOCK-DAY-DETAIL
         }
         foreach ($punches as $p) {
             if (!isset($byUser[$p->tenant_user_id])) continue;
@@ -256,8 +256,21 @@ class TimeClockController extends Controller
             $mins = $p->minutes();
             $byUser[$p->tenant_user_id]['days'][$idx] += $mins;
             $byUser[$p->tenant_user_id]['total'] += $mins;
-            if (!$p->clock_out_at)   $byUser[$p->tenant_user_id]['flags'][$idx] = 'open';
-            elseif ($p->auto_closed) $byUser[$p->tenant_user_id]['flags'][$idx] = 'auto';
+            // MARKER-TIMECLOCK-DAY-DETAIL — flags no longer overwrite each
+            // other across multiple punches: 'open' wins over 'auto'.
+            $curFlag = $byUser[$p->tenant_user_id]['flags'][$idx];
+            if (!$p->clock_out_at)                            $byUser[$p->tenant_user_id]['flags'][$idx] = 'open';
+            elseif ($p->auto_closed && $curFlag !== 'open')   $byUser[$p->tenant_user_id]['flags'][$idx] = 'auto';
+            $byUser[$p->tenant_user_id]['sessions'][$idx][] = [
+                'id'      => $p->id,
+                'in'      => tlocal_carbon($p->clock_in_at)->format('g:ia'),
+                'out'     => $p->clock_out_at ? tlocal_carbon($p->clock_out_at)->format('g:ia') : null,
+                'in_raw'  => tlocal_carbon($p->clock_in_at)->format('Y-m-d\\TH:i'),
+                'out_raw' => $p->clock_out_at ? tlocal_carbon($p->clock_out_at)->format('Y-m-d\\TH:i') : '',
+                'break'   => (int) ($p->break_minutes ?? 0),
+                'mins'    => $mins,
+                'auto'    => (bool) $p->auto_closed,
+            ];
         }
 
         $canEdit = $user->can('timeclock.edit');

@@ -24,6 +24,16 @@
 .tt-flag.open { background:rgba(190,242,100,.14); color:var(--ia-accent); }
 .tt-flag.auto { background:rgba(245,158,11,.14); color:#F59E0B; }
 .tt-c .z { color:var(--ia-text-muted); opacity:.4; }
+/* MARKER-TIMECLOCK-DAY-DETAIL */
+.tt-c.day.has { cursor:pointer; }
+.tt-c.day.has:hover { background:color-mix(in srgb,var(--ia-accent) 7%,transparent); }
+.tt-cnt { display:inline-block; font-size:9.5px; font-weight:700; padding:1px 6px; border-radius:9px; margin-left:4px; background:color-mix(in srgb,var(--ia-accent) 18%,transparent); color:var(--ia-accent); }
+.tt-sess { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:.5px dashed var(--ia-border); font-size:12.5px; }
+.tt-sess:last-child { border-bottom:none; }
+.tt-sess .t { flex:1; font-variant-numeric:tabular-nums; }
+.tt-sess .m { color:var(--ia-text-muted); font-size:11.5px; }
+.tt-sess-edit { display:none; padding:10px 0 4px; border-bottom:.5px dashed var(--ia-border); }
+.tt-sess-edit.on { display:block; }
 .tt-audit { border:.5px solid var(--ia-border); border-radius:12px; background:var(--ia-surface); margin-top:16px; }
 .tt-audit .h { padding:12px 15px; border-bottom:.5px solid var(--ia-border); font-weight:700; font-size:13px; }
 .tt-a { padding:9px 15px; border-bottom:.5px dashed var(--ia-border); font-size:11.5px; color:var(--ia-text-muted); }
@@ -74,10 +84,15 @@
       <div class="tt-row">
         <div class="tt-c name">{{ $u['name'] }}<span class="r">{{ $u['role'] }}</span></div>
         @for($i = 0; $i < 7; $i++)
-          @php $m = $u['days'][$i]; $flag = $u['flags'][$i]; @endphp
-          <div class="tt-c">
+          @php $m = $u['days'][$i]; $flag = $u['flags'][$i]; $sess = $u['sessions'][$i]; @endphp
+          {{-- MARKER-TIMECLOCK-DAY-DETAIL — clickable cell + session count --}}
+          <div class="tt-c day {{ count($sess) ? 'has' : '' }}"
+               @if(count($sess))
+                 onclick='ttDayOpen(@json(['name' => $u['name'], 'date' => $days[$i]->format('D, M j'), 'total' => $m, 'sessions' => $sess]))'
+               @endif>
             @if($m > 0)
               {{ intdiv($m,60) }}h {{ $m % 60 }}m
+              @if(count($sess) > 1)<span class="tt-cnt">×{{ count($sess) }}</span>@endif
               @if($flag === 'open')<span class="tt-flag open">on</span>@elseif($flag === 'auto')<span class="tt-flag auto">auto</span>@endif
             @else
               <span class="z">—</span>
@@ -99,6 +114,46 @@
     @endforelse
   </div>
 </div>
+
+{{-- MARKER-TIMECLOCK-DAY-DETAIL — per-day session breakdown --}}
+<div class="tt-mov" id="tt-day">
+  <div class="tt-modal">
+    <div class="tt-mh"><span id="tt-day-title">Day detail</span><span style="cursor:pointer" onclick="document.getElementById('tt-day').classList.remove('on')">×</span></div>
+    <div class="tt-mb" id="tt-day-body"></div>
+  </div>
+</div>
+<script>
+function ttDayOpen(d) {
+  var canEdit = {{ $canEdit ? 'true' : 'false' }};
+  var editUrl = "{{ route('tenant.timeclock.punch.edit', ['punchId' => '__ID__']) }}";
+  var csrf = "{{ csrf_token() }}";
+  document.getElementById('tt-day-title').textContent = d.name + ' — ' + d.date;
+  var h = '';
+  d.sessions.forEach(function (s, i) {
+    h += '<div class="tt-sess">'
+      +  '<span class="t">' + s.in + ' → ' + (s.out ? s.out : '<span class="tt-flag open">on clock</span>') + '</span>'
+      +  '<span class="m">' + Math.floor(s.mins/60) + 'h ' + (s.mins%60) + 'm'
+      +  (s.break ? ' · ' + s.break + 'm break' : '')
+      +  (s.auto ? ' <span class="tt-flag auto">auto</span>' : '') + '</span>'
+      +  (canEdit ? '<button type="button" class="tt-btn" style="padding:4px 10px;font-size:11px" onclick="document.getElementById(\'tt-se-'+i+'\').classList.toggle(\'on\')">Edit</button>' : '')
+      +  '</div>';
+    if (canEdit) {
+      h += '<form class="tt-sess-edit" id="tt-se-'+i+'" method="POST" action="' + editUrl.replace('__ID__', s.id) + '">'
+        +  '<input type="hidden" name="_token" value="' + csrf + '">'
+        +  '<label>Clock in</label><input type="datetime-local" name="clock_in_at" value="' + s.in_raw + '" required>'
+        +  '<label>Clock out</label><input type="datetime-local" name="clock_out_at" value="' + s.out_raw + '">'
+        +  '<label>Break minutes</label><input type="number" name="break_minutes" min="0" max="1440" value="' + s.break + '">'
+        +  '<label>Reason (required · audit)</label><input type="text" name="reason" required placeholder="e.g. missed clock-out">'
+        +  '<div style="display:flex;justify-content:flex-end"><button type="submit" class="tt-btn p">Save</button></div>'
+        +  '</form>';
+    }
+  });
+  var t = Math.floor(d.total/60) + 'h ' + (d.total%60) + 'm';
+  h += '<div style="padding-top:12px;font-weight:700;font-size:12.5px;text-align:right">Day total: ' + t + '</div>';
+  document.getElementById('tt-day-body').innerHTML = h;
+  document.getElementById('tt-day').classList.add('on');
+}
+</script>
 
 @if($canEdit)
 {{-- add-punch modal --}}
