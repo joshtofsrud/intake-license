@@ -39,6 +39,9 @@
   .fl-mins{font-size:11.5px;opacity:.6;white-space:nowrap}
   /* MARKER-PATCH-236 — pricing form is a drawer behind ✎ Edit, not the default view. */
   .fl-model-body{display:none;border-top:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));padding:14px;background:rgba(255,255,255,.03)}
+  /* MARKER-RENTAL-MODEL-PHOTOS */
+  .fl-photo{display:flex;align-items:center;gap:10px}
+  .fl-photo-thumb{width:64px;height:48px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
   .fl-model.editing .fl-model-body{display:block;animation:fl-slide .14s ease}
   @keyframes fl-slide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .fl-editbtn{font-size:11.5px;padding:4px 10px;border:.5px solid var(--ia-border);border-radius:6px;background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));font-weight:550;white-space:nowrap}
@@ -190,6 +193,19 @@
           {{-- model edit drawer --}}
           <div class="fl-model-body" data-model="{{ $model->id }}">
             <div class="fl-fieldgrid">
+              {{-- MARKER-RENTAL-MODEL-PHOTOS — one marketing photo per model.
+                   Uploads through the tenant uploads endpoint, then saves the
+                   URL over the same data-mf autosave rail as every field. --}}
+              <div class="fl-fg" style="grid-column:1/5">
+                <span class="fl-lbl">Photo <span style="opacity:.5;text-transform:none;letter-spacing:0">— shows on your public rental pages</span></span>
+                <div class="fl-photo" data-photo-wrap>
+                  <div class="fl-photo-thumb" data-photo-thumb style="{{ $model->image_url ? 'background-image:url(\'' . $model->image_url . '\')' : '' }}"></div>
+                  <button type="button" class="ia-btn ia-btn--sm" data-photo-pick>{{ $model->image_url ? 'Replace' : 'Upload' }}</button>
+                  <button type="button" class="ia-btn ia-btn--sm" data-photo-remove style="{{ $model->image_url ? '' : 'display:none' }}">Remove</button>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" data-photo-file style="display:none">
+                  <input type="hidden" data-mf="image_url" value="{{ $model->image_url }}">
+                </div>
+              </div>
               <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" value="{{ $model->name }}" data-mf="name"></div>
               <div class="fl-fg" style="grid-column:3/5"><span class="fl-lbl">Subtitle</span><input class="fl-inp" value="{{ $model->subtitle }}" data-mf="subtitle" placeholder="all-mountain, junior…"></div>
               <div class="fl-fg"><span class="fl-lbl">Hourly</span><div class="fl-money"><input class="fl-inp" value="{{ $model->hourly_rate_cents ? number_format($model->hourly_rate_cents/100,2,'.','') : '' }}" data-mf="hourly_rate" placeholder="—"></div></div>
@@ -382,6 +398,43 @@
       })
       .catch(function(){ showToast("Couldn't save — check your connection and retry.", 'err'); });
   }
+  // MARKER-RENTAL-MODEL-PHOTOS — pick file → upload → save URL via the
+  // hidden data-mf input (change event rides the existing autosave).
+  document.querySelectorAll('[data-photo-wrap]').forEach(function(wrap){
+    var pick = wrap.querySelector('[data-photo-pick]');
+    var rm   = wrap.querySelector('[data-photo-remove]');
+    var file = wrap.querySelector('[data-photo-file]');
+    var thumb = wrap.querySelector('[data-photo-thumb]');
+    var hidden = wrap.querySelector('[data-mf="image_url"]');
+    pick.addEventListener('click', function(){ file.click(); });
+    file.addEventListener('change', function(){
+      if (!file.files || !file.files[0]) return;
+      var fd = new FormData();
+      fd.append('file', file.files[0]);
+      fd.append('type', 'general');
+      showToast('Uploading…', 'busy');
+      fetch('{{ route('tenant.uploads.store') }}', {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json'}, body:fd})
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if (!j || !j.url) { showToast(j && j.message ? j.message : 'Upload failed.', 'err'); return; }
+          hidden.value = j.url;
+          hidden.dispatchEvent(new Event('change', { bubbles: false }));
+          thumb.style.backgroundImage = "url('" + j.url + "')";
+          pick.textContent = 'Replace';
+          rm.style.display = '';
+        })
+        .catch(function(){ showToast("Upload failed — check your connection.", 'err'); });
+      file.value = '';
+    });
+    rm.addEventListener('click', function(){
+      hidden.value = '';
+      hidden.dispatchEvent(new Event('change', { bubbles: false }));
+      thumb.style.backgroundImage = '';
+      pick.textContent = 'Upload';
+      rm.style.display = 'none';
+    });
+  });
+
   // Enter commits a text field (blur fires change fires save).
   document.querySelectorAll('[data-mf],[data-uf],[data-cf],[data-ctf]').forEach(function(el){
     if (el.tagName === 'INPUT') {

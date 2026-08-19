@@ -22,7 +22,7 @@ class TenantRentalModel extends Model
     protected $table = 'tenant_rental_models';
 
     protected $fillable = [
-        'tenant_id', 'category_id', 'name', 'subtitle',
+        'tenant_id', 'category_id', 'name', 'subtitle', 'image_url', // MARKER-RENTAL-MODEL-PHOTOS
         'hourly_rate_cents', 'daily_rate_cents', 'weekend_rate_cents',
         'seasonal_rate_cents', 'deposit_cents', 'condition_template_id',
         'sort_order', 'archived_at',

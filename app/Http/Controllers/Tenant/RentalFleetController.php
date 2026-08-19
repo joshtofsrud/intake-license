@@ -428,6 +428,10 @@ class RentalFleetController extends Controller
                 $request->validate(['value' => ['nullable', 'string', 'max:120']]);
                 $model->update(['subtitle' => ($value === '' ? null : $value)]);
                 break;
+            case 'image_url': // MARKER-RENTAL-MODEL-PHOTOS
+                $request->validate(['value' => ['nullable', 'string', 'max:500']]);
+                $model->update(['image_url' => ($value === '' ? null : $value)]);
+                break;
             case 'hourly_rate':
             case 'daily_rate':
             case 'weekend_rate':

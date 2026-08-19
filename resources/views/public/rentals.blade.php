@@ -83,6 +83,7 @@
           @foreach($models as $entry)
             @php $m = $entry['model']; @endphp
             <div class="card">
+              @if($m->image_url)<div style="aspect-ratio:16/10;border-radius:10px;background:url('{{ $m->image_url }}') center/cover no-repeat;margin-bottom:12px"></div>@endif
               <div class="name">{{ $m->name }}</div>
               @if($m->subtitle)<div class="subt">{{ $m->subtitle }}</div>@endif
               <div class="chips">

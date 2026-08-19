@@ -37,7 +37,11 @@
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-top:32px">
       @foreach($rsModels as $m)
-        <div style="border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);padding:20px 22px;background:rgba(255,255,255,.6)">
+        <div style="border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);background:rgba(255,255,255,.6);overflow:hidden">
+          @if($m->image_url)
+            <div style="aspect-ratio:16/10;background:url('{{ $m->image_url }}') center/cover no-repeat"></div>
+          @endif
+          <div style="padding:20px 22px">
           <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.45">{{ $m->category?->name }}</div>
           <div style="font-size:17px;font-weight:650;margin-top:3px;line-height:1.3">{{ $m->name }}</div>
           @if($m->subtitle)<div style="font-size:12.5px;opacity:.55;margin-top:2px">{{ $m->subtitle }}</div>@endif
@@ -50,6 +54,7 @@
             </div>
           @endif
           <div style="font-size:11.5px;opacity:.45;margin-top:10px">{{ $m->rs_unit_count }} in the fleet</div>
+          </div>
         </div>
       @endforeach
     </div>

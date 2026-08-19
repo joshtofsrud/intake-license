@@ -70,6 +70,7 @@
             @foreach($models as $g)
               @php $m = $g['model']; @endphp
               <div style="border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);padding:20px 22px;background:rgba(255,255,255,.6);display:flex;flex-direction:column">
+                @if($m->image_url)<div style="aspect-ratio:16/10;border-radius:10px;background:url('{{ $m->image_url }}') center/cover no-repeat;margin-bottom:12px"></div>@endif
                 <div style="font-size:16px;font-weight:650;line-height:1.3">{{ $m->name }}</div>
                 @if($m->subtitle)<div style="font-size:12.5px;opacity:.55;margin-top:2px">{{ $m->subtitle }}</div>@endif
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
