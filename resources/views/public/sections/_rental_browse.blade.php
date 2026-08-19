@@ -79,7 +79,7 @@
                   @if($m->weekend_rate_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px"><b>{{ format_money($m->weekend_rate_cents) }}</b>/weekend</span>@endif
                   @if($rbShowDeposit && $m->deposit_cents)<span style="font-size:12px;background:rgba(0,0,0,.05);border-radius:6px;padding:3px 9px">{{ format_money($m->deposit_cents) }} deposit</span>@endif
                 </div>
-                <div style="font-size:11.5px;opacity:.5;margin-top:10px">{{ $g['count'] }} available@if($g['sizes']) · {{ implode(', ', $g['sizes']) }}@endif</div>
+                <div style="font-size:11.5px;opacity:.5;margin-top:10px">{{ $g['count'] }} available @if($g['sizes']) · {{ implode(', ', $g['sizes']) }} @endif</div>
                 <div style="margin-top:auto;padding-top:16px">
                   <a class="p-btn p-btn--primary" style="width:100%;text-align:center" href="{{ route('tenant.rentals.reserve', ['model' => $m->id, 'starts' => $rbStart->format('Y-m-d\TH:i'), 'due' => $rbDue->format('Y-m-d\TH:i')]) }}">Reserve</a>
                 </div>

@@ -27,7 +27,7 @@
       : collect();
   $spCta = !empty($c['cta_url']) ? $c['cta_url'] : ($spModel ? route('tenant.rentals.reserve', ['model' => $spModel->id]) : '/rentals');
   // MARKER-RENTAL-MODEL-PHOTOS — section image wins; fleet photo is the fallback.
-  $spImage = !empty($spImage) ? $c['image_url'] : ($spModel->image_url ?? '');
+  $spImage = !empty($c['image_url']) ? $c['image_url'] : ($spModel->image_url ?? '');
 @endphp
 
 @if($spModel && $spModel->sp_unit_count > 0)
@@ -53,7 +53,7 @@
           </div>
         @endif
         <div style="font-size:12px;opacity:.5;margin-top:12px">
-          {{ $spModel->sp_unit_count }} in the fleet@if($spSizes->isNotEmpty()) · sizes {{ $spSizes->implode(', ') }}@endif
+          {{ $spModel->sp_unit_count }} in the fleet @if($spSizes->isNotEmpty()) · sizes {{ $spSizes->implode(', ') }} @endif
         </div>
         <div style="margin-top:22px">
           <a href="{{ $spCta }}" class="p-btn p-btn--primary">{{ $c['cta_label'] ?: 'Reserve' }}</a>
