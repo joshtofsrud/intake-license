@@ -2647,22 +2647,32 @@
   function initRentalCategoryList(body) {
     const root = body.querySelector('#pb2-rcat-list');
     const json = body.querySelector('#pb2-rcat-json');
+    const imgJson = body.querySelector('#pb2-rcat-img-json');
     if (!root || !json) return;
     let dragEl = null;
 
     function serialize() {
       const out = [];
+      const imgs = {};
       root.querySelectorAll('.pb2-rcat').forEach(row => {
         const cb = row.querySelector('[data-rcat-check]');
         if (cb && cb.checked) out.push(row.dataset.catId);
+        const sel = row.querySelector('[data-rcat-photo]');
+        if (sel && sel.value) imgs[row.dataset.catId] = sel.value;
       });
       json.value = JSON.stringify(out);
       json.dispatchEvent(new Event('change', { bubbles: true }));
+      if (imgJson) {
+        imgJson.value = JSON.stringify(imgs);
+        imgJson.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     }
 
     root.querySelectorAll('.pb2-rcat').forEach(row => {
       const cb = row.querySelector('[data-rcat-check]');
       if (cb) cb.addEventListener('change', serialize);
+      const sel = row.querySelector('[data-rcat-photo]');
+      if (sel) sel.addEventListener('change', serialize);
       const h = row.querySelector('.pb2-navlist-handle');
       if (!h) return;
       h.addEventListener('mousedown', () => { row.draggable = true; });

@@ -277,7 +277,7 @@ class PageBuilderController extends Controller
         // MARKER-RENTAL-SECTIONS — tenant-composed rental pages: single-model
         // spotlight, checkbox+drag category grid, embeddable live browse.
         'rental_spotlight'  => ['eyebrow'=>'','heading'=>'','body'=>'','model_id'=>'','image_url'=>'','image_alt'=>'','show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Reserve','cta_url'=>'','bg_color'=>''],
-        'rental_categories' => ['eyebrow'=>'','heading'=>'Rent by category','body'=>'','category_ids'=>'[]','show_counts'=>'1','bg_color'=>''],
+        'rental_categories' => ['eyebrow'=>'','heading'=>'Rent by category','body'=>'','category_ids'=>'[]','category_images'=>'{}','show_counts'=>'1','bg_color'=>''],
         'rental_browse'     => ['eyebrow'=>'','heading'=>'Check availability','body'=>'','show_deposit'=>'0','bg_color'=>''],
         // MARKER-PATCH-576 — online store product showcase
         'products_showcase' => ['eyebrow'=>'','heading'=>'From the shop','body'=>'','category_id'=>'','max_items'=>8,'in_stock_only'=>'0','show_prices'=>'1','show_search'=>'0','search_placeholder'=>'','cta_label'=>'Browse the shop','cta_url'=>'/shop','bg_color'=>''],
@@ -900,6 +900,14 @@ class PageBuilderController extends Controller
                             ->where('available_for_rent', true)])
                         ->orderBy('sort_order')->orderBy('name')
                         ->get(['id', 'name']);
+                    // MARKER-RENTAL-SECTIONS — tile photos come from the fleet:
+                    // per category, the models that actually have a photo.
+                    $extras['rentalModelPhotos'] = \App\Models\Tenant\TenantRentalModel::where('tenant_id', $tenant->id)
+                        ->whereNull('archived_at')
+                        ->whereNotNull('image_url')
+                        ->orderBy('sort_order')->orderBy('name')
+                        ->get(['id', 'name', 'category_id', 'image_url'])
+                        ->groupBy('category_id');
                 }
                 if ($section->section_type === 'services') {
                     $extras['categories'] = \App\Models\Tenant\TenantServiceCategory::where('tenant_id', $tenant->id)
