@@ -7,7 +7,8 @@
   $c   = $c ?? ($section->content ?? []);
   $get = fn($k, $d = '') => $c[$k] ?? $d;
   $rentalCategories = $rentalCategories ?? collect();
-  $picked = json_decode($get('category_ids', '[]'), true) ?: [];
+  $pickedRaw = $get('category_ids', '[]');
+  $picked = is_array($pickedRaw) ? $pickedRaw : (json_decode((string) $pickedRaw, true) ?: []);
   // Render picked rows first, in saved order, then the rest.
   $ordered = collect($picked)->map(fn ($id) => $rentalCategories->firstWhere('id', $id))->filter()
       ->concat($rentalCategories->filter(fn ($cat) => !in_array((string) $cat->id, array_map('strval', $picked), true)));
@@ -51,7 +52,7 @@
         <div class="pb2-field-hint">No fleet categories yet — add them under Rentals → Fleet.</div>
       @endforelse
     </div>
-    <input type="hidden" data-field="category_ids" id="pb2-rcat-json" value="{{ $get('category_ids', '[]') }}">
+    <input type="hidden" data-field="category_ids" id="pb2-rcat-json" value="{{ json_encode(array_values($picked)) }}">
     <div class="pb2-field" style="margin-top:10px">
       <label class="pb2-field-label" style="display:flex;gap:8px;align-items:center;cursor:pointer">
         <input type="checkbox" data-field="show_counts" value="1" {{ $get('show_counts', '1') === '1' ? 'checked' : '' }}> Show unit counts on tiles

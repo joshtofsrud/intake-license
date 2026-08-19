@@ -5,7 +5,10 @@
 --}}
 @php
   $rcTenant = $tenant ?? $currentTenant ?? null;
-  $rcIds = json_decode($c['category_ids'] ?? '[]', true) ?: [];
+  // MARKER-RENTAL-SECTIONS hotfix — content cast may hand us a decoded
+  // array; the editor writes a JSON string. Accept both.
+  $rcRaw = $c['category_ids'] ?? [];
+  $rcIds = is_array($rcRaw) ? $rcRaw : (json_decode((string) $rcRaw, true) ?: []);
   $rcCats = collect();
   if ($rcTenant && $rcTenant->rentals_visible && $rcIds) {
       $found = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $rcTenant->id)
