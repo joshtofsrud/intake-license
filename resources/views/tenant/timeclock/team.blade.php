@@ -84,11 +84,21 @@
       <div class="tt-row">
         <div class="tt-c name">{{ $u['name'] }}<span class="r">{{ $u['role'] }}</span></div>
         @for($i = 0; $i < 7; $i++)
-          @php $m = $u['days'][$i]; $flag = $u['flags'][$i]; $sess = $u['sessions'][$i]; @endphp
+          @php
+            $m = $u['days'][$i]; $flag = $u['flags'][$i]; $sess = $u['sessions'][$i];
+            // MARKER-TIMECLOCK-DAY-DETAIL — payload precomputed here; inline
+            // @json() with a nested array breaks Blade's directive parser.
+            $dayPayload = count($sess) ? json_encode([
+                'name' => $u['name'],
+                'date' => $days[$i]->format('D, M j'),
+                'total' => $m,
+                'sessions' => $sess,
+            ]) : null;
+          @endphp
           {{-- MARKER-TIMECLOCK-DAY-DETAIL — clickable cell + session count --}}
           <div class="tt-c day {{ count($sess) ? 'has' : '' }}"
-               @if(count($sess))
-                 onclick='ttDayOpen(@json(['name' => $u['name'], 'date' => $days[$i]->format('D, M j'), 'total' => $m, 'sessions' => $sess]))'
+               @if($dayPayload)
+                 onclick="ttDayOpen(JSON.parse(this.dataset.day))" data-day="{{ $dayPayload }}"
                @endif>
             @if($m > 0)
               {{ intdiv($m,60) }}h {{ $m % 60 }}m
