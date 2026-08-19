@@ -1,81 +1,50 @@
-{{--
-  MARKER-PATCH-239 — rentals_showcase editor.
-  Content tab: copy + category filter + limits + CTA.
-  Style tab: background color (bg_color stays in content[] per G23).
-  The public partial pulls live models, so there's nothing to curate here —
-  the fleet is the source of truth.
---}}
-@php
-  $c   = $c ?? ($section->content ?? []);
-  $get = fn($k, $d = '') => $c[$k] ?? $d;
-  $rentalCategories = $rentalCategories ?? collect();
-@endphp
+#!/usr/bin/env python3
+"""rentals_showcase gets the same Style + Advanced tabs as the three new
+rental sections: bg none/color/gradient(+angle), heading/body/accent,
+card bg + border, anchor ID, custom classes, hide on mobile/desktop.
+Backward compatible: an existing bg_color keeps working as color mode.
+Run from repo root: python3 apply-rentals-showcase-style-advanced.py
+"""
+import sys
 
-<input type="checkbox" data-field="is_visible" value="1" {{ $section->is_visible ? 'checked' : '' }} style="display:none">
+def read(p):
+    with open(p) as f: return f.read()
+def write(p, s):
+    with open(p, 'w') as f: f.write(s)
+def sub(p, old, new, label):
+    s = read(p)
+    if new in s:
+        print(f"SKIP (already applied): {label}"); return
+    if old not in s:
+        print(f"FAIL: anchor not found for {label} in {p}"); sys.exit(1)
+    write(p, s.replace(old, new, 1))
+    print(f"OK: {label}")
 
-{{--=================== CONTENT ===================--}}
-<div class="pb2-tab-panel" data-tab="content">
+STYLE_COMMON = "'bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false"
 
+# 1) DEFAULTS
+sub('app/Http/Controllers/Tenant/PageBuilderController.php',
+    "'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>''],",
+    "'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>''," + STYLE_COMMON + "],",
+    "DEFAULTS: showcase")
+
+# 2) Editor — replace stub style tab with full style + advanced (same
+#    markup as the three new sections; shared JS wires everything)
+OLD_STYLE_TAB = """{{--=================== STYLE ===================--}}
+<div class="pb2-tab-panel" data-tab="style" hidden>
   <div class="pb2-group">
-    <div class="pb2-group-title">Text</div>
+    <div class="pb2-group-title">Background</div>
     <div class="pb2-field">
-      <label class="pb2-field-label">Eyebrow</label>
-      <input type="text" class="pb2-input" data-field="eyebrow" value="{{ $get('eyebrow') }}" placeholder="Optional kicker">
-    </div>
-    <div class="pb2-field">
-      <label class="pb2-field-label">Heading</label>
-      <input type="text" class="pb2-input" data-field="heading" value="{{ $get('heading') }}" placeholder="Rent the good stuff">
-    </div>
-    <div class="pb2-field">
-      <label class="pb2-field-label">Body</label>
-      <textarea class="pb2-textarea" data-field="body" rows="3" placeholder="Optional intro line">{{ $get('body') }}</textarea>
+      <label class="pb2-field-label">Background color</label>
+      <div class="pb2-field-row">
+        <input type="color" data-field="bg_color" value="{{ $get('bg_color') ?: '#ffffff' }}" {{ $get('bg_color') ? '' : 'data-blank=1' }}>
+        <input type="text" class="pb2-input" data-field="bg_color_text" value="{{ $get('bg_color') }}" placeholder="default">
+      </div>
     </div>
   </div>
+</div>"""
 
-  <div class="pb2-group">
-    <div class="pb2-group-title">Fleet</div>
-    <div class="pb2-field">
-      <label class="pb2-field-label">Category</label>
-      <select class="pb2-input" data-field="category_id">
-        <option value="">All categories</option>
-        @foreach($rentalCategories as $cat)
-          <option value="{{ $cat->id }}" {{ $get('category_id') === (string) $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
-        @endforeach
-      </select>
-      <div class="pb2-field-hint">Models come straight from your Fleet — edit rates there.</div>
-    </div>
-    <div class="pb2-field">
-      <label class="pb2-field-label">Max models shown</label>
-      <input type="number" class="pb2-input" data-field="max_models" value="{{ $get('max_models', 6) }}" min="1" max="24">
-    </div>
-    <div class="pb2-field">
-      <label class="pb2-field-label" style="display:flex;gap:8px;align-items:center;cursor:pointer">
-        <input type="checkbox" data-field="show_rates" value="1" {{ $get('show_rates', '1') === '1' ? 'checked' : '' }}> Show rates
-      </label>
-    </div>
-    <div class="pb2-field">
-      <label class="pb2-field-label" style="display:flex;gap:8px;align-items:center;cursor:pointer">
-        <input type="checkbox" data-field="show_deposit" value="1" {{ $get('show_deposit') === '1' ? 'checked' : '' }}> Show deposit amounts
-      </label>
-    </div>
-  </div>
-
-  <div class="pb2-group">
-    <div class="pb2-group-title">Call to action</div>
-    <div class="pb2-field">
-      <label class="pb2-field-label">Button label</label>
-      <input type="text" class="pb2-input" data-field="cta_label" value="{{ $get('cta_label', 'Check availability') }}">
-    </div>
-    <div class="pb2-field">
-      <label class="pb2-field-label">Button URL</label>
-      <input type="text" class="pb2-input" data-field="cta_url" value="{{ $get('cta_url', '/rentals') }}" placeholder="/rentals">
-      <div class="pb2-field-hint">/rentals is the live availability browse page.</div>
-    </div>
-  </div>
-
-</div>
-
-{{--=================== STYLE ===================--}}
+NEW_TABS = """{{--=================== STYLE ===================--}}
 <div class="pb2-tab-panel" data-tab="style" hidden>
 
   <div class="pb2-group">
@@ -197,4 +166,69 @@
       <span>Hide on desktop</span>
     </label>
   </div>
-</div>
+</div>"""
+
+sub('resources/views/tenant/pages/sections/_rentals_showcase.blade.php',
+    OLD_STYLE_TAB, NEW_TABS, "editor showcase: style+advanced")
+
+# 3) Public — style resolution + consume
+P = 'resources/views/public/sections/_rentals_showcase.blade.php'
+sub(P,
+    """  $rsShowRates   = ($c['show_rates'] ?? '1') === '1';
+  $rsShowDeposit = ($c['show_deposit'] ?? '0') === '1';
+@endphp""",
+    """  $rsShowRates   = ($c['show_rates'] ?? '1') === '1';
+  $rsShowDeposit = ($c['show_deposit'] ?? '0') === '1';
+  // MARKER-RENTAL-STYLE — style + advanced resolution (feature_grid model).
+  $stBgMode  = $c['bg_mode'] ?? (!empty($c['bg_color']) ? 'color' : 'none');
+  $stText    = ($c['text_color'] ?? '') ?: 'inherit';
+  $stBody    = ($c['text_color_body'] ?? '') ?: 'inherit';
+  $stAccent  = ($c['accent_color'] ?? '') ?: 'inherit';
+  $stCardBg  = ($c['card_bg'] ?? '') ?: 'rgba(255,255,255,.6)';
+  $stCardBd  = ($c['card_border'] ?? '') ?: 'rgba(0,0,0,.1)';
+  $anchorId  = trim($c['anchor_id'] ?? '') ?: 'rentals';
+  $custClass = trim($c['custom_classes'] ?? '');
+  $instId    = 'p-rsc-' . ($section->id ?? uniqid());
+@endphp
+<style>
+.{{ $instId }} {
+  @if($stBgMode === 'color' && !empty($c['bg_color'])) background: {{ $c['bg_color'] }};
+  @elseif($stBgMode === 'gradient') background: linear-gradient({{ (int)($c['bg_gradient_angle'] ?? 135) }}deg, {{ ($c['bg_gradient_from'] ?? '') ?: '#ffffff' }} 0%, {{ ($c['bg_gradient_to'] ?? '') ?: '#f4f4f4' }} 100%);
+  @endif
+}
+.{{ $instId }} .rs-head { color: {{ $stText }}; }
+.{{ $instId }} .rs-body { color: {{ $stBody }}; }
+.{{ $instId }} .p-eyebrow, .{{ $instId }} .rs-accent { color: {{ $stAccent }}; }
+.{{ $instId }} .rs-card { background: {{ $stCardBg }}; border-color: {{ $stCardBd }}; }
+@if(!empty($c['hide_on_mobile']))
+@media (max-width: 768px) { .{{ $instId }} { display: none; } }
+@endif
+@if(!empty($c['hide_on_desktop']))
+@media (min-width: 769px) { .{{ $instId }} { display: none; } }
+@endif
+</style>""",
+    "public showcase: style php")
+
+sub(P,
+    """<section class="p-section" id="rentals" @if(!empty($c['bg_color'])) style="background:{{ $c['bg_color'] }}" @endif>""",
+    """<section class="p-section {{ $instId }} {{ $custClass }}" id="{{ $anchorId }}">""",
+    "public showcase: section tag")
+
+sub(P,
+    """      @if(!empty($c['heading']))<h2 class="p-section-heading">{{ $c['heading'] }}</h2>@endif
+      @if(!empty($c['body']))<p style="max-width:560px;margin:10px auto 0;opacity:.65;font-size:15px;line-height:1.6">{{ $c['body'] }}</p>@endif""",
+    """      @if(!empty($c['heading']))<h2 class="p-section-heading rs-head">{{ $c['heading'] }}</h2>@endif
+      @if(!empty($c['body']))<p class="rs-body" style="max-width:560px;margin:10px auto 0;opacity:.85;font-size:15px;line-height:1.6">{{ $c['body'] }}</p>@endif""",
+    "public showcase: heading colors")
+
+sub(P,
+    """        <div style="border:1.5px solid rgba(0,0,0,.1);border-radius:var(--p-r-lg,14px);background:rgba(255,255,255,.6);overflow:hidden">""",
+    """        <div class="rs-card" style="border-width:1.5px;border-style:solid;border-radius:var(--p-r-lg,14px);overflow:hidden">""",
+    "public showcase: card class")
+
+sub(P,
+    """          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.45">{{ $m->category?->name }}</div>""",
+    """          <div class="rs-accent" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.75">{{ $m->category?->name }}</div>""",
+    "public showcase: category accent")
+
+print("Done. No migration needed.")

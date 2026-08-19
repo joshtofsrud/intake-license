@@ -273,7 +273,7 @@ class PageBuilderController extends Controller
         ],
         'booking_embed'  => ['heading'=>'Book online'],
         // MARKER-PATCH-239 — live fleet showcase with rates + browse CTA.
-        'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>''],
+        'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>'','bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
         // MARKER-RENTAL-SECTIONS — tenant-composed rental pages: single-model
         // spotlight, checkbox+drag category grid, embeddable live browse.
         'rental_spotlight'  => ['eyebrow'=>'','heading'=>'','body'=>'','model_id'=>'','image_url'=>'','image_alt'=>'','show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Reserve','cta_url'=>'','bg_color'=>'','image_position'=>'left','image_radius'=>14,'bg_mode'=>'none','bg_gradient_from'=>'','bg_gradient_to'=>'','bg_gradient_angle'=>135,'text_color'=>'','text_color_body'=>'','accent_color'=>'','card_bg'=>'','card_border'=>'','anchor_id'=>'','custom_classes'=>'','hide_on_mobile'=>false,'hide_on_desktop'=>false],
