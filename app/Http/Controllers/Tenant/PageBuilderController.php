@@ -274,6 +274,11 @@ class PageBuilderController extends Controller
         'booking_embed'  => ['heading'=>'Book online'],
         // MARKER-PATCH-239 — live fleet showcase with rates + browse CTA.
         'rentals_showcase' => ['eyebrow'=>'','heading'=>'Rent the good stuff','body'=>'','category_id'=>'','max_models'=>6,'show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Check availability','cta_url'=>'/rentals','bg_color'=>''],
+        // MARKER-RENTAL-SECTIONS — tenant-composed rental pages: single-model
+        // spotlight, checkbox+drag category grid, embeddable live browse.
+        'rental_spotlight'  => ['eyebrow'=>'','heading'=>'','body'=>'','model_id'=>'','image_url'=>'','image_alt'=>'','show_rates'=>'1','show_deposit'=>'0','cta_label'=>'Reserve','cta_url'=>'','bg_color'=>''],
+        'rental_categories' => ['eyebrow'=>'','heading'=>'Rent by category','body'=>'','category_ids'=>'[]','show_counts'=>'1','bg_color'=>''],
+        'rental_browse'     => ['eyebrow'=>'','heading'=>'Check availability','body'=>'','show_deposit'=>'0','bg_color'=>''],
         // MARKER-PATCH-576 — online store product showcase
         'products_showcase' => ['eyebrow'=>'','heading'=>'From the shop','body'=>'','category_id'=>'','max_items'=>8,'in_stock_only'=>'0','show_prices'=>'1','show_search'=>'0','search_placeholder'=>'','cta_label'=>'Browse the shop','cta_url'=>'/shop','bg_color'=>''],
         'classes_embed'  => ['heading'=>'Upcoming classes','show_filters'=>true,'weeks_ahead'=>2],
@@ -874,6 +879,25 @@ class PageBuilderController extends Controller
                 if ($section->section_type === 'rentals_showcase') {
                     $extras['rentalCategories'] = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
                         ->whereNull('archived_at')
+                        ->orderBy('sort_order')->orderBy('name')
+                        ->get(['id', 'name']);
+                }
+                // MARKER-RENTAL-SECTIONS — spotlight picks a model; categories
+                // section lists every category (with live unit counts) as
+                // checkboxes the tenant toggles + drags into order.
+                if ($section->section_type === 'rental_spotlight') {
+                    $extras['rentalModels'] = \App\Models\Tenant\TenantRentalModel::where('tenant_id', $tenant->id)
+                        ->whereNull('archived_at')
+                        ->with('category:id,name')
+                        ->orderBy('sort_order')->orderBy('name')
+                        ->get(['id', 'name', 'category_id']);
+                }
+                if ($section->section_type === 'rental_categories') {
+                    $extras['rentalCategories'] = \App\Models\Tenant\TenantRentalCategory::where('tenant_id', $tenant->id)
+                        ->whereNull('archived_at')
+                        ->withCount(['units as live_unit_count' => fn ($u) => $u->whereNull('archived_at')
+                            ->where('status', '!=', 'retired')
+                            ->where('available_for_rent', true)])
                         ->orderBy('sort_order')->orderBy('name')
                         ->get(['id', 'name']);
                 }

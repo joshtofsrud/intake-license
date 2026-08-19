@@ -51,9 +51,18 @@ class RentalBrowseController extends Controller
             $error = $startLocal->isToday() ? null : 'That pickup is in the past — pick a future date.';
         }
 
+        // MARKER-RENTAL-SECTIONS — category tiles land pre-filtered.
+        $categoryId = null;
+        if ($request->filled('category')) {
+            $categoryId = TenantRentalCategory::where('tenant_id', $tenant->id)
+                ->whereNull('archived_at')
+                ->where('id', $request->query('category'))
+                ->value('id');
+        }
+
         $units = $this->availability->availableUnits(
             $tenant->id,
-            null,
+            $categoryId,
             $startLocal->copy()->utc(),
             $dueLocal->copy()->utc(),
             onlineOnly: true,
@@ -92,6 +101,7 @@ class RentalBrowseController extends Controller
             'dueLocal'   => $dueLocal,
             'error'      => $error,
             'unitCount'  => $units->count(),
+            'activeCategory' => $categoryId ? $categories[$categoryId] ?? null : null, // MARKER-RENTAL-SECTIONS
         ]);
     }
 }

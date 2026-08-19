@@ -36,6 +36,9 @@
     'step_timeline'          => 'Step timeline',
     'pricing_table'          => 'Pricing table',
     'rentals_showcase'       => 'Rentals showcase', // MARKER-PATCH-239
+    'rental_spotlight'       => 'Rental spotlight', // MARKER-RENTAL-SECTIONS
+    'rental_categories'      => 'Rental categories',
+    'rental_browse'          => 'Rental availability',
     'products_showcase'      => 'Product showcase', // MARKER-PATCH-576
     'faq_accordion'          => 'FAQ accordion',
     'testimonial_carousel'   => 'Testimonials',
@@ -65,6 +68,9 @@
     'step_timeline'  => '<line x1="3" y1="6" x2="3" y2="6.01"/><line x1="3" y1="12" x2="3" y2="12.01"/><line x1="3" y1="18" x2="3" y2="18.01"/><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
     'pricing_table'  => '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     'rentals_showcase' => '<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h2"/>',
+    'rental_spotlight' => '<path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/>',
+    'rental_categories' => '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+    'rental_browse' => '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
     'products_showcase' => '<path d="M4 7h16l-1.5 12.5a1 1 0 0 1-1 .9H6.5a1 1 0 0 1-1-.9L4 7zm4 0V6a4 4 0 0 1 8 0v1"/>', // MARKER-PATCH-576
     'faq_accordion'  => '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1-1 1.5-2.5 2.5"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
     'testimonial_carousel' => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>',
@@ -93,6 +99,9 @@
     'faq_accordion' => 'Collapsible Q&A list',
     'pricing_table' => 'Side-by-side pricing tiers',
     'rentals_showcase' => 'Live rental fleet with rates', // MARKER-PATCH-239
+    'rental_spotlight' => 'Feature one rental model',
+    'rental_categories' => 'Category grid — pick and order',
+    'rental_browse' => 'Live date-picker availability browse',
     'products_showcase' => 'Live products from your online store', // MARKER-PATCH-576
     'testimonial_carousel' => 'Customer quotes carousel',
     'logo_bar'      => 'Trust bar with partner logos',
@@ -106,7 +115,7 @@
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
     'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','faq_accordion','stats_row'],
-    'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table','rentals_showcase','products_showcase'],
+    'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'],
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'], // MARKER-PATCH-306
   ];
@@ -1750,7 +1759,7 @@
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','custom_html']
-              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','products_showcase','custom_html']);
+              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
           <div class="pb2-gallery">
@@ -2619,6 +2628,9 @@
     // MARKER-PATCH-297 — image gallery image-tile repeater
     initGalleryList(body);
 
+    // MARKER-RENTAL-SECTIONS — rental_categories checkbox + drag-order list
+    initRentalCategoryList(body);
+
     // MARKER-PATCH-158-G32 — logo_bar logos list editor
     initLogosList(body);
 
@@ -2627,6 +2639,51 @@
 
     // MARKER-PATCH-158-G34 — step_timeline steps list editor
     initStepsList(body);
+  }
+
+  // MARKER-RENTAL-SECTIONS — every fleet category renders as a row with a
+  // checkbox (include it?) and a drag handle (order it). Serializes the
+  // checked ids, in DOM order, to the hidden category_ids JSON field.
+  function initRentalCategoryList(body) {
+    const root = body.querySelector('#pb2-rcat-list');
+    const json = body.querySelector('#pb2-rcat-json');
+    if (!root || !json) return;
+    let dragEl = null;
+
+    function serialize() {
+      const out = [];
+      root.querySelectorAll('.pb2-rcat').forEach(row => {
+        const cb = row.querySelector('[data-rcat-check]');
+        if (cb && cb.checked) out.push(row.dataset.catId);
+      });
+      json.value = JSON.stringify(out);
+      json.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    root.querySelectorAll('.pb2-rcat').forEach(row => {
+      const cb = row.querySelector('[data-rcat-check]');
+      if (cb) cb.addEventListener('change', serialize);
+      const h = row.querySelector('.pb2-navlist-handle');
+      if (!h) return;
+      h.addEventListener('mousedown', () => { row.draggable = true; });
+      row.addEventListener('mouseup',    () => { row.draggable = false; });
+      row.addEventListener('mouseleave', () => { row.draggable = false; });
+      row.addEventListener('dragstart', e => {
+        dragEl = row; row.style.opacity = '.4';
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+      });
+      row.addEventListener('dragend', () => {
+        row.style.opacity = ''; row.draggable = false; dragEl = null; serialize();
+      });
+      row.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!dragEl || dragEl === row) return;
+        const r = row.getBoundingClientRect();
+        const before = e.clientY < r.top + r.height / 2;
+        root.insertBefore(dragEl, before ? row : row.nextSibling);
+      });
+    });
   }
 
   function initStepsList(body) {

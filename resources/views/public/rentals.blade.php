@@ -59,9 +59,17 @@
     <div>
       <label>Return</label>
       <input type="datetime-local" name="due" value="{{ $dueLocal->format('Y-m-d\TH:i') }}" required>
+      @if(!empty($activeCategory))<input type="hidden" name="category" value="{{ $activeCategory->id }}">@endif
     </div>
     <button type="submit">Check availability</button>
   </form>
+  {{-- MARKER-RENTAL-SECTIONS — active category chip --}}
+  @if(!empty($activeCategory))
+    <div style="margin:14px 0 0;font-size:13px">
+      Showing <b>{{ $activeCategory->name }}</b> ·
+      <a href="{{ route('tenant.rentals.browse', ['starts' => $startLocal->format('Y-m-d\TH:i'), 'due' => $dueLocal->format('Y-m-d\TH:i')]) }}" style="opacity:.6">show everything</a>
+    </div>
+  @endif
 
   @if($error)<div class="err">{{ $error }}</div>@endif
 
