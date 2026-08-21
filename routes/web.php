@@ -183,6 +183,12 @@ $tenantRoutes = function () {
     Route::post('/waitlist/join',              [TenantControllers\WaitlistPublicController::class, 'submitJoin'])->name('tenant.waitlist.submit');
     Route::get('/waitlist/my',                 [TenantControllers\WaitlistPublicController::class, 'myEntries'])->name('tenant.waitlist.my');
     Route::post('/waitlist/remove',            [TenantControllers\WaitlistPublicController::class, 'removeEntry'])->name('tenant.waitlist.remove');
+    // MARKER-RENTAL-EXT — magic-link extension offer (token is the auth)
+    Route::get( '/x/{token}',          [TenantControllers\RentalExtensionOfferController::class, 'show'])->name('tenant.rentals.extension.show');
+    Route::post('/x/{token}/decline',  [TenantControllers\RentalExtensionOfferController::class, 'decline'])->name('tenant.rentals.extension.decline');
+    Route::post('/x/{token}/pay',      [TenantControllers\RentalExtensionOfferController::class, 'pay'])->name('tenant.rentals.extension.pay');
+    Route::post('/x/{token}/confirm',  [TenantControllers\RentalExtensionOfferController::class, 'confirm'])->name('tenant.rentals.extension.confirm');
+
     Route::get('/waitlist/offer/{token}',      [TenantControllers\WaitlistOfferController::class, 'show'])->name('tenant.waitlist.offer.show');
     Route::post('/waitlist/offer/{token}/accept', [TenantControllers\WaitlistOfferController::class, 'accept'])->name('tenant.waitlist.offer.accept');
     Route::get('/waitlist/offer/{token}/confirmed', [TenantControllers\WaitlistOfferController::class, 'confirmed'])->name('tenant.waitlist.offer.confirmed');
@@ -484,6 +490,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::post('/rentals/bookings',                 [TenantControllers\RentalBookingController::class, 'store'])->name('rentals.bookings.store');
                 Route::get('/rentals/availability-check',        [TenantControllers\RentalBookingController::class, 'availability'])->name('rentals.availability');
                 Route::get('/rentals/bookings/{id}',             [TenantControllers\RentalBookingController::class, 'show'])->name('rentals.bookings.show');
+                Route::post('/rentals/bookings/{id}/extension-offer', [TenantControllers\RentalBookingController::class, 'sendExtensionOffer'])->name('rentals.bookings.extension.send'); // MARKER-RENTAL-EXT
                 Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
                 // MARKER-PATCH-232 — guided check-out flow.
                 Route::get( '/rentals/bookings/{id}/check-out-flow',   [TenantControllers\RentalBookingController::class, 'checkOutFlow'])->name('rentals.bookings.checkout.flow');

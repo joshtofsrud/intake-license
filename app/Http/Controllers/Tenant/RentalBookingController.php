@@ -38,6 +38,25 @@ use RuntimeException;
  */
 class RentalBookingController extends Controller
 {
+    // MARKER-RENTAL-EXT — manual "Send offer now" from the rental detail.
+    public function sendExtensionOffer(string $id)
+    {
+        $tenant = tenant();
+        $rental = \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->findOrFail($id);
+        $svc = app(\App\Services\RentalExtensionOfferService::class);
+
+        if (!$tenant->rental_extensions_enabled) {
+            return back()->with('error', 'The Last-minute extension offers add-on is not active.');
+        }
+        $reason = null;
+        $e = $svc->eligibility($tenant, $rental, $reason);
+        if (!$e) {
+            return back()->with('error', 'Not eligible: ' . $reason);
+        }
+        $svc->createAndSend($tenant, $rental, $e, 'manual');
+        return back()->with('success', 'Extension offer sent by text.');
+    }
+
     public function __construct(
         protected RentalAvailabilityService $availability,
     ) {}

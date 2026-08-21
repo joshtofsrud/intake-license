@@ -85,6 +85,44 @@
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Grace period (minutes)</label>
         <input type="number" name="late_grace_minutes" value="{{ $lateGraceMinutes }}" min="0" max="1440" class="ia-input" style="width:120px">
+
+        {{-- MARKER-RENTAL-EXT — last-minute extension offers --}}
+        @php $extS = app(\App\Services\RentalExtensionOfferService::class)->settings(tenant()); @endphp
+        @if(tenant()->rental_extensions_enabled)
+          <div style="border-top:.5px solid var(--ia-border);margin-top:18px;padding-top:16px">
+            <div class="ia-label" style="margin-bottom:4px">Last-minute extension offers</div>
+            <p style="font-size:12px;opacity:.5;margin:0 0 12px;line-height:1.5">When a rental is coming back and nobody has the unit booked next, Intake texts the renter a discounted extension with a one-tap pay link.</p>
+            <label style="display:flex;align-items:center;gap:9px;font-size:13px;margin-bottom:12px;cursor:pointer">
+              <input type="checkbox" name="ext_enabled" value="1" {{ $extS['enabled'] ? 'checked' : '' }}> Send automatic offers
+            </label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px">
+              <div>
+                <label class="ia-label" style="display:block;margin-bottom:5px">Discount %</label>
+                <input type="number" name="ext_discount_pct" value="{{ $extS['discount_pct'] }}" min="0" max="90" class="ia-input" style="width:100%">
+              </div>
+              <div>
+                <label class="ia-label" style="display:block;margin-bottom:5px">Minimum gap (min)</label>
+                <input type="number" name="ext_min_gap_minutes" value="{{ $extS['min_gap'] }}" min="30" max="1440" class="ia-input" style="width:100%">
+              </div>
+              <div>
+                <label class="ia-label" style="display:block;margin-bottom:5px">Send before return (min)</label>
+                <input type="number" name="ext_send_before_minutes" value="{{ $extS['send_before'] }}" min="15" max="480" class="ia-input" style="width:100%">
+              </div>
+              <div>
+                <label class="ia-label" style="display:block;margin-bottom:5px">Extend up to (daily cutoff)</label>
+                <input type="time" name="ext_until" value="{{ $extS['until'] }}" class="ia-input" style="width:100%">
+              </div>
+              <div>
+                <label class="ia-label" style="display:block;margin-bottom:5px">Quiet hours start</label>
+                <input type="time" name="ext_quiet_start" value="{{ $extS['quiet_start'] }}" class="ia-input" style="width:100%">
+              </div>
+              <div>
+                <label class="ia-label" style="display:block;margin-bottom:5px">Quiet hours end</label>
+                <input type="time" name="ext_quiet_end" value="{{ $extS['quiet_end'] }}" class="ia-input" style="width:100%">
+              </div>
+            </div>
+          </div>
+        @endif
       </div>
       <div>
         <label class="ia-label" style="display:block;margin-bottom:5px">Late fee ($ / hour)</label>

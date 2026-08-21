@@ -45,6 +45,44 @@
         ['t' => 'Returned',    'at' => $rental->returned_at,    'state' => $rental->status === 'returned' ? 'hit' : 'next'],
       ];
 @endphp
+{{-- MARKER-RENTAL-EXT — eligibility panel: shows the live offer state or
+     why this rental can't get one, with a manual send. --}}
+@php
+  $extPanel = null;
+  if (tenant()->rental_extensions_enabled && $rental->status === 'out' && !$rental->returned_at) {
+      $extSvc = app(\App\Services\RentalExtensionOfferService::class);
+      $extOffer = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $rental->id)
+          ->orderByDesc('created_at')->first();
+      $extReason = null;
+      $extElig = ($extOffer && in_array($extOffer->status, ['sent', 'paid'], true)) ? null : $extSvc->eligibility(tenant(), $rental, $extReason);
+      $extPanel = ['offer' => $extOffer, 'elig' => $extElig, 'reason' => $extReason];
+  }
+@endphp
+@if($extPanel)
+  <div class="ia-card" style="margin-bottom:16px;padding:14px 18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12.5px;font-weight:700;margin-bottom:2px">Last-minute extension</div>
+        @if($extPanel['offer'] && $extPanel['offer']->status === 'paid')
+          <div style="font-size:12px;opacity:.6">Accepted &amp; paid {{ format_money($extPanel['offer']->total_cents) }} — extended to {{ tlocal_datetime($extPanel['offer']->extend_to, 'g:i A') }}.</div>
+        @elseif($extPanel['offer'] && $extPanel['offer']->status === 'sent')
+          <div style="font-size:12px;opacity:.6">Offer sent {{ tlocal_datetime($extPanel['offer']->sent_at, 'g:i A') }} — awaiting response. Extends to {{ tlocal_datetime($extPanel['offer']->extend_to, 'g:i A') }} for {{ format_money($extPanel['offer']->total_cents) }}.</div>
+        @elseif($extPanel['elig'])
+          <div style="font-size:12px;opacity:.6">Eligible — unit is free until {{ tlocal_datetime($extPanel['elig']['extend_to'], 'g:i A') }}. Offer price {{ format_money($extPanel['elig']['total_cents']) }} ({{ $extPanel['elig']['discount_pct'] }}% off).</div>
+        @else
+          <div style="font-size:12px;opacity:.6">Not eligible: {{ $extPanel['reason'] ?? ($extPanel['offer'] ? ucfirst($extPanel['offer']->status) . ' offer on file.' : 'n/a') }}</div>
+        @endif
+      </div>
+      @if($extPanel['elig'])
+        <form method="POST" action="{{ route('tenant.rentals.bookings.extension.send', $rental->id) }}">
+          @csrf
+          <button class="ia-btn ia-btn--sm">Send offer now</button>
+        </form>
+      @endif
+    </div>
+  </div>
+@endif
+
 <div class="ia-card" style="margin-bottom:16px;padding:14px 18px;display:flex;align-items:center;flex-wrap:wrap">
   @foreach($stages as $i => $st)
     @php

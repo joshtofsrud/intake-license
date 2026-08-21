@@ -92,6 +92,16 @@ class RentalSettingsController extends Controller
         $settings['rental_late_grace_minutes']     = (int) $request->input('late_grace_minutes', 30);
         $settings['rental_late_fee_cents_per_hour'] = (int) round(((float) $request->input('late_fee_per_hour', 0)) * 100);
         $settings['rental_late_fee_cap']           = $request->input('late_fee_cap', 'day_rate');
+        // MARKER-RENTAL-EXT — last-minute extension offers.
+        if ($tenant->rental_extensions_enabled) {
+            $settings['rental_ext_enabled']             = (bool) $request->input('ext_enabled');
+            $settings['rental_ext_discount_pct']        = max(0, min(90, (int) $request->input('ext_discount_pct', 50)));
+            $settings['rental_ext_min_gap_minutes']     = max(30, (int) $request->input('ext_min_gap_minutes', 120));
+            $settings['rental_ext_send_before_minutes'] = max(15, (int) $request->input('ext_send_before_minutes', 90));
+            $settings['rental_ext_until']               = preg_match('/^\\d{2}:\\d{2}$/', (string) $request->input('ext_until')) ? $request->input('ext_until') : '20:00';
+            $settings['rental_ext_quiet_start']         = preg_match('/^\\d{2}:\\d{2}$/', (string) $request->input('ext_quiet_start')) ? $request->input('ext_quiet_start') : '';
+            $settings['rental_ext_quiet_end']           = preg_match('/^\\d{2}:\\d{2}$/', (string) $request->input('ext_quiet_end')) ? $request->input('ext_quiet_end') : '';
+        }
         // MARKER-PATCH-237 — deposit behavior.
         $settings['rental_deposit_autorelease_quick'] = (bool) $request->input('deposit_autorelease_quick');
 
