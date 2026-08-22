@@ -201,6 +201,19 @@ class RentalExtensionOfferController extends Controller
             });
 
             $customer = $rental->customer;
+            // MARKER-RENTAL-EXT-P2 — paid event on the thread.
+            if ($customer) {
+                try {
+                    $inbox  = app(\App\Services\Tenant\InboxService::class);
+                    $thread = $inbox->threadFor($tenant, $customer, 'sms');
+                    $inbox->postSystem($thread,
+                        'Extension accepted — paid ' . format_money($offer->total_cents)
+                        . '. New return time ' . tlocal_datetime($offer->extend_to, 'g:i A') . '.',
+                        ['offer_id' => $offer->id]);
+                } catch (\Throwable $e) {
+                    Log::warning('rental_ext.paid_event_failed', ['offer' => $offer->id]);
+                }
+            }
             if ($customer?->phone) {
                 try {
                     SmsService::send(tenant(), $customer->phone,

@@ -109,6 +109,19 @@
               $mins = $r->due_at->diffInMinutes(now());
               $lateLabel = $mins >= 60 ? floor($mins / 60) . 'h overdue' : $mins . 'm overdue';
             }
+            // MARKER-RENTAL-EXT-P2 — extension chip
+            $extChip = null;
+            if (tenant()->rental_extensions_enabled && !$late) {
+              $extOffer = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $r->id)
+                ->whereIn('status', ['sent', 'paid'])->orderByDesc('sent_at')->first();
+              if ($extOffer?->status === 'paid')      $extChip = ['Extended', 'ia-badge--healthy'];
+              elseif ($extOffer?->status === 'sent')  $extChip = ['Offer sent', 'ia-badge--out'];
+              else {
+                $extReason = null;
+                $extChip = app(\App\Services\RentalExtensionOfferService::class)->eligibility(tenant(), $r, $extReason)
+                  ? ['Ext. eligible', ''] : null;
+              }
+            }
           @endphp
           <tr onclick="window.location='{{ route('tenant.rentals.bookings.show', $r->id) }}'">
             <td>{{ $r->customer?->fullName() }}</td>
@@ -119,6 +132,9 @@
                 <span class="ia-badge ia-badge--overdue">{{ $lateLabel }}</span>
               @else
                 <span class="ia-badge ia-badge--out">Out</span>
+              @endif
+              @if($extChip)
+                <span class="ia-badge {{ $extChip[1] }}" title="Last-minute extension">{{ $extChip[0] }}</span>
               @endif
             </td>
             <td style="text-align:right">

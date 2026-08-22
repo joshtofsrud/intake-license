@@ -342,6 +342,13 @@ class PlatformDashboard extends Page
             $weekly[] = Tenant::whereBetween('created_at', [$start, $end])->count();
         }
 
+        // MARKER-RENTAL-EXT-P2 — platform-wide last-minute extension line.
+        $extSince    = now()->subDays(30);
+        $extSent     = \App\Models\Tenant\TenantRentalExtensionOffer::where('sent_at', '>=', $extSince)->count();
+        $extAccepted = \App\Models\Tenant\TenantRentalExtensionOffer::where('status', 'paid')->where('sent_at', '>=', $extSince)->count();
+        $extRevenue  = (int) \App\Models\Tenant\TenantRentalExtensionOffer::where('status', 'paid')->where('sent_at', '>=', $extSince)->sum('total_cents');
+        $extTenants  = \App\Models\Tenant\TenantRentalExtensionOffer::where('sent_at', '>=', $extSince)->distinct('tenant_id')->count('tenant_id');
+
         return [
             'totalTenants'      => $totalTenants,
             'newThisWeek'       => $newThisWeek,
@@ -353,6 +360,10 @@ class PlatformDashboard extends Page
             'inTrial'           => $inTrial,
             'trialPotential'    => $trialPotential,
             'weekly'            => $weekly,
+            'extSent'           => $extSent,     // MARKER-RENTAL-EXT-P2
+            'extAccepted'       => $extAccepted,
+            'extRevenue'        => $extRevenue,
+            'extTenants'        => $extTenants,
         ];
     }
 

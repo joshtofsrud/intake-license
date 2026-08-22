@@ -165,6 +165,21 @@ class RentalExtensionOfferService
             }
         }
 
+        // MARKER-RENTAL-EXT-P2 — the offer is part of the conversation.
+        if ($customer) {
+            try {
+                $inbox  = app(\App\Services\Tenant\InboxService::class);
+                $thread = $inbox->threadFor($tenant, $customer, 'sms');
+                $inbox->postSystem($thread,
+                    'Last-minute extension offer sent — extends to '
+                    . tlocal_datetime($e['extend_to'], 'g:i A') . ' for ' . format_money($e['total_cents'])
+                    . ' (' . $e['discount_pct'] . '% off).',
+                    ['offer_id' => $offer->id, 'channel' => $channel]);
+            } catch (\Throwable $ex) {
+                Log::warning('rental_ext.inbox_event_failed', ['offer' => $offer->id]);
+            }
+        }
+
         return $offer;
     }
 

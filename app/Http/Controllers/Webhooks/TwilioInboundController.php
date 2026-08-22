@@ -98,10 +98,54 @@ class TwilioInboundController extends Controller
         return $this->twiml();
     }
 
-    /** Stub until the extension patch. Returning false = not an offer reply. */
+    // MARKER-RENTAL-EXT — YES/NO against the customer's open extension
+    // offer. YES re-sends the pay link (payment still happens on the page —
+    // a text can't take a card); NO declines. Both post a system event so
+    // the thread tells the story. Anything else falls through to a plain
+    // inbox message.
+    private const OFFER_YES = ['yes', 'y', 'ok', 'okay', 'yep', 'yeah', 'yea', 'sure', "\u{1F44D}", "\u{1F44D}\u{1F3FB}", "\u{1F44D}\u{1F3FC}", "\u{1F44D}\u{1F3FD}", "\u{1F44D}\u{1F3FE}", "\u{1F44D}\u{1F3FF}", "\u{1F919}", "\u{1F918}"];
+    private const OFFER_NO  = ['no', 'n', 'nope', 'nah', 'no thanks', 'no thank you'];
+
     protected function handleOfferIntent(Tenant $tenant, TenantCustomer $customer, $thread, string $lowerBody, string $sid): bool
     {
-        return false;
+        $isYes = in_array($lowerBody, self::OFFER_YES, true);
+        $isNo  = in_array($lowerBody, self::OFFER_NO, true);
+        if (!$isYes && !$isNo) return false;
+
+        $offer = \App\Models\Tenant\TenantRentalExtensionOffer::where('tenant_id', $tenant->id)
+            ->where('status', 'sent')
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->whereHas('rental', fn ($q) => $q->where('customer_id', $customer->id))
+            ->orderByDesc('sent_at')
+            ->first();
+        if (!$offer) return false; // YES/NO with no open offer -> plain message
+
+        $inbox = app(\App\Services\Tenant\InboxService::class);
+        $url = rtrim($tenant->publicUrl(), '/') . '/x/' . $offer->token;
+
+        if ($isYes) {
+            $inbox->postInbound($thread, 'YES', $sid ?: null);
+            $inbox->postSystem($thread, 'Customer replied YES to the extension offer — pay link re-sent.', ['offer_id' => $offer->id]);
+            try {
+                SmsService::send($tenant, $customer->phone,
+                    'Awesome — tap the link to confirm and pay, and the bike is yours until '
+                    . tlocal_datetime($offer->extend_to, 'g:i A') . ': ' . $url);
+            } catch (\Throwable $e) {
+                Log::warning('rental_ext.yes_resend_failed', ['offer' => $offer->id]);
+            }
+            return true;
+        }
+
+        $offer->update(['status' => 'declined', 'responded_at' => now()]);
+        $inbox->postInbound($thread, $lowerBody, $sid ?: null);
+        $inbox->postSystem($thread, 'Customer declined the extension offer.', ['offer_id' => $offer->id]);
+        try {
+            SmsService::send($tenant, $customer->phone,
+                'No problem — see you at ' . tlocal_datetime($offer->offer_from, 'g:i A') . '!');
+        } catch (\Throwable $e) {
+            Log::warning('rental_ext.no_ack_failed', ['offer' => $offer->id]);
+        }
+        return true;
     }
 
     private function resolveCustomer(Tenant $tenant, string $e164): TenantCustomer

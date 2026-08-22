@@ -12,6 +12,9 @@
   if (tenant()->leases_enabled) {
     $rnTabs[] = ['key' => 'leases', 'label' => 'Leases', 'route' => 'tenant.rentals.leases.index']; // MARKER-PATCH-230
   }
+  if (tenant()->rental_extensions_enabled) {
+    $rnTabs[] = ['key' => 'offers', 'label' => 'Offers', 'route' => 'tenant.rentals.extension.activity']; // MARKER-RENTAL-EXT-P2
+  }
   $rnTabs[] = ['key' => 'settings', 'label' => 'Settings', 'route' => 'tenant.rentals.settings'];
 @endphp
 <div class="rn-tabs">

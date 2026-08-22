@@ -463,6 +463,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 // MARKER-PATCH-219 — rental bookings. store/check-out/
                 // check-in/cancel mutate under the tenant rental write lock.
                 // MARKER-PATCH-228 — rentals settings (season window + leasing toggle).
+                Route::get('/rentals/extension-offers', [TenantControllers\RentalExtensionActivityController::class, 'index'])->name('rentals.extension.activity'); // MARKER-RENTAL-EXT-P2
                 Route::get('/rentals/settings',  [TenantControllers\RentalSettingsController::class, 'index'])->name('rentals.settings');
                 Route::post('/rentals/settings', [TenantControllers\RentalSettingsController::class, 'save'])->name('rentals.settings.save');
                 // MARKER-PATCH-237 — versioned agreement templates (publish-only).

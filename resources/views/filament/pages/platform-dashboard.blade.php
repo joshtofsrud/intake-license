@@ -312,6 +312,12 @@
     <div class="pd-section-head">
       <div class="pd-section-title">Intake SaaS</div>
       <div class="pd-section-sub">{{ $saas['totalTenants'] }} tenants · <a href="/admin/tenants">tenants directory →</a></div>
+      {{-- MARKER-RENTAL-EXT-P2 — 30d last-minute extension rollup --}}
+      @if(($saas['extSent'] ?? 0) > 0)
+        <div class="pd-section-sub" style="margin-top:4px">
+          Last-minute extensions (30d): {{ $saas['extSent'] }} sent · {{ $saas['extAccepted'] }} accepted ({{ $saas['extSent'] > 0 ? round($saas['extAccepted'] * 100 / $saas['extSent']) : 0 }}%) · ${{ number_format($saas['extRevenue'] / 100, 2) }} captured · {{ $saas['extTenants'] }} {{ $saas['extTenants'] === 1 ? 'shop' : 'shops' }}
+        </div>
+      @endif
     </div>
 
     <div class="pd-biz">
