@@ -1291,3 +1291,67 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   content: ''; width: 6px; height: 6px; border-radius: 50%; background: #FBBF24; flex: none;
 }
 @media (max-width: 900px) { .ia-imp-chip { display: inline-flex; } }
+
+
+/* MARKER-SIDEBAR-COLLAPSE ---------------------------------------------------
+   220px of chrome is expensive in the page builder. Collapse to an icon rail.
+   Everything keys off a class on <html> so the state applies before paint. */
+.ia-sb-collapse-btn {
+  position: absolute; top: 14px; right: 8px; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  background: none; border: none; cursor: pointer;
+  border-radius: 5px;
+  color: var(--ia-text-dim, rgba(255,255,255,.5));
+  opacity: 0; transition: opacity .13s, background .13s, color .13s;
+}
+.ia-sidebar:hover .ia-sb-collapse-btn,
+.ia-sb-collapse-btn:focus-visible { opacity: 1; }
+.ia-sb-collapse-btn:hover {
+  background: rgba(127,127,127,.14);
+  color: var(--ia-text, #f0f0f0);
+}
+.ia-sidebar { position: relative; }
+
+html.ia-sb-collapsed .ia-shell { grid-template-columns: 60px 1fr; }
+html.ia-sb-collapsed .ia-sb-collapse-btn { opacity: 1; right: 50%; transform: translateX(50%); }
+html.ia-sb-collapsed .ia-sb-collapse-btn svg { transform: rotate(180deg); }
+
+/* Labels are clipped rather than removed, so assistive tech still reads them. */
+html.ia-sb-collapsed .ia-nav-label,
+html.ia-sb-collapsed .ia-sidebar-logo-name,
+html.ia-sb-collapsed .ia-sb-user-text,
+html.ia-sb-collapsed .ia-nav-section,
+html.ia-sb-collapsed .ia-sidebar-bottom,
+html.ia-sb-collapsed .ia-sb-imp-badge {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+html.ia-sb-collapsed .ia-sidebar-logo { justify-content: center; padding-top: 44px; }
+html.ia-sb-collapsed .ia-sidebar-logo img { max-width: 34px; }
+html.ia-sb-collapsed .ia-nav-item {
+  justify-content: center;
+  padding-left: 0; padding-right: 0;
+}
+html.ia-sb-collapsed .ia-nav-item svg { opacity: .8; }
+html.ia-sb-collapsed .ia-sidebar-identity { padding-left: 0; padding-right: 0; }
+html.ia-sb-collapsed .ia-sb-user-row { justify-content: center; padding-left: 0; padding-right: 0; }
+html.ia-sb-collapsed .ia-sidebar-divider { margin-left: 10px; margin-right: 10px; }
+
+/* The account menu is absolutely positioned; float it clear of the rail. */
+html.ia-sb-collapsed .ia-sb-user-menu { left: 62px; right: auto; min-width: 210px; }
+
+/* Below 900px the sidebar is already a horizontal strip — nothing to collapse. */
+@media (max-width: 900px) {
+  .ia-sb-collapse-btn { display: none; }
+  html.ia-sb-collapsed .ia-shell { grid-template-columns: 1fr; }
+  html.ia-sb-collapsed .ia-nav-label,
+  html.ia-sb-collapsed .ia-sidebar-logo-name,
+  html.ia-sb-collapsed .ia-sb-user-text,
+  html.ia-sb-collapsed .ia-nav-section,
+  html.ia-sb-collapsed .ia-sidebar-bottom {
+    position: static !important;
+    width: auto; height: auto; clip: auto; overflow: visible;
+  }
+}

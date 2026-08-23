@@ -80,6 +80,16 @@
 
 @include('layouts.tenant._mobile-header')
 
+{{-- MARKER-SIDEBAR-COLLAPSE — applied to <html> before first paint. A
+     deferred script would let the expanded sidebar flash on every load. --}}
+<script>
+  try {
+    if (localStorage.getItem('ia-sidebar-collapsed') === '1') {
+      document.documentElement.classList.add('ia-sb-collapsed');
+    }
+  } catch (e) {}
+</script>
+
 <div class="ia-shell">
 
   {{-- ================================================================
@@ -176,6 +186,7 @@
 <script src="{{ asset('js/tenant/toast.js') }}?v={{ filemtime(public_path('js/tenant/toast.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/admin.js') }}?v={{ filemtime(public_path('js/tenant/admin.js')) }}" defer></script>
+<script src="{{ asset('js/tenant/sidebar-collapse.js') }}?v={{ filemtime(public_path('js/tenant/sidebar-collapse.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/mobile-nav.js') }}?v={{ filemtime(public_path('js/tenant/mobile-nav.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>

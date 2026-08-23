@@ -9,6 +9,15 @@
 
 <aside class="ia-sidebar">
 
+  {{-- MARKER-SIDEBAR-COLLAPSE --}}
+  <button type="button" class="ia-sb-collapse-btn" id="ia-sb-collapse"
+          aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar  [">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  </button>
+
   {{-- Logo (image only when uploaded, fallback to letter + name when not) --}}
   <div class="ia-sidebar-logo">
     @if($sidebarLogo)

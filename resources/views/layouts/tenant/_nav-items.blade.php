@@ -344,9 +344,12 @@
     @php $lastGroup = $item['group']; @endphp
   @endif
 
-  <a href="{{ $url }}" class="ia-nav-item {{ $isActive ? 'active' : '' }}">
+  {{-- MARKER-SIDEBAR-COLLAPSE — title carries the label when collapsed; the
+       text itself stays in the DOM for screen readers rather than being
+       display:none'd away. --}}
+  <a href="{{ $url }}" class="ia-nav-item {{ $isActive ? 'active' : '' }}" title="{{ $item['label'] }}">
     {!! $item['icon'] !!}
-    {{ $item['label'] }}
+    <span class="ia-nav-label">{{ $item['label'] }}</span>
   </a>
 
 @endforeach
