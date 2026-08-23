@@ -90,6 +90,20 @@ if (! function_exists('tnow')) {
     }
 }
 
+if (! function_exists('is_impersonating')) {
+    /**
+     * MARKER-IMPERSONATION-PIN — is this session a platform operator acting
+     * as a tenant user? Every PIN gate must consult this: the operator
+     * cannot know the tenant's PIN, so enforcing one locks them out of a
+     * session they legitimately hold. Reaching impersonation already
+     * required a master admin login, which is the stronger check.
+     */
+    function is_impersonating(): bool
+    {
+        return session()->has('impersonating_from');
+    }
+}
+
 if (! function_exists('tlocal_date')) {
     /** Tenant-local date, e.g. "May 31, 2026". @see tlocal() */
     function tlocal_date($instant, string $format = 'M j, Y'): string

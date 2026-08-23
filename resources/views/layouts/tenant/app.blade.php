@@ -93,35 +93,19 @@
        ================================================================ --}}
   <div class="ia-main">
 
-    {{-- Impersonation banner --}}
-    @if(session('impersonating_from'))
-      <div style="background:#854F0B;color:#fff;padding:8px 20px;font-size:13px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200">
-        <span>⚠ You are impersonating this tenant as an admin.</span>
-        <a href="{{ config('app.url') }}/admin/impersonate/stop" style="color:#FCD34D;font-weight:600">Stop impersonating →</a>
-      </div>
+    {{-- MARKER-IMPERSONATION-PIN — the sticky bar sat at top:0 over page
+         headers and primary actions, and a second copy rendered inside the
+         content area below. Both are gone; the state now lives in the
+         sidebar user block, with a fixed chip on mobile. --}}
+    @if(is_impersonating())
+      <a href="{{ config('app.url') }}/admin/impersonate/stop" class="ia-imp-chip">
+        Impersonating · stop
+      </a>
     @endif
 
     {{-- Page content --}}
     <main class="ia-content">
 
-      {{-- Impersonation banner --}}
-      @if(session('impersonating_tenant_name') || session()->has('impersonating_from'))
-        <div style="background:#854F0B;color:#FAEEDA;padding:10px 16px;border-radius:var(--ia-r-md);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:13px">
-          <span>
-            👤 You are impersonating <strong>{{ session('impersonating_tenant_name', 'this tenant') }}</strong>.
-            All actions you take are real.
-            {{-- MARKER-IMPERSONATION-PIN — be explicit about which of the
-                 tenant's protections are not in force right now. --}}
-            <span style="display:block;opacity:.8;font-size:12px;margin-top:2px">
-              Their PIN lock is bypassed for this session.
-            </span>
-          </span>
-          <a href="{{ config('app.url') }}/admin/impersonate/stop"
-             style="background:rgba(0,0,0,.2);color:#FAEEDA;padding:5px 14px;border-radius:6px;font-weight:600;font-size:12px">
-            Stop impersonating →
-          </a>
-        </div>
-      @endif
 
       {{-- Flash messages.
            Success → inline green banner (non-blocking, just confirms an action).

@@ -44,6 +44,13 @@ class PinGateService
             return false;
         }
 
+        // MARKER-IMPERSONATION-PIN — the per-action gate has the same problem
+        // the idle lock did: with a sticky window of 0 it fires on every
+        // attempt, and an impersonating operator has no PIN to give.
+        if (is_impersonating()) {
+            return false;
+        }
+
         $stickySec = \App\Services\TenantAuthPolicy::actionStickySec($tenant, $action);
 
         if ($stickySec === 0) {

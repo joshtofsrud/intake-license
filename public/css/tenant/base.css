@@ -1251,3 +1251,43 @@ body.ia-theme-c .ia-schedule-pill.is-active {
   font:700 11.5px Inter,-apple-system,sans-serif; color:#F5C56B;
 }
 .io-mstat.io-loud.io-sync { border-color:rgba(190,242,100,.4); background:rgba(190,242,100,.06); color:#BEF264 }
+
+
+/* MARKER-IMPERSONATION-PIN — impersonation reads in the sidebar user block
+   instead of a sticky bar that covered page headers and primary actions. */
+.ia-sb-user-row.is-impersonating {
+  background: rgba(133,79,11,.22);
+  box-shadow: inset 2px 0 0 #FBBF24;
+}
+.ia-sb-imp-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: #FBBF24; margin-top: 3px;
+}
+.ia-sb-imp-badge::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: #FBBF24; flex: none;
+}
+.ia-sb-imp-stop {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; margin-bottom: 4px;
+  border-radius: 7px; text-decoration: none;
+  background: rgba(133,79,11,.25); color: #FAEEDA;
+}
+.ia-sb-imp-stop:hover { background: rgba(133,79,11,.4); }
+.ia-sb-imp-dot { width: 7px; height: 7px; border-radius: 50%; background: #FBBF24; flex: none; }
+.ia-sb-imp-title { display: block; font-size: 12.5px; font-weight: 600; }
+.ia-sb-imp-sub { display: block; font-size: 10.5px; opacity: .7; margin-top: 1px; }
+
+/* The sidebar isn't on screen below 900px, so a compact chip carries it. */
+.ia-imp-chip {
+  position: fixed; left: 12px; bottom: 76px; z-index: 190;
+  display: none; align-items: center; gap: 7px;
+  background: #854F0B; color: #FAEEDA;
+  border-radius: 99px; padding: 7px 13px;
+  font-size: 11.5px; font-weight: 600; text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+}
+.ia-imp-chip::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: #FBBF24; flex: none;
+}
+@media (max-width: 900px) { .ia-imp-chip { display: inline-flex; } }

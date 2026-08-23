@@ -27,11 +27,16 @@
     @include('layouts.tenant._attention-row')
     {{-- User row: click opens a menu with Sign out (and later Switch staff). --}}
     <details class="ia-sb-user-details" data-loc-switcher="root">
-      <summary class="ia-sb-user-row" aria-haspopup="menu" aria-label="Account menu">
+      <summary class="ia-sb-user-row {{ is_impersonating() ? 'is-impersonating' : '' }}" aria-haspopup="menu" aria-label="Account menu">
         <div class="ia-sb-user-avatar">{{ strtoupper(substr($authUser->name, 0, 2)) }}</div>
         <div class="ia-sb-user-text">
           <div class="ia-sb-user-name">{{ $authUser->name }}</div>
           <div class="ia-sb-user-role">{{ ucfirst($authUser->role) }}</div>
+          {{-- MARKER-IMPERSONATION-PIN — persistent chrome, so the state is
+               always visible without a bar sitting on top of the page. --}}
+          @if(is_impersonating())
+            <div class="ia-sb-imp-badge">Impersonating</div>
+          @endif
         </div>
         <svg class="ia-sb-user-caret" width="12" height="12" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" stroke-width="2.5"
@@ -40,6 +45,16 @@
         </svg>
       </summary>
       <div class="ia-sb-user-menu" role="menu">
+        @if(is_impersonating())
+          <a href="{{ config('app.url') }}/admin/impersonate/stop" class="ia-sb-imp-stop" role="menuitem">
+            <span class="ia-sb-imp-dot" aria-hidden="true"></span>
+            <span>
+              <span class="ia-sb-imp-title">Stop impersonating</span>
+              <span class="ia-sb-imp-sub">Their PIN lock is bypassed</span>
+            </span>
+          </a>
+        @endif
+
         {{-- MARKER-SIDEBAR-CLOCK — punch without leaving the page. Hidden for
              anyone exempt from the clock; shows elapsed time when on shift. --}}
         @if(!$authUser->exempt_from_timeclock)

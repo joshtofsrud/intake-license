@@ -47,7 +47,7 @@ class EnsurePinFresh
         // required a master admin login, which is the stronger check. The
         // impersonation banner stays visible the whole time, and start/stop
         // are recorded in the debug log.
-        if ($request->session()->has('impersonating_from')) {
+        if (is_impersonating()) {
             view()->share('pinLockPending', false);
             view()->share('pinBypassImpersonating', true);
             return $next($request);
