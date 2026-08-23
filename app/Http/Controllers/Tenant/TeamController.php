@@ -55,10 +55,17 @@ class TeamController extends Controller
         $data = $request->validate([
             'name'         => ['required','string','max:255'],
             'email'        => ['required','email','max:255'],
-            'role'         => ['required','in:manager,staff'],
+            'role'         => ['required','in:owner,manager,staff'],
             'location_ids' => ['nullable','array'],
             'location_ids.*' => ['uuid'],
         ]);
+
+        // MARKER-OWNER-INVITE — several owners have always been supported (see
+        // the "cannot remove the last owner" guard); the form just never
+        // offered it. Granting Owner stays owner-only, matching change_role.
+        if ($data['role'] === 'owner' && ! Auth::guard('tenant')->user()->isOwner()) {
+            return back()->with('error', 'Only an owner can invite another owner.');
+        }
 
         $exists = TenantUser::where('tenant_id', $tenant->id)
             ->where('email', $data['email'])->exists();

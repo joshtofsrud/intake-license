@@ -60,7 +60,15 @@
         <select name="role" class="ia-input">
           <option value="staff"   @selected(old('role') === 'staff')>Staff</option>
           <option value="manager" @selected(old('role') === 'manager')>Manager</option>
+          {{-- MARKER-OWNER-INVITE — a shop can have several owners; only an
+               owner can create one. --}}
+          @if($me->isOwner())
+            <option value="owner" @selected(old('role') === 'owner')>Owner</option>
+          @endif
         </select>
+        @if($me->isOwner())
+          <div style="font-size:11px;color:var(--ia-text-dim);margin-top:5px">Owners get full access including billing. A shop can have more than one.</div>
+        @endif
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
