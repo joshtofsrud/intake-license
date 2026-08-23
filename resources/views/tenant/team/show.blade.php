@@ -40,19 +40,6 @@
 .pd-input { min-width:280px; max-width:100%; }
 .pd-input--wide { min-width:320px; }
 .pd-input--narrow { min-width:200px; }
-@media (max-width:720px) {
-  .pd-head { flex-wrap:wrap; }
-  .pd-contact-tiles { margin-left:0; width:100%; order:3; }
-  /* Label over value — 180px of label on a phone leaves nothing for the
-     field, which is what pushed the email and hint off-screen. */
-  .pd-field { grid-template-columns:1fr; gap:6px; align-items:start; }
-  .pd-field-value { flex-direction:column; align-items:stretch; gap:8px; }
-  .pd-field-value .ia-input,
-  .pd-field-value select,
-  .pd-field-value .pd-input { width:100%; min-width:0; }
-  .pd-field-value button { width:100%; }
-  .pd-field-value > div { max-width:100%; }
-}
 .pd-field { display:grid; grid-template-columns:180px 1fr; gap:16px; padding:12px 0; align-items:center; border-top:0.5px solid var(--ia-border); }
 .pd-field:first-of-type { border-top:none; padding-top:2px; }
 .pd-field-label { font-size:12px; color:var(--ia-text-dim); }
@@ -67,6 +54,29 @@
 .pd-empty { padding:24px; text-align:center; border:0.5px dashed var(--ia-border-strong); border-radius:var(--ia-r-md); font-size:12px; color:var(--ia-text-dim); }
 .pd-back { font-size:12px; color:var(--ia-text-dim); display:inline-flex; align-items:center; gap:4px; margin-bottom:12px; text-decoration:none; }
 .pd-back:hover { color:var(--ia-text-muted); }
+
+/* MARKER-TEAM-MOBILE-CASCADE — this block MUST stay last. A media query
+   adds no specificity, so anything below it with equal specificity wins
+   and these rules silently stop applying. */
+@media (max-width:720px) {
+  .pd-head { flex-wrap:wrap; }
+  .pd-contact-tiles { margin-left:0; width:100%; order:3; }
+  /* 180px of label on a phone leaves nothing for the field — that is what
+     pushed the email, phone and hint text off the right edge. */
+  .pd-field { grid-template-columns:1fr; gap:6px; align-items:start; padding:14px 0; }
+  .pd-field-label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  .pd-field-value { flex-direction:column; align-items:stretch; gap:8px; }
+  .pd-field-value .ia-input,
+  .pd-field-value select,
+  .pd-field-value .pd-input { width:100%; min-width:0; }
+  .pd-field-value button { width:100%; }
+  .pd-field-value > div,
+  .pd-field-value > span { max-width:100%; }
+  .pd-field-value form { width:100%; }
+  /* Same fixed-column problem on the cards further down. */
+  .pd-device { grid-template-columns:1fr; gap:8px; }
+  .pd-loc-grid { grid-template-columns:1fr; }
+}
 </style>
 @endpush
 
