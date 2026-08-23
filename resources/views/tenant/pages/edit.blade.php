@@ -200,7 +200,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 .pb2-shell {
   position: fixed;
   top: 0;
-  left: 220px;          /* tenant sidebar width */
+  /* MARKER-SIDEBAR-WIDTH-VAR — was a hardcoded 220px, which meant collapsing
+     the sidebar left the builder exactly where it was. */
+  left: var(--ia-sidebar-w, 220px);
+  transition: left .16s ease;
   right: 0;
   bottom: 0;
   margin: 0;

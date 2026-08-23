@@ -1419,3 +1419,14 @@ html.ia-sb-collapsed .ia-sb-user-row.is-impersonating::after {
 
 /* The toggle sat over the logo once centred; give the logo room. */
 html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; }
+
+
+/* MARKER-SIDEBAR-WIDTH-VAR — one source of truth for the sidebar's width.
+   .pb2-shell (and anything else that escapes the layout with position:fixed)
+   reads this instead of hardcoding 220px and silently breaking when the
+   sidebar collapses. */
+:root { --ia-sidebar-w: 220px; }
+html.ia-sb-collapsed { --ia-sidebar-w: 60px; }
+@media (max-width: 900px) {
+  :root, html.ia-sb-collapsed { --ia-sidebar-w: 0px; }
+}
