@@ -281,6 +281,9 @@
 </style>
 <script>
 (function () {
+  // MARKER-BUILDER-SYNC-TIMING — this block sits above the section loop, so
+  // at parse time there are no wrappers to bind to. Wait for the document.
+  function boot() {
   var wraps = Array.prototype.slice.call(document.querySelectorAll('[data-pb-section]'));
   if (!wraps.length) return;
 
@@ -317,6 +320,13 @@
   });
 
   post({ source: 'pb-preview', type: 'ready' });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 })();
 </script>
 @endif
