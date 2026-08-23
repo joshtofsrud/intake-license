@@ -13,7 +13,7 @@ class TenantShiftTemplate extends Model
     use HasUuids;
 
     protected $table = 'tenant_shift_templates';
-    protected $fillable = ['tenant_id', 'name', 'pattern', 'created_by'];
-    protected $casts = ['pattern' => 'array'];
+    protected $fillable = ['tenant_id', 'name', 'pattern', 'created_by', 'last_applied_at']; // MARKER-TPL-MANAGE
+    protected $casts = ['pattern' => 'array', 'last_applied_at' => 'datetime'];
 }
 

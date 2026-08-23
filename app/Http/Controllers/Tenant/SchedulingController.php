@@ -85,8 +85,16 @@ class SchedulingController extends Controller
             $demand = ['bands' => $demand, 'max' => $max];
         }
 
+        // MARKER-TPL-MANAGE — the pattern comes along so each row can say
+        // what it holds; you can't choose which of two to delete otherwise.
         $templates = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
-            ->orderBy('name')->get(['id', 'name']);
+            ->orderBy('name')->get(['id', 'name', 'pattern', 'last_applied_at'])
+            ->map(function ($t) {
+                $pattern = (array) $t->pattern;
+                $t->shift_count  = count($pattern);
+                $t->people_count = count(array_unique(array_filter(array_column($pattern, 'user_id'))));
+                return $t;
+            });
 
         // Availability conflicts: mark each shift chip that overlaps a band the
         // person marked unavailable (MARKER-PATCH-626 — inline ! with tooltip).
@@ -168,8 +176,23 @@ class SchedulingController extends Controller
         $user   = Auth::guard('tenant')->user();
         abort_unless($user->can('scheduling.build'), 403);
 
-        $data = $request->validate(['name' => ['required', 'string', 'max:80']]);
+        $data = $request->validate([
+            'name'              => ['required', 'string', 'max:80'],
+            'confirm_overwrite' => ['nullable', 'boolean'],
+        ]);
         [$weekStart, , $fromUtc, $toUtc] = $this->week($request);
+
+        // MARKER-TPL-MANAGE — updateOrCreate on name used to replace an
+        // existing template silently. Make the trade explicit instead.
+        $existing = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
+            ->where('name', trim($data['name']))->first();
+        if ($existing && ! $request->boolean('confirm_overwrite')) {
+            return back()->with('tpl_overwrite', [
+                'name'  => $existing->name,
+                'has'   => count((array) $existing->pattern),
+                'week'  => $weekStart->toDateString(),
+            ]);
+        }
 
         $shifts = TenantShift::where('tenant_id', $tenant->id)
             ->where('starts_at', '>=', $fromUtc)->where('starts_at', '<', $toUtc)->get();
@@ -195,6 +218,22 @@ class SchedulingController extends Controller
         );
 
         return back()->with('success', 'Template "' . $data['name'] . '" saved (' . count($pattern) . ' shifts).');
+    }
+
+    /** MARKER-TPL-MANAGE — remove a saved pattern. Shifts already on the
+     *  calendar are untouched; only the template row goes. */
+    public function deleteTemplate(Request $request, string $templateId)
+    {
+        $tenant = tenant();
+        $user   = Auth::guard('tenant')->user();
+        abort_unless($user->can('scheduling.build'), 403);
+
+        $tpl = \App\Models\Tenant\TenantShiftTemplate::where('tenant_id', $tenant->id)
+            ->where('id', $templateId)->firstOrFail();
+        $name = $tpl->name;
+        $tpl->delete();
+
+        return back()->with('success', 'Template "' . $name . '" deleted. Shifts on the calendar were not changed.');
     }
 
     /** MARKER-PATCH-624 — apply a template onto the current week (skips conflicts). */
@@ -236,6 +275,8 @@ class SchedulingController extends Controller
             ]);
             $added++;
         }
+
+        $tpl->update(['last_applied_at' => now()]); // MARKER-TPL-MANAGE
 
         return back()->with('success', 'Applied "' . $tpl->name . '" — ' . $added . ' shift(s) added (conflicts skipped).');
     }

@@ -891,6 +891,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/scheduling/settings',          [TenantControllers\SchedulingController::class, 'saveSettings'])->name('scheduling.settings.save');
             Route::post('/scheduling/template',          [TenantControllers\SchedulingController::class, 'saveTemplate'])->name('scheduling.template.save');
             Route::post('/scheduling/template/{templateId}/apply', [TenantControllers\SchedulingController::class, 'applyTemplate'])->name('scheduling.template.apply');
+            Route::delete('/scheduling/template/{templateId}', [TenantControllers\SchedulingController::class, 'deleteTemplate'])->name('scheduling.template.delete'); // MARKER-TPL-MANAGE
 
             Route::post('/uploads', [TenantControllers\UploadController::class, 'store'])->name('uploads.store');
 
