@@ -35,9 +35,23 @@
 .pd-tile-label { font-size:11px; color:var(--ia-text-dim); font-weight:500; }
 .pd-tile.is-disabled { opacity:.32; cursor:not-allowed; pointer-events:none; }
 .pd-tile.is-disabled svg { color:var(--ia-text-dim); }
+/* MARKER-TEAM-MOBILE — widths live here, not inline, so the breakpoint
+   below can override them. Inline styles beat media queries. */
+.pd-input { min-width:280px; max-width:100%; }
+.pd-input--wide { min-width:320px; }
+.pd-input--narrow { min-width:200px; }
 @media (max-width:720px) {
   .pd-head { flex-wrap:wrap; }
   .pd-contact-tiles { margin-left:0; width:100%; order:3; }
+  /* Label over value — 180px of label on a phone leaves nothing for the
+     field, which is what pushed the email and hint off-screen. */
+  .pd-field { grid-template-columns:1fr; gap:6px; align-items:start; }
+  .pd-field-value { flex-direction:column; align-items:stretch; gap:8px; }
+  .pd-field-value .ia-input,
+  .pd-field-value select,
+  .pd-field-value .pd-input { width:100%; min-width:0; }
+  .pd-field-value button { width:100%; }
+  .pd-field-value > div { max-width:100%; }
 }
 .pd-field { display:grid; grid-template-columns:180px 1fr; gap:16px; padding:12px 0; align-items:center; border-top:0.5px solid var(--ia-border); }
 .pd-field:first-of-type { border-top:none; padding-top:2px; }
@@ -141,17 +155,17 @@
       <div class="tm-block-label">Contact</div>
       <div class="pd-field">
         <div class="pd-field-label">Name</div>
-        <div class="pd-field-value"><input class="ia-input" name="name" value="{{ $member->name }}" style="min-width:280px"></div>
+        <div class="pd-field-value"><input class="ia-input pd-input" name="name" value="{{ $member->name }}"></div>
       </div>
       <div class="pd-field">
         <div class="pd-field-label">Email</div>
-        <div class="pd-field-value"><input class="ia-input" type="email" name="email" value="{{ $member->email }}" style="min-width:320px"></div>
+        <div class="pd-field-value"><input class="ia-input pd-input pd-input--wide" type="email" name="email" value="{{ $member->email }}"></div>
       </div>
       {{-- MARKER-TEAM-CONTACT --}}
       <div class="pd-field">
         <div class="pd-field-label">Phone</div>
         <div class="pd-field-value">
-          <input class="ia-input" type="tel" name="phone" value="{{ $member->phone }}" maxlength="32" style="min-width:200px" placeholder="(509) 555-0142">
+          <input class="ia-input pd-input pd-input--narrow" type="tel" name="phone" value="{{ $member->phone }}" maxlength="32" placeholder="(509) 555-0142">
           <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:5px">Used for staff SMS alerts, and for the Call and Text buttons above.</div>
         </div>
       </div>
