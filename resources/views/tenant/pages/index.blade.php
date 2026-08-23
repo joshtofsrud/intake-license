@@ -68,6 +68,16 @@
             <span style="font-size:13px;opacity:.5">{{ $page->is_in_nav ? 'Yes' : 'No' }}</span>
           </td>
           <td style="text-align:right;white-space:nowrap">
+            {{-- MARKER-PAGE-PUBLISH — flip status without opening the editor. --}}
+            <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" style="display:inline">
+              @csrf @method('PATCH')
+              <input type="hidden" name="op" value="set_published">
+              <input type="hidden" name="is_published" value="{{ $page->is_published ? 0 : 1 }}">
+              <button class="ia-btn ia-btn--sm {{ $page->is_published ? '' : 'ia-btn--primary' }}"
+                      @if($page->is_published) data-confirm="Unpublish '{{ $page->title }}'? Visitors will no longer be able to reach it." @endif>
+                {{ $page->is_published ? 'Unpublish' : 'Publish' }}
+              </button>
+            </form>
             <a href="{{ route('tenant.pages.index', ['edit' => $page->id]) }}"
                class="ia-btn ia-btn--secondary ia-btn--sm">Edit</a>
             @if(!$page->is_home && $page->slug !== 'book')

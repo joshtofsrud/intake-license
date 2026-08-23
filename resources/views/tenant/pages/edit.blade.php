@@ -503,6 +503,50 @@
   padding-bottom: 5px;
 }
 
+/* MARKER-PAGE-PUBLISH */
+.pb2-status {
+  border-bottom: 0.5px solid var(--pb2-border);
+  padding: 14px 18px;
+  flex: 0 0 auto;
+}
+.pb2-status-head { display: flex; align-items: center; gap: 8px; }
+.pb2-status-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.pb2-status.is-live  .pb2-status-dot { background: var(--pb2-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pb2-accent) 22%, transparent); }
+.pb2-status.is-draft .pb2-status-dot { background: var(--pb2-text-faint); box-shadow: 0 0 0 3px rgba(127,127,127,.14); }
+.pb2-status-label { font-size: 12.5px; font-weight: 700; letter-spacing: .01em; }
+.pb2-status.is-live .pb2-status-label { color: var(--pb2-accent); }
+.pb2-status-since { font-size: 10.5px; color: var(--pb2-text-faint); margin-left: auto; }
+.pb2-status-say { font-size: 11.5px; color: var(--pb2-text-dim); line-height: 1.55; margin-top: 7px; }
+.pb2-status-url { font-family: var(--pb2-mono); font-size: 11px; color: var(--pb2-text); }
+.pb2-status-acts { display: flex; gap: 7px; margin-top: 12px; }
+.pb2-status-acts form { margin: 0; }
+.pb2-status-btn {
+  display: inline-block; text-align: center; text-decoration: none;
+  border: 1px solid var(--pb2-border-strong, rgba(255,255,255,.2));
+  background: none; color: var(--pb2-text);
+  border-radius: 8px; padding: 7px 12px;
+  font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+  white-space: nowrap;
+}
+.pb2-status-btn:hover { background: rgba(127,127,127,.08); }
+.pb2-status-btn--go { background: var(--pb2-accent); border-color: var(--pb2-accent); color: #10160a; }
+.pb2-status-btn--go:hover { filter: brightness(1.06); background: var(--pb2-accent); }
+.pb2-status-btn--go:disabled { opacity: .4; cursor: not-allowed; }
+.pb2-status-btn--off:hover { border-color: rgba(240,120,120,.5); color: #F0999B; }
+.pb2-status-hint { font-size: 11px; color: var(--pb2-text-faint); margin-top: 8px; line-height: 1.5; }
+.pb2-status-nav { margin: 10px 0 0; }
+.pb2-status-navbtn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 11.5px; color: var(--pb2-text-dim);
+}
+.pb2-status-navbtn:hover { color: var(--pb2-text); }
+.pb2-status-check {
+  width: 14px; height: 14px; border-radius: 4px; flex: none;
+  border: 1px solid var(--pb2-border-strong, rgba(255,255,255,.2));
+}
+.pb2-status-check.on { background: var(--pb2-accent); border-color: var(--pb2-accent); }
+
 .pb2-pane-footer {
   border-top: 0.5px solid var(--pb2-border);
   padding: 12px 18px;
@@ -1716,6 +1760,68 @@
 
     {{-- RIGHT: inspector --}}
     <aside class="pb2-pane pb2-pane-right" id="pb2-inspector">
+    {{-- MARKER-PAGE-PUBLISH — publishing had no control anywhere in the app.
+         This box states who can see the page right now, then offers the one
+         action that changes it. --}}
+    @php
+      $pubUrl  = $page->is_home ? '/' : '/' . $page->slug;
+      $pubHost = parse_url($previewUrl ?? '', PHP_URL_HOST);
+      $pubEmpty = $sections->count() === 0;
+    @endphp
+    <div class="pb2-status {{ $page->is_published ? 'is-live' : 'is-draft' }}">
+      <div class="pb2-status-head">
+        <span class="pb2-status-dot"></span>
+        <span class="pb2-status-label">{{ $page->is_published ? 'Live' : 'Draft' }}</span>
+        @if($page->is_published && $page->published_at)
+          <span class="pb2-status-since">since {{ tlocal_date($page->published_at, 'M j') }}</span>
+        @endif
+      </div>
+
+      <div class="pb2-status-say">
+        @if($page->is_published)
+          Anyone can visit <span class="pb2-status-url">{{ $pubHost }}{{ $pubUrl }}</span>.
+        @else
+          Only you can see this. Visitors to <span class="pb2-status-url">{{ $pubUrl }}</span> get a 404.
+        @endif
+      </div>
+
+      <div class="pb2-status-acts">
+        @if($page->is_published)
+          <a class="pb2-status-btn" href="{{ rtrim($previewUrl ?? '', '/') . $pubUrl }}" target="_blank" rel="noopener">View live ↗</a>
+          <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" style="flex:1">
+            @csrf @method('PATCH')
+            <input type="hidden" name="op" value="set_published">
+            <input type="hidden" name="is_published" value="0">
+            <button type="submit" class="pb2-status-btn pb2-status-btn--off" style="width:100%">Unpublish</button>
+          </form>
+        @else
+          <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" style="flex:1">
+            @csrf @method('PATCH')
+            <input type="hidden" name="op" value="set_published">
+            <input type="hidden" name="is_published" value="1">
+            <button type="submit" class="pb2-status-btn pb2-status-btn--go" style="width:100%"
+                    @disabled($pubEmpty)>Publish page</button>
+          </form>
+        @endif
+      </div>
+
+      @if($pubEmpty && !$page->is_published)
+        <div class="pb2-status-hint">Add a section first — there's nothing on this page yet.</div>
+      @endif
+
+      @if(!$page->is_home)
+        <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" class="pb2-status-nav">
+          @csrf @method('PATCH')
+          <input type="hidden" name="op" value="set_in_nav">
+          <input type="hidden" name="is_in_nav" value="{{ $page->is_in_nav ? 0 : 1 }}">
+          <button type="submit" class="pb2-status-navbtn">
+            <span class="pb2-status-check {{ $page->is_in_nav ? 'on' : '' }}"></span>
+            Show in site navigation
+          </button>
+        </form>
+      @endif
+    </div>
+
     {{-- MARKER-PATCH-276 — sections docked above the inspector --}}
     <div class="pb2-sections-docked" id="pb2-sections-pane">
       {{-- MARKER-PATCH-278 — collapsible header --}}

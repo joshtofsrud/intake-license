@@ -964,12 +964,50 @@ class PageBuilderController extends Controller
                 ->snapshot($page, 'Edited page settings');
         }
 
+        // MARKER-PAGE-PUBLISH — a single-purpose op so a publish click can't
+        // carry stale title/meta values from a form the user never opened.
+        if ($op === 'set_published') {
+            $want = (bool) $request->input('is_published', 0);
+
+            if ($want && $page->sections()->count() === 0) {
+                $msg = 'Add at least one section before publishing — an empty page is worse than no page.';
+                if ($request->expectsJson()) return response()->json(['ok' => false, 'error' => $msg], 422);
+                return back()->with('error', $msg);
+            }
+
+            app(\App\Services\Tenant\PageRevisionService::class)
+                ->snapshot($page, $want ? 'Published' : 'Unpublished');
+
+            $page->update([
+                'is_published' => $want,
+                'published_at' => $want ? ($page->published_at ?? now()) : null,
+            ]);
+
+            $msg = $want
+                ? $page->title . ' is live at ' . ($page->is_home ? '/' : '/' . $page->slug) . '.'
+                : $page->title . ' is back to a draft — visitors can no longer reach it.';
+
+            if ($request->expectsJson()) return response()->json(['ok' => true, 'is_published' => $want]);
+            return back()->with('success', $msg);
+        }
+
+        // MARKER-PAGE-PUBLISH — nav visibility was equally unreachable.
+        if ($op === 'set_in_nav') {
+            $page->update(['is_in_nav' => (bool) $request->input('is_in_nav', 0)]);
+            if ($request->expectsJson()) return response()->json(['ok' => true]);
+            return back()->with('success', $page->is_in_nav
+                ? $page->title . ' now appears in your site navigation.'
+                : $page->title . ' is hidden from your site navigation.');
+        }
+
         if ($op === 'update_page') {
             $page->update([
                 'title'            => $request->input('title', $page->title),
                 'meta_title'       => $request->input('meta_title'),
                 'meta_description' => $request->input('meta_description'),
                 'is_published'     => (bool) $request->input('is_published', 0),
+                'published_at'     => (bool) $request->input('is_published', 0)
+                                        ? ($page->published_at ?? now()) : null, // MARKER-PAGE-PUBLISH
                 'is_in_nav'        => (bool) $request->input('is_in_nav', 1),
             ]);
 
