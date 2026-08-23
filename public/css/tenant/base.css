@@ -1408,14 +1408,7 @@ html.ia-sb-collapsed .ia-sb-user-row.is-impersonating {
 html.ia-sb-collapsed .ia-sb-user-row.is-impersonating .ia-sb-user-avatar {
   box-shadow: 0 0 0 2px #FBBF24;
 }
-html.ia-sb-collapsed .ia-sb-user-row.is-impersonating::after {
-  content: '';
-  position: fixed;
-  top: 0; bottom: 0; left: 0;
-  width: 3px;
-  background: #FBBF24;
-  pointer-events: none;
-}
+
 
 /* The toggle sat over the logo once centred; give the logo room. */
 html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; }
@@ -1429,4 +1422,28 @@ html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; 
 html.ia-sb-collapsed { --ia-sidebar-w: 60px; }
 @media (max-width: 900px) {
   :root, html.ia-sb-collapsed { --ia-sidebar-w: 0px; }
+}
+
+
+/* MARKER-COLLAPSE-MARKER-FIX ------------------------------------------------
+   The impersonation stripe was position:fixed, so it left the sidebar and
+   painted down the whole viewport. An inset shadow on the rail itself stays
+   where it belongs and still reads at a glance. */
+.ia-sidebar.is-impersonating {
+  box-shadow: inset 3px 0 0 #FBBF24;
+}
+
+/* The logo's height is set INLINE from $adminLogoHeight, and an inline style
+   beats a stylesheet rule — which is why the earlier max-width did nothing.
+   Override height directly for the rail. */
+html.ia-sb-collapsed .ia-sidebar-logo img {
+  height: 28px !important;
+  width: auto !important;
+  max-width: 40px !important;
+  object-fit: contain;
+}
+html.ia-sb-collapsed .ia-sidebar-logo {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
 }

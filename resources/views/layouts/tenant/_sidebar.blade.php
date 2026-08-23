@@ -7,7 +7,7 @@
   $adminLogoHeight = max(16, min(80, $adminLogoHeight));
 @endphp
 
-<aside class="ia-sidebar">
+<aside class="ia-sidebar {{ is_impersonating() ? 'is-impersonating' : '' }}">
 
   {{-- MARKER-SIDEBAR-COLLAPSE --}}
   <button type="button" class="ia-sb-collapse-btn" id="ia-sb-collapse"
