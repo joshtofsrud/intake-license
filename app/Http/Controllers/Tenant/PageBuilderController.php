@@ -757,9 +757,13 @@ class PageBuilderController extends Controller
             }
         }
 
+        // MARKER-BUILDER-SYNC — only the builder preview gets the section
+        // anchors and the click-to-select bridge; the public page stays clean.
+        $builderPreview = true;
+
         return view('public.page', compact(
             'page', 'sections', 'navItems', 'catalog',
-            'splashPage', 'splashSections', 'splashCfg'
+            'splashPage', 'splashSections', 'splashCfg', 'builderPreview'
         ));
     }
 

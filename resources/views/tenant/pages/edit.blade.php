@@ -2386,7 +2386,36 @@
       const type = el.dataset.sectionType;
       if (!sid) return;
       selectSection(sid, type, idx + 1);
+      scrollPreviewTo(sid);
     });
+  });
+
+  // ─── MARKER-BUILDER-SYNC — keep the two panes pointed at the same thing ──
+  // postMessage rather than reaching into the iframe directly: the preview is
+  // same-origin today, but this keeps working if it ever isn't.
+  function scrollPreviewTo(sectionId) {
+    const frame = document.getElementById('pb2-preview');
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage(
+      { source: 'pb-builder', type: 'scrollTo', id: sectionId },
+      window.location.origin
+    );
+  }
+
+  window.addEventListener('message', (e) => {
+    if (e.origin !== window.location.origin) return;
+    const d = e.data || {};
+    if (d.source !== 'pb-preview' || d.type !== 'select' || !d.id) return;
+
+    const item = document.querySelector(`.pb2-section-item[data-section-id="${d.id}"]`);
+    if (!item) return;
+
+    // Index as shown in the list, so the inspector subtitle stays truthful.
+    const all = Array.prototype.slice.call(document.querySelectorAll('.pb2-section-item'));
+    selectSection(d.id, item.dataset.sectionType || d.sectionType, all.indexOf(item) + 1);
+
+    // The list scrolls independently and the chosen row is often out of view.
+    item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
 
   // ─── Inspector header: visibility toggle + delete ─────────────────────

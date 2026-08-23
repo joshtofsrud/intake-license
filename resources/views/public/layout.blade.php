@@ -262,6 +262,65 @@
 
 {{-- MARKER-SPLASH — drawn OVER the homepage, which is fully rendered below.
      Included before the sections so it exists even if a section throws. --}}
+{{-- MARKER-BUILDER-SYNC — hover highlight + click-to-select, and the
+     scroll-to handler the builder calls. Builder preview only. --}}
+@if(!empty($builderPreview))
+<style>
+  [data-pb-section] { position: relative; }
+  [data-pb-section]::after {
+    content: ''; position: absolute; inset: 0; z-index: 2147483000;
+    pointer-events: none; opacity: 0;
+    outline: 2px solid #BEF264; outline-offset: -2px;
+    background: rgba(190,242,100,.06);
+    transition: opacity .12s;
+  }
+  [data-pb-section].pb-hover::after,
+  [data-pb-section].pb-flash::after { opacity: 1; }
+  [data-pb-section].pb-flash::after { transition: opacity .35s; }
+  [data-pb-section] { cursor: pointer; }
+</style>
+<script>
+(function () {
+  var wraps = Array.prototype.slice.call(document.querySelectorAll('[data-pb-section]'));
+  if (!wraps.length) return;
+
+  function post(msg) {
+    try { parent.postMessage(msg, window.location.origin); } catch (e) {}
+  }
+
+  wraps.forEach(function (w) {
+    w.addEventListener('mouseenter', function () {
+      wraps.forEach(function (o) { o.classList.remove('pb-hover'); });
+      w.classList.add('pb-hover');
+    });
+    w.addEventListener('mouseleave', function () { w.classList.remove('pb-hover'); });
+
+    // Click selects the section in the builder. Links and form controls keep
+    // their own behaviour — the preview still has to be usable as a page.
+    w.addEventListener('click', function (e) {
+      if (e.target.closest('a, button, input, select, textarea, label')) return;
+      e.preventDefault();
+      post({ source: 'pb-preview', type: 'select', id: w.dataset.pbSection, sectionType: w.dataset.pbType });
+    }, true);
+  });
+
+  // Builder asks us to scroll to a section.
+  window.addEventListener('message', function (e) {
+    if (e.origin !== window.location.origin) return;
+    var d = e.data || {};
+    if (d.source !== 'pb-builder' || d.type !== 'scrollTo') return;
+    var el = document.querySelector('[data-pb-section="' + d.id + '"]');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('pb-flash');
+    setTimeout(function () { el.classList.remove('pb-flash'); }, 900);
+  });
+
+  post({ source: 'pb-preview', type: 'ready' });
+})();
+</script>
+@endif
+
 @if(!empty($splashPage) && !empty($splashSections) && count($splashSections))
   @include('public._splash-overlay')
 @endif
@@ -283,6 +342,10 @@
             $sc['bg_color'] ?? null, $section->section_type, $dt
         );
       @endphp
+      {{-- MARKER-BUILDER-SYNC — an addressable wrapper, builder-only. Section
+           partials render their own <section> elements with markup we don't
+           control, so a wrapper is the only reliable anchor. --}}
+      @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
       @include($partial, [
         'c'        => $sc,
         'section'  => $section,
@@ -290,6 +353,7 @@
         'catalog'  => $catalog,
         'tenant'   => $currentTenant,
       ])
+      @if(!empty($builderPreview))</div>@endif
     @elseif(config('app.debug'))
       <div style="padding:24px;margin:20px auto;max-width:800px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;color:#78350f;font-family:monospace;font-size:13px;">
         <strong>⚠ Page builder section unsupported on public renderer:</strong> <code>{{ $section->section_type }}</code><br>
