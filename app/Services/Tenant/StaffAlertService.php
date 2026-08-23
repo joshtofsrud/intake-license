@@ -46,6 +46,10 @@ class StaffAlertService
         'rental.reserved_online' => ['in_app' => true,  'sms' => false],
         'lease.created'          => ['in_app' => true,  'sms' => false],
         'announcement'           => ['in_app' => true,  'sms' => false],
+        // MARKER-TOFF-ALERTS
+        'timeoff.requested'      => ['in_app' => true,  'sms' => false],
+        'timeoff.decided'        => ['in_app' => true,  'sms' => false],
+        'timeoff.withdrawn'      => ['in_app' => true,  'sms' => false],
     ];
 
     public function __construct(

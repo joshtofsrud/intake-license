@@ -37,6 +37,9 @@
     'offer.accepted'          => ['Offer', '🏷'],
     'inbox.needs_reply'       => ['Inbox', '💬'],
     'announcement'            => ['Announcement', '📣'],
+    'timeoff.requested'       => ['Time off', '🌴'],
+    'timeoff.decided'         => ['Time off', '🌴'],
+    'timeoff.withdrawn'       => ['Time off', '🌴'],
   ];
 @endphp
 

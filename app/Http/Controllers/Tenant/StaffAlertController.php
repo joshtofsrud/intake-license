@@ -27,6 +27,10 @@ class StaffAlertController extends Controller
         'payment.refund_external'=> 'Refund issued outside Intake',
         'rental.reserved_online' => 'New online rental reservation',
         'lease.created'          => 'New lease',
+        // MARKER-TOFF-ALERTS
+        'timeoff.requested'      => 'New time-off request (reviewers)',
+        'timeoff.decided'        => 'Your time-off request was decided',
+        'timeoff.withdrawn'      => 'Time-off request withdrawn (reviewers)',
     ];
 
     /** MARKER-PATCH-231 — full notifications page (grouped, paginated). */
