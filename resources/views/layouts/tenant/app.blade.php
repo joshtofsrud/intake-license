@@ -110,6 +110,11 @@
           <span>
             👤 You are impersonating <strong>{{ session('impersonating_tenant_name', 'this tenant') }}</strong>.
             All actions you take are real.
+            {{-- MARKER-IMPERSONATION-PIN — be explicit about which of the
+                 tenant's protections are not in force right now. --}}
+            <span style="display:block;opacity:.8;font-size:12px;margin-top:2px">
+              Their PIN lock is bypassed for this session.
+            </span>
           </span>
           <a href="{{ config('app.url') }}/admin/impersonate/stop"
              style="background:rgba(0,0,0,.2);color:#FAEEDA;padding:5px 14px;border-radius:6px;font-weight:600;font-size:12px">
@@ -191,7 +196,11 @@
 <script src="{{ asset('js/tenant/location-switcher.js') }}?v={{ filemtime(public_path('js/tenant/location-switcher.js')) }}" defer></script>
 <script src="{{ asset('js/tenant/idle-lock.js') }}?v={{ filemtime(public_path('js/tenant/idle-lock.js')) }}" defer></script>
 
-@include('layouts.tenant._lock-overlay')
+{{-- MARKER-IMPERSONATION-PIN — omitted while impersonating so the client
+     idle timer has nothing to open. --}}
+@unless(session()->has('impersonating_from'))
+  @include('layouts.tenant._lock-overlay')
+@endunless
 @include('layouts.tenant._action-gate-modal')
 @include('layouts.tenant._location-welcome')
 

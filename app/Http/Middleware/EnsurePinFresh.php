@@ -41,6 +41,18 @@ class EnsurePinFresh
             return $next($request);
         }
 
+        // MARKER-IMPERSONATION-PIN — impersonation signs you in as the tenant
+        // owner, whose PIN the platform operator does not have; enforcing it
+        // would brick the session outright. Reaching this point already
+        // required a master admin login, which is the stronger check. The
+        // impersonation banner stays visible the whole time, and start/stop
+        // are recorded in the debug log.
+        if ($request->session()->has('impersonating_from')) {
+            view()->share('pinLockPending', false);
+            view()->share('pinBypassImpersonating', true);
+            return $next($request);
+        }
+
         // Routes that must work even when the lock is pending.
         $routeName = $request->route()?->getName() ?? '';
         $whitelist = [
