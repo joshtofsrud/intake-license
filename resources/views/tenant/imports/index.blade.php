@@ -60,8 +60,13 @@
             @if($t['extra'])<span class="imp-tag">{{ $t['extra'] }}</span>@endif
           </div>
         </a>
-        <div class="imp-type-links">
-          <a href="{{ route('tenant.imports.template', $impKey) }}">Download a starter CSV</a>
+        {{-- MARKER-IMPORT-CTA — explicit primary action; starter CSV is the aside. --}}
+        <div class="imp-type-go">
+          <a href="{{ route('tenant.imports.create', ['type' => $impKey]) }}" class="ia-btn ia-btn--primary ia-btn--sm">
+            Import {{ strtolower($t['label']) }}
+          </a>
+          <a href="{{ route('tenant.imports.template', $impKey) }}" class="imp-type-alt">Download a starter CSV</a>
+          <span class="imp-type-arrow" aria-hidden="true">&rarr;</span>
         </div>
       </div>
     @endforeach

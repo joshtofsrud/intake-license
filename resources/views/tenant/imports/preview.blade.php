@@ -61,6 +61,16 @@
 <form method="POST" action="{{ route('tenant.imports.run', $import->id) }}" class="imp-foot">
   @csrf
   <a href="{{ route('tenant.imports.map', $import->id) }}" class="ia-btn ia-btn--secondary">Back to mapping</a>
+  {{-- MARKER-IMPORT-CTA — a dead button with no reason reads as a broken page. --}}
+  @if($writes === 0)
+    <span style="font-size:12px;color:var(--ia-text-dim);align-self:center;text-align:center">
+      @if(($c['error'] ?? 0) > 0)
+        Nothing can be written yet — every row has an error. Fix the file and upload it again.
+      @else
+        Nothing to write — every row already matches what's in Intake.
+      @endif
+    </span>
+  @endif
   <button type="submit" class="ia-btn ia-btn--primary" @disabled($writes === 0)>
     Import {{ number_format($writes) }} {{ Str::plural('row', $writes) }}
   </button>
