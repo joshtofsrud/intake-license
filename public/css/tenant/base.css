@@ -1355,3 +1355,67 @@ html.ia-sb-collapsed .ia-sb-user-menu { left: 62px; right: auto; min-width: 210p
     width: auto; height: auto; clip: auto; overflow: visible;
   }
 }
+
+
+/* MARKER-SIDEBAR-COLLAPSE-POLISH -------------------------------------------
+   The first pass clipped the obvious labels but left the rail cluttered:
+   full-size logo mark, the account caret, the offline-sync row's text and
+   chevron, the location switcher, the attention row. All of it is either
+   hidden or shrunk here so 60px reads as a deliberate rail. */
+
+html.ia-sb-collapsed .ia-sb-user-caret,
+html.ia-sb-collapsed .io-srow span:not(.io-dot),
+html.ia-sb-collapsed .io-chev,
+html.ia-sb-collapsed .ia-sb-location-wrap {
+  display: none !important;
+}
+
+/* The attention row is search + inbox + alerts — worth keeping, but it's a
+   horizontal strip. Stack it. */
+html.ia-sb-collapsed .ar-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-left: 0; padding-right: 0;
+}
+
+/* Keep the sync indicator as a dot — it's status, not a label. */
+html.ia-sb-collapsed .io-status.io-srow {
+  justify-content: center;
+  padding-left: 0; padding-right: 0;
+  gap: 0;
+}
+
+/* The letter-mark is sized for a 220px column. */
+html.ia-sb-collapsed .ia-sidebar-logo-mark {
+  width: 30px; height: 30px;
+  font-size: 13px;
+}
+html.ia-sb-collapsed .ia-sb-user-avatar {
+  width: 30px; height: 30px;
+  font-size: 11px;
+}
+
+/* Impersonation at 60px: an amber edge down the whole rail plus a ring on
+   the avatar. A tinted row with clipped text just looked like a smear. */
+html.ia-sb-collapsed .ia-sidebar {
+  position: relative;
+}
+html.ia-sb-collapsed .ia-sb-user-row.is-impersonating {
+  background: none;
+  box-shadow: none;
+}
+html.ia-sb-collapsed .ia-sb-user-row.is-impersonating .ia-sb-user-avatar {
+  box-shadow: 0 0 0 2px #FBBF24;
+}
+html.ia-sb-collapsed .ia-sb-user-row.is-impersonating::after {
+  content: '';
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: 3px;
+  background: #FBBF24;
+  pointer-events: none;
+}
+
+/* The toggle sat over the logo once centred; give the logo room. */
+html.ia-sb-collapsed .ia-sidebar-logo { padding-top: 40px; padding-bottom: 4px; }
