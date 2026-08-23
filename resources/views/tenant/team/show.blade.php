@@ -9,6 +9,15 @@
 
 @push('styles')
 <style>
+  /* MARKER-TEAM-FORM-SEP — one visible block per action, so a button is
+     never adjacent to fields it doesn't submit. */
+  .tm-block { padding:14px 0; border-bottom:.5px solid var(--ia-border); }
+  .tm-block:first-of-type { padding-top:0; }
+  .tm-block--last { border-bottom:none; padding-bottom:0; }
+  .tm-block-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
+                    color:var(--ia-text-dim); font-weight:700; margin-bottom:10px; }
+</style>
+<style>
 .pd-head { display:flex; gap:16px; align-items:center; padding-bottom:18px; border-bottom:0.5px solid var(--ia-border); margin-bottom:20px; }
 .pd-avatar { width:56px; height:56px; border-radius:50%; background:var(--ia-accent); color:var(--ia-accent-text); display:inline-flex; align-items:center; justify-content:center; font-size:18px; font-weight:600; flex-shrink:0; }
 .pd-h2 { font-size:20px; font-weight:600; margin:0; }
@@ -103,55 +112,71 @@
   <div class="ia-card-head"><span class="ia-card-title">Account</span></div>
   <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Basic identity. The user cannot change their own email or role.</p>
 
-  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-    @csrf @method('PATCH')
-    <input type="hidden" name="op" value="update_account">
-    <div class="pd-field">
-      <div class="pd-field-label">Name</div>
-      <div class="pd-field-value"><input class="ia-input" name="name" value="{{ $member->name }}" style="min-width:280px"></div>
-    </div>
-    <div class="pd-field">
-      <div class="pd-field-label">Email</div>
-      <div class="pd-field-value"><input class="ia-input" type="email" name="email" value="{{ $member->email }}" style="min-width:320px"></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:8px">
-      <button class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
-    </div>
-  </form>
-
-  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
-    @csrf @method('PATCH')
-    <input type="hidden" name="op" value="change_role">
-    <div class="pd-field">
-      <div class="pd-field-label">Role</div>
-      <div class="pd-field-value">
-        {{-- MARKER-PATCH-494 — named roles --}}
-        <select name="role_id" class="ia-input" style="width:auto">
-          @foreach($allRoles as $r)
-            <option value="{{ $r->id }}" @selected($member->role_id === $r->id)>{{ $r->name }}</option>
-          @endforeach
-        </select>
-        <button class="ia-btn ia-btn--ghost ia-btn--sm">Change role</button>
+  {{-- MARKER-TEAM-FORM-SEP — these three forms used to sit stacked with no
+       break, and the identity Save button rendered directly above the Role
+       row. Changing the role and pressing that Save posted the ACCOUNT form:
+       role_id was never sent, the modal said "Account updated." and the
+       select snapped back — indistinguishable from a broken write. Each
+       block is now its own bordered section owning its own action. --}}
+  <div class="tm-block">
+    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
+      @csrf @method('PATCH')
+      <input type="hidden" name="op" value="update_account">
+      <div class="tm-block-label">Name &amp; email</div>
+      <div class="pd-field">
+        <div class="pd-field-label">Name</div>
+        <div class="pd-field-value"><input class="ia-input" name="name" value="{{ $member->name }}" style="min-width:280px"></div>
       </div>
-    </div>
-  </form>
+      <div class="pd-field">
+        <div class="pd-field-label">Email</div>
+        <div class="pd-field-value"><input class="ia-input" type="email" name="email" value="{{ $member->email }}" style="min-width:320px"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="ia-btn ia-btn--primary ia-btn--sm">Save name &amp; email</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="tm-block">
+    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
+      @csrf @method('PATCH')
+      <input type="hidden" name="op" value="change_role">
+      <div class="tm-block-label">Role</div>
+      <div class="pd-field">
+        <div class="pd-field-label">Access level</div>
+        <div class="pd-field-value" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          {{-- MARKER-PATCH-494 — named roles --}}
+          <select name="role_id" class="ia-input" style="width:auto">
+            @foreach($allRoles as $r)
+              <option value="{{ $r->id }}" @selected($member->role_id === $r->id)>{{ $r->name }}</option>
+            @endforeach
+          </select>
+          <button class="ia-btn ia-btn--primary ia-btn--sm">Change role</button>
+          <span style="font-size:11.5px;color:var(--ia-text-dim)">Takes effect on their next page load.</span>
+        </div>
+      </div>
+    </form>
+  </div>
 
   {{-- MARKER-TIMECLOCK-EXEMPT — owners/salaried staff opt-out of the clock-in nudge --}}
-  <form method="POST" action="{{ route('tenant.team.update', $member->id) }}" style="margin-top:12px">
-    @csrf @method('PATCH')
-    <input type="hidden" name="op" value="toggle_timeclock_exempt">
-    <div class="pd-field">
-      <div class="pd-field-label">Time clock</div>
-      <div class="pd-field-value" style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:12.5px;color:var(--ia-text-dim)">
-          {{ $member->exempt_from_timeclock ? 'Never clocks in — no clock-in prompts.' : 'Clocks in — sees the clock-in prompt when off the clock.' }}
-        </span>
-        <button class="ia-btn ia-btn--ghost ia-btn--sm">
-          {{ $member->exempt_from_timeclock ? 'Require clock-in' : 'Mark as never clocks in' }}
-        </button>
+  <div class="tm-block tm-block--last">
+    <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
+      @csrf @method('PATCH')
+      <input type="hidden" name="op" value="toggle_timeclock_exempt">
+      <div class="tm-block-label">Time clock</div>
+      <div class="pd-field">
+        <div class="pd-field-label">Clock-in prompts</div>
+        <div class="pd-field-value" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12.5px;color:var(--ia-text-dim)">
+            {{ $member->exempt_from_timeclock ? 'Never clocks in — no clock-in prompts.' : 'Clocks in — sees the clock-in prompt when off the clock.' }}
+          </span>
+          <button class="ia-btn ia-btn--ghost ia-btn--sm">
+            {{ $member->exempt_from_timeclock ? 'Require clock-in' : 'Mark as never clocks in' }}
+          </button>
+        </div>
       </div>
-    </div>
-  </form>
+    </form>
+  </div>
 </div>
 
 {{-- Credentials --}}

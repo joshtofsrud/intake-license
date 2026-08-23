@@ -290,11 +290,15 @@ class TeamController extends Controller
                 if ($newRole->isOwnerRole() && $me->role !== 'owner') {
                     return back()->with('error', 'Only owners can grant the Owner role.');
                 }
+                // MARKER-TEAM-FORM-SEP — don't claim a write that didn't happen.
+                if ($member->role_id === $newRole->id) {
+                    return back()->with('success', $member->name . ' already has the ' . $newRole->name . ' role — nothing changed.');
+                }
                 $enum = 'staff';
                 if ($newRole->is_system && $newRole->name === 'Owner')   $enum = 'owner';
                 if ($newRole->is_system && $newRole->name === 'Manager') $enum = 'manager';
                 $member->update(['role' => $enum, 'role_id' => $newRole->id]);
-                return back()->with('success', "Role updated to {$newRole->name}.");
+                return back()->with('success', $member->name . " is now {$newRole->name}.");
             }
 
             case 'reset_password': {
