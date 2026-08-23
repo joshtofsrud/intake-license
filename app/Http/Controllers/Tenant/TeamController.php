@@ -256,10 +256,16 @@ class TeamController extends Controller
 
         switch ($op) {
             case 'update_account': {
+                // MARKER-TEAM-CONTACT — phone was fillable and already used by
+                // staff SMS alerts, but no admin screen ever exposed it.
+                // Loose validation on purpose: people type numbers however
+                // they like; digits are stripped only for tel:/sms: links.
                 $data = $request->validate([
                     'name'  => ['required','string','max:255'],
                     'email' => ['required','email','max:255'],
+                    'phone' => ['nullable','string','max:32'],
                 ]);
+                $data['phone'] = ($data['phone'] ?? '') === '' ? null : $data['phone'];
                 // Email uniqueness within tenant
                 $clash = TenantUser::where('tenant_id', $tenant->id)
                     ->where('email', $data['email'])
@@ -268,7 +274,7 @@ class TeamController extends Controller
                     return back()->with('error', 'Another member already uses that email.');
                 }
                 $member->update($data);
-                return back()->with('success', 'Account updated.');
+                return back()->with('success', 'Contact details saved.');
             }
 
             case 'change_role': {
