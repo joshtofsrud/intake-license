@@ -37,6 +37,19 @@ class AccountController extends Controller
         return back()->with('success', 'Name updated.');
     }
 
+    // MARKER-TIMECLOCK-EXEMPT — self-serve: owners and salaried staff turn
+    // off their own clock-in nudge (Team redirects self-edits here).
+    public function updateTimeclockExempt(Request $request)
+    {
+        $me = Auth::guard('tenant')->user();
+        $exempt = (bool) $request->boolean('exempt_from_timeclock');
+        $me->update(['exempt_from_timeclock' => $exempt]);
+
+        return back()->with('success', $exempt
+            ? "You won't be prompted to clock in anymore."
+            : 'Clock-in prompts are back on.');
+    }
+
     public function updatePassword(Request $request)
     {
         $me = Auth::guard('tenant')->user();

@@ -67,6 +67,29 @@
 </div>
 
 {{-- Password --}}
+{{-- MARKER-TIMECLOCK-EXEMPT — self-serve clock-in nudge opt-out --}}
+<div class="ia-card" style="margin-bottom:14px">
+  <div class="ia-card-head"><span class="ia-card-title">Time clock</span></div>
+  <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">If you don't punch a clock, turn off the reminder that shows on every page when you're off the clock.</p>
+
+  <form method="POST" action="{{ route('tenant.account.timeclock-exempt') }}">
+    @csrf @method('PATCH')
+    <div class="ac-field">
+      <div class="ac-field-label">Clock-in prompts</div>
+      <div class="ac-field-value">
+        <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer">
+          <input type="checkbox" name="exempt_from_timeclock" value="1" {{ $me->exempt_from_timeclock ? 'checked' : '' }}>
+          <span>I never clock in — hide the prompt</span>
+        </label>
+        <span class="ac-field-hint">Your hours still record normally if you do clock in.</span>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button class="ia-btn ia-btn--primary ia-btn--sm">Save</button>
+    </div>
+  </form>
+</div>
+
 <div class="ia-card" style="margin-bottom:14px">
   <div class="ia-card-head"><span class="ia-card-title">Password</span></div>
   <p style="font-size:12px;color:var(--ia-text-dim);margin:0 0 14px">Used for signing in and confirming sensitive changes.</p>

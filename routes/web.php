@@ -1067,6 +1067,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/account',                         [TenantControllers\AccountController::class, 'index'])->name('account.index');
             Route::patch('/account/name',                  [TenantControllers\AccountController::class, 'updateName'])->name('account.name');
             Route::patch('/account/password',              [TenantControllers\AccountController::class, 'updatePassword'])->name('account.password');
+            Route::patch('/account/timeclock-exempt',      [TenantControllers\AccountController::class, 'updateTimeclockExempt'])->name('account.timeclock-exempt'); // MARKER-TIMECLOCK-EXEMPT
             Route::patch('/account/pin',                   [TenantControllers\AccountController::class, 'setPin'])->name('account.pin');
             Route::patch('/account/pin/clear',             [TenantControllers\AccountController::class, 'clearPin'])->name('account.pin.clear');
             // MARKER-PATCH-130 — per-user device + sign-out-everywhere routes removed
