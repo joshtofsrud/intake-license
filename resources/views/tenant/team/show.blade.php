@@ -22,7 +22,23 @@
 .pd-avatar { width:56px; height:56px; border-radius:50%; background:var(--ia-accent); color:var(--ia-accent-text); display:inline-flex; align-items:center; justify-content:center; font-size:18px; font-weight:600; flex-shrink:0; }
 .pd-h2 { font-size:20px; font-weight:600; margin:0; }
 .pd-sub { font-size:12px; color:var(--ia-text-dim); margin-top:3px; }
-.pd-actions { margin-left:auto; display:flex; gap:6px; }
+.pd-actions { display:flex; gap:6px; }
+/* MARKER-TEAM-CONTACT — mirrors .cmd-tile on the customer page. */
+.pd-contact-tiles { margin-left:auto; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; min-width:240px; }
+.pd-tile { display:flex; flex-direction:column; align-items:center; gap:4px;
+           background:var(--ia-surface); border:0.5px solid var(--ia-border);
+           border-radius:10px; padding:11px 6px; color:var(--ia-text);
+           text-decoration:none; cursor:pointer; }
+.pd-tile svg { color:var(--ia-accent); }
+.pd-tile:active { transform:scale(0.97); }
+.pd-tile:focus-visible { outline:2px solid var(--ia-accent); outline-offset:2px; }
+.pd-tile-label { font-size:11px; color:var(--ia-text-dim); font-weight:500; }
+.pd-tile.is-disabled { opacity:.32; cursor:not-allowed; pointer-events:none; }
+.pd-tile.is-disabled svg { color:var(--ia-text-dim); }
+@media (max-width:720px) {
+  .pd-head { flex-wrap:wrap; }
+  .pd-contact-tiles { margin-left:0; width:100%; order:3; }
+}
 .pd-field { display:grid; grid-template-columns:180px 1fr; gap:16px; padding:12px 0; align-items:center; border-top:0.5px solid var(--ia-border); }
 .pd-field:first-of-type { border-top:none; padding-top:2px; }
 .pd-field-label { font-size:12px; color:var(--ia-text-dim); }
@@ -122,7 +138,7 @@
     <form method="POST" action="{{ route('tenant.team.update', $member->id) }}">
       @csrf @method('PATCH')
       <input type="hidden" name="op" value="update_account">
-      <div class="tm-block-label">Name &amp; email</div>
+      <div class="tm-block-label">Contact</div>
       <div class="pd-field">
         <div class="pd-field-label">Name</div>
         <div class="pd-field-value"><input class="ia-input" name="name" value="{{ $member->name }}" style="min-width:280px"></div>
@@ -131,8 +147,16 @@
         <div class="pd-field-label">Email</div>
         <div class="pd-field-value"><input class="ia-input" type="email" name="email" value="{{ $member->email }}" style="min-width:320px"></div>
       </div>
+      {{-- MARKER-TEAM-CONTACT --}}
+      <div class="pd-field">
+        <div class="pd-field-label">Phone</div>
+        <div class="pd-field-value">
+          <input class="ia-input" type="tel" name="phone" value="{{ $member->phone }}" maxlength="32" style="min-width:200px" placeholder="(509) 555-0142">
+          <div style="font-size:11.5px;color:var(--ia-text-dim);margin-top:5px">Used for staff SMS alerts, and for the Call and Text buttons above.</div>
+        </div>
+      </div>
       <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button class="ia-btn ia-btn--primary ia-btn--sm">Save name &amp; email</button>
+        <button class="ia-btn ia-btn--primary ia-btn--sm">Save contact</button>
       </div>
     </form>
   </div>
