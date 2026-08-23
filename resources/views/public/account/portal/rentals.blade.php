@@ -23,6 +23,22 @@
       <div style="display:flex;gap:18px;margin-top:14px;font-size:13px;flex-wrap:wrap">
         <div><div class="ac-chip-k">Due back</div><div style="font-weight:600">{{ tlocal_datetime($r->due_at, 'D, M j · g:i A') }}</div></div>
         <div><div class="ac-chip-k">Waiver</div><div style="font-weight:600">{{ $r->agreement_signed_at ? 'Signed ✓' : 'Not signed' }}</div></div>
+        {{-- MARKER-RENTAL-EXT-PORTAL — self-serve keep-it-longer --}}
+        @php $ext = ($extendable ?? [])[$r->id] ?? null; @endphp
+        @if($ext)
+          <div style="margin-top:10px">
+            @if(isset($ext['open']))
+              <a href="{{ route('tenant.rentals.extension.show', $ext['open']->token) }}" class="ac-btn ac-btn--primary" style="text-decoration:none;display:block;text-align:center">
+                Extend to {{ tlocal_datetime($ext['open']->extend_to, 'g:i A') }} — {{ format_money($ext['open']->total_cents) }}{{ $ext['open']->discount_pct > 0 ? ' (' . $ext['open']->discount_pct . '% off)' : '' }}
+              </a>
+            @else
+              <form method="POST" action="{{ route('tenant.customer.portal.rentals.extend', $r->id) }}" style="display:inline">
+                @csrf
+                <button class="ac-btn ac-btn--primary">Keep it longer — extend to {{ tlocal_datetime($ext['elig']['extend_to'], 'g:i A') }} for {{ format_money($ext['elig']['total_cents']) }}</button>
+              </form>
+            @endif
+          </div>
+        @endif
         @if($r->deposit_hold_cents)
           <div><div class="ac-chip-k">Deposit hold</div><div style="font-weight:600">${{ number_format($r->deposit_hold_cents / 100, 2) }}</div></div>
         @endif

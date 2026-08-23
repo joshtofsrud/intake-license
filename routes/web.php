@@ -211,6 +211,7 @@ $tenantRoutes = function () {
     Route::get('/account/bookings',       [TenantControllers\CustomerPortalController::class, 'bookings'])->name('tenant.customer.portal.bookings');
     Route::get('/account/orders',         [TenantControllers\CustomerPortalController::class, 'orders'])->name('tenant.customer.portal.orders');
     Route::get('/account/rentals',        [TenantControllers\CustomerPortalController::class, 'rentals'])->name('tenant.customer.portal.rentals');
+    Route::post('/account/rentals/{id}/extend', [TenantControllers\CustomerPortalController::class, 'extendRental'])->name('tenant.customer.portal.rentals.extend'); // MARKER-RENTAL-EXT-PORTAL
     Route::get('/account/messages',       [TenantControllers\CustomerPortalController::class, 'messages'])->name('tenant.customer.portal.messages');
     Route::post('/account/messages',      [TenantControllers\CustomerPortalController::class, 'messagesSend'])->name('tenant.customer.portal.messages.send');
     Route::post('/account/profile',       [TenantControllers\CustomerPortalController::class, 'accountUpdate'])->name('tenant.customer.portal.profile');

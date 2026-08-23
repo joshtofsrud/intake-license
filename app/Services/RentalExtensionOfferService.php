@@ -42,9 +42,14 @@ class RentalExtensionOfferService
      * Can this rental be offered an extension right now?
      * Returns the priced offer shape, or null with $reason set.
      */
-    public function eligibility(Tenant $tenant, TenantRental $rental, ?string &$reason = null): ?array
+    public function eligibility(Tenant $tenant, TenantRental $rental, ?string &$reason = null, ?int $discountOverride = null): ?array
     {
         $cfg = $this->settings($tenant);
+        // MARKER-RENTAL-EXT-PORTAL — customer-initiated extensions pay full
+        // price; the discount is the shop's move, not a self-serve coupon.
+        if ($discountOverride !== null) {
+            $cfg['discount_pct'] = max(0, min(90, $discountOverride));
+        }
 
         if ($rental->status !== 'out' || $rental->returned_at) { $reason = 'Rental is not out.'; return null; }
         if (!$rental->due_at || $rental->due_at->isPast())     { $reason = 'Rental is already past due.'; return null; }
@@ -127,6 +132,7 @@ class RentalExtensionOfferService
     /** Create the offer row and send the SMS. Returns the offer. */
     public function createAndSend(Tenant $tenant, TenantRental $rental, array $e, string $channel = 'auto'): TenantRentalExtensionOffer
     {
+        $sendSms = $channel !== 'portal'; // MARKER-RENTAL-EXT-PORTAL — customer is already on the page
         $offer = TenantRentalExtensionOffer::create([
             'tenant_id'      => $tenant->id,
             'rental_id'      => $rental->id,
@@ -157,7 +163,7 @@ class RentalExtensionOfferService
         // %% above guards sprintf; collapse for the actual message
         $body = str_replace('%%', '%', $body);
 
-        if ($customer?->phone) {
+        if ($sendSms && $customer?->phone) {
             try {
                 SmsService::send($tenant, $customer->phone, $body);
             } catch (\Throwable $ex) {

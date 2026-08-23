@@ -168,7 +168,58 @@ class CustomerPortalController extends Controller
         $past     = (clone $base)->whereIn('status', ['returned', 'cancelled'])
             ->orderByDesc('returned_at')->orderByDesc('starts_at')->limit(15)->get();
 
-        return view('public.account.portal.rentals', compact('customer', 'active', 'reserved', 'past'));
+        // MARKER-RENTAL-EXT-PORTAL — per active rental: can the customer
+        // extend right now? Full price (discount 0). Reuse an open offer.
+        $extendable = [];
+        if ($tenant->rental_extensions_enabled) {
+            $svc = app(\App\Services\RentalExtensionOfferService::class);
+            foreach ($active as $r) {
+                $open = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $r->id)
+                    ->where('status', 'sent')
+                    ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                    ->orderByDesc('sent_at')->first();
+                if ($open) { $extendable[$r->id] = ['open' => $open]; continue; }
+                $reason = null;
+                $e = $svc->eligibility($tenant, $r, $reason, 0);
+                if ($e) $extendable[$r->id] = ['elig' => $e];
+            }
+        }
+
+        return view('public.account.portal.rentals', compact('customer', 'active', 'reserved', 'past', 'extendable'));
+    }
+
+    // MARKER-RENTAL-EXT-PORTAL — mint (or reuse) an offer and land the
+    // customer on the /x/{token} one-tap checkout. Full price, no SMS.
+    public function extendRental(string $id)
+    {
+        if (! $customer = $this->customer()) {
+            return redirect()->route('tenant.customer.login');
+        }
+        $tenant = tenant();
+        abort_unless($tenant->rental_extensions_enabled, 404);
+
+        $rental = TenantRental::where('tenant_id', $tenant->id)
+            ->where('customer_id', $customer->id)
+            ->findOrFail($id);
+
+        $open = \App\Models\Tenant\TenantRentalExtensionOffer::where('rental_id', $rental->id)
+            ->where('status', 'sent')
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->orderByDesc('sent_at')->first();
+        if ($open) {
+            return redirect()->route('tenant.rentals.extension.show', $open->token);
+        }
+
+        $svc = app(\App\Services\RentalExtensionOfferService::class);
+        $reason = null;
+        $e = $svc->eligibility($tenant, $rental, $reason, 0);
+        if (!$e) {
+            return redirect()->route('tenant.customer.portal.rentals')
+                ->with('error', 'This rental can\'t be extended right now: ' . $reason);
+        }
+
+        $offer = $svc->createAndSend($tenant, $rental, $e, 'portal');
+        return redirect()->route('tenant.rentals.extension.show', $offer->token);
     }
 
     // ------------------------------------------------------------ messages
