@@ -58,7 +58,58 @@ class DashboardController extends Controller
             'workOrderBanner' => $workOrderBanner,
         ];
 
+        // MARKER-TILES — a second view for people who want a way in rather
+        // than a report. Overview is unchanged and remains the default.
+        $user = \Illuminate\Support\Facades\Auth::guard('tenant')->user();
+        if (($user->dashboard_view ?? 'overview') === 'tiles') {
+            $data['tiles'] = \App\Support\DashboardTiles::layout($tenant, $user);
+            return view('tenant.dashboard-tiles', $data);
+        }
+
         return view('tenant.dashboard', $data);
+    }
+
+    /** MARKER-TILES — flip between Overview and Tiles. */
+    public function setView(\Illuminate\Http\Request $request)
+    {
+        $data = $request->validate(['view' => 'required|in:overview,tiles']);
+        \Illuminate\Support\Facades\Auth::guard('tenant')->user()
+            ->update(['dashboard_view' => $data['view']]);
+
+        return redirect()->route('tenant.dashboard');
+    }
+
+    /** MARKER-TILES — save one user's tile arrangement. */
+    public function saveTiles(\Illuminate\Http\Request $request)
+    {
+        $data = $request->validate([
+            'order'    => 'nullable|array|max:60',
+            'order.*'  => 'string|max:40',
+            'hidden'   => 'nullable|array|max:60',
+            'hidden.*' => 'string|max:40',
+        ]);
+
+        // Only keys the registry actually knows — a stale tab or a hand-made
+        // request can't stuff arbitrary strings into the column.
+        $known = array_keys(\App\Support\DashboardTiles::definitions());
+        $clean = [
+            'order'  => array_values(array_intersect($data['order']  ?? [], $known)),
+            'hidden' => array_values(array_intersect($data['hidden'] ?? [], $known)),
+        ];
+
+        \Illuminate\Support\Facades\Auth::guard('tenant')->user()
+            ->update(['dashboard_tiles' => $clean]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** MARKER-TILES — back to the registry's own order, everything shown. */
+    public function resetTiles()
+    {
+        \Illuminate\Support\Facades\Auth::guard('tenant')->user()
+            ->update(['dashboard_tiles' => null]);
+
+        return redirect()->route('tenant.dashboard')->with('success', 'Tiles reset.');
     }
 
     public function dayJson(\Illuminate\Http\Request $request)
