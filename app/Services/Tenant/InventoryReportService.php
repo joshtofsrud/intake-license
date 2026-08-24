@@ -98,23 +98,30 @@ class InventoryReportService
     /** What the shelf is worth right now. */
     public function valuation(): array
     {
+        // MARKER-INV-REPORTS-NEG — oversell is allowed, so an item sold but
+        // never received carries a NEGATIVE computed_stock_count. Multiplying
+        // that by unit cost produced negative money on screen, which means
+        // nothing. Value math floors on-hand at zero; the negatives are
+        // reported separately below because they're a real thing to fix.
         $row = DB::table('tenant_inventory_items')
             ->where('tenant_id', $this->tenant->id)
             ->where('is_active', true)
             ->whereNull('deleted_at')
-            ->where('computed_stock_count', '>', 0)
-            ->selectRaw('COUNT(*) as skus')
-            ->selectRaw('SUM(computed_stock_count) as units')
-            ->selectRaw('SUM(computed_stock_count * COALESCE(shop_cost_cents, catalog_cost_cents, 0)) as cost')
-            ->selectRaw('SUM(computed_stock_count * COALESCE(shop_sell_price_cents, catalog_msrp_cents, 0)) as retail')
+            ->selectRaw('SUM(CASE WHEN computed_stock_count > 0 THEN 1 ELSE 0 END) as skus')
+            ->selectRaw('SUM(GREATEST(computed_stock_count, 0)) as units')
+            ->selectRaw('SUM(GREATEST(computed_stock_count, 0) * COALESCE(shop_cost_cents, catalog_cost_cents, 0)) as cost')
+            ->selectRaw('SUM(GREATEST(computed_stock_count, 0) * COALESCE(shop_sell_price_cents, catalog_msrp_cents, 0)) as retail')
+            ->selectRaw('SUM(CASE WHEN computed_stock_count < 0 THEN 1 ELSE 0 END) as negative_skus')
             ->first();
 
         $cost   = (int) ($row->cost ?? 0);
         $retail = (int) ($row->retail ?? 0);
 
         return [
-            'skus'         => (int) ($row->skus ?? 0),
-            'units'        => (int) ($row->units ?? 0),
+            'skus'          => (int) ($row->skus ?? 0),
+            'units'         => (int) ($row->units ?? 0),
+            // Sold but never received — worth fixing, so it's shown.
+            'negative_skus' => (int) ($row->negative_skus ?? 0),
             'cost_cents'   => $cost,
             'retail_cents' => $retail,
             // Margin on what's SITTING here, not on what sold — a different
@@ -219,8 +226,11 @@ class InventoryReportService
             $key = $it->category ?: 'Uncategorized';
             $rows[$key] ??= ['category' => $key, 'skus' => 0, 'units' => 0, 'cost_cents' => 0, 'sold_units' => 0.0];
             $rows[$key]['skus']++;
-            $rows[$key]['units']      += (int) $it->computed_stock_count;
-            $rows[$key]['cost_cents'] += (int) $it->computed_stock_count * (int) $it->unit_cost;
+            // MARKER-INV-REPORTS-NEG — floor here too, or a category with
+            // oversold items reports negative units and negative cost.
+            $onHand = max(0, (int) $it->computed_stock_count);
+            $rows[$key]['units']      += $onHand;
+            $rows[$key]['cost_cents'] += $onHand * (int) $it->unit_cost;
             $rows[$key]['sold_units'] += $sold[$it->id]['units'] ?? 0;
         }
 
