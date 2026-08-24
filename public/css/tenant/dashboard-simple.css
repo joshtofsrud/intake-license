@@ -131,3 +131,6 @@
   font-size: 11px; color: var(--ia-text-dim, #9a9aa2); padding: 0;
 }
 .ia-needsyou-min:hover { color: var(--ia-text, #e7e7ea); }
+
+/* MARKER-NEEDSYOU-HIDDEN-FIX — hidden must beat display:flex */
+.ia-needsyou-bar[hidden], .ia-needsyou-zone[hidden], #ia-needsyou-grid[hidden] { display: none !important; }
