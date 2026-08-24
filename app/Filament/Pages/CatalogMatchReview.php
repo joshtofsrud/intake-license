@@ -18,6 +18,9 @@ use Livewire\WithPagination;
  */
 class CatalogMatchReview extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'catalog';
+
     use WithPagination;
 
     protected static ?string $navigationIcon  = 'heroicon-o-link';

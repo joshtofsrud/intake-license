@@ -82,6 +82,9 @@ class AdminAccess
             'customers', 'licenses', 'activations'           => 'config',
             'raise', 'raise-setup', 'investor-record'        => 'raise',
             'team-roles'                                     => 'team',
+            // roles-access is a read-only reference every staff role may
+            // open; dashboard is the one area all four roles hold.
+            'roles-access'                                   => 'dashboard',
             default                                          => null,
         };
     }

@@ -22,6 +22,9 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class SalesProspectResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'crm';
+
     protected static ?string $model = SalesProspect::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-flag';

@@ -13,6 +13,9 @@ use Livewire\WithFileUploads;
 // MARKER-RAISE-RECORDS
 class InvestorRecord extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'raise';
+
     use WithFileUploads;
 
     protected static bool $shouldRegisterNavigation = false;

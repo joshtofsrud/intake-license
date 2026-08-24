@@ -25,6 +25,9 @@ use Throwable;
  */
 class PlatformDashboard extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'dashboard';
+
     protected static ?string $title           = 'Dashboard';
     protected static ?string $slug            = '/';
     protected static ?string $navigationIcon  = 'heroicon-o-home';

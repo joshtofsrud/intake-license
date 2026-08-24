@@ -22,6 +22,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class MarketingPageResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'marketing';
+
     protected static ?string $model = TenantPage::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-document-text';

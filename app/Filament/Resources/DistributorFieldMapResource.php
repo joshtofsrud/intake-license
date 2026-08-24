@@ -19,6 +19,9 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class DistributorFieldMapResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'catalog';
+
     protected static ?string $model = DistributorFieldMap::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-arrows-right-left';

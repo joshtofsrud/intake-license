@@ -17,6 +17,9 @@ use Filament\Tables\Table;
  */
 class RoadmapEntryResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'marketing';
+
     protected static ?string $model = RoadmapEntry::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-map';

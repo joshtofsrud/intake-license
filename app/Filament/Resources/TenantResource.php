@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Builder;
 
 class TenantResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'tenants';
+
     protected static ?string $model = Tenant::class;
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
     protected static ?string $navigationLabel = 'Tenants';

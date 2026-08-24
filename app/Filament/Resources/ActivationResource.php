@@ -11,6 +11,9 @@ use Filament\Tables\Table;
 
 class ActivationResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'config';
+
     protected static ?string $model = Activation::class;
     protected static ?string $navigationIcon = 'heroicon-o-globe-alt';
     protected static ?string $navigationGroup = 'Installs';

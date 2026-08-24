@@ -21,6 +21,9 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class TenantDomainResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'domains';
+
     protected static ?string $model = TenantDomain::class;
     protected static ?string $navigationIcon = 'heroicon-o-globe-alt';
     protected static ?string $navigationLabel = 'Custom Domains';

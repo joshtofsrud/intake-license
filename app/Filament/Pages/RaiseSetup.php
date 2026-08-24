@@ -14,6 +14,9 @@ use Livewire\WithFileUploads;
 // MARKER-RAISE-SETUP
 class RaiseSetup extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'raise';
+
     use WithFileUploads;
 
     protected static ?string $navigationIcon  = 'heroicon-o-adjustments-horizontal';

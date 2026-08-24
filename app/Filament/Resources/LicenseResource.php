@@ -12,6 +12,9 @@ use Filament\Tables\Table;
 
 class LicenseResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'config';
+
     protected static ?string $model = License::class;
     protected static ?string $navigationIcon = 'heroicon-o-key';
     protected static ?string $navigationGroup = 'Licensing';

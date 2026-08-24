@@ -15,6 +15,9 @@ use Filament\Pages\Page;
 
 class MarketingTraffic extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'analytics';
+
     protected static ?string $title           = 'Marketing Traffic';
     protected static ?string $slug            = 'marketing-traffic';
     protected static ?string $navigationIcon  = 'heroicon-o-chart-bar';

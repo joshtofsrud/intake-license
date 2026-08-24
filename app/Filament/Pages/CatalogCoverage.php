@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\DB;
  */
 class CatalogCoverage extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'catalog';
+
     protected static ?string $navigationIcon  = 'heroicon-o-scale';
     protected static ?string $navigationLabel = 'Catalog coverage';
     protected static ?string $navigationGroup = 'Distribution';

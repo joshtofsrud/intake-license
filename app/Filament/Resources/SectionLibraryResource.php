@@ -19,6 +19,9 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class SectionLibraryResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'marketing';
+
     // Sits on top of TenantPageSection but renders aggregated rows.
     protected static ?string $model = TenantPageSection::class;
 

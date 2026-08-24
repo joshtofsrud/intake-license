@@ -19,6 +19,9 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class PlatformNavItemResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'marketing';
+
     protected static ?string $model = TenantNavItem::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-bars-3';

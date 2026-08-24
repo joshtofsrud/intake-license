@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class DebugLogResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'logs';
+
     protected static ?string $model = DebugLog::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-bug-ant';

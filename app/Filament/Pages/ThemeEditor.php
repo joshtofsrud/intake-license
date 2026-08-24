@@ -31,6 +31,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class ThemeEditor extends Page implements HasForms
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'config';
+
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-swatch';

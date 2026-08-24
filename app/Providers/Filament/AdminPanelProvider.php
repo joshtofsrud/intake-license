@@ -105,6 +105,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\InvestorRecord::class, // MARKER-RAISE-RECORDS
                 \App\Filament\Pages\RaiseSetup::class, // MARKER-RAISE-SETUP
                 \App\Filament\Pages\TeamRoles::class, // MARKER-TEAM-ROLES — pages are EXPLICIT here, no auto-discovery
+                \App\Filament\Pages\RolesAccess::class, // MARKER-ADMIN-NAV-GATE
             ])
             ->widgets([
                 ServerHealthWidget::class,

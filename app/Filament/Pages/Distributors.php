@@ -25,6 +25,9 @@ use Illuminate\Support\Facades\DB;
  */
 class Distributors extends Page implements HasForms
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'catalog';
+
     use InteractsWithForms;
 
     protected static ?string $navigationIcon  = 'heroicon-o-building-storefront';

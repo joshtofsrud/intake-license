@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Builder;
 
 class SalesAgencyResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'reps';
+
     protected static ?string $model = SalesAgency::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-user-group';

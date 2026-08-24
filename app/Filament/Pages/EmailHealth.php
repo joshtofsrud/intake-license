@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\DB;
  */
 class EmailHealth extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'config';
+
     protected static ?string $navigationIcon  = 'heroicon-o-envelope';
     protected static ?string $navigationLabel = 'Email health';
     protected static ?string $navigationGroup = 'Platform';

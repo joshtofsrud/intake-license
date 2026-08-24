@@ -11,6 +11,9 @@ use Filament\Notifications\Notification;
 // MARKER-RAISE-ADMIN
 class Raise extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'raise';
+
     protected static ?string $navigationIcon  = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'Raise';
     protected static ?string $navigationGroup = 'Raise';

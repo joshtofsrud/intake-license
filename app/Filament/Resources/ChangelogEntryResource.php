@@ -17,6 +17,9 @@ use Filament\Tables\Table;
  */
 class ChangelogEntryResource extends Resource
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'marketing';
+
     protected static ?string $model = ChangelogEntry::class;
 
     protected static ?string $navigationIcon  = 'heroicon-o-megaphone';

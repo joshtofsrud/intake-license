@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\DB;
  */
 class CatalogItemLookup extends Page
 {
+    use \App\Support\GatedByAdminArea; // MARKER-ADMIN-NAV-GATE
+    protected static string $adminArea = 'catalog';
+
     protected static ?string $navigationIcon  = 'heroicon-o-magnifying-glass';
     protected static ?string $navigationLabel = 'Item lookup';
     protected static ?string $navigationGroup = 'Distribution';

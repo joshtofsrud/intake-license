@@ -132,27 +132,52 @@
 @endif
 
 @if($canManage)
-  <x-filament::section>
-    <x-slot name="heading">Invite user</x-slot>
-    <x-slot name="description">They set their own password after first sign-in — hand over the one-time password securely. Owner isn't invitable; reps come through the rep invite flow, never from here.</x-slot>
+  {{-- MARKER-TEAM-INVITE-MODAL — mockup screen 2: modal with role cards --}}
+  <div>
+    <x-filament::modal id="invite-user" width="lg">
+      <x-slot name="trigger">
+        <x-filament::button>Invite user</x-filament::button>
+      </x-slot>
+      <x-slot name="heading">Invite user</x-slot>
+      <x-slot name="description">They set their own password after first sign-in — hand over the one-time password securely.</x-slot>
 
-    <div class="grid gap-3 md:grid-cols-4">
-      <x-filament::input.wrapper>
-        <x-filament::input type="text" placeholder="Name" wire:model="inviteName" />
-      </x-filament::input.wrapper>
-      <x-filament::input.wrapper>
-        <x-filament::input type="email" placeholder="Email" wire:model="inviteEmail" />
-      </x-filament::input.wrapper>
-      <x-filament::input.wrapper>
-        <x-filament::input.select wire:model="inviteRole">
-          <option value="admin">Admin</option>
-          <option value="support">Support</option>
-          <option value="sales">Sales</option>
-        </x-filament::input.select>
-      </x-filament::input.wrapper>
-      <x-filament::button wire:click="invite">Create &amp; show password</x-filament::button>
-    </div>
-  </x-filament::section>
+      <div class="grid gap-3 md:grid-cols-2">
+        <x-filament::input.wrapper>
+          <x-filament::input type="text" placeholder="Name" wire:model="inviteName" />
+        </x-filament::input.wrapper>
+        <x-filament::input.wrapper>
+          <x-filament::input type="email" placeholder="Email" wire:model="inviteEmail" />
+        </x-filament::input.wrapper>
+      </div>
+
+      <div class="mt-4 space-y-2">
+        @foreach([
+          'admin'   => ['Admin', 'Everything except the raise and the owner controls on Team. For a future right hand, not day-one hires.'],
+          'support' => ['Support', 'Runs tenant support: accounts, features, domains, impersonation, logs. No sales, marketing, catalog changes, billing keys or raise.'],
+          'sales'   => ['Sales', 'Runs the pipeline: prospects, campaigns, quotes, reps and commissions, analytics. Tenants read-only; can\'t impersonate or touch settings.'],
+        ] as $rv => [$rl, $rd])
+          <button type="button"
+                  class="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition
+                         {{ $inviteRole === $rv ? 'border-primary-500 bg-primary-500/5' : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20' }}"
+                  wire:click="$set('inviteRole', '{{ $rv }}')">
+            <span class="mt-0.5 inline-block h-4 w-4 flex-shrink-0 rounded-full border-2
+                         {{ $inviteRole === $rv ? 'border-primary-500 bg-primary-500' : 'border-gray-400' }}"></span>
+            <span>
+              <span class="block text-sm font-semibold">{{ $rl }}</span>
+              <span class="block text-xs text-gray-500">{{ $rd }}</span>
+            </span>
+          </button>
+        @endforeach
+      </div>
+
+      <div class="mt-2 text-xs text-gray-500">Owner isn't invitable — there is exactly one. Reps come through the rep invite flow, never from here.</div>
+
+      <x-slot name="footerActions">
+        <x-filament::button wire:click="invite" x-on:click="$dispatch('close-modal', { id: 'invite-user' })">Create &amp; show password</x-filament::button>
+        <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'invite-user' })">Cancel</x-filament::button>
+      </x-slot>
+    </x-filament::modal>
+  </div>
 @else
   <x-filament::section>
     <div class="text-xs text-gray-500">You have view access. Only the owner can invite, change roles, suspend or remove staff.</div>
