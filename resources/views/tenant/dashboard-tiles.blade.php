@@ -12,7 +12,13 @@
   $L        = $launcher ?? [];
   $visible  = $tiles['visible'] ?? [];
   $hiddenT  = $tiles['hidden'] ?? [];
-  $cards    = collect($attention['cards'] ?? [])->filter(fn ($c) => ($c['count'] ?? 0) > 0)->values();
+  // MARKER-TILES-CARDS-MATCH — same sort as _zone_triage_tiles: red first,
+  // then amber, violet, blue; stable within a tone.
+  $toneWeight = ['red' => 0, 'amber' => 1, 'violet' => 2, 'blue' => 3];
+  $cards    = collect($attention['cards'] ?? [])
+      ->filter(fn ($c) => ($c['count'] ?? 0) > 0)
+      ->sortBy(fn ($c) => $toneWeight[$c['tone'] ?? 'blue'] ?? 99)
+      ->values();
 @endphp
 
 {{-- MARKER-DASH-HEAD-MATCH — identical head to the Overview view: same
@@ -54,8 +60,9 @@
 @if($cards->count())
   <div class="ia-tiles-zone">Needs you</div>
   <div class="ia-tiles-grid">
-    @foreach($cards->take(4) as $card)
-      <a class="ia-tile ia-tile--rust ia-tile--wide" href="{{ $card['link'] ?? '#' }}">
+    @foreach($cards as $card)
+      @php $tileTone = match ($card['tone'] ?? null) { 'red' => 'red', 'amber' => 'rust', 'violet' => 'plum', 'blue' => 'blue', default => 'rust' }; @endphp
+      <a class="ia-tile ia-tile--{{ $tileTone }} ia-tile--wide" href="{{ $card['link'] ?? '#' }}">
         <span class="badge alert">{{ $card['count'] }}</span>
         <div style="font-size:26px;font-weight:300;margin-top:auto;line-height:1">{{ $card['count'] }}</div>
         <div class="nm" style="margin-top:8px">{{ $card['title'] ?? '' }}</div>
