@@ -84,7 +84,9 @@ class InventoryController extends Controller
         // MARKER-ARCHIVE-MOVE — an archived item is soft-deleted AND
         // is_active=false, so it is invisible twice over. This is the only
         // way back to it.
-        $archived = $request->boolean('archived');
+        // MARKER-INV-LIST — reachable as a stock level now, with the old
+        // ?archived=1 links still honoured so nothing bookmarked breaks.
+        $archived = $request->boolean('archived') || $request->query('stock') === 'archived';
 
         $q = TenantInventoryItem::with(['category.parent']) // MARKER-CAT-TREE — path without N+1
             ->where('tenant_id', $tenant->id);
@@ -286,9 +288,17 @@ class InventoryController extends Controller
 
         $posCap = $this->inventoryCapContext($tenant);
 
+        // MARKER-INV-LIST — colour and size are empty for most catalogs, and
+        // two columns of "—" cost about a fifth of the table width. Decide
+        // per result set rather than per tenant, so filtering to a category
+        // that does use them still shows them.
+        $showColor = $items->contains(fn ($i) => filled($i->color ?? null));
+        $showSize  = $items->contains(fn ($i) => filled($i->size ?? null));
+
         return view('tenant.inventory.index', compact(
             'items', 'categories', 'hasCategories',
             'categoryTree', 'includeSubs', 'locStocks', 'allLocations', // MARKER-CAT-TREE
+            'showColor', 'showSize', // MARKER-INV-LIST
             'archived', // MARKER-ARCHIVE-MOVE
             'total', 'search', 'category', 'stock', 'sort', 'page', 'perPage',
             'brand', 'distributor', 'brandOptions', 'distributorOptions', // MARKER-INV-BRAND-DIST

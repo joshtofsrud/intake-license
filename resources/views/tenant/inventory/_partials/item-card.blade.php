@@ -33,7 +33,10 @@
   <td class="inv-row-bar" style="width:4px;padding:0;background:{{ $barColor }};border-radius:0"></td>
 
   <td class="inv-row-identity">
-    <div class="inv-row-name">{{ $item->name }}</div>
+    {{-- MARKER-INV-LIST — distributor names run 90+ characters and wrapped
+         to eight lines. Two lines identifies the item; the full name is in
+         the tooltip and on the item page. --}}
+    <div class="inv-row-name" title="{{ $item->name }}">{{ $item->name }}</div>
     <div class="inv-row-meta">
       <code class="inv-row-sku">{{ $item->sku }}</code>
       @if($item->category)
@@ -63,22 +66,21 @@
     @endif
   </td>
 
-  <td class="inv-row-color">
-    {{ $item->color ?? '—' }}
-  </td>
-
-  <td class="inv-row-size">
-    {{ $item->size ?? '—' }}
-  </td>
+  {{-- MARKER-INV-LIST — only when something in this result set uses them. --}}
+  @if($showColor ?? false)
+    <td class="inv-row-color">{{ $item->color ?? '—' }}</td>
+  @endif
+  @if($showSize ?? false)
+    <td class="inv-row-size">{{ $item->size ?? '—' }}</td>
+  @endif
 
   <td class="inv-row-stock">
     <div class="inv-row-stock-num" style="color:{{ $stockColor }}">{{ $stock }}</div>
-    @if($statusCopy || ($isMulti && $totalStock !== $hereStock))
-      <div class="inv-row-stock-meta">
-        @if($statusCopy) {{ $statusCopy }} @endif
-        @if($statusCopy && $isMulti && $totalStock !== $hereStock) · @endif
-        @if($isMulti && $totalStock !== $hereStock) {{ $totalStock }} total @endif
-      </div>
+    {{-- MARKER-INV-LIST — "0" above "Out" said the same thing twice; the
+         coloured number carries it. The second line is kept only where it
+         adds something the number doesn't: a multi-location total. --}}
+    @if($isMulti && $totalStock !== $hereStock)
+      <div class="inv-row-stock-meta">{{ $totalStock }} total</div>
     @endif
   </td>
 

@@ -15,6 +15,8 @@
     ''     => 'All stock levels',
     'low'  => 'Low stock only',
     'out'  => 'Out of stock only',
+    // MARKER-INV-LIST — was a header button; it's a state, not a place.
+    'archived' => 'Archived',
   ];
 @endphp
 
@@ -101,7 +103,10 @@
 .inv-row td { vertical-align: middle; }
 .inv-row-bar { padding: 0 !important; }
 .inv-row-identity { padding-left: 12px !important; }
-.inv-row-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; color: var(--ia-text); }
+/* MARKER-INV-LIST — two lines, not eight. Row height falls from ~300px
+   to ~64px, which is the whole point of this patch. */
+.inv-row-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; color: var(--ia-text);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .inv-row-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; flex-wrap: wrap; }
 /* MARKER-CAT-TREE */
 .inv-split{display:flex;gap:16px;align-items:flex-start}
@@ -143,12 +148,10 @@
     <p class="ia-page-subtitle">{{ number_format($total) }} {{ Str::plural('item', $total) }}</p>
   </div>
   <div class="ia-page-actions">
-    {{-- MARKER-PATCH-158-G10 — Categories link always visible (was only shown
-         when categories were empty, leaving no entry point once 1+ existed). --}}
-    <a href="{{ route('tenant.inventory.categories.index') }}" class="ia-btn">Categories</a>
-    {{-- MARKER-ARCHIVE-MOVE --}}
-    <a href="{{ route('tenant.inventory.index', ['archived' => 1]) }}" class="ia-btn">Archived</a>
-    <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn">Receiving ↓</a>
+    {{-- MARKER-INV-LIST — Categories, Receiving and Reports are tabs in
+         _inventory-tabs; repeating them here was navigation twice over.
+         Archived moved into the stock-level filter, where it belongs: it's
+         a state, not a destination. --}}
     @if($hasCategories)
       <a href="{{ route('tenant.inventory.create') }}" class="ia-btn ia-btn--primary">+ New item</a>
     @else
@@ -389,8 +392,9 @@
           <th style="width:4px;padding:0"></th>
           <th>Item</th>
           <th>UPC</th>
-          <th>Color</th>
-          <th>Size</th>
+          {{-- MARKER-INV-LIST --}}
+          @if($showColor ?? false)<th>Color</th>@endif
+          @if($showSize ?? false)<th>Size</th>@endif
           <th style="text-align:right">{{ ($isMultiLocation ?? false) && ($currentLocation->name ?? null) ? 'Stock at ' . $currentLocation->name : 'Stock' }}</th>
           <th style="text-align:right">Price</th>
           <th style="text-align:right">Cost</th>
