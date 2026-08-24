@@ -711,6 +711,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // Inventory (POS Phase 1) — gated by `retail` capability via FeatureAccessService
             Route::prefix('inventory')->name('inventory.')->group(function () {
                 Route::get('/',                  [TenantControllers\InventoryController::class, 'index'])->name('index');
+                // MARKER-INV-REPORTS — must precede /{id} below.
+                Route::get('/reports',           [TenantControllers\InventoryReportController::class, 'index'])->name('reports');
                 Route::get('/create',            [TenantControllers\InventoryController::class, 'create'])->name('create');
                 Route::post('/',                 [TenantControllers\InventoryController::class, 'store'])->name('store');
                 Route::get('/categories',        [TenantControllers\InventoryCategoryController::class, 'index'])->name('categories.index');

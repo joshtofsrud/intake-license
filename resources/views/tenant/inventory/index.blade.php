@@ -149,6 +149,8 @@
     {{-- MARKER-ARCHIVE-MOVE --}}
     <a href="{{ route('tenant.inventory.index', ['archived' => 1]) }}" class="ia-btn">Archived</a>
     <a href="{{ route('tenant.inventory.receiving.index') }}" class="ia-btn">Receiving ↓</a>
+    {{-- MARKER-INV-REPORTS --}}
+    <a href="{{ route('tenant.inventory.reports') }}" class="ia-btn">Reports</a>
     @if($hasCategories)
       <a href="{{ route('tenant.inventory.create') }}" class="ia-btn ia-btn--primary">+ New item</a>
     @else
