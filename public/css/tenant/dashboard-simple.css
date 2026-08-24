@@ -112,3 +112,22 @@
 }
 
 @media (max-width: 820px) { .ia-tiles-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* MARKER-TILES-NEEDSYOU-COLLAPSE — collapsed "needs you" bar */
+.ia-needsyou-bar {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  border: none; cursor: pointer; text-align: left; font-family: inherit;
+  border-radius: 12px; padding: 12px 16px; margin-bottom: 18px; color: #fff;
+}
+.ia-needsyou-bar--red   { background: #7F1D1D; }
+.ia-needsyou-bar--amber { background: #7C2D12; }
+.ia-needsyou-count  { font-size: 20px; font-weight: 600; line-height: 1; }
+.ia-needsyou-label  { font-size: 13px; font-weight: 600; }
+.ia-needsyou-titles { font-size: 12px; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ia-needsyou-chev   { font-size: 12px; opacity: .7; }
+.ia-needsyou-zone, .ia-jumpto-zone { display: flex; align-items: center; gap: 10px; }
+.ia-needsyou-min {
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: 11px; color: var(--ia-text-dim, #9a9aa2); padding: 0;
+}
+.ia-needsyou-min:hover { color: var(--ia-text, #e7e7ea); }

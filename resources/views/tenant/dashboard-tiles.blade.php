@@ -44,7 +44,6 @@
     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
-    <button type="button" class="ia-btn ia-btn--sm" id="ia-tiles-edit">Edit tiles</button>
     <div class="ia-viewseg">
       <form method="POST" action="{{ route('tenant.dashboard.view') }}">
         @csrf<input type="hidden" name="view" value="overview">
@@ -58,8 +57,18 @@
 {{-- Needs you today: kept deliberately. Simple shouldn't mean blind to a
      booking that's waiting. --}}
 @if($cards->count())
-  <div class="ia-tiles-zone">Needs you</div>
-  <div class="ia-tiles-grid">
+  {{-- MARKER-TILES-NEEDSYOU-COLLAPSE --}}
+  @php $worstTone = $cards->contains(fn ($c) => ($c['tone'] ?? '') === 'red') ? 'red' : 'amber'; @endphp
+  <button type="button" id="ia-needsyou-bar" class="ia-needsyou-bar ia-needsyou-bar--{{ $worstTone }}" hidden>
+    <span class="ia-needsyou-count">{{ $cards->sum('count') }}</span>
+    <span class="ia-needsyou-label">need you</span>
+    <span class="ia-needsyou-titles">{{ $cards->pluck('title')->take(3)->implode(' · ') }}@if($cards->count() > 3) · +{{ $cards->count() - 3 }} more @endif</span>
+    <span class="ia-needsyou-chev">▾</span>
+  </button>
+  <div class="ia-tiles-zone ia-needsyou-zone">Needs you
+    <button type="button" id="ia-needsyou-collapse" class="ia-needsyou-min" title="Collapse">— collapse</button>
+  </div>
+  <div class="ia-tiles-grid" id="ia-needsyou-grid">
     @foreach($cards as $card)
       @php $tileTone = match ($card['tone'] ?? null) { 'red' => 'red', 'amber' => 'rust', 'violet' => 'plum', 'blue' => 'blue', default => 'rust' }; @endphp
       <a class="ia-tile ia-tile--{{ $tileTone }} ia-tile--wide" href="{{ $card['link'] ?? '#' }}">
@@ -72,7 +81,9 @@
   </div>
 @endif
 
-<div class="ia-tiles-zone">Jump to</div>
+<div class="ia-tiles-zone ia-jumpto-zone">Jump to
+  <button type="button" class="ia-btn ia-btn--sm" id="ia-tiles-edit" style="margin-left:auto">Edit tiles</button>
+</div>
 <div class="ia-tiles-grid" id="ia-tiles-grid">
   @foreach($visible as $key => $def)
     <a class="ia-tile ia-tile--{{ $def['tone'] }}" href="{{ route($def['route']) }}"
@@ -115,6 +126,29 @@
 @endsection
 
 @push('scripts')
+<script>
+/* MARKER-TILES-NEEDSYOU-COLLAPSE — own scope, deliberately separate from the
+   edit-tiles script below (shared blocks die whole on one duplicate const). */
+(function () {
+  var KEY  = 'ia-needsyou-collapsed';
+  var bar  = document.getElementById('ia-needsyou-bar');
+  var zone = document.querySelector('.ia-needsyou-zone');
+  var grid = document.getElementById('ia-needsyou-grid');
+  var min  = document.getElementById('ia-needsyou-collapse');
+  if (!bar || !zone || !grid) return;
+  function apply(collapsed) {
+    bar.hidden  = !collapsed;
+    zone.hidden = collapsed;
+    grid.hidden = collapsed;
+    try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch (e) {}
+  }
+  bar.addEventListener('click', function () { apply(false); });
+  if (min) min.addEventListener('click', function () { apply(true); });
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (saved === '1') apply(true);
+})();
+</script>
 <script>
 // MARKER-TILES — reorder, hide, restore. Saves on Done rather than on every
 // drag, so a reorder is one request instead of a dozen.
