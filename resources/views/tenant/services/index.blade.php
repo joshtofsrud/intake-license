@@ -196,9 +196,13 @@
 .sv-cat-mini.primary{background:var(--ia-accent);border-color:var(--ia-accent);color:var(--ia-accent-text,#0d0d0d)}
 .sv-cat-mini.danger{background:#E88B8B;border-color:#E88B8B;color:#160b0b}
 .sv-cat-mini:disabled{opacity:.5;cursor:not-allowed}
-.sv-cat-confirm{margin:0 14px 8px;padding:9px 11px;border-radius:8px;font-size:11.5px;line-height:1.5;
-  border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.07)}
-.sv-cat-confirm.is-danger{border-color:rgba(240,120,120,.4);background:rgba(240,120,120,.07)}
+/* MARKER-SVC-CAT-FLUSH — full-bleed inside the list so it reads as a
+   highlighted row, not a card floating between two others. */
+.sv-cat-confirm{margin:0;padding:10px 14px;border-radius:0;font-size:11.5px;line-height:1.5;
+  border:0;border-top:1px solid rgba(251,191,36,.35);border-bottom:1px solid rgba(251,191,36,.35);
+  border-left:3px solid rgba(251,191,36,.55);background:rgba(251,191,36,.07)}
+.sv-cat-confirm.is-danger{border-top-color:rgba(240,120,120,.35);border-bottom-color:rgba(240,120,120,.35);
+  border-left-color:rgba(240,120,120,.55);background:rgba(240,120,120,.07)}
 .sv-cat-confirm .t{font-weight:700;font-size:12px;margin-bottom:2px;color:#FBBF24}
 .sv-cat-confirm.is-danger .t{color:#F0999B}
 .sv-cat-confirm .s{color:var(--ia-text-dim)}
