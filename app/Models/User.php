@@ -11,7 +11,7 @@ class User extends Authenticatable implements FilamentUser
 {
     use Notifiable;
 
-    protected $fillable = ['name', 'email', 'password', 'is_admin'];
+    protected $fillable = ['name', 'email', 'password', 'is_admin', 'role', 'suspended_at']; // MARKER-ADMIN-ROLES
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -19,6 +19,7 @@ class User extends Authenticatable implements FilamentUser
         'email_verified_at' => 'datetime',
         'password'          => 'hashed',
         'is_admin'          => 'boolean',
+        'suspended_at'      => 'datetime', // MARKER-ADMIN-ROLES
     ];
 
     /**
@@ -42,14 +43,32 @@ class User extends Authenticatable implements FilamentUser
     // MUST use this: 'auth' alone also admits rep accounts.
     public function isMasterAdmin(): bool
     {
+        // MARKER-ADMIN-ROLES — now role-based: owner or admin, never suspended.
+        if (($this->suspended_at ?? null) !== null) {
+            return false;
+        }
+        return in_array($this->roleName(), ['owner', 'admin'], true);
+    }
+
+    /**
+     * MARKER-ADMIN-ROLES — the user's effective role. Bootstrap ADMIN_EMAIL is
+     * always owner. Pre-migration fallback keeps the old is_admin semantics.
+     */
+    public function roleName(): ?string
+    {
         $bootstrap = strtolower((string) config('intake.admin_email', ''));
         if ($bootstrap !== '' && strtolower((string) $this->email) === $bootstrap) {
-            return true;
+            return 'owner';
         }
-        if (array_key_exists('is_admin', $this->getAttributes())) {
-            return (bool) $this->is_admin;
+        $attrs = $this->getAttributes();
+        $role = $attrs['role'] ?? null;
+        if ($role !== null && $role !== '') {
+            return $role;
         }
-        return true; // column not migrated yet — same safety valve as canAccessPanel
+        if (array_key_exists('is_admin', $attrs)) {
+            return $this->is_admin ? 'admin' : null;
+        }
+        return 'admin'; // columns not migrated yet — same safety valve as before
     }
 
     public function canAccessPanel(Panel $panel): bool
@@ -58,20 +77,12 @@ class User extends Authenticatable implements FilamentUser
             return $this->salesRep()->where('status', 'active')->exists();
         }
 
-        // Bootstrap admin from env is always allowed
-        $bootstrap = strtolower((string) config('intake.admin_email', '')); // MARKER-PATCH-224B
-        if ($bootstrap !== '' && strtolower((string) $this->email) === $bootstrap) {
-            return true;
+        // MARKER-ADMIN-ROLES — the admin panel admits all four staff roles;
+        // per-area access inside it is enforced by EnforceAdminArea.
+        // Suspension blocks the panel outright.
+        if (($this->suspended_at ?? null) !== null) {
+            return false;
         }
-
-        // If the column exists and is true, allow
-        if (array_key_exists('is_admin', $this->getAttributes())) {
-            return (bool) $this->is_admin;
-        }
-
-        // Column not present yet (migration hasn't run on this box) — allow,
-        // because if you've authenticated as a row in `users` at all, you
-        // were put there deliberately. Tighten this once the migration runs.
-        return true;
+        return in_array($this->roleName(), \App\Support\AdminAccess::STAFF_ROLES, true);
     }
 }

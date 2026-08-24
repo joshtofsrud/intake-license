@@ -104,6 +104,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\Raise::class, // MARKER-RAISE-ADMIN — panel lists pages explicitly, no auto-discovery
                 \App\Filament\Pages\InvestorRecord::class, // MARKER-RAISE-RECORDS
                 \App\Filament\Pages\RaiseSetup::class, // MARKER-RAISE-SETUP
+                \App\Filament\Pages\TeamRoles::class, // MARKER-TEAM-ROLES — pages are EXPLICIT here, no auto-discovery
             ])
             ->widgets([
                 ServerHealthWidget::class,
@@ -154,6 +155,7 @@ class AdminPanelProvider extends PanelProvider
             ->authGuard('web')
             ->authMiddleware([
                 Authenticate::class,
+                \App\Http\Middleware\EnforceAdminArea::class, // MARKER-ADMIN-ROLES
             ]);
     }
 }

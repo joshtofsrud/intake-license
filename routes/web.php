@@ -62,9 +62,10 @@ Route::domain($domain)->group(function () {
         ->where('industry', '[a-z0-9-]+')
         ->name('marketing.industry');
 
-    // --- Impersonation (admin only) ---
-    // MARKER-ADMIN-GATE — 'auth' alone also admits rep accounts.
-    Route::middleware(['auth', \App\Http\Middleware\EnsureMasterAdmin::class])->group(function () {
+    // --- Impersonation (owner / admin / support) ---
+    // MARKER-ADMIN-ROLES — area check; the marketing bridge below stays
+    // owner/admin via EnsureMasterAdmin.
+    Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':impersonation'])->group(function () {
         Route::post('/admin/impersonate/{tenantId}', [\App\Http\Controllers\Admin\ImpersonationController::class, 'impersonate'])->name('admin.impersonate');
         Route::get('/admin/impersonate/stop',         [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
     });
