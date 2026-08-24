@@ -72,7 +72,7 @@ class TeamRoles extends Page
         $activity = collect();
         if ($selected) {
             $activity = \App\Models\DebugLog::query()
-                ->where('category', 'audit')
+                ->where('channel', 'audit') // MARKER-TEAM-ACTIVITY-CHANNEL-FIX
                 ->where('subject_type', User::class)
                 ->where('subject_id', $selected->id)
                 ->latest()
