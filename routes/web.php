@@ -63,7 +63,8 @@ Route::domain($domain)->group(function () {
         ->name('marketing.industry');
 
     // --- Impersonation (admin only) ---
-    Route::middleware(['auth'])->group(function () {
+    // MARKER-ADMIN-GATE — 'auth' alone also admits rep accounts.
+    Route::middleware(['auth', \App\Http\Middleware\EnsureMasterAdmin::class])->group(function () {
         Route::post('/admin/impersonate/{tenantId}', [\App\Http\Controllers\Admin\ImpersonationController::class, 'impersonate'])->name('admin.impersonate');
         Route::get('/admin/impersonate/stop',         [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
     });
@@ -71,7 +72,8 @@ Route::domain($domain)->group(function () {
     // --- Marketing page editor bridge (admin only) ---
     // GET hands off to the tenant page builder view with platform tenant bound.
     // POST handles auto-save (section content, nav, page meta).
-    Route::middleware(['auth'])->group(function () {
+    // MARKER-ADMIN-GATE — 'auth' alone also admits rep accounts.
+    Route::middleware(['auth', \App\Http\Middleware\EnsureMasterAdmin::class])->group(function () {
         Route::get('/admin/marketing-pages/{pageId}/edit-content',
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'editContent']
         )->name('admin.marketing-pages.edit-content');

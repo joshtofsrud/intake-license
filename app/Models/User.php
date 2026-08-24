@@ -37,6 +37,21 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasOne(\App\Models\SalesRep::class, 'user_id');
     }
 
+    // MARKER-ADMIN-GATE — the same admin test canAccessPanel applies, callable
+    // from route middleware. Bridge routes (impersonation, marketing pages)
+    // MUST use this: 'auth' alone also admits rep accounts.
+    public function isMasterAdmin(): bool
+    {
+        $bootstrap = strtolower((string) config('intake.admin_email', ''));
+        if ($bootstrap !== '' && strtolower((string) $this->email) === $bootstrap) {
+            return true;
+        }
+        if (array_key_exists('is_admin', $this->getAttributes())) {
+            return (bool) $this->is_admin;
+        }
+        return true; // column not migrated yet — same safety valve as canAccessPanel
+    }
+
     public function canAccessPanel(Panel $panel): bool
     {
         if ($panel->getId() === 'rep') {
