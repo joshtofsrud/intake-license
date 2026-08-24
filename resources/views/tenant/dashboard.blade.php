@@ -100,7 +100,9 @@
     <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
       + New sale
     </a>
-    <a href="{{ route('tenant.appointments.index') }}" class="ia-btn ia-btn--primary">
+    {{-- MARKER-DASH-NEWAPPT — was a bare link to the list, which meant
+         hunting for the real button once you got there. --}}
+    <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
   </div>

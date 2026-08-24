@@ -509,6 +509,23 @@ td.ia-inline-cell { cursor: default; }
 
 @include('tenant.appointments._create_modal')
 
+{{-- MARKER-DASH-NEWAPPT — arriving with ?new=1 (from the dashboard, or any
+     other "new appointment" entry point) opens the modal straight away. --}}
+@if(request()->query('new'))
+  <script>
+    window.addEventListener('DOMContentLoaded', function () {
+      if (typeof window.openApptModal !== 'function') return;
+      window.openApptModal();
+      // Drop the flag so a refresh or a back-navigation doesn't reopen it.
+      try {
+        var u = new URL(window.location.href);
+        u.searchParams.delete('new');
+        window.history.replaceState({}, '', u.pathname + (u.search || '') + u.hash);
+      } catch (e) {}
+    });
+  </script>
+@endif
+
 @endsection
 
 @push('scripts')
