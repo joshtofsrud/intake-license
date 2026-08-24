@@ -213,7 +213,6 @@ chmod 640 "${APP_DIR}/.env"
 # ---------------------------------------------------------------------------
 log "Running Composer install..."
 sudo -u "${DEPLOY_USER}" composer install \
-  --no-dev \
   --optimize-autoloader \
   --no-interaction \
   --working-dir="${APP_DIR}"

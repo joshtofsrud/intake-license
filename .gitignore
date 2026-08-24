@@ -64,3 +64,15 @@ Tenant::*
 /patch-*.sh
 patch-*.py
 database/database.sqlite
+
+# ===== MARKER-REPO-CLEANUP: patch scripts & scratch never belong in the repo =====
+# Root-anchored: deploy/ and vendored scripts in subdirectories are unaffected.
+/*.sh
+/*.py
+/apply-*
+/chunk-*
+/*.zip
+/*.sql
+.DS_Store
+# the one root script that IS the repo's business:
+!/intake-deploy.sh
