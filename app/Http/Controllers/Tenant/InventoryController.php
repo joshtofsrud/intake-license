@@ -256,27 +256,33 @@ class InventoryController extends Controller
             ->pluck('c', 'category_id')
             ->toArray();
 
+        // MARKER-CAT-DEPTH — this used to walk roots and their direct
+        // children ONLY, so anything nested deeper was invisible in the
+        // sidebar and absent from the filter even though it held items.
+        // Flat-with-depth (not nested) because a <select> can't nest, and
+        // it keeps the sidebar, the dropdown and the scope chip reading
+        // the same shape.
         $categoryTree = [];
-        foreach ($allCats->whereNull('parent_id') as $root) {
-            $children = [];
-            foreach ($allCats->where('parent_id', $root->id) as $child) {
-                $children[] = [
-                    'cat'   => $child,
-                    'count' => array_sum(array_map(
+        $walk = function ($parentId, int $depth) use (&$walk, $allCats, $catCounts, &$categoryTree) {
+            foreach ($allCats->where('parent_id', $parentId) as $cat) {
+                $kids = $allCats->where('parent_id', $cat->id);
+                $categoryTree[] = [
+                    'cat'      => $cat,
+                    'depth'    => $depth,
+                    'kids'     => $kids->count(),
+                    // Count rolls up the whole subtree, as it always did.
+                    'count'    => array_sum(array_map(
                         fn ($id) => $catCounts[$id] ?? 0,
-                        self::descendantCategoryIds($allCats, $child->id)
+                        self::descendantCategoryIds($allCats, $cat->id)
                     )),
+                    // Kept so anything still reading ['children'] gets the
+                    // direct children rather than a fatal.
+                    'children' => [],
                 ];
+                $walk($cat->id, $depth + 1);
             }
-            $categoryTree[] = [
-                'cat'      => $root,
-                'children' => $children,
-                'count'    => array_sum(array_map(
-                    fn ($id) => $catCounts[$id] ?? 0,
-                    self::descendantCategoryIds($allCats, $root->id)
-                )),
-            ];
-        }
+        };
+        $walk(null, 0);
 
         $posCap = $this->inventoryCapContext($tenant);
 

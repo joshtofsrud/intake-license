@@ -236,11 +236,11 @@
   {{-- MARKER-CAT-TREE — parents first, children indented beneath them --}}
   <select name="category" class="ia-input" style="width:auto">
     <option value="">All categories</option>
+    {{-- MARKER-CAT-DEPTH — one flat loop; depth carries the nesting. --}}
     @foreach($categoryTree as $node)
-      <option value="{{ $node['cat']->id }}" @selected($category === $node['cat']->id)>{{ $node['cat']->name }}</option>
-      @foreach($node['children'] as $child)
-        <option value="{{ $child['cat']->id }}" @selected($category === $child['cat']->id)>&nbsp;&nbsp;└ {{ $child['cat']->name }}</option>
-      @endforeach
+      <option value="{{ $node['cat']->id }}" @selected($category === $node['cat']->id)>
+        {!! $node['depth'] ? str_repeat('&nbsp;&nbsp;', $node['depth']) . '└ ' : '' !!}{{ $node['cat']->name }}
+      </option>
     @endforeach
   </select>
   @unless($includeSubs)<input type="hidden" name="subs" value="0">@endunless
@@ -330,29 +330,38 @@
   <div class="hd">Categories</div>
   <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null])) }}"
      class="{{ $category ? '' : 'sel' }}">All items</a>
+  {{-- MARKER-CAT-DEPTH — one loop at any depth. Indent is capped at 3
+       steps so a deep tree still fits the rail instead of sliding off. --}}
   @foreach($categoryTree as $node)
+    @php $inDepth = min($node['depth'], 3); @endphp
     <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$node['cat']->id,'subs'=>$includeSubs?null:'0'])) }}"
-       class="{{ $category === $node['cat']->id ? 'sel' : '' }}">
+       class="{{ $category === $node['cat']->id ? 'sel' : '' }} {{ $node['depth'] ? 'is-child' : '' }}"
+       style="padding-left:{{ 10 + $inDepth * 13 }}px"
+       @if($node['depth'] > 3) title="{{ $node['cat']->name }}" @endif>
       <span>{{ $node['cat']->name }}</span><span class="cnt">{{ $node['count'] }}</span>
     </a>
-    @if(count($node['children']))
-      <div class="kids">
-        @foreach($node['children'] as $child)
-          <a href="{{ route('tenant.inventory.index', array_filter(['s'=>$search,'stock'=>$stock,'sort'=>$sort!=='name_asc'?$sort:null,'category'=>$child['cat']->id])) }}"
-             class="{{ $category === $child['cat']->id ? 'sel' : '' }}">
-            <span>{{ $child['cat']->name }}</span><span class="cnt">{{ $child['count'] }}</span>
-          </a>
-        @endforeach
-      </div>
-    @endif
   @endforeach
 </aside>
 @endif
 
 <div style="flex:1;min-width:0">
 @php
-  $selNode = collect($categoryTree)->firstWhere('cat.id', $category);
-  $subCount = $selNode ? count($selNode['children']) : 0;
+  // MARKER-CAT-DEPTH — firstWhere on a two-level array never matched a
+  // child, so picking one showed no scope chip even when it had children
+  // of its own. The flat tree finds every node, and the count is the
+  // whole subtree rather than just the direct children.
+  $selNode  = collect($categoryTree)->first(fn ($n) => $n['cat']->id === $category);
+  $subCount = 0;
+  if ($selNode) {
+      $selDepth = $selNode['depth'];
+      $seen = false;
+      foreach ($categoryTree as $n) {
+          if ($n['cat']->id === $category) { $seen = true; continue; }
+          if (! $seen) continue;
+          if ($n['depth'] <= $selDepth) break;   // left the subtree
+          $subCount++;
+      }
+  }
 @endphp
 @if($category && $subCount)
   <div class="inv-scope">
