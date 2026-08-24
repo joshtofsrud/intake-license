@@ -263,7 +263,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
     Route::post('/webhooks/paypal',  [TenantControllers\BookingController::class, 'paypalWebhook'])->name('tenant.webhook.paypal');
 
-    Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit');
+    // MARKER-CONTACT-SPAM — this was the only public POST without a limit;
+    // gift cards, register and login have all had one.
+    Route::post('/contact',  [TenantControllers\PublicController::class, 'contact'])->name('tenant.contact.submit')->middleware('throttle:5,1');
 
     Route::prefix('admin')
         ->name('tenant.')

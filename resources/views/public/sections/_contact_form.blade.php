@@ -235,6 +235,14 @@
 
     <form method="POST" action="/contact">
       @csrf
+      {{-- MARKER-CONTACT-SPAM — the honeypot the controller has always
+           checked for. This form never rendered it, so PATCH-399's check
+           did nothing here; the footer form had it all along. --}}
+      <input type="text" name="company_website" tabindex="-1" autocomplete="off" aria-hidden="true"
+             style="position:absolute !important;left:-9999px !important;top:auto;width:1px;height:1px;opacity:0;pointer-events:none">
+      {{-- Signed render time: a submission that arrives in under 3 seconds
+           wasn't typed by a person. --}}
+      <input type="hidden" name="form_started_at" value="{{ encrypt(time()) }}">
 
       @if($errors->any())
         <div class="p-cf-flash p-cf-flash--error">{{ $errors->first() }}</div>

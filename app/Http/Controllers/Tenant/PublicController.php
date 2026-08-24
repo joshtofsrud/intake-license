@@ -72,6 +72,27 @@ class PublicController extends Controller
             return back()->with('contact_success', true);
         }
 
+        // MARKER-CONTACT-SPAM — minimum fill time. The value is encrypted at
+        // render, so it can't be forged or replayed with a stale timestamp.
+        // Same silent success as the honeypot: a bot that learns which check
+        // caught it just works around that one.
+        $startedRaw = $request->input('form_started_at');
+        if (filled($startedRaw)) {
+            try {
+                $started = (int) decrypt($startedRaw);
+                if (time() - $started < 3) {
+                    return back()->with('contact_success', true);
+                }
+                // Older than a day means a stale page or a replayed payload.
+                if (time() - $started > 86400) {
+                    return back()->with('contact_success', true);
+                }
+            } catch (\Throwable $e) {
+                // Tampered or undecryptable — treat as a bot, quietly.
+                return back()->with('contact_success', true);
+            }
+        }
+
         // MARKER-CONTACT-NAMES — the form now posts first_name and last_name,
         // both required, because a single "name" field let people through with
         // one word and the inbox filled with half-identified customers.
