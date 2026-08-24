@@ -105,6 +105,14 @@
     <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
       + New appointment
     </a>
+    {{-- MARKER-DASH-HEAD-MATCH — toggle lives in the page head on both views --}}
+    <div class="ia-viewseg" style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px">
+      <button type="button" class="on" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit">Overview</button>
+      <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
+        @csrf<input type="hidden" name="view" value="tiles">
+        <button type="submit" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit">Tiles</button>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -141,17 +149,7 @@
 @endif
 
 {{-- MARKER-PATCH-110-STEP-10b --}}
-{{-- MARKER-TILES — the only change to this view: a way to reach the
-     simplified dashboard. Every zone below is untouched. --}}
-<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-  <div class="ia-viewseg" style="display:inline-flex;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:9px;padding:3px">
-    <button type="button" class="on" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:var(--ia-surface-2);color:var(--ia-text);border:none;cursor:pointer;font-family:inherit">Overview</button>
-    <form method="POST" action="{{ route('tenant.dashboard.view') }}" style="margin:0;display:inline">
-      @csrf<input type="hidden" name="view" value="tiles">
-      <button type="submit" style="padding:6px 13px;font-size:12px;font-weight:600;border-radius:6px;background:none;color:var(--ia-text-dim);border:none;cursor:pointer;font-family:inherit">Tiles</button>
-    </form>
-  </div>
-</div>
+{{-- MARKER-DASH-HEAD-MATCH — toggle moved into the page head above --}}
 
 @include('tenant.dashboard._zone_triage_tiles')
 @include('tenant.dashboard._zone_today_tile')

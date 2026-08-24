@@ -15,15 +15,29 @@
   $cards    = collect($attention['cards'] ?? [])->filter(fn ($c) => ($c['count'] ?? 0) > 0)->values();
 @endphp
 
-<div class="ia-tiles-head">
-  <div>
-    <div class="ia-tiles-greet">{{ $greeting['name'] ? 'Good ' . $greeting['time_of_day'] . ', ' . $greeting['name'] . '.' : 'Good ' . $greeting['time_of_day'] . '.' }}</div>
-    <div class="ia-tiles-sub">
-      {{ tlocal_date(tnow(), 'l, F j') }}
-      @if($cards->count()) · <b>{{ $cards->count() }} {{ Str::plural('thing', $cards->count()) }} need you today</b>@endif
-    </div>
+{{-- MARKER-DASH-HEAD-MATCH — identical head to the Overview view: same
+     greeting construction, same bold long date, same amber attention count
+     (attention total, not the visible-card count), same action buttons. --}}
+<div class="ia-page-head ia-tiles-head">
+  <div class="ia-page-head-left">
+    <h1 class="ia-page-title">{{ $greeting['name'] ? 'Good ' . $greeting['time_of_day'] . ', ' . $greeting['name'] . '.' : 'Good ' . $greeting['time_of_day'] . '.' }}</h1>
+    <p class="ia-page-subtitle">
+      <strong>{{ $greeting['date_long'] }}</strong>
+      @php $attentionCount = $attention['total_items'] ?? 0; @endphp
+      @if($attentionCount > 0)
+        · <span style="color:#F59E0B;font-weight:600">{{ $attentionCount }} {{ Str::plural('thing', $attentionCount) }} {{ $attentionCount === 1 ? 'needs' : 'need' }} you today</span>
+      @else
+        · <span style="color:var(--ia-accent);font-weight:600">all caught up · enjoy the calm</span>
+      @endif
+    </p>
   </div>
-  <div class="ia-tiles-actions">
+  <div class="ia-page-actions ia-tiles-actions">
+    <a href="{{ route('tenant.register.index') }}" class="ia-btn ia-btn--primary">
+      + New sale
+    </a>
+    <a href="{{ route('tenant.appointments.index', ['new' => 1]) }}" class="ia-btn ia-btn--primary">
+      + New appointment
+    </a>
     <button type="button" class="ia-btn ia-btn--sm" id="ia-tiles-edit">Edit tiles</button>
     <div class="ia-viewseg">
       <form method="POST" action="{{ route('tenant.dashboard.view') }}">
