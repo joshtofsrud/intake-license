@@ -1,133 +1,188 @@
 <x-filament-panels::page>
 <!-- MARKER-TEAM-ROLES -->
+<!-- MARKER-TEAM-ROLES-V2 -->
 
 @php
     $badge = function (?string $r): string {
         return match ($r) {
-            'owner'   => 'bg-lime-400/10 text-lime-300 ring-lime-400/30',
-            'admin'   => 'bg-sky-400/10 text-sky-300 ring-sky-400/30',
-            'support' => 'bg-teal-400/10 text-teal-300 ring-teal-400/30',
-            'sales'   => 'bg-amber-400/10 text-amber-300 ring-amber-400/30',
-            default   => 'bg-gray-400/10 text-gray-300 ring-gray-400/30',
+            'owner'        => 'bg-lime-400/10 text-lime-600 dark:text-lime-300 ring-lime-400/30',
+            'admin'        => 'bg-sky-400/10 text-sky-600 dark:text-sky-300 ring-sky-400/30',
+            'support'      => 'bg-teal-400/10 text-teal-600 dark:text-teal-300 ring-teal-400/30',
+            'sales'        => 'bg-amber-400/10 text-amber-600 dark:text-amber-300 ring-amber-400/30',
+            default        => 'bg-gray-400/10 text-gray-500 dark:text-gray-300 ring-gray-400/30',
         };
     };
 @endphp
 
 @if($revealPassword !== '')
-  <div class="rounded-xl border border-lime-400/40 bg-lime-400/5 p-4">
+  <div class="rounded-xl border border-lime-500/40 bg-lime-400/5 p-4">
     <div class="text-sm font-semibold">One-time password for {{ $revealEmail }}</div>
-    <div class="mt-1 font-mono text-lg tracking-wide">{{ $revealPassword }}</div>
-    <div class="mt-1 text-xs text-gray-400">Shown once and never stored — hand it over securely. They sign in at intake.works/admin and should change it from the Password Editor.</div>
+    <div class="mt-1 font-mono text-lg tracking-wide select-all">{{ $revealPassword }}</div>
+    <div class="mt-1 text-xs text-gray-500">Shown once and never stored — hand it over securely. They sign in at intake.works/admin and should change it from the Password Editor.</div>
   </div>
 @endif
 
-<div class="rounded-xl border border-gray-200 dark:border-white/10">
-  <div class="flex items-center gap-3 border-b border-gray-200 dark:border-white/10 p-4">
-    <div class="text-sm font-semibold">Intake staff</div>
-    <div class="text-xs text-gray-500">people with master-admin access — reps live in the section below and never see this panel</div>
-  </div>
+<x-filament::section>
+  <x-slot name="heading">Intake staff</x-slot>
+  <x-slot name="description">People with master-admin access — click a name to open their record. Reps live in the section below and never see this panel.</x-slot>
+
   <table class="w-full text-sm">
     <thead>
       <tr class="text-left text-xs uppercase tracking-wide text-gray-500">
-        <th class="p-3">User</th><th class="p-3">Role</th><th class="p-3">Status</th>
-        @if($canManage)<th class="p-3 text-right">Actions</th>@endif
+        <th class="py-2 pr-3">User</th><th class="py-2 pr-3">Role</th><th class="py-2 pr-3">Status</th>
       </tr>
     </thead>
     <tbody>
       @foreach($staff as $u)
-        @php $role = $u->roleName(); $isOwner = $role === 'owner'; $isMe = $u->id === $meId; @endphp
-        <tr class="border-t border-gray-200 dark:border-white/10">
-          <td class="p-3">
-            <div class="font-medium">{{ $u->name }}</div>
-            <div class="text-xs text-gray-500">{{ $u->email }}</div>
+        @php $role = $u->roleName(); @endphp
+        <tr class="border-t border-gray-200 dark:border-white/10 {{ $selected && $selected->id === $u->id ? 'bg-primary-500/5' : '' }}">
+          <td class="py-3 pr-3">
+            <button type="button" class="text-left" wire:click="selectUser({{ $u->id }})">
+              <span class="font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ $u->name }}</span>
+              <span class="block text-xs text-gray-500">{{ $u->email }}</span>
+            </button>
           </td>
-          <td class="p-3"><span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ $badge($role) }}">{{ ucfirst($role ?? '—') }}</span></td>
-          <td class="p-3">
+          <td class="py-3 pr-3"><span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ $badge($role) }}">{{ ucfirst($role ?? '—') }}</span></td>
+          <td class="py-3 pr-3 text-xs">
             @if($u->suspended_at)
-              <span class="text-xs text-gray-500">Suspended {{ $u->suspended_at->format('M j') }}</span>
+              <span class="text-gray-500">Suspended {{ $u->suspended_at->format('M j') }}</span>
             @else
-              <span class="text-xs text-lime-300">Active</span>
+              <span class="text-lime-600 dark:text-lime-300">Active</span>
             @endif
           </td>
-          @if($canManage)
-            <td class="p-3 text-right">
-              @if($isOwner || $isMe)
-                <span class="text-xs text-gray-600">{{ $isOwner ? "can't be edited or removed" : 'this is you' }}</span>
-              @else
-                <select class="rounded-lg border-0 bg-white/5 px-2 py-1 text-xs"
-                        wire:change="changeRole({{ $u->id }}, $event.target.value)">
-                  @foreach(['admin','support','sales'] as $r)
-                    <option value="{{ $r }}" @selected($role === $r)>{{ ucfirst($r) }}</option>
-                  @endforeach
-                </select>
-                @if($u->suspended_at)
-                  <x-filament::button size="xs" color="gray" wire:click="restore({{ $u->id }})">Restore</x-filament::button>
-                  <x-filament::button size="xs" color="danger"
-                    wire:click="remove({{ $u->id }})"
-                    wire:confirm="Remove {{ $u->email }}? Their access ends immediately; their name stays on past audit entries.">Remove</x-filament::button>
-                @else
-                  <x-filament::button size="xs" color="gray"
-                    wire:click="suspend({{ $u->id }})"
-                    wire:confirm="Suspend {{ $u->email }}? They are blocked from signing in until restored.">Suspend</x-filament::button>
-                @endif
-              @endif
-            </td>
-          @endif
         </tr>
       @endforeach
     </tbody>
   </table>
-  <div class="border-t border-gray-200 dark:border-white/10 p-3 text-xs text-gray-500">
-    Every role change, suspension and removal is written to the audit log with the acting admin. Suspended users are signed out on their next request.
-  </div>
-</div>
 
-@if($canManage)
-  <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
-    <div class="mb-3 text-sm font-semibold">Invite user</div>
-    <div class="grid gap-3 md:grid-cols-4">
-      <input class="rounded-lg border-0 bg-white/5 px-3 py-2 text-sm" placeholder="Name" wire:model="inviteName">
-      <input class="rounded-lg border-0 bg-white/5 px-3 py-2 text-sm" placeholder="Email" wire:model="inviteEmail">
-      <select class="rounded-lg border-0 bg-white/5 px-3 py-2 text-sm" wire:model="inviteRole">
-        <option value="admin">Admin — everything except the raise</option>
-        <option value="support">Support — tenants, features, domains, logs</option>
-        <option value="sales">Sales — CRM, reps, commissions</option>
-      </select>
-      <x-filament::button wire:click="invite">Create &amp; show password</x-filament::button>
+  <x-slot name="footerActions"></x-slot>
+</x-filament::section>
+
+@if($selected)
+  @php $selRole = $selected->roleName(); $selIsOwner = $selRole === 'owner'; $selIsMe = $selected->id === $meId; $locked = $selIsOwner || $selIsMe || ! $canManage; @endphp
+  <x-filament::section>
+    <x-slot name="heading">{{ $selected->name }}</x-slot>
+    <x-slot name="description">{{ $selected->email }} · joined {{ $selected->created_at?->format('M j, Y') }}</x-slot>
+    <x-slot name="headerEnd">
+      <x-filament::button size="sm" color="gray" wire:click="closeUser">Close</x-filament::button>
+    </x-slot>
+
+    <div class="grid gap-6 md:grid-cols-2">
+      <div class="space-y-4">
+        <div>
+          <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Role</div>
+          @if($locked)
+            <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ $badge($selRole) }}">{{ ucfirst($selRole ?? '—') }}</span>
+            <div class="mt-1 text-xs text-gray-500">
+              {{ $selIsOwner ? "The owner can't be edited or removed." : ($selIsMe ? "This is you — another owner-level change must come from the database." : 'View access — only the owner can make changes.') }}
+            </div>
+          @else
+            <x-filament::input.wrapper class="max-w-xs">
+              <x-filament::input.select wire:change="changeRole({{ $selected->id }}, $event.target.value)">
+                @foreach(['admin' => 'Admin — everything except the raise', 'support' => 'Support — tenants, features, domains, logs', 'sales' => 'Sales — CRM, reps, commissions'] as $rv => $rl)
+                  <option value="{{ $rv }}" @selected($selRole === $rv)>{{ $rl }}</option>
+                @endforeach
+              </x-filament::input.select>
+            </x-filament::input.wrapper>
+            <div class="mt-1 text-xs text-gray-500">Takes effect on their next request. Written to the audit log.</div>
+          @endif
+        </div>
+
+        <div>
+          <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Status</div>
+          @if($selected->suspended_at)
+            <div class="text-sm">Suspended {{ $selected->suspended_at->format('M j, g:ia') }}</div>
+            @if(! $locked)
+              <x-filament::button class="mt-2" size="sm" color="gray" wire:click="restore({{ $selected->id }})">Restore access</x-filament::button>
+            @endif
+          @else
+            <div class="text-sm text-lime-600 dark:text-lime-300">Active</div>
+            @if(! $locked)
+              <x-filament::button class="mt-2" size="sm" color="gray"
+                wire:click="suspend({{ $selected->id }})"
+                wire:confirm="Suspend {{ $selected->email }}? They are signed out on their next request and blocked until restored.">Suspend</x-filament::button>
+            @endif
+          @endif
+        </div>
+
+        @if(! $locked)
+          <div class="rounded-xl border border-danger-500/30 p-3">
+            <div class="text-xs font-semibold text-danger-500">Remove user</div>
+            <div class="mt-1 text-xs text-gray-500">Deletes the account and revokes access immediately. Their name stays on past audit entries.</div>
+            <x-filament::button class="mt-2" size="sm" color="danger"
+              wire:click="remove({{ $selected->id }})"
+              wire:confirm="Remove {{ $selected->email }}? This can't be undone.">Remove {{ $selected->name }}…</x-filament::button>
+          </div>
+        @endif
+      </div>
+
+      <div>
+        <div class="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Recent activity</div>
+        @forelse($activity as $entry)
+          <div class="border-b border-gray-200 py-2 text-sm dark:border-white/10">
+            <span class="text-xs text-gray-500">{{ $entry->created_at->format('M j, g:ia') }}</span>
+            <div>{{ $entry->message }}</div>
+          </div>
+        @empty
+          <div class="text-xs text-gray-500">No audit entries about this user yet. Actions they take elsewhere appear in Debug logs.</div>
+        @endforelse
+      </div>
     </div>
-    <div class="mt-2 text-xs text-gray-500">Owner isn't invitable — there is exactly one. Reps come through the rep invite flow, never from here.</div>
-  </div>
-@else
-  <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4 text-xs text-gray-500">
-    You have view access. Only the owner can invite, change roles, suspend or remove staff.
-  </div>
+  </x-filament::section>
 @endif
 
-<div class="rounded-xl border border-gray-200 dark:border-white/10">
-  <div class="border-b border-gray-200 dark:border-white/10 p-4">
-    <div class="text-sm font-semibold">Reps &amp; agencies</div>
-    <div class="text-xs text-gray-500">reps and agency owners live in the /rep panel only — this manages who's in it and who leads each agency</div>
-  </div>
+@if($canManage)
+  <x-filament::section>
+    <x-slot name="heading">Invite user</x-slot>
+    <x-slot name="description">They set their own password after first sign-in — hand over the one-time password securely. Owner isn't invitable; reps come through the rep invite flow, never from here.</x-slot>
+
+    <div class="grid gap-3 md:grid-cols-4">
+      <x-filament::input.wrapper>
+        <x-filament::input type="text" placeholder="Name" wire:model="inviteName" />
+      </x-filament::input.wrapper>
+      <x-filament::input.wrapper>
+        <x-filament::input type="email" placeholder="Email" wire:model="inviteEmail" />
+      </x-filament::input.wrapper>
+      <x-filament::input.wrapper>
+        <x-filament::input.select wire:model="inviteRole">
+          <option value="admin">Admin</option>
+          <option value="support">Support</option>
+          <option value="sales">Sales</option>
+        </x-filament::input.select>
+      </x-filament::input.wrapper>
+      <x-filament::button wire:click="invite">Create &amp; show password</x-filament::button>
+    </div>
+  </x-filament::section>
+@else
+  <x-filament::section>
+    <div class="text-xs text-gray-500">You have view access. Only the owner can invite, change roles, suspend or remove staff.</div>
+  </x-filament::section>
+@endif
+
+<x-filament::section>
+  <x-slot name="heading">Reps &amp; agencies</x-slot>
+  <x-slot name="description">Reps and agency owners live in the /rep panel only — this manages who's in it and who leads each agency.</x-slot>
+
   @forelse($agencies as $agency)
-    <div class="border-b border-gray-200 dark:border-white/10 p-3 text-sm font-medium">{{ $agency->name }}
+    <div class="pb-2 pt-1 text-sm font-medium">{{ $agency->name }}
       <span class="text-xs font-normal text-gray-500">· {{ $agency->reps->count() }} {{ Str::plural('rep', $agency->reps->count()) }}</span>
     </div>
     <table class="w-full text-sm">
       <tbody>
         @foreach($agency->reps as $rep)
-          <tr class="border-b border-gray-200 dark:border-white/10">
-            <td class="p-3">
+          <tr class="border-t border-gray-200 dark:border-white/10">
+            <td class="py-3 pr-3">
               <div class="font-medium">{{ $rep->name }}</div>
               <div class="text-xs text-gray-500">{{ $rep->email }}</div>
             </td>
-            <td class="p-3">
+            <td class="py-3 pr-3">
               <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {{ $rep->role === 'principal' ? $badge('sales') : $badge(null) }}">
                 {{ $rep->role === 'principal' ? 'Agency owner' : 'Rep' }}
               </span>
             </td>
-            <td class="p-3 text-xs {{ $rep->status === 'active' ? 'text-lime-300' : 'text-gray-500' }}">{{ ucfirst($rep->status) }}</td>
+            <td class="py-3 pr-3 text-xs {{ $rep->status === 'active' ? 'text-lime-600 dark:text-lime-300' : 'text-gray-500' }}">{{ ucfirst($rep->status) }}</td>
             @if($canManage)
-              <td class="p-3 text-right">
+              <td class="py-3 text-right">
                 @if($rep->role === 'principal')
                   <x-filament::button size="xs" color="gray" wire:click="demoteRep({{ $rep->id }})">Demote to rep</x-filament::button>
                 @else
@@ -145,8 +200,8 @@
       </tbody>
     </table>
   @empty
-    <div class="p-4 text-xs text-gray-500">No agencies yet.</div>
+    <div class="text-xs text-gray-500">No agencies yet.</div>
   @endforelse
-</div>
+</x-filament::section>
 
 </x-filament-panels::page>
