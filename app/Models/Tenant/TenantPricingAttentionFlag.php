@@ -24,6 +24,7 @@ class TenantPricingAttentionFlag extends Model
     public const REASON_BELOW_MAP     = 'below_map';
     public const REASON_OFF_MSRP      = 'off_msrp';
     public const REASON_TITLE_CHANGED = 'title_changed';
+    public const REASON_DETAILS_CHANGED = 'details_changed'; // MARKER-DETAILS-WATCH
 
     protected $fillable = [
         'tenant_id',

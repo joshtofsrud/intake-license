@@ -643,7 +643,7 @@ class DistributorController extends Controller
     {
         $this->guard();
         $data = $request->validate([
-            'action'     => ['required', 'in:raise_map,match_msrp,acknowledge,adopt_title,keep_title'],
+            'action'     => ['required', 'in:raise_map,match_msrp,acknowledge,adopt_title,keep_title,adopt_details,keep_details'],
             'flag_ids'   => ['nullable', 'array'],
             'row_flag'   => ['nullable', 'string'], // MARKER-PATCH-558 — per-row one-click action
             'flag_ids.*' => ['string'],
@@ -697,9 +697,11 @@ class DistributorController extends Controller
         $skipped = 0;
         $userId = optional($request->user())->id;
         $titleReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_TITLE_CHANGED;
+        $detailsReason = \App\Models\Tenant\TenantPricingAttentionFlag::REASON_DETAILS_CHANGED; // MARKER-DETAILS-WATCH
 
         foreach ($flags as $flag) {
             $isTitle = $flag->reason === $titleReason;
+            $isDetails = $flag->reason === $detailsReason; // MARKER-DETAILS-WATCH
             $item = $flag->item;
 
             // Type guards — an action only applies to the matching flag kind.
@@ -707,7 +709,11 @@ class DistributorController extends Controller
                 $skipped++;
                 continue;
             }
-            if (in_array($action, ['raise_map', 'match_msrp'], true) && $isTitle) {
+            if (in_array($action, ['adopt_details', 'keep_details'], true) && ! $isDetails) {
+                $skipped++;
+                continue;
+            }
+            if (in_array($action, ['raise_map', 'match_msrp'], true) && ($isTitle || $isDetails)) {
                 $skipped++;
                 continue;
             }
@@ -739,6 +745,37 @@ class DistributorController extends Controller
                     $item->catalog_title_seen = $cat->display_name;
                     $item->save();
                 }
+            } elseif ($action === 'adopt_details') {
+                // MARKER-DETAILS-WATCH — copy only non-blank catalog values;
+                // the feed dropping a field never blanks the shop's own.
+                $cat = $item?->distributorCatalog;
+                if (! $item || ! $cat) {
+                    $skipped++;
+                    continue;
+                }
+                foreach (['color', 'size', 'description'] as $fld) {
+                    if (filled($cat->{$fld})) {
+                        $item->{$fld} = $cat->{$fld};
+                    }
+                }
+                $item->catalog_details_seen = [
+                    'color'       => $cat->color,
+                    'size'        => $cat->size,
+                    'description' => $cat->description,
+                ];
+                $item->save();
+            } elseif ($action === 'keep_details') {
+                // Keep the tenant's values; snapshot the catalog's so the
+                // watch stops flagging this change.
+                $cat = $item?->distributorCatalog;
+                if ($item && $cat) {
+                    $item->catalog_details_seen = [
+                        'color'       => $cat->color,
+                        'size'        => $cat->size,
+                        'description' => $cat->description,
+                    ];
+                    $item->save();
+                }
             }
             // 'acknowledge' falls through to resolve with no item change.
 
@@ -755,6 +792,8 @@ class DistributorController extends Controller
             'acknowledge' => 'Dismissed',
             'adopt_title' => 'Adopted new title',
             'keep_title'  => 'Kept your title',
+            'adopt_details' => 'Adopted new details',
+            'keep_details'  => 'Kept your details',
         ][$action];
         $msg = "{$verb}: {$applied} item(s)." . ($skipped ? " {$skipped} skipped." : '');
 

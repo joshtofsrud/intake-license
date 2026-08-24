@@ -50,6 +50,7 @@ class TenantInventoryItem extends Model
         'catalog_case_quantity',
         'catalog_upc',
         'catalog_title_seen',
+        'catalog_details_seen', // MARKER-DETAILS-WATCH
         'catalog_synced_at',
         'price_ack_at',
         'price_ack_by',
@@ -75,6 +76,7 @@ class TenantInventoryItem extends Model
         'catalog_map_cents' => 'integer',
         'catalog_case_quantity' => 'integer',
         'catalog_synced_at' => 'datetime',
+        'catalog_details_seen' => 'array', // MARKER-DETAILS-WATCH
         'price_ack_at' => 'datetime',
         'shop_cost_cents' => 'integer',
         'shop_sell_price_cents' => 'integer',

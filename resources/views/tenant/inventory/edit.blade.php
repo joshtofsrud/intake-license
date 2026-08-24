@@ -87,6 +87,10 @@
           <tr><td>MSRP</td><td>{{ $item->catalog_msrp_cents !== null ? '$' . number_format($item->catalog_msrp_cents / 100, 2) : '—' }}</td></tr>
           <tr><td>Case quantity</td><td>{{ $item->catalog_case_quantity ?? '—' }}</td></tr>
           <tr><td>UPC</td><td><code>{{ $item->catalog_upc ?? '—' }}</code></td></tr>
+          {{-- MARKER-DETAILS-WATCH --}}
+          <tr><td>Color</td><td>{{ $item->distributorCatalog?->color ?? '—' }}</td></tr>
+          <tr><td>Size</td><td>{{ $item->distributorCatalog?->size ?? '—' }}</td></tr>
+          <tr><td>Description</td><td>{{ blank($item->distributorCatalog?->description) ? '—' : \Illuminate\Support\Str::limit($item->distributorCatalog->description, 160) }}</td></tr>
         </table>
       </div>
     </div>

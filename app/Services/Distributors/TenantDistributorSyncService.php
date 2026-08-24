@@ -329,6 +329,39 @@ class TenantDistributorSyncService
         } else {
             $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_TITLE_CHANGED, $dryRun, $res);
         }
+
+        // MARKER-DETAILS-WATCH — descriptive drift (color / size / description).
+        // Same contract as the title watch: never auto-applied; the tenant
+        // adopts or keeps from the attention surface. A null baseline is
+        // seeded silently so an existing library never floods attention.
+        $detailsNow = [
+            'color'       => $cat->color,
+            'size'        => $cat->size,
+            'description' => $cat->description,
+        ];
+        $seenDetails = $item->catalog_details_seen;
+        if ($seenDetails === null) {
+            if (! $dryRun) {
+                $item->catalog_details_seen = $detailsNow;
+                $item->save();
+            }
+        } else {
+            $changed = [];
+            foreach ($detailsNow as $k => $v) {
+                if (($v ?? '') !== ($seenDetails[$k] ?? '')) {
+                    $changed[$k] = ['old' => $seenDetails[$k] ?? null, 'new' => $v];
+                }
+            }
+            if ($changed !== []) {
+                $this->openFlag($tenantId, $item, $cat,
+                    TenantPricingAttentionFlag::REASON_DETAILS_CHANGED, null, $dryRun, $res, [
+                        'changed' => $changed,
+                        'at'      => now()->toIso8601String(),
+                    ]);
+            } else {
+                $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_DETAILS_CHANGED, $dryRun, $res);
+            }
+        }
     }
 
     private function openFlag(string $tenantId, TenantInventoryItem $item, PlatformDistributorCatalog $cat, string $reason, ?int $prevCost, bool $dryRun, array &$res, ?array $detailOverride = null): void

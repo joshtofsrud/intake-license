@@ -63,6 +63,7 @@
       'below_map'     => ['at-b-map','Below MAP'],
       'off_msrp'      => ['at-b-msrp','Off MSRP'],
       'title_changed' => ['at-b-title','Renamed by distributor'],
+      'details_changed' => ['at-b-title','Details updated'], // MARKER-DETAILS-WATCH
       'cost_vanished' => ['at-b-van','Cost removed'],
       'map_vanished'  => ['at-b-van','MAP removed'],
       'msrp_vanished' => ['at-b-van','MSRP removed'],
@@ -155,11 +156,9 @@
     <select name="reason" class="at-sel">
       <option value="">All reasons</option>
       <option value="title_changed" @selected(($filters['reason'] ?? null)==='title_changed')>Title changed</option>
+      <option value="details_changed" @selected(($filters['reason'] ?? null)==='details_changed')>Details updated</option>
       <option value="below_map" @selected(($filters['reason'] ?? null)==='below_map')>Below MAP</option>
       <option value="off_msrp" @selected(($filters['reason'] ?? null)==='off_msrp')>Off MSRP</option>
-      <option value="cost_vanished" @selected(($filters['reason'] ?? null)==='cost_vanished')>Cost removed</option>
-      <option value="map_vanished" @selected(($filters['reason'] ?? null)==='map_vanished')>MAP removed</option>
-      <option value="msrp_vanished" @selected(($filters['reason'] ?? null)==='msrp_vanished')>MSRP removed</option>
       <option value="cost_vanished" @selected(($filters['reason'] ?? null)==='cost_vanished')>Cost removed</option>
       <option value="map_vanished" @selected(($filters['reason'] ?? null)==='map_vanished')>MAP removed</option>
       <option value="msrp_vanished" @selected(($filters['reason'] ?? null)==='msrp_vanished')>MSRP removed</option>
@@ -245,6 +244,13 @@
                   <span class="old">{{ $d['old'] ?? $item->name }}</span> →<br>
                   {!! $wordDiff($d['old'] ?? $item->name, $d['new'] ?? $cat?->display_name) !!}
                   <div class="when">your item still uses the name on the left</div>
+                @elseif($f->reason === 'details_changed')
+                  @foreach(($d['changed'] ?? []) as $fld => $chg)
+                    <div><b style="text-transform:capitalize">{{ $fld }}</b>:
+                      <span class="old">{{ blank($chg['old'] ?? null) ? '—' : \Illuminate\Support\Str::limit($chg['old'], 60) }}</span> →
+                      {{ blank($chg['new'] ?? null) ? '—' : \Illuminate\Support\Str::limit($chg['new'], 60) }}</div>
+                  @endforeach
+                  <div class="when">your item still has the values on the left</div>
                 @elseif($f->reason === 'below_map')
                   Your price <span class="nb">{{ $fmt($d['sell_cents'] ?? $sell) }}</span> is
                   <span class="nb">{{ $fmt($d['delta_cents'] ?? null) }} under</span> the
@@ -277,6 +283,9 @@
                   @if($f->reason === 'title_changed')
                     <button class="at-btn primary" type="submit" name="row_flag" value="{{ $f->id }}" onclick="setAct('adopt_title')">Use new name</button>
                     <button class="at-btn" type="submit" name="row_flag" value="{{ $f->id }}" onclick="setAct('keep_title')">Keep mine</button>
+                  @elseif($f->reason === 'details_changed')
+                    <button class="at-btn primary" type="submit" name="row_flag" value="{{ $f->id }}" onclick="setAct('adopt_details')">Use new details</button>
+                    <button class="at-btn" type="submit" name="row_flag" value="{{ $f->id }}" onclick="setAct('keep_details')">Keep mine</button>
                   @elseif($f->reason === 'below_map')
                     <button class="at-btn primary" type="submit" name="row_flag" value="{{ $f->id }}" onclick="setAct('raise_map')">Raise to {{ $fmt($d['map_cents'] ?? $item->catalog_map_cents) }}</button>
                     <button class="at-btn" type="submit" name="row_flag" value="{{ $f->id }}" onclick="setAct('acknowledge')">Dismiss</button>
@@ -298,6 +307,8 @@
         <span class="at-dim" style="font-size:12px">With selected:</span>
         <button class="at-btn primary" type="submit" onclick="setAct('adopt_title')">Adopt new title</button>
         <button class="at-btn" type="submit" onclick="setAct('keep_title')">Keep mine</button>
+        <button class="at-btn primary" type="submit" onclick="setAct('adopt_details')">Adopt new details</button>
+        <button class="at-btn" type="submit" onclick="setAct('keep_details')">Keep my details</button>
         <span class="at-dim" style="opacity:.4">|</span>
         <button class="at-btn primary" type="submit" onclick="setAct('raise_map')">Raise to MAP</button>
         <button class="at-btn" type="submit" onclick="setAct('match_msrp')">Match MSRP</button>
