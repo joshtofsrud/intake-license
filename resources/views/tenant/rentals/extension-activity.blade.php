@@ -2,15 +2,18 @@
 {{-- MARKER-RENTAL-EXT-P2 — offers activity. --}}
 @section('title', 'Last-minute offers')
 @section('content')
+{{-- MARKER-RENTAL-EXT-HEADORDER — nav first, then the title block, which
+     is what Desk / Fleet / Availability / Settings all do. Reversed, this
+     page looked like the only one in rentals with a page header. --}}
+@include('layouts.tenant._rental-nav', ['active' => 'offers'])
+
 <div class="ia-page-head">
-  <div>
+  <div class="ia-page-head-left">
     <h1 class="ia-page-title">Last-minute offers</h1>
     <p class="ia-page-subtitle">Auto-extension activity · last 30 days.</p>
   </div>
   <a href="{{ route('tenant.rentals.extension.activity', ['filter' => $filter, 'export' => 'csv']) }}" class="ia-btn">Export CSV</a>
 </div>
-
-@include('layouts.tenant._rental-nav', ['active' => 'offers'])
 
 <div class="ia-stat-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;margin-bottom:22px">
   <div class="ia-card" style="padding:16px 18px">
