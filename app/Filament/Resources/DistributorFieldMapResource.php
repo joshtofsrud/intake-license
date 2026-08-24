@@ -110,8 +110,23 @@ class DistributorFieldMapResource extends Resource
                         )),
                 ]),
 
+            // MARKER-TRANSFORM-LEGEND — was one dense run-on line naming four
+            // of the eleven transforms. The legend below replaces it; keeping
+            // both would guarantee they drift.
+            Forms\Components\Section::make('What the transforms do')
+                ->description('Every transform the resolver understands. The one you have selected is highlighted.')
+                ->collapsible()
+                ->collapsed()
+                ->schema([
+                    Forms\Components\Placeholder::make('transform_legend')
+                        ->hiddenLabel()
+                        ->content(fn (Forms\Get $get) => new \Illuminate\Support\HtmlString(
+                            self::legendHtml((string) $get('transform'))
+                        )),
+                ]),
+
             Forms\Components\Section::make('Transform args')
-                ->description('JSON arguments for the transform. pick_attribute → {"names":["Color","Colour"]} against a path holding {Name,Value} pairs — add {"keys":"attribute_keys","values":"attribute_values","sep":"|"} when the source is two parallel pipe strings instead. More examples: pick_from_array → {"match":{"TypeId":0},"field":"Amount","cast":"cents"} · pick_category_level → {"level":1,"field":"CategoryName"} · coalesce → {"order":[{"path":"UPC"},{"path":"EAN"},{"concat":["BrandId","MFGPartNumber"],"sep":"-"}]}')
+                ->description('JSON arguments for the selected transform — see the legend above for the shape each one expects.')
                 ->collapsed(fn (Forms\Get $get) => blank($get('transform_args')))
                 ->schema([
                     Forms\Components\Textarea::make('transform_args')
@@ -342,6 +357,83 @@ class DistributorFieldMapResource extends Resource
      * of it. Nested objects are flattened to the same dotted paths the Feed
      * column picker offers, so what you see here is what you can select.
      */
+    /**
+     * MARKER-TRANSFORM-LEGEND — the reference table.
+     *
+     * Examples are lifted from the seeded maps rather than invented, so a
+     * reader can find the same row in the list and see it working.
+     */
+    public static function legendHtml(string $selected): string
+    {
+        $rows = [
+            ['direct', 'Copy the value at source_path, unchanged.', '—',
+             'name ← item_description'],
+
+            ['bool', 'Coerce a truthy value to a real boolean.', '—',
+             'taxable ← Taxable'],
+
+            ['lookup', 'Translate one value into another through a table.', 'the lookup table below',
+             'status 7 → sellable, 9 → discontinued'],
+
+            ['coalesce', 'First non-empty of several paths; can concatenate.', '{"order":[…]} — paths tried in order',
+             'product_key ← UPC, else EAN, else BrandId-MFGPartNumber'],
+
+            ['pick_from_array', 'Choose one element of a list by matching a field.', '{"match":{…},"field":"…"}',
+             'cost_cents ← the Prices entry where TypeId = 0'],
+
+            ['pick_category_level', 'Take one level out of a category tree.', '{"level":1,"field":"CategoryName"}',
+             'category ← the most specific level'],
+
+            ['join_array', 'Flatten a list into one string.', '{"sep":", "}',
+             'joins a list of values for display'],
+
+            ['json_passthrough', 'Store the whole structure as-is.', '—',
+             'attributes ← Attributes (lossless)'],
+
+            ['pick_attribute', 'First attribute whose name matches, by priority.',
+             '{"names":["Color","Colour"]} · add {"keys":…,"values":…,"sep":"|"} when the source is two parallel pipe strings instead of {Name,Value} pairs',
+             'color ← Color, else Colour, else Primary Color'],
+
+            ['zip_pipe', 'Two parallel pipe strings into {Name,Value} pairs.',
+             '{"keys":"…","values":"…","sep":"|"}',
+             'Model|Color|Size + Snapback Hat|Gray|One Size'],
+
+            ['split_pipe', 'One pipe string into a list.', '{"sep":"|","prefix":"…"} — prefix makes relative paths fetchable',
+             'images ← image_paths'],
+        ];
+
+        $out = '<div style="font-size:12px;line-height:1.5">'
+             . '<table style="width:100%;border-collapse:collapse">'
+             . '<thead><tr>'
+             . '<th style="text-align:left;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Transform</th>'
+             . '<th style="text-align:left;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.6">What it does</th>'
+             . '<th style="text-align:left;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Args</th>'
+             . '<th style="text-align:left;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Example</th>'
+             . '</tr></thead><tbody>';
+
+        foreach ($rows as [$name, $what, $args, $example]) {
+            $on = ($name === $selected);
+            $bg = $on ? 'background:rgba(190,242,100,.10);' : '';
+            $out .= '<tr style="border-top:1px solid rgba(127,127,127,.18);' . $bg . '">'
+                 . '<td style="padding:7px 8px;vertical-align:top;white-space:nowrap">'
+                 . '<code style="font-size:11.5px;font-weight:' . ($on ? '700' : '500') . '">' . e($name) . '</code>'
+                 . ($on ? ' <span style="font-size:10px;opacity:.7">selected</span>' : '')
+                 . '</td>'
+                 . '<td style="padding:7px 8px;vertical-align:top">' . e($what) . '</td>'
+                 . '<td style="padding:7px 8px;vertical-align:top;opacity:.75"><code style="font-size:11px">' . e($args) . '</code></td>'
+                 . '<td style="padding:7px 8px;vertical-align:top;opacity:.75">' . e($example) . '</td>'
+                 . '</tr>';
+        }
+
+        $out .= '</tbody></table>'
+             . '<div style="margin-top:10px;opacity:.7">'
+             . 'cast is available on any transform: <code>{"cast":"cents"}</code>, '
+             . '<code>"trim"</code>, <code>"string"</code>, <code>"cents_zero_null"</code> (0.0 becomes null, for MAP).'
+             . '</div></div>';
+
+        return $out;
+    }
+
     public static function probeHtml(string $code, string $identifier): string
     {
         $code = strtoupper(trim($code));
