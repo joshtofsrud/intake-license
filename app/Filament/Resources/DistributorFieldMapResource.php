@@ -41,6 +41,11 @@ class DistributorFieldMapResource extends Resource
         'pick_category_level' => 'pick_category_level — choose a level',
         'join_array'          => 'join_array — join a list',
         'json_passthrough'    => 'json_passthrough — store the whole value',
+        // MARKER-PICK-ATTR — these three were in the resolver but not here,
+        // so rows using them couldn't be edited through this form.
+        'pick_attribute'      => 'pick_attribute — first matching attribute by name',
+        'zip_pipe'            => 'zip_pipe — two pipe strings → {Name,Value} pairs',
+        'split_pipe'          => 'split_pipe — pipe string → list',
     ];
 
     public static function form(Form $form): Form
@@ -106,7 +111,7 @@ class DistributorFieldMapResource extends Resource
                 ]),
 
             Forms\Components\Section::make('Transform args')
-                ->description('JSON arguments for the transform. Examples: pick_from_array → {"match":{"TypeId":0},"field":"Amount","cast":"cents"} · pick_category_level → {"level":1,"field":"CategoryName"} · coalesce → {"order":[{"path":"UPC"},{"path":"EAN"},{"concat":["BrandId","MFGPartNumber"],"sep":"-"}]}')
+                ->description('JSON arguments for the transform. pick_attribute → {"names":["Color","Colour"]} against a path holding {Name,Value} pairs — add {"keys":"attribute_keys","values":"attribute_values","sep":"|"} when the source is two parallel pipe strings instead. More examples: pick_from_array → {"match":{"TypeId":0},"field":"Amount","cast":"cents"} · pick_category_level → {"level":1,"field":"CategoryName"} · coalesce → {"order":[{"path":"UPC"},{"path":"EAN"},{"concat":["BrandId","MFGPartNumber"],"sep":"-"}]}')
                 ->collapsed(fn (Forms\Get $get) => blank($get('transform_args')))
                 ->schema([
                     Forms\Components\Textarea::make('transform_args')

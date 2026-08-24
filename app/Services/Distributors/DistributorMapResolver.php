@@ -72,6 +72,8 @@ class DistributorMapResolver
             'coalesce'            => $this->coalesce($ctx, $args),
             'pick_category_level' => $this->pickLevel($this->path($ctx, $row->source_path), $args),
             'join_array'          => $this->joinArray($this->path($ctx, $row->source_path), $args),
+            // MARKER-PICK-ATTR — any attribute to any field.
+            'pick_attribute'      => $this->pickAttribute($ctx, $row->source_path, $args),
             // MARKER-BTI-TRANSFORMS
             'zip_pipe'            => $this->zipPipe($ctx, $args),
             'split_pipe'          => $this->splitPipe($this->path($ctx, $row->source_path), $args),
@@ -225,6 +227,57 @@ class DistributorMapResolver
      * A length mismatch truncates to the shorter side. Padding would invent
      * an attribute name or an empty value, and a shop reads these.
      */
+    /**
+     * MARKER-PICK-ATTR — first matching attribute value, by priority.
+     *
+     * args:
+     *   names:  ['Color', 'Primary Color']   priority order, case-insensitive
+     *   keys/values/sep:  optional — when the source carries two parallel
+     *                     pipe strings (BTI) instead of {Name,Value} pairs
+     *
+     * The resolver sees RAW source rows, never other canonical fields, so a
+     * distributor whose attributes only exist as pipe strings has to zip
+     * them here rather than leaning on the `attributes` map row.
+     */
+    private function pickAttribute(array $ctx, ?string $sourcePath, array $args): ?string
+    {
+        $names = $args['names'] ?? [];
+        if (! is_array($names) || ! $names) {
+            return null;
+        }
+
+        // Two shapes in, one shape out.
+        $pairs = isset($args['keys'], $args['values'])
+            ? $this->zipPipe($ctx, $args)
+            : $this->path($ctx, $sourcePath);
+
+        if (! is_array($pairs)) {
+            return null;
+        }
+
+        foreach ($names as $want) {
+            foreach ($pairs as $pair) {
+                if (! is_array($pair)) {
+                    continue;
+                }
+                $name  = $pair['Name']  ?? $pair['name']  ?? null;
+                $value = $pair['Value'] ?? $pair['value'] ?? null;
+                if ($name === null || $value === null) {
+                    continue;
+                }
+                if (strcasecmp(trim((string) $name), trim((string) $want)) !== 0) {
+                    continue;
+                }
+                $value = trim((string) $value);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private function zipPipe(array $ctx, array $args): ?array
     {
         $sep = $args['sep'] ?? '|';

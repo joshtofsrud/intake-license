@@ -73,6 +73,10 @@ class QbpFieldMapSeeder extends Seeder
             // attributes -------------------------------------------------
             ['attributes', 'Attributes', 'json_passthrough', null, null,
                 'adapter flattens classifications 3 levels deep into {Name,Value,Code,Unit}; multiple featureValues joined'],
+            // MARKER-PICK-ATTR — QBP's flattened classifications already carry
+            // {Name,Value}, so this reads them directly.
+            ['color', 'Attributes', 'pick_attribute', ['names' => ['Color', 'Colour', 'Primary Color']], null, null],
+            ['size',  'Attributes', 'pick_attribute', ['names' => ['Size', 'Frame Size', 'Length']], null, null],
 
             // money — value is numeric; formattedValue is "$8.40" ---------
             // MARKER-QBP-TIER2 — cost_cents belongs here after all. Tier 1

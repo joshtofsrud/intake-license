@@ -50,6 +50,23 @@ class BtiFieldMapSeeder extends Seeder
                 'sep'    => '|',
             ], null, 'Model|Color|Size + Snapback Hat|Gray|One Size'],
 
+            // MARKER-PICK-ATTR — colour and size out of the same two pipe
+            // strings the attributes row zips. They're item fields a shop can
+            // edit, so their source belongs here rather than being derived
+            // silently by the title composer.
+            ['color', null, 'pick_attribute', [
+                'names'  => ['Color', 'Colour', 'Primary Color'],
+                'keys'   => 'attribute_keys',
+                'values' => 'attribute_values',
+                'sep'    => '|',
+            ], null, 'first matching attribute wins'],
+            ['size', null, 'pick_attribute', [
+                'names'  => ['Size', 'Frame Size', 'Length'],
+                'keys'   => 'attribute_keys',
+                'values' => 'attribute_values',
+                'sep'    => '|',
+            ], null, null],
+
             // money
             ['cost_cents', 'your_price', 'direct', ['cast' => 'cents'], null, 'dealer cost'],
             ['msrp_cents', 'msrp', 'direct', ['cast' => 'cents'], null, null],
