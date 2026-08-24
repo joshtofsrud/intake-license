@@ -299,10 +299,12 @@
     opacity: 1 !important;
 }
 
+/* MARKER-TENANT-MENU-DARK — must be !important to beat the light rule above */
 .dark .tg-card__menu-pop {
-    background: rgb(39 39 42 / 1);
-    border-color: rgb(63 63 70 / 1);
-    box-shadow: 0 4px 16px rgb(0 0 0 / 0.3);
+    background: rgb(24 24 27 / 1) !important;
+    background-color: rgb(24 24 27 / 1) !important;
+    border-color: rgb(63 63 70 / 1) !important;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.5) !important;
 }
 
 .tg-card__menu-item {
@@ -322,6 +324,12 @@
 
 .dark .tg-card__menu-item {
     color: rgb(228 228 231 / 1);
+}
+
+/* MARKER-TENANT-MENU-DARK — disabled entries readable, not near-invisible */
+.dark .tg-card__menu-item[aria-disabled="true"],
+.dark .tg-card__menu-item:disabled {
+    color: rgb(113 113 122 / 1);
 }
 
 .tg-card__menu-item:hover {
