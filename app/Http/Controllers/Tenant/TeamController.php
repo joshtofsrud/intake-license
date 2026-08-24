@@ -105,9 +105,17 @@ class TeamController extends Controller
         }
         $this->syncLocations($newUser, $locationIds);
 
-        // MARKER-PATCH-478 — single-use setup token (Cache, mirrors password reset).
+        // MARKER-INVITE-DURABLE — single-use setup token in a real table.
+        // Cache was wiped by every deploy's optimize:clear, killing invites.
         $token = Str::random(64);
-        \Illuminate\Support\Facades\Cache::put('team_invite_' . $token, $newUser->id, now()->addDays(7));
+        \Illuminate\Support\Facades\DB::table('tenant_team_invites')->insert([
+            'tenant_id'      => $tenant->id,
+            'tenant_user_id' => $newUser->id,
+            'token'          => $token,
+            'expires_at'     => now()->addDays(7),
+            'created_at'     => now(),
+            'updated_at'     => now(),
+        ]);
         $setupUrl = route('tenant.team.setup') . '?token=' . $token;
 
         // Best-effort email; the link is always shown to the inviter as a fallback.
@@ -133,7 +141,7 @@ class TeamController extends Controller
     public function setupForm(Request $request)
     {
         $token  = (string) $request->query('token', '');
-        $userId = $token !== '' ? \Illuminate\Support\Facades\Cache::get('team_invite_' . $token) : null;
+        $userId = $token !== '' ? $this->inviteUserId($token) : null; // MARKER-INVITE-DURABLE
         if (! $userId) {
             return redirect()->route('tenant.login')
                 ->withErrors(['email' => 'This setup link is invalid or has expired.']);
@@ -163,8 +171,7 @@ class TeamController extends Controller
         ]);
 
         $token  = $request->input('token');
-        $key    = 'team_invite_' . $token;
-        $userId = \Illuminate\Support\Facades\Cache::get($key);
+        $userId = $this->inviteUserId($token); // MARKER-INVITE-DURABLE
         if (! $userId) {
             return back()->withErrors(['password' => 'This setup link is invalid or has expired.']);
         }
@@ -183,7 +190,7 @@ class TeamController extends Controller
         if ($request->filled('pin')) {
             $this->pins->setPin($user, $request->input('pin'));
         }
-        \Illuminate\Support\Facades\Cache::forget($key);
+        \App\Support\TeamInvites::consume($token); // MARKER-INVITE-DURABLE
 
         // MARKER-PATCH-498 — they just proved who they are by consuming a
         // single-use token and setting a password; making them sign in again
@@ -584,5 +591,23 @@ class TeamController extends Controller
             $user->locations()->detach($toRemove);
         }
     }
-}
 
+    // MARKER-INVITE-DURABLE — resolve a token to a tenant_user id, honouring
+    // legacy cache tokens issued before the cutover.
+    private function inviteUserId(string $token): ?string
+    {
+        if ($token === '') {
+            return null;
+        }
+        $row = \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+            ->where('token', $token)
+            ->whereNull('accepted_at')
+            ->where('expires_at', '>', now())
+            ->first();
+        if ($row) {
+            return (string) $row->tenant_user_id;
+        }
+        $legacy = \Illuminate\Support\Facades\Cache::get('team_invite_' . $token);
+        return $legacy !== null ? (string) $legacy : null;
+    }
+}
