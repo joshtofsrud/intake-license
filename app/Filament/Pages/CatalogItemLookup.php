@@ -145,6 +145,9 @@ class CatalogItemLookup extends Page
                 'category_id'   => $r->category_id,
                 'category_path' => $r->category_path,
                 'item_group'    => $r->item_group,
+                // MARKER-LOOKUP-COLORSIZE — resolved names, not distributor codes
+                'color'         => $r->color,
+                'size'          => $r->size,
                 'size_id'       => $r->size_id,
                 'color_id'      => $r->color_id,
                 'config'        => $r->config,
