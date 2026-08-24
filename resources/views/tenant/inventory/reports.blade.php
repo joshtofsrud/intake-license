@@ -5,6 +5,11 @@
 
 @section('content')
 
+{{-- MARKER-INV-REPORTS-TABS — the shared inventory tab bar. The first
+     version of this page rendered no tabs at all, so it read as a
+     different app and Reports was unreachable from the other screens. --}}
+@include('layouts.tenant._inventory-tabs')
+
 <div class="ia-page-head">
   <div class="ia-page-head-left">
     <h1 class="ia-page-title">Inventory reports</h1>

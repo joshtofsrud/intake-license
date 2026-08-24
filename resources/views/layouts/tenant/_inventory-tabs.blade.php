@@ -16,6 +16,7 @@
   }
   $invTabs[] = ['route' => 'tenant.inventory.categories.index', 'label' => 'Categories',        'match' => 'tenant.inventory.categories'];
   $invTabs[] = ['route' => 'tenant.inventory.receiving.index',  'label' => 'Receiving',         'match' => 'tenant.inventory.receiving'];
+  $invTabs[] = ['route' => 'tenant.inventory.reports',          'label' => 'Reports',           'match' => 'tenant.inventory.reports']; // MARKER-INV-REPORTS-TABS
   if ($distOn) {
       $invTabs[] = ['route' => 'tenant.distributors.import',     'label' => 'Import',            'match' => 'tenant.distributors.import'];
       $invTabs[] = ['route' => 'tenant.distributors.attention',  'label' => 'Catalog attention', 'match' => 'tenant.distributors.attention'];
