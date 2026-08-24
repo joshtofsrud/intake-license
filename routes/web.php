@@ -1066,6 +1066,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/team/{id}',                       [TenantControllers\TeamController::class, 'show'])->name('team.show');
             Route::patch('/team/{id}',                     [TenantControllers\TeamController::class, 'update'])->name('team.update');
             Route::delete('/team/{id}',                    [TenantControllers\TeamController::class, 'destroy'])->name('team.destroy');
+            Route::post('/team/{id}/resend-invite',        [TenantControllers\TeamController::class, 'resendInvite'])->name('team.resend-invite'); // MARKER-INVITE-RESEND
 
             // MARKER-PATCH-143 — Test email send endpoint (settings card)
             Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');

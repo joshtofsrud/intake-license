@@ -83,6 +83,38 @@
 @section('content')
 <a href="{{ route('tenant.team.index') }}" class="pd-back">← All team members</a>
 
+{{-- MARKER-INVITE-RESEND — activation banner: only for never-activated
+     members, on a page that is already manager-gated. --}}
+@if(! $member->is_active && $member->last_login_at === null && ($inviteStats ?? null))
+  <div style="border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.06);border-radius:12px;padding:14px 16px;margin:14px 0 20px;display:flex;gap:14px;align-items:flex-start">
+    <span style="width:9px;height:9px;border-radius:99px;background:#FBBF24;margin-top:5px;flex-shrink:0"></span>
+    <div style="flex:1">
+      <b style="color:#FBBF24;font-size:13.5px;display:block">Hasn't activated their account</b>
+      <p style="margin:3px 0 10px;color:var(--ia-text-dim);font-size:12.5px">
+        {{ $member->name }} hasn't set a password yet. Sending again emails a fresh link and invalidates the old one. Links stay good for 7 days.
+      </p>
+      <form method="POST" action="{{ route('tenant.team.resend-invite', $member->id) }}" style="display:inline">
+        @csrf
+        <button type="submit" class="ia-btn" style="background:#FBBF24;border-color:#FBBF24;color:#0a0a0a;font-weight:600">Send activation email again</button>
+      </form>
+      @if($pendingInvite)
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+          <input readonly id="ia-invite-link" style="flex:1;background:var(--ia-surface);border:1px solid var(--ia-border);border-radius:8px;color:var(--ia-text-dim);padding:7px 11px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px"
+                 value="{{ route('tenant.team.setup') . '?token=' . $pendingInvite->token }}">
+          <button type="button" class="ia-btn"
+                  onclick="navigator.clipboard.writeText(document.getElementById('ia-invite-link').value); this.textContent='Copied'; setTimeout(function(b){b.textContent='Copy'}, 1500, this)">Copy</button>
+        </div>
+      @else
+        <div style="margin-top:8px;font-size:12px;color:var(--ia-text-dim)">No valid link outstanding — the last one expired. Send again to mint a new one.</div>
+      @endif
+      <div style="font-size:11.5px;color:var(--ia-text-dim);opacity:.75;margin-top:8px">
+        Sent {{ $inviteStats['sends'] }}× — last {{ $inviteStats['last'] ? \Illuminate\Support\Carbon::parse($inviteStats['last'])->format('M j, g:ia') : 'never' }}
+        · opened: {{ $inviteStats['opened'] ? 'yes' : 'never' }}
+      </div>
+    </div>
+  </div>
+@endif
+
 <div class="pd-head">
   <div class="pd-avatar">{{ strtoupper(substr($member->name, 0, 2)) }}</div>
   <div>

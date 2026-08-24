@@ -142,6 +142,11 @@ class TeamController extends Controller
     {
         $token  = (string) $request->query('token', '');
         $userId = $token !== '' ? $this->inviteUserId($token) : null; // MARKER-INVITE-DURABLE
+        if ($userId) { // MARKER-INVITE-RESEND — first-open stamp for the banner
+            \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+                ->where('token', $token)->whereNull('opened_at')
+                ->update(['opened_at' => now(), 'updated_at' => now()]);
+        }
         if (! $userId) {
             return redirect()->route('tenant.login')
                 ->withErrors(['email' => 'This setup link is invalid or has expired.']);
@@ -239,12 +244,71 @@ class TeamController extends Controller
             ->orderBy('created_at')
             ->get();
 
+        // MARKER-INVITE-RESEND — activation-banner data for never-activated members
+        $pendingInvite = null;
+        $inviteStats   = null;
+        if (! $member->is_active && $member->last_login_at === null) {
+            $rows = \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+                ->where('tenant_id', $tenant->id)
+                ->where('tenant_user_id', $member->id)
+                ->orderByDesc('created_at')
+                ->get();
+            $pendingInvite = $rows->first(fn ($r) => $r->accepted_at === null && strtotime($r->expires_at) > time());
+            $inviteStats = [
+                'sends'   => $rows->count(),
+                'last'    => $rows->first()?->created_at,
+                'opened'  => $rows->whereNotNull('opened_at')->isNotEmpty(),
+            ];
+        }
+
         return view('tenant.team.show', [
             'member'            => $member,
             'allLocations'      => $allLocations,
             'memberLocationIds' => $memberLocationIds,
             'allRoles'          => $allRoles,
+            'pendingInvite'     => $pendingInvite,
+            'inviteStats'       => $inviteStats,
         ]);
+    }
+
+    // MARKER-INVITE-RESEND — mint a fresh activation link for a member who
+    // never completed setup; expires every older link.
+    public function resendInvite(string $id)
+    {
+        $this->requireManager();
+        $tenant = tenant();
+        $member = TenantUser::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        if ($member->is_active || $member->last_login_at !== null) {
+            return back()->with('error', 'This account is already active.');
+        }
+
+        \Illuminate\Support\Facades\DB::table('tenant_team_invites')
+            ->where('tenant_user_id', $member->id)
+            ->whereNull('accepted_at')
+            ->update(['expires_at' => now(), 'updated_at' => now()]);
+
+        $token = Str::random(64);
+        \Illuminate\Support\Facades\DB::table('tenant_team_invites')->insert([
+            'tenant_id'      => $tenant->id,
+            'tenant_user_id' => $member->id,
+            'token'          => $token,
+            'expires_at'     => now()->addDays(7),
+            'created_at'     => now(),
+            'updated_at'     => now(),
+        ]);
+        $setupUrl = route('tenant.team.setup') . '?token=' . $token;
+
+        try {
+            $inviter = (string) (\Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name ?? '');
+            \Illuminate\Support\Facades\Mail::to($member->email)->send(
+                new \App\Mail\TeamInvite($tenant, $member, $setupUrl, $inviter)
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Team invite resend mail failed: ' . $e->getMessage());
+        }
+
+        return back()->with('success', "Activation email sent to {$member->email} — new link active, old link revoked.");
     }
 
     // ─────────── Admin-acting-on-other update operations ────────────
