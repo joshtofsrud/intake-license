@@ -3,7 +3,7 @@
 namespace App\Services\Tenant;
 
 use App\Models\Tenant;
-use Illuminate\Support\Carbon;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
