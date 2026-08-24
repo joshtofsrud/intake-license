@@ -459,6 +459,13 @@ class DistributorCatalogSyncService
         $canonical['display_subtitle'] = $composed['subtitle'] !== '' ? $composed['subtitle'] : null;
         $canonical['search_text']      = ($composed['search'] ?? '') !== '' ? $composed['search'] : null;
 
+        // MARKER-CATALOG-COLORSIZE — compose() has always returned these two
+        // alongside the title; nothing kept them, so every row resolved a
+        // colour and a size and then threw both away. A map row can still
+        // override them by resolving canonical 'color'/'size' directly.
+        $canonical['color'] = ($canonical['color'] ?? null) ?: (($composed['color'] ?? '') !== '' ? $composed['color'] : null);
+        $canonical['size']  = ($canonical['size']  ?? null) ?: (($composed['size']  ?? '') !== '' ? $composed['size']  : null);
+
         // MARKER-PATCH-372 — capture distributor product images. Public CDN URLs
         // ({Format,Url,Hash}) already embedded per-variant in the Products payload.
         //

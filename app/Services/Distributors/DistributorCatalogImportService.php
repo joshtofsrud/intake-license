@@ -263,6 +263,11 @@ class DistributorCatalogImportService
             'catalog_map_cents'      => $cat->map_cents,
             'catalog_case_quantity'  => $cat->case_quantity,
             'catalog_upc'            => $cat->upc,
+            // MARKER-CATALOG-COLORSIZE — the columns added in May finally get
+            // a value. On CREATE only: a shop's own edit outranks the feed,
+            // same rule the description above follows.
+            'color'                  => $cat->color ?: null,
+            'size'                   => $cat->size ?: null,
             'catalog_title_seen'     => $cat->display_name, // baseline for the title-change watch
             'shop_sell_price_cents'  => $cat->map_cents ?? $cat->msrp_cents, // first-link seed
             'computed_stock_count'   => 0,
