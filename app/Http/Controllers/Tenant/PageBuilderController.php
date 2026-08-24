@@ -579,7 +579,49 @@ class PageBuilderController extends Controller
         $splashEnabled = \App\Support\SplashSettings::enabled($tenant);
         $splashRows = $pages->whereNotNull('splash_page_id')->values();
 
-        return view('tenant.pages.index', compact('pages', 'splashEnabled', 'splashRows'));
+        // MARKER-WELCOME
+        $welcome = \App\Support\WelcomePage::settings($tenant);
+
+        return view('tenant.pages.index', compact('pages', 'splashEnabled', 'splashRows', 'welcome'));
+    }
+
+    /**
+     * MARKER-WELCOME — the site-wide holding page settings.
+     */
+    public function saveWelcome(Request $request)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'welcome_enabled'   => 'nullable|boolean',
+            'welcome_headline'  => 'nullable|string|max:120',
+            'welcome_message'   => 'nullable|string|max:400',
+            'welcome_cta_label' => 'nullable|string|max:40',
+            'welcome_cta_url'   => 'nullable|string|max:255',
+            'welcome_allow'     => 'nullable|array',
+            'welcome_allow.*'   => 'string|in:' . implode(',', array_keys(\App\Support\WelcomePage::ALLOWABLE)),
+        ]);
+
+        $settings = (array) ($tenant->settings ?? []);
+        $settings['welcome_enabled']   = (bool) ($data['welcome_enabled'] ?? false);
+        $settings['welcome_headline']  = $data['welcome_headline'] ?? null;
+        $settings['welcome_message']   = $data['welcome_message'] ?? null;
+        $settings['welcome_cta_label'] = $data['welcome_cta_label'] ?? null;
+        $settings['welcome_cta_url']   = $data['welcome_cta_url'] ?? null;
+        $settings['welcome_allow']     = array_values($data['welcome_allow'] ?? []);
+        $tenant->settings = $settings;
+        $tenant->save();
+
+        return back()->with('success', $settings['welcome_enabled']
+            ? 'Welcome page is on — visitors see it instead of your site. You still see the real site while signed in.'
+            : 'Welcome page is off — your published pages are reachable again.');
+    }
+
+    /** MARKER-WELCOME — see it as a visitor would, without switching it on. */
+    public function previewWelcome()
+    {
+        $tenant = tenant();
+        return view('public.welcome', ['w' => \App\Support\WelcomePage::settings($tenant)]);
     }
 
     /**

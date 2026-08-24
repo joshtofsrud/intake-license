@@ -907,6 +907,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 
             Route::get('/pages',                [TenantControllers\PageBuilderController::class, 'index'])->name('pages.index');
             Route::get('/pages/{id}',           [TenantControllers\PageBuilderController::class, 'edit'])->name('pages.edit');
+            Route::post('/pages/welcome',        [TenantControllers\PageBuilderController::class, 'saveWelcome'])->name('pages.welcome'); // MARKER-WELCOME
+            Route::get('/pages/welcome/preview', [TenantControllers\PageBuilderController::class, 'previewWelcome'])->name('pages.welcome.preview');
             Route::get('/pages/{id}/preview',   [TenantControllers\PageBuilderController::class, 'preview'])->name('pages.preview'); // MARKER-PATCH-267
             Route::post('/pages',               [TenantControllers\PageBuilderController::class, 'store'])->name('pages.store');
             Route::post('/pages/brand-kit',     [TenantControllers\PageBuilderController::class, 'saveBrandKit'])->name('pages.brand-kit.save'); // MARKER-PATCH-302
@@ -1094,7 +1096,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
 // for SaaS). Routes carry no {subdomain} placeholder; controllers
 // resolve the current tenant via the tenant() helper / app('tenant').
 // ─────────────────────────────────────────────────────────────────────
-Route::middleware(['App\Http\Middleware\ResolveTenant'])
+Route::middleware([
+        'App\Http\Middleware\ResolveTenant',
+        // MARKER-WELCOME — after tenant resolution, before anything renders.
+        'App\Http\Middleware\ShowWelcomePage',
+    ])
     ->group($tenantRoutes);
 
 
