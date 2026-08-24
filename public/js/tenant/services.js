@@ -1624,18 +1624,23 @@
         return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
       }).join('');
 
+      // MARKER-SVC-CAT-COMPACT — names inline, actions on one row. This is a
+      // confirmation, not an inventory of the category.
+      var names = mine.slice(0, 3).map(function (s) { return esc(s.name); }).join(', ');
+      if (mine.length > 3) names += ' +' + (mine.length - 3) + ' more';
+
       panel.innerHTML = ''
-        + '<div class="t">“' + esc(cat.name) + '” has ' + mine.length + ' service' + (mine.length === 1 ? '' : 's') + ' in it</div>'
-        + '<div class="s">Deleting the category deletes these too, along with their add-ons and pricing:</div>'
-        + '<ul>' + mine.slice(0, 6).map(function (s) { return '<li>' + esc(s.name) + '</li>'; }).join('')
-        + (mine.length > 6 ? '<li>and ' + (mine.length - 6) + ' more…</li>' : '') + '</ul>'
+        + '<div class="t">Delete “' + esc(cat.name) + '” and its ' + mine.length + ' service' + (mine.length === 1 ? '' : 's') + '?</div>'
+        + '<div class="s">' + names + '</div>'
+        + '<div class="s">They\'d be deleted with their add-ons and pricing — move them somewhere instead.</div>'
+        + '<div class="r">'
         + (others.length
-            ? '<div class="r"><span>Move them to</span>'
-              + '<select data-cat-move>' + opts + '</select>'
-              + '<button type="button" class="sv-cat-mini primary" data-cat-do-delete>Move &amp; delete</button></div>'
-            : '<div class="s" style="margin-top:8px">There is nowhere to move them — create another category first.</div>')
-        + '<div class="r"><button type="button" class="sv-cat-mini" data-cat-hide-instead>Hide it instead</button>'
-        + '<button type="button" class="sv-cat-mini" data-cat-cancel>Cancel</button></div>';
+            ? '<select data-cat-move>' + opts + '</select>'
+              + '<button type="button" class="sv-cat-mini primary" data-cat-do-delete>Move &amp; delete</button>'
+            : '<span>Nowhere to move them — create another category first.</span>')
+        + '<button type="button" class="sv-cat-mini" data-cat-hide-instead>Hide instead</button>'
+        + '<button type="button" class="sv-cat-mini" data-cat-cancel>Cancel</button>'
+        + '</div>';
     } else {
       panel.innerHTML = ''
         + '<div class="t">Delete “' + esc(cat.name) + '”?</div>'
