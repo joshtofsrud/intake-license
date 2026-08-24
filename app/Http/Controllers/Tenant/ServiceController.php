@@ -119,8 +119,45 @@ class ServiceController extends Controller
         $op = $request->input('op', 'delete_service');
 
         if ($op === 'delete_category') {
-            TenantServiceCategory::where('tenant_id', $tenant->id)->where('id', $id)->delete();
-            return response()->json(['ok' => true]);
+            // MARKER-SVC-CAT — tenant_service_items.category_id is
+            // cascadeOnDelete. Deleting a category with services in it would
+            // destroy them and their add-on links, silently. Never cascade:
+            // the services move somewhere first, or nothing happens.
+            $cat = TenantServiceCategory::where('tenant_id', $tenant->id)
+                ->where('id', $id)->first();
+            if (! $cat) return response()->json(['ok' => true]);
+
+            $count = TenantServiceItem::where('tenant_id', $tenant->id)
+                ->where('category_id', $cat->id)->count();
+
+            if ($count > 0) {
+                $moveTo = $request->input('move_to');
+                if (! $moveTo) {
+                    return $this->err(
+                        'That category still has ' . $count . ' ' .
+                        \Illuminate\Support\Str::plural('service', $count) .
+                        ' in it. Choose where they should move first.'
+                    );
+                }
+
+                $dest = TenantServiceCategory::where('tenant_id', $tenant->id)
+                    ->where('id', $moveTo)->where('id', '!=', $cat->id)->first();
+                if (! $dest) return $this->err('Pick a different category to move them to.');
+
+                \Illuminate\Support\Facades\DB::transaction(function () use ($tenant, $cat, $dest) {
+                    TenantServiceItem::where('tenant_id', $tenant->id)
+                        ->where('category_id', $cat->id)
+                        ->update(['category_id' => $dest->id]);
+                    $cat->delete();
+                });
+
+                return response()->json([
+                    'ok' => true, 'moved' => $count, 'moved_to' => $dest->id,
+                ]);
+            }
+
+            $cat->delete();
+            return response()->json(['ok' => true, 'moved' => 0]);
         }
 
         if ($op === 'delete_service') {

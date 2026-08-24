@@ -250,13 +250,19 @@
         + (isExpanded ? renderDrawer(s) : '');
   }
 
-  function svGroupHead(name, count, catId, warn) {
-    return '<div class="sv-cat-grouphead' + (warn ? ' is-warn' : '') + '">'
+  function svGroupHead(name, count, catId, warn, isActive) {
+    // MARKER-SVC-CAT — rename / hide / delete were implemented server-side
+    // but had no control anywhere in the UI.
+    var hidden = (isActive === false);
+    return '<div class="sv-cat-grouphead' + (warn ? ' is-warn' : '') + (hidden ? ' is-hidden-cat' : '') + '"'
+      + (catId ? ' data-cat-head="' + esc(catId) + '"' : '') + '>'
       + '<span class="sv-cat-groupname">' + esc(name) + '</span>'
       + '<span class="sv-cat-groupcount">' + count + '</span>'
+      + (hidden ? '<span class="sv-cat-hidden-pill">Hidden</span>' : '')
       + (warn ? '<span class="sv-cat-groupwarn">Won\'t group on booking page</span>' : '')
       + '<span class="sv-cat-groupspacer"></span>'
       + (catId ? '<button type="button" class="sv-cat-groupadd" data-add-to-cat="' + esc(catId) + '">+ Add service</button>' : '')
+      + (catId ? '<button type="button" class="sv-cat-menubtn" data-cat-menu="' + esc(catId) + '" title="Category options" aria-label="Category options">⋯</button>' : '')
       + '</div>';
   }
 
@@ -276,7 +282,7 @@
     state.categories.forEach(function (cat) {
       var rows = visible.filter(function (s) { return s.category_id === cat.id; });
       if (!rows.length) return;
-      html += svGroupHead(cat.name, rows.length, cat.id, false) + rows.map(rowHtml).join('');
+      html += svGroupHead(cat.name, rows.length, cat.id, false, cat.is_active !== false) + rows.map(rowHtml).join('');
     });
     var uncat = visible.filter(function (s) { return !s.category_id; });
     if (uncat.length) {
@@ -1494,6 +1500,199 @@
     saveEditBtn.addEventListener('click', function () { commit(true); });
   }
 
+  // ─── MARKER-SVC-CAT — category management ────────────────────────────
+  function closeCatMenus() {
+    document.querySelectorAll('.sv-cat-menu').forEach(function (m) { m.remove(); });
+  }
+
+  function catById(id) {
+    for (var i = 0; i < state.categories.length; i++) {
+      if (String(state.categories[i].id) === String(id)) return state.categories[i];
+    }
+    return null;
+  }
+
+  function openCatMenu(catId, anchorBtn) {
+    closeCatMenus();
+    var cat = catById(catId);
+    if (!cat) return;
+    var hidden = cat.is_active === false;
+
+    var menu = document.createElement('div');
+    menu.className = 'sv-cat-menu';
+    menu.innerHTML = ''
+      + '<button type="button" data-cat-act="rename">Rename</button>'
+      + '<button type="button" data-cat-act="toggle">' + (hidden ? 'Show on booking page' : 'Hide from booking page') + '</button>'
+      + '<div class="sv-cat-menu-sep"></div>'
+      + '<button type="button" class="danger" data-cat-act="delete">Delete category…</button>';
+
+    anchorBtn.parentNode.appendChild(menu);
+
+    menu.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-cat-act]');
+      if (!b) return;
+      var act = b.getAttribute('data-cat-act');
+      closeCatMenus();
+      if (act === 'rename') renameCategory(catId);
+      if (act === 'toggle') toggleCategoryVisible(catId);
+      if (act === 'delete') confirmDeleteCategory(catId);
+    });
+  }
+
+  function renameCategory(catId) {
+    var cat = catById(catId);
+    var head = document.querySelector('[data-cat-head="' + catId + '"]');
+    if (!cat || !head) return;
+
+    var original = head.innerHTML;
+    head.innerHTML = '<input type="text" class="sv-cat-rename" value="">'
+      + '<button type="button" class="sv-cat-mini primary" data-rename-save>Save</button>'
+      + '<button type="button" class="sv-cat-mini" data-rename-cancel>Cancel</button>';
+    var input = head.querySelector('.sv-cat-rename');
+    input.value = cat.name;
+    input.focus();
+    input.select();
+
+    function restore() { head.innerHTML = original; renderAll(); }
+
+    function save() {
+      var name = input.value.trim();
+      if (!name) { input.focus(); return; }
+      if (name === cat.name) { restore(); return; }
+      input.disabled = true;
+      ajax(D.urls.servicesBase + '/' + catId, 'PATCH', { op: 'update_category', field: 'name', value: name })
+        .then(function (r) {
+          if (!serviceResponseOk(r)) {
+            input.disabled = false;
+            showCatError(head, serviceErrorMessage(r));
+            return;
+          }
+          cat.name = r.json.data.name;
+          cat.slug = r.json.data.slug;
+          renderAll();
+        })
+        .catch(function () { input.disabled = false; showCatError(head, 'Could not save — check your connection.'); });
+    }
+
+    head.querySelector('[data-rename-save]').addEventListener('click', save);
+    head.querySelector('[data-rename-cancel]').addEventListener('click', restore);
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); save(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); restore(); }
+    });
+  }
+
+  function showCatError(head, msg) {
+    var e = head.querySelector('.sv-cat-err');
+    if (!e) {
+      e = document.createElement('span');
+      e.className = 'sv-cat-err';
+      head.appendChild(e);
+    }
+    e.textContent = msg;
+  }
+
+  function toggleCategoryVisible(catId) {
+    var cat = catById(catId);
+    if (!cat) return;
+    var next = cat.is_active === false;
+    ajax(D.urls.servicesBase + '/' + catId, 'PATCH',
+         { op: 'update_category', field: 'is_active', value: next ? 1 : 0 })
+      .then(function (r) {
+        if (!serviceResponseOk(r)) { alert(serviceErrorMessage(r)); return; }
+        cat.is_active = next;
+        renderAll();
+      })
+      .catch(function () { alert('Could not save — check your connection.'); });
+  }
+
+  function confirmDeleteCategory(catId) {
+    var cat = catById(catId);
+    var head = document.querySelector('[data-cat-head="' + catId + '"]');
+    if (!cat || !head) return;
+
+    var mine = flatServices().filter(function (s) { return String(s.category_id) === String(catId); });
+    var others = state.categories.filter(function (c) { return String(c.id) !== String(catId); });
+
+    var panel = document.createElement('div');
+    panel.className = 'sv-cat-confirm' + (mine.length ? ' is-danger' : '');
+
+    if (mine.length) {
+      // Deleting would cascade to every service in here — make the trade
+      // explicit and require a destination. No "delete anyway".
+      var opts = others.map(function (c) {
+        return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+      }).join('');
+
+      panel.innerHTML = ''
+        + '<div class="t">“' + esc(cat.name) + '” has ' + mine.length + ' service' + (mine.length === 1 ? '' : 's') + ' in it</div>'
+        + '<div class="s">Deleting the category deletes these too, along with their add-ons and pricing:</div>'
+        + '<ul>' + mine.slice(0, 6).map(function (s) { return '<li>' + esc(s.name) + '</li>'; }).join('')
+        + (mine.length > 6 ? '<li>and ' + (mine.length - 6) + ' more…</li>' : '') + '</ul>'
+        + (others.length
+            ? '<div class="r"><span>Move them to</span>'
+              + '<select data-cat-move>' + opts + '</select>'
+              + '<button type="button" class="sv-cat-mini primary" data-cat-do-delete>Move &amp; delete</button></div>'
+            : '<div class="s" style="margin-top:8px">There is nowhere to move them — create another category first.</div>')
+        + '<div class="r"><button type="button" class="sv-cat-mini" data-cat-hide-instead>Hide it instead</button>'
+        + '<button type="button" class="sv-cat-mini" data-cat-cancel>Cancel</button></div>';
+    } else {
+      panel.innerHTML = ''
+        + '<div class="t">Delete “' + esc(cat.name) + '”?</div>'
+        + '<div class="s">Nothing is filed under it, so nothing else is affected.</div>'
+        + '<div class="r"><button type="button" class="sv-cat-mini danger" data-cat-do-delete>Delete category</button>'
+        + '<button type="button" class="sv-cat-mini" data-cat-cancel>Cancel</button></div>';
+    }
+
+    head.parentNode.insertBefore(panel, head.nextSibling);
+
+    panel.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-cat-cancel]')) { panel.remove(); return; }
+      if (ev.target.closest('[data-cat-hide-instead]')) { panel.remove(); toggleCategoryVisible(catId); return; }
+      if (!ev.target.closest('[data-cat-do-delete]')) return;
+
+      var sel = panel.querySelector('[data-cat-move]');
+      var payload = { op: 'delete_category' };
+      if (sel) payload.move_to = sel.value;
+
+      var btn = ev.target.closest('[data-cat-do-delete]');
+      btn.disabled = true;
+
+      ajax(D.urls.servicesBase + '/' + catId, 'DELETE', payload)
+        .then(function (r) {
+          if (!serviceResponseOk(r)) {
+            btn.disabled = false;
+            var e = panel.querySelector('.sv-cat-err') || document.createElement('div');
+            e.className = 'sv-cat-err';
+            e.textContent = serviceErrorMessage(r);
+            panel.appendChild(e);
+            return;
+          }
+          // Move the services locally so the list is right without a reload.
+          if (payload.move_to) {
+            flatServices().forEach(function (s) {
+              if (String(s.category_id) === String(catId)) s.category_id = payload.move_to;
+            });
+          }
+          state.categories = state.categories.filter(function (c) {
+            return String(c.id) !== String(catId);
+          });
+          panel.remove();
+          renderAll();
+        })
+        .catch(function () {
+          btn.disabled = false;
+          alert('Could not delete — check your connection.');
+        });
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-cat-menu]');
+    if (btn) { e.preventDefault(); openCatMenu(btn.getAttribute('data-cat-menu'), btn); return; }
+    if (!e.target.closest('.sv-cat-menu')) closeCatMenus();
+  });
+
   function renderInlineCategoryCreator(onCreated) {
     var body = document.getElementById('sv-list-body');
     if (!body) return;
@@ -1508,6 +1707,7 @@
       + '<div class="sv-drag">+</div>'
       + '<div style="grid-column:2 / span 4"><input type="text" class="sv-cell-input" id="sv-inline-cat-name" placeholder="New category name (e.g. Repair, Fitting, Build)…" style="padding:4px 7px;background:var(--ia-input-bg);border:0.5px solid var(--ia-accent);border-radius:var(--ia-r-sm);font-size:13.5px;width:100%"></div>'
       + '<div style="text-align:center;opacity:.4;font-size:11px">→</div>'
+      + '<div style="text-align:center"><button type="button" class="sv-cat-mini primary" id="sv-inline-cat-save">Save</button></div>'
       + '<div><button type="button" class="sv-expand-btn" id="sv-inline-cat-cancel" title="Cancel">×</button></div>';
 
     body.insertBefore(row, body.firstChild);
@@ -1525,8 +1725,18 @@
       committed = true;
       nameInput.disabled = true;
       ajax(D.urls.servicesBase, 'POST', { op: 'save_category', name: name }).then(function (r) {
+        // MARKER-SVC-CAT — keep the row on failure so the typing isn't lost,
+        // and say what went wrong instead of leaving a frozen input.
+        if (!serviceResponseOk(r)) {
+          committed = false;
+          nameInput.disabled = false;
+          var e = row.querySelector('.sv-cat-err');
+          if (!e) { e = document.createElement('div'); e.className = 'sv-cat-err'; row.appendChild(e); }
+          e.textContent = serviceErrorMessage(r);
+          nameInput.focus();
+          return;
+        }
         row.remove();
-        if (!serviceResponseOk(r)) { alert('Category save failed: ' + serviceErrorMessage(r)); return; }
         var cat = {
           id: r.json.data.id, name: r.json.data.name, slug: r.json.data.slug,
           is_active: true, sort_order: r.json.data.sort_order || 0, services: [],
@@ -1542,10 +1752,13 @@
     });
     nameInput.addEventListener('blur', function () {
       setTimeout(function () {
-        if (document.activeElement !== cancelBtn) commit();
+        var el = document.activeElement;
+        if (el !== cancelBtn && el !== row.querySelector('#sv-inline-cat-save')) commit();
       }, 120);
     });
     cancelBtn.addEventListener('click', cancel);
+    var saveBtn = row.querySelector('#sv-inline-cat-save');
+    if (saveBtn) saveBtn.addEventListener('click', function () { commit(); });
   }
 
   function createLibraryAddon() {
