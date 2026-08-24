@@ -43,7 +43,9 @@ newfile('app/Services/Tenant/InventoryReportService.php', """<?php
 namespace App\\Services\\Tenant;
 
 use App\\Models\\Tenant;
-use Illuminate\\Support\\Carbon;
+// Tenant::localToday() returns \\Carbon\\Carbon; Illuminate\\Support\\Carbon
+// EXTENDS it, so hinting the subclass would reject a plain Carbon.
+use Carbon\\Carbon;
 use Illuminate\\Support\\Facades\\DB;
 
 /**
