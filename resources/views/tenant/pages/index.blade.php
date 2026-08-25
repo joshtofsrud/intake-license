@@ -580,16 +580,19 @@
   font-size:12px;color:#FBBF24}
 .lg-warnrow a{color:#FBBF24}
 /* MARKER-WELCOME-LIVE-BANNER */
-.wl-live{display:flex;gap:11px;align-items:flex-start;margin:0 18px 4px;padding:12px 14px;
-  border:1px solid rgba(251,191,36,.45);background:rgba(251,191,36,.08);border-radius:11px}
-.wl-live-dot{width:9px;height:9px;border-radius:99px;background:#FBBF24;margin-top:5px;
+/* MARKER-WELCOME-LIVE-BANNER-FIT — no horizontal margin: the card's own
+   padding is the gutter, same as .wl-head and .wl-grid. .ia-card-head brings
+   margin-bottom:16px, so the banner only needs its own bottom gap. */
+.wl-live{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:11px 13px;
+  border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.07);border-radius:9px}
+.wl-live-dot{width:8px;height:8px;border-radius:99px;background:#FBBF24;margin-top:4px;
   flex-shrink:0;box-shadow:0 0 0 0 rgba(251,191,36,.6);animation:wlPulse 2.4s ease-out infinite}
 @keyframes wlPulse{
   0%{box-shadow:0 0 0 0 rgba(251,191,36,.55)}
   70%{box-shadow:0 0 0 9px rgba(251,191,36,0)}
   100%{box-shadow:0 0 0 0 rgba(251,191,36,0)}
 }
-.wl-live-txt{font-size:12.5px;line-height:1.55;color:#FBBF24}
+.wl-live-txt{font-size:11.5px;line-height:1.6;color:#FBBF24}
 .wl-live-txt b{color:#FCD34D}
 .wl-live-txt a{color:#FCD34D;text-decoration:underline}
 @media (prefers-reduced-motion:reduce){ .wl-live-dot{animation:none} }
