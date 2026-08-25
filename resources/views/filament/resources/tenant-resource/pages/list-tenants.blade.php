@@ -173,7 +173,7 @@
                                        ">Impersonate</a>
                                     <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
                                     {{-- MARKER-TENANT-STANDING-ADMIN --}}
-                                    @if($t->suspended_at)
+                                    @if($t->suspended_at ?? null)
                                       <button type="button" class="tg-card__menu-item"
                                         @click.stop.prevent="open = false; $wire.unsuspend('{{ $t->id }}')">
                                         Unsuspend

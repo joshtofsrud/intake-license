@@ -117,6 +117,10 @@ class ListTenants extends ListRecords
                 'subdomain' => $t->subdomain,
                 'plan_tier' => $t->plan_tier,
                 'onboarding_status' => $t->onboarding_status,
+                // MARKER-TENANT-STANDING-ROWFIX — the row is a stdClass built
+                // here; anything the view reads must be listed in this payload.
+                'suspended_at' => $t->suspended_at ?? null,
+                'suspended_reason' => $t->suspended_reason ?? null,
                 'subscription_status' => $t->subscription_status,
                 'trial_ends_at' => $t->trial_ends_at,
                 'created_at' => $t->created_at,
