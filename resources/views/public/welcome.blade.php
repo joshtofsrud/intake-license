@@ -42,7 +42,7 @@
     @if($wLogo)
       <img class="logo" src="{{ $wLogo }}" alt="{{ $t->name }}">
     @else
-      <div class="mark">{{ strtoupper(substr($t->name, 0, 2)) }}</div>
+      <div class="mark">{{ brand_initials($t->name) }}</div>
     @endif
 
     <h1>{{ $w['headline'] }}</h1>

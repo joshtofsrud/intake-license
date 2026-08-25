@@ -141,7 +141,7 @@
           $wLight   = $currentTenant->logo_light_url ?: null;
           $wPick    = $welcome['logo'] ?? 'auto';
           $wAutoSrc = $wLight ?: $wMain;
-          $wInitials = strtoupper(substr($currentTenant->name, 0, 2));
+          $wInitials = brand_initials($currentTenant->name);
         @endphp
         <label class="wl-label">Logo</label>
         <input type="hidden" name="welcome_logo" id="wl-logo" value="{{ $wPick }}">
@@ -154,6 +154,7 @@
               @if($wAutoSrc)<img src="{{ $wAutoSrc }}" alt="">@else<span class="lg-initials">{{ $wInitials }}</span>@endif
             </span>
             <span class="lg-name">Automatic</span>
+            <span class="lg-flag">&#9888; Hard to see on dark</span>
             <span class="lg-hint">{{ $wLight ? 'Using light' : ($wMain ? 'Using main' : 'No logo uploaded') }}</span>
           </button>
 
@@ -164,6 +165,7 @@
               @if($wMain)<img src="{{ $wMain }}" alt="">@else<span class="lg-missing">not uploaded</span>@endif
             </span>
             <span class="lg-name">Main</span>
+            <span class="lg-flag">&#9888; Hard to see on dark</span>
             <span class="lg-hint">{{ $wMain ? 'Your primary logo' : 'Not uploaded yet' }}</span>
           </button>
 
@@ -174,6 +176,7 @@
               @if($wLight)<img src="{{ $wLight }}" alt="">@else<span class="lg-missing">not uploaded</span>@endif
             </span>
             <span class="lg-name">Light</span>
+            <span class="lg-flag">&#9888; Hard to see on dark</span>
             <span class="lg-hint">{{ $wLight ? 'For dark backgrounds' : 'Not uploaded yet' }}</span>
           </button>
 
@@ -223,7 +226,7 @@
             <img class="wl-prev-logo" data-wl-preview="logo" src="{{ $wPrevSrc }}" alt=""
                  @unless($wPrevSrc) hidden @endunless>
             <div class="wl-prev-mark" data-wl-preview="mark"
-                 @if($wPrevSrc) hidden @endif>{{ strtoupper(substr($currentTenant->name, 0, 2)) }}</div>
+                 @if($wPrevSrc) hidden @endif>{{ brand_initials($currentTenant->name) }}</div>
             <div class="wl-prev-h" data-wl-preview="headline">{{ $welcome['headline'] }}</div>
             <div class="wl-prev-p" data-wl-preview="message">{{ $welcome['message'] }}</div>
             <div class="wl-prev-cta" data-wl-preview="cta" @if(!$welcome['cta_label']) hidden @endif>{{ $welcome['cta_label'] }}</div>
@@ -286,6 +289,41 @@
     if (choice === 'light') return light || main;
     return light || main; // auto
   }
+
+  // MARKER-WELCOME-LOGO-SMART — measure each chip's artwork rather than
+  // guessing from the filename. Mean luminance over non-transparent pixels;
+  // below the threshold the artwork is dark, so the chip switches to a light
+  // backdrop and the tile flags that the real page will hide it.
+  function measureChip(img) {
+    try {
+      var c = document.createElement('canvas');
+      c.width = 32; c.height = 32;
+      var ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, 32, 32);
+      var d = ctx.getImageData(0, 0, 32, 32).data;
+      var sum = 0, seen = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        var a = d[i + 3];
+        if (a < 24) continue; // transparent padding tells us nothing
+        sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) * (a / 255);
+        seen++;
+      }
+      if (!seen) return;               // fully transparent — nothing to judge
+      if (sum / seen > 70) return;     // bright enough on a dark page
+      var chip = img.closest('.lg-chip');
+      var opt  = img.closest('.lg-opt');
+      if (chip) chip.classList.add('is-dark-art');
+      if (opt)  opt.classList.add('has-dark-art');
+    } catch (err) {
+      // A cross-origin logo taints the canvas and getImageData throws.
+      // Nothing to do: the chip stays exactly as it rendered.
+    }
+  }
+
+  picker.querySelectorAll('.lg-chip img').forEach(function (img) {
+    if (img.complete && img.naturalWidth) measureChip(img);
+    else img.addEventListener('load', function () { measureChip(img); });
+  });
 
   picker.addEventListener('click', function (e) {
     var opt = e.target.closest('.lg-opt');
@@ -530,6 +568,12 @@
   background:rgba(251,191,36,.05);border-radius:9px;padding:9px 12px;margin-top:9px;
   font-size:12px;color:#FBBF24}
 .lg-warnrow a{color:#FBBF24}
+/* MARKER-WELCOME-LOGO-SMART — dark artwork gets a light backdrop so it is
+   visible at all, and says plainly that it won't be on the real page. */
+.lg-chip.is-dark-art{background:#e9eaec}
+.lg-flag{display:none;align-items:center;justify-content:center;gap:4px;margin-top:5px;
+  font-size:10px;font-weight:700;letter-spacing:.02em;color:#FBBF24;line-height:1.3}
+.lg-opt.has-dark-art .lg-flag{display:flex}
 @media (max-width:700px){ .lg-picker{grid-template-columns:repeat(2,1fr)} }
 @media (max-width:900px){ .wl-grid{grid-template-columns:1fr} .wl-side{order:-1} }
 </style>

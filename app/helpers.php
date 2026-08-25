@@ -258,3 +258,34 @@ if (! function_exists('tenant_tz_offset_expr')) {
         return ["DATE_ADD({$column}, INTERVAL ({$sql}) SECOND)", $bindings];
     }
 }
+
+// MARKER-WELCOME-LOGO-SMART — initials of the WORDS, not the first letters.
+// "Oakridge Bike Shop" is OBS, not OA.
+if (! function_exists('brand_initials')) {
+    function brand_initials(?string $name, int $max = 3): string
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return '?';
+        }
+
+        $words = preg_split('/[\s\-\/&]+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        // Drop noise words so "The Bike Hub" reads TBH, not THE.
+        $skip = ['the', 'and', 'of', 'a', 'an', '&'];
+        $kept = array_values(array_filter($words, fn ($w) => ! in_array(mb_strtolower($w), $skip, true)));
+        if (count($kept) < 2) {
+            $kept = $words;
+        }
+
+        if (count($kept) === 1) {
+            return mb_strtoupper(mb_substr($kept[0], 0, 2));
+        }
+
+        $out = '';
+        foreach (array_slice($kept, 0, $max) as $w) {
+            $out .= mb_substr($w, 0, 1);
+        }
+
+        return mb_strtoupper($out);
+    }
+}
