@@ -115,6 +115,21 @@
       </label>
     </div>
 
+    {{-- MARKER-WELCOME-LIVE-BANNER — only when it is actually on. A warning
+         that shows while nothing is happening trains people to ignore it. --}}
+    @if($welcome['enabled'])
+      <div class="wl-live">
+        <div class="wl-live-dot"></div>
+        <div class="wl-live-txt">
+          <b>Visitors are seeing the holding page right now.</b>
+          You won't — signed-in staff always get the real site, so
+          <a href="{{ $currentTenant->publicUrl() }}" target="_blank" rel="noopener">{{ parse_url($currentTenant->publicUrl(), PHP_URL_HOST) }}</a>
+          will look completely normal to you. To see what a customer sees, use
+          <b>Open full page</b> below, or open the site in a private window.
+        </div>
+      </div>
+    @endif
+
     <div class="wl-grid">
       {{-- fields --}}
       <div class="wl-fields">
@@ -208,10 +223,6 @@
           @endforeach
         </div>
 
-        <div class="wl-note">
-          <b>You'll still see the real site.</b> Signed-in staff bypass the welcome
-          page, so you can keep working on it while visitors see the holding page.
-        </div>
       </div>
 
       {{-- live preview: repaints as you type, so the copy is judged in
@@ -568,6 +579,20 @@
   background:rgba(251,191,36,.05);border-radius:9px;padding:9px 12px;margin-top:9px;
   font-size:12px;color:#FBBF24}
 .lg-warnrow a{color:#FBBF24}
+/* MARKER-WELCOME-LIVE-BANNER */
+.wl-live{display:flex;gap:11px;align-items:flex-start;margin:0 18px 4px;padding:12px 14px;
+  border:1px solid rgba(251,191,36,.45);background:rgba(251,191,36,.08);border-radius:11px}
+.wl-live-dot{width:9px;height:9px;border-radius:99px;background:#FBBF24;margin-top:5px;
+  flex-shrink:0;box-shadow:0 0 0 0 rgba(251,191,36,.6);animation:wlPulse 2.4s ease-out infinite}
+@keyframes wlPulse{
+  0%{box-shadow:0 0 0 0 rgba(251,191,36,.55)}
+  70%{box-shadow:0 0 0 9px rgba(251,191,36,0)}
+  100%{box-shadow:0 0 0 0 rgba(251,191,36,0)}
+}
+.wl-live-txt{font-size:12.5px;line-height:1.55;color:#FBBF24}
+.wl-live-txt b{color:#FCD34D}
+.wl-live-txt a{color:#FCD34D;text-decoration:underline}
+@media (prefers-reduced-motion:reduce){ .wl-live-dot{animation:none} }
 /* MARKER-WELCOME-LOGO-SMART-FIX — author display beats the UA's
    [hidden]{display:none}, so the logo and the initials mark both rendered. */
 .wl-prev-logo[hidden], .wl-prev-mark[hidden]{display:none !important}
