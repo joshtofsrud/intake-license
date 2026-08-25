@@ -224,6 +224,78 @@ class ListTenants extends ListRecords
         $this->deleteConfirmText = '';
     }
 
+    // MARKER-TENANT-STANDING-ADMIN — suspension state lives on the tenant and
+    // is now enforced by EnforceTenantStanding, so these actually do something.
+    public ?string $pendingSuspendId = null;
+    public string $suspendReason = '';
+
+    public function askSuspend(string $id): void
+    {
+        $this->pendingSuspendId = $id;
+        $this->suspendReason = '';
+    }
+
+    public function cancelSuspend(): void
+    {
+        $this->pendingSuspendId = null;
+        $this->suspendReason = '';
+    }
+
+    public function confirmSuspend(): void
+    {
+        if (! $this->pendingSuspendId) return;
+
+        $tenant = Tenant::find($this->pendingSuspendId);
+        if (! $tenant) { $this->cancelSuspend(); return; }
+
+        if ($tenant->subdomain === '__platform') {
+            Notification::make()->danger()->title('Cannot suspend the platform tenant')->send();
+            $this->cancelSuspend();
+            return;
+        }
+
+        $reason = trim($this->suspendReason);
+        if ($reason === '') {
+            Notification::make()->warning()->title('Give a reason')
+                ->body('The shop sees this, and so does whoever picks up the support ticket.')->send();
+            return;
+        }
+
+        $tenant->update([
+            'suspended_at'      => now(),
+            'suspended_reason'  => $reason,
+            'onboarding_status' => 'suspended',
+        ]);
+
+        Log::warning('Tenant suspended via master admin', [
+            'tenant_id' => $tenant->id, 'subdomain' => $tenant->subdomain,
+            'reason' => $reason, 'by' => auth()->id(),
+        ]);
+
+        Notification::make()->success()->title("Suspended {$tenant->subdomain}")
+            ->body('Staff are locked out on their next request. Their public pages are unaffected.')->send();
+
+        $this->cancelSuspend();
+    }
+
+    public function unsuspend(string $id): void
+    {
+        $tenant = Tenant::find($id);
+        if (! $tenant) return;
+
+        $tenant->update([
+            'suspended_at'      => null,
+            'suspended_reason'  => null,
+            'onboarding_status' => 'active',
+        ]);
+
+        Log::info('Tenant unsuspended via master admin', [
+            'tenant_id' => $tenant->id, 'by' => auth()->id(),
+        ]);
+
+        Notification::make()->success()->title("Restored {$tenant->subdomain}")->send();
+    }
+
     /**
      * Close the delete modal without action.
      */
@@ -261,6 +333,27 @@ class ListTenants extends ListRecords
             return;
         }
 
+        // MARKER-TENANT-STANDING-ADMIN — cancel billing BEFORE deleting.
+        // Deleting a tenant we keep charging is worse than a refused delete,
+        // so a Stripe failure aborts rather than half-completing.
+        if ($tenant->stripe_subscription_id) {
+            try {
+                app(\App\Services\StripeBillingService::class)
+                    ->cancelSubscriptionAtPeriodEnd($tenant->stripe_subscription_id);
+            } catch (\Throwable $e) {
+                Log::error('Tenant delete aborted — Stripe cancel failed', [
+                    'tenant_id' => $tenant->id,
+                    'subscription' => $tenant->stripe_subscription_id,
+                    'error' => $e->getMessage(),
+                ]);
+                Notification::make()->danger()
+                    ->title('Delete stopped — could not cancel the subscription')
+                    ->body('Cancel it in Stripe first, then delete. Nothing has been changed.')
+                    ->persistent()->send();
+                return;
+            }
+        }
+
         $tenant->delete(); // soft delete (sets deleted_at)
 
         Log::info('Tenant soft-deleted via master admin', [
@@ -272,7 +365,9 @@ class ListTenants extends ListRecords
         Notification::make()
             ->success()
             ->title("Deleted {$tenant->subdomain}")
-            ->body('Tenant soft-deleted. Data preserved for recovery.')
+            ->body($tenant->stripe_subscription_id
+                ? 'Subscription cancelled and tenant soft-deleted. Data preserved for recovery.'
+                : 'Tenant soft-deleted. Data preserved for recovery.')
             ->send();
 
         $this->cancelDelete();

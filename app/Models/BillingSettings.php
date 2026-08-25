@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Model;
 class BillingSettings extends Model
 {
     protected $fillable = [
+        // MARKER-TENANT-STANDING-ADMIN
+        'past_due_grace_days',
+        'past_due_action',
         'stripe_test_publishable_key',
         'stripe_test_secret_key',
         'stripe_test_webhook_secret',

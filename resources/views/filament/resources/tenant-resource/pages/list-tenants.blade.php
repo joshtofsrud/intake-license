@@ -172,6 +172,18 @@
                                            f.submit();
                                        ">Impersonate</a>
                                     <a href="{{ $editUrl }}" class="tg-card__menu-item">Edit</a>
+                                    {{-- MARKER-TENANT-STANDING-ADMIN --}}
+                                    @if($t->suspended_at)
+                                      <button type="button" class="tg-card__menu-item"
+                                        @click.stop.prevent="open = false; $wire.unsuspend('{{ $t->id }}')">
+                                        Unsuspend
+                                      </button>
+                                    @elseif($t->subdomain !== '__platform')
+                                      <button type="button" class="tg-card__menu-item"
+                                        @click.stop.prevent="open = false; $wire.askSuspend('{{ $t->id }}')">
+                                        Suspend…
+                                      </button>
+                                    @endif
                                     <button type="button" class="tg-card__menu-item tg-card__menu-item--danger"
                                         @click.stop.prevent="open = false; $wire.askDelete('{{ $t->id }}')">
                                         Delete
@@ -278,5 +290,50 @@
             </div>
         </template>
     @endif
+
+
+{{-- MARKER-TENANT-STANDING-ADMIN — suspend confirm --}}
+@if($pendingSuspendId)
+  @php $suspendTarget = \App\Models\Tenant::find($pendingSuspendId); @endphp
+  <div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:900;display:flex;
+              align-items:center;justify-content:center;padding:24px" wire:click.self="cancelSuspend">
+    <div style="max-width:480px;width:100%;background:rgb(24 24 27);border:1px solid rgb(63 63 70);
+                border-radius:14px;padding:20px">
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">
+        Suspend {{ $suspendTarget?->name ?? 'this shop' }}?
+      </div>
+      <p style="font-size:13px;color:rgb(161 161 170);margin:0 0 12px;line-height:1.6">
+        Staff are locked out of Intake on their next request. Their booking page, customer accounts
+        and gift card balance checks keep working, and no data is touched. Billing is not changed —
+        cancel or pause that in Stripe separately if you mean to.
+      </p>
+      <input type="text" wire:model="suspendReason" placeholder="Reason — the shop sees this"
+             style="width:100%;background:rgb(39 39 42);border:1px solid rgb(63 63 70);border-radius:9px;
+                    color:#e7e7ea;padding:9px 11px;font-size:13.5px;margin-bottom:14px">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <x-filament::button color="gray" wire:click="cancelSuspend">Cancel</x-filament::button>
+        <x-filament::button color="danger" wire:click="confirmSuspend">Suspend shop</x-filament::button>
+      </div>
+    </div>
+  </div>
+@endif
+
+{{-- MARKER-TENANT-STANDING-ADMIN — LEGEND. These badges stopped being
+     decorative the moment enforcement shipped; say what each one now does. --}}
+<div style="margin-top:18px;border:1px solid rgb(63 63 70 / .6);border-radius:11px;padding:13px 15px">
+  <div style="font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:rgb(113 113 122);margin-bottom:9px">
+    What these states enforce
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;font-size:12.5px;color:rgb(161 161 170);line-height:1.55">
+    <div><b style="color:#86efac">● Active</b> — full access.</div>
+    <div><b style="color:#fcd34d">⚠ Trial</b> — full access until the trial ends.</div>
+    <div><b style="color:#fdba74">● Past due</b> — full access during the grace period, then locked automatically. Grace is set in Billing configuration.</div>
+    <div><b style="color:#fca5a5">● Suspended</b> — staff locked out now, by us. Billing keeps running unless you stop it in Stripe.</div>
+  </div>
+  <div style="margin-top:9px;font-size:12px;color:rgb(113 113 122);line-height:1.55">
+    In every state the shop's <b style="color:#a1a1aa">booking page, customer accounts and gift card balance checks stay live</b>.
+    Deleting a shop cancels its Stripe subscription first, and refuses if that call fails.
+  </div>
+</div>
 
 </x-filament-panels::page>

@@ -49,6 +49,9 @@ class BillingConfiguration extends Page implements HasForms
             'stripe_price_branded_annual' => $settings->stripe_price_branded_annual,
             'stripe_price_scale_monthly' => $settings->stripe_price_scale_monthly,
             'stripe_price_scale_annual' => $settings->stripe_price_scale_annual,
+            // MARKER-TENANT-STANDING-ADMIN
+            'past_due_grace_days' => $settings->past_due_grace_days ?? 14,
+            'past_due_action'     => $settings->past_due_action ?? 'lock',
         ]);
     }
 
@@ -147,6 +150,34 @@ class BillingConfiguration extends Page implements HasForms
                             ->label('Scale — annual ($1990, 2 mo free)')
                             ->placeholder('price_...')
                             ->autocomplete('off'),
+                    ]),
+
+                // MARKER-TENANT-STANDING-ADMIN
+                Section::make('Past-due handling')
+                    ->description('What happens when a shop\'s card fails. Grace is counted from the first failed invoice and clears the moment a payment succeeds.')
+                    ->schema([
+                        TextInput::make('past_due_grace_days')
+                            ->label('Grace period (days)')
+                            ->numeric()->minValue(0)->maxValue(120)->required()
+                            ->helperText('Stripe retries its own schedule inside this window. 0 locks on the first failure.'),
+                        Select::make('past_due_action')
+                            ->label('When grace runs out')
+                            ->options([
+                                'lock'     => 'Lock staff out of Intake',
+                                'readonly' => 'Read-only — they can look, not sell',
+                            ])
+                            ->required()->native(false),
+                        Placeholder::make('past_due_legend')
+                            ->label('What the shop actually experiences')
+                            ->content(new \Illuminate\Support\HtmlString(
+                                '<div style="font-size:12.5px;line-height:1.7">'
+                                . '<b>Day 0 — payment fails.</b> A quiet banner appears in their admin. Nothing else changes.<br>'
+                                . '<b>During grace.</b> Full access. The banner sharpens inside the last three days and names the date.<br>'
+                                . '<b>After grace.</b> Staff hit a lock screen (or read-only, above) until they pay.<br>'
+                                . '<b style="color:#BEF264">Never affected, in any state:</b> their public booking page, '
+                                . 'customer accounts, and gift card balance checks. A shop that owes us money still has '
+                                . 'customers who don\'t.</div>'
+                            )),
                     ]),
             ])
             ->statePath('data');
