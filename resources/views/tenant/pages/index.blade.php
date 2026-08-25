@@ -154,8 +154,8 @@
               @if($wAutoSrc)<img src="{{ $wAutoSrc }}" alt="">@else<span class="lg-initials">{{ $wInitials }}</span>@endif
             </span>
             <span class="lg-name">Automatic</span>
-            <span class="lg-flag">&#9888; Hard to see on dark</span>
             <span class="lg-hint">{{ $wLight ? 'Using light' : ($wMain ? 'Using main' : 'No logo uploaded') }}</span>
+            <span class="lg-flag">&#9888; Hard to see on dark</span>
           </button>
 
           <button type="button" class="lg-opt {{ $wPick === 'main' ? 'sel' : '' }} {{ $wMain ? '' : 'is-disabled' }}"
@@ -165,8 +165,8 @@
               @if($wMain)<img src="{{ $wMain }}" alt="">@else<span class="lg-missing">not uploaded</span>@endif
             </span>
             <span class="lg-name">Main</span>
-            <span class="lg-flag">&#9888; Hard to see on dark</span>
             <span class="lg-hint">{{ $wMain ? 'Your primary logo' : 'Not uploaded yet' }}</span>
+            <span class="lg-flag">&#9888; Hard to see on dark</span>
           </button>
 
           <button type="button" class="lg-opt {{ $wPick === 'light' ? 'sel' : '' }} {{ $wLight ? '' : 'is-disabled' }}"
@@ -176,8 +176,8 @@
               @if($wLight)<img src="{{ $wLight }}" alt="">@else<span class="lg-missing">not uploaded</span>@endif
             </span>
             <span class="lg-name">Light</span>
-            <span class="lg-flag">&#9888; Hard to see on dark</span>
             <span class="lg-hint">{{ $wLight ? 'For dark backgrounds' : 'Not uploaded yet' }}</span>
+            <span class="lg-flag">&#9888; Hard to see on dark</span>
           </button>
 
           <button type="button" class="lg-opt {{ $wPick === 'none' ? 'sel' : '' }}" data-logo="none">
@@ -568,6 +568,9 @@
   background:rgba(251,191,36,.05);border-radius:9px;padding:9px 12px;margin-top:9px;
   font-size:12px;color:#FBBF24}
 .lg-warnrow a{color:#FBBF24}
+/* MARKER-WELCOME-LOGO-SMART-FIX — author display beats the UA's
+   [hidden]{display:none}, so the logo and the initials mark both rendered. */
+.wl-prev-logo[hidden], .wl-prev-mark[hidden]{display:none !important}
 /* MARKER-WELCOME-LOGO-SMART — dark artwork gets a light backdrop so it is
    visible at all, and says plainly that it won't be on the real page. */
 .lg-chip.is-dark-art{background:#e9eaec}
