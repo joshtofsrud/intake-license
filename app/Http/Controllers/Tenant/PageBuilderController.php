@@ -598,6 +598,7 @@ class PageBuilderController extends Controller
             'welcome_message'   => 'nullable|string|max:400',
             'welcome_cta_label' => 'nullable|string|max:40',
             'welcome_cta_url'   => 'nullable|string|max:255',
+            'welcome_logo'      => 'nullable|string|in:auto,main,light,none', // MARKER-WELCOME-LOGO
             'welcome_allow'     => 'nullable|array',
             'welcome_allow.*'   => 'string|in:' . implode(',', array_keys(\App\Support\WelcomePage::ALLOWABLE)),
         ]);
@@ -608,6 +609,7 @@ class PageBuilderController extends Controller
         $settings['welcome_message']   = $data['welcome_message'] ?? null;
         $settings['welcome_cta_label'] = $data['welcome_cta_label'] ?? null;
         $settings['welcome_cta_url']   = $data['welcome_cta_url'] ?? null;
+        $settings['welcome_logo']      = $data['welcome_logo'] ?? 'auto'; // MARKER-WELCOME-LOGO
         $settings['welcome_allow']     = array_values($data['welcome_allow'] ?? []);
         $tenant->settings = $settings;
         $tenant->save();

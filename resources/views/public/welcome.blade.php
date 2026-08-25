@@ -36,8 +36,11 @@
 </head>
 <body>
   <div class="w">
-    @if($t->logo_url)
-      <img class="logo" src="{{ $t->logo_url }}" alt="{{ $t->name }}">
+    {{-- MARKER-WELCOME-LOGO — resolved from the welcome setting, not the
+         main logo alone: this page is always dark. --}}
+    @php $wLogo = \App\Support\WelcomePage::logoUrl($t); @endphp
+    @if($wLogo)
+      <img class="logo" src="{{ $wLogo }}" alt="{{ $t->name }}">
     @else
       <div class="mark">{{ strtoupper(substr($t->name, 0, 2)) }}</div>
     @endif

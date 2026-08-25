@@ -134,6 +134,19 @@
                  value="{{ $welcome['cta_url'] }}" placeholder="tel:5095550142">
         </div>
 
+        {{-- MARKER-WELCOME-LOGO --}}
+        <label class="wl-label" for="wl-logo">Logo</label>
+        <select id="wl-logo" name="welcome_logo" class="ia-input">
+          <option value="auto"  @selected(($welcome['logo'] ?? 'auto') === 'auto')>Automatic — light logo if you have one</option>
+          <option value="main"  @selected(($welcome['logo'] ?? '') === 'main')>Main logo</option>
+          <option value="light" @selected(($welcome['logo'] ?? '') === 'light')>Light logo</option>
+          <option value="none"  @selected(($welcome['logo'] ?? '') === 'none')>No logo — just initials</option>
+        </select>
+        <div class="wl-note" style="margin-top:6px">
+          The welcome page is always dark, so a dark main logo can disappear on it.
+          Upload a light version in Settings &rsaquo; Branding.
+        </div>
+
         <label class="wl-label">Let these through anyway</label>
         <div class="wl-allow">
           @foreach($wAllowable as $key => $meta)

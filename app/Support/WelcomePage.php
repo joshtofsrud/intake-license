@@ -33,10 +33,32 @@ class WelcomePage
             'cta_label' => trim((string) ($s['welcome_cta_label'] ?? '')),
             'cta_url'   => trim((string) ($s['welcome_cta_url'] ?? '')),
             // Default reflects what a not-yet-open shop still wants working.
+            'logo'      => in_array($s['welcome_logo'] ?? null, ['auto', 'main', 'light', 'none'], true)
+                            ? $s['welcome_logo'] : 'auto', // MARKER-WELCOME-LOGO
             'allow'     => is_array($s['welcome_allow'] ?? null)
                             ? $s['welcome_allow']
                             : ['book', 'account'],
         ];
+    }
+
+    /**
+     * MARKER-WELCOME-LOGO — which logo the holding page shows.
+     * 'auto' prefers the light logo because the page is always dark.
+     */
+    public static function logoUrl(?Tenant $tenant): ?string
+    {
+        if (! $tenant) {
+            return null;
+        }
+        $main  = $tenant->logo_url ?: null;
+        $light = $tenant->logo_light_url ?: null;
+
+        return match (self::settings($tenant)['logo']) {
+            'none'  => null,
+            'main'  => $main,
+            'light' => $light ?: $main,
+            default => $light ?: $main,
+        };
     }
 
     public static function enabled(?Tenant $tenant): bool
