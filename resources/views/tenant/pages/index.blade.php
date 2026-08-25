@@ -134,18 +134,64 @@
                  value="{{ $welcome['cta_url'] }}" placeholder="tel:5095550142">
         </div>
 
-        {{-- MARKER-WELCOME-LOGO --}}
-        <label class="wl-label" for="wl-logo">Logo</label>
-        <select id="wl-logo" name="welcome_logo" class="ia-input">
-          <option value="auto"  @selected(($welcome['logo'] ?? 'auto') === 'auto')>Automatic — light logo if you have one</option>
-          <option value="main"  @selected(($welcome['logo'] ?? '') === 'main')>Main logo</option>
-          <option value="light" @selected(($welcome['logo'] ?? '') === 'light')>Light logo</option>
-          <option value="none"  @selected(($welcome['logo'] ?? '') === 'none')>No logo — just initials</option>
-        </select>
-        <div class="wl-note" style="margin-top:6px">
-          The welcome page is always dark, so a dark main logo can disappear on it.
-          Upload a light version in Settings &rsaquo; Branding.
+        {{-- MARKER-WELCOME-LOGO-UI — chosen against the real dark background,
+             not from a dropdown. --}}
+        @php
+          $wMain    = $currentTenant->logo_url ?: null;
+          $wLight   = $currentTenant->logo_light_url ?: null;
+          $wPick    = $welcome['logo'] ?? 'auto';
+          $wAutoSrc = $wLight ?: $wMain;
+          $wInitials = strtoupper(substr($currentTenant->name, 0, 2));
+        @endphp
+        <label class="wl-label">Logo</label>
+        <input type="hidden" name="welcome_logo" id="wl-logo" value="{{ $wPick }}">
+        <div class="lg-picker" id="lg-picker"
+             data-main="{{ $wMain }}" data-light="{{ $wLight }}" data-initials="{{ $wInitials }}">
+
+          <button type="button" class="lg-opt {{ $wPick === 'auto' ? 'sel' : '' }}" data-logo="auto">
+            <span class="lg-check">&check;</span>
+            <span class="lg-chip">
+              @if($wAutoSrc)<img src="{{ $wAutoSrc }}" alt="">@else<span class="lg-initials">{{ $wInitials }}</span>@endif
+            </span>
+            <span class="lg-name">Automatic</span>
+            <span class="lg-hint">{{ $wLight ? 'Using light' : ($wMain ? 'Using main' : 'No logo uploaded') }}</span>
+          </button>
+
+          <button type="button" class="lg-opt {{ $wPick === 'main' ? 'sel' : '' }} {{ $wMain ? '' : 'is-disabled' }}"
+                  data-logo="main" @disabled(! $wMain)>
+            <span class="lg-check">&check;</span>
+            <span class="lg-chip">
+              @if($wMain)<img src="{{ $wMain }}" alt="">@else<span class="lg-missing">not uploaded</span>@endif
+            </span>
+            <span class="lg-name">Main</span>
+            <span class="lg-hint">{{ $wMain ? 'Your primary logo' : 'Not uploaded yet' }}</span>
+          </button>
+
+          <button type="button" class="lg-opt {{ $wPick === 'light' ? 'sel' : '' }} {{ $wLight ? '' : 'is-disabled' }}"
+                  data-logo="light" @disabled(! $wLight)>
+            <span class="lg-check">&check;</span>
+            <span class="lg-chip">
+              @if($wLight)<img src="{{ $wLight }}" alt="">@else<span class="lg-missing">not uploaded</span>@endif
+            </span>
+            <span class="lg-name">Light</span>
+            <span class="lg-hint">{{ $wLight ? 'For dark backgrounds' : 'Not uploaded yet' }}</span>
+          </button>
+
+          <button type="button" class="lg-opt {{ $wPick === 'none' ? 'sel' : '' }}" data-logo="none">
+            <span class="lg-check">&check;</span>
+            <span class="lg-chip"><span class="lg-initials">{{ $wInitials }}</span></span>
+            <span class="lg-name">None</span>
+            <span class="lg-hint">Initials only</span>
+          </button>
         </div>
+
+        @unless($wLight)
+          <div class="lg-warnrow">
+            <span>&#9888;</span>
+            <div>No light logo uploaded, so Automatic falls back to your main one — which may be hard to see here.
+              <a href="{{ route('tenant.settings.index') }}#branding">Upload a light version in Settings &rsaquo; Branding &rarr;</a></div>
+          </div>
+        @endunless
 
         <label class="wl-label">Let these through anyway</label>
         <div class="wl-allow">
@@ -172,11 +218,12 @@
         <div class="wl-prev">
           <div class="wl-prev-bar">{{ parse_url($currentTenant->publicUrl(), PHP_URL_HOST) }}</div>
           <div class="wl-prev-body">
-            @if($currentTenant->logo_url)
-              <img class="wl-prev-logo" src="{{ $currentTenant->logo_url }}" alt="">
-            @else
-              <div class="wl-prev-mark">{{ strtoupper(substr($currentTenant->name, 0, 2)) }}</div>
-            @endif
+            {{-- MARKER-WELCOME-LOGO-UI — the saved choice, not the main logo --}}
+            @php $wPrevSrc = \App\Support\WelcomePage::logoUrl($currentTenant); @endphp
+            <img class="wl-prev-logo" data-wl-preview="logo" src="{{ $wPrevSrc }}" alt=""
+                 @unless($wPrevSrc) hidden @endunless>
+            <div class="wl-prev-mark" data-wl-preview="mark"
+                 @if($wPrevSrc) hidden @endif>{{ strtoupper(substr($currentTenant->name, 0, 2)) }}</div>
             <div class="wl-prev-h" data-wl-preview="headline">{{ $welcome['headline'] }}</div>
             <div class="wl-prev-p" data-wl-preview="message">{{ $welcome['message'] }}</div>
             <div class="wl-prev-cta" data-wl-preview="cta" @if(!$welcome['cta_label']) hidden @endif>{{ $welcome['cta_label'] }}</div>
@@ -216,6 +263,43 @@
       if (map[id][0] !== 'headline') target.hidden = (v === '');
     });
     if (map[id][0] !== 'headline' && !input.value.trim()) target.hidden = true;
+  });
+})();
+</script>
+<script>
+// MARKER-WELCOME-LOGO-UI — logo tiles drive the hidden input and the preview.
+// Deliberately its own IIFE: the block above owns the text fields, and one
+// duplicate identifier would take both features down.
+(function () {
+  var picker = document.getElementById('lg-picker');
+  var field  = document.getElementById('wl-logo');
+  if (!picker || !field) return;
+
+  var main  = picker.getAttribute('data-main')  || '';
+  var light = picker.getAttribute('data-light') || '';
+  var img   = document.querySelector('[data-wl-preview="logo"]');
+  var mark  = document.querySelector('[data-wl-preview="mark"]');
+
+  function resolve(choice) {
+    if (choice === 'none')  return '';
+    if (choice === 'main')  return main;
+    if (choice === 'light') return light || main;
+    return light || main; // auto
+  }
+
+  picker.addEventListener('click', function (e) {
+    var opt = e.target.closest('.lg-opt');
+    if (!opt || opt.disabled || opt.classList.contains('is-disabled')) return;
+    picker.querySelectorAll('.lg-opt').forEach(function (o) { o.classList.remove('sel'); });
+    opt.classList.add('sel');
+
+    var choice = opt.getAttribute('data-logo');
+    field.value = choice;
+
+    var src = resolve(choice);
+    if (!img || !mark) return;
+    if (src) { img.src = src; img.hidden = false; mark.hidden = true; }
+    else     { img.hidden = true;  mark.hidden = false; }
   });
 })();
 </script>
@@ -423,6 +507,30 @@
 
 .wl-foot{display:flex;justify-content:flex-end;gap:8px;
   margin-top:20px;padding-top:16px;border-top:.5px solid var(--ia-border)}
+/* MARKER-WELCOME-LOGO-UI */
+.lg-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.lg-opt{display:block;width:100%;font-family:inherit;text-align:center;position:relative;cursor:pointer;
+  border:1px solid var(--ia-border);background:var(--ia-surface-2);border-radius:11px;padding:9px;
+  color:var(--ia-text);transition:border-color .12s,background .12s}
+.lg-opt:hover:not(.is-disabled){border-color:var(--ia-border-strong,rgba(255,255,255,.2))}
+.lg-opt.sel{border-color:var(--ia-accent);background:rgba(190,242,100,.05)}
+.lg-opt.is-disabled{opacity:.45;cursor:not-allowed}
+.lg-chip{height:56px;border-radius:8px;background:#0a0a0a;display:flex;align-items:center;
+  justify-content:center;margin-bottom:8px;overflow:hidden}
+.lg-chip img{max-height:34px;max-width:80%}
+.lg-initials{font-size:16px;font-weight:800;letter-spacing:.06em;color:rgba(255,255,255,.5)}
+.lg-missing{font-size:11px;color:rgba(255,255,255,.35)}
+.lg-name{display:block;font-size:11.5px;font-weight:600}
+.lg-hint{display:block;font-size:10.5px;color:var(--ia-text-muted);margin-top:1px;line-height:1.35}
+.lg-check{position:absolute;top:6px;right:6px;width:15px;height:15px;border-radius:99px;
+  background:var(--ia-accent);color:#0a0a0a;font-size:10px;font-weight:800;display:none;
+  align-items:center;justify-content:center;line-height:1}
+.lg-opt.sel .lg-check{display:flex}
+.lg-warnrow{display:flex;gap:9px;align-items:flex-start;border:1px solid rgba(251,191,36,.3);
+  background:rgba(251,191,36,.05);border-radius:9px;padding:9px 12px;margin-top:9px;
+  font-size:12px;color:#FBBF24}
+.lg-warnrow a{color:#FBBF24}
+@media (max-width:700px){ .lg-picker{grid-template-columns:repeat(2,1fr)} }
 @media (max-width:900px){ .wl-grid{grid-template-columns:1fr} .wl-side{order:-1} }
 </style>
 @endpush
