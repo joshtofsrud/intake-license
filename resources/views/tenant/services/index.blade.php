@@ -188,6 +188,8 @@
 .sv-cat-menu button:hover{background:var(--ia-surface-2,#1a1a1a)}
 .sv-cat-menu button.danger{color:#F0999B}
 .sv-cat-menu-sep{height:.5px;background:var(--ia-border);margin:4px 0}
+/* MARKER-SVC-CAT-FIX */
+.sv-cat-emptyrow{padding:14px;font-size:13px;color:var(--ia-text-muted);border-bottom:0.5px solid var(--ia-border)}
 .sv-cat-rename{flex:1;min-width:0;background:var(--ia-input-bg);border:1px solid var(--ia-accent);
   color:var(--ia-text);border-radius:var(--ia-r-sm,6px);padding:5px 8px;font-size:13px;font-family:inherit}
 .sv-cat-mini{background:none;border:1px solid var(--ia-border-strong,rgba(255,255,255,.2));

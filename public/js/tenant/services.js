@@ -279,9 +279,18 @@
       return;
     }
     var html = '';
+    // MARKER-SVC-CAT-FIX — an empty category still renders its head, or it
+    // has no ⋯ button and can never be renamed, hidden or deleted. Skipped
+    // while filtering, where empty groups would just be noise.
+    var isFiltering = visible.length !== flatServices().length;
     state.categories.forEach(function (cat) {
       var rows = visible.filter(function (s) { return s.category_id === cat.id; });
-      if (!rows.length) return;
+      if (!rows.length) {
+        if (isFiltering) return;
+        html += svGroupHead(cat.name, 0, cat.id, false, cat.is_active !== false)
+             + '<div class="sv-cat-emptyrow">No services in this category yet.</div>';
+        return;
+      }
       html += svGroupHead(cat.name, rows.length, cat.id, false, cat.is_active !== false) + rows.map(rowHtml).join('');
     });
     var uncat = visible.filter(function (s) { return !s.category_id; });
@@ -1501,8 +1510,17 @@
   }
 
   // ─── MARKER-SVC-CAT — category management ────────────────────────────
+  // MARKER-SVC-CAT-FIX — the menu lives on <body> now, so teardown also
+  // drops the listeners that keep it glued to its button.
+  var _catMenuReflow = null;
+
   function closeCatMenus() {
     document.querySelectorAll('.sv-cat-menu').forEach(function (m) { m.remove(); });
+    if (_catMenuReflow) {
+      window.removeEventListener('scroll', _catMenuReflow, true);
+      window.removeEventListener('resize', _catMenuReflow);
+      _catMenuReflow = null;
+    }
   }
 
   function catById(id) {
@@ -1526,7 +1544,38 @@
       + '<div class="sv-cat-menu-sep"></div>'
       + '<button type="button" class="danger" data-cat-act="delete">Delete category…</button>';
 
-    anchorBtn.parentNode.appendChild(menu);
+    // MARKER-SVC-CAT-FIX — .sv-list-wrap has overflow:hidden for its rounded
+    // corners, so an absolutely-positioned child is CLIPPED, not merely
+    // stacked behind something. Escape the wrapper entirely.
+    menu.style.position = 'fixed';
+    menu.style.right = 'auto';
+    menu.style.top = '0px';
+    menu.style.zIndex = '600';
+    document.body.appendChild(menu);
+
+    function placeCatMenu() {
+      var r = anchorBtn.getBoundingClientRect();
+      var mw = menu.offsetWidth || 196;
+      var mh = menu.offsetHeight || 120;
+      var pad = 8;
+      var left = r.right - mw;
+      // right clamp BEFORE left clamp — reversing them can produce a negative
+      // left when the menu is wider than a narrow viewport.
+      if (left + mw > window.innerWidth - pad) left = window.innerWidth - mw - pad;
+      if (left < pad) left = pad;
+      var top = r.bottom + 4;
+      if (top + mh > window.innerHeight - pad) {
+        var above = r.top - mh - 4;
+        top = above >= pad ? above : Math.max(pad, window.innerHeight - mh - pad);
+      }
+      menu.style.left = left + 'px';
+      menu.style.top = top + 'px';
+    }
+    placeCatMenu();
+
+    _catMenuReflow = function () { placeCatMenu(); };
+    window.addEventListener('scroll', _catMenuReflow, true);
+    window.addEventListener('resize', _catMenuReflow);
 
     menu.addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-cat-act]');
@@ -1536,6 +1585,10 @@
       if (act === 'rename') renameCategory(catId);
       if (act === 'toggle') toggleCategoryVisible(catId);
       if (act === 'delete') confirmDeleteCategory(catId);
+    });
+
+    document.addEventListener('keydown', function esc(ev) { // MARKER-SVC-CAT-FIX
+      if (ev.key === 'Escape') { closeCatMenus(); document.removeEventListener('keydown', esc); }
     });
   }
 
