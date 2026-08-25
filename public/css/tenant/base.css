@@ -1447,3 +1447,15 @@ html.ia-sb-collapsed .ia-sidebar-logo {
   padding-left: 0;
   padding-right: 0;
 }
+
+/* MARKER-TENANT-STANDING — past-due notice above page content */
+.ia-standing{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:11px 13px;
+  border:1px solid rgba(251,191,36,.4);background:rgba(251,191,36,.07);border-radius:9px}
+.ia-standing.is-urgent{border-color:rgba(252,165,165,.45);background:rgba(252,165,165,.07)}
+.ia-standing-dot{width:8px;height:8px;border-radius:99px;background:#FBBF24;margin-top:5px;flex-shrink:0}
+.ia-standing.is-urgent .ia-standing-dot{background:#fca5a5}
+.ia-standing-txt{font-size:12px;line-height:1.6;color:#FBBF24}
+.ia-standing.is-urgent .ia-standing-txt{color:#fca5a5}
+.ia-standing-txt b{color:#FCD34D}
+.ia-standing.is-urgent .ia-standing-txt b{color:#fecaca}
+.ia-standing-cta{display:inline-block;margin-left:6px;color:inherit;text-decoration:underline;font-weight:600}

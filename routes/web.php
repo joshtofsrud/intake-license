@@ -309,6 +309,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             'App\Http\Middleware\ConsumeOnboardingToken',
             'App\Http\Middleware\EnsureTrustedDevice',
             'App\Http\Middleware\RequireTenantAuth',
+            // MARKER-TENANT-STANDING — after auth so a locked-out shop still
+            // reaches the login screen and can sign out.
+            'App\Http\Middleware\EnforceTenantStanding',
             // MARKER-PATCH-492 — per-section role enforcement (Roles & access)
             'App\Http\Middleware\EnforceSectionAccess',
             'App\Http\Middleware\EnsurePinFresh',

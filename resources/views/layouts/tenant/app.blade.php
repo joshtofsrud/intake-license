@@ -153,6 +153,7 @@
            acknowledgement, while a success dismisses itself. --}}
 
       @include('layouts.tenant._staff-broadcast-banner')
+      @include('layouts.tenant._standing-banner') {{-- MARKER-TENANT-STANDING --}}
       @yield('content')
 
     </main>

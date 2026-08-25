@@ -131,7 +131,8 @@ class StripeWebhookController extends Controller
             return;
         }
 
-        $updates = ['subscription_status' => 'active'];
+        // MARKER-TENANT-STANDING — a successful payment ends grace.
+        $updates = ['subscription_status' => 'active', 'past_due_since' => null];
         if ($subscriptionId && ! $tenant->stripe_subscription_id) {
             $updates['stripe_subscription_id'] = $subscriptionId;
         }
@@ -174,7 +175,12 @@ class StripeWebhookController extends Controller
             return;
         }
 
-        $tenant->update(['subscription_status' => 'past_due']);
+        // MARKER-TENANT-STANDING — stamp the FIRST failure only; grace is
+        // counted from it, and a later retry failure must not restart it.
+        $tenant->update([
+            'subscription_status' => 'past_due',
+            'past_due_since'      => $tenant->past_due_since ?: now(),
+        ]);
 
         Log::warning('[StripeWebhook] tenant past_due', [
             'tenant' => $tenant->subdomain,

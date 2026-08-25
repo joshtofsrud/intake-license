@@ -15,6 +15,8 @@ class Tenant extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
+        // MARKER-TENANT-STANDING
+        'past_due_since', 'suspended_at', 'suspended_reason',
         'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'licensed_locations', 'name',
         'is_active', 'settings',
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
@@ -47,6 +49,8 @@ class Tenant extends Model
     ];
 
     protected $casts = [
+        'past_due_since' => 'datetime', // MARKER-TENANT-STANDING
+        'suspended_at'   => 'datetime',
         'last_booking_mode_switch_at' => 'datetime',
         'is_active'           => 'boolean',
         'sms_enabled'         => 'boolean',
