@@ -20,6 +20,16 @@ use Illuminate\Support\Facades\Auth;
  */
 class ShowWelcomePage
 {
+    /**
+     * MARKER-WELCOME-ADMIN-FIX — paths the holding page must never cover,
+     * regardless of settings or sign-in state.
+     */
+    private const NEVER_BLOCKED = [
+        '/admin',               // the staff app, including its login screen
+        '/x',                   // rental extension pay links already sent out
+        '/gift-cards/balance',  // an in-store gift card stays checkable
+    ];
+
     public function handle(Request $request, Closure $next)
     {
         $tenant = app()->bound('tenant') ? app('tenant') : null;
@@ -30,6 +40,16 @@ class ShowWelcomePage
         if ($request->ajax() || $request->expectsJson())  return $next($request);
 
         $path = '/' . ltrim($request->path(), '/');
+        // MARKER-WELCOME-ADMIN-FIX — never stand in front of the staff app.
+        // The signed-in check above only passes users who are ALREADY in;
+        // /admin/login is a GET by a signed-OUT user, which is exactly the
+        // lockout case, so it has to be exempted by path.
+        foreach (self::NEVER_BLOCKED as $exempt) {
+            if ($path === $exempt || str_starts_with($path, $exempt . '/')) {
+                return $next($request);
+            }
+        }
+
         if ($path === '/welcome-preview')                 return $next($request);
         if (WelcomePage::allows($tenant, $path))          return $next($request);
 
