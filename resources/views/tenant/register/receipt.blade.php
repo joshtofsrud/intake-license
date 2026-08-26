@@ -104,6 +104,11 @@
     @if((int) $sale->discount_cents > 0)
       <tr><td>Discount</td><td class="r">&minus;{{ $m($sale->discount_cents) }}</td></tr>
     @endif
+    {{-- MARKER-DOC-DISCOUNT — whole-sale discount, separate from the sum of
+         item discounts above; without it the receipt doesn't add up. --}}
+    @if((int) ($sale->sale_discount_cents ?? 0) > 0)
+      <tr><td>Discount</td><td class="r">&minus;{{ $m($sale->sale_discount_cents) }}</td></tr>
+    @endif
     @if((int) $sale->tax_cents > 0)
       <tr><td>Tax</td><td class="r">{{ $m($sale->tax_cents) }}</td></tr>
       {{-- MARKER-BIZ-RECEIPT — an accounts-payable clerk needs to see WHY tax

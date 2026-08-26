@@ -126,6 +126,9 @@ class InvoiceBuilderService
         }
 
         $subtotal = (int) $appt->subtotal_cents;
+        // MARKER-DOC-DISCOUNT — without this the documents show a subtotal
+        // and a total that don't reconcile.
+        $discount = (int) ($appt->discount_cents ?? 0);
         $tax      = (int) $appt->tax_cents;
         $total    = (int) $appt->total_cents;
         $paid     = (int) $appt->paid_cents;
@@ -146,6 +149,8 @@ class InvoiceBuilderService
             'assets'   => $assetGroups,
             'loose'    => $loose,
             'subtotal' => $subtotal,
+            'discount' => $discount,                             // MARKER-DOC-DISCOUNT
+            'discount_code' => $appt->discount_code ?? null,     // MARKER-DOC-DISCOUNT
             'tax'      => $tax,
             'total'    => $total,
             'paid'     => $paid,

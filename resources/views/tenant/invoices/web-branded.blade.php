@@ -118,6 +118,10 @@
 
       <div class="tot">
         <div class="tr"><span>Subtotal</span><span class="num">{{ format_money($subtotal) }}</span></div>
+        {{-- MARKER-DOC-DISCOUNT --}}
+        @if((int) ($discount ?? 0) > 0)
+        <div class="tr"><span>{{ !empty($discount_code) ? 'Discount (' . $discount_code . ')' : 'Discount' }}</span><span class="num">&minus;{{ format_money($discount) }}</span></div>
+        @endif
         <div class="tr"><span>Tax</span><span class="num">{{ format_money($tax) }}</span></div>
         @if(!$isPaid && $paid > 0)<div class="tr disc"><span>Deposit paid</span><span class="num">&minus;{{ format_money($paid) }}</span></div>@endif
         <div class="grand"><div class="gl">{{ $isPaid ? 'Total' : 'Balance' }}<small>{{ $isPaid ? 'paid' : ($terms === 'due_now' ? 'due now' : 'due on completion') }}</small></div><div class="gv num">{{ format_money($isPaid ? $total : $balance) }}</div></div>

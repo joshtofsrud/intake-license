@@ -246,6 +246,10 @@
           <div class="panel">
             <table>
               <tr><td>Subtotal</td><td class="v">{{ format_money($subtotal) }}</td></tr>
+              {{-- MARKER-DOC-DISCOUNT --}}
+              @if((int) ($discount ?? 0) > 0)
+              <tr><td>{{ !empty($discount_code) ? 'Discount (' . $discount_code . ')' : 'Discount' }}</td><td class="v">&minus;{{ format_money($discount) }}</td></tr>
+              @endif
               <tr><td>Tax</td><td class="v">{{ format_money($tax) }}</td></tr>
               @if(!$isPaid && $paid > 0)<tr><td>Deposit paid</td><td class="v">&minus;{{ format_money($paid) }}</td></tr>@endif
               <tr class="div"><td colspan="2"></td></tr>

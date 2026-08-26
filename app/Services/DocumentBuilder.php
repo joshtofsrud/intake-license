@@ -204,6 +204,14 @@ class DocumentBuilder
     private function totalRows(array $base): array
     {
         $rows = [['Subtotal', (int) $base['subtotal'], false]];
+        // MARKER-DOC-DISCOUNT — the discount already came off the total, so
+        // omitting this row makes the document fail to add up.
+        if ((int) ($base['discount'] ?? 0) > 0) {
+            $label = ! empty($base['discount_code'])
+                ? 'Discount (' . $base['discount_code'] . ')'
+                : 'Discount';
+            $rows[] = [$label, (int) $base['discount'], true];
+        }
         if ((int) $base['tax'] > 0) {
             $rows[] = ['Tax', (int) $base['tax'], false];
         }
@@ -215,6 +223,11 @@ class DocumentBuilder
         $rows = [['Subtotal', (int) $sale->subtotal_cents, false]];
         if ((int) $sale->discount_cents > 0) {
             $rows[] = ['Discount', (int) $sale->discount_cents, true];
+        }
+        // MARKER-DOC-DISCOUNT — whole-sale discount (separate from the sum of
+        // item discounts above), which reduces the total and must be shown.
+        if ((int) ($sale->sale_discount_cents ?? 0) > 0) {
+            $rows[] = ['Discount', (int) $sale->sale_discount_cents, true];
         }
         if ((int) $sale->tax_cents > 0) {
             $rows[] = ['Tax', (int) $sale->tax_cents, false];
