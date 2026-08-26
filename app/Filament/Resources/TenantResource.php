@@ -64,7 +64,11 @@ class TenantResource extends Resource
                 ])
                 ->collapsed(),
 
-            Forms\Components\Section::make('Owner account')->schema([
+            // MARKER-OWNER-FIELDS-SAVE — these write to the owner's tenant_users
+            // row in EditTenant::afterSave, not to the tenants table.
+            Forms\Components\Section::make('Owner account')
+                ->description('Saved to the owner\'s login. Changing the email changes what they sign in with.')
+                ->schema([
                 Forms\Components\TextInput::make('owner_name')
                     ->label('Owner name')
                     ->dehydrated(false)
@@ -80,6 +84,7 @@ class TenantResource extends Resource
                 Forms\Components\TextInput::make('owner_email')
                     ->label('Owner email')
                     ->email()
+                    ->helperText('This is their sign-in address.')
                     ->dehydrated(false),
                 Forms\Components\TextInput::make('owner_phone')
                     ->label('Owner phone')
