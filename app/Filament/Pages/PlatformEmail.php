@@ -41,6 +41,9 @@ class PlatformEmail extends Page implements HasForms
         $this->form->fill([
             'mail_from_address' => $settings->mail_from_address,
             'mail_from_name'    => $settings->mail_from_name,
+            // MARKER-MARKETING-ADMIN
+            'email_broadcast_stream' => $settings->email_broadcast_stream,
+            'email_rate'             => $settings->email_rate !== null ? (string) $settings->email_rate : '0.002',
             'test_recipient'    => auth()->user()?->email,
         ]);
     }
@@ -65,6 +68,26 @@ class PlatformEmail extends Page implements HasForms
                             ->autocomplete('off'),
                     ]),
 
+                // MARKER-MARKETING-ADMIN — the campaign sending switch + rate.
+                Section::make('Marketing email')
+                    ->description('Campaign sending for every tenant hinges on the stream below. Empty: campaign sending is OFF platform-wide — shops can draft and queue, nothing goes out, transactional mail is unaffected. Set: the worker drains queues onto that Postmark stream within a minute.')
+                    ->schema([
+                        TextInput::make('email_broadcast_stream')
+                            ->label('Postmark broadcast stream ID')
+                            ->placeholder('broadcast')
+                            ->maxLength(64)
+                            ->helperText('Create a Broadcasts-type stream in Postmark first, then put its ID here. Marketing must never ride the transactional stream — one spam complaint there can suspend receipts for every shop.')
+                            ->autocomplete('off'),
+                        TextInput::make('email_rate')
+                            ->label('Rate per email (USD)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(1)
+                            ->step('0.0001')
+                            ->helperText('Stamped onto each ledger row at send time. Changing it applies from the next send on — rows already written keep the rate they were charged at.')
+                            ->autocomplete('off'),
+                    ]),
+
                 Section::make('Send a test')
                     ->description('Proves the sender end to end without waiting for a real signup.')
                     ->schema([
@@ -84,6 +107,9 @@ class PlatformEmail extends Page implements HasForms
         PlatformSettings::current()->update([
             'mail_from_address' => trim((string) ($state['mail_from_address'] ?? '')) ?: null,
             'mail_from_name'    => trim((string) ($state['mail_from_name'] ?? '')) ?: null,
+            // MARKER-MARKETING-ADMIN
+            'email_broadcast_stream' => trim((string) ($state['email_broadcast_stream'] ?? '')) ?: null,
+            'email_rate'             => is_numeric($state['email_rate'] ?? null) ? (float) $state['email_rate'] : 0.002,
         ]);
         PlatformSettings::forget();
 
