@@ -35,6 +35,8 @@ class TenantRental extends Model
         'rental_number', 'status', 'source',
         'starts_at', 'due_at', 'original_due_at', 'returned_at',
         'subtotal_cents', 'tax_cents', 'total_cents', 'paid_cents',
+        // MARKER-RENTAL-DISCOUNT
+        'discount_cents', 'discount_code', 'discount_redemption_id',
         'deposit_hold_cents', 'deposit_status', 'stripe_deposit_intent_id',
         'agreement_template_version', 'agreement_signed_at',
         'agreement_method', 'agreement_signer_name', 'agreement_signature_path', 'agreement_signed_ip', 'agreement_pdf_path',
@@ -50,6 +52,7 @@ class TenantRental extends Model
         'cancelled_at'               => 'datetime', // MARKER-PATCH-234
         'agreement_signed_at'        => 'datetime',
         'subtotal_cents'             => 'integer',
+        'discount_cents'             => 'integer', // MARKER-RENTAL-DISCOUNT
         'tax_cents'                  => 'integer',
         'total_cents'                => 'integer',
         'paid_cents'                 => 'integer',

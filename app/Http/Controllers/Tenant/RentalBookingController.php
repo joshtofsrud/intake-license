@@ -1410,4 +1410,132 @@ class RentalBookingController extends Controller
 
         return [$mode, (int) $rateCents, $durationUnits, (int) $rateCents * $durationUnits];
     }
+
+    /**
+     * MARKER-RENTAL-DISCOUNT — discount a whole rental, by code or manually.
+     *
+     * The discount is applied as a delta rather than by recomputing tax from
+     * the subtotal: damage and late charges are added to a rental with zero
+     * tax, so a full recompute would start taxing them.
+     */
+    public function applyDiscount(Request $request, string $id)
+    {
+        $tenant = tenant();
+        $rental = \App\Models\Tenant\TenantRental::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        if ((int) $rental->paid_cents > 0) {
+            return back()->with('error', 'Payment has started on this rental — refund before changing the discount.');
+        }
+
+        $data = $request->validate([
+            'mode'    => 'required|in:code,amount,percent',
+            'code'    => 'nullable|string|max:40',
+            'amount'  => 'nullable|numeric|min:0',
+            'percent' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $subtotal = (int) $rental->subtotal_cents;
+        if ($subtotal <= 0) {
+            return back()->with('error', 'Nothing to discount on this rental yet.');
+        }
+
+        // One discount at a time — release whatever is on it now.
+        $this->releaseRentalDiscount($rental);
+
+        $code = null;
+        $redemptionId = null;
+
+        if ($data['mode'] === 'code') {
+            $typed = trim((string) ($data['code'] ?? ''));
+            if ($typed === '') {
+                return back()->with('error', 'Enter a discount code.');
+            }
+
+            $redeem = app(\App\Services\Tenant\DiscountService::class)->redeem(
+                $tenant->id, $typed, $subtotal, null,
+                $rental->customer_id, auth('tenant')->id()
+            );
+
+            if (! $redeem['ok']) {
+                return back()->with('error', $redeem['reason']);
+            }
+
+            $cents        = (int) $redeem['amount_cents'];
+            $code         = strtoupper($typed);
+            $redemptionId = $redeem['redemption']->id;
+        } else {
+            $cents = $data['mode'] === 'percent'
+                ? (int) floor($subtotal * ((float) ($data['percent'] ?? 0)) / 100)
+                : (int) round(((float) ($data['amount'] ?? 0)) * 100);
+
+            if ($cents <= 0) {
+                return back()->with('error', 'Enter a discount amount.');
+            }
+        }
+
+        $this->writeRentalDiscount($rental, min($cents, $subtotal), $code, $redemptionId);
+
+        return back()->with('success', 'Discount applied.');
+    }
+
+    /** MARKER-RENTAL-DISCOUNT — remove it and give any code use back. */
+    public function removeDiscount(string $id)
+    {
+        $rental = \App\Models\Tenant\TenantRental::where('tenant_id', tenant()->id)->findOrFail($id);
+
+        if ((int) $rental->paid_cents > 0) {
+            return back()->with('error', 'Payment has started on this rental — refund before changing the discount.');
+        }
+
+        $this->releaseRentalDiscount($rental);
+        $this->writeRentalDiscount($rental, 0, null, null);
+
+        return back()->with('success', 'Discount removed.');
+    }
+
+    /**
+     * Restore the rental to its undiscounted figures, then apply the new
+     * discount as a delta. Working from the undiscounted baseline each time
+     * means applying, changing and removing a discount always lands on the
+     * same numbers rather than drifting.
+     */
+    protected function writeRentalDiscount(
+        \App\Models\Tenant\TenantRental $rental,
+        int $discountCents,
+        ?string $code,
+        ?string $redemptionId
+    ): void {
+        $taxRate = (float) (tenant()->default_tax_rate ?? 0);
+
+        $oldDiscount = (int) ($rental->discount_cents ?? 0);
+        $oldTaxBack  = $taxRate > 0 ? (int) round($oldDiscount * $taxRate / 100) : 0;
+
+        // Undiscounted baseline.
+        $baseTax = (int) $rental->tax_cents + $oldTaxBack;
+        $subtotal = (int) $rental->subtotal_cents;
+
+        $discountCents = max(0, min($discountCents, $subtotal));
+        $taxBack = $taxRate > 0 ? (int) round($discountCents * $taxRate / 100) : 0;
+        $taxBack = min($taxBack, $baseTax);
+
+        $newTax = max(0, $baseTax - $taxBack);
+
+        $rental->update([
+            'discount_cents'         => $discountCents,
+            'discount_code'          => $code,
+            'discount_redemption_id' => $redemptionId,
+            'tax_cents'              => $newTax,
+            'total_cents'            => max(0, $subtotal - $discountCents) + $newTax,
+        ]);
+    }
+
+    protected function releaseRentalDiscount(\App\Models\Tenant\TenantRental $rental): void
+    {
+        if (! $rental->discount_redemption_id) return;
+
+        $redemption = \App\Models\Tenant\TenantDiscountRedemption::find($rental->discount_redemption_id);
+        if ($redemption) {
+            app(\App\Services\Tenant\DiscountService::class)->releaseRedemption($redemption);
+        }
+    }
 }

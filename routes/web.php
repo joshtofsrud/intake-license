@@ -507,6 +507,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 Route::get('/rentals/availability-check',        [TenantControllers\RentalBookingController::class, 'availability'])->name('rentals.availability');
                 Route::get('/rentals/bookings/{id}',             [TenantControllers\RentalBookingController::class, 'show'])->name('rentals.bookings.show');
                 Route::post('/rentals/bookings/{id}/extension-offer', [TenantControllers\RentalBookingController::class, 'sendExtensionOffer'])->name('rentals.bookings.extension.send'); // MARKER-RENTAL-EXT
+                // MARKER-RENTAL-DISCOUNT
+                Route::post('/rentals/bookings/{id}/discount',   [TenantControllers\RentalBookingController::class, 'applyDiscount'])->name('rentals.bookings.discount.apply');
+                Route::delete('/rentals/bookings/{id}/discount', [TenantControllers\RentalBookingController::class, 'removeDiscount'])->name('rentals.bookings.discount.remove');
                 Route::post('/rentals/bookings/{id}/check-out',  [TenantControllers\RentalBookingController::class, 'checkOut'])->name('rentals.bookings.checkout');
                 // MARKER-PATCH-232 — guided check-out flow.
                 Route::get( '/rentals/bookings/{id}/check-out-flow',   [TenantControllers\RentalBookingController::class, 'checkOutFlow'])->name('rentals.bookings.checkout.flow');
