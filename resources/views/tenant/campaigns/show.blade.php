@@ -551,14 +551,14 @@
   @if($campaign->status === 'draft')
     <div class="cb-col">
       <div class="cb-col-title">Send</div>
+      {{-- MARKER-CAMPAIGNS-MERGE — legend: what works and what doesn't.
+           Sending re-enables when the delivery worker patch lands. --}}
       <p style="font-size:12px;opacity:.55;line-height:1.5;margin-bottom:12px">
-        Once sent, content cannot be edited.
+        Drafting, designing and preview all work — <strong>sending isn't switched on yet</strong>.
+        The delivery system (consent checks, unsubscribe links, send throttling) is being finished.
+        Your draft stays saved.
       </p>
-      <form method="POST" action="{{ route('tenant.campaigns.send', $campaign->id) }}"
-        onsubmit="return confirm('Send this campaign now? This cannot be undone.');">
-        @csrf
-        <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Send now</button>
-      </form>
+      <button type="button" class="ia-btn" style="width:100%;opacity:.45;cursor:not-allowed" disabled>Send now — not yet available</button>
     </div>
   @else
     <div class="cb-col">

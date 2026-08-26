@@ -239,6 +239,9 @@
     <button class="cc-tab on" data-tab="messages" type="button">Messages</button>
     <button class="cc-tab" data-tab="inbound" type="button">Inbound</button>
     <button class="cc-tab" data-tab="activity" type="button">Activity</button>
+    {{-- MARKER-CAMPAIGNS-MERGE — link, not a panel: campaigns live on their
+         own page and this tab navigates there. No data-tab on purpose. --}}
+    <a class="cc-tab" href="{{ route('tenant.campaigns.index') }}" style="text-decoration:none;display:inline-block">Campaigns</a>
   </div>
 
   {{-- ================= MESSAGES ================= --}}
@@ -505,6 +508,7 @@
 <script>
   (function(){
     document.querySelectorAll('.cc-tab').forEach(function(t){
+      if (!t.dataset.tab) return; // MARKER-CAMPAIGNS-MERGE — link tabs navigate
       t.addEventListener('click', function(){
         document.querySelectorAll('.cc-tab').forEach(x=>x.classList.remove('on'));
         document.querySelectorAll('.cc-view').forEach(x=>x.classList.remove('on'));

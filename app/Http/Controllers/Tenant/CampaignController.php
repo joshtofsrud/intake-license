@@ -150,6 +150,11 @@ class CampaignController extends Controller
             return back()->with('error', 'Please add a subject and at least one content block before sending.');
         }
 
+        // MARKER-CAMPAIGNS-MERGE — sending is gated off until the delivery
+        // worker lands. The old behaviour queued rows nothing would ever
+        // process and reported success; refusing honestly is strictly better.
+        return back()->with('error', 'Sending isn\'t switched on yet — the delivery system (consent checks, unsubscribe links, send throttling) is being finished. Your draft is safe and nothing was queued.');
+
         $segment = $campaign->targeting['segment'] ?? 'all';
         $query   = TenantCustomer::where('tenant_id', $tenant->id)
                                  ->whereNotNull('email')
