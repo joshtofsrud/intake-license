@@ -15,6 +15,11 @@ Artisan::command('inspire', function () {
 // MARKER-PATCH-247 — overdue rentals sweep: emits the rental.overdue
 // staff alert (derived state, so it must be polled). Idempotent.
 // ----------------------------------------------------------------
+// MARKER-CAMPAIGN-DELIVERY — drain pending campaign sends, 120/min.
+Schedule::command('campaigns:process-sends')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 Schedule::command('rentals:extension-offer-scan')
     ->everyFifteenMinutes(); // MARKER-RENTAL-EXT
 

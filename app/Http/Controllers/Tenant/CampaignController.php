@@ -41,9 +41,13 @@ class CampaignController extends Controller
 
         $customerCount = TenantCustomer::where('tenant_id', $tenant->id)->count();
 
+        // MARKER-CAMPAIGN-DELIVERY — the number that matters is who can
+        // legally be emailed, not who exists.
+        $mailableCount = TenantCustomer::where('tenant_id', $tenant->id)->emailMailable()->count();
+
         $segments = [
-            'all'             => "All customers ({$customerCount})",
-            'has_appointment' => 'Customers with at least one appointment',
+            'all'             => "All customers with marketing permission ({$mailableCount} of {$customerCount})",
+            'has_appointment' => 'Customers with an appointment (permission-holders only)',
         ];
 
         // If blocks are empty, seed with a single paragraph so the composer starts useful
@@ -150,44 +154,50 @@ class CampaignController extends Controller
             return back()->with('error', 'Please add a subject and at least one content block before sending.');
         }
 
-        // MARKER-CAMPAIGNS-MERGE — sending is gated off until the delivery
-        // worker lands. The old behaviour queued rows nothing would ever
-        // process and reported success; refusing honestly is strictly better.
-        return back()->with('error', 'Sending isn\'t switched on yet — the delivery system (consent checks, unsubscribe links, send throttling) is being finished. Your draft is safe and nothing was queued.');
+        // MARKER-CAMPAIGN-DELIVERY — sending, for real this time.
+        if (\App\Services\EmailLedger::broadcastStream() === null) {
+            return back()->with('error', 'Campaign sending isn\'t switched on for the platform yet — the broadcast sending lane is still being configured. Your draft is safe.');
+        }
 
         $segment = $campaign->targeting['segment'] ?? 'all';
-        $query   = TenantCustomer::where('tenant_id', $tenant->id)
-                                 ->whereNotNull('email')
-                                 ->where('email', '!=', '');
 
+        $base = TenantCustomer::where('tenant_id', $tenant->id);
         if ($segment === 'has_appointment') {
-            $query->whereHas('appointments');
+            $base->whereHas('appointments');
         }
 
-        $customers = $query->get(['id', 'email']);
+        $totalInSegment = (clone $base)->whereNotNull('email')->where('email', '!=', '')->count();
+        $mailable       = (clone $base)->emailMailable()->get(['id', 'email']);
 
-        if ($customers->isEmpty()) {
-            return back()->with('error', 'No recipients match this segment.');
+        if ($mailable->isEmpty()) {
+            return back()->with('error', $totalInSegment > 0
+                ? "None of the {$totalInSegment} contacts in this segment have marketing permission yet. Customers opt in through booking, checkout or their account page — or confirm permission for imported contacts."
+                : 'No recipients match this segment.');
         }
 
-        foreach ($customers as $customer) {
-            TenantCampaignSend::create([
-                'campaign_id'    => $campaign->id,
-                'customer_id'    => $customer->id,
-                'email'          => $customer->email,
-                'status'         => 'pending',
-                'tracking_token' => Str::random(32),
-                'created_at'     => now(),
-            ]);
+        foreach ($mailable->chunk(500) as $chunk) {
+            foreach ($chunk as $customer) {
+                TenantCampaignSend::create([
+                    'campaign_id'    => $campaign->id,
+                    'customer_id'    => $customer->id,
+                    'email'          => $customer->email,
+                    'status'         => 'pending',
+                    'tracking_token' => Str::random(32),
+                    'created_at'     => now(),
+                ]);
+            }
         }
 
         $campaign->update([
             'status'           => 'sending',
-            'total_recipients' => $customers->count(),
-            'sent_at'          => now(),
+            'total_recipients' => $mailable->count(),
         ]);
 
-        return back()->with('success', "Campaign queued for {$customers->count()} recipient(s). Sending will complete shortly.");
+        $note = $mailable->count() < $totalInSegment
+            ? " ({$mailable->count()} of {$totalInSegment} in the segment have marketing permission — the rest are skipped)"
+            : '';
+
+        return back()->with('success', "Sending to {$mailable->count()} recipient(s){$note}. Emails go out in batches over the next minutes.");
     }
 
     /**

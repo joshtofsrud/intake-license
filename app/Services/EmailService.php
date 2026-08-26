@@ -526,6 +526,80 @@ HTML;
     // ----------------------------------------------------------------
     // Static helper for one-off sends without a service instance
     // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // MARKER-CAMPAIGN-DELIVERY — marketing sends. Three hard rules that
+    // invert the transactional path:
+    //   1. no broadcast stream configured -> no send, ever
+    //   2. no ledger row -> no send (transactional is the other way round)
+    //   3. every message carries an unsubscribe footer + one-click headers
+    // ----------------------------------------------------------------
+    public function sendCampaign(
+        string $toEmail,
+        string $subject,
+        string $bodyHtml,
+        string $campaignId,
+        string $unsubscribeUrl
+    ): bool {
+        $stream = \App\Services\EmailLedger::broadcastStream();
+        if ($stream === null) {
+            logger()->warning('sendCampaign refused: no broadcast stream configured');
+            return false;
+        }
+
+        if (\App\Models\Tenant\TenantEmailSuppression::isSuppressed($this->tenant->id, $toEmail)) {
+            return false;
+        }
+
+        $ledger = \App\Services\EmailLedger::begin(
+            $this->tenant->id, 'campaign', $toEmail, null, null
+        );
+        if ($ledger === null) {
+            // Unbillable marketing mail must not go out.
+            logger()->error('sendCampaign refused: ledger row could not be written', [
+                'tenant_id' => $this->tenant->id, 'campaign_id' => $campaignId,
+            ]);
+            return false;
+        }
+        $ledger->update(['campaign_id' => $campaignId, 'stream' => $stream]);
+
+        $footer = '<p style="font-size:12px;color:#8a8a8e;margin-top:28px;line-height:1.6">'
+            . 'You\'re receiving this because you\'re a customer of ' . e($this->tenant->name) . '. '
+            . '<a href="' . e($unsubscribeUrl) . '" style="color:#8a8a8e">Unsubscribe</a> from marketing email — '
+            . 'receipts and booking confirmations are unaffected.</p>';
+
+        $html = $this->renderHtml($bodyHtml . $footer);
+
+        $fromName  = $this->tenant->emailFromName();
+        $fromEmail = $this->tenant->emailFromAddress();
+        $replyTo   = $this->tenant->email_reply_to ?? $fromEmail;
+
+        try {
+            $tenantId = $this->tenant->id;
+            Mail::send([], [], function ($message) use (
+                $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo,
+                $tenantId, $stream, $unsubscribeUrl
+            ) {
+                $message->to($toEmail)
+                    ->subject($subject)
+                    ->from($fromEmail, $fromName)
+                    ->replyTo($replyTo)
+                    ->html($html);
+                $h = $message->getHeaders();
+                $h->addTextHeader('X-Tenant-Id', $tenantId);
+                $h->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
+                $h->addTextHeader('X-PM-Message-Stream', $stream);
+                $h->addTextHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
+                $h->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            });
+            \App\Services\EmailLedger::markSent($ledger);
+            return true;
+        } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger);
+            logger()->error("EmailService::sendCampaign failed: {$e->getMessage()}");
+            return false;
+        }
+    }
+
     public static function forTenant(Tenant $tenant): self
     {
         return new self($tenant);

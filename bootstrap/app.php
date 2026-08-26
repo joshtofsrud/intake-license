@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // webhook (/webhooks/stripe/subscriptions) both need this.
         $middleware->validateCsrfTokens(except: [
             'mkt/track', // MARKER-MKTTRAFFIC — beacon from cached marketing pages
+            'email/unsubscribe/*', // MARKER-CAMPAIGN-DELIVERY — Gmail/Yahoo one-click POST; HMAC sig is the auth
             'webhooks/stripe',
             'webhooks/stripe/*',
             'webhooks/cloudflare', // MARKER-PATCH-118
