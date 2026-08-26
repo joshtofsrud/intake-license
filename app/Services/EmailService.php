@@ -61,6 +61,11 @@ class EmailService
         // the receipt layout.
         $html = $this->renderHtml($body);
 
+        // MARKER-EMAIL-LEDGER — row first, voided on failure.
+        $ledger = \App\Services\EmailLedger::begin(
+            $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
+        );
+
         try {
             $tenantId = $this->tenant->id;
             Mail::send([], [], function ($message) use (
@@ -80,7 +85,9 @@ class EmailService
                 $h->addTextHeader('X-Tenant-Id', $tenantId);
                 $h->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
+            \App\Services\EmailLedger::markSent($ledger); // MARKER-EMAIL-LEDGER
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger); // MARKER-EMAIL-LEDGER
             logger()->error("EmailService send failed [{$templateKey}]: {$e->getMessage()}");
         }
     }
@@ -174,6 +181,11 @@ class EmailService
             return false;
         }
 
+        // MARKER-EMAIL-LEDGER — row first, voided on failure.
+        $ledger = \App\Services\EmailLedger::begin(
+            $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
+        );
+
         try {
             $tenantId = $this->tenant->id;
             Mail::send([], [], function ($message) use (
@@ -191,8 +203,10 @@ class EmailService
                 // MARKER-PATCH-201 — Postmark Metadata for webhook tenant mapping.
                 $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
+            \App\Services\EmailLedger::markSent($ledger); // MARKER-EMAIL-LEDGER
             return true;
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger); // MARKER-EMAIL-LEDGER
             logger()->error("EmailService::sendRendered failed [{$templateKey}]: {$e->getMessage()}");
             return false;
         }
@@ -225,6 +239,11 @@ class EmailService
             return false;
         }
 
+        // MARKER-EMAIL-LEDGER — row first, voided on failure.
+        $ledger = \App\Services\EmailLedger::begin(
+            $this->tenant->id, \App\Services\EmailLedger::kindFor($templateKey), $toEmail, $templateKey
+        );
+
         try {
             $tenantId = $this->tenant->id;
             Mail::send([], [], function ($message) use (
@@ -242,8 +261,10 @@ class EmailService
                 $headers->addTextHeader('X-Mail-Template', $templateKey);
                 $headers->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
             });
+            \App\Services\EmailLedger::markSent($ledger); // MARKER-EMAIL-LEDGER
             return true;
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger); // MARKER-EMAIL-LEDGER
             logger()->error("EmailService::sendRenderedWithPdf failed [{$templateKey}]: {$e->getMessage()}");
             return false;
         }

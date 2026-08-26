@@ -16,6 +16,8 @@ class PlatformSettings extends Model
     protected $fillable = [
         'mail_from_address',
         'mail_from_name',
+        'email_rate',             // MARKER-EMAIL-LEDGER
+        'email_broadcast_stream', // MARKER-EMAIL-LEDGER
     ];
 
     /** Laravel's framework default when nothing is configured. */
