@@ -282,9 +282,14 @@ class CustomerImporter
                     switch ($row['outcome']) {
                         case 'create':
                             // MARKER-IMPORT2 — ledger the creation so it can be undone
-                            $made = TenantCustomer::create(array_merge($row['values'], [
-                                'tenant_id' => $this->tenant->id,
-                            ]));
+                            // MARKER-CUSTOMER-EMAIL-NULLABLE — name the column
+                            // explicitly. Omitting it leans on a default the
+                            // table does not have, which is what threw 1364.
+                            $made = TenantCustomer::create(array_merge(
+                                ['email' => null],
+                                $row['values'],
+                                ['tenant_id' => $this->tenant->id],
+                            ));
                             \App\Models\Tenant\TenantImportRow::create([
                                 'import_id' => $this->import->id, 'tenant_id' => $this->tenant->id,
                                 'action' => 'created', 'record_type' => 'customer',
