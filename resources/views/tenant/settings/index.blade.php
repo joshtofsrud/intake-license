@@ -1068,6 +1068,9 @@
           </div>
         </div>
 
+        {{-- MARKER-EMAIL-BILLING --}}
+        <a href="{{ route('tenant.settings.email_charges') }}" class="ia-btn ia-btn--ghost" style="margin-bottom:10px;display:inline-block">Email charges &amp; limit</a>
+        <br>
         <a href="{{ route('tenant.billing.portal', []) }}"
            class="ia-btn ia-btn--primary"
            target="_blank" rel="noopener noreferrer">

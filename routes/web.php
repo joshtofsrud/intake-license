@@ -1031,6 +1031,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // MARKER-PATCH-168 — Stripe Connect Session A: tenant payments settings
             // MARKER-PATCH-224 — Settings -> Messaging (owns all tenant SMS config).
             Route::get( '/settings/messaging',               [TenantControllers\Settings\MessagingController::class, 'index'])->name('settings.messaging');
+            // MARKER-EMAIL-BILLING
+            Route::get( '/settings/email-charges',           [TenantControllers\Settings\EmailChargesController::class, 'index'])->name('settings.email_charges');
+            Route::post('/settings/email-charges/cap',       [TenantControllers\Settings\EmailChargesController::class, 'updateCap'])->name('settings.email_charges.cap');
             Route::post('/settings/messaging/search',        [TenantControllers\Settings\MessagingController::class, 'search'])->name('settings.messaging.search');
             Route::post('/settings/messaging/claim',         [TenantControllers\Settings\MessagingController::class, 'claim'])->name('settings.messaging.claim');
             Route::post('/settings/messaging/byo',           [TenantControllers\Settings\MessagingController::class, 'saveByo'])->name('settings.messaging.byo');

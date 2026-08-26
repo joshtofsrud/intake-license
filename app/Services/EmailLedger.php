@@ -97,6 +97,67 @@ class EmailLedger
         return 'other';
     }
 
+    // ------------------------------------------------------------------
+    // MARKER-EMAIL-BILLING — spend and caps.
+    // Spend always SUMS THE STAMPED RATE on each row. Never count × current
+    // rate: a rate change would silently rewrite last month's invoice.
+    // ------------------------------------------------------------------
+
+    /** Month-to-date spend for a tenant, per kind and total. */
+    public static function monthToDate(string $tenantId): array
+    {
+        $since = now()->startOfMonth();
+
+        $rows = TenantEmailLedgerEntry::where('tenant_id', $tenantId)
+            ->where('status', TenantEmailLedgerEntry::STATUS_SENT)
+            ->where('created_at', '>=', $since)
+            ->selectRaw('kind, COUNT(*) as n, SUM(rate) as spend')
+            ->groupBy('kind')
+            ->get();
+
+        $byKind = [];
+        $total  = 0.0;
+        $count  = 0;
+
+        foreach ($rows as $r) {
+            $byKind[$r->kind] = ['count' => (int) $r->n, 'spend' => (float) $r->spend];
+            $total += (float) $r->spend;
+            $count += (int) $r->n;
+        }
+
+        return [
+            'since'     => $since,
+            'by_kind'   => $byKind,
+            'total'     => $total,
+            'count'     => $count,
+            'marketing' => $byKind['campaign']['spend'] ?? 0.0,
+        ];
+    }
+
+    /**
+     * Cap state for marketing spend. 'none' when uncapped; otherwise the
+     * cap, what's spent against it, and whether it's been reached.
+     */
+    public static function capState(\App\Models\Tenant $tenant): array
+    {
+        $capCents = $tenant->email_spend_cap_cents;
+        $spent    = self::monthToDate($tenant->id)['marketing'];
+
+        if ($capCents === null) {
+            return ['capped' => false, 'cap' => null, 'spent' => $spent, 'reached' => false, 'remaining' => null];
+        }
+
+        $cap = $capCents / 100;
+
+        return [
+            'capped'    => true,
+            'cap'       => $cap,
+            'spent'     => $spent,
+            'reached'   => $spent >= $cap,
+            'remaining' => max(0, $cap - $spent),
+        ];
+    }
+
     /** Dollars per email, master-admin editable, never hardcoded at call sites. */
     public static function rate(): float
     {

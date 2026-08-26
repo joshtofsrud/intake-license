@@ -194,6 +194,12 @@ class CampaignController extends Controller
             return back()->with('error', 'Campaign sending isn\'t switched on for the platform yet — the broadcast sending lane is still being configured. Your draft is safe.');
         }
 
+        // MARKER-EMAIL-BILLING — refuse to queue over the shop's own limit.
+        $capState = \App\Services\EmailLedger::capState($tenant);
+        if ($capState['capped'] && $capState['reached']) {
+            return back()->with('error', 'This month\'s marketing limit ($' . number_format($capState['cap'], 2) . ') has been reached, so campaigns are paused. Raise or remove the limit in Settings → Email charges. Receipts and confirmations are unaffected.');
+        }
+
         $segment = $campaign->targeting['segment'] ?? 'all';
 
         $base = TenantCustomer::where('tenant_id', $tenant->id);

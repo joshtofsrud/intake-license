@@ -24,6 +24,7 @@ class Tenant extends Model
         'font_heading', 'font_body', 'tagline',
         'site_template', 'design_tokens', // MARKER-PATCH-260
         'email_from_name', 'email_from_address', 'email_reply_to',
+        'email_spend_cap_cents', // MARKER-EMAIL-BILLING
         'sms_enabled', 'sms_from_number', 'twilio_account_sid', 'twilio_auth_token',
         'twilio_number_sid', // MARKER-PATCH-224
         'direct_payments_enabled', // MARKER-PATCH-169B

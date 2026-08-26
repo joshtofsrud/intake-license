@@ -46,6 +46,14 @@ class ProcessCampaignSends extends Command
             $tenant = Tenant::find($campaign->tenant_id);
             if (! $tenant) continue;
 
+            // MARKER-EMAIL-BILLING — re-checked per campaign per run, so a
+            // limit set (or reached) mid-send stops the rest of the queue.
+            $cap = \App\Services\EmailLedger::capState($tenant);
+            if ($cap['capped'] && $cap['reached']) {
+                $this->warn("Campaign {$campaign->id} paused: monthly marketing limit reached.");
+                continue;
+            }
+
             $svc  = EmailService::forTenant($tenant);
             $html = BlockRenderer::render($campaign->blocks ?? []);
 
