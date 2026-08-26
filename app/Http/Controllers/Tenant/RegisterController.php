@@ -442,14 +442,14 @@ class RegisterController extends Controller
             // MARKER-REGISTER-DISCOUNT — the sale didn't happen, so the
             // code must not stay burned.
             if (isset($redemption) && $redemption) {
-                app(\\App\\Services\\Tenant\\DiscountService::class)->releaseRedemption($redemption);
+                app(\App\Services\Tenant\DiscountService::class)->releaseRedemption($redemption);
             }
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (InventoryStockException $e) {
             // MARKER-REGISTER-DISCOUNT — the sale didn't happen, so the
             // code must not stay burned.
             if (isset($redemption) && $redemption) {
-                app(\\App\\Services\\Tenant\\DiscountService::class)->releaseRedemption($redemption);
+                app(\App\Services\Tenant\DiscountService::class)->releaseRedemption($redemption);
             }
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         }
