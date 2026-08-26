@@ -132,6 +132,99 @@
     @endif
   </div>
 
+  {{-- ===== MARKETING (MARKER-MARKETING-OVERSIGHT) ===== --}}
+  <div class="eh-section">
+    <div class="eh-section-head">
+      <div class="eh-section-title">Marketing email · last 30 days</div>
+      <div class="eh-section-sub">
+        @if($marketing['streamOn'])
+          Campaign sending is ON · ${{ number_format($marketing['rate'], 5) }} per email
+        @else
+          Campaign sending is OFF platform-wide — no broadcast stream configured
+        @endif
+      </div>
+    </div>
+
+    <div class="eh-tiles">
+      <div class="eh-tile">
+        <div class="eh-tile-label">Campaign emails</div>
+        <div class="eh-tile-val">{{ number_format($marketing['sends30']) }}</div>
+      </div>
+      <div class="eh-tile">
+        <div class="eh-tile-label">Billable spend</div>
+        <div class="eh-tile-val">${{ number_format($marketing['spend30'], 2) }}</div>
+      </div>
+      <div class="eh-tile">
+        <div class="eh-tile-label">Shops sending</div>
+        <div class="eh-tile-val">{{ number_format($marketing['tenants30']) }}</div>
+      </div>
+      <div class="eh-tile">
+        <div class="eh-tile-label">Permission claims</div>
+        <div class="eh-tile-val">{{ number_format(count($attestations)) }}</div>
+      </div>
+    </div>
+
+    <div class="eh-card">
+      <div class="eh-row eh-row-head" style="grid-template-columns:2fr 1fr 1fr 1.2fr 1fr">
+        <div>Shop</div><div>Emails</div><div>Spend</div><div>Unsubscribes</div><div>Complaints</div>
+      </div>
+      @if(count($byMarketing) === 0)
+        <div class="eh-empty">No campaign email sent in the last 30 days.</div>
+      @else
+        @foreach($byMarketing as $m)
+          <div class="eh-row" style="grid-template-columns:2fr 1fr 1fr 1.2fr 1fr">
+            <div>{{ $m['tenant'] }}<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $m['subdomain'] }}</span></div>
+            <div>{{ number_format($m['sends']) }}</div>
+            <div>${{ number_format($m['spend'], 2) }}</div>
+            <div>
+              @php $cls = $m['unsub_rate'] >= 2 ? 'bad' : ($m['unsub_rate'] >= 0.5 ? 'warn' : 'ok'); @endphp
+              <span class="eh-pill {{ $cls }}">{{ $m['unsub_rate'] }}%</span>
+              <span style="color:var(--eh-text-dim);font-size:11.5px"> {{ number_format($m['unsubs']) }}</span>
+            </div>
+            <div>
+              @if($m['complaints'] > 0)
+                <span class="eh-pill bad">{{ number_format($m['complaints']) }}</span>
+              @else
+                <span class="eh-pill muted">0</span>
+              @endif
+            </div>
+          </div>
+        @endforeach
+      @endif
+    </div>
+    <div class="eh-section-sub" style="margin-top:8px">
+      Unsubscribe rate is unsubscribes in the window over campaign emails sent in it —
+      a rough ratio, not a per-campaign figure. Above ~0.5% is worth a look; above 2%
+      usually means a shop is emailing people who never asked, and that shows up here
+      well before complaints do.
+    </div>
+  </div>
+
+  {{-- Permission attestations --}}
+  <div class="eh-section">
+    <div class="eh-section-head">
+      <div class="eh-section-title">Permission claims</div>
+      <div class="eh-section-sub">What a shop confirmed, word for word, and who confirmed it.</div>
+    </div>
+    <div class="eh-card">
+      @if(count($attestations) === 0)
+        <div class="eh-empty">No permission claims recorded.</div>
+      @else
+        <div class="eh-row eh-row-head" style="grid-template-columns:1.6fr .8fr 1.4fr 1.2fr">
+          <div>Shop</div><div>Contacts</div><div>Confirmed by</div><div>When</div>
+        </div>
+        @foreach($attestations as $a)
+          <div class="eh-row" style="grid-template-columns:1.6fr .8fr 1.4fr 1.2fr">
+            <div>{{ $a['tenant'] }}</div>
+            <div>{{ number_format($a['count']) }}</div>
+            <div>{{ $a['by'] }}@if($a['role'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['role'] }}</span>@endif</div>
+            <div>{{ $a['when']->format('M j, Y g:ia') }}@if($a['ip'])<span style="color:var(--eh-text-dim);font-size:11.5px"> · {{ $a['ip'] }}</span>@endif</div>
+          </div>
+        @endforeach
+      @endif
+    </div>
+  </div>
+
   {{-- Tenants by bounce rate --}}
   <div class="eh-section">
     <div class="eh-section-head">

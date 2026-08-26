@@ -37,10 +37,109 @@ class EmailHealth extends Page
             'tiles'       => $this->buildTiles(),
             'byBounce'    => $this->tenantsByBounceRate(),
             'recent'      => $this->recentEvents(),
+            // MARKER-MARKETING-OVERSIGHT
+            'marketing'     => $this->marketingTiles(),
+            'byMarketing'   => $this->tenantsByMarketingVolume(),
+            'attestations'  => $this->recentAttestations(),
             'searchTerm'  => $search,
             'searchHits'  => $search !== '' ? $this->searchSuppressions($search) : null,
             'generatedAt' => now(),
         ];
+    }
+
+    /**
+     * MARKER-MARKETING-OVERSIGHT — platform marketing volume and spend.
+     * Spend sums the rate stamped on each ledger row, so a rate change
+     * never rewrites history.
+     */
+    protected function marketingTiles(): array
+    {
+        $since = now()->subDays(30);
+
+        $rows = \App\Models\Tenant\TenantEmailLedgerEntry::where('kind', 'campaign')
+            ->where('status', 'sent')
+            ->where('created_at', '>=', $since);
+
+        return [
+            'sends30'   => (clone $rows)->count(),
+            'spend30'   => (float) (clone $rows)->sum(DB::raw('rate')),
+            'tenants30' => (clone $rows)->distinct()->count('tenant_id'),
+            'streamOn'  => \App\Services\EmailLedger::broadcastStream() !== null,
+            'rate'      => \App\Services\EmailLedger::rate(),
+        ];
+    }
+
+    /**
+     * MARKER-MARKETING-OVERSIGHT — per-tenant marketing volume, with the
+     * unsubscribe rate beside it. A high unsubscribe rate is the earliest
+     * signal a shop is emailing people who never asked; complaints and
+     * suppressions come later, when the damage is already shared.
+     */
+    protected function tenantsByMarketingVolume(): array
+    {
+        $since = now()->subDays(30);
+
+        $vol = \App\Models\Tenant\TenantEmailLedgerEntry::where('kind', 'campaign')
+            ->where('status', 'sent')
+            ->where('created_at', '>=', $since)
+            ->select('tenant_id', DB::raw('COUNT(*) as n'), DB::raw('SUM(rate) as spend'))
+            ->groupBy('tenant_id')
+            ->orderByDesc('n')
+            ->limit(10)
+            ->get();
+
+        if ($vol->isEmpty()) return [];
+
+        $tenants = Tenant::whereIn('id', $vol->pluck('tenant_id'))
+            ->get(['id', 'name', 'subdomain'])->keyBy('id');
+
+        return $vol->map(function ($row) use ($tenants, $since) {
+            $t = $tenants[$row->tenant_id] ?? null;
+
+            $unsubs = \App\Models\Tenant\TenantCustomer::where('tenant_id', $row->tenant_id)
+                ->whereNotNull('email_marketing_opt_out_at')
+                ->where('email_marketing_opt_out_at', '>=', $since)
+                ->count();
+
+            $complaints = TenantEmailBounceEvent::where('tenant_id', $row->tenant_id)
+                ->where('event_type', 'complaint')
+                ->where('received_at', '>=', $since)
+                ->count();
+
+            $n = max(1, (int) $row->n);
+
+            return [
+                'tenant'     => $t?->name ?? 'Unknown',
+                'subdomain'  => $t?->subdomain,
+                'sends'      => (int) $row->n,
+                'spend'      => (float) $row->spend,
+                'unsubs'     => $unsubs,
+                'unsub_rate' => round($unsubs / $n * 100, 2),
+                'complaints' => $complaints,
+            ];
+        })->all();
+    }
+
+    /** MARKER-MARKETING-OVERSIGHT — permission claims, newest first. */
+    protected function recentAttestations(): array
+    {
+        $rows = \App\Models\Tenant\TenantConsentAttestation::orderByDesc('created_at')
+            ->limit(15)->get();
+
+        if ($rows->isEmpty()) return [];
+
+        $tenants = Tenant::whereIn('id', $rows->pluck('tenant_id'))
+            ->get(['id', 'name'])->keyBy('id');
+
+        return $rows->map(fn ($a) => [
+            'tenant'  => $tenants[$a->tenant_id]->name ?? 'Unknown',
+            'count'   => (int) $a->contact_count,
+            'by'      => $a->confirmed_by_name,
+            'role'    => $a->confirmed_by_role,
+            'ip'      => $a->ip,
+            'when'    => $a->created_at,
+            'wording' => $a->wording,
+        ])->all();
     }
 
     protected function buildTiles(): array
