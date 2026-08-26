@@ -97,6 +97,8 @@
     <h1 class="ia-page-title">Campaigns</h1>
     <p class="ia-page-subtitle">Send broadcasts and automated follow-ups to your customer list.</p>
   </div>
+  {{-- MARKER-CONSENT-SURFACES --}}
+  <a href="{{ route('tenant.consent.index') }}" class="ia-btn ia-btn--ghost" style="text-decoration:none">Contacts &amp; consent</a>
 </div>
 
 {{-- Flash messages --}}

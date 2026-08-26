@@ -1366,6 +1366,65 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
     {{-- MARKER-PATCH-158-C — Assets (multi-asset-enabled tenants only) --}}
     @if($currentTenant->multi_asset_enabled)
+      {{-- MARKER-CONSENT-SURFACES — marketing consent state + staff actions --}}
+      <div class="ia-card" style="margin-bottom:24px" id="cust-consent-card">
+        <div class="ia-card-head">
+          <span class="ia-card-title">Marketing email</span>
+        </div>
+        @php
+          $suppressed = $customer->email
+            ? \App\Models\Tenant\TenantEmailSuppression::isSuppressed($customer->tenant_id, $customer->email)
+            : false;
+        @endphp
+        <div style="padding:2px 0 4px">
+          @if(!$customer->email)
+            <div style="font-size:13px;color:var(--ia-text-dim)">No email address on file.</div>
+          @elseif($suppressed)
+            <div style="font-size:13px;color:var(--ia-text-dim)">
+              <strong style="color:var(--ia-text)">Blocked (suppressed)</strong> — this address bounced or complained.
+              No email of any kind sends to it. Manage on the
+              <a href="{{ route('tenant.suppressions.index') }}" style="color:var(--ia-text-dim)">suppression list</a>.
+            </div>
+          @elseif($customer->email_marketing_opt_out_at)
+            <div style="font-size:13px;color:var(--ia-text-dim);margin-bottom:10px">
+              <strong style="color:var(--ia-text)">Unsubscribed</strong>
+              {{ $customer->email_marketing_opt_out_at->format('M j, Y') }} — no campaigns.
+              Receipts and confirmations still send.
+            </div>
+            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
+              onsubmit="return confirm('Only do this if the customer asked to get marketing email again. Record their opt-in?');">
+              @csrf
+              <input type="hidden" name="action" value="opt_in">
+              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Customer asked to opt back in</button>
+            </form>
+          @elseif($customer->email_marketing_consent_at)
+            <div style="font-size:13px;color:var(--ia-text-dim);margin-bottom:10px">
+              <strong style="color:var(--ia-text)">Opted in</strong>
+              {{ $customer->email_marketing_consent_at->format('M j, Y') }}
+              @if($customer->email_marketing_consent_source) via {{ str_replace('_',' ',$customer->email_marketing_consent_source) }} @endif
+              — receives campaigns.
+            </div>
+            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
+              onsubmit="return confirm('Unsubscribe this customer from marketing email? Receipts still send.');">
+              @csrf
+              <input type="hidden" name="action" value="opt_out">
+              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Unsubscribe from marketing</button>
+            </form>
+          @else
+            <div style="font-size:13px;color:var(--ia-text-dim);margin-bottom:10px">
+              <strong style="color:var(--ia-text)">Unconfirmed</strong> — never receives campaigns
+              until they opt in (booking, checkout, account page, or in person).
+            </div>
+            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
+              onsubmit="return confirm('Record that this customer gave permission for marketing email (in person or by message)? This is logged.');">
+              @csrf
+              <input type="hidden" name="action" value="opt_in">
+              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Customer gave permission</button>
+            </form>
+          @endif
+        </div>
+      </div>
+
       <div class="ia-card" style="margin-bottom:24px" id="cust-assets-card">
         <div class="ia-card-head">
           <span class="ia-card-title">Assets <span style="font-size:11px;font-weight:500;padding:2px 7px;background:var(--ia-surface-3, rgba(255,255,255,0.04));border-radius:4px;color:var(--ia-text-dim);margin-left:6px">{{ $customerActiveAssets->count() }}</span></span>

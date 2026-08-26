@@ -959,6 +959,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
                 [TenantControllers\RegisterController::class, 'resendReceipt'])
                 ->name('sales.resend_receipt');
             // MARKER-PATCH-407 — emails.settings.update route removed (receipt options in Communication Center)
+            // MARKER-CONSENT-SURFACES — MUST register before /campaigns/{id},
+            // or the wildcard swallows /campaigns/contacts into show('contacts').
+            Route::get('/campaigns/contacts',          [TenantControllers\ConsentAdminController::class, 'index'])->name('consent.index');
+            Route::post('/campaigns/contacts/attest',  [TenantControllers\ConsentAdminController::class, 'attest'])->name('consent.attest');
+            Route::post('/customers/{id}/consent',     [TenantControllers\ConsentAdminController::class, 'customerConsent'])->name('customers.consent');
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
