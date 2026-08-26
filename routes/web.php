@@ -966,6 +966,13 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/campaigns/contacts',          [TenantControllers\ConsentAdminController::class, 'index'])->name('consent.index');
             Route::post('/campaigns/contacts/attest',  [TenantControllers\ConsentAdminController::class, 'attest'])->name('consent.attest');
             Route::post('/customers/{id}/consent',     [TenantControllers\ConsentAdminController::class, 'customerConsent'])->name('customers.consent');
+            // MARKER-DISCOUNTS-ADMIN
+            Route::get('/discounts',                [TenantControllers\DiscountAdminController::class, 'index'])->name('discounts.index');
+            Route::post('/discounts',               [TenantControllers\DiscountAdminController::class, 'store'])->name('discounts.store');
+            Route::patch('/discounts/{id}',         [TenantControllers\DiscountAdminController::class, 'update'])->name('discounts.update');
+            Route::post('/discounts/{id}/toggle',   [TenantControllers\DiscountAdminController::class, 'toggle'])->name('discounts.toggle');
+            Route::delete('/discounts/{id}',        [TenantControllers\DiscountAdminController::class, 'destroy'])->name('discounts.destroy');
+
             Route::get('/campaigns',            [TenantControllers\CampaignController::class, 'index'])->name('campaigns.index');
             Route::get('/campaigns/{id}',       [TenantControllers\CampaignController::class, 'show'])->name('campaigns.show');
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');

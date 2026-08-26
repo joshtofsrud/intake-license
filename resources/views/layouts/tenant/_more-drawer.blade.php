@@ -197,6 +197,13 @@
       'group'  => 'engage',
     ],
         [
+      // MARKER-DISCOUNTS-ADMIN
+      'route'  => 'tenant.discounts.index',
+      'label'  => 'Discounts',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5l-7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="4.75" cy="4.75" r="1.4" stroke="currentColor" stroke-width="1.2"/><circle cx="9.25" cy="9.25" r="1.4" stroke="currentColor" stroke-width="1.2"/></svg>',
+      'group'  => 'engage',
+    ],
+        [
       'route'  => 'tenant.campaigns.index',
       'label'  => 'Campaigns',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M9 4l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
