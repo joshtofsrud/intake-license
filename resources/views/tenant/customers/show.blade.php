@@ -225,6 +225,15 @@
 .cust-acct-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.07em;
   text-transform:uppercase;border-radius:100px;padding:3px 9px;border:.5px solid var(--ia-border);color:var(--ia-text-dim)}
 .cust-acct-badge.on{border-color:var(--ia-accent);color:var(--ia-accent)}
+/* MARKER-CONSENT-CHIP — marketing consent state, same pill shape.
+   A chip that can be changed is a <button>; a fixed state stays a <span>. */
+.cust-mk-chip{display:inline-flex;align-items:center;font:inherit;font-size:10px;font-weight:800;
+  letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:3px 9px;
+  border:.5px solid var(--ia-border);color:var(--ia-text-dim);background:none}
+button.cust-mk-chip{cursor:pointer}
+button.cust-mk-chip:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
+.cust-mk-chip.yes{border-color:var(--ia-accent);color:var(--ia-accent)}
+.cust-mk-chip.no{border-color:rgba(220,120,120,.55);color:rgba(220,120,120,.9)}
 .cust-acct-btn{background:none;border:0;padding:0;font:inherit;font-size:12px;font-weight:600;
   color:var(--ia-text-muted);cursor:pointer;border-bottom:1px solid currentColor}
 .cust-acct-btn:hover{color:var(--ia-text)}
@@ -916,6 +925,54 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       <span class="cust-acct-badge {{ $caHasAccount ? 'on' : '' }}">
         {{ $caHasAccount ? 'Portal account' : 'No portal account' }}
       </span>
+      {{-- MARKER-CONSENT-CHIP — marketing consent state. Clicking flips it,
+           always behind a confirm: consent is a record, not a toggle. --}}
+      @if($customer->email)
+        @php
+          $mkSuppressed = \App\Models\Tenant\TenantEmailSuppression::isSuppressed($customer->tenant_id, $customer->email);
+          $mkCanManage  = (bool) auth('tenant')->user()?->isManager();
+        @endphp
+        @if($mkSuppressed)
+          <a href="{{ route('tenant.suppressions.index') }}" class="cust-mk-chip no" style="text-decoration:none"
+             title="This address bounced or complained. No email of any kind sends to it — open the suppression list.">Email blocked</a>
+        @elseif($customer->email_marketing_opt_out_at)
+          @if($mkCanManage)
+            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
+                  onsubmit="return confirm('Only do this if the customer asked to receive marketing email again. Record their opt-in?')">
+              @csrf
+              <input type="hidden" name="action" value="opt_in">
+              <button type="submit" class="cust-mk-chip"
+                title="Unsubscribed {{ $customer->email_marketing_opt_out_at->format('M j, Y') }}. Receipts and confirmations still send. Click to record an opt-in they asked for.">Unsubscribed</button>
+            </form>
+          @else
+            <span class="cust-mk-chip" title="Unsubscribed {{ $customer->email_marketing_opt_out_at->format('M j, Y') }}. Receipts still send.">Unsubscribed</span>
+          @endif
+        @elseif($customer->email_marketing_consent_at)
+          @if($mkCanManage)
+            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
+                  onsubmit="return confirm('Unsubscribe this customer from marketing email? Receipts and confirmations still send.')">
+              @csrf
+              <input type="hidden" name="action" value="opt_out">
+              <button type="submit" class="cust-mk-chip yes"
+                title="Opted in {{ $customer->email_marketing_consent_at->format('M j, Y') }}@if($customer->email_marketing_consent_source) via {{ str_replace('_',' ',$customer->email_marketing_consent_source) }}@endif. Click to unsubscribe.">Allows marketing</button>
+            </form>
+          @else
+            <span class="cust-mk-chip yes" title="Opted in {{ $customer->email_marketing_consent_at->format('M j, Y') }}">Allows marketing</span>
+          @endif
+        @else
+          @if($mkCanManage)
+            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
+                  onsubmit="return confirm('Record that this customer gave permission for marketing email, in person or by message? This is logged.')">
+              @csrf
+              <input type="hidden" name="action" value="opt_in">
+              <button type="submit" class="cust-mk-chip"
+                title="Never receives campaigns until they opt in — booking, checkout, their account page, or in person. Click to record permission they gave you.">No marketing</button>
+            </form>
+          @else
+            <span class="cust-mk-chip" title="Never receives campaigns until they opt in.">No marketing</span>
+          @endif
+        @endif
+      @endif
       @if($caCanManage && $customer->email)
         <form method="POST" action="{{ route('tenant.customers.account_link', $customer->id) }}"
               onsubmit="return confirm('{{ $caHasAccount ? 'Email a password reset link to ' : 'Email an account invite to ' }}{{ $customer->email }}?')">
@@ -1366,65 +1423,6 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
     {{-- MARKER-PATCH-158-C — Assets (multi-asset-enabled tenants only) --}}
     @if($currentTenant->multi_asset_enabled)
-      {{-- MARKER-CONSENT-SURFACES — marketing consent state + staff actions --}}
-      <div class="ia-card" style="margin-bottom:24px" id="cust-consent-card">
-        <div class="ia-card-head">
-          <span class="ia-card-title">Marketing email</span>
-        </div>
-        @php
-          $suppressed = $customer->email
-            ? \App\Models\Tenant\TenantEmailSuppression::isSuppressed($customer->tenant_id, $customer->email)
-            : false;
-        @endphp
-        <div style="padding:2px 0 4px">
-          @if(!$customer->email)
-            <div style="font-size:13px;color:var(--ia-text-dim)">No email address on file.</div>
-          @elseif($suppressed)
-            <div style="font-size:13px;color:var(--ia-text-dim)">
-              <strong style="color:var(--ia-text)">Blocked (suppressed)</strong> — this address bounced or complained.
-              No email of any kind sends to it. Manage on the
-              <a href="{{ route('tenant.suppressions.index') }}" style="color:var(--ia-text-dim)">suppression list</a>.
-            </div>
-          @elseif($customer->email_marketing_opt_out_at)
-            <div style="font-size:13px;color:var(--ia-text-dim);margin-bottom:10px">
-              <strong style="color:var(--ia-text)">Unsubscribed</strong>
-              {{ $customer->email_marketing_opt_out_at->format('M j, Y') }} — no campaigns.
-              Receipts and confirmations still send.
-            </div>
-            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
-              onsubmit="return confirm('Only do this if the customer asked to get marketing email again. Record their opt-in?');">
-              @csrf
-              <input type="hidden" name="action" value="opt_in">
-              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Customer asked to opt back in</button>
-            </form>
-          @elseif($customer->email_marketing_consent_at)
-            <div style="font-size:13px;color:var(--ia-text-dim);margin-bottom:10px">
-              <strong style="color:var(--ia-text)">Opted in</strong>
-              {{ $customer->email_marketing_consent_at->format('M j, Y') }}
-              @if($customer->email_marketing_consent_source) via {{ str_replace('_',' ',$customer->email_marketing_consent_source) }} @endif
-              — receives campaigns.
-            </div>
-            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
-              onsubmit="return confirm('Unsubscribe this customer from marketing email? Receipts still send.');">
-              @csrf
-              <input type="hidden" name="action" value="opt_out">
-              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Unsubscribe from marketing</button>
-            </form>
-          @else
-            <div style="font-size:13px;color:var(--ia-text-dim);margin-bottom:10px">
-              <strong style="color:var(--ia-text)">Unconfirmed</strong> — never receives campaigns
-              until they opt in (booking, checkout, account page, or in person).
-            </div>
-            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
-              onsubmit="return confirm('Record that this customer gave permission for marketing email (in person or by message)? This is logged.');">
-              @csrf
-              <input type="hidden" name="action" value="opt_in">
-              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Customer gave permission</button>
-            </form>
-          @endif
-        </div>
-      </div>
-
       <div class="ia-card" style="margin-bottom:24px" id="cust-assets-card">
         <div class="ia-card-head">
           <span class="ia-card-title">Assets <span style="font-size:11px;font-weight:500;padding:2px 7px;background:var(--ia-surface-3, rgba(255,255,255,0.04));border-radius:4px;color:var(--ia-text-dim);margin-left:6px">{{ $customerActiveAssets->count() }}</span></span>
