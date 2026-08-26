@@ -145,11 +145,15 @@ class AuthController extends Controller
 
             $resetUrl = route('tenant.reset') . '?token=' . $token;
 
+            // MARKER-LEDGER-STRAGGLERS
+            $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $user->email, 'staff_password_reset');
             try {
                 Mail::to($user->email)->send(
                     new \App\Mail\PasswordReset($tenant, $user, $resetUrl)
                 );
+                \App\Services\EmailLedger::markSent($ledger);
             } catch (\Throwable $e) {
+                \App\Services\EmailLedger::void($ledger);
                 Log::error('Password reset mail failed: ' . $e->getMessage());
             }
         }

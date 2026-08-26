@@ -172,6 +172,8 @@ class PublicController extends Controller
         $to     = $tenant?->notification_email ?? $tenant?->email_from_address;
 
         if ($to) {
+            // MARKER-LEDGER-STRAGGLERS
+            $ledger = \App\Services\EmailLedger::begin($tenant->id, 'other', $to, 'contact_form');
             try {
                 // MARKER-CONTACT-NAME-FIX — a split-name page posts no 'name'
                 // field, so these interpolations were blank. Rebuild from
@@ -188,7 +190,9 @@ class PublicController extends Controller
                     . "Message:\n{$request->input('message')}",
                     fn($m) => $m->to($to)->subject("New message from {$senderName}")
                 );
+                \App\Services\EmailLedger::markSent($ledger);
             } catch (\Throwable $e) {
+                \App\Services\EmailLedger::void($ledger);
                 logger()->error('Contact form mail failed: ' . $e->getMessage());
             }
         }

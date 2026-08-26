@@ -155,9 +155,13 @@ class CustomerAccountController extends Controller
         ]);
 
         // Send email — uses existing email infrastructure
+        // MARKER-LEDGER-STRAGGLERS — no try here by design: an exception
+        // propagates and the row stays 'pending' (unknown outcome, unbilled).
+        $ledger = \App\Services\EmailLedger::begin($tenant->id, 'other', $customer->email, 'customer_password_reset');
         \Mail::to($customer->email)->send(
             new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
         );
+        \App\Services\EmailLedger::markSent($ledger);
 
         return back()->with('success', 'If an account exists for that email, a reset link has been sent.');
     }
@@ -303,8 +307,15 @@ class CustomerAccountController extends Controller
                 ? new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
                 : new \App\Mail\CustomerAccountInvite($customer, $token, $tenant);
 
+            // MARKER-LEDGER-STRAGGLERS
+            $ledger = \App\Services\EmailLedger::begin(
+                $tenant->id, 'other', $customer->email,
+                $customer->password ? 'customer_password_reset' : 'customer_account_invite'
+            );
             \Mail::to($customer->email)->send($mailable);
+            \App\Services\EmailLedger::markSent($ledger);
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger ?? null);
             \Log::warning('customer claim link send failed', [
                 'customer_id' => $customer->id,
                 'error'       => $e->getMessage(),

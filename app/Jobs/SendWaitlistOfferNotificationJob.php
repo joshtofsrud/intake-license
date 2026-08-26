@@ -42,10 +42,14 @@ class SendWaitlistOfferNotificationJob implements ShouldQueue
         $smsError   = null;
 
         if ($settings->notify_email && $customer->email) {
+            // MARKER-LEDGER-STRAGGLERS
+            $ledger = \App\Services\EmailLedger::begin($tenant->id, 'reminder', $customer->email, 'waitlist_offer');
             try {
                 Mail::to($customer->email)->send(new WaitlistOfferMail($tenant, $offer));
+                \App\Services\EmailLedger::markSent($ledger);
                 $emailOk = true;
             } catch (\Throwable $e) {
+                \App\Services\EmailLedger::void($ledger);
                 $emailError = $e->getMessage();
                 Log::error('Waitlist email failed', [
                     'offer_id' => $offer->id,

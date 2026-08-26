@@ -68,14 +68,21 @@ class TestEmailService
      */
     protected function sendWith(callable $sendFn, string $recipient, string $kind, array $context = []): array
     {
+        // MARKER-LEDGER-STRAGGLERS — tests are metered as kind 'test' and
+        // never billed; without a row they'd be permanent reconciliation drift.
+        $ledger = isset($context['tenant_id'])
+            ? \App\Services\EmailLedger::begin((string) $context['tenant_id'], 'test', $recipient, $kind)
+            : null;
         try {
             $sendFn();
+            \App\Services\EmailLedger::markSent($ledger);
             Log::info('Test email sent', array_merge([
                 'kind'      => $kind,
                 'recipient' => $recipient,
             ], $context));
             return ['ok' => true, 'message' => 'Sent to ' . $recipient];
         } catch (Throwable $e) {
+            \App\Services\EmailLedger::void($ledger);
             Log::error('Test email failed', array_merge([
                 'kind'      => $kind,
                 'recipient' => $recipient,

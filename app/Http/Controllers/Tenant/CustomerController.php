@@ -639,13 +639,20 @@ class CustomerController extends Controller
             'password_reset_sent_at' => now(),
         ]);
 
+        // MARKER-LEDGER-STRAGGLERS
+        $ledger = \App\Services\EmailLedger::begin(
+            $tenant->id, 'other', $customer->email,
+            $isInvite ? 'customer_account_invite' : 'customer_password_reset'
+        );
         try {
             \Illuminate\Support\Facades\Mail::to($customer->email)->send(
                 $isInvite
                     ? new \App\Mail\CustomerAccountInvite($customer, $token, $tenant)
                     : new \App\Mail\CustomerPasswordReset($customer, $token, $tenant)
             );
+            \App\Services\EmailLedger::markSent($ledger);
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger);
             \Illuminate\Support\Facades\Log::warning('customer account link send failed', [
                 'customer_id' => $customer->id, 'error' => $e->getMessage(),
             ]);

@@ -119,12 +119,16 @@ class TeamController extends Controller
         $setupUrl = route('tenant.team.setup') . '?token=' . $token;
 
         // Best-effort email; the link is always shown to the inviter as a fallback.
+        // MARKER-LEDGER-STRAGGLERS
+        $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $newUser->email, 'team_invite');
         try {
             $inviter = (string) (\Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name ?? '');
             \Illuminate\Support\Facades\Mail::to($newUser->email)->send(
                 new \App\Mail\TeamInvite($tenant, $newUser, $setupUrl, $inviter)
             );
+            \App\Services\EmailLedger::markSent($ledger);
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger);
             \Illuminate\Support\Facades\Log::error('Team invite mail failed: ' . $e->getMessage());
         }
 
@@ -299,12 +303,16 @@ class TeamController extends Controller
         ]);
         $setupUrl = route('tenant.team.setup') . '?token=' . $token;
 
+        // MARKER-LEDGER-STRAGGLERS
+        $ledger = \App\Services\EmailLedger::begin($tenant->id, 'staff', $member->email, 'team_invite');
         try {
             $inviter = (string) (\Illuminate\Support\Facades\Auth::guard('tenant')->user()?->name ?? '');
             \Illuminate\Support\Facades\Mail::to($member->email)->send(
                 new \App\Mail\TeamInvite($tenant, $member, $setupUrl, $inviter)
             );
+            \App\Services\EmailLedger::markSent($ledger);
         } catch (\Throwable $e) {
+            \App\Services\EmailLedger::void($ledger);
             \Illuminate\Support\Facades\Log::error('Team invite resend mail failed: ' . $e->getMessage());
         }
 
