@@ -1,259 +1,91 @@
 <?php
+// MARKER-CAMPAIGNS-CORE
 
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
-use App\Models\Tenant\TenantCampaign;
-use App\Models\Tenant\TenantCampaignSend;
-use App\Models\Tenant\TenantCustomer;
-use App\Support\BlockRenderer;
+use App\Models\Tenant\TenantEmailCampaign;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
+/**
+ * Campaign CRUD. Sending lives in the send pipeline (later patch) and is
+ * deliberately absent here — a campaign cannot go out from this controller.
+ * Manager+ only, same gate as the suppression list.
+ */
 class CampaignController extends Controller
 {
-    public function index()
+    private function guard()
     {
-        $tenant = tenant();
-
-        $campaigns = TenantCampaign::where('tenant_id', $tenant->id)
-            ->orderByDesc('created_at')
-            ->get();
-
-        $groups = [
-            'draft'     => $campaigns->whereIn('status', ['draft'])->values(),
-            'scheduled' => $campaigns->whereIn('status', ['scheduled', 'sending'])->values(),
-            'sent'      => $campaigns->whereIn('status', ['sent'])->values(),
-        ];
-
-        $customerCount = TenantCustomer::where('tenant_id', $tenant->id)->count();
-
-        return view('tenant.campaigns.index', compact('campaigns', 'groups', 'customerCount'));
+        $me = Auth::guard('tenant')->user();
+        if (! $me || ! $me->isManager()) {
+            abort(redirect()->route('tenant.communication.index'));
+        }
+        return $me;
     }
 
-    public function show(Request $request, string $id)
+    private function find(string $id): TenantEmailCampaign
     {
-        $tenant = tenant();
-
-        $campaign = TenantCampaign::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        $customerCount = TenantCustomer::where('tenant_id', $tenant->id)->count();
-
-        $segments = [
-            'all'             => "All customers ({$customerCount})",
-            'has_appointment' => 'Customers with at least one appointment',
-        ];
-
-        // If blocks are empty, seed with a single paragraph so the composer starts useful
-        $blocks = $campaign->blocks ?? [];
-        if (empty($blocks)) {
-            $blocks = [
-                [
-                    'id'   => (string) Str::uuid(),
-                    'type' => 'paragraph',
-                    'data' => ['text' => '', 'align' => 'left'],
-                ],
-            ];
-        }
-
-        return view('tenant.campaigns.show', compact('campaign', 'customerCount', 'segments', 'blocks'));
+        return TenantEmailCampaign::where('tenant_id', tenant()->id)->findOrFail($id);
     }
 
     public function store(Request $request)
     {
-        $tenant = tenant();
+        $me = $this->guard();
 
-        $name = trim((string) $request->input('name', ''));
-        if ($name === '') {
-            return back()->with('error', 'Campaign name is required.');
-        }
-
-        $campaign = TenantCampaign::create([
-            'tenant_id'  => $tenant->id,
-            'name'       => $name,
-            'type'       => 'bulk',
-            'status'     => 'draft',
-            'subject'    => '',
-            'body_html'  => '',
-            'blocks'     => [],
-            'targeting'  => ['segment' => 'all'],
-            'created_by' => auth('tenant')->id(),
+        $campaign = TenantEmailCampaign::create([
+            'tenant_id'  => tenant()->id,
+            'name'       => 'Untitled campaign',
+            'status'     => TenantEmailCampaign::STATUS_DRAFT,
+            'created_by' => $me->id,
         ]);
 
-        return redirect()
-            ->route('tenant.campaigns.show', ['id' => $campaign->id])
-            ->with('success', 'Campaign created. Compose your message below.');
+        return redirect()->route('tenant.campaigns.edit', $campaign->id);
+    }
+
+    public function edit(string $id)
+    {
+        $this->guard();
+        $campaign = $this->find($id);
+
+        return view('tenant.communication.campaign-edit', [
+            'pageTitle' => 'Campaign — ' . $campaign->name,
+            'campaign'  => $campaign,
+        ]);
     }
 
     public function update(Request $request, string $id)
     {
-        $tenant = tenant();
+        $this->guard();
+        $campaign = $this->find($id);
 
-        $campaign = TenantCampaign::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        if (! in_array($campaign->status, ['draft', 'scheduled', 'paused'])) {
-            return back()->with('error', 'Cannot edit a campaign that has already been sent.');
+        if (! $campaign->isEditable()) {
+            return back()->with('error', 'This campaign has already been sent and can\'t be edited.');
         }
 
-        $name    = trim((string) $request->input('name', ''));
-        $subject = trim((string) $request->input('subject', ''));
-        $segment = $request->input('segment', 'all');
-
-        // Blocks come in as JSON string from the hidden form field
-        $blocksJson = (string) $request->input('blocks_json', '[]');
-        $blocks     = json_decode($blocksJson, true);
-        if (! is_array($blocks)) {
-            $blocks = [];
-        }
-        $blocks = self::sanitizeBlocks($blocks);
-
-        if ($name === '' || $subject === '') {
-            return back()
-                ->with('error', 'Name and subject are required.')
-                ->withInput();
-        }
-
-        // Render blocks to final HTML once at save time (also used by future send worker)
-        $bodyHtml = BlockRenderer::render($blocks, [], [
-            'accent'     => $tenant->accent_color ?? '#BEF264',
-            'accentText' => '#0a0a0a',
+        $data = $request->validate([
+            'name'    => ['required', 'string', 'max:160'],
+            'subject' => ['nullable', 'string', 'max:200'],
         ]);
 
-        $campaign->update([
-            'name'      => $name,
-            'subject'   => $subject,
-            'blocks'    => $blocks,
-            'body_html' => $bodyHtml,
-            'targeting' => ['segment' => $segment],
-        ]);
+        $campaign->update($data);
 
         return back()->with('success', 'Campaign saved.');
     }
 
-    public function send(Request $request, string $id)
+    public function destroy(string $id)
     {
-        $tenant = tenant();
+        $this->guard();
+        $campaign = $this->find($id);
 
-        $campaign = TenantCampaign::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        if ($campaign->status !== 'draft') {
-            return back()->with('error', 'This campaign has already been sent or is in progress.');
+        if ($campaign->status === TenantEmailCampaign::STATUS_SENT
+            || $campaign->status === TenantEmailCampaign::STATUS_SENDING) {
+            return back()->with('error', 'A sent campaign is a record — it can\'t be deleted.');
         }
 
-        if (trim($campaign->subject) === '' || empty($campaign->blocks)) {
-            return back()->with('error', 'Please add a subject and at least one content block before sending.');
-        }
+        $campaign->delete();
 
-        $segment = $campaign->targeting['segment'] ?? 'all';
-        $query   = TenantCustomer::where('tenant_id', $tenant->id)
-                                 ->whereNotNull('email')
-                                 ->where('email', '!=', '');
-
-        if ($segment === 'has_appointment') {
-            $query->whereHas('appointments');
-        }
-
-        $customers = $query->get(['id', 'email']);
-
-        if ($customers->isEmpty()) {
-            return back()->with('error', 'No recipients match this segment.');
-        }
-
-        foreach ($customers as $customer) {
-            TenantCampaignSend::create([
-                'campaign_id'    => $campaign->id,
-                'customer_id'    => $customer->id,
-                'email'          => $customer->email,
-                'status'         => 'pending',
-                'tracking_token' => Str::random(32),
-                'created_at'     => now(),
-            ]);
-        }
-
-        $campaign->update([
-            'status'           => 'sending',
-            'total_recipients' => $customers->count(),
-            'sent_at'          => now(),
-        ]);
-
-        return back()->with('success', "Campaign queued for {$customers->count()} recipient(s). Sending will complete shortly.");
-    }
-
-    /**
-     * Live preview endpoint — takes blocks JSON, returns rendered HTML.
-     * Used by the composer iframe for real-time preview without a full save.
-     */
-    public function preview(Request $request, string $id)
-    {
-        $tenant = tenant();
-
-        $campaign = TenantCampaign::where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        $blocks = $request->input('blocks', []);
-        if (! is_array($blocks)) {
-            $blocks = [];
-        }
-        $blocks = self::sanitizeBlocks($blocks);
-
-        $html = BlockRenderer::render($blocks, BlockRenderer::SAMPLE_VARS, [
-            'accent'     => $tenant->accent_color ?? '#BEF264',
-            'accentText' => '#0a0a0a',
-            'preview'    => true,
-        ]);
-
-        return response($html)->header('Content-Type', 'text/html');
-    }
-
-    /**
-     * Whitelist block shapes so we don't persist garbage or XSS.
-     * Unknown block types are dropped; unknown fields are dropped.
-     */
-    private static function sanitizeBlocks(array $blocks): array
-    {
-        $allowed = [
-            'heading'   => ['text', 'size', 'align'],
-            'paragraph' => ['html', 'text', 'align'],
-            'image'     => ['url', 'alt'],
-            'button'    => ['text', 'url', 'align'],
-            'divider'   => [],
-            'footer'    => ['text'],
-        ];
-
-        $clean = [];
-        foreach ($blocks as $block) {
-            if (! is_array($block) || empty($block['type']) || ! isset($allowed[$block['type']])) {
-                continue;
-            }
-            $type = $block['type'];
-            $data = [];
-            foreach ($allowed[$type] as $field) {
-                if (isset($block['data'][$field])) {
-                    $value = is_string($block['data'][$field])
-                        ? $block['data'][$field]
-                        : (string) $block['data'][$field];
-
-                    // Run HTML fields through the sanitizer before saving.
-                    if ($type === 'paragraph' && $field === 'html') {
-                        $value = \App\Support\BlockRenderer::sanitizeHtml($value);
-                    }
-
-                    $data[$field] = $value;
-                }
-            }
-            $clean[] = [
-                'id'   => $block['id'] ?? (string) Str::uuid(),
-                'type' => $type,
-                'data' => $data,
-            ];
-        }
-        return $clean;
+        return redirect()->route('tenant.communication.index')
+            ->with('success', 'Campaign deleted.');
     }
 }
