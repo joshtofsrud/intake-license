@@ -78,14 +78,9 @@ class CommunicationController extends Controller
             ->limit(25)
             ->get();
 
-        // MARKER-CAMPAIGNS-CORE — the Campaigns tab list.
-        $campaigns = \App\Models\Tenant\TenantEmailCampaign::where('tenant_id', $tenant->id)
-            ->orderByDesc('updated_at')->limit(50)->get();
-
         return view('tenant.communication.index', [
             'pageTitle' => 'Communication',
             'catalog'   => $catalog,
-            'campaigns' => $campaigns, // MARKER-CAMPAIGNS-CORE
             'smsReady'  => $this->smsReady($tenant),
             'logs'      => $logs,
             'fromName'  => $tenant->emailFromName(),

@@ -239,7 +239,6 @@
     <button class="cc-tab on" data-tab="messages" type="button">Messages</button>
     <button class="cc-tab" data-tab="inbound" type="button">Inbound</button>
     <button class="cc-tab" data-tab="activity" type="button">Activity</button>
-    <button class="cc-tab" data-tab="campaigns" type="button">Campaigns</button> {{-- MARKER-CAMPAIGNS-CORE --}}
   </div>
 
   {{-- ================= MESSAGES ================= --}}
@@ -434,51 +433,6 @@
     @endif
   </div>
 
-  {{-- ================= CAMPAIGNS (MARKER-CAMPAIGNS-CORE) ================= --}}
-  <div class="cc-view" id="cc-campaigns">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
-      <div style="color:var(--ia-text-3,#74747a);font-size:12.5px">Newsletters, promotions — anything you choose to send. On the same contact and suppression records as receipts.</div>
-      <form method="POST" action="{{ route('tenant.campaigns.store') }}">
-        @csrf
-        <button type="submit" class="cc-save" style="white-space:nowrap">New campaign</button>
-      </form>
-    </div>
-
-    {{-- Legend: drafts work; sending is not wired yet, and this page says so. --}}
-    <div style="background:var(--ia-surface,#161619);border:1px solid var(--ia-border,#2a2a2e);border-radius:11px;padding:10px 14px;margin-bottom:14px;color:var(--ia-text-2,#a6a6ac);font-size:12.5px">
-      Drafts save now. Designing the email, choosing who gets it, and sending arrive in the next build steps — nothing here can send yet.
-    </div>
-
-    @if(($campaigns ?? collect())->isEmpty())
-      <div class="cc-log"><div class="cc-empty">No campaigns yet. Start one and it saves as a draft.</div></div>
-    @else
-      <table class="cc-tbl">
-        <thead><tr><th>Campaign</th><th>Status</th><th style="text-align:right">Recipients</th><th></th></tr></thead>
-        <tbody>
-        @foreach($campaigns as $c)
-          <tr>
-            <td>
-              <a href="{{ route('tenant.campaigns.edit', $c->id) }}" style="color:var(--ia-text,#f4f4f5);text-decoration:none;font-weight:600">{{ $c->name }}</a>
-              <div style="color:var(--ia-text-3,#74747a);font-size:11.5px;margin-top:2px">
-                @if($c->status === 'sent' && $c->sent_at) Sent {{ $c->sent_at->setTimezone($tz)->format('M j g:ia') }}
-                @elseif($c->status === 'scheduled' && $c->scheduled_for) Scheduled {{ $c->scheduled_for->setTimezone($tz)->format('M j g:ia') }}
-                @else Edited {{ $c->updated_at->setTimezone($tz)->diffForHumans() }}
-                @endif
-              </div>
-            </td>
-            <td>
-              @php $cls = $c->status === 'sent' ? 'live' : ($c->status === 'canceled' ? 'bad' : 'off'); @endphp
-              <span class="b {{ $cls }}"><span class="d"></span>{{ ucfirst($c->status) }}</span>
-            </td>
-            <td style="text-align:right">{{ $c->recipients_count > 0 ? number_format($c->recipients_count) : '—' }}</td>
-            <td style="text-align:right"><a href="{{ route('tenant.campaigns.edit', $c->id) }}" class="cc-ghost" style="text-decoration:none;padding:6px 12px;display:inline-block">{{ $c->isEditable() ? 'Edit' : 'View' }}</a></td>
-          </tr>
-        @endforeach
-        </tbody>
-      </table>
-    @endif
-  </div>
-
 </div>
 
 {{-- MARKER-PATCH-405 — editor drawer --}}
@@ -550,15 +504,6 @@
 @push('scripts')
 <script>
   (function(){
-    // MARKER-CAMPAIGNS-CORE — deep-link a tab via #hash (e.g. back from a campaign)
-    var wanted = (location.hash || '').replace('#','');
-    if (wanted && document.getElementById('cc-' + wanted)) {
-      document.querySelectorAll('.cc-tab').forEach(x=>x.classList.remove('on'));
-      document.querySelectorAll('.cc-view').forEach(x=>x.classList.remove('on'));
-      var tb = document.querySelector('.cc-tab[data-tab="' + wanted + '"]');
-      if (tb) tb.classList.add('on');
-      document.getElementById('cc-' + wanted).classList.add('on');
-    }
     document.querySelectorAll('.cc-tab').forEach(function(t){
       t.addEventListener('click', function(){
         document.querySelectorAll('.cc-tab').forEach(x=>x.classList.remove('on'));

@@ -953,11 +953,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::patch('/communication',      [TenantControllers\CommunicationController::class, 'updateToggles'])->name('communication.toggles');
             Route::patch('/communication/template/{type}', [TenantControllers\CommunicationController::class, 'saveTemplate'])->name('communication.template'); // MARKER-PATCH-405
             Route::post('/communication/test/{type}', [TenantControllers\CommunicationController::class, 'sendTest'])->name('communication.test'); // MARKER-PATCH-409
-            // MARKER-CAMPAIGNS-CORE — campaign CRUD; sending is a later patch
-            Route::post('/communication/campaigns',              [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
-            Route::get('/communication/campaigns/{id}',          [TenantControllers\CampaignController::class, 'edit'])->name('campaigns.edit');
-            Route::patch('/communication/campaigns/{id}',        [TenantControllers\CampaignController::class, 'update'])->name('campaigns.update');
-            Route::delete('/communication/campaigns/{id}',       [TenantControllers\CampaignController::class, 'destroy'])->name('campaigns.destroy');
             Route::patch('/emails/{type}',      [TenantControllers\EmailController::class, 'update'])->name('emails.update');
             // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
             Route::post('/sales/{id}/resend-receipt',
