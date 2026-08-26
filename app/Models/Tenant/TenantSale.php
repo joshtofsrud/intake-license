@@ -27,6 +27,7 @@ class TenantSale extends Model
         'notes',
         'metadata',
         'subtotal_cents', 'discount_cents', 'tax_cents',
+        'sale_discount_cents', 'discount_redemption_id', // MARKER-SALE-DISCOUNT
         'surcharge_cents', 'tip_cents', 'total_cents',
         'tax_locked',
         'paid_at', 'payment_method', 'payment_reference',

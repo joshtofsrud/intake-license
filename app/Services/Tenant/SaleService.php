@@ -113,6 +113,10 @@ class SaleService
                 'surcharge_cents'    => 0,
                 'tip_cents'          => (int) ($data['tip_cents'] ?? 0),
                 'total_cents'        => 0,
+                // MARKER-SALE-DISCOUNT — whole-sale discount. recalculate()
+                // clamps it to the subtotal once the lines exist.
+                'sale_discount_cents'    => max(0, (int) ($data['sale_discount_cents'] ?? 0)),
+                'discount_redemption_id' => $data['discount_redemption_id'] ?? null,
             ]);
 
             $position = 0;
@@ -617,9 +621,48 @@ class SaleService
         $discount = 0;
         $tax      = 0;
 
+        // MARKER-SALE-DISCOUNT — a whole-sale discount reduces the taxable
+        // base, so it has to be spread over the lines before tax is figured.
+        // Allocation is proportional to line_total with largest-remainder for
+        // the odd cents, so the parts always sum to exactly the discount.
+        $saleDiscount = max(0, (int) ($sale->sale_discount_cents ?? 0));
+        $lineGross    = [];
+        foreach ($sale->items as $item) {
+            $lineGross[$item->id] = (int) $item->line_total_cents;
+        }
+        $grossTotal = array_sum($lineGross);
+
+        // Never discount below zero: clamp to what the sale is actually worth.
+        if ($saleDiscount > $grossTotal) {
+            $saleDiscount = $grossTotal;
+        }
+
+        $allocated = [];
+        if ($saleDiscount > 0 && $grossTotal > 0) {
+            $remainders = [];
+            $running    = 0;
+            foreach ($lineGross as $id => $gross) {
+                $exact          = $gross * $saleDiscount / $grossTotal;
+                $floor          = (int) floor($exact);
+                $allocated[$id] = $floor;
+                $remainders[$id]= $exact - $floor;
+                $running       += $floor;
+            }
+            // Hand the leftover cents to the largest remainders first.
+            arsort($remainders);
+            $leftover = $saleDiscount - $running;
+            foreach (array_keys($remainders) as $id) {
+                if ($leftover <= 0) break;
+                $allocated[$id]++;
+                $leftover--;
+            }
+        }
+
         foreach ($sale->items as $item) {
             $subtotal += $item->line_total_cents;
             $discount += $item->discount_cents;
+            $lineShare = (int) ($allocated[$item->id] ?? 0);
+            $taxableBase = max(0, (int) $item->line_total_cents - $lineShare);
 
             // tax_locked sales (e.g. bridge-created from appointments) carry
             // pre-computed per-line tax that we must preserve, not recompute.
@@ -633,7 +676,8 @@ class SaleService
                 && ($item->type !== 'service' || $taxServicesByDefault);
 
             if ($shouldTax && $taxRate > 0) {
-                $lineTax = (int) round($item->line_total_cents * ($taxRate / 100));
+                // MARKER-SALE-DISCOUNT — tax the discounted base, not the gross.
+                $lineTax = (int) round($taxableBase * ($taxRate / 100));
                 if ($lineTax !== $item->tax_cents
                     || (string) $taxRate !== (string) $item->tax_rate_snapshot) {
                     $item->update([
@@ -652,13 +696,17 @@ class SaleService
             }
         }
 
-        $total = $subtotal + $tax + $sale->tip_cents + $sale->surcharge_cents;
+        // MARKER-SALE-DISCOUNT — the whole-sale discount comes off the total.
+        // subtotal_cents stays the gross of the lines, so a receipt can show
+        // subtotal, then the discount, then tax.
+        $total = max(0, $subtotal - $saleDiscount) + $tax + $sale->tip_cents + $sale->surcharge_cents;
 
         $saleUpdate = [
-            'subtotal_cents' => $subtotal,
-            'discount_cents' => $discount,
-            'tax_cents'      => $tax,
-            'total_cents'    => $total,
+            'subtotal_cents'      => $subtotal,
+            'discount_cents'      => $discount,
+            'sale_discount_cents' => $saleDiscount, // clamped value wins
+            'tax_cents'           => $tax,
+            'total_cents'         => $total,
         ];
 
         // MARKER-BIZ-TAX — audit stamp. Only written when this pass actually
@@ -827,6 +875,9 @@ class SaleService
                 'surcharge_cents'    => 0,
                 'tip_cents'          => 0,
                 'total_cents'        => 0,
+                // MARKER-SALE-DISCOUNT — set below, once the refunded lines
+                // are known and the share of the sale discount can be figured.
+                'sale_discount_cents' => 0,
                 'paid_at'            => Carbon::now(),
                 'payment_method'     => $data['refund_method'],
             ]);
@@ -919,6 +970,24 @@ class SaleService
             $original->update([
                 'payment_status' => $allRefunded ? 'refunded' : 'partial',
             ]);
+
+            // MARKER-SALE-DISCOUNT — a refund gives back the same proportion of
+            // the whole-sale discount as of the value being returned, so a
+            // partial refund can't hand back more than was actually paid.
+            $origSaleDiscount = (int) ($original->sale_discount_cents ?? 0);
+            if ($origSaleDiscount > 0) {
+                $origGross = max(1, (int) $original->subtotal_cents);
+                $backGross = 0;
+                foreach ($refund->fresh('items')->items as $rl) {
+                    $backGross += (int) $rl->line_total_cents;
+                }
+                $refund->update([
+                    'sale_discount_cents' => min(
+                        $origSaleDiscount,
+                        (int) round($origSaleDiscount * ($backGross / $origGross))
+                    ),
+                ]);
+            }
 
             $finalRefund = $this->recalculate($refund->fresh('items'));
 
