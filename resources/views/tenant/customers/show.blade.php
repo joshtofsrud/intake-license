@@ -232,6 +232,21 @@
   border:.5px solid var(--ia-border);color:var(--ia-text-dim);background:none}
 button.cust-mk-chip{cursor:pointer}
 button.cust-mk-chip:hover{color:var(--ia-text);border-color:var(--ia-text-muted)}
+/* MARKER-CONSENT-DIALOG — in-app confirm, matching the edit sheet's scrim. */
+.mk-dlg-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:210;opacity:0;
+  pointer-events:none;transition:opacity 160ms ease;display:flex;align-items:center;justify-content:center;padding:20px}
+.mk-dlg-backdrop.is-open{opacity:1;pointer-events:auto}
+.mk-dlg{background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:16px;
+  max-width:420px;width:100%;padding:22px 24px;transform:translateY(8px);transition:transform 160ms ease}
+.mk-dlg-backdrop.is-open .mk-dlg{transform:translateY(0)}
+.mk-dlg h3{margin:0 0 8px;font-size:16px;font-weight:660;color:var(--ia-text)}
+.mk-dlg p{margin:0 0 18px;font-size:13.5px;line-height:1.6;color:var(--ia-text-muted)}
+.mk-dlg-actions{display:flex;gap:10px;justify-content:flex-end}
+.mk-dlg-cancel{appearance:none;background:none;border:.5px solid var(--ia-border);border-radius:9px;
+  padding:9px 16px;font:inherit;font-size:13.5px;color:var(--ia-text-muted);cursor:pointer}
+.mk-dlg-cancel:hover{color:var(--ia-text)}
+.mk-dlg-go{appearance:none;border:none;border-radius:9px;padding:9px 18px;font:inherit;font-size:13.5px;
+  font-weight:640;background:var(--ia-accent);color:#141414;cursor:pointer}
 .cust-mk-chip.yes{border-color:var(--ia-accent);color:var(--ia-accent)}
 .cust-mk-chip.no{border-color:rgba(220,120,120,.55);color:rgba(220,120,120,.9)}
 .cust-acct-btn{background:none;border:0;padding:0;font:inherit;font-size:12px;font-weight:600;
@@ -925,8 +940,9 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
       <span class="cust-acct-badge {{ $caHasAccount ? 'on' : '' }}">
         {{ $caHasAccount ? 'Portal account' : 'No portal account' }}
       </span>
-      {{-- MARKER-CONSENT-CHIP — marketing consent state. Clicking flips it,
-           always behind a confirm: consent is a record, not a toggle. --}}
+      {{-- MARKER-CONSENT-DIALOG — marketing consent state. The chip opens an
+           in-app dialog; consent is a record, so it never flips on a stray
+           click, and never through a browser confirm(). --}}
       @if($customer->email)
         @php
           $mkSuppressed = \App\Models\Tenant\TenantEmailSuppression::isSuppressed($customer->tenant_id, $customer->email);
@@ -937,37 +953,25 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
              title="This address bounced or complained. No email of any kind sends to it — open the suppression list.">Email blocked</a>
         @elseif($customer->email_marketing_opt_out_at)
           @if($mkCanManage)
-            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
-                  onsubmit="return confirm('Only do this if the customer asked to receive marketing email again. Record their opt-in?')">
-              @csrf
-              <input type="hidden" name="action" value="opt_in">
-              <button type="submit" class="cust-mk-chip"
-                title="Unsubscribed {{ $customer->email_marketing_opt_out_at->format('M j, Y') }}. Receipts and confirmations still send. Click to record an opt-in they asked for.">Unsubscribed</button>
-            </form>
+            <button type="button" class="cust-mk-chip"
+              onclick="MkConsent.open('opt_in','Record an opt-in?','This customer unsubscribed on {{ $customer->email_marketing_opt_out_at->format('M j, Y') }}. Only record an opt-in if they have since asked to receive marketing email again. This is logged with your name.','Record opt-in')"
+              title="Unsubscribed {{ $customer->email_marketing_opt_out_at->format('M j, Y') }}. Receipts and confirmations still send.">Unsubscribed</button>
           @else
             <span class="cust-mk-chip" title="Unsubscribed {{ $customer->email_marketing_opt_out_at->format('M j, Y') }}. Receipts still send.">Unsubscribed</span>
           @endif
         @elseif($customer->email_marketing_consent_at)
           @if($mkCanManage)
-            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
-                  onsubmit="return confirm('Unsubscribe this customer from marketing email? Receipts and confirmations still send.')">
-              @csrf
-              <input type="hidden" name="action" value="opt_out">
-              <button type="submit" class="cust-mk-chip yes"
-                title="Opted in {{ $customer->email_marketing_consent_at->format('M j, Y') }}@if($customer->email_marketing_consent_source) via {{ str_replace('_',' ',$customer->email_marketing_consent_source) }}@endif. Click to unsubscribe.">Allows marketing</button>
-            </form>
+            <button type="button" class="cust-mk-chip yes"
+              onclick="MkConsent.open('opt_out','Unsubscribe from marketing?','{{ $customer->fullName() }} will stop receiving campaigns. Receipts and booking confirmations still send — those are about their orders, not marketing.','Unsubscribe')"
+              title="Opted in {{ $customer->email_marketing_consent_at->format('M j, Y') }}@if($customer->email_marketing_consent_source) via {{ str_replace('_',' ',$customer->email_marketing_consent_source) }}@endif">Allows marketing</button>
           @else
             <span class="cust-mk-chip yes" title="Opted in {{ $customer->email_marketing_consent_at->format('M j, Y') }}">Allows marketing</span>
           @endif
         @else
           @if($mkCanManage)
-            <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}"
-                  onsubmit="return confirm('Record that this customer gave permission for marketing email, in person or by message? This is logged.')">
-              @csrf
-              <input type="hidden" name="action" value="opt_in">
-              <button type="submit" class="cust-mk-chip"
-                title="Never receives campaigns until they opt in — booking, checkout, their account page, or in person. Click to record permission they gave you.">No marketing</button>
-            </form>
+            <button type="button" class="cust-mk-chip"
+              onclick="MkConsent.open('opt_in','Record permission?','Only do this if {{ $customer->fullName() }} told you — in person, by phone or by message — that they want marketing email. It is recorded with your name and the time.','Record permission')"
+              title="Never receives campaigns until they opt in — booking, checkout, their account page, or in person.">No marketing</button>
           @else
             <span class="cust-mk-chip" title="Never receives campaigns until they opt in.">No marketing</span>
           @endif
@@ -1221,6 +1225,24 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 {{-- CUST-EDIT-SHEET v1 — mobile-only bottom sheet for editing customer info.
      Posts to the same PATCH endpoint as the desktop form (op=update_info).
      Hidden on desktop via CSS @media (min-width: 601px). --}}
+{{-- MARKER-CONSENT-DIALOG — one dialog, driven by MkConsent.open() --}}
+@if($customer->email && auth('tenant')->user()?->isManager())
+<div class="mk-dlg-backdrop" id="mk-dlg-backdrop" onclick="if(event.target===this)MkConsent.close()" aria-hidden="true">
+  <div class="mk-dlg" role="dialog" aria-modal="true" aria-labelledby="mk-dlg-title">
+    <h3 id="mk-dlg-title">Confirm</h3>
+    <p id="mk-dlg-body"></p>
+    <form method="POST" action="{{ route('tenant.customers.consent', $customer->id) }}" id="mk-dlg-form">
+      @csrf
+      <input type="hidden" name="action" id="mk-dlg-action" value="">
+      <div class="mk-dlg-actions">
+        <button type="button" class="mk-dlg-cancel" onclick="MkConsent.close()">Cancel</button>
+        <button type="submit" class="mk-dlg-go" id="mk-dlg-go">Confirm</button>
+      </div>
+    </form>
+  </div>
+</div>
+@endif
+
 <div class="cust-edit-backdrop" id="cust-edit-backdrop" onclick="CustEditSheet.close()" aria-hidden="true"></div>
 <div class="cust-edit-sheet" id="cust-edit-sheet" role="dialog" aria-modal="true" aria-label="Edit customer" aria-hidden="true">
   <div class="cust-edit-handle" aria-hidden="true"></div>
@@ -2077,6 +2099,36 @@ body.ia-theme-b .cust-edit-handle { background: rgba(0,0,0,.18); }
 
 @push('scripts')
 <script>
+// MARKER-CONSENT-DIALOG — in-app confirm for the marketing consent chip.
+(function () {
+  window.MkConsent = {
+    open: function (action, title, body, cta) {
+      var b = document.getElementById('mk-dlg-backdrop');
+      if (!b) return;
+      document.getElementById('mk-dlg-action').value = action;
+      document.getElementById('mk-dlg-title').textContent = title;
+      document.getElementById('mk-dlg-body').textContent = body;
+      document.getElementById('mk-dlg-go').textContent = cta;
+      b.classList.add('is-open');
+      b.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      setTimeout(function () { document.getElementById('mk-dlg-go').focus(); }, 60);
+    },
+    close: function () {
+      var b = document.getElementById('mk-dlg-backdrop');
+      if (!b) return;
+      b.classList.remove('is-open');
+      b.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    },
+  };
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var b = document.getElementById('mk-dlg-backdrop');
+    if (b && b.classList.contains('is-open')) MkConsent.close();
+  });
+})();
+
 // CUST-EDIT-SHEET-JS v1 — mobile bottom-sheet edit form.
 (function () {
   window.CustEditSheet = {
