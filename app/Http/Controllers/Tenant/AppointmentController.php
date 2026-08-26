@@ -2934,6 +2934,106 @@ class AppointmentController extends Controller
      * Tax is computed on each line independently (not on the subtotal) so
      * fractional cents from rounding don't compound.
      */
+    /**
+     * MARKER-APPT-DISCOUNT — apply a whole-appointment discount, by code or
+     * as a manual amount/percent. A code is redeemed here, so its use limit
+     * is honoured the moment it is attached.
+     */
+    public function applyDiscount(Request $request, string $id)
+    {
+        $tenant      = tenant();
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $data = $request->validate([
+            'mode'    => 'required|in:code,amount,percent',
+            'code'    => 'nullable|string|max:40',
+            'amount'  => 'nullable|numeric|min:0',
+            'percent' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $subtotal = (int) $appointment->subtotal_cents;
+        if ($subtotal <= 0) {
+            return back()->with('error', 'Add services or parts before discounting.');
+        }
+
+        $svc = app(\App\Services\Tenant\DiscountService::class);
+
+        // Any existing discount is released first — one at a time.
+        $this->releaseAppointmentDiscount($appointment);
+
+        if ($data['mode'] === 'code') {
+            $code = trim((string) ($data['code'] ?? ''));
+            if ($code === '') {
+                return back()->with('error', 'Enter a discount code.');
+            }
+
+            $redeem = $svc->redeem(
+                $tenant->id, $code, $subtotal, null,
+                $appointment->customer_id, auth('tenant')->id()
+            );
+
+            if (! $redeem['ok']) {
+                return back()->with('error', $redeem['reason']);
+            }
+
+            $appointment->update([
+                'discount_cents'         => (int) $redeem['amount_cents'],
+                'discount_code'          => strtoupper($code),
+                'discount_redemption_id' => $redeem['redemption']->id,
+            ]);
+        } else {
+            $cents = $data['mode'] === 'percent'
+                ? (int) floor($subtotal * ((float) ($data['percent'] ?? 0)) / 100)
+                : (int) round(((float) ($data['amount'] ?? 0)) * 100);
+
+            if ($cents <= 0) {
+                return back()->with('error', 'Enter a discount amount.');
+            }
+
+            $appointment->update([
+                'discount_cents'         => min($cents, $subtotal),
+                'discount_code'          => null,
+                'discount_redemption_id' => null,
+            ]);
+        }
+
+        $this->recalcAppointmentTotals($appointment);
+
+        return back()->with('success', 'Discount applied.');
+    }
+
+    /** MARKER-APPT-DISCOUNT — remove it and give any code use back. */
+    public function removeDiscount(string $id)
+    {
+        $appointment = \App\Models\Tenant\TenantAppointment::where('tenant_id', tenant()->id)->findOrFail($id);
+
+        $this->releaseAppointmentDiscount($appointment);
+
+        $appointment->update([
+            'discount_cents'         => 0,
+            'discount_code'          => null,
+            'discount_redemption_id' => null,
+        ]);
+
+        $this->recalcAppointmentTotals($appointment);
+
+        return back()->with('success', 'Discount removed.');
+    }
+
+    /**
+     * Give back a redeemed code so a use isn't held by a discount that has
+     * been replaced or removed.
+     */
+    protected function releaseAppointmentDiscount(\App\Models\Tenant\TenantAppointment $appointment): void
+    {
+        if (! $appointment->discount_redemption_id) return;
+
+        $redemption = \App\Models\Tenant\TenantDiscountRedemption::find($appointment->discount_redemption_id);
+        if ($redemption) {
+            app(\App\Services\Tenant\DiscountService::class)->releaseRedemption($redemption);
+        }
+    }
+
     protected function recalcAppointmentTotals(\App\Models\Tenant\TenantAppointment $appointment): void
     {
         $appointment->load(['items', 'addons', 'parts', 'tenant']);
@@ -2946,6 +3046,11 @@ class AppointmentController extends Controller
         $taxCents      = 0;
         $totalDuration = 0;
 
+        // MARKER-APPT-DISCOUNT — every line is collected first, because a
+        // whole-appointment discount has to be spread over the lines before
+        // tax can be figured. $lines is [gross, taxable] per row.
+        $lines = [];
+
         // Services
         foreach ($appointment->items as $item) {
             $line = (int) $item->effectivePriceCents();
@@ -2954,9 +3059,7 @@ class AppointmentController extends Controller
                             + $item->effectiveDurationMinutes()
                             + (int) $item->cleanup_after_minutes_snapshot;
 
-            if ($servicesTaxable && $taxRate > 0) {
-                $taxCents += (int) round($line * $taxRate / 100);
-            }
+            $lines[] = ['gross' => $line, 'taxable' => (bool) $servicesTaxable];
         }
 
         // Addons (treated like services for taxability — they're service extras)
@@ -2965,9 +3068,7 @@ class AppointmentController extends Controller
             $subtotalCents += $line;
             $totalDuration += $addon->effectiveDurationMinutes();
 
-            if ($servicesTaxable && $taxRate > 0) {
-                $taxCents += (int) round($line * $taxRate / 100);
-            }
+            $lines[] = ['gross' => $line, 'taxable' => (bool) $servicesTaxable];
         }
 
         // Parts (per-row taxability)
@@ -2976,8 +3077,43 @@ class AppointmentController extends Controller
             $subtotalCents += $line;
             // Parts don't have a duration — they're physical goods.
 
-            if ($part->is_taxable && $taxRate > 0) {
-                $taxCents += (int) round($line * $taxRate / 100);
+            $lines[] = ['gross' => $line, 'taxable' => (bool) $part->is_taxable];
+        }
+
+        // MARKER-APPT-DISCOUNT — clamp, allocate, then tax the reduced base.
+        // Largest-remainder, so the parts sum to exactly the discount.
+        $discountCents = max(0, (int) ($appointment->discount_cents ?? 0));
+        if ($discountCents > $subtotalCents) {
+            $discountCents = $subtotalCents;
+        }
+
+        if ($discountCents > 0 && $subtotalCents > 0) {
+            $alloc = [];
+            $rem   = [];
+            $run   = 0;
+            foreach ($lines as $i => $l) {
+                $exact    = $l['gross'] * $discountCents / $subtotalCents;
+                $alloc[$i]= (int) floor($exact);
+                $rem[$i]  = $exact - $alloc[$i];
+                $run     += $alloc[$i];
+            }
+            arsort($rem);
+            $left = $discountCents - $run;
+            foreach (array_keys($rem) as $i) {
+                if ($left <= 0) break;
+                $alloc[$i]++;
+                $left--;
+            }
+            foreach ($lines as $i => $l) {
+                $lines[$i]['gross'] = max(0, $l['gross'] - ($alloc[$i] ?? 0));
+            }
+        }
+
+        if ($taxRate > 0) {
+            foreach ($lines as $l) {
+                if ($l['taxable']) {
+                    $taxCents += (int) round($l['gross'] * $taxRate / 100);
+                }
             }
         }
 
@@ -2991,8 +3127,11 @@ class AppointmentController extends Controller
 
         $appointment->update([
             'subtotal_cents'         => $subtotalCents,
+            // MARKER-APPT-DISCOUNT — the clamped value wins, so a discount
+            // can never exceed what the appointment is worth.
+            'discount_cents'         => $discountCents,
             'tax_cents'              => $taxCents,
-            'total_cents'            => $subtotalCents + $taxCents,
+            'total_cents'            => max(0, $subtotalCents - $discountCents) + $taxCents,
             'total_duration_minutes' => $totalDuration,
             'appointment_end_time'   => $endTime,
         ]);

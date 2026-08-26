@@ -26,6 +26,8 @@ class TenantAppointment extends Model
         'status','payment_status','payment_method',
         'stripe_payment_intent_id','paypal_order_id',
         'subtotal_cents','tax_cents','total_cents','paid_cents','staff_notes',
+        // MARKER-APPT-DISCOUNT
+        'discount_cents','discount_code','discount_redemption_id',
         'invoice_note','invoice_terms', // MARKER-PATCH-204
         'needs_time_review',
         'reminded_at', // MARKER-PATCH-154
@@ -41,6 +43,7 @@ class TenantAppointment extends Model
         'slot_weight_overridden'   => 'boolean',
         'needs_time_review'        => 'boolean',
         'subtotal_cents'           => 'integer',
+        'discount_cents'           => 'integer', // MARKER-APPT-DISCOUNT
         'tax_cents'                => 'integer',
         'total_cents'              => 'integer',
         'paid_cents'               => 'integer',

@@ -966,6 +966,10 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/campaigns/contacts',          [TenantControllers\ConsentAdminController::class, 'index'])->name('consent.index');
             Route::post('/campaigns/contacts/attest',  [TenantControllers\ConsentAdminController::class, 'attest'])->name('consent.attest');
             Route::post('/customers/{id}/consent',     [TenantControllers\ConsentAdminController::class, 'customerConsent'])->name('customers.consent');
+            // MARKER-APPT-DISCOUNT
+            Route::post('/appointments/{id}/discount',        [TenantControllers\AppointmentController::class, 'applyDiscount'])->name('appointments.discount.apply');
+            Route::delete('/appointments/{id}/discount',      [TenantControllers\AppointmentController::class, 'removeDiscount'])->name('appointments.discount.remove');
+
             // MARKER-DISCOUNTS-ADMIN
             Route::get('/discounts',                [TenantControllers\DiscountAdminController::class, 'index'])->name('discounts.index');
             Route::post('/discounts',               [TenantControllers\DiscountAdminController::class, 'store'])->name('discounts.store');

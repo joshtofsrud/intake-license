@@ -1513,6 +1513,15 @@
         <span class="sidebar-stat-label">Subtotal</span>
         <span class="sidebar-stat-value">{{ format_money($appointment->subtotal_cents) }}</span>
       </div>
+      {{-- MARKER-APPT-DISCOUNT --}}
+      @if((int) ($appointment->discount_cents ?? 0) > 0)
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">
+          Discount @if($appointment->discount_code)<span style="opacity:.7">· {{ $appointment->discount_code }}</span>@endif
+        </span>
+        <span class="sidebar-stat-value">&minus;{{ format_money($appointment->discount_cents) }}</span>
+      </div>
+      @endif
       @if($appointment->tax_cents > 0)
       <div class="sidebar-stat">
         <span class="sidebar-stat-label">Tax</span>
@@ -1523,6 +1532,27 @@
         <span class="sidebar-stat-label" style="font-weight:500">Total</span>
         <span class="sidebar-stat-value" style="font-size:16px">{{ format_money($appointment->total_cents) }}</span>
       </div>
+
+      {{-- MARKER-APPT-DISCOUNT — the discount changes the balance the customer
+           is asked for, so it lives beside the money, not in a menu. --}}
+      @if((int) $appointment->paid_cents === 0)
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="button" class="ia-btn ia-btn--ghost ia-btn--sm" onclick="ApptDiscount.open()">
+            {{ (int) ($appointment->discount_cents ?? 0) > 0 ? 'Change discount' : 'Add discount' }}
+          </button>
+          @if((int) ($appointment->discount_cents ?? 0) > 0)
+            <form method="POST" action="{{ route('tenant.appointments.discount.remove', $appointment->id) }}">
+              @csrf
+              @method('DELETE')
+              <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Remove</button>
+            </form>
+          @endif
+        </div>
+      @elseif((int) ($appointment->discount_cents ?? 0) > 0)
+        <div style="margin-top:8px;font-size:11.5px;color:var(--ia-text-dim);line-height:1.5">
+          Payment has started, so the discount is locked. Refund first to change it.
+        </div>
+      @endif
 
       @if($payments->isNotEmpty())
         <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--ia-border)">
@@ -1736,6 +1766,72 @@
 <style>
   .biz-pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;border-radius:100px;padding:2px 7px;margin-left:6px;border:0.5px solid var(--ia-border);color:var(--ia-text-muted);vertical-align:1px}
 </style>
+
+
+{{-- MARKER-APPT-DISCOUNT — in-app dialog, no browser prompts --}}
+@if((int) $appointment->paid_cents === 0)
+<div id="appt-disc-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:220;display:none;align-items:center;justify-content:center;padding:20px"
+     onclick="if(event.target===this)ApptDiscount.close()">
+  <div role="dialog" aria-modal="true" aria-labelledby="appt-disc-title"
+       style="background:var(--ia-surface);border:.5px solid var(--ia-border);border-radius:16px;max-width:420px;width:100%;padding:22px 24px">
+    <h3 id="appt-disc-title" style="margin:0 0 6px;font-size:16px;font-weight:660;color:var(--ia-text)">Discount this appointment</h3>
+    <p style="margin:0 0 16px;font-size:13px;line-height:1.55;color:var(--ia-text-dim)">
+      Applies to the whole appointment, before tax. The balance the customer pays drops to match.
+    </p>
+
+    <form method="POST" action="{{ route('tenant.appointments.discount.apply', $appointment->id) }}">
+      @csrf
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);margin-bottom:5px">Discount code</label>
+        <input type="text" name="code" placeholder="SPRING20" autocapitalize="characters"
+               style="width:100%;box-sizing:border-box;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);padding:9px 12px;font-size:13px;font-family:inherit">
+      </div>
+      <button type="submit" name="mode" value="code" class="ia-btn ia-btn--primary" style="width:100%">Apply code</button>
+    </form>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--ia-text-dim);font-size:11px">
+      <div style="flex:1;height:1px;background:var(--ia-border)"></div>OR<div style="flex:1;height:1px;background:var(--ia-border)"></div>
+    </div>
+
+    <form method="POST" action="{{ route('tenant.appointments.discount.apply', $appointment->id) }}">
+      @csrf
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1">
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);margin-bottom:5px">Amount off</label>
+          <input type="text" name="amount" placeholder="0.00" inputmode="decimal"
+                 style="width:100%;box-sizing:border-box;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);padding:9px 12px;font-size:13px;font-family:inherit">
+        </div>
+        <div style="flex:1">
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ia-text-dim);margin-bottom:5px">Or percent</label>
+          <input type="text" name="percent" placeholder="10" inputmode="decimal"
+                 style="width:100%;box-sizing:border-box;background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:8px;color:var(--ia-text);padding:9px 12px;font-size:13px;font-family:inherit">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="ia-btn ia-btn--ghost" onclick="ApptDiscount.close()">Cancel</button>
+        <button type="submit" name="mode" value="amount" class="ia-btn ia-btn--ghost">Apply amount</button>
+        <button type="submit" name="mode" value="percent" class="ia-btn ia-btn--primary">Apply percent</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.ApptDiscount = {
+  open: function () {
+    var b = document.getElementById('appt-disc-backdrop');
+    if (b) { b.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+  },
+  close: function () {
+    var b = document.getElementById('appt-disc-backdrop');
+    if (b) { b.style.display = 'none'; document.body.style.overflow = ''; }
+  },
+};
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { window.ApptDiscount.close(); }
+});
+</script>
+@endif
 
 @endsection
 
