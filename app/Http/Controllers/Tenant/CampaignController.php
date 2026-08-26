@@ -138,6 +138,41 @@ class CampaignController extends Controller
         return back()->with('success', 'Campaign saved.');
     }
 
+    /**
+     * MARKER-CAMPAIGN-RESULTS — per-recipient outcomes for one campaign.
+     * The aggregate counters live on the campaign; this is the detail behind
+     * them, including WHY someone was skipped.
+     */
+    public function results(string $id)
+    {
+        $tenant   = tenant();
+        $campaign = TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $rows = TenantCampaignSend::where('campaign_id', $campaign->id)
+            ->orderByRaw("FIELD(status,'bounced','failed','skipped','sent','pending')")
+            ->orderByDesc('clicked_at')
+            ->orderByDesc('opened_at')
+            ->limit(1000)
+            ->get();
+
+        $summary = [
+            'sent'    => $rows->where('status', 'sent')->count(),
+            'opened'  => $rows->whereNotNull('opened_at')->count(),
+            'clicked' => $rows->whereNotNull('clicked_at')->count(),
+            'skipped' => $rows->where('status', 'skipped')->count(),
+            'failed'  => $rows->where('status', 'failed')->count(),
+            'bounced' => $rows->where('status', 'bounced')->count(),
+            'pending' => $rows->where('status', 'pending')->count(),
+        ];
+
+        return view('tenant.campaigns.results', [
+            'pageTitle' => 'Results — ' . $campaign->name,
+            'campaign'  => $campaign,
+            'rows'      => $rows,
+            'summary'   => $summary,
+        ]);
+    }
+
     public function send(Request $request, string $id)
     {
         $tenant = tenant();

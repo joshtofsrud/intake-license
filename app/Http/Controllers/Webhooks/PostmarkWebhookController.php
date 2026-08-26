@@ -58,9 +58,66 @@ class PostmarkWebhookController extends Controller
             return $this->handleComplaint($payload);
         }
 
-        // Delivery / Open / Click / SubscriptionChange etc. — acknowledged, not acted on.
+        // MARKER-CAMPAIGN-RESULTS — campaign engagement.
+        if ($recordType === 'Open' || $recordType === 'Click') {
+            return $this->handleEngagement($recordType, $payload);
+        }
+
+        // Delivery / SubscriptionChange etc. — acknowledged, not acted on.
         Log::info('[Postmark] Ignored RecordType', ['type' => $recordType]);
         return response('OK', 200);
+    }
+
+    /**
+     * MARKER-CAMPAIGN-RESULTS — map an Open/Click back to its recipient row
+     * via the send_id metadata, then recompute the campaign's counters from
+     * the rows. Recomputing (not incrementing) makes replayed webhooks safe.
+     */
+    protected function handleEngagement(string $type, array $payload)
+    {
+        $meta   = $payload['Metadata'] ?? [];
+        $sendId = $meta['send_id'] ?? null;
+        if (! $sendId) {
+            return response('OK', 200);
+        }
+
+        $row = \App\Models\Tenant\TenantCampaignSend::find($sendId);
+        if (! $row) {
+            return response('OK', 200);
+        }
+
+        if ($type === 'Open') {
+            $row->update([
+                'open_count' => min(65000, (int) $row->open_count + 1),
+                'opened_at'  => $row->opened_at ?: now(),
+            ]);
+        } else {
+            $row->update([
+                'click_count' => min(65000, (int) $row->click_count + 1),
+                'clicked_at'  => $row->clicked_at ?: now(),
+                // A click implies an open even when the open pixel was blocked.
+                'opened_at'   => $row->opened_at ?: now(),
+            ]);
+        }
+
+        $this->recountCampaign((string) $row->campaign_id);
+
+        return response('OK', 200);
+    }
+
+    /** Counters are always derived from the send rows, never incremented. */
+    protected function recountCampaign(string $campaignId): void
+    {
+        $campaign = \App\Models\Tenant\TenantCampaign::find($campaignId);
+        if (! $campaign) return;
+
+        $rows = \App\Models\Tenant\TenantCampaignSend::where('campaign_id', $campaignId);
+
+        $campaign->update([
+            'total_sent'    => (clone $rows)->where('status', 'sent')->count(),
+            'total_opened'  => (clone $rows)->whereNotNull('opened_at')->count(),
+            'total_clicked' => (clone $rows)->whereNotNull('clicked_at')->count(),
+        ]);
     }
 
     /**
@@ -69,6 +126,21 @@ class PostmarkWebhookController extends Controller
      */
     protected function handleBounce(array $payload)
     {
+        // MARKER-CAMPAIGN-RESULTS — if this bounce belongs to a campaign send,
+        // record it on that row as well. Suppression handling continues below
+        // unchanged; this only adds per-campaign visibility.
+        $bounceSendId = $payload['Metadata']['send_id'] ?? null;
+        if ($bounceSendId) {
+            $bounceRow = \App\Models\Tenant\TenantCampaignSend::find($bounceSendId);
+            if ($bounceRow) {
+                $bounceRow->update([
+                    'status'        => 'bounced',
+                    'error_message' => (string) ($payload['Description'] ?? $payload['Type'] ?? 'bounced'),
+                ]);
+                $this->recountCampaign((string) $bounceRow->campaign_id);
+            }
+        }
+
         $email    = strtolower(trim($payload['Email'] ?? ''));
         $type     = $payload['Type'] ?? null;          // e.g. HardBounce
         $msgId    = $payload['MessageID'] ?? null;

@@ -571,6 +571,8 @@
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Delivered</span><strong>{{ $campaign->total_sent }}</strong></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Opened</span><strong>{{ $campaign->total_opened }}</strong></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="opacity:.5">Clicked</span><strong>{{ $campaign->total_clicked }}</strong></div>
+      {{-- MARKER-CAMPAIGN-RESULTS --}}
+      <a href="{{ route('tenant.campaigns.results', $campaign->id) }}" class="ia-btn ia-btn--ghost ia-btn--sm" style="text-decoration:none;display:block;text-align:center;margin-top:10px">See every recipient</a>
     </div>
   @endif
 </div>

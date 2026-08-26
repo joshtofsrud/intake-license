@@ -538,7 +538,8 @@ HTML;
         string $subject,
         string $bodyHtml,
         string $campaignId,
-        string $unsubscribeUrl
+        string $unsubscribeUrl,
+        ?string $sendId = null // MARKER-CAMPAIGN-RESULTS — recipient row id
     ): bool {
         $stream = \App\Services\EmailLedger::broadcastStream();
         if ($stream === null) {
@@ -577,7 +578,7 @@ HTML;
             $tenantId = $this->tenant->id;
             Mail::send([], [], function ($message) use (
                 $toEmail, $subject, $html, $fromName, $fromEmail, $replyTo,
-                $tenantId, $stream, $unsubscribeUrl
+                $tenantId, $stream, $unsubscribeUrl, $campaignId, $sendId
             ) {
                 $message->to($toEmail)
                     ->subject($subject)
@@ -588,6 +589,12 @@ HTML;
                 $h->addTextHeader('X-Tenant-Id', $tenantId);
                 $h->addTextHeader('X-PM-Metadata-tenant_id', $tenantId);
                 $h->addTextHeader('X-PM-Message-Stream', $stream);
+                // MARKER-CAMPAIGN-RESULTS — Postmark echoes Metadata back on
+                // Open/Click/Bounce, which is how events find the right row.
+                $h->addTextHeader('X-PM-Metadata-campaign_id', $campaignId);
+                if ($sendId !== null) {
+                    $h->addTextHeader('X-PM-Metadata-send_id', $sendId);
+                }
                 $h->addTextHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
                 $h->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
             });

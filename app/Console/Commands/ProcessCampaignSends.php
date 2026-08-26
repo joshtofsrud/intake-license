@@ -75,7 +75,8 @@ class ProcessCampaignSends extends Command
                     (string) $campaign->subject,
                     $html,
                     (string) $campaign->id,
-                    ConsentService::unsubscribeUrl($tenant, $customer)
+                    ConsentService::unsubscribeUrl($tenant, $customer),
+                    (string) $row->id // MARKER-CAMPAIGN-RESULTS
                 );
 
                 $row->update($ok
