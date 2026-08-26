@@ -150,6 +150,35 @@ class RegisterController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * MARKER-REGISTER-DISCOUNT — check a code against the cart as it stands.
+     * Read-only: nothing is redeemed here. The real redemption happens in the
+     * sale transaction, where the code is locked and re-checked.
+     */
+    public function validateDiscount(Request $request)
+    {
+        $data = $request->validate([
+            'code'           => 'required|string|max:40',
+            'subtotal_cents' => 'required|integer|min:0',
+            'customer_id'    => 'nullable|uuid',
+        ]);
+
+        $result = app(\App\Services\Tenant\DiscountService::class)->validate(
+            tenant()->id,
+            $data['code'],
+            (int) $data['subtotal_cents'],
+            $data['customer_id'] ?? null
+        );
+
+        return response()->json([
+            'ok'           => $result['ok'],
+            'reason'       => $result['reason'],
+            'amount_cents' => $result['amount_cents'],
+            'summary'      => $result['discount']?->summary(),
+            'code'         => strtoupper(trim($data['code'])),
+        ]);
+    }
+
     public function search(Request $request): JsonResponse
     {
         $tenant = tenant();
@@ -264,6 +293,9 @@ class RegisterController extends Controller
             'notes'            => 'nullable|string',
             'tip_cents'        => 'nullable|integer|min:0',
             'discount_cents'   => 'nullable|integer|min:0',
+            // MARKER-REGISTER-DISCOUNT — whole-sale discount + optional code
+            'sale_discount_cents' => 'nullable|integer|min:0',
+            'discount_code'       => 'nullable|string|max:40',
             'payment_method'   => $this->allowedTenders(), // MARKER-PATCH-630
             'payment_reference'=> 'nullable|string',
             // MARKER-SPLIT-TENDER — optional multi-tender payments. When
@@ -317,6 +349,39 @@ class RegisterController extends Controller
             }
         }
 
+        // MARKER-REGISTER-DISCOUNT — redeem the code BEFORE the sale is built,
+        // so a code that ran out between typing and tender stops the sale
+        // instead of quietly charging full price. The redemption row is
+        // released again if sale creation then fails.
+        $saleDiscountCents = max(0, (int) ($validated['sale_discount_cents'] ?? 0));
+        $redemption        = null;
+        $discountCode      = trim((string) ($validated['discount_code'] ?? ''));
+
+        if ($discountCode !== '') {
+            $lineSubtotal = 0;
+            foreach ($validated['items'] as $it) {
+                $qty   = (float) ($it['quantity'] ?? 1);
+                $price = (int) ($it['unit_price_cents'] ?? 0);
+                $lineSubtotal += max(0, (int) round($price * $qty) - (int) ($it['discount_cents'] ?? 0));
+            }
+
+            $redeem = app(\App\Services\Tenant\DiscountService::class)->redeem(
+                $tenant->id,
+                $discountCode,
+                $lineSubtotal,
+                null,
+                $validated['customer_id'] ?? null,
+                auth('tenant')->id()
+            );
+
+            if (! $redeem['ok']) {
+                return response()->json(['ok' => false, 'error' => $redeem['reason']], 422);
+            }
+
+            $redemption        = $redeem['redemption'];
+            $saleDiscountCents = (int) $redeem['amount_cents'];
+        }
+
         try {
             $sale = $this->sales->createSale([
                 'tenant_id'          => $tenant->id,
@@ -341,8 +406,16 @@ class RegisterController extends Controller
                 'notes'              => $validated['notes'] ?? null,
                 'tip_cents'          => (int) ($validated['tip_cents'] ?? 0),
                 'discount_cents'     => (int) ($validated['discount_cents'] ?? 0),
+                // MARKER-REGISTER-DISCOUNT
+                'sale_discount_cents'    => $saleDiscountCents,
+                'discount_redemption_id' => $redemption?->id,
                 'items'              => $validated['items'],
             ]);
+
+            // Attach the sale to its redemption now that the sale exists.
+            if ($redemption) {
+                $redemption->update(['sale_id' => $sale->id]);
+            }
 
             if ($validated['payment_method'] === 'card' && $tenant->passthrough_card_fees) {
                 $surcharge = (int) round($sale->subtotal_cents * (($tenant->card_surcharge_percent ?? 0) / 100));
@@ -366,8 +439,18 @@ class RegisterController extends Controller
                 'redirect'    => route('tenant.register.index'),
             ]);
         } catch (SaleValidationException $e) {
+            // MARKER-REGISTER-DISCOUNT — the sale didn't happen, so the
+            // code must not stay burned.
+            if (isset($redemption) && $redemption) {
+                app(\\App\\Services\\Tenant\\DiscountService::class)->releaseRedemption($redemption);
+            }
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (InventoryStockException $e) {
+            // MARKER-REGISTER-DISCOUNT — the sale didn't happen, so the
+            // code must not stay burned.
+            if (isset($redemption) && $redemption) {
+                app(\\App\\Services\\Tenant\\DiscountService::class)->releaseRedemption($redemption);
+            }
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         }
     }

@@ -156,6 +156,24 @@ class DiscountService
     }
 
     /**
+     * MARKER-REGISTER-DISCOUNT — release ONE redemption row directly. Used
+     * when a sale fails after the code was redeemed but before the sale
+     * exists, so there is no sale_id to look it up by.
+     */
+    public function releaseRedemption(TenantDiscountRedemption $redemption): void
+    {
+        $discountId = $redemption->discount_id;
+        $redemption->delete();
+
+        $d = TenantDiscount::find($discountId);
+        if ($d) {
+            $d->update([
+                'redemption_count' => TenantDiscountRedemption::where('discount_id', $discountId)->count(),
+            ]);
+        }
+    }
+
+    /**
      * Undo a redemption — a voided or refunded sale must give the use back,
      * or a one-per-customer code is burned by a mistake.
      */

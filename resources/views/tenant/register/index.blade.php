@@ -559,6 +559,10 @@
         <div class="reg-totals-row grand"><span>Total</span><span id="totalVal">$0.00</span></div>
       </div>
 
+      {{-- MARKER-REGISTER-DISCOUNT --}}
+      <button type="button" class="reg-btn-secondary" id="discountBtn"
+              style="width:100%;margin-top:10px;padding:9px;font-size:13px">Discount or code</button>
+
       <div class="reg-pay-row">
         <button type="button" class="reg-quote-btn" id="quoteBtn" disabled>Save quote</button>
         <button type="button" class="reg-pay" id="payBtn" disabled>Collect payment</button>
@@ -819,6 +823,43 @@
   </div>
 </div>
 
+{{-- MARKER-REGISTER-DISCOUNT --}}
+<div class="reg-modal-bg" id="discountModal">
+  <div class="reg-modal">
+    <h2>Discount this sale</h2>
+    <div class="lede">Applies to the whole sale. Line-item discounts are set on each line.</div>
+
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Discount code</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="discCodeInput" placeholder="e.g. SPRING20" autocapitalize="characters" style="flex:1">
+        <button type="button" class="reg-btn-secondary" id="discCodeApply" style="padding:10px 14px;flex:0">Apply</button>
+      </div>
+      <div id="discCodeMsg" style="font-size:12px;margin-top:6px;min-height:16px"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--ia-text-dim);font-size:11.5px">
+      <div style="flex:1;height:1px;background:var(--ia-border)"></div>OR<div style="flex:1;height:1px;background:var(--ia-border)"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="flex:1">
+        <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Amount off</label>
+        <input type="text" id="discAmtInput" placeholder="0.00" inputmode="decimal">
+      </div>
+      <div style="flex:1">
+        <label style="display:block;font-size:12px;color:var(--ia-text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Or percent</label>
+        <input type="text" id="discPctInput" placeholder="10" inputmode="decimal">
+      </div>
+    </div>
+
+    <div class="reg-modal-actions">
+      <button type="button" class="reg-btn-secondary" id="discClearBtn">Remove discount</button>
+      <button type="button" class="reg-btn-primary" id="discApplyBtn">Apply discount</button>
+    </div>
+  </div>
+</div>
+
 <div class="reg-modal-bg" id="openItemModal">
   <div class="reg-modal">
     <h2>Custom item</h2>
@@ -1013,6 +1054,7 @@ function openItemInfo( id ) {
 const ROUTES = {
   giftCardLookup: '{{ route('tenant.register.gift-cards.lookup') }}', // MARKER-GIFTCARDS
   search:      @json(route('tenant.register.search')),
+  discountValidate: @json(route('tenant.register.discount.validate')), // MARKER-REGISTER-DISCOUNT
   storeSale:   @json(route('tenant.register.sales.store')),
   offlineCatalog: @json(route('tenant.register.offline_catalog')), // MARKER-OFFLINE-SYNC
   offlineSyncEnabled: {{ ($offlineSyncEnabled ?? false) ? 'true' : 'false' }}, // MARKER-OFFLINE-SYNC
@@ -1128,7 +1170,7 @@ async function osTryQueueCommit(){
   if (!cart.items.length) return false;
   await io.queueSale(osBuildSalePayload());
   cart.items = []; cart.refund_lines = []; cart.refund_meta = null;
-  cart.customer = null; cart.tipCents = 0; cart.discountCents = 0;
+  cart.customer = null; cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null; // MARKER-REGISTER-DISCOUNT
   cart.po_number = null; // MARKER-BIZ-REGISTER
   (function(){ var r = document.getElementById('taxExemptRow'); if (r) r.style.display = 'none'; })();
   cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
@@ -1200,6 +1242,7 @@ const cart = {
   refund_lines: [],     // refund lines, each: {key, original_sale_id, original_item_id, name, qty, price_cents, type}
   refund_meta: null,    // {original_sale_id, original_sale_number, refund_method} — set when first refund line added
   tipCents: 0, discountCents: 0,
+  discountCode: null, // MARKER-REGISTER-DISCOUNT
   payment_method: null, payment_reference: null,
   payments: [], // MARKER-SPLIT-TENDER
   po_number: null, // MARKER-BIZ-REGISTER
@@ -1885,8 +1928,18 @@ function calcTax() {
     return cart.items.reduce((s, i) => s + (i.tax_cents || 0), 0);
   }
   if (!CFG.taxRate) return 0;
+  // MARKER-REGISTER-DISCOUNT — the server spreads a whole-sale discount over
+  // the lines before taxing them, so the client must do the same or the
+  // displayed total won't match what gets charged.
+  const gross = calcSubtotal();
+  const disc  = Math.min(cart.discountCents || 0, gross);
   let taxable = 0;
-  cart.items.forEach(i => { if (i.is_taxable) taxable += Math.round(i.price_cents * i.qty); });
+  cart.items.forEach(i => {
+    const line = Math.round(i.price_cents * i.qty);
+    if (!i.is_taxable) return;
+    const share = (disc > 0 && gross > 0) ? Math.floor(line * disc / gross) : 0;
+    taxable += Math.max(0, line - share);
+  });
   return Math.round(taxable * (CFG.taxRate / 100));
 }
 function calcSurcharge() {
@@ -3070,6 +3123,85 @@ function openTipModal() {
   openModal('tipModal');
 }
 
+// MARKER-REGISTER-DISCOUNT — whole-sale discount handlers.
+document.getElementById('discountBtn').addEventListener('click', () => {
+  document.getElementById('discCodeMsg').textContent = '';
+  document.getElementById('discCodeInput').value = cart.discountCode || '';
+  document.getElementById('discAmtInput').value = cart.discountCents && !cart.discountCode
+    ? (cart.discountCents / 100).toFixed(2) : '';
+  document.getElementById('discPctInput').value = '';
+  openModal('discountModal');
+});
+
+document.getElementById('discCodeApply').addEventListener('click', async () => {
+  const code = (document.getElementById('discCodeInput').value || '').trim();
+  const msg  = document.getElementById('discCodeMsg');
+  if (!code) { msg.style.color = 'var(--ia-text-dim)'; msg.textContent = 'Enter a code first.'; return; }
+
+  const sub = calcSubtotal();
+  msg.style.color = 'var(--ia-text-dim)';
+  msg.textContent = 'Checking…';
+
+  try {
+    const qs = new URLSearchParams({
+      code: code,
+      subtotal_cents: String(sub),
+    });
+    if (cart.customer) qs.set('customer_id', cart.customer.id);
+
+    const res  = await fetch(ROUTES.discountValidate + '?' + qs.toString(), {
+      headers: { 'Accept': 'application/json' },
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+      msg.style.color = '#e07a7a';
+      msg.textContent = data.reason || 'That code cannot be used.';
+      return;
+    }
+
+    cart.discountCents = data.amount_cents;
+    cart.discountCode  = data.code;
+    msg.style.color = 'var(--ia-accent)';
+    msg.textContent = (data.summary ? data.summary + ' — ' : '') + fmt(data.amount_cents) + ' off.';
+    document.getElementById('discAmtInput').value = '';
+    document.getElementById('discPctInput').value = '';
+    renderTotals();
+  } catch (e) {
+    msg.style.color = '#e07a7a';
+    msg.textContent = 'Could not check that code.';
+  }
+});
+
+document.getElementById('discApplyBtn').addEventListener('click', () => {
+  const amt = parseFloat(document.getElementById('discAmtInput').value);
+  const pct = parseFloat(document.getElementById('discPctInput').value);
+  const sub = calcSubtotal();
+
+  // A manual amount replaces any code — one whole-sale discount at a time.
+  if (!isNaN(pct) && pct > 0) {
+    cart.discountCents = Math.min(sub, Math.floor(sub * Math.min(pct, 100) / 100));
+    cart.discountCode  = null;
+  } else if (!isNaN(amt) && amt > 0) {
+    cart.discountCents = Math.min(sub, Math.round(amt * 100));
+    cart.discountCode  = null;
+  }
+
+  closeModal('discountModal');
+  renderTotals();
+});
+
+document.getElementById('discClearBtn').addEventListener('click', () => {
+  cart.discountCents = 0;
+  cart.discountCode  = null;
+  document.getElementById('discCodeInput').value = '';
+  document.getElementById('discAmtInput').value = '';
+  document.getElementById('discPctInput').value = '';
+  document.getElementById('discCodeMsg').textContent = '';
+  closeModal('discountModal');
+  renderTotals();
+});
+
 document.getElementById('tipCustomInput').addEventListener('input', () => {
   const v = parseFloat(document.getElementById('tipCustomInput').value);
   if (!isNaN(v) && v >= 0) {
@@ -3164,6 +3296,9 @@ async function commitTransaction(opts = {}) {
         customer_id: cart.customer ? cart.customer.id : null,
         tip_cents: cart.tipCents,
         discount_cents: cart.discountCents,
+        // MARKER-REGISTER-DISCOUNT — the field the server actually applies
+        sale_discount_cents: cart.discountCents || 0,
+        discount_code: cart.discountCode || null,
         payment_method: cart.payment_method,
         payment_reference: cart.payment_reference,
         po_number: cart.po_number || null, // MARKER-BIZ-REGISTER
@@ -3287,7 +3422,7 @@ async function resetRegisterToFresh() {
   cart.items = [];
   cart.refund_lines = [];
   cart.refund_meta = null;
-  cart.tipCents = 0; cart.discountCents = 0;
+  cart.tipCents = 0; cart.discountCents = 0; cart.discountCode = null; // MARKER-REGISTER-DISCOUNT
   cart.payment_method = null; cart.payments = []; if (typeof renderSplit === 'function') renderSplit(); /* MARKER-SPLIT-TENDER */ cart.payment_reference = null;
   if (typeof resetGiftTender === 'function') resetGiftTender(); // MARKER-TENDERFIX
   closeModal('receiptModal');
