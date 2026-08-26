@@ -15,6 +15,8 @@ class TenantCustomer extends Authenticatable
     protected $fillable = [
         'tenant_id','first_name','last_name','email','phone',
         'sms_opt_out_at','sms_consent_source', // MARKER-PATCH-221
+        // MARKER-EMAIL-CONSENT
+        'email_marketing_consent_at','email_marketing_consent_source','email_marketing_opt_out_at',
         'address_line1','address_line2','city','state','postcode','country',
         'notes','stripe_customer_id','wp_source_url',
         'password','remember_token','email_verified_at',
@@ -33,8 +35,26 @@ class TenantCustomer extends Authenticatable
         'po_required'            => 'boolean', // MARKER-BIZ-CUSTOMER
         'email_verified_at'      => 'datetime',
         'password_reset_sent_at' => 'datetime',
+        // MARKER-EMAIL-CONSENT
+        'email_marketing_consent_at' => 'datetime',
+        'email_marketing_opt_out_at' => 'datetime',
         'password'               => 'hashed',
     ];
+
+    // MARKER-EMAIL-CONSENT — mailable for MARKETING. Send-time suppression
+    // (bounce/complaint) is checked separately and blocks everything.
+    public function emailMarketingMailable(): bool
+    {
+        return $this->email_marketing_consent_at !== null
+            && $this->email_marketing_opt_out_at === null;
+    }
+
+    public function scopeEmailMailable($query)
+    {
+        return $query->whereNotNull('email')->where('email', '!=', '')
+            ->whereNotNull('email_marketing_consent_at')
+            ->whereNull('email_marketing_opt_out_at');
+    }
 
     public function tenant(): BelongsTo       { return $this->belongsTo(Tenant::class); }
     public function appointments(): HasMany   { return $this->hasMany(TenantAppointment::class, 'customer_id'); }

@@ -303,6 +303,16 @@ class CustomerPortalController extends Controller
             return redirect()->route('tenant.customer.login');
         }
 
+        // MARKER-EMAIL-CONSENT — unlike SMS, email marketing can be turned
+        // back on here: no carrier rule requires it come from the inbox.
+        $wantsEmail = $request->boolean('email_marketing');
+        $consent    = app(\App\Services\Tenant\ConsentService::class);
+        if (! $wantsEmail && $customer->emailMarketingMailable()) {
+            $consent->optOut($customer);
+        } elseif ($wantsEmail && ! $customer->emailMarketingMailable()) {
+            $consent->recordOptIn($customer, 'portal');
+        }
+
         $wantsSms = $request->boolean('sms');
 
         if (! $wantsSms && $customer->sms_opt_out_at === null) {

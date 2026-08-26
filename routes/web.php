@@ -197,6 +197,10 @@ $tenantRoutes = function () {
     Route::get('/waitlist/offer/{token}/confirmed', [TenantControllers\WaitlistOfferController::class, 'confirmed'])->name('tenant.waitlist.offer.confirmed');
     Route::get('/book/paypal/return',    [TenantControllers\BookingController::class, 'paypalReturn'])->name('tenant.paypal.return');
 
+    // MARKER-EMAIL-CONSENT — public one-click unsubscribe (HMAC is the auth)
+    Route::get('/email/unsubscribe/{customer}/{sig}',  [TenantControllers\EmailPreferencesController::class, 'show'])->name('tenant.email.unsubscribe');
+    Route::post('/email/unsubscribe/{customer}/{sig}', [TenantControllers\EmailPreferencesController::class, 'unsubscribe'])->name('tenant.email.unsubscribe.submit')->middleware('throttle:12,1');
+
     // Customer account — register, login, logout, forgot, reset, portal
     Route::get('/account/register',      [TenantControllers\CustomerAccountController::class, 'showRegister'])->name('tenant.customer.register');
     Route::post('/account/register',     [TenantControllers\CustomerAccountController::class, 'register'])->name('tenant.customer.register.submit')->middleware('throttle:6,1'); // MARKER-CUST-AUTH

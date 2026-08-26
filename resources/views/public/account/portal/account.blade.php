@@ -48,6 +48,12 @@
 <div class="ac-card" style="padding:20px">
   <form method="POST" action="{{ route('tenant.customer.portal.notifications') }}">
     @csrf
+    {{-- MARKER-EMAIL-CONSENT --}}
+    <div class="ac-check-row" style="margin-bottom:14px">
+      <input type="checkbox" name="email_marketing" value="1" id="n-em" {{ $customer->emailMarketingMailable() ? 'checked' : '' }}>
+      <label for="n-em">Email me news and offers</label>
+    </div>
+    <div style="font-size:12.5px;opacity:.55;margin:-6px 0 14px">Receipts and booking confirmations always come through &mdash; this only controls marketing.</div>
     <div class="ac-check-row" style="margin-bottom:14px">
       <input type="checkbox" name="sms" value="1" id="n-sms" {{ $customer->sms_opt_out_at ? '' : 'checked' }}>
       <label for="n-sms">Text me confirmations and reminders</label>
