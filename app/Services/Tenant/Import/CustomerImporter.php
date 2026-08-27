@@ -85,6 +85,18 @@ class CustomerImporter
                 }
                 return [(int) $raw, null];
 
+            // MARKER-IMPORT-PHONE — store one shape, the same one every
+            // hand-entered number gets. Without this the table ends up with
+            // (509) 555-1234 and 5095551234 as different-looking values.
+            case 'phone':
+                $normalized = \App\Support\PhoneNumber::normalize($raw);
+                if ($normalized === null) {
+                    // Unusable, but not worth failing the row over — keep
+                    // what they had rather than throwing customer data away.
+                    return [$raw, null];
+                }
+                return [$normalized, null];
+
             default:
                 if (isset($def['max']) && mb_strlen($raw) > $def['max']) {
                     return [mb_substr($raw, 0, $def['max']), null]; // truncate, don't fail the row
