@@ -93,6 +93,46 @@ class ReportsController extends Controller
      *   - lapsed customers (no delivered appointment in 180d)
      *   - highest LTV (top customers by lifetime value)
      */
+    /**
+     * MARKER-DATA-COMPLETENESS — what's missing across the records as they
+     * stand, as opposed to what happened during any one import.
+     */
+    public function dataQuality(Request $request): View
+    {
+        $tenant = tenant();
+        $svc    = new \App\Services\Tenant\DataCompletenessService($tenant);
+
+        return view('tenant.reports.data-quality', [
+            'tenant'    => $tenant,
+            'customers' => $svc->customers(),
+            'inventory' => $svc->inventory(),
+            'consent'   => $svc->consent(),
+        ]);
+    }
+
+    /** MARKER-DATA-COMPLETENESS — the affected records, to fix in bulk. */
+    public function dataQualityExport(Request $request)
+    {
+        $tenant = tenant();
+
+        $data = $request->validate([
+            'type'  => 'required|in:customers,inventory',
+            'field' => 'required|string|max:64',
+        ]);
+
+        $svc      = new \App\Services\Tenant\DataCompletenessService($tenant);
+        $filename = 'missing-' . $data['field'] . '-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($svc, $data) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, \App\Services\Tenant\DataCompletenessService::exportHeader($data['type']));
+            $svc->exportMissing($data['type'], $data['field'], function (array $row) use ($out) {
+                fputcsv($out, $row);
+            });
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
     public function customers(Request $request): View
     {
         $tenant = tenant();

@@ -14,6 +14,7 @@
     ['key' => 'money',      'label' => 'Money',      'url' => route('tenant.reports.money')],
     ['key' => 'daily',      'label' => 'Daily ops',  'url' => route('tenant.reports.daily')], // MARKER-PATCH-633
     ['key' => 'staff',      'label' => 'Staff',      'url' => route('tenant.reports.staff')],
+    ['key' => 'data',       'label' => 'Data quality', 'url' => route('tenant.reports.data_quality')], // MARKER-DATA-COMPLETENESS
   ];
   $repActive = $active ?? '';
 @endphp
