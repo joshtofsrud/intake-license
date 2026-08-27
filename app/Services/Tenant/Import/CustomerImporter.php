@@ -285,8 +285,12 @@ class CustomerImporter
                             // MARKER-CUSTOMER-EMAIL-NULLABLE — name the column
                             // explicitly. Omitting it leans on a default the
                             // table does not have, which is what threw 1364.
+                            // MARKER-CONSENT-IMPORT-FIX — name EVERY column the
+                            // table requires. 'email' was named; first_name and
+                            // last_name were not, so a CSV without a last-name
+                            // column threw 1364 and killed the whole run.
                             $made = TenantCustomer::create(array_merge(
-                                ['email' => null],
+                                ['email' => null, 'first_name' => '', 'last_name' => ''],
                                 $row['values'],
                                 ['tenant_id' => $this->tenant->id],
                             ));

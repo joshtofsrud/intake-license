@@ -26,6 +26,18 @@
   <b>Email is required</b> — it's how an existing customer is recognised. Anything you leave unmapped is ignored.
 </div>
 
+{{-- MARKER-CONSENT-IMPORT-FIX — legend: importing does NOT grant permission
+     to market to these people, and nothing on this screen would say so. --}}
+@if($import->type === 'customer')
+<div class="ia-flash ia-flash--info" style="margin-bottom:14px">
+  <b>Importing doesn't grant marketing permission.</b> These customers can be
+  booked, sold to and emailed receipts straight away, but they won't receive
+  campaigns until someone confirms you have permission to market to them.
+  That's done once, for the whole list, on
+  <a href="{{ route('tenant.consent.index') }}">Contacts &amp; consent</a>.
+</div>
+@endif
+
 <form method="POST" action="{{ route('tenant.imports.mapping', $import->id) }}">
   @csrf
 

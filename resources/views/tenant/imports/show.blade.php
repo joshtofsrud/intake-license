@@ -21,11 +21,29 @@
 </div>
 
 @if($import->status === 'failed')
-  <div class="ia-flash ia-flash--error">{{ $import->failure_reason }}</div>
+  {{-- MARKER-CONSENT-IMPORT-FIX — a failed run with no recorded reason used to
+       render an empty box, which tells nobody anything. --}}
+  <div class="ia-flash ia-flash--error">
+    @if(trim((string) $import->failure_reason) !== '')
+      {{ $import->failure_reason }}
+    @else
+      This import stopped before it finished and no reason was recorded.
+      Nothing was imported. Please send this import's reference
+      (<span class="mono">{{ $import->id }}</span>) to support so the cause can be found.
+    @endif
+  </div>
 @elseif($import->status === 'done')
   <div class="ia-flash ia-flash--success">
     {{ number_format($import->total('created') + $import->total('updated')) }} rows imported.
   </div>
+  {{-- MARKER-CONSENT-IMPORT-FIX — the next step nobody would otherwise know about. --}}
+  @if($import->type === 'customer' && $import->total('created') > 0)
+    <div class="ia-flash ia-flash--info" style="margin-top:10px">
+      <b>These customers can't receive campaigns yet.</b> Imported contacts start
+      without marketing permission. Confirm it once for the whole list on
+      <a href="{{ route('tenant.consent.index') }}">Contacts &amp; consent</a>.
+    </div>
+  @endif
 @endif
 
 <div class="imp-tiles">

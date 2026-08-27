@@ -56,26 +56,34 @@ class ConsentService
             $query->whereIn('id', $customerIds);
         }
 
-        $marked = 0;
-        $query->select('id')->chunkById(500, function ($chunk) use (&$marked) {
-            $marked += TenantCustomer::whereIn('id', $chunk->pluck('id'))->update([
-                'email_marketing_consent_at'     => now(),
-                'email_marketing_consent_source' => 'attestation',
+        // MARKER-CONSENT-IMPORT-FIX — marking customers consented and
+        // recording WHY must succeed or fail together. Previously the marking
+        // ran first and a failed attestation insert left consent standing with
+        // no evidence behind it — the exact thing this record exists to prove.
+        return \Illuminate\Support\Facades\DB::transaction(function () use (
+            $query, $tenant, $confirmedBy, $wording, $ip, $context
+        ) {
+            $marked = 0;
+            $query->select('id')->chunkById(500, function ($chunk) use (&$marked) {
+                $marked += TenantCustomer::whereIn('id', $chunk->pluck('id'))->update([
+                    'email_marketing_consent_at'     => now(),
+                    'email_marketing_consent_source' => 'attestation',
+                ]);
+            });
+
+            TenantConsentAttestation::create([
+                'tenant_id'            => $tenant->id,
+                'contact_count'        => $marked,
+                'wording'              => $wording,
+                'confirmed_by_user_id' => $confirmedBy?->id,
+                'confirmed_by_name'    => (string) ($confirmedBy?->name ?? 'Unknown'),
+                'confirmed_by_role'    => $confirmedBy?->role,
+                'ip'                   => $ip,
+                'context'              => $context,
             ]);
+
+            return $marked;
         });
-
-        TenantConsentAttestation::create([
-            'tenant_id'            => $tenant->id,
-            'contact_count'        => $marked,
-            'wording'              => $wording,
-            'confirmed_by_user_id' => $confirmedBy?->id,
-            'confirmed_by_name'    => (string) ($confirmedBy?->name ?? 'Unknown'),
-            'confirmed_by_role'    => $confirmedBy?->role,
-            'ip'                   => $ip,
-            'context'              => $context,
-        ]);
-
-        return $marked;
     }
 
     // ------------------------------------------------------------------
