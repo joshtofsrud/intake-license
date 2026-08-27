@@ -93,6 +93,30 @@
       <span>Subtotal</span>
       <b>{{ $money($cart->subtotal_cents) }}</b>
     </div>
+    {{-- MARKER-SHOP-DISCOUNT --}}
+    @if((int) ($cart->discount_cents ?? 0) > 0)
+      <div class="sum-row" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Discount{{ $cart->discount_code ? ' (' . $cart->discount_code . ')' : '' }}</span>
+        <b>&minus;{{ $money($cart->discount_cents) }}</b>
+      </div>
+      <form method="POST" action="{{ route('tenant.cart.discount.remove') }}" style="margin:6px 0 10px">
+        @csrf
+        @method('DELETE')
+        <button type="submit" style="background:none;border:none;padding:0;font:inherit;font-size:12px;opacity:.6;cursor:pointer;text-decoration:underline">Remove discount</button>
+      </form>
+    @else
+      <form method="POST" action="{{ route('tenant.cart.discount.apply') }}" style="display:flex;gap:8px;margin:10px 0">
+        @csrf
+        <input type="text" name="code" placeholder="Discount code" autocapitalize="characters"
+               style="flex:1;min-width:0;padding:9px 11px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:transparent;color:inherit;font:inherit;font-size:13px">
+        <button type="submit" style="padding:9px 14px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer">Apply</button>
+      </form>
+    @endif
+
+    @if(session('shop_error'))
+      <div style="font-size:12.5px;color:#c0392b;margin-bottom:8px">{{ session('shop_error') }}</div>
+    @endif
+
     <div class="sum-note">Tax and any delivery fee are calculated at checkout.</div>
 
     {{-- MARKER-PATCH-566 — checkout is live --}}

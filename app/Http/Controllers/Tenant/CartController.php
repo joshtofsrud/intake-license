@@ -74,4 +74,57 @@ class CartController extends Controller
         }
         return redirect('/cart');
     }
+
+    /**
+     * MARKER-SHOP-DISCOUNT — put a code on the cart.
+     *
+     * Validates only; nothing is redeemed until the order is placed. A code
+     * left sitting in an abandoned cart must never hold one of its uses.
+     */
+    public function applyDiscount(Request $request)
+    {
+        $tenant = tenant();
+        $data   = $request->validate(['code' => 'required|string|max:40']);
+
+        $cart = CartService::forTenant($tenant)->current();
+        if (! $cart || $cart->items->isEmpty()) {
+            return back()->with('shop_error', 'Your cart is empty.');
+        }
+
+        $subtotal = (int) $cart->items->sum('line_total_cents');
+
+        $check = app(\App\Services\Tenant\DiscountService::class)->validate(
+            $tenant->id, $data['code'], $subtotal, $cart->customer_id
+        );
+
+        if (! $check['ok']) {
+            return back()->with('shop_error', $check['reason']);
+        }
+
+        $cart->forceFill([
+            'discount_cents' => (int) $check['amount_cents'],
+            'discount_code'  => strtoupper(trim($data['code'])),
+        ])->save();
+
+        CartService::forTenant($tenant)->recompute($cart);
+
+        return back()->with('shop_success', 'Discount applied.');
+    }
+
+    /** MARKER-SHOP-DISCOUNT — take it back off. */
+    public function removeDiscount()
+    {
+        $tenant = tenant();
+        $cart   = CartService::forTenant($tenant)->current();
+
+        if ($cart) {
+            $cart->forceFill([
+                'discount_cents' => 0,
+                'discount_code'  => null,
+            ])->save();
+            CartService::forTenant($tenant)->recompute($cart);
+        }
+
+        return back()->with('shop_success', 'Discount removed.');
+    }
 }

@@ -133,6 +133,11 @@
         </div>
       @endforeach
       <div class="sum-line"><span>Subtotal</span><span id="s-sub">{{ $money($quotePickup['subtotal_cents']) }}</span></div>
+      {{-- MARKER-SHOP-DISCOUNT — the discount is already in the total, so it
+           has to be shown or the numbers don't add up on screen. --}}
+      @if((int) ($quotePickup['discount_cents'] ?? 0) > 0)
+        <div class="sum-line"><span>{{ !empty($quotePickup['discount_code']) ? 'Discount (' . $quotePickup['discount_code'] . ')' : 'Discount' }}</span><span id="s-disc">&minus;{{ $money($quotePickup['discount_cents']) }}</span></div>
+      @endif
       <div class="sum-line"><span>Tax</span><span id="s-tax">{{ $money($quotePickup['tax_cents']) }}</span></div>
       <div class="sum-line" id="s-fee-row" style="display:none"><span>Delivery</span><span id="s-fee">{{ $money($quoteDelivery['shipping_cents']) }}</span></div>
       <div class="sum-line total"><span>Total</span><span id="s-total">{{ $money($quotePickup['total_cents']) }}</span></div>

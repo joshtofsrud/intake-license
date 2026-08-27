@@ -44,7 +44,7 @@ class TenantOrder extends Model
         'fulfillment_type', 'fulfillment_address', 'fulfillment_notes', 'wants_install',
         'location_id', 'sale_id',
         'payment_status', 'stripe_payment_intent_id', 'card_brand', 'card_last4', 'paid_at',
-        'subtotal_cents', 'discount_cents', 'tax_cents', 'shipping_cents', 'total_cents',
+        'subtotal_cents', 'discount_cents', 'discount_code', 'discount_redemption_id', // MARKER-SHOP-DISCOUNT 'tax_cents', 'shipping_cents', 'total_cents',
         'metadata',
     ];
 

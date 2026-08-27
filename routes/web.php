@@ -163,6 +163,9 @@ $tenantRoutes = function () {
     Route::post('/cart/items',           [TenantControllers\CartController::class, 'add'])->name('tenant.cart.add');
     Route::patch('/cart/items/{lineId}', [TenantControllers\CartController::class, 'update'])->name('tenant.cart.update');
     Route::delete('/cart/items/{lineId}',[TenantControllers\CartController::class, 'remove'])->name('tenant.cart.remove');
+    // MARKER-SHOP-DISCOUNT — validate-only; redemption happens at placement
+    Route::post('/cart/discount',        [TenantControllers\CartController::class, 'applyDiscount'])->name('tenant.cart.discount.apply');
+    Route::delete('/cart/discount',      [TenantControllers\CartController::class, 'removeDiscount'])->name('tenant.cart.discount.remove');
     // MARKER-PATCH-566 — Online Retail Wave 4: checkout + confirmation
     Route::get('/checkout',              [TenantControllers\CheckoutController::class, 'show'])->name('tenant.checkout.show');
     Route::post('/checkout/place',       [TenantControllers\CheckoutController::class, 'place'])->name('tenant.checkout.place');
