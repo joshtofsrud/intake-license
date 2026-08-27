@@ -702,6 +702,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/imports/{id}/run',            [TenantControllers\ImportController::class, 'run'])->name('imports.run');
             Route::get('/imports/template/{type}',      [TenantControllers\ImportController::class, 'template'])->name('imports.template');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
+            // MARKER-IMPORT-DRILLDOWN — what's behind a result number
+            Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');
             Route::get('/imports/{id}/errors',          [TenantControllers\ImportController::class, 'errors'])->name('imports.errors');
             Route::post('/imports/{id}/reverse',        [TenantControllers\ImportController::class, 'reverse'])->name('imports.reverse'); // MARKER-IMPORT2
             // MARKER-IMPORT3 — template must be declared BEFORE /imports/{id},

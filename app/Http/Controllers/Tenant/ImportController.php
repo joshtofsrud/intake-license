@@ -299,6 +299,96 @@ class ImportController extends Controller
     }
 
     /** Original columns + a reason column, so it can be fixed and re-imported. */
+    /**
+     * MARKER-IMPORT-DRILLDOWN — what is actually behind one of the numbers.
+     * Returns JSON so the result page can open it without a page load.
+     *
+     * created/updated come from the row ledger; errors are read back out of
+     * the error CSV, which is the only place the per-row reasons live.
+     */
+    public function detail(Request $request, string $id)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        $kind = $request->query('kind');
+        if (! in_array($kind, ['created', 'updated', 'errors'], true)) {
+            return response()->json(['ok' => false, 'error' => 'Nothing to show for that.'], 422);
+        }
+
+        if ($kind === 'errors') {
+            return response()->json([
+                'ok'    => true,
+                'kind'  => 'errors',
+                'rows'  => $this->readErrorCsv($import, 200),
+                'total' => (int) $import->total('errors'),
+            ]);
+        }
+
+        $rows = \App\Models\Tenant\TenantImportRow::where('import_id', $import->id)
+            ->where('action', $kind === 'created' ? 'created' : 'updated')
+            ->orderBy('created_at')
+            ->limit(200)
+            ->get();
+
+        $ids = $rows->pluck('record_id')->all();
+
+        if ($import->type === 'inventory') {
+            $records = \App\Models\Tenant\TenantInventoryItem::whereIn('id', $ids)
+                ->get(['id', 'sku', 'name'])->keyBy('id');
+            $label = fn ($r) => trim(($r->sku ? $r->sku . ' — ' : '') . ($r->name ?: 'Unnamed item'));
+        } else {
+            $records = \App\Models\Tenant\TenantCustomer::whereIn('id', $ids)
+                ->get(['id', 'first_name', 'last_name', 'email'])->keyBy('id');
+            $label = fn ($r) => trim(($r->first_name . ' ' . $r->last_name)) ?: ($r->email ?: 'Unnamed');
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            $rec = $records[$row->record_id] ?? null;
+            $out[] = [
+                'id'    => $row->record_id,
+                'label' => $rec ? $label($rec) : 'Record no longer exists',
+                'sub'   => $rec ? (string) ($rec->email ?? $rec->sku ?? '') : '',
+            ];
+        }
+
+        return response()->json([
+            'ok'    => true,
+            'kind'  => $kind,
+            'rows'  => $out,
+            'total' => (int) $import->total($kind),
+        ]);
+    }
+
+    /** MARKER-IMPORT-DRILLDOWN — read the error CSV back for on-screen display. */
+    private function readErrorCsv(TenantImport $import, int $limit): array
+    {
+        if (! $import->error_path) return [];
+
+        $abs = Storage::disk('local')->path($import->error_path);
+        if (! is_readable($abs)) return [];
+
+        $out = [];
+        $h = fopen($abs, 'r');
+        if (! $h) return [];
+
+        $header = fgetcsv($h); // original columns + 'Why it was skipped'
+        while (($row = fgetcsv($h)) !== false && count($out) < $limit) {
+            $why = array_pop($row);
+            // Show the first couple of populated cells so the row is
+            // recognisable without dumping every column on screen.
+            $bits = array_values(array_filter(array_map('trim', $row), fn ($v) => $v !== ''));
+            $out[] = [
+                'label' => implode(' · ', array_slice($bits, 0, 3)) ?: '(empty row)',
+                'sub'   => (string) $why,
+            ];
+        }
+        fclose($h);
+
+        return $out;
+    }
+
     private function writeErrorCsv(TenantImport $import, array $rows): string
     {
         $rel = 'imports/' . $import->tenant_id . '/errors-' . $import->id . '.csv';
