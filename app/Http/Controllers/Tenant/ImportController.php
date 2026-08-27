@@ -262,9 +262,22 @@ class ImportController extends Controller
         try {
             $result = $this->importer($import)->run();
         } catch (\Throwable $e) {
-            $import->update(['status' => 'failed', 'failure_reason' => $e->getMessage(),
+            // MARKER-IMPORT-FAILREASON — never store an empty reason: a blank
+            // failure screen tells the operator nothing at all.
+            $reason = trim((string) $e->getMessage());
+            if ($reason === '') {
+                $reason = class_basename($e) . ' at ' . basename($e->getFile()) . ':' . $e->getLine()
+                        . ' (no message) — the application log for today has the full trace';
+            }
+
+            $import->update(['status' => 'failed', 'failure_reason' => $reason,
                              'finished_at' => now()]);
-            \Log::error('customer import failed', ['import' => $import->id, 'error' => $e->getMessage()]);
+            \Log::error('customer import failed', [
+                'import' => $import->id,
+                'error'  => $reason,
+                'class'  => get_class($e),
+                'trace'  => \Illuminate\Support\Str::limit($e->getTraceAsString(), 2000),
+            ]);
 
             return redirect()->route('tenant.imports.show', $import->id)
                 ->with('error', 'The import stopped: ' . $e->getMessage());
