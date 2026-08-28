@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerImporter
 {
+    // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
+    use AnalysesConflicts;
+
     public const CHUNK = 200;
 
     public function __construct(private Tenant $tenant, private TenantImport $import) {}
@@ -110,7 +113,7 @@ class CustomerImporter
      *
      * @return array{outcome:string, errors:array, values:array, match:?TenantCustomer, changes:array}
      */
-    public function buildRow(array $cells, ?TenantCustomer $existing): array
+    public function buildRow(array $cells, ?TenantCustomer $existing, ?int $line = null): array
     {
         $errors = [];
         $values = [];
@@ -123,6 +126,7 @@ class CustomerImporter
             if ($val === null) { continue; }          // blank never overwrites
             $values[$m['field']] = $val;
             $dirs[$m['field']]   = $m['dir'] ?: $this->option('direction', 'csv');
+            $dirs[$m['field']]   = $this->rowDirection($m['field'], $dirs[$m['field']], $line);
         }
 
         $matchField = ImportFieldRegistry::matchField('customers');
@@ -223,7 +227,7 @@ class CustomerImporter
             if (! $batch) { return; }
             $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
             foreach ($batch as $b) {
-                $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null);
+                $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
                 $counts[$row['outcome']] = ($counts[$row['outcome']] ?? 0) + 1;
                 if (count($sample) < $sampleLimit) {
                     $sample[] = [
@@ -289,7 +293,7 @@ class CustomerImporter
 
             DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows) {
                 foreach ($batch as $b) {
-                    $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null);
+                    $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
 
                     switch ($row['outcome']) {
                         case 'create':

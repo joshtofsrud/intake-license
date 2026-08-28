@@ -109,4 +109,37 @@ details.imp-ref[open] summary::before{content:'\25BE'}
 .imp-ref-no{margin-top:12px;font-size:11.5px;color:var(--ia-text-dim);line-height:1.6;
   border-left:2px solid var(--ia-border);padding-left:11px}
 .chip--reversed{background:rgba(255,255,255,.05);color:var(--ia-text-dim);border:.5px solid rgba(255,255,255,.12)}
+
+/* MARKER-IMPORT-MERGE — merge review: one decision per field, samples under it */
+.imp-fg{padding:16px 18px;border-bottom:.5px solid var(--ia-border)}
+.imp-fg:last-child{border-bottom:0}
+.imp-fg-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.imp-fg-name{font-weight:650;font-size:13.5px}
+.imp-fg-count{font-size:12px;color:var(--ia-accent)}
+.imp-seg{display:inline-flex;background:var(--ia-input-bg);border-radius:9px;padding:3px;margin-left:auto;
+  box-shadow:inset 0 0 0 .5px var(--ia-border)}
+.imp-seg label{padding:5px 11px;font-size:11.5px;font-weight:600;border-radius:6px;cursor:pointer;
+  color:var(--ia-text-dim);white-space:nowrap}
+.imp-seg input{position:absolute;opacity:0;width:0;height:0}
+.imp-seg label:has(input:checked){background:var(--ia-accent);color:#0a0a0a}
+.imp-seg label:focus-within{outline:2px solid var(--ia-accent);outline-offset:2px}
+.imp-fg-sample{margin-top:11px;border-radius:9px;overflow:hidden;background:var(--ia-input-bg);
+  box-shadow:inset 0 0 0 .5px var(--ia-border)}
+.imp-fg-sample .imp td,.imp-fg-sample .imp th{padding:7px 12px}
+.imp-was{color:var(--ia-text-dim);text-decoration:line-through;text-decoration-color:rgba(255,255,255,.25)}
+.imp-now{color:var(--ia-accent)}
+.imp-kept{color:var(--ia-text)}
+.imp-more{margin-top:9px;font-size:11.5px;color:var(--ia-text-dim)}
+.imp-more a{color:var(--ia-accent);text-decoration:none;border-bottom:.5px solid currentColor}
+.imp-rowseg{display:inline-flex;gap:5px}
+.imp-rowseg label{padding:3px 9px;font-size:11px;border-radius:6px;cursor:pointer;
+  color:var(--ia-text-dim);box-shadow:inset 0 0 0 .5px var(--ia-border)}
+.imp-rowseg input{position:absolute;opacity:0;width:0;height:0}
+.imp-rowseg label:has(input:checked){background:var(--ia-accent);color:#0a0a0a;font-weight:650}
+.imp-rowseg label:focus-within{outline:2px solid var(--ia-accent);outline-offset:2px}
+.imp-legend{font-size:11.5px;color:var(--ia-text-dim);line-height:1.6;padding:12px 18px;
+  border-top:.5px solid var(--ia-border)}
+.imp-pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:14px;font-size:12px}
+.imp-pager a{color:var(--ia-accent);text-decoration:none}
+.imp-pager span{color:var(--ia-text-dim)}
 </style>

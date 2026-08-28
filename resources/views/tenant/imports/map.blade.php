@@ -72,8 +72,8 @@
               <td>
                 <select name="dir[{{ $i }}]" class="imp-dir">
                   <option value="" @selected($dir === '')>Use the default</option>
-                  <option value="csv" @selected($dir === 'csv')>File wins</option>
-                  <option value="keep" @selected($dir === 'keep')>Keep existing</option>
+                  <option value="csv" @selected($dir === 'csv')>Use CSV</option>
+                  <option value="keep" @selected($dir === 'keep')>Keep mine</option>
                   <option value="blank" @selected($dir === 'blank')>Only fill blanks</option>
                 </select>
               </td>
@@ -101,11 +101,11 @@
       <div class="ia-card-head"><span class="ia-card-title">Default merge direction</span></div>
       <div class="ia-card-body">
         <label class="imp-radio"><input type="radio" name="direction" value="csv" checked>
-          <span><b>File wins</b><span>Your spreadsheet is the source of truth for every mapped field.</span></span></label>
+          <span><b>Use CSV</b><span>Your spreadsheet is the source of truth for every mapped field.</span></span></label>
         <label class="imp-radio"><input type="radio" name="direction" value="blank">
           <span><b>Only fill blanks</b><span>Adds what's missing, never overwrites what someone typed.</span></span></label>
         <label class="imp-radio"><input type="radio" name="direction" value="keep">
-          <span><b>Keep existing</b><span>Reference only — useful for a dry comparison.</span></span></label>
+          <span><b>Keep mine</b><span>Reference only — useful for a dry comparison.</span></span></label>
         <p class="imp-hint" style="margin-top:8px">Any column above can override this for itself.</p>
       </div>
     </div>

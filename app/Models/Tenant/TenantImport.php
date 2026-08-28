@@ -12,7 +12,7 @@ class TenantImport extends Model
 
     protected $fillable = [
         'tenant_id', 'type', 'original_filename', 'stored_path', 'delimiter',
-        'encoding', 'has_header', 'columns', 'mapping', 'options', 'totals',
+        'encoding', 'has_header', 'columns', 'mapping', 'row_overrides', 'options', 'totals',
         'status', 'failure_reason', 'error_path', 'created_by_user_id',
         'started_at', 'finished_at',
     ];
@@ -20,6 +20,7 @@ class TenantImport extends Model
     protected $casts = [
         'columns'     => 'array',
         'mapping'     => 'array',
+        'row_overrides' => 'array',   // MARKER-IMPORT-MERGE
         'options'     => 'array',
         'totals'      => 'array',
         'has_header'  => 'boolean',

@@ -238,7 +238,127 @@ class ImportController extends Controller
             ]),
         ]);
 
+        // MARKER-IMPORT-MERGE — the review decides what preview is previewing.
+        return redirect()->route('tenant.imports.conflicts', $import->id);
+    }
+
+    /**
+     * MARKER-IMPORT-MERGE — conflicts grouped by field. Skipped entirely when
+     * the file doesn't disagree with anything we already have.
+     */
+    public function conflicts(string $id)
+    {
+        $this->guard();
+        $import   = $this->find($id);
+        $importer = $this->importer($import);
+        $analysis = $importer->conflicts();
+
+        if (! $analysis['fields']) {
+            return redirect()->route('tenant.imports.preview', $import->id);
+        }
+
+        $overrideCount = 0;
+        foreach ((array) ($import->row_overrides ?? []) as $lines) {
+            $overrideCount += count((array) $lines);
+        }
+
+        return view('tenant.imports.conflicts',
+            compact('import', 'importer', 'analysis', 'overrideCount'));
+    }
+
+    /** MARKER-IMPORT-MERGE — write the per-field choices back into the mapping. */
+    public function saveConflicts(Request $request, string $id)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        $chosen = (array) $request->input('dir', []);
+        $map    = (array) $import->mapping;
+
+        foreach ($map as $idx => $m) {
+            $field = is_array($m) ? ($m['field'] ?? null) : $m;
+            if (! $field || ! array_key_exists($field, $chosen)) { continue; }
+            $dir = $chosen[$field];
+            $map[$idx] = [
+                'field' => $field,
+                'dir'   => in_array($dir, ['csv', 'keep', 'blank'], true) ? $dir : null,
+            ];
+        }
+
+        $import->update(['mapping' => $map]);
+
         return redirect()->route('tenant.imports.preview', $import->id);
+    }
+
+    /** MARKER-IMPORT-MERGE — every differing row for one field. */
+    public function conflictField(Request $request, string $id, string $field)
+    {
+        $this->guard();
+        $import   = $this->find($id);
+        $importer = $this->importer($import);
+
+        $fields = ImportFieldRegistry::for($import->type);
+        abort_unless(isset($fields[$field]), 404);
+
+        $per    = 50;
+        $page   = max(1, (int) $request->integer('page', 1));
+        $filter = (string) $request->input('q', '');
+
+        $result    = $importer->conflictRows($field, ($page - 1) * $per, $per, $filter);
+        $overrides = $importer->overridesFor($field);
+
+        $rule = null;
+        foreach ((array) $import->mapping as $m) {
+            if ((is_array($m) ? ($m['field'] ?? null) : $m) === $field) {
+                $rule = is_array($m) ? ($m['dir'] ?? null) : null;
+            }
+        }
+        $rule = $rule ?: (($import->options ?? [])['direction'] ?? 'csv');
+
+        return view('tenant.imports.conflict-field', [
+            'import'    => $import,
+            'importer'  => $importer,
+            'field'     => $field,
+            'label'     => $fields[$field]['label'],
+            'rows'      => $result['rows'],
+            'total'     => $result['total'],
+            'page'      => $page,
+            'per'       => $per,
+            'filter'    => $filter,
+            'rule'      => $rule,
+            'overrides' => $overrides,
+        ]);
+    }
+
+    /** MARKER-IMPORT-MERGE — merge this page's row decisions into the import. */
+    public function saveConflictField(Request $request, string $id, string $field)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        $fields = ImportFieldRegistry::for($import->type);
+        abort_unless(isset($fields[$field]), 404);
+
+        $all  = (array) ($import->row_overrides ?? []);
+        $cur  = (array) ($all[$field] ?? []);
+
+        // Only the lines on the submitted page are touched; '' means "follow
+        // the field rule", which is a removal rather than a stored value.
+        foreach ((array) $request->input('ov', []) as $line => $choice) {
+            $line = (string) (int) $line;
+            if (in_array($choice, ['csv', 'keep', 'blank'], true)) {
+                $cur[$line] = $choice;
+            } else {
+                unset($cur[$line]);
+            }
+        }
+
+        if ($cur) { $all[$field] = $cur; } else { unset($all[$field]); }
+        $import->update(['row_overrides' => $all]);
+
+        return redirect()->route('tenant.imports.conflict.field', [
+            $import->id, $field, 'page' => $request->input('page', 1), 'q' => $request->input('q'),
+        ])->with('success', 'Row choices saved.');
     }
 
     public function preview(string $id)

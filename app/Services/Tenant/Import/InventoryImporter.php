@@ -28,6 +28,9 @@ use Illuminate\Support\Str;
 
 class InventoryImporter
 {
+    // MARKER-IMPORT-MERGE — conflict analysis for the merge review screen.
+    use AnalysesConflicts;
+
     public const CHUNK = 100;
 
     /** Column names that are pseudo-fields, not item columns. */
@@ -165,7 +168,7 @@ class InventoryImporter
     }
 
     /** Decide what one row does. Writes nothing. */
-    public function buildRow(array $cells, ?TenantInventoryItem $existing): array
+    public function buildRow(array $cells, ?TenantInventoryItem $existing, ?int $line = null): array
     {
         $errors = []; $values = []; $dirs = []; $extra = [];
 
@@ -186,6 +189,7 @@ class InventoryImporter
 
             $values[$f] = $val;
             $dirs[$f]   = $m['dir'] ?: $this->option('direction', 'csv');
+            $dirs[$f]   = $this->rowDirection($f, $dirs[$f], $line);
         }
 
         $mode = $this->option('mode', 'upsert');
@@ -278,7 +282,7 @@ class InventoryImporter
             $existing = $this->lookup(array_map(fn ($b) => $b['key'], $batch));
 
             foreach ($batch as $b) {
-                $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null);
+                $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
                 $counts[$row['outcome']] = ($counts[$row['outcome']] ?? 0) + 1;
 
                 // Which categories/vendors WOULD be created — resolve read-only.
@@ -361,7 +365,7 @@ class InventoryImporter
             DB::transaction(function () use ($batch, $existing, &$counts, &$errorRows, $inventory,
                                             $location, $createCats, $createVendors, $stockMode, $user) {
                 foreach ($batch as $b) {
-                    $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null);
+                    $row = $this->buildRow($b['cells'], $existing[$b['key']] ?? null, $b['line']);
 
                     if ($row['outcome'] === 'error') {
                         $counts['errors']++;

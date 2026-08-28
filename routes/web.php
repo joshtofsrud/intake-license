@@ -704,6 +704,12 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::get('/imports/{id}/preview',         [TenantControllers\ImportController::class, 'preview'])->name('imports.preview');
             Route::post('/imports/{id}/run',            [TenantControllers\ImportController::class, 'run'])->name('imports.run');
             Route::get('/imports/template/{type}',      [TenantControllers\ImportController::class, 'template'])->name('imports.template');
+            // MARKER-IMPORT-MERGE — merge review. Declared above /imports/{id}
+            // or 'conflicts' is swallowed as an id, same trap as 'template'.
+            Route::get('/imports/{id}/conflicts',              [TenantControllers\ImportController::class, 'conflicts'])->name('imports.conflicts');
+            Route::post('/imports/{id}/conflicts',             [TenantControllers\ImportController::class, 'saveConflicts'])->name('imports.conflicts.save');
+            Route::get('/imports/{id}/conflicts/{field}',      [TenantControllers\ImportController::class, 'conflictField'])->name('imports.conflict.field');
+            Route::post('/imports/{id}/conflicts/{field}',     [TenantControllers\ImportController::class, 'saveConflictField'])->name('imports.conflict.field.save');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');
             // MARKER-IMPORT-DRILLDOWN — what's behind a result number
             Route::get('/imports/{id}/detail',  [TenantControllers\ImportController::class, 'detail'])->name('imports.detail');
