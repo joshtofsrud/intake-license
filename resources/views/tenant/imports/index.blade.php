@@ -134,8 +134,10 @@
                   @endif
                   @if(in_array($imp->status, ['draft', 'previewed'], true))
                     <a href="{{ route('tenant.imports.map', $imp->id) }}" class="ia-btn ia-btn--secondary ia-btn--sm">Resume</a>
+                    {{-- MARKER-IMPORT-PRESETS — in-app dialog, not confirm(). --}}
                     <form method="POST" action="{{ route('tenant.imports.destroy', $imp->id) }}"
-                          onsubmit="return confirm('Discard this upload? Nothing was written, so nothing is lost.')">
+                          data-confirm="Discard this upload? Nothing was written, so nothing is lost."
+                          data-confirm-label="Discard">
                       @csrf @method('DELETE')
                       <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Discard</button>
                     </form>
@@ -155,4 +157,49 @@
     <p class="imp-hint">Showing {{ $imports->count() }} of {{ number_format($total) }}.</p>
   @endif
 </div>
+
+{{-- MARKER-IMPORT-PRESETS — section 3, rendered only once a preset exists. --}}
+@if($presets->isNotEmpty())
+<div class="imp-sec">
+  <div class="imp-sec-h"><span class="imp-sec-n">3</span><span class="imp-sec-t">Saved mappings</span></div>
+  <p class="imp-sec-s">Column layouts you've used before &mdash; pick one and skip the mapping step.</p>
+
+  <div class="ia-card">
+    @foreach($presets as $ps)
+      <div class="preset-row">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:13px">{{ $ps->name }}</b>
+          <div class="imp-hint">
+            {{ ucfirst($ps->type) }} · {{ count($ps->mapping ?? []) }} fields mapped ·
+            used {{ $ps->use_count }}&times;@if($ps->last_used_at) · last {{ tlocal_date($ps->last_used_at, 'M j') }}@endif
+          </div>
+        </div>
+
+        <form method="POST" action="{{ route('tenant.imports.preset.rename', $ps->id) }}" class="preset-rename">
+          @csrf @method('PATCH')
+          <input class="imp-sel" type="text" name="name" value="{{ $ps->name }}" maxlength="80" style="width:150px">
+          <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Rename</button>
+        </form>
+
+        <form method="POST" action="{{ route('tenant.imports.preset.delete', $ps->id) }}"
+              data-confirm="Delete &quot;{{ $ps->name }}&quot;? Imports that used it are unaffected."
+              data-confirm-label="Delete">
+          @csrf @method('DELETE')
+          <button type="submit" class="ia-btn ia-btn--ghost ia-btn--sm">Delete</button>
+        </form>
+
+        <a class="ia-btn ia-btn--secondary ia-btn--sm"
+           href="{{ route('tenant.imports.create', ['type' => $ps->type, 'preset' => $ps->id]) }}">Use</a>
+      </div>
+    @endforeach
+
+    <div class="imp-legend">
+      A saved mapping holds the column matches and the conflict rules only &mdash; never the
+      file it came from and nothing in it. Deleting one changes no data and no past import.
+    </div>
+  </div>
+</div>
+@endif
+
+@include('tenant.imports._confirm')
 @endsection

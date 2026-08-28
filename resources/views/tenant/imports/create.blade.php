@@ -21,6 +21,15 @@
   @csrf
   <input type="hidden" name="type" value="{{ $type }}">
 
+  {{-- MARKER-IMPORT-PRESETS — chosen on the hub, applied on the map step. --}}
+  @if($preset ?? null)
+    <input type="hidden" name="preset_id" value="{{ $preset->id }}">
+    <div class="ia-flash ia-flash--info" style="margin-bottom:14px">
+      <b>Using "{{ $preset->name }}"</b> — your columns will be mapped with it as soon as the
+      file is uploaded. You can still change anything on the next screen.
+    </div>
+  @endif
+
   <div class="ia-card">
     <div class="ia-card-head"><span class="ia-card-title">Your file</span>
       <a href="{{ route('tenant.imports.index') }}" class="ia-btn ia-btn--ghost ia-btn--sm"

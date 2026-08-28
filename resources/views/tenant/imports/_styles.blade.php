@@ -142,4 +142,11 @@ details.imp-ref[open] summary::before{content:'\25BE'}
 .imp-pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:14px;font-size:12px}
 .imp-pager a{color:var(--ia-accent);text-decoration:none}
 .imp-pager span{color:var(--ia-text-dim)}
+
+/* MARKER-IMPORT-PRESETS — saved mapping rows */
+.preset-row{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap;
+  border-bottom:.5px solid var(--ia-border)}
+.preset-row:last-of-type{border-bottom:0}
+.preset-rename{display:flex;gap:6px;align-items:center}
+.preset-row form{margin:0}
 </style>

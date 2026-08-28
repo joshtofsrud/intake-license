@@ -708,6 +708,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             // or 'conflicts' is swallowed as an id, same trap as 'template'.
             Route::get('/imports/{id}/conflicts',              [TenantControllers\ImportController::class, 'conflicts'])->name('imports.conflicts');
             Route::post('/imports/{id}/conflicts',             [TenantControllers\ImportController::class, 'saveConflicts'])->name('imports.conflicts.save');
+            // MARKER-IMPORT-PRESETS — saved column mappings.
+            Route::post('/imports/{id}/preset/apply',          [TenantControllers\ImportController::class, 'applyPreset'])->name('imports.preset.apply');
+            Route::post('/imports/{id}/preset/save',           [TenantControllers\ImportController::class, 'savePreset'])->name('imports.preset.save');
+            Route::patch('/import-mappings/{mappingId}',       [TenantControllers\ImportController::class, 'renamePreset'])->name('imports.preset.rename');
+            Route::delete('/import-mappings/{mappingId}',      [TenantControllers\ImportController::class, 'deletePreset'])->name('imports.preset.delete');
             Route::get('/imports/{id}/conflicts/{field}',      [TenantControllers\ImportController::class, 'conflictField'])->name('imports.conflict.field');
             Route::post('/imports/{id}/conflicts/{field}',     [TenantControllers\ImportController::class, 'saveConflictField'])->name('imports.conflict.field.save');
             Route::get('/imports/{id}',                 [TenantControllers\ImportController::class, 'show'])->name('imports.show');

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant\TenantImport;
+use App\Models\Tenant\TenantImportMapping;   // MARKER-IMPORT-PRESETS
 use App\Services\Tenant\Import\CsvFile;
 use App\Services\Tenant\Import\CustomerImporter;
 use App\Support\ImportFieldRegistry;
@@ -55,7 +56,13 @@ class ImportController extends Controller
 
         $total = TenantImport::where('tenant_id', $tenant->id)->count();
 
-        return view('tenant.imports.index', compact('imports', 'actors', 'counts', 'total'));
+        // MARKER-IMPORT-PRESETS — the hub section held back until something
+        // could fill it. Renders only when at least one preset exists.
+        $presets = TenantImportMapping::where('tenant_id', $tenant->id)
+            ->orderByDesc('last_used_at')->orderBy('name')->get();
+
+        return view('tenant.imports.index',
+            compact('imports', 'actors', 'counts', 'total', 'presets'));
     }
 
     /**
@@ -126,9 +133,18 @@ class ImportController extends Controller
             return redirect()->route('tenant.imports.index');
         }
 
+        // MARKER-IMPORT-PRESETS — "Use" on the hub lands here; the preset is
+        // carried through the upload and applied on the map step.
+        $presetId = $request->query('preset');
+        $preset   = $presetId
+            ? TenantImportMapping::where('tenant_id', tenant()->id)
+                ->where('type', $type)->find($presetId)
+            : null;
+
         return view('tenant.imports.create', [
             'type'   => $type,
             'fields' => ImportFieldRegistry::for($type),
+            'preset' => $preset,
         ]);
     }
 
@@ -161,7 +177,13 @@ class ImportController extends Controller
         // don't each re-read the file.
         try {
             $stats = (new CsvFile($abs, $import->delimiter, $import->encoding))->stats(true);
-            $import->update(['options' => ['row_count' => $stats['rows'], 'ragged' => $stats['ragged']]]);
+            $import->update(['options' => array_filter([
+                'row_count' => $stats['rows'],
+                'ragged'    => $stats['ragged'],
+                // MARKER-IMPORT-PRESETS — applied on the map step, not here,
+                // because that is where the header is read.
+                'preset_id' => $request->input('preset_id'),
+            ], fn ($v) => $v !== null)]);
         } catch (\Throwable $e) {
             \Log::warning('import row count failed', ['import' => $import->id, 'error' => $e->getMessage()]);
         }
@@ -180,15 +202,47 @@ class ImportController extends Controller
 
         $fields  = ImportFieldRegistry::for($import->type);
 
-        // Guess once, then remember whatever the person chose.
+        // MARKER-IMPORT-PRESETS — a preset the person picked, then a preset
+        // whose headers match exactly, then the per-column guess. Only ever
+        // on a fresh import: once someone has chosen, that choice stands.
+        $hash    = TenantImportMapping::hashHeader($preview['header']);
+        $applied = null;
         $mapping = $import->mapping ?? [];
+
         if (! $mapping) {
-            foreach ($preview['header'] as $i => $h) {
-                $guess = ImportFieldRegistry::guess($import->type, $h);
-                if ($guess) { $mapping[$i] = ['field' => $guess, 'dir' => null]; }
+            $chosen = ($import->options ?? [])['preset_id'] ?? null;
+
+            $applied = TenantImportMapping::where('tenant_id', tenant()->id)
+                ->where('type', $import->type)
+                ->when($chosen, fn ($q) => $q->where('id', $chosen),
+                                fn ($q) => $q->where('header_hash', $hash))
+                ->first();
+
+            if ($applied) {
+                $mapping = $applied->mapping;
+                $import->update([
+                    'columns' => $preview['header'],
+                    'mapping' => $mapping,
+                    'options' => array_merge((array) $import->options, (array) $applied->options),
+                ]);
+                $applied->increment('use_count');
+                $applied->update(['last_used_at' => now()]);
+            } else {
+                foreach ($preview['header'] as $i => $h) {
+                    $guess = ImportFieldRegistry::guess($import->type, $h);
+                    if ($guess) { $mapping[$i] = ['field' => $guess, 'dir' => null]; }
+                }
+                $import->update(['columns' => $preview['header'], 'mapping' => $mapping]);
             }
-            $import->update(['columns' => $preview['header'], 'mapping' => $mapping]);
         }
+
+        // Whether it was auto-matched matters on screen: an applied preset
+        // should not look like a lucky guess.
+        $autoMatched = $applied && ! (($import->options ?? [])['preset_id'] ?? null)
+                       && $applied->header_hash === $hash;
+
+        $presets = TenantImportMapping::where('tenant_id', tenant()->id)
+            ->where('type', $import->type)->orderBy('name')->get();
 
         // MARKER-IMPORT2 — inventory needs a location to count stock at
         $locations = \App\Models\Tenant\TenantLocation::where('tenant_id', tenant()->id)
@@ -199,8 +253,9 @@ class ImportController extends Controller
         // "email". saveMapping() blocks on this same field.
         $matchField = ImportFieldRegistry::matchField($import->type);
 
-        return view('tenant.imports.map',
-            compact('import', 'preview', 'stats', 'fields', 'mapping', 'locations', 'matchField'));
+        return view('tenant.imports.map', compact(
+            'import', 'preview', 'stats', 'fields', 'mapping', 'locations',
+            'matchField', 'presets', 'applied', 'autoMatched'));
     }
 
     public function saveMapping(Request $request, string $id)
@@ -365,6 +420,84 @@ class ImportController extends Controller
         return redirect()->route('tenant.imports.conflict.field', [
             $import->id, $field, 'page' => $request->input('page', 1), 'q' => $request->input('q'),
         ])->with('success', 'Row choices saved.');
+    }
+
+    /** MARKER-IMPORT-PRESETS — apply a chosen preset over the current mapping. */
+    public function applyPreset(Request $request, string $id)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        $preset = TenantImportMapping::where('tenant_id', tenant()->id)
+            ->where('type', $import->type)->findOrFail($request->input('preset_id'));
+
+        $import->update([
+            'mapping' => $preset->mapping,
+            'options' => array_merge((array) $import->options, (array) $preset->options),
+        ]);
+        $preset->increment('use_count');
+        $preset->update(['last_used_at' => now()]);
+
+        return redirect()->route('tenant.imports.map', $import->id)
+            ->with('success', 'Applied "' . $preset->name . '".');
+    }
+
+    /**
+     * MARKER-IMPORT-PRESETS — save the current mapping for reuse.
+     *
+     * Saving under a name that already exists for this tenant and type
+     * updates it, which is what "save" means to the person doing it.
+     */
+    public function savePreset(Request $request, string $id)
+    {
+        $this->guard();
+        $import = $this->find($id);
+
+        $data = $request->validate(['name' => ['required', 'string', 'max:80']]);
+
+        if (! $import->mapping) {
+            return back()->with('error', 'Map at least one column before saving a mapping.');
+        }
+
+        $header = (array) ($import->columns ?? []);
+
+        TenantImportMapping::updateOrCreate(
+            ['tenant_id' => tenant()->id, 'type' => $import->type, 'name' => trim($data['name'])],
+            [
+                'mapping'            => $import->mapping,
+                'options'            => $import->options,
+                'header'             => $header,
+                'header_hash'        => TenantImportMapping::hashHeader($header),
+                'created_by_user_id' => auth('tenant')->id(),
+            ]
+        );
+
+        return back()->with('success', 'Saved "' . trim($data['name']) . '".');
+    }
+
+    /** MARKER-IMPORT-PRESETS */
+    public function renamePreset(Request $request, string $mappingId)
+    {
+        $this->guard();
+
+        $preset = TenantImportMapping::where('tenant_id', tenant()->id)->findOrFail($mappingId);
+        $data   = $request->validate(['name' => ['required', 'string', 'max:80']]);
+
+        $preset->update(['name' => trim($data['name'])]);
+
+        return back()->with('success', 'Renamed.');
+    }
+
+    /** MARKER-IMPORT-PRESETS — deletes the mapping only; imports are untouched. */
+    public function deletePreset(string $mappingId)
+    {
+        $this->guard();
+
+        $preset = TenantImportMapping::where('tenant_id', tenant()->id)->findOrFail($mappingId);
+        $name   = $preset->name;
+        $preset->delete();
+
+        return back()->with('success', 'Deleted "' . $name . '".');
     }
 
     public function preview(string $id)

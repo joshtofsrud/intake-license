@@ -52,6 +52,39 @@
 </div>
 @endif
 
+{{-- MARKER-IMPORT-PRESETS — preset bar. These are SEPARATE forms rendered
+     after the main one and reached with the HTML5 form attribute: a nested
+     form silently reroutes the outer submit, which has bitten us before. --}}
+@if($presets->isNotEmpty() || $import->mapping)
+<div class="ia-card" style="margin-bottom:14px">
+  <div class="cbody" style="padding:13px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    @if($presets->isNotEmpty())
+      <span style="font-size:12.5px;color:var(--ia-text-dim)">Saved mapping</span>
+      <select class="imp-sel" name="preset_id" form="imp-preset-apply" style="width:auto;min-width:230px">
+        @foreach($presets as $ps)
+          <option value="{{ $ps->id }}" @selected(($applied->id ?? null) === $ps->id)>{{ $ps->name }}</option>
+        @endforeach
+      </select>
+      <button class="ia-btn ia-btn--sm" form="imp-preset-apply" type="submit">Apply</button>
+      @if($autoMatched ?? false)
+        <span class="chip chip--update">Headers matched exactly</span>
+      @endif
+    @endif
+
+    <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <input class="imp-sel" type="text" name="name" form="imp-preset-save" maxlength="80"
+             placeholder="Name this mapping…" style="width:200px">
+      <button class="ia-btn ia-btn--sm" form="imp-preset-save" type="submit">Save mapping</button>
+    </span>
+  </div>
+  <div class="imp-legend">
+    A saved mapping stores the column matches and the conflict rules — never the file
+    or anything in it. It's offered only on {{ $import->type }} imports, and applied
+    automatically when a file's header row is identical to the one it was saved from.
+  </div>
+</div>
+@endif
+
 <form method="POST" action="{{ route('tenant.imports.mapping', $import->id) }}">
   @csrf
 
@@ -164,4 +197,9 @@
     <button type="submit" class="ia-btn ia-btn--primary">Check the file</button>
   </div>
 </form>
+
+{{-- MARKER-IMPORT-PRESETS — outside the mapping form on purpose. --}}
+<form method="POST" action="{{ route('tenant.imports.preset.apply', $import->id) }}" id="imp-preset-apply">@csrf</form>
+<form method="POST" action="{{ route('tenant.imports.preset.save', $import->id) }}" id="imp-preset-save">@csrf</form>
+@include('tenant.imports._confirm')
 @endsection
