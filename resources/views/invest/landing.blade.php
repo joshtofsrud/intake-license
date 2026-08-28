@@ -21,7 +21,9 @@ nav{border-bottom:1px solid var(--line)}
 nav .wrap{display:flex;align-items:center;gap:18px;height:66px}
 .brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:700;letter-spacing:-.5px;
   color:var(--text);text-decoration:none}
-.logo{width:27px;height:27px;border-radius:7px;background:var(--lime)}
+.logo{width:27px;height:27px;border-radius:7px;background:var(--lime);display:flex;
+  align-items:center;justify-content:center;flex:0 0 27px}
+.logo svg{width:16px;height:16px;display:block}
 .invite{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
   color:var(--lime);border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:5px;padding:4px 9px}
 .eyebrow{font-size:11px;font-weight:600;letter-spacing:2.6px;text-transform:uppercase;color:var(--lime)}
@@ -67,7 +69,16 @@ footer{border-top:1px solid var(--line);padding:30px 0;font-size:12px;color:var(
 </head><body>
 
 <nav><div class="wrap">
-  <a class="brand" href="/"><span class="logo"></span> intake</a>
+  <a class="brand" href="/">
+    {{-- MARKER-INVEST-LANDING-MARK — the same inline mark the marketing shell
+         uses, rather than a bare square or the gated page's base64 PNG. --}}
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6" y="6"     width="16" height="3.5" rx="1" fill="#0a0a0a"/>
+        <rect x="6" y="12.25" width="13" height="3.5" rx="1" fill="#0a0a0a"/>
+        <rect x="6" y="18.5"  width="10" height="3.5" rx="1" fill="#0a0a0a"/>
+      </svg>
+    </span> intake</a>
   <span class="invite">By introduction</span>
 </div></nav>
 
