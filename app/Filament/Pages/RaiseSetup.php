@@ -43,6 +43,14 @@ class RaiseSetup extends Page
     public string $formDFiledAt  = '';
     public string $blueSkyNotes  = '';
 
+    // MARKER-INVEST-LANDING — public landing copy
+    public string $landingHeadline   = '';
+    public string $landingLede       = '';
+    public string $landingStageLabel = '';
+    public string $landingStageSub   = '';
+    public string $landingFine       = '';
+    public string $notifyEmail       = '';
+
     // template editor
     public string $templateKey  = '';
     public string $templateSubject = '';
@@ -67,6 +75,41 @@ class RaiseSetup extends Page
         $this->wireReference = (string) RaiseSetting::get('wire_reference');
         $this->formDFiledAt  = (string) RaiseSetting::get('form_d_filed_at');
         $this->blueSkyNotes  = (string) RaiseSetting::get('blue_sky_notes');
+
+        // MARKER-INVEST-LANDING — blank means the view's own default is used,
+        // so an untouched field is not an empty page.
+        $this->landingHeadline   = (string) RaiseSetting::get('landing_headline');
+        $this->landingLede       = (string) RaiseSetting::get('landing_lede');
+        $this->landingStageLabel = (string) RaiseSetting::get('landing_stage_label');
+        $this->landingStageSub   = (string) RaiseSetting::get('landing_stage_sub');
+        $this->landingFine       = (string) RaiseSetting::get('landing_fine');
+        $this->notifyEmail       = (string) RaiseSetting::get('notify_email');
+    }
+
+    /** MARKER-INVEST-LANDING */
+    public function saveLanding(): void
+    {
+        $this->validate([
+            'landingHeadline'   => ['nullable', 'string', 'max:200'],
+            'landingLede'       => ['nullable', 'string', 'max:1000'],
+            'landingStageLabel' => ['nullable', 'string', 'max:60'],
+            'landingStageSub'   => ['nullable', 'string', 'max:80'],
+            'landingFine'       => ['nullable', 'string', 'max:1000'],
+            'notifyEmail'       => ['nullable', 'email', 'max:190'],
+        ]);
+
+        RaiseSetting::put('landing_headline',    $this->landingHeadline ?: null);
+        RaiseSetting::put('landing_lede',        $this->landingLede ?: null);
+        RaiseSetting::put('landing_stage_label', $this->landingStageLabel ?: null);
+        RaiseSetting::put('landing_stage_sub',   $this->landingStageSub ?: null);
+        RaiseSetting::put('landing_fine',        $this->landingFine ?: null);
+        RaiseSetting::put('notify_email',        $this->notifyEmail ?: null);
+
+        Notification::make()
+            ->title('Landing copy saved')
+            ->body('Live at /invest immediately.')
+            ->success()
+            ->send();
     }
 
     public function saveRound(): void

@@ -54,7 +54,13 @@ Route::domain($domain)->group(function () {
     Route::get('/why-intake', [Platform\MarketingController::class, 'whyIntake'])->name('marketing.why-intake');
     Route::get('/docs',     [Platform\MarketingController::class, 'docs'])->name('marketing.docs');
     Route::get('/contact',  [Platform\MarketingController::class, 'contact'])->name('marketing.contact');
-    Route::get('/invest',   [Platform\MarketingController::class, 'invest'])->name('marketing.invest');
+    // MARKER-INVEST-LANDING — /invest is a real route now, not a builder page.
+    // It must stay above the /{slug} fallback or the old page reclaims it.
+    Route::get('/invest',  [\App\Http\Controllers\InvestController::class, 'landing'])->name('marketing.invest');
+    Route::post('/invest/request', [\App\Http\Controllers\InvestController::class, 'requestAccess'])
+        ->middleware('throttle:6,1')->name('invest.request');
+    Route::post('/invest/enter',   [\App\Http\Controllers\InvestController::class, 'enter'])
+        ->middleware('throttle:10,1')->name('invest.enter');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
 
     // --- Industry landing pages: /for/bike-shops, /for/massage-therapy, etc. ---
