@@ -1,11 +1,15 @@
-@verbatim
+{{-- MARKER-INVEST-LIVE — the verbatim block now starts BELOW the head. It
+     exists for the seven media queries in the CSS, which Blade would
+     otherwise read as directives; it used to swallow this stylesheet link,
+     so the font never loaded and a marker comment printed on the page. --}}
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Intake — Investment Opportunity</title>
 <meta name="robots" content="noindex, nofollow">
-<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+<link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
+@verbatim
 <style>
 :root{
   --bg:#0B0F0C; --panel:#111710; --panel2:#151C14;
@@ -130,6 +134,18 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
   font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);font-weight:500}
 </style><meta name="robots" content="noindex,nofollow,noarchive">
 <style>
+.prog{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:26px;margin-top:34px}
+.progtop{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.progtop .big{font-size:clamp(30px,4.4vw,40px);font-weight:800;color:var(--lime);letter-spacing:-1.8px;line-height:1}
+.progtop .of{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim);font-weight:600}
+.bar{height:12px;border-radius:7px;background:var(--line);margin-top:20px;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .b1{background:var(--lime)}
+.bar .b2{background:rgba(190,242,100,.34)}
+.key{display:flex;gap:22px;margin-top:14px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.key span{display:flex;align-items:center;gap:7px}
+.key i{width:11px;height:11px;border-radius:3px;display:block}
+.k1{background:var(--lime)}.k2{background:rgba(190,242,100,.34)}.k3{background:var(--line)}
 .leadform{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .leadform input{flex:1 1 200px;background:var(--panel2,#151C14);border:1px solid var(--line,#1F2A1E);border-radius:8px;padding:12px 14px;color:inherit;font:inherit}
 .leadform input:focus{outline:none;border-color:var(--lime,#BEF264)}
@@ -153,12 +169,38 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
   <p class="lede">Less friction, better retention, and a way to win customers back when you need it — so you
     can focus on the business instead of the apps. Intake is point of sale, service work orders, scheduling,
     inventory and customer retention in one platform, built for independent bike shops first.</p>
+  @endverbatim
   <div class="tags">
-    <div><b>$100,000</b><span>Raise</span></div>
-    <div><b>10%</b><span>At a $1M cap</span></div>
+    <div><b>${{ number_format($target) }}</b><span>Raise</span></div>
+    <div><b>{{ $equity }}%</b><span>At a ${{ rtrim(rtrim(number_format($cap / 1000000, 1), '0'), '.') }}M cap</span></div>
     <div><b>12 months</b><span>Growth plan</span></div>
     <div><b>Pre-revenue</b><span>Product live in production</span></div>
   </div>
+
+  {{-- MARKER-INVEST-LIVE — behind the gate, so it is not advertising a round
+       to the public. Funded and committed are drawn apart on purpose. --}}
+  @if($showBar && ($funded || $committed))
+    @php
+      $pctFunded = $target > 0 ? min(100, $funded / $target * 100) : 0;
+      $pctOpen   = $target > 0 ? min(100 - $pctFunded, max(0, $committed - $funded) / $target * 100) : 0;
+    @endphp
+    <div class="prog">
+      <div class="progtop">
+        <span class="big">${{ number_format($committed) }}</span>
+        <span class="of">of ${{ number_format($target) }} spoken for</span>
+      </div>
+      <div class="bar">
+        <i class="b1" style="width:{{ $pctFunded }}%"></i>
+        <i class="b2" style="width:{{ $pctOpen }}%"></i>
+      </div>
+      <div class="key">
+        <span><i class="k1"></i> ${{ number_format($funded) }} signed and funded</span>
+        <span><i class="k2"></i> ${{ number_format(max(0, $committed - $funded)) }} committed, not yet funded</span>
+        <span><i class="k3"></i> ${{ number_format(max(0, $target - $committed)) }} open</span>
+      </div>
+    </div>
+  @endif
+  @verbatim
 </div></section>
 
 <section id="problem"><div class="wrap">
@@ -360,13 +402,15 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
 
 <section id="ask"><div class="wrap">
   <div class="eyebrow mute">The ask</div>
-  <h2>$100,000. A twelve-month growth plan.</h2>
-  <p class="lede">The $100k is what carries Intake from one founding shop to 210 accounts — the level where the next
+  @endverbatim
+  <h2>${{ number_format($target) }}. A twelve-month growth plan.</h2>
+  <p class="lede">The ${{ round($target / 1000) }}k is what carries Intake from one founding shop to 210 accounts — the level where the next
     conversation is about growth, not existence.</p>
 
   <div class="grid g3">
-    <div class="card hi"><div class="n">$100k</div><div class="k">Raise</div></div>
-    <div class="card"><div class="n w">10%</div><div class="k">At a $1M cap</div></div>
+    <div class="card hi"><div class="n">${{ round($target / 1000) }}k</div><div class="k">Raise</div></div>
+    <div class="card"><div class="n w">{{ $equity }}%</div><div class="k">At a ${{ rtrim(rtrim(number_format($cap / 1000000, 1), '0'), '.') }}M cap</div></div>
+    @verbatim
     <div class="card"><div class="n w">$260k + $69k</div><div class="k">Subscription ARR + modeled payments, month twelve</div></div>
   </div>
 
@@ -386,9 +430,14 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
   </table>
 
   <div class="sub">Structure</div>
-  <p>Proposed as a post-money SAFE at a <b>$1M cap</b> — $100k for 10% — on the standard template, which is
+  @endverbatim
+  <p>Proposed as a {{ strtolower($instrument) }} at a
+    <b>${{ rtrim(rtrim(number_format($cap / 1000000, 1), '0'), '.') }}M cap</b> —
+    ${{ round($target / 1000) }}k for {{ $equity }}% — on the standard template, which is
     free to paper. A priced round at the same number reaches the same place with roughly $10–20k of legal
-    cost attached, a material share of a $100k raise. The same terms apply to every participant.</p>
+    cost attached, a material share of a ${{ round($target / 1000) }}k raise. The same terms apply to every
+    participant.</p>
+  @verbatim
 
 
   <div class="sub">What it costs to run</div>

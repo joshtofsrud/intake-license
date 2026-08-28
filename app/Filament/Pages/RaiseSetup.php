@@ -50,6 +50,7 @@ class RaiseSetup extends Page
     public string $landingStageSub   = '';
     public string $landingFine       = '';
     public string $notifyEmail       = '';
+    public bool   $showProgress     = true;   // MARKER-INVEST-LIVE
 
     // template editor
     public string $templateKey  = '';
@@ -84,6 +85,7 @@ class RaiseSetup extends Page
         $this->landingStageSub   = (string) RaiseSetting::get('landing_stage_sub');
         $this->landingFine       = (string) RaiseSetting::get('landing_fine');
         $this->notifyEmail       = (string) RaiseSetting::get('notify_email');
+        $this->showProgress      = RaiseSetting::get('show_progress', '1') === '1';
     }
 
     /** MARKER-INVEST-LANDING */
@@ -104,6 +106,7 @@ class RaiseSetup extends Page
         RaiseSetting::put('landing_stage_sub',   $this->landingStageSub ?: null);
         RaiseSetting::put('landing_fine',        $this->landingFine ?: null);
         RaiseSetting::put('notify_email',        $this->notifyEmail ?: null);
+        RaiseSetting::put('show_progress',       $this->showProgress ? '1' : '0');
 
         Notification::make()
             ->title('Landing copy saved')

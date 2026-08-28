@@ -62,6 +62,17 @@
             <textarea wire:model="landingFine" rows="3" placeholder="Leave blank to use the built-in wording"
                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
     </div>
+    <!-- MARKER-INVEST-LIVE -->
+    <label class="mt-3 flex items-center gap-2">
+        <input type="checkbox" wire:model="showProgress" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
+        <span class="text-sm">Show the progress bar on the gated proposal</span>
+    </label>
+    <p class="mt-1 text-xs text-gray-500">
+        It appears behind the access code only, never on the public page, and only once something has been
+        committed. Signed-and-funded and merely-committed are drawn as separate bands, because they are not
+        the same thing.
+    </p>
+
     <div class="mt-3"><x-filament::button wire:click="saveLanding">Save landing copy</x-filament::button></div>
     <p class="mt-3 text-xs text-gray-500">
         The first two stats on that page are the raise amount and the cap, taken from the round above

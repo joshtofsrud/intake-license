@@ -116,9 +116,24 @@ class InvestController extends Controller
         $record->increment('views');
         $record->forceFill(['last_viewed_at' => now()])->save();
 
-        return response()
-            ->view('invest.page', ['token' => $record])
-            ->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
+        // MARKER-INVEST-LIVE — the proposal quotes the round as it stands now.
+        $target = (int) RaiseSetting::get('target', (string) Investor::TARGET);
+        $cap    = (int) RaiseSetting::get('cap', (string) Investor::CAP);
+
+        $investors = Investor::whereNull('declined_at')->get();
+
+        return response()->view('invest.page', [
+            'token'      => $record,
+            'target'     => $target,
+            'cap'        => $cap,
+            'instrument' => RaiseSetting::get('instrument', 'Post-money SAFE'),
+            'equity'     => $cap > 0 ? round($target / $cap * 100, 1) : 0,
+            // Signed-and-funded is money in the account. Committed is a
+            // statement of intent. Showing one number for both would flatter.
+            'funded'     => (int) $investors->sum('amount_received'),
+            'committed'  => (int) $investors->whereNotNull('committed_at')->sum('amount'),
+            'showBar'    => RaiseSetting::get('show_progress', '1') === '1',
+        ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
     /** Serves the proposal PDFs from storage so they are not publicly listable. */
