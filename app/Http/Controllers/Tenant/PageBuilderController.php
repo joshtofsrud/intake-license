@@ -230,6 +230,33 @@ class PageBuilderController extends Controller
             'hide_on_desktop' => false,
         ],
         'image_gallery' => ['images'=>[],'columns'=>3],
+        // MARKER-CAROUSEL-SECTION -- sliding image carousel.
+        'image_carousel' => [
+            // Content
+            'heading'          => '',
+            'subheading'       => '',
+            'images'           => [],
+            // Layout
+            'slides_per_view'  => '1',
+            'aspect_ratio'     => 'wide',
+            'gap'              => 'normal',
+            // Behavior
+            'autoplay'         => '0',
+            'autoplay_seconds' => 5,
+            'loop'             => '1',
+            'show_arrows'      => '1',
+            'show_dots'        => '1',
+            // Style
+            'radius'           => 'default',
+            'show_captions'    => false,
+            'bg_mode'          => 'none',
+            'bg_color'         => '',
+            // Advanced
+            'anchor_id'        => '',
+            'custom_classes'   => '',
+            'hide_on_mobile'   => false,
+            'hide_on_desktop'  => false,
+        ],
         // MARKER-PATCH-158-G24 — contact_form v2 fields (Phase 2)
         'contact_form'  => [
             // Content

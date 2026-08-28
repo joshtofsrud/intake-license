@@ -1,8 +1,8 @@
 {{--
-  MARKER-PATCH-297 — image_gallery editor (v2 inspector partial).
-  Previously absent, so the inspector fell back to the legacy _section.blade.php
-  branch (columns/shape only, no way to add images). This is the full
-  Content / Design / Advanced editor with an image-tile repeater.
+  MARKER-CAROUSEL-SECTION — image_carousel editor (v2 inspector partial).
+  Content / Design / Advanced tabs. The image repeater reuses the gallery's
+  #pb2-gimg-* contract (initGalleryList in edit.blade.php wires it), opting
+  into the per-slide link field via data-links="1".
 --}}
 @php
   $c   = $c ?? ($section->content ?? []);
@@ -12,11 +12,12 @@
   if (is_string($images)) { $dd = json_decode($images, true); $images = is_array($dd) ? $dd : []; }
   if (!is_array($images)) $images = [];
   $images = array_values(array_map(function ($img) {
-      if (is_string($img)) return ['url' => $img, 'caption' => '', 'alt' => ''];
+      if (is_string($img)) return ['url' => $img, 'caption' => '', 'alt' => '', 'link' => ''];
       return [
         'url'     => $img['url'] ?? '',
         'caption' => $img['caption'] ?? '',
         'alt'     => $img['alt'] ?? '',
+        'link'    => $img['link'] ?? '',
       ];
   }, $images));
 @endphp
@@ -50,11 +51,11 @@
 
   <div class="pb2-group">
     <div class="pb2-group-title">
-      Images
+      Slides
       <span class="pb2-group-meta" id="pb2-gimg-count">{{ count($images) }} / 24</span>
     </div>
 
-    <div class="pb2-gimg-list" id="pb2-gimg-list">
+    <div class="pb2-gimg-list" id="pb2-gimg-list" data-links="1">
       @foreach($images as $i => $img)
         <div class="pb2-gimg" data-gimg-idx="{{ $i }}">
           <span class="pb2-navlist-handle" title="Drag to reorder">&#8942;&#8942;</span>
@@ -65,40 +66,41 @@
               <button type="button" class="pb2-navlist-remove" data-gimg-remove title="Remove">&times;</button>
             </div>
             <input type="text" class="pb2-input pb2-input-sm" data-gimg-field="alt" value="{{ $img['alt'] }}" placeholder="Alt text (accessibility)">
+            <input type="text" class="pb2-input pb2-input-sm" data-gimg-field="link" value="{{ $img['link'] }}" placeholder="Link URL (optional)">
             <input type="hidden" data-gimg-field="url" value="{{ $img['url'] }}">
           </div>
         </div>
       @endforeach
       @if(empty($images))
-        <div class="pb2-gimg-empty" id="pb2-gimg-empty">No images yet &mdash; upload your first below.</div>
+        <div class="pb2-gimg-empty" id="pb2-gimg-empty">No slides yet &mdash; upload or pick from your library below.</div>
       @endif
     </div>
 
     <button type="button" class="pb2-addrow" id="pb2-gimg-add">+ Upload image</button>
-    <button type="button" class="pb2-addrow" id="pb2-gimg-lib" style="margin-top:6px">+ From library</button> {{-- MARKER-CAROUSEL-SECTION --}}
+    <button type="button" class="pb2-addrow" id="pb2-gimg-lib" style="margin-top:6px">+ From library</button>
     <div class="pb2-field-hint" style="margin-top:6px">JPG, PNG, WebP, or SVG &middot; 5 MB max each</div>
 
     <input type="hidden" data-field="images" id="pb2-gimg-json" value="{{ json_encode($images) }}">
   </div>
 
   <div class="pb2-group">
-    <div class="pb2-group-title">Arrangement</div>
+    <div class="pb2-group-title">Layout</div>
 
     <div class="pb2-field">
-      <label class="pb2-field-label">Columns</label>
-      <div class="pb2-seg" data-field-seg="columns">
-        @foreach([2,3,4,5] as $val)
-          <button type="button" class="pb2-seg-btn {{ (int)$get('columns',3) === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $val }}</button>
+      <label class="pb2-field-label">Slides per view</label>
+      <div class="pb2-seg" data-field-seg="slides_per_view">
+        @foreach([1,2,3] as $val)
+          <button type="button" class="pb2-seg-btn {{ (int)$get('slides_per_view',1) === $val ? 'active' : '' }}" data-seg-value="{{ $val }}">{{ $val }}</button>
         @endforeach
       </div>
-      <input type="hidden" data-field="columns" value="{{ $get('columns',3) }}">
+      <input type="hidden" data-field="slides_per_view" value="{{ $get('slides_per_view',1) }}">
     </div>
 
     <div class="pb2-field">
-      <label class="pb2-field-label">Image shape</label>
-      <select class="pb2-input" data-field="image_shape">
-        @foreach(['square'=>'Square (1:1)','landscape'=>'Landscape (4:3)','portrait'=>'Portrait (3:4)','auto'=>'Natural (uncropped)'] as $v => $n)
-          <option value="{{ $v }}" {{ $get('image_shape','square') === $v ? 'selected' : '' }}>{{ $n }}</option>
+      <label class="pb2-field-label">Slide shape</label>
+      <select class="pb2-input" data-field="aspect_ratio">
+        @foreach(['wide'=>'Wide (16:9)','landscape'=>'Landscape (4:3)','square'=>'Square (1:1)'] as $v => $n)
+          <option value="{{ $v }}" {{ $get('aspect_ratio','wide') === $v ? 'selected' : '' }}>{{ $n }}</option>
         @endforeach
       </select>
     </div>
@@ -111,11 +113,36 @@
         @endforeach
       </select>
     </div>
+  </div>
+
+  <div class="pb2-group">
+    <div class="pb2-group-title">Behavior</div>
 
     <label class="pb2-checkbox-row">
-      <input type="checkbox" data-field="hover_zoom" value="1" {{ $get('hover_zoom', true) ? 'checked' : '' }}>
-      <span>Zoom image on hover</span>
+      <input type="checkbox" data-field="show_arrows" value="1" {{ $get('show_arrows','1') === '1' || $get('show_arrows') === 1 || $get('show_arrows') === true ? 'checked' : '' }}>
+      <span>Show previous / next arrows</span>
     </label>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="show_dots" value="1" {{ $get('show_dots','1') === '1' || $get('show_dots') === 1 || $get('show_dots') === true ? 'checked' : '' }}>
+      <span>Show position dots</span>
+    </label>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="loop" value="1" {{ $get('loop','1') === '1' || $get('loop') === 1 || $get('loop') === true ? 'checked' : '' }}>
+      <span>Loop back to the start at the end</span>
+    </label>
+    <label class="pb2-checkbox-row">
+      <input type="checkbox" data-field="autoplay" value="1" {{ $get('autoplay') === '1' || $get('autoplay') === 1 || $get('autoplay') === true ? 'checked' : '' }}>
+      <span>Autoplay</span>
+    </label>
+    <div class="pb2-field">
+      <label class="pb2-field-label">Autoplay interval</label>
+      <select class="pb2-input" data-field="autoplay_seconds">
+        @foreach([3,5,8,10] as $sec)
+          <option value="{{ $sec }}" {{ (int)$get('autoplay_seconds',5) === $sec ? 'selected' : '' }}>{{ $sec }} seconds</option>
+        @endforeach
+      </select>
+      <div class="pb2-field-hint">Autoplay pauses while the visitor hovers or touches the carousel, and is skipped for visitors with reduced motion enabled.</div>
+    </div>
   </div>
 
 </div>
@@ -137,7 +164,7 @@
 
     <label class="pb2-checkbox-row">
       <input type="checkbox" data-field="show_captions" value="1" {{ $get('show_captions') ? 'checked' : '' }}>
-      <span>Show captions under images</span>
+      <span>Show captions on slides</span>
     </label>
   </div>
 
@@ -170,7 +197,7 @@
     <div class="pb2-group-title">Anchor &amp; classes</div>
     <div class="pb2-field">
       <label class="pb2-field-label">Anchor ID</label>
-      <input type="text" class="pb2-input pb2-input-mono" data-field="anchor_id" value="{{ $get('anchor_id') }}" placeholder="e.g. gallery">
+      <input type="text" class="pb2-input pb2-input-mono" data-field="anchor_id" value="{{ $get('anchor_id') }}" placeholder="e.g. carousel">
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Custom classes</label>

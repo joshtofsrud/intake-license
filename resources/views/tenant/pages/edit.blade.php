@@ -28,6 +28,7 @@
     'text_image'             => 'Text + image',
     'cta_banner'             => 'CTA banner',
     'image_gallery'          => 'Image gallery',
+    'image_carousel'         => 'Image carousel', {{-- MARKER-CAROUSEL-SECTION --}}
     'contact_form'           => 'Contact form',
     'booking_embed'          => 'Booking form',
     'classes_embed'          => 'Classes schedule',
@@ -60,6 +61,7 @@
     'text_image'     => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.4"/><polyline points="3 17 9 12 21 19"/>',
     'cta_banner'     => '<path d="M3 11l18-5v12L3 14z"/>',
     'image_gallery'  => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="1.2"/><polyline points="3 17 9 12 14 16 21 11"/>',
+    'image_carousel' => '<rect x="7" y="5" width="10" height="14" rx="2"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/>', {{-- MARKER-CAROUSEL-SECTION --}}
     'contact_form'   => '<path d="M4 4h16v16H4z"/><polyline points="4 7 12 13 20 7"/>',
     'booking_embed'  => '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
     'classes_embed'  => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
@@ -90,6 +92,7 @@
     'text_image'    => 'Side-by-side text and image',
     'cta_banner'    => 'Single call-to-action strip',
     'image_gallery' => 'Photo grid (Instagram-style)',
+    'image_carousel' => 'Sliding photo carousel', {{-- MARKER-CAROUSEL-SECTION --}}
     'contact_form'  => 'Inbound contact form',
     'booking_embed' => 'Live booking widget',
     'classes_embed' => 'Class schedule widget',
@@ -114,7 +117,7 @@
   // Logical grouping for the gallery. Order matters — common ones first.
   $typeGroups = [
     'Layout'     => ['nav','hero','footer'],
-    'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','faq_accordion','stats_row'],
+    'Content'    => ['text_image','feature_grid','step_timeline','image_gallery','image_carousel','faq_accordion','stats_row'],
     'Conversion' => ['services','cta_banner','booking_embed','contact_form','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase'],
     'Social'     => ['testimonial_carousel','logo_bar'],
     'Advanced'   => ['custom_html'], // MARKER-PATCH-306
@@ -1907,10 +1910,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
                Marketing context shows different types than tenant context. --}}
           @php
             $allowed = $isBookingExtras
-              ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
+              ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
               ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','custom_html']
-              : ['nav','hero','text_image','cta_banner','image_gallery','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
+              : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
           <div class="pb2-gallery">
@@ -3149,17 +3152,22 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 
     const MAX_IMG = 24;
     let dragEl = null;
+    // MARKER-CAROUSEL-SECTION -- the carousel partial opts into a per-slide
+    // link field; the gallery partial does not set the flag and is unchanged.
+    const HAS_LINK = root.dataset.links === '1';
 
     function serialize() {
       const out = [];
       root.querySelectorAll('.pb2-gimg').forEach(tile => {
         const url = tile.querySelector('[data-gimg-field="url"]')?.value || '';
         if (!url) return;
-        out.push({
+        const rec = {
           url,
           caption: tile.querySelector('[data-gimg-field="caption"]')?.value || '',
           alt:     tile.querySelector('[data-gimg-field="alt"]')?.value || '',
-        });
+        };
+        if (HAS_LINK) rec.link = tile.querySelector('[data-gimg-field="link"]')?.value || ''; // MARKER-CAROUSEL-SECTION
+        out.push(rec);
       });
       json.value = JSON.stringify(out);
       json.dispatchEvent(new Event('change', { bubbles: true }));
@@ -3211,12 +3219,28 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             '<button type="button" class="pb2-navlist-remove" data-gimg-remove title="Remove">\u00D7</button>' +
           '</div>' +
           '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="alt" placeholder="Alt text (accessibility)">' +
+          (HAS_LINK ? '<input type="text" class="pb2-input pb2-input-sm" data-gimg-field="link" placeholder="Link URL (optional)">' : '') + // MARKER-CAROUSEL-SECTION
           '<input type="hidden" data-gimg-field="url" value="' + url + '">' +
         '</div>';
       return tile;
     }
 
     root.querySelectorAll('.pb2-gimg').forEach(wireTile);
+
+    // MARKER-CAROUSEL-SECTION -- "+ From library" opens the media modal in
+    // append mode; each click adds a tile and the modal stays open.
+    const libBtn = body.querySelector('#pb2-gimg-lib');
+    if (libBtn && !libBtn.dataset.wired) {
+      libBtn.dataset.wired = '1';
+      window.__gimgAppend = (url) => {
+        if (root.querySelectorAll('.pb2-gimg').length >= MAX_IMG) { setStatus('Max ' + MAX_IMG + ' images', 2000); return; }
+        const tile = makeTile(url);
+        root.appendChild(tile);
+        wireTile(tile);
+        serialize();
+      };
+      libBtn.addEventListener('click', () => openMediaPicker('__gimg_append'));
+    }
 
     if (addBtn && !addBtn.dataset.wired) {
       addBtn.dataset.wired = '1';
@@ -3870,6 +3894,13 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       '</button>').join('') + '</div>';
     body.querySelectorAll('.pb2-media-cell').forEach(cell => {
       cell.addEventListener('click', () => {
+        // MARKER-CAROUSEL-SECTION -- append mode hands the pick to the image
+        // repeater and keeps the modal open so several can be added at once.
+        if (field === '__gimg_append' && window.__gimgAppend) {
+          window.__gimgAppend(cell.dataset.url);
+          setStatus('Added \u2713', 1200);
+          return;
+        }
         applyImageToField(field, cell.dataset.url);
         closeMediaPicker();
       });
