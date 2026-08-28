@@ -8,8 +8,12 @@
 <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">
 <style>
 :root{
-  --bg:#0B0F0C; --panel:#111710; --line:#1F2A1E;
-  --text:#F2F4EE; --body:#8D9A8B; --dim:#5F6A5E;
+  /* MARKER-INVEST-PALETTE — the marketing site's neutrals, not a second
+     scheme. Change them there and mirror here; an investor compares
+     this page with intake.works within about a minute. */
+  
+  --bg:#0c0c0c; --panel:#141414; --line:rgba(255,255,255,.08);
+  --text:#f0f0f0; --body:rgba(255,255,255,.45); --dim:rgba(255,255,255,.28);
   --lime:#BEF264; --lime-soft:rgba(190,242,100,.09); --lime-line:rgba(190,242,100,.34);
   --red:#FCA5A5; --max:1080px;
 }
@@ -47,7 +51,7 @@ input,textarea{width:100%;background:var(--bg);border:1px solid var(--line);bord
   color:var(--text);font-family:inherit;font-size:15px;padding:11px 13px;outline:none}
 input:focus,textarea:focus{border-color:var(--lime-line)}
 textarea{min-height:80px;resize:vertical}
-.btn{display:inline-block;background:var(--lime);color:#0B0F0C;border:0;border-radius:8px;
+.btn{display:inline-block;background:var(--lime);color:#0c0c0c;border:0;border-radius:8px;
   font-family:inherit;font-size:14.5px;font-weight:700;padding:12px 22px;cursor:pointer;margin-top:20px}
 .btn.ghost{background:none;color:var(--text);border:1px solid var(--line);font-weight:600}
 .code{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}

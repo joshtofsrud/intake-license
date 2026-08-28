@@ -12,9 +12,13 @@
 @verbatim
 <style>
 :root{
-  --bg:#0B0F0C; --panel:#111710; --panel2:#151C14;
-  --line:#1F2A1E; --line-soft:#161f16;
-  --text:#F2F4EE; --body:#8D9A8B; --dim:#5F6A5E;
+  /* MARKER-INVEST-PALETTE — the marketing site's neutrals, not a second
+     scheme. Change them there and mirror here; an investor compares
+     this page with intake.works within about a minute. */
+  
+  --bg:#0c0c0c; --panel:#141414; --panel2:#1a1a1a;
+  --line:rgba(255,255,255,.08); --line-soft:rgba(255,255,255,.05);
+  --text:#f0f0f0; --body:rgba(255,255,255,.45); --dim:rgba(255,255,255,.28);
   --lime:#BEF264; --lime-soft:rgba(190,242,100,.09); --lime-line:rgba(190,242,100,.34);
   --max:1080px;
 }
@@ -124,7 +128,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 .cta .txt{flex:1;min-width:260px}
 .cta h3{font-size:22px;letter-spacing:-.6px}
 .cta p{font-size:14.5px;margin-top:7px}
-.btn{display:inline-block;background:var(--lime);color:#0B0F0C;text-decoration:none;
+.btn{display:inline-block;background:var(--lime);color:#0c0c0c;text-decoration:none;
   font-size:14.5px;font-weight:700;letter-spacing:-.2px;padding:14px 26px;border-radius:9px;white-space:nowrap;border:0;cursor:pointer;font-family:inherit}
 .btn:hover{filter:brightness(1.08)}
 .btn.ghost{background:transparent;color:var(--lime);border:1px solid var(--lime-line)}
@@ -147,7 +151,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;
 .key i{width:11px;height:11px;border-radius:3px;display:block}
 .k1{background:var(--lime)}.k2{background:rgba(190,242,100,.34)}.k3{background:var(--line)}
 .leadform{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
-.leadform input{flex:1 1 200px;background:var(--panel2,#151C14);border:1px solid var(--line,#1F2A1E);border-radius:8px;padding:12px 14px;color:inherit;font:inherit}
+.leadform input{flex:1 1 200px;background:var(--panel2,#1a1a1a);border:1px solid var(--line,rgba(255,255,255,.08));border-radius:8px;padding:12px 14px;color:inherit;font:inherit}
 .leadform input:focus{outline:none;border-color:var(--lime,#BEF264)}
 .leadform button{flex:0 0 auto}
 </style>

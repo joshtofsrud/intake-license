@@ -6,7 +6,11 @@
 <title>Intake — your position</title>
 <!-- MARKER-RAISE-PORTAL -->
 <style>
-:root{--bg:#0B0F0C;--panel:#111710;--line:#1F2A1E;--text:#F2F4EE;--body:#8D9A8B;--dim:#5F6A5E;--lime:#BEF264}
+:root{
+  /* MARKER-INVEST-PALETTE — the marketing site's neutrals, not a second
+     scheme. Change them there and mirror here; an investor compares
+     this page with intake.works within about a minute. */
+  --bg:#0c0c0c;--panel:#141414;--line:rgba(255,255,255,.08);--text:#f0f0f0;--body:rgba(255,255,255,.45);--dim:rgba(255,255,255,.28);--lime:#BEF264}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
 .wrap{max-width:760px;margin:0 auto;padding:48px 24px 80px}
@@ -41,7 +45,7 @@ footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-si
 .commitform input{width:100%;margin-top:6px;background:var(--bg);border:1px solid var(--line);border-radius:8px;
   color:var(--text);font-family:inherit;font-size:15px;padding:10px 12px;outline:none}
 .commitform input:focus{border-color:var(--lime-line)}
-.commitform button{justify-self:start;background:var(--lime);color:#0B0F0C;border:0;border-radius:8px;
+.commitform button{justify-self:start;background:var(--lime);color:#0c0c0c;border:0;border-radius:8px;
   font-family:inherit;font-size:14px;font-weight:700;padding:11px 20px;cursor:pointer}
 .cerr{color:#FCA5A5;font-size:13px}
 .cnote{font-size:12.5px;color:var(--dim);margin-top:12px;line-height:1.6;max-width:60ch}
