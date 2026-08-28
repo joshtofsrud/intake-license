@@ -54,8 +54,21 @@ class ProcessCampaignSends extends Command
                 continue;
             }
 
-            $svc  = EmailService::forTenant($tenant);
-            $html = BlockRenderer::render($campaign->blocks ?? []);
+            $svc = EmailService::forTenant($tenant);
+
+            // MARKER-CAMPAIGN-ATTRIBUTION — {{discount_code}} in any block is
+            // replaced with the campaign's attached code. Rendered once per
+            // campaign rather than per recipient: the code is the same for
+            // everyone, so there is nothing per-person to substitute.
+            $vars = [];
+            if ($campaign->discount_id) {
+                $d = \App\Models\Tenant\TenantDiscount::find($campaign->discount_id);
+                if ($d) {
+                    $vars['discount_code'] = $d->code;
+                }
+            }
+
+            $html = BlockRenderer::render($campaign->blocks ?? [], $vars);
 
             $rows = TenantCampaignSend::where('campaign_id', $campaign->id)
                 ->where('status', 'pending')

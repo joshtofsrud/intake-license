@@ -993,6 +993,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/campaigns',           [TenantControllers\CampaignController::class, 'store'])->name('campaigns.store');
             Route::patch('/campaigns/{id}',     [TenantControllers\CampaignController::class, 'update'])->name('campaigns.update');
             Route::get('/campaigns/{id}/results', [TenantControllers\CampaignController::class, 'results'])->name('campaigns.results'); // MARKER-CAMPAIGN-RESULTS
+            // MARKER-CAMPAIGN-ATTRIBUTION
+            Route::post('/campaigns/{id}/discount', [TenantControllers\CampaignController::class, 'setDiscount'])->name('campaigns.discount');
             Route::post('/campaigns/{id}/send', [TenantControllers\CampaignController::class, 'send'])->name('campaigns.send');
             Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
 

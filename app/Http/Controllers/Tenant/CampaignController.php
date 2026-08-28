@@ -62,7 +62,87 @@ class CampaignController extends Controller
             ];
         }
 
-        return view('tenant.campaigns.show', compact('campaign', 'customerCount', 'segments', 'blocks'));
+        // MARKER-CAMPAIGN-ATTRIBUTION — codes worth offering: active, and not
+        // already spent. An expired code in the dropdown is a trap.
+        $discounts = \App\Models\Tenant\TenantDiscount::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get()
+            ->filter(fn ($d) => $d->inactiveReason() === null || $d->id === $campaign->discount_id)
+            ->values();
+
+        $attribution = $this->attributionFor($campaign);
+
+        return view('tenant.campaigns.show', compact(
+            'campaign', 'customerCount', 'segments', 'blocks', 'discounts', 'attribution'
+        ));
+    }
+
+    /**
+     * MARKER-CAMPAIGN-ATTRIBUTION — what the campaign's code actually did.
+     * Counts redemptions since the campaign was sent, so uses of the same
+     * code before the email went out aren't credited to it.
+     */
+    protected function attributionFor(\App\Models\Tenant\TenantCampaign $campaign): ?array
+    {
+        if (! $campaign->discount_id) return null;
+
+        $discount = \App\Models\Tenant\TenantDiscount::find($campaign->discount_id);
+        if (! $discount) return null;
+
+        $rows = \App\Models\Tenant\TenantDiscountRedemption::where('discount_id', $discount->id);
+
+        if ($campaign->sent_at) {
+            $rows->where('created_at', '>=', $campaign->sent_at);
+        }
+
+        $agg = (clone $rows)
+            ->selectRaw('COUNT(*) as n, COALESCE(SUM(amount_cents),0) as given, COALESCE(SUM(subtotal_cents),0) as subtotal')
+            ->first();
+
+        return [
+            'code'          => $discount->code,
+            'summary'       => $discount->summary(),
+            'uses'          => (int) ($agg->n ?? 0),
+            'given_cents'   => (int) ($agg->given ?? 0),
+            'sales_cents'   => (int) ($agg->subtotal ?? 0),
+            'since'         => $campaign->sent_at,
+        ];
+    }
+
+    /** MARKER-CAMPAIGN-ATTRIBUTION — attach or detach a code. */
+    public function setDiscount(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $campaign = \App\Models\Tenant\TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $data = $request->validate(['discount_id' => 'nullable|uuid']);
+
+        $discountId = $data['discount_id'] ?: null;
+
+        if ($discountId) {
+            $discount = \App\Models\Tenant\TenantDiscount::where('tenant_id', $tenant->id)
+                ->find($discountId);
+            if (! $discount) {
+                return back()->with('error', 'That discount code no longer exists.');
+            }
+            // Point the code back at the campaign too, so the Discounts page
+            // can show where a code is being promoted.
+            $discount->update(['campaign_id' => $campaign->id]);
+        }
+
+        // Release any previously attached code's back-reference.
+        if ($campaign->discount_id && $campaign->discount_id !== $discountId) {
+            \App\Models\Tenant\TenantDiscount::where('id', $campaign->discount_id)
+                ->where('campaign_id', $campaign->id)
+                ->update(['campaign_id' => null]);
+        }
+
+        $campaign->update(['discount_id' => $discountId]);
+
+        return back()->with('success', $discountId
+            ? 'Code attached. Use {{discount_code}} in the email where you want it to appear.'
+            : 'Code removed from this campaign.');
     }
 
     public function store(Request $request)

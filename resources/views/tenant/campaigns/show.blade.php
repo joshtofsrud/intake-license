@@ -548,6 +548,36 @@
     @endif
   </div>
 
+  {{-- MARKER-CAMPAIGN-ATTRIBUTION --}}
+  <div class="cb-col">
+    <div class="cb-col-title">Discount code</div>
+    @if($campaign->status === 'draft')
+      <form method="POST" action="{{ route('tenant.campaigns.discount', $campaign->id) }}">
+        @csrf
+        <select name="discount_id" class="cb-field-select" onchange="this.form.submit()">
+          <option value="">No code</option>
+          @foreach($discounts as $d)
+            <option value="{{ $d->id }}" {{ $campaign->discount_id === $d->id ? 'selected' : '' }}>
+              {{ $d->code }} — {{ $d->summary() }}
+            </option>
+          @endforeach
+        </select>
+      </form>
+      <p style="font-size:11px;opacity:.45;margin-top:8px;line-height:1.4">
+        Attach a code, then put <code>{{ '{{discount_code}}' }}</code> in any text block
+        where you want it to appear.
+        @if($discounts->isEmpty())
+          You have no usable codes yet — <a href="{{ route('tenant.discounts.index') }}">create one</a>.
+        @endif
+      </p>
+    @elseif($campaign->discount_id && $attribution)
+      <div style="font-size:13px;font-weight:600">{{ $attribution['code'] }}</div>
+      <div style="font-size:11.5px;opacity:.55;margin-top:2px">{{ $attribution['summary'] }}</div>
+    @else
+      <div style="font-size:13px;opacity:.5">No code</div>
+    @endif
+  </div>
+
   @if($campaign->status === 'draft')
     <div class="cb-col">
       <div class="cb-col-title">Send</div>
@@ -574,6 +604,28 @@
       {{-- MARKER-CAMPAIGN-RESULTS --}}
       <a href="{{ route('tenant.campaigns.results', $campaign->id) }}" class="ia-btn ia-btn--ghost ia-btn--sm" style="text-decoration:none;display:block;text-align:center;margin-top:10px">See every recipient</a>
     </div>
+
+    {{-- MARKER-CAMPAIGN-ATTRIBUTION — what the code did, with an honest
+         statement of what these numbers can and can't tell you. --}}
+    @if($attribution)
+    <div class="cb-col">
+      <div class="cb-col-title">Code redeemed</div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0">
+        <span style="opacity:.5">Uses</span><strong>{{ number_format($attribution['uses']) }}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0">
+        <span style="opacity:.5">Sales</span><strong>${{ number_format($attribution['sales_cents'] / 100, 2) }}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0">
+        <span style="opacity:.5">Given away</span><strong>${{ number_format($attribution['given_cents'] / 100, 2) }}</strong>
+      </div>
+      <p style="font-size:11px;opacity:.45;margin-top:8px;line-height:1.4">
+        Uses of {{ $attribution['code'] }}{{ $attribution['since'] ? ' since this went out' : '' }} —
+        wherever it was redeemed. Someone who read the email and paid full price isn't
+        counted, and a code passed to a friend is.
+      </p>
+    </div>
+    @endif
   @endif
 </div>
 
