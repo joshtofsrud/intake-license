@@ -194,7 +194,13 @@ class ImportController extends Controller
         $locations = \App\Models\Tenant\TenantLocation::where('tenant_id', tenant()->id)
             ->where('is_active', true)->orderBy('name')->get();
 
-        return view('tenant.imports.map', compact('import', 'preview', 'stats', 'fields', 'mapping', 'locations'));
+        // MARKER-IMPORT-LEGEND — the screen is shared by both types, so the
+        // match key it names has to come from the registry, not a hardcoded
+        // "email". saveMapping() blocks on this same field.
+        $matchField = ImportFieldRegistry::matchField($import->type);
+
+        return view('tenant.imports.map',
+            compact('import', 'preview', 'stats', 'fields', 'mapping', 'locations', 'matchField'));
     }
 
     public function saveMapping(Request $request, string $id)

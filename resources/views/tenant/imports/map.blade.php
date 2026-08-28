@@ -22,13 +22,27 @@
   </div>
 @endif
 
+{{-- MARKER-IMPORT-LEGEND — the match key, named from the registry, with the
+     consequence that is actually true for THIS import type. --}}
+@php
+  $matchLabel = $fields[$matchField]['label'] ?? $matchField;
+  $isInventory = $import->type === 'inventory';
+@endphp
 <div class="ia-flash ia-flash--info" style="margin-bottom:14px">
-  <b>Email is required</b> — it's how an existing customer is recognised. Anything you leave unmapped is ignored.
+  <b>Map a column to {{ $matchLabel }}</b> — it's how an existing
+  {{ $isInventory ? 'item' : 'customer' }} is recognised, so you can't continue without it.
+  @if($isInventory)
+    A row with a blank SKU can't be identified, so it's reported as an error rather than imported.
+  @else
+    A row with a blank email still imports as a new customer — it just can't be matched
+    against on a later import.
+  @endif
+  Anything you leave unmapped is ignored.
 </div>
 
 {{-- MARKER-CONSENT-IMPORT-FIX — legend: importing does NOT grant permission
      to market to these people, and nothing on this screen would say so. --}}
-@if($import->type === 'customer')
+@if($import->type === 'customers')
 <div class="ia-flash ia-flash--info" style="margin-bottom:14px">
   <b>Importing doesn't grant marketing permission.</b> These customers can be
   booked, sold to and emailed receipts straight away, but they won't receive
