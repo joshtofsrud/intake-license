@@ -26,6 +26,73 @@
     </div>
 </div>
 
+<!-- MARKER-RAISE-INVITE -->
+<div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
+    <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">Invite someone</div>
+
+    <label class="block mb-3"><span class="text-xs text-gray-500">Your message — goes above the standard wording</span>
+        <textarea wire:model="inviteMessage" rows="3"
+                  placeholder="Hi {name} — you mentioned wanting a look at what I've been building…"
+                  class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
+
+    <div class="grid gap-3 md:grid-cols-3">
+        <input wire:model="inviteName"  placeholder="Name" class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
+        <input wire:model="inviteEmail" placeholder="Email" class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
+        <x-filament::button wire:click="inviteOne">Invite one</x-filament::button>
+    </div>
+    @error('inviteName')    <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
+    @error('inviteEmail')   <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
+    @error('inviteMessage') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
+
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+        <label class="block"><span class="text-xs text-gray-500">Or paste a list — one per line, <code>Name &lt;email&gt;</code></span>
+            <textarea wire:model="inviteList" rows="4"
+                      placeholder="Jane Ellery &lt;jane@example.com&gt;&#10;Marcus Hale, marcus@example.com"
+                      class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
+        <div class="mt-3 flex items-center gap-3">
+            <x-filament::button wire:click="previewList" color="gray">Preview list</x-filament::button>
+            @if ($invitePreview)
+                <x-filament::button wire:click="sendList">
+                    Send {{ collect($invitePreview)->whereNull('problem')->count() }} invitation(s)
+                </x-filament::button>
+            @endif
+            <span class="text-xs text-gray-500">Nothing sends until you have previewed it.</span>
+        </div>
+
+        @if ($invitePreview)
+            <div class="mt-3 overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
+                <table class="w-full text-sm">
+                    <thead class="text-xs uppercase tracking-wide text-gray-500">
+                        <tr><th class="text-left p-2">Name</th><th class="text-left p-2">Email</th><th class="text-left p-2">Will send?</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($invitePreview as $row)
+                            <tr class="border-t border-gray-100 dark:border-white/5">
+                                <td class="p-2">{{ $row['name'] ?: '—' }}</td>
+                                <td class="p-2">{{ $row['email'] ?: $row['line'] }}</td>
+                                <td class="p-2">
+                                    @if ($row['problem'])
+                                        <span class="text-danger-600">Skipped — {{ $row['problem'] }}</span>
+                                    @else
+                                        <span class="text-success-600">Yes</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+
+    <p class="mt-3 text-xs text-gray-500">
+        Everyone invited gets their <b>own</b> record and their own link, so a pasted list is a batch of
+        individual emails rather than one email to a group — you can see who opened, and withdraw one
+        without touching the rest. An invitation commits nobody to anything: they enter their own entity
+        and amount from their link, and only then does a commitment exist.
+    </p>
+</div>
+
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
     <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">Add a commitment</div>
     <div class="grid gap-3 md:grid-cols-5">
@@ -39,6 +106,46 @@
     @error('email')  <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
     @error('amount') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 </div>
+
+<!-- MARKER-RAISE-INVITE — invited and silent, kept apart from commitments -->
+@if ($invited->isNotEmpty())
+<div class="mt-6 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
+    <div class="p-3 text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200 dark:border-white/10">
+        Invited — no response yet ({{ $invited->count() }})
+    </div>
+    <table class="w-full text-sm">
+        <thead class="text-xs uppercase tracking-wide text-gray-500">
+            <tr><th class="text-left p-3">Name</th><th class="text-left p-3">Email</th>
+                <th class="text-left p-3">Invited</th><th class="text-left p-3">Opened</th>
+                <th class="text-left p-3">Their link</th><th class="p-3"></th></tr>
+        </thead>
+        <tbody>
+            @foreach ($invited as $inv)
+                <tr class="border-t border-gray-100 dark:border-white/5">
+                    <td class="p-3">{{ $inv->name }}</td>
+                    <td class="p-3">{{ $inv->email }}</td>
+                    <td class="p-3">{{ $inv->invited_at?->diffForHumans() }}</td>
+                    <td class="p-3">{{ $inv->opened_at ? $inv->opened_at->diffForHumans() : 'Not yet' }}</td>
+                    <td class="p-3"><code class="text-xs">{{ $inv->portalUrl() }}</code></td>
+                    <td class="p-3 text-right">
+                        @if ($confirmDeleteId === $inv->id)
+                            <span class="text-xs text-gray-500 mr-2">Remove {{ $inv->name }}?</span>
+                            <x-filament::button size="xs" color="danger" wire:click="deleteInvite({{ $inv->id }})">Remove</x-filament::button>
+                            <x-filament::button size="xs" color="gray" wire:click="cancelDelete">Keep</x-filament::button>
+                        @else
+                            <x-filament::button size="xs" color="gray" wire:click="askDelete({{ $inv->id }})">Remove</x-filament::button>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+    <p class="p-3 text-xs text-gray-500">
+        Nobody here has committed anything — these rows are not counted in the totals above. Removing one
+        deletes the record and its link outright, which is only offered while there is nothing to keep.
+    </p>
+</div>
+@endif
 
 <div class="mt-6 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
     <table class="w-full text-sm">

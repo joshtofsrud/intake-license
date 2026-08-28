@@ -31,6 +31,51 @@ class InvestorPortalController extends Controller
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
+    /**
+     * MARKER-RAISE-INVITE — the investor states their own commitment.
+     *
+     * The same state the admin form sets: an amount and committed_at. It
+     * stays editable until the paperwork is signed, because until then
+     * nothing about it is binding and pretending otherwise is worse.
+     */
+    public function commit(\Illuminate\Http\Request $request, string $token)
+    {
+        $investor = $this->resolve($token);
+
+        if ($investor->signed_at || $investor->declined_at) {
+            return back();
+        }
+
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:1', 'max:100000000'],
+            'entity' => ['nullable', 'string', 'max:190'],
+            'name'   => ['nullable', 'string', 'max:190'],
+        ]);
+
+        $was = (int) $investor->amount;
+
+        $investor->forceFill([
+            'name'         => $data['name'] ?: $investor->name,
+            'entity'       => $data['entity'] ?: null,
+            'amount'       => (int) $data['amount'],
+            'committed_at' => $investor->committed_at ?: now(),
+        ])->save();
+
+        InvestorEvent::log(
+            $investor->id,
+            $was ? 'commitment_changed' : 'committed',
+            $was
+                ? 'Changed their commitment from $' . number_format($was) . ' to $' . number_format($investor->amount)
+                : 'Stated a commitment of $' . number_format($investor->amount)
+        );
+
+        if (! $was) {
+            \App\Services\InvestorMessenger::send('commitment', $investor);
+        }
+
+        return back()->with('commit_ok', true);
+    }
+
     public function document(string $token, int $documentId)
     {
         $investor = $this->resolve($token);

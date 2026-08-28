@@ -28,6 +28,16 @@ class Raise extends Page
     public string $entity = '';
     public $amount        = '';
 
+    // MARKER-RAISE-INVITE — invite form. Separate properties from the
+    // commitment form above: the two are different acts and sharing fields
+    // would let a half-typed commitment leak into an invitation.
+    public string $inviteName    = '';
+    public string $inviteEmail   = '';
+    public string $inviteMessage = '';
+    public string $inviteList    = '';
+    public array  $invitePreview = [];
+    public ?int   $confirmDeleteId = null;
+
     public string $wireBank      = '';
     public string $wireAccount   = '';
     public string $wireRouting   = '';
@@ -68,6 +78,155 @@ class Raise extends Page
         $this->reset(['name', 'email', 'entity', 'amount']);
 
         Notification::make()->title('Investor added')->success()->send();
+    }
+
+    /** MARKER-RAISE-INVITE — one person, one record, one token, one email. */
+    public function inviteOne(): void
+    {
+        $data = $this->validate([
+            'inviteName'    => ['required', 'string', 'max:190'],
+            'inviteEmail'   => ['required', 'email', 'max:190'],
+            'inviteMessage' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $investor = $this->createInvite($data['inviteName'], $data['inviteEmail'], $data['inviteMessage'] ?? '');
+
+        $this->reset(['inviteName', 'inviteEmail']);
+
+        Notification::make()
+            ->title($investor->name . ' invited')
+            ->body('Their own link is on the way. Nothing is committed until they say so.')
+            ->success()
+            ->send();
+    }
+
+    /**
+     * MARKER-RAISE-INVITE — parse only. Sends nothing, writes nothing.
+     *
+     * Deliberately a separate step: a pasted list is the easiest place to
+     * mail the wrong people, so the parse is shown before anything leaves.
+     */
+    public function previewList(): void
+    {
+        $rows = [];
+        $seen = [];
+
+        foreach (preg_split('/\r\n|\r|\n/', $this->inviteList) as $line) {
+            $line = trim($line);
+            if ($line === '') { continue; }
+
+            $name  = $line;
+            $email = '';
+
+            if (preg_match('/^(.*?)[<,;\t]\s*([^<>,;\s]+@[^<>,;\s]+?)>?$/', $line, $m)) {
+                $name  = trim($m[1], " \t\"'");
+                $email = strtolower(trim($m[2]));
+            } elseif (filter_var($line, FILTER_VALIDATE_EMAIL)) {
+                $email = strtolower($line);
+                $name  = '';
+            }
+
+            $problem = null;
+            if (! $email || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $problem = 'No usable email address';
+            } elseif ($name === '') {
+                $problem = 'No name — the message would open impersonally';
+            } elseif (isset($seen[$email])) {
+                $problem = 'Repeated in this list';
+            } elseif (Investor::where('email', $email)->exists()) {
+                $problem = 'Already has a record';
+            }
+
+            $seen[$email] = true;
+            $rows[] = ['line' => $line, 'name' => $name, 'email' => $email, 'problem' => $problem];
+        }
+
+        $this->invitePreview = $rows;
+
+        if (! $rows) {
+            Notification::make()->title('Nothing to preview')->send();
+        }
+    }
+
+    /** MARKER-RAISE-INVITE — only ever acts on rows already shown in the preview. */
+    public function sendList(): void
+    {
+        if (! $this->invitePreview) {
+            Notification::make()
+                ->title('Preview the list first')
+                ->body('Nothing sends until you have seen what parsed.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        $sent = 0;
+        foreach ($this->invitePreview as $row) {
+            if ($row['problem']) { continue; }
+            $this->createInvite($row['name'], $row['email'], $this->inviteMessage);
+            $sent++;
+        }
+
+        $skipped = count($this->invitePreview) - $sent;
+        $this->reset(['inviteList', 'invitePreview']);
+
+        Notification::make()
+            ->title($sent . ' ' . str($sent)->plural('invitation') . ' sent')
+            ->body($skipped ? $skipped . ' row(s) skipped — they are listed above with the reason.' : 'Every row went out.')
+            ->success()
+            ->send();
+    }
+
+    /** MARKER-RAISE-INVITE — shared by both paths so they can't drift apart. */
+    private function createInvite(string $name, string $email, string $message): Investor
+    {
+        $investor = Investor::create([
+            'name'       => $name,
+            'email'      => $email,
+            'invited_at' => now(),
+        ]);
+
+        \App\Models\InvestorEvent::log($investor->id, 'invited', 'Invited by email with a personal note');
+        \App\Services\InvestorMessenger::send('invitation', $investor, ['message' => $message]);
+
+        return $investor;
+    }
+
+    /** MARKER-RAISE-INVITE — an invite nobody answered is not a cap-table line. */
+    public function askDelete(int $id): void
+    {
+        $this->confirmDeleteId = $id;
+    }
+
+    public function cancelDelete(): void
+    {
+        $this->confirmDeleteId = null;
+    }
+
+    public function deleteInvite(int $id): void
+    {
+        $investor = Investor::findOrFail($id);
+
+        // Anything that has been committed, signed or funded is history and
+        // stays. Only a silent invitation can be removed outright.
+        if ($investor->committed_at || $investor->signed_at || $investor->funded_at || $investor->amount_received) {
+            Notification::make()
+                ->title('Not deleted')
+                ->body('This record has a commitment against it. Decline it instead — the history stays.')
+                ->danger()
+                ->send();
+
+            $this->confirmDeleteId = null;
+
+            return;
+        }
+
+        $name = $investor->name;
+        $investor->delete();
+        $this->confirmDeleteId = null;
+
+        Notification::make()->title($name . ' removed')->success()->send();
     }
 
     public function markSigned(int $id): void
@@ -145,8 +304,15 @@ class Raise extends Page
 
         $active = $investors->whereNull('declined_at');
 
+        // MARKER-RAISE-INVITE — invited and silent is not a commitment, and
+        // showing the two together makes a pasted list look like a pipeline.
+        $invited = $investors->filter(
+            fn ($i) => $i->invited_at && ! $i->committed_at && ! $i->declined_at
+        );
+
         return [
-            'investors'  => $investors,
+            'investors'  => $investors->reject(fn ($i) => $invited->contains('id', $i->id)),
+            'invited'    => $invited,
             'committed'  => (int) $active->sum('amount'),
             'received'   => (int) $active->sum('amount_received'),
             'target'     => Investor::target(),

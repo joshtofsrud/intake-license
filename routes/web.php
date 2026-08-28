@@ -1187,6 +1187,10 @@ Route::prefix('invest/{token}')->group(function () {
 // MARKER-RAISE-PORTAL — one investor's own position, no login, token in the URL
 Route::get('/invest/i/{token}', [\App\Http\Controllers\InvestorPortalController::class, 'show'])
     ->name('invest.portal');
+// MARKER-RAISE-INVITE — the investor states their own amount and entity.
+Route::post('/invest/i/{token}/commit', [\App\Http\Controllers\InvestorPortalController::class, 'commit'])
+    ->middleware('throttle:12,1')
+    ->name('invest.portal.commit');
 Route::get('/invest/i/{token}/doc/{documentId}', [\App\Http\Controllers\InvestorPortalController::class, 'document'])
     ->whereNumber('documentId')
     ->name('invest.portal.doc');

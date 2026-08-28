@@ -16,7 +16,9 @@ class InvestorMessenger
         return \App\Models\RaiseMessageTemplate::merged();
     }
 
-    public static function render(string $key, Investor $investor): ?array
+    // MARKER-RAISE-INVITE — $extra carries ad-hoc tokens, currently the
+    // personal note typed on the invite. Optional, so existing callers stand.
+    public static function render(string $key, Investor $investor, array $extra = []): ?array
     {
         $template = static::templates()[$key] ?? null;
 
@@ -39,6 +41,16 @@ class InvestorMessenger
             '{sender}'    => RaiseSetting::get('sender_name', 'Josh'),
         ];
 
+        foreach ($extra as $token => $value) {
+            $replacements['{' . trim($token, '{}') . '}'] = (string) $value;
+        }
+
+        // A template with no {message} placeholder still has to carry the note,
+        // or a personal invitation silently goes out impersonal.
+        if (($extra['message'] ?? '') !== '' && ! str_contains($template['body'], '{message}')) {
+            $template['body'] = $extra['message'] . "\n\n" . $template['body'];
+        }
+
         return [
             'label'   => $template['label'],
             'subject' => strtr($template['subject'], $replacements),
@@ -47,7 +59,7 @@ class InvestorMessenger
     }
 
     /** Returns true when the message actually went out. */
-    public static function send(string $key, Investor $investor): bool
+    public static function send(string $key, Investor $investor, array $extra = []): bool
     {
         if (! $investor->email) {
             InvestorEvent::log($investor->id, 'message_skipped', 'No email on file, skipped: ' . $key);
@@ -55,7 +67,7 @@ class InvestorMessenger
             return false;
         }
 
-        $message = static::render($key, $investor);
+        $message = static::render($key, $investor, $extra);
 
         if (! $message) {
             return false;

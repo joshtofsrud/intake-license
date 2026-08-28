@@ -34,6 +34,17 @@ a.doc:hover{color:var(--lime)}
 .warn p{margin:0;font-size:14px}
 .wire{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
 footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--dim);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+/* MARKER-RAISE-INVITE */
+.commitform{display:grid;gap:12px;margin-top:14px;max-width:420px}
+.commitform label{display:block;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);font-weight:600}
+.commitform input{width:100%;margin-top:6px;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  color:var(--text);font-family:inherit;font-size:15px;padding:10px 12px;outline:none}
+.commitform input:focus{border-color:var(--lime-line)}
+.commitform button{justify-self:start;background:var(--lime);color:#0B0F0C;border:0;border-radius:8px;
+  font-family:inherit;font-size:14px;font-weight:700;padding:11px 20px;cursor:pointer}
+.cerr{color:#FCA5A5;font-size:13px}
+.cnote{font-size:12.5px;color:var(--dim);margin-top:12px;line-height:1.6;max-width:60ch}
 </style>
 </head><body>
 <div class="wrap">
@@ -58,6 +69,34 @@ footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-si
       <div class="k">Status</div>
     </div>
   </div>
+
+  {{-- MARKER-RAISE-INVITE — an invited person has nothing to show yet, so ask
+       rather than printing a row of zeros at them. --}}
+  @if (! $investor->signed_at && ! $investor->declined_at)
+    <div class="sub">{{ $investor->committed_at ? 'Change your commitment' : 'Your commitment' }}</div>
+
+    @if (session('commit_ok'))
+      <div class="warn"><p><strong>Recorded.</strong> Nothing is binding yet — this is a statement of
+        intent, and you can change it here until the paperwork is signed.</p></div>
+    @endif
+
+    <form method="POST" action="{{ route('invest.portal.commit', $investor->token) }}" class="commitform">
+      @csrf
+      <label>Your name
+        <input type="text" name="name" value="{{ old('name', $investor->name) }}" maxlength="190"></label>
+      <label>Investing as (leave blank if personally)
+        <input type="text" name="entity" value="{{ old('entity', $investor->entity) }}" maxlength="190"
+               placeholder="Entity name"></label>
+      <label>Amount
+        <input type="number" name="amount" value="{{ old('amount', $investor->amount ?: '') }}"
+               min="1" step="1" required placeholder="10000"></label>
+      <button type="submit">{{ $investor->committed_at ? 'Update' : 'Record my commitment' }}</button>
+      @error('amount') <span class="cerr">{{ $message }}</span> @enderror
+    </form>
+
+    <p class="cnote">This commits you to nothing. It tells me what the round looks like before anything
+      is papered, and it is yours to change or withdraw until the document is signed.</p>
+  @endif
 
   <div class="sub">Where things stand</div>
   <ul class="steps">
