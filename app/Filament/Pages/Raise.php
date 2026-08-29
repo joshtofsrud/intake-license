@@ -33,7 +33,17 @@ class Raise extends Page
     // would let a half-typed commitment leak into an invitation.
     public string $inviteName    = '';
     public string $inviteEmail   = '';
-    public string $inviteMessage = '';
+    // MARKER-RAISE-COMPOSE — the invitation itself, editable per send.
+    public string $inviteSubject = '';
+    public string $inviteBody    = '';
+
+    // What the preview modal is showing, and what pressing send will use.
+    public bool   $showPreview     = false;
+    public string $previewSubject  = '';
+    public string $previewBody     = '';
+    public string $previewTo       = '';
+    public int    $previewOthers   = 0;
+    public array  $pendingInvites  = [];   // [name, email, token] per recipient
     public string $inviteList    = '';
     public array  $invitePreview = [];
     public ?int   $confirmDeleteId = null;
@@ -53,6 +63,12 @@ class Raise extends Page
         $this->wireReference = (string) \App\Models\RaiseSetting::get('wire_reference');
         $this->formDFiledAt  = (string) \App\Models\RaiseSetting::get('form_d_filed_at');
         $this->blueSkyNotes  = (string) \App\Models\RaiseSetting::get('blue_sky_notes');
+
+        // MARKER-RAISE-COMPOSE — start from the stored invitation template, then
+        // let it be edited for this send without changing the template itself.
+        $template = \App\Models\RaiseMessageTemplate::merged()['invitation'] ?? [];
+        $this->inviteSubject = (string) ($template['subject'] ?? 'Intake');
+        $this->inviteBody    = (string) ($template['body'] ?? '');
     }
 
     public function addInvestor(): void
@@ -86,16 +102,87 @@ class Raise extends Page
         $data = $this->validate([
             'inviteName'    => ['required', 'string', 'max:190'],
             'inviteEmail'   => ['required', 'email', 'max:190'],
-            'inviteMessage' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $investor = $this->createInvite($data['inviteName'], $data['inviteEmail'], $data['inviteMessage'] ?? '');
+        // MARKER-RAISE-COMPOSE — nothing is created or sent here. The token is
+        // generated now and carried to the record, so the link in the preview is
+        // the link that arrives; a preview showing a placeholder would be worse
+        // than no preview at all.
+        $this->pendingInvites = [[
+            'name'  => $data['inviteName'],
+            'email' => $data['inviteEmail'],
+            'token' => \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(40)),
+        ]];
 
-        $this->reset(['inviteName', 'inviteEmail']);
+        $this->openPreview();
+    }
+
+    /** MARKER-RAISE-COMPOSE — render the first pending recipient, exactly. */
+    private function openPreview(): void
+    {
+        $this->validate([
+            'inviteSubject' => ['required', 'string', 'max:190'],
+            'inviteBody'    => ['required', 'string', 'max:5000'],
+        ]);
+
+        $first = $this->pendingInvites[0] ?? null;
+        if (! $first) { return; }
+
+        // An unsaved model: it renders {name} and {portal} identically to the
+        // real one, and writes nothing if the send is cancelled.
+        $sample = new Investor([
+            'name'  => $first['name'],
+            'email' => $first['email'],
+        ]);
+        $sample->token = $first['token'];
+
+        $rendered = \App\Services\InvestorMessenger::renderRaw(
+            $this->inviteSubject, $this->inviteBody, $sample
+        );
+
+        $this->previewSubject = $rendered['subject'];
+        $this->previewBody    = $rendered['body'];
+        $this->previewTo      = trim($first['name'] . ' <' . $first['email'] . '>');
+        $this->previewOthers  = max(0, count($this->pendingInvites) - 1);
+        $this->showPreview    = true;
+    }
+
+    public function cancelPreview(): void
+    {
+        $this->showPreview   = false;
+        $this->pendingInvites = [];
+    }
+
+    /** MARKER-RAISE-COMPOSE — send what the preview showed, to everyone pending. */
+    public function confirmSend(): void
+    {
+        $sent = 0;
+
+        foreach ($this->pendingInvites as $row) {
+            $investor = Investor::create([
+                'name'       => $row['name'],
+                'email'      => $row['email'],
+                'token'      => $row['token'],
+                'invited_at' => now(),
+            ]);
+
+            \App\Models\InvestorEvent::log($investor->id, 'invited', 'Invited by email');
+
+            if (\App\Services\InvestorMessenger::sendRaw($investor, $this->inviteSubject, $this->inviteBody)) {
+                $sent++;
+            }
+        }
+
+        $total = count($this->pendingInvites);
+        $this->showPreview    = false;
+        $this->pendingInvites = [];
+        $this->reset(['inviteName', 'inviteEmail', 'inviteList', 'invitePreview']);
 
         Notification::make()
-            ->title($investor->name . ' invited')
-            ->body('Their own link is on the way. Nothing is committed until they say so.')
+            ->title($sent . ' of ' . $total . ' sent')
+            ->body($sent === $total
+                ? 'Each has their own link. Nothing is committed until they say so.'
+                : 'Some did not send — check the investor rows for the reason.')
             ->success()
             ->send();
     }
@@ -161,36 +248,26 @@ class Raise extends Page
             return;
         }
 
-        $sent = 0;
+        // MARKER-RAISE-COMPOSE — still nothing sent here: this stages the list
+        // and opens the same preview the single invite uses.
+        $this->pendingInvites = [];
+
         foreach ($this->invitePreview as $row) {
             if ($row['problem']) { continue; }
-            $this->createInvite($row['name'], $row['email'], $this->inviteMessage);
-            $sent++;
+            $this->pendingInvites[] = [
+                'name'  => $row['name'],
+                'email' => $row['email'],
+                'token' => \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(40)),
+            ];
         }
 
-        $skipped = count($this->invitePreview) - $sent;
-        $this->reset(['inviteList', 'invitePreview']);
+        if (! $this->pendingInvites) {
+            Notification::make()->title('Nothing to send')->warning()->send();
 
-        Notification::make()
-            ->title($sent . ' ' . str($sent)->plural('invitation') . ' sent')
-            ->body($skipped ? $skipped . ' row(s) skipped — they are listed above with the reason.' : 'Every row went out.')
-            ->success()
-            ->send();
-    }
+            return;
+        }
 
-    /** MARKER-RAISE-INVITE — shared by both paths so they can't drift apart. */
-    private function createInvite(string $name, string $email, string $message): Investor
-    {
-        $investor = Investor::create([
-            'name'       => $name,
-            'email'      => $email,
-            'invited_at' => now(),
-        ]);
-
-        \App\Models\InvestorEvent::log($investor->id, 'invited', 'Invited by email with a personal note');
-        \App\Services\InvestorMessenger::send('invitation', $investor, ['message' => $message]);
-
-        return $investor;
+        $this->openPreview();
     }
 
     /** MARKER-RAISE-INVITE — an invite nobody answered is not a cap-table line. */

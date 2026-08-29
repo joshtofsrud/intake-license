@@ -45,17 +45,71 @@ class InvestorMessenger
             $replacements['{' . trim($token, '{}') . '}'] = (string) $value;
         }
 
-        // A template with no {message} placeholder still has to carry the note,
-        // or a personal invitation silently goes out impersonal.
-        if (($extra['message'] ?? '') !== '' && ! str_contains($template['body'], '{message}')) {
-            $template['body'] = $extra['message'] . "\n\n" . $template['body'];
-        }
+        // MARKER-RAISE-COMPOSE — the prepend that used to live here is gone. It
+        // stacked a personal note on top of a template that already opened with
+        // a greeting, so invitations said hello twice. Invitation text is now
+        // authored in full on the invite form.
 
         return [
             'label'   => $template['label'],
             'subject' => strtr($template['subject'], $replacements),
             'body'    => strtr($template['body'], $replacements),
         ];
+    }
+
+    /**
+     * MARKER-RAISE-COMPOSE — substitute into text that isn't a stored template.
+     *
+     * The invite form composes its own subject and body, so the placeholder
+     * substitution has to be available without going through templates().
+     */
+    public static function renderRaw(string $subject, string $body, Investor $investor): array
+    {
+        $wire = RaiseSetting::wireInstructions();
+
+        $replacements = [
+            '{name}'      => $investor->name,
+            '{amount}'    => '$' . number_format((int) $investor->amount),
+            '{percent}'   => $investor->percent . '%',
+            '{cap}'       => '$' . number_format(Investor::cap()),
+            '{portal}'    => $investor->portalUrl(),
+            '{bank}'      => $wire['bank']      ?: '[not set]',
+            '{account}'   => $wire['account']   ?: '[not set]',
+            '{routing}'   => $wire['routing']   ?: '[not set]',
+            '{reference}' => $wire['reference'] ?: $investor->name,
+            '{sender}'    => RaiseSetting::get('sender_name', 'Josh'),
+        ];
+
+        return [
+            'subject' => strtr($subject, $replacements),
+            'body'    => strtr($body, $replacements),
+        ];
+    }
+
+    /** MARKER-RAISE-COMPOSE — send exactly what the preview showed. */
+    public static function sendRaw(Investor $investor, string $subject, string $body): bool
+    {
+        if (! $investor->email) {
+            InvestorEvent::log($investor->id, 'message_skipped', 'No email on file');
+
+            return false;
+        }
+
+        $message = static::renderRaw($subject, $body, $investor);
+
+        try {
+            Mail::raw($message['body'], function ($mail) use ($investor, $message) {
+                $mail->to($investor->email, $investor->name)->subject($message['subject']);
+            });
+        } catch (\Throwable $e) {
+            Log::error('MARKER-RAISE-COMPOSE send failed', ['investor' => $investor->id, 'error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        InvestorEvent::log($investor->id, 'message_sent', 'Invitation sent: ' . $message['subject']);
+
+        return true;
     }
 
     /** Returns true when the message actually went out. */

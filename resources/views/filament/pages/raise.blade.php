@@ -30,19 +30,27 @@
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
     <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">Invite someone</div>
 
-    <label class="block mb-3"><span class="text-xs text-gray-500">Your message — goes above the standard wording</span>
-        <textarea wire:model="inviteMessage" rows="3"
-                  placeholder="Hi {name} — you mentioned wanting a look at what I've been building…"
-                  class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
+    <!-- MARKER-RAISE-COMPOSE — the whole email, not a note bolted onto one -->
+    <label class="block mb-3"><span class="text-xs text-gray-500">Subject</span>
+        <input wire:model="inviteSubject"
+               class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+
+    <label class="block mb-1"><span class="text-xs text-gray-500">Message</span>
+        <textarea wire:model="inviteBody" rows="8"
+                  class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 font-mono text-sm"></textarea></label>
+    <p class="mb-3 text-xs text-gray-500">
+        <code>{name}</code> the recipient's name · <code>{portal}</code> their own link ·
+        <code>{sender}</code> your sign-off. Edits here apply to this send only; the saved template in
+        Raise setup is unchanged.
+    </p>
 
     <div class="grid gap-3 md:grid-cols-3">
         <input wire:model="inviteName"  placeholder="Name" class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
         <input wire:model="inviteEmail" placeholder="Email" class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
-        <x-filament::button wire:click="inviteOne">Invite one</x-filament::button>
+        <x-filament::button wire:click="inviteOne">Preview &amp; send</x-filament::button>
     </div>
     @error('inviteName')    <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
     @error('inviteEmail')   <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
-    @error('inviteMessage') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 
     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
         <label class="block"><span class="text-xs text-gray-500">Or paste a list — one per line, <code>Name &lt;email&gt;</code></span>
@@ -53,7 +61,7 @@
             <x-filament::button wire:click="previewList" color="gray">Preview list</x-filament::button>
             @if ($invitePreview)
                 <x-filament::button wire:click="sendList">
-                    Send {{ collect($invitePreview)->whereNull('problem')->count() }} invitation(s)
+                    Preview &amp; send {{ collect($invitePreview)->whereNull('problem')->count() }}
                 </x-filament::button>
             @endif
             <span class="text-xs text-gray-500">Nothing sends until you have previewed it.</span>
@@ -90,6 +98,8 @@
         individual emails rather than one email to a group — you can see who opened, and withdraw one
         without touching the rest. An invitation commits nobody to anything: they enter their own entity
         and amount from their link, and only then does a commitment exist.
+        <b>Nothing is created or sent until you confirm the preview</b> — cancelling leaves no record
+        behind.
     </p>
 </div>
 
@@ -268,5 +278,41 @@
     <p class="text-sm text-gray-500">Cap, target, wire details, documents and message wording live on
         <a href="{{ \App\Filament\Pages\RaiseSetup::getUrl() }}" class="underline">Raise setup</a>.</p>
 </div>
+
+
+{{-- MARKER-RAISE-COMPOSE — exactly what will hit the inbox, link included. --}}
+@if ($showPreview)
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.6)">
+    <div class="w-full max-w-2xl rounded-xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 max-h-[88vh] flex flex-col">
+
+        <div class="p-4 border-b border-gray-200 dark:border-white/10">
+            <div class="text-xs uppercase tracking-wide text-gray-500">This is the email</div>
+            <div class="mt-1 text-sm"><span class="text-gray-500">To:</span> <b>{{ $previewTo }}</b></div>
+            @if ($previewOthers)
+                <div class="text-xs text-gray-500 mt-1">
+                    and {{ $previewOthers }} other {{ \Illuminate\Support\Str::plural('recipient', $previewOthers) }} —
+                    each gets this same wording with their own name and their own link.
+                </div>
+            @endif
+            <div class="mt-2 text-sm"><span class="text-gray-500">Subject:</span> <b>{{ $previewSubject }}</b></div>
+        </div>
+
+        <div class="p-4 overflow-y-auto">
+            <pre class="whitespace-pre-wrap font-mono text-[13px] leading-relaxed text-gray-800 dark:text-gray-200">{{ $previewBody }}</pre>
+        </div>
+
+        <div class="p-4 border-t border-gray-200 dark:border-white/10 flex items-center gap-3">
+            <x-filament::button wire:click="confirmSend">
+                Send {{ $previewOthers ? $previewOthers + 1 : 1 }}
+            </x-filament::button>
+            <x-filament::button color="gray" wire:click="cancelPreview">Cancel</x-filament::button>
+            <span class="text-xs text-gray-500">
+                The link above is the real one and is already reserved for this person. Cancelling discards
+                it and writes nothing.
+            </span>
+        </div>
+    </div>
+</div>
+@endif
 
 </x-filament-panels::page>
