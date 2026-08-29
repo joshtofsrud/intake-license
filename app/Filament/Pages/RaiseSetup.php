@@ -153,7 +153,10 @@ class RaiseSetup extends Page
      */
     public function sendTest(string $key): void
     {
-        $to = RaiseSetting::get('notify_email') ?: config('mail.from.address');
+        // MARKER-MAIL-FROM — the accessor, not raw config: with MAIL_FROM_ADDRESS
+        // unset this used to resolve to hello@example.com and the test went to
+        // a domain nobody owns.
+        $to = RaiseSetting::get('notify_email') ?: \App\Models\PlatformSettings::fromAddress();
 
         if (! $to) {
             Notification::make()

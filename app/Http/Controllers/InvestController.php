@@ -80,12 +80,24 @@ class InvestController extends Controller
                 . "How they say you know each other:\n" . $data['note']
                 . "\n\nIssue or decline it in Raise admin.",
                 function ($mail) {
-                    $to = RaiseSetting::get('notify_email') ?: config('mail.from.address');
+                    // MARKER-MAIL-FROM — never the framework placeholder: an access
+                    // request landing at example.com is a request nobody sees.
+                    $to = RaiseSetting::get('notify_email')
+                        ?: \App\Models\PlatformSettings::fromAddress();
                     $mail->to($to)->subject('Intake — someone asked for the proposal');
                 }
             );
         } catch (\Throwable $e) {
             Log::error('MARKER-INVEST-LANDING request notify failed', ['error' => $e->getMessage()]);
+        }
+
+        // MARKER-MAIL-FROM — the lead row is written above regardless, so a
+        // notification that could not be addressed loses the alert, not the
+        // request itself. Worth saying out loud in the log.
+        if (! (RaiseSetting::get('notify_email') ?: \App\Models\PlatformSettings::fromAddress())) {
+            Log::warning('MARKER-MAIL-FROM no notify address — access request saved but nobody was told', [
+                'email' => $data['email'],
+            ]);
         }
 
         Log::info('MARKER-INVEST-LANDING access requested', ['email' => $data['email']]);

@@ -33,9 +33,13 @@ class WelcomeEmail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            // MARKER-MAIL-FROM — config('key', 'fallback') does NOT fall back when
+            // the key exists and is wrong, and with no config/mail.php in this
+            // repo it resolved to the framework placeholder. Every welcome email
+            // was addressed from example.com, which has no sender signature.
             from: new Address(
-                config('mail.from.address', 'hello@intake.works'),
-                config('mail.from.name', 'Intake')
+                \App\Models\PlatformSettings::fromAddress() ?: 'hello@intake.works',
+                \App\Models\PlatformSettings::fromName() ?: 'Intake'
             ),
             subject: 'Welcome to Intake — ' . $this->tenant->name,
         );
