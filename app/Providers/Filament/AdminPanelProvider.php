@@ -73,7 +73,11 @@ class AdminPanelProvider extends PanelProvider
                 DistributorFieldMapResource::class, // HLC field mapping
             ])
             ->pages([
-                Pages\Contributions::class,   // MARKER-CONTRIBUTIONS
+                // MARKER-CONTRIBUTIONS · MARKER-CONTRIBUTIONS-FQN — fully qualified
+                // on purpose: there is no `use App\Filament\Pages` in this file, so a
+                // bare Pages\ prefix resolves into Filament's own namespace and kills
+                // artisan at boot.
+                \App\Filament\Pages\Contributions::class,
                 // MARKER-PATCH-135 — custom dashboard replaces Pages\Dashboard
                 \App\Filament\Pages\PlatformDashboard::class,
                 \App\Filament\Pages\Distributors::class, // HLC distributor hub
