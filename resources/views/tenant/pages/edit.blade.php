@@ -1318,6 +1318,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   padding: 10px;
   margin-bottom: 8px;
 }
+/* MARKER-FEAT-DRAG — while a card is being dragged the whole list collapses
+   to title rows so tall cards stay visible and droppable in the inspector. */
+.pb2-insp-body #pb2-feat-list.pb2-feat-compact .pb2-feat-fields { display: none; }
+.pb2-insp-body #pb2-feat-list.pb2-feat-compact .pb2-feat { padding: 6px 10px; }
 .pb2-insp-body .pb2-feat-head {
   display: grid;
   grid-template-columns: 14px 38px 1fr 22px;
@@ -3069,6 +3073,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     if (!root || !json) return;
 
     const MAX_FEATS = 12;
+    let dragFeat = null; // MARKER-FEAT-DRAG
 
     function serialize() {
       const out = [];
@@ -3095,6 +3100,35 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       });
       const rm = featEl.querySelector('[data-feat-remove]');
       if (rm) rm.addEventListener('click', () => { featEl.remove(); serialize(); });
+
+      // MARKER-FEAT-DRAG — the ⋮⋮ handle was rendered but inert; same
+      // handle-armed drag the gallery tiles use. Reorder persists via
+      // serialize() on drop.
+      const h = featEl.querySelector('.pb2-navlist-handle');
+      if (h) {
+        h.addEventListener('mousedown', () => { featEl.draggable = true; });
+        featEl.addEventListener('mouseup',    () => { featEl.draggable = false; });
+        featEl.addEventListener('mouseleave', () => { featEl.draggable = false; });
+        featEl.addEventListener('dragstart', e => {
+          dragFeat = featEl; featEl.style.opacity = '.4';
+          root.classList.add('pb2-feat-compact'); // collapse all cards to their title row while dragging
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', ''); } catch (_) {}
+        });
+        featEl.addEventListener('dragend', () => {
+          featEl.style.opacity = ''; featEl.draggable = false; dragFeat = null;
+          root.classList.remove('pb2-feat-compact');
+          serialize();
+        });
+        featEl.addEventListener('dragover', e => {
+          e.preventDefault();
+          if (!dragFeat || dragFeat === featEl) return;
+          const r = featEl.getBoundingClientRect();
+          const before = e.clientY < r.top + r.height / 2;
+          root.insertBefore(dragFeat, before ? featEl : featEl.nextSibling);
+        });
+      }
+
       // MARKER-PATCH-293 autofill — pick a service, fill the card from the catalog.
       const svcSel = featEl.querySelector('[data-feat-field="service_id"]');
       if (svcSel) svcSel.addEventListener('change', () => {

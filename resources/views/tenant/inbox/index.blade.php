@@ -222,6 +222,29 @@
     /* the dot and the count say the same thing; the count is the richer one */
     .ib-thread.is-unread .ib-dot { display:none; }
   }
+  /* MARKER-INBOX-FRESHEN-A — desktop adopts the mobile "messages" styling
+     (option A). Appended last on purpose: at equal specificity these
+     out-order the base rules above, including .ib-av's display:none. */
+  #ib-scroll, .ib-msgs { scrollbar-width:thin; scrollbar-color:var(--ia-border) transparent; }
+  #ib-scroll::-webkit-scrollbar, .ib-msgs::-webkit-scrollbar { width:6px; }
+  #ib-scroll::-webkit-scrollbar-thumb, .ib-msgs::-webkit-scrollbar-thumb { background:var(--ia-border); border-radius:3px; }
+  #ib-scroll::-webkit-scrollbar-track, .ib-msgs::-webkit-scrollbar-track { background:transparent; }
+  @media (min-width: 981px) {
+    .ib-search input { border-radius:999px; }
+    .ib-pill.is-active { background:var(--ia-accent); color:var(--ia-accent-text); }
+    #ib-scroll { padding:0 8px 8px; }
+    .ib-thread { display:flex; gap:11px; align-items:center; border-bottom:0; border-radius:12px; margin-top:2px; padding:10px 12px; }
+    .ib-thread:hover { background:rgba(127,127,127,.08); }
+    .ib-thread.is-sel { background:rgba(127,127,127,.13); }
+    .ib-thread-body { min-width:0; flex:1; }
+    .ib-av {
+      display:flex; align-items:center; justify-content:center; position:relative;
+      flex:0 0 36px; width:36px; height:36px; border-radius:50%;
+      font-size:12.5px; font-weight:650; color:#0d0d0d; letter-spacing:.01em;
+    }
+    .ib-av-1{background:#8FB8DE} .ib-av-2{background:#C9A96A} .ib-av-3{background:#9FC49A}
+    .ib-av-4{background:#D3A0A0} .ib-av-5{background:#B0A5CE} .ib-av-6{background:#8FC7C2}
+  }
 </style>
 @endpush
 
@@ -321,6 +344,16 @@
           $ibHue     = (crc32((string) ($t->customer_id ?? $t->id)) % 6) + 1;
           $ibUnread  = (int) $t->unread_count > 0 || $t->status === 'needs_reply';
           $ibOut     = ($t->latestMessage?->direction ?? null) === 'out';
+          // MARKER-INBOX-FRESHEN-A — short relative time: 12m / 3h / 6d,
+          // older than a week shows the date.
+          $ibWhen = '';
+          if ($t->last_message_at) {
+              $ibMins = (int) abs(now()->diffInMinutes($t->last_message_at));
+              $ibWhen = $ibMins < 60 ? $ibMins . 'm'
+                  : ($ibMins < 1440 ? intdiv($ibMins, 60) . 'h'
+                  : ($ibMins < 10080 ? intdiv($ibMins, 1440) . 'd'
+                  : tlocal_datetime($t->last_message_at, 'M j')));
+          }
         @endphp
         <a class="ib-thread {{ $selected && $selected->id === $t->id ? 'is-sel' : '' }} {{ $ibUnread ? 'is-unread' : '' }}"
            href="{{ route('tenant.inbox.index', array_filter(['filter' => $filter !== 'all' ? $filter : null, 'thread' => $t->id])) }}">
@@ -335,7 +368,7 @@
                 {{ $ibName }}
                 @if($t->status === 'needs_reply')<span class="ib-nr">Needs reply</span>@endif
               </span>
-              <span class="ib-thread-time">{{ $t->last_message_at ? tlocal_datetime($t->last_message_at, 'M j, g:i A') : '' }}</span>
+              <span class="ib-thread-time">{{ $ibWhen }}</span>
             </div>
             {{-- MARKER-INBOX-SEARCH — show the message that matched, not the newest --}}
             @php $sc_hit = ($searchHits[$t->id] ?? null); @endphp
