@@ -85,6 +85,48 @@
     @error('notifyEmail') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 </div>
 
+<!-- MARKER-SIGNING-CREDS -->
+<div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
+    <div class="text-xs uppercase tracking-wide text-gray-500 mb-3">Document signing — Dropbox Sign</div>
+
+    <div class="grid gap-3 md:grid-cols-2">
+        <label class="block">
+            <span class="text-xs text-gray-500">API key</span>
+            <input wire:model="signingKey" type="password" autocomplete="off"
+                   placeholder="{{ \App\Services\SigningService::hasKey() ? 'A key is saved — type to replace it' : 'Paste your API key' }}"
+                   class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
+        </label>
+        <label class="flex items-end gap-2 pb-1">
+            <input type="checkbox" wire:model="signingTestMode"
+                   class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
+            <span class="text-sm">Send documents in test mode</span>
+        </label>
+    </div>
+
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+        <x-filament::button wire:click="saveSigning">Save</x-filament::button>
+        <x-filament::button color="gray" wire:click="testSigning"
+            wire:loading.attr="disabled">Test connection</x-filament::button>
+        @if (\App\Services\SigningService::hasKey())
+            <x-filament::button color="gray" wire:click="clearSigningKey">Remove key</x-filament::button>
+        @endif
+        <span class="text-xs text-gray-500">
+            @if (\App\Services\SigningService::hasKey())
+                A key is saved and encrypted.
+            @else
+                No key saved yet.
+            @endif
+        </span>
+    </div>
+
+    <p class="mt-3 text-xs text-gray-500">
+        The key is stored encrypted and never sent back to this page — leave the field blank to keep the
+        one already saved. Test mode documents are free and legally non-binding, so leave it on until the
+        flow is proven; a test-mode signature is not a signature.
+    </p>
+    @error('signingKey') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
+</div>
+
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
     <div class="text-xs uppercase tracking-wide text-gray-500 mb-3">Wire details and compliance</div>
     <div class="grid gap-3 md:grid-cols-4">

@@ -51,6 +51,11 @@ class RaiseSetup extends Page
     public bool   $showProgress     = true;   // MARKER-INVEST-LIVE
     public string $contributionPresets = '';   // MARKER-CONTRIB-UI
 
+    // MARKER-SIGNING-CREDS — never populated from storage, so the key does not
+    // travel back to the browser and a blank save cannot wipe it.
+    public string $signingKey      = '';
+    public bool   $signingTestMode = true;
+
     // template editor
     public string $templateKey  = '';
     public string $templateSubject = '';
@@ -84,6 +89,7 @@ class RaiseSetup extends Page
         $this->notifyEmail       = (string) RaiseSetting::get('notify_email');
         $this->showProgress      = RaiseSetting::get('show_progress', '1') === '1';
         $this->contributionPresets = (string) RaiseSetting::get('contribution_presets', '');
+        $this->signingTestMode = \App\Services\SigningService::isTestMode();
     }
 
     /** MARKER-INVEST-LANDING */
@@ -108,6 +114,49 @@ class RaiseSetup extends Page
             ->body('Live at /invest immediately.')
             ->success()
             ->send();
+    }
+
+    /** MARKER-SIGNING-CREDS — an empty field means "leave it as it is". */
+    public function saveSigning(): void
+    {
+        $this->validate([
+            'signingKey' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $typed = trim($this->signingKey);
+
+        if ($typed !== '') {
+            \App\Services\SigningService::putKey($typed);
+            $this->signingKey = '';
+        }
+
+        RaiseSetting::put('signing_test_mode', $this->signingTestMode ? '1' : '0');
+
+        Notification::make()
+            ->title('Signing settings saved')
+            ->body($typed !== '' ? 'Key stored, encrypted.' : 'Key left unchanged.')
+            ->success()
+            ->send();
+    }
+
+    /** MARKER-SIGNING-CREDS */
+    public function testSigning(): void
+    {
+        $result = \App\Services\SigningService::testConnection();
+
+        Notification::make()
+            ->title($result['ok'] ? 'Dropbox Sign connected' : 'Connection failed')
+            ->body($result['message'])
+            ->{$result['ok'] ? 'success' : 'danger'}()
+            ->send();
+    }
+
+    /** MARKER-SIGNING-CREDS — removing a key is deliberate, not a blank save. */
+    public function clearSigningKey(): void
+    {
+        \App\Services\SigningService::putKey(null);
+
+        Notification::make()->title('Signing key removed')->success()->send();
     }
 
     public function saveRound(): void
