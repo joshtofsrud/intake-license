@@ -26,24 +26,27 @@
     </div>
 </div>
 
-<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI · MARKER-RAISE-COMPOSE-FIX · MARKER-RAISE-PANEL
+<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI · MARKER-RAISE-COMPOSE-FIX · MARKER-RAISE-PANEL · MARKER-RAISE-PANEL-PAD
      Stock Tailwind utilities only in this file. Filament's CSS is
      precompiled, so arbitrary values like grid-cols-[1fr,1fr,auto] are
      never generated and fail silently — use a style attribute instead.
+     px-5 and py-5 did not apply here either, so band padding and the
+     inset dividers are inline. Do not "tidy" them back into classes
+     without checking they render.
 
      Five sibling bands, not nested ones: header, message, one person, a list,
      the note. Nesting a band inside another gave it the wrong tint and a
      divider that stopped short of the panel edge. -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
 
-    <div class="px-5 py-4 border-b border-gray-200 dark:border-white/10">
+    <div style="padding:18px 22px;border-bottom:1px solid rgba(255,255,255,.08)">
         <div class="text-xs uppercase tracking-wide text-gray-500">Invite someone</div>
         <p class="mt-1 text-sm text-gray-500">
             Write the email once, then send it to one person or a list. Everyone gets their own link.
         </p>
     </div>
 
-    <div class="px-5 py-5">
+    <div style="padding:20px 22px">
         <label class="block">
             <span class="text-xs font-medium text-gray-500">Subject</span>
             <input wire:model="inviteSubject"
@@ -67,7 +70,7 @@
         </div>
     </div>
 
-    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10">
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:0 22px;padding:20px 0">
         <div class="text-xs font-medium text-gray-500">Send to one person</div>
         <div class="mt-2 grid gap-3 sm:grid-cols-3">
             <input wire:model="inviteName"  placeholder="Name"
@@ -80,7 +83,7 @@
         @error('inviteEmail') <p class="mt-2 text-sm text-danger-600">{{ $message }}</p> @enderror
     </div>
 
-    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10">
+    <div style="border-top:1px solid rgba(255,255,255,.08);margin:0 22px;padding:20px 0">
         <div class="text-xs font-medium text-gray-500">
             Or paste a list — one per line, <code>Name &lt;email&gt;</code>
         </div>
@@ -124,7 +127,7 @@
     @endif
     </div>
 
-    <div class="px-5 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+    <div style="padding:16px 22px;border-top:1px solid rgba(255,255,255,.08)" class="bg-gray-50 dark:bg-white/5">
         <p class="text-xs text-gray-500 leading-relaxed">
             Everyone invited gets their <b>own</b> record and their own link, so a pasted list is a batch
             of individual emails rather than one email to a group — you can see who opened, and withdraw
