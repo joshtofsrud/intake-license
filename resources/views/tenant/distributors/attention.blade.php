@@ -163,6 +163,11 @@
       <option value="map_vanished" @selected(($filters['reason'] ?? null)==='map_vanished')>MAP removed</option>
       <option value="msrp_vanished" @selected(($filters['reason'] ?? null)==='msrp_vanished')>MSRP removed</option>
     </select>
+    <select name="per" class="at-sel" title="Rows per page"> {{-- MARKER-ATTENTION-SCALE --}}
+      @foreach([50,100,250] as $pp)
+        <option value="{{ $pp }}" @selected(($perPage ?? 100) === $pp)>{{ $pp }} / page</option>
+      @endforeach
+    </select>
     <button class="at-btn primary" type="submit">Filter</button>
     @if(($filters['brand'] ?? null) || ($filters['category'] ?? null) || ($filters['reason'] ?? null))
       <a class="at-btn" href="{{ route('tenant.distributors.attention', $stock !== 'all' ? ['stock' => $stock] : []) }}">Clear</a>
@@ -181,6 +186,12 @@
     <a class="at-segbtn {{ $stock === 'all' ? 'active' : '' }}" href="{{ $segLink('all') }}">All ({{ $counts['total'] }})</a>
     <a class="at-segbtn {{ $stock === 'in' ? 'active' : '' }}" href="{{ $segLink('in') }}">In stock ({{ $counts['in'] ?? 0 }})</a>
     <a class="at-segbtn {{ $stock === 'out' ? 'active' : '' }}" href="{{ $segLink('out') }}">Out of stock ({{ $counts['out'] ?? 0 }})</a>
+  </div>
+
+  {{-- MARKER-TITLE-RATIO -- legend: name edits below the threshold never
+       reach this page; the stored baseline adopts them silently. --}}
+  <div class="at-dim" style="font-size:11.5px;margin:6px 2px 10px">
+    Name changes under {{ $titleThresholdPct ?? 15 }}% are treated as cosmetic feed edits and adopted silently &mdash; they never appear here and never touch your item names. Counts above cover all open flags; the table shows {{ $flags->count() }} of {{ $flags->total() }} matching the filter.
   </div>
 
   @if($flags->isEmpty())
@@ -243,7 +254,7 @@
                 @if($f->reason === 'title_changed')
                   <span class="old">{{ $d['old'] ?? $item->name }}</span> →<br>
                   {!! $wordDiff($d['old'] ?? $item->name, $d['new'] ?? $cat?->display_name) !!}
-                  <div class="when">your item still uses the name on the left</div>
+                  <div class="when">your item still uses the name on the left @if(isset($d['change_ratio']))&middot; {{ $d['change_ratio'] }}% changed @endif</div>
                 @elseif($f->reason === 'details_changed')
                   @foreach(($d['changed'] ?? []) as $fld => $chg)
                     <div><b style="text-transform:capitalize">{{ $fld }}</b>:
@@ -314,10 +325,11 @@
         <button class="at-btn" type="submit" onclick="setAct('match_msrp')">Match MSRP</button>
         <button class="at-btn" type="submit" onclick="setAct('acknowledge')">Dismiss</button>
         <label class="at-dim" style="font-size:12px;margin-left:auto;cursor:pointer">
-          <input type="checkbox" name="select_all" value="1"> apply to all {{ $flags->count() }} matching the filter
+          <input type="checkbox" name="select_all" value="1"> apply to all {{ $flags->total() }} matching the filter
         </label>
       </div>
     </form>
+    <div style="margin-top:14px">{{ $flags->links() }}</div> {{-- MARKER-ATTENTION-SCALE --}}
   @endif
 </div>
 {{-- MARKER-ATTENTION-ITEM-INFO — the same modal the register uses. --}}

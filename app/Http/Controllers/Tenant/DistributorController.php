@@ -580,31 +580,42 @@ class DistributorController extends Controller
             $q->where('reason', $fReason);
         }
 
-        $rank = ['title_changed' => 0, 'below_map' => 1, 'off_msrp' => 2, 'map_vanished' => 3, 'msrp_vanished' => 4, 'cost_vanished' => 5];
-        $flags = $q->orderByDesc('created_at')->get()
-            ->sortBy(fn ($f) => $rank[$f->reason] ?? 9)->values();
+        // MARKER-ATTENTION-SCALE -- reason priority in SQL so pagination keeps
+        // the queue order, then newest first within a reason.
+        $rankSql = "CASE reason WHEN 'title_changed' THEN 0 WHEN 'below_map' THEN 1 WHEN 'off_msrp' THEN 2"
+            . " WHEN 'map_vanished' THEN 3 WHEN 'msrp_vanished' THEN 4 WHEN 'cost_vanished' THEN 5 ELSE 9 END";
+        $perPage = (int) $request->query('per', 100);
+        if (! in_array($perPage, [50, 100, 250], true)) {
+            $perPage = 100;
+        }
+        $flags = $q->orderByRaw($rankSql)->orderByDesc('created_at')
+            ->paginate($perPage)->withQueryString();
 
-        // Chip counts reflect ALL open flags (not the current filter).
-        $allOpen = \App\Models\Tenant\TenantPricingAttentionFlag::query()
-            ->where('tenant_id', $tenant->id)->where('status', 'open')
-            ->with('item:id,computed_stock_count')->get();
-        $allBy = $allOpen->countBy('reason');
-        $inCount = $allOpen->filter(fn ($f) => (int) ($f->item->computed_stock_count ?? 0) > 0)->count();
+        // MARKER-ATTENTION-SCALE -- chip counts reflect ALL open flags (not the
+        // current filter), computed as SQL aggregates: this page previously
+        // hydrated every open flag three times over and OOM'd at scale.
+        $base = \App\Models\Tenant\TenantPricingAttentionFlag::query()
+            ->where('tenant_id', $tenant->id)->where('status', 'open');
+        $allBy = (clone $base)->selectRaw('reason, count(*) as c')->groupBy('reason')->pluck('c', 'reason');
+        $total = (int) $allBy->sum();
+        $inCount = (clone $base)
+            ->whereHas('item', fn ($i) => $i->where('computed_stock_count', '>', 0))->count();
         $counts = [
-            'total'     => $allOpen->count(),
+            'total'     => $total,
             'in'        => $inCount,
-            'out'       => $allOpen->count() - $inCount,
-            'title'     => $allBy['title_changed'] ?? 0,
-            'below_map' => $allBy['below_map'] ?? 0,
-            'off_msrp'  => $allBy['off_msrp'] ?? 0,
-            'vanished'  => ($allBy['cost_vanished'] ?? 0) + ($allBy['map_vanished'] ?? 0) + ($allBy['msrp_vanished'] ?? 0),
+            'out'       => $total - $inCount,
+            'title'     => (int) ($allBy['title_changed'] ?? 0),
+            'below_map' => (int) ($allBy['below_map'] ?? 0),
+            'off_msrp'  => (int) ($allBy['off_msrp'] ?? 0),
+            'vanished'  => (int) (($allBy['cost_vanished'] ?? 0) + ($allBy['map_vanished'] ?? 0) + ($allBy['msrp_vanished'] ?? 0)),
         ];
 
-        // Brand / category options from the catalog rows behind the open flags.
-        $catIds = \App\Models\Tenant\TenantPricingAttentionFlag::query()
-            ->where('tenant_id', $tenant->id)->where('status', 'open')
-            ->with('item:id,distributor_catalog_id')->get()
-            ->pluck('item.distributor_catalog_id')->filter()->unique()->values();
+        // Brand / category options from the catalog rows behind the open flags,
+        // without hydrating a single flag model.
+        $catIds = \App\Models\Tenant\TenantInventoryItem::query()
+            ->whereIn('id', (clone $base)->select('inventory_item_id'))
+            ->whereNotNull('distributor_catalog_id')
+            ->distinct()->pluck('distributor_catalog_id');
         $brandOptions = \App\Models\PlatformDistributorCatalog::query()
             ->whereIn('id', $catIds)->whereNotNull('manufacturer')
             ->distinct()->orderBy('manufacturer')->pluck('manufacturer');
@@ -618,8 +629,11 @@ class DistributorController extends Controller
         $lastSyncRun = \Illuminate\Support\Facades\DB::table('tenant_distributor_sync_runs')
             ->where('tenant_id', $tenant->id)->orderByDesc('started_at')->first();
 
+        // MARKER-TITLE-RATIO -- shown in the page legend.
+        $titleThresholdPct = (int) round(((float) config('distributors.title_change_min_ratio', 0.15)) * 100);
+
         return view('tenant.distributors.attention', compact(
-            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions', 'lastSyncRun'
+            'flags', 'counts', 'stock', 'filters', 'brandOptions', 'categoryOptions', 'lastSyncRun', 'perPage', 'titleThresholdPct'
         ));
     }
 
@@ -688,10 +702,12 @@ class DistributorController extends Controller
             $q->whereIn('id', $data['flag_ids'] ?? []);
         }
 
-        $flags = $q->get();
-        if ($flags->isEmpty()) {
+        // MARKER-ATTENTION-SCALE -- a select-all over thousands of flags must
+        // not hydrate everything at once; stream in id-ordered chunks.
+        if (! (clone $q)->exists()) {
             return back()->with('error', 'Nothing selected.');
         }
+        $flags = $q->lazyById(200);
 
         $applied = 0;
         $skipped = 0;

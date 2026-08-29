@@ -6,6 +6,11 @@
 
 return [
 
+    // MARKER-TITLE-RATIO -- minimum share of a catalog title that must change
+    // (0..1, on case/whitespace-normalized strings) before a title_changed
+    // attention flag opens. Smaller edits silently advance the seen baseline.
+    'title_change_min_ratio' => (float) env('INTAKE_TITLE_CHANGE_MIN_RATIO', 0.15),
+
     'hlc' => [
         'name'           => 'HLC',
         'base_url'       => env('HLC_API_BASE', 'https://api.hlc.bike'),

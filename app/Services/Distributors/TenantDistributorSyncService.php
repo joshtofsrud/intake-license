@@ -315,7 +315,13 @@ class TenantDistributorSyncService
         // matters regardless of stock. Never auto-applied: the tenant adopts or
         // keeps their own name from the attention surface.
         $titleNow = $cat->display_name;
-        if ($titleNow !== null && $titleNow !== '' && $titleNow !== $item->catalog_title_seen) {
+        $titleDiffers = $titleNow !== null && $titleNow !== '' && $titleNow !== $item->catalog_title_seen;
+        // MARKER-TITLE-RATIO -- only a meaningful rename flags. Feeds tweak
+        // casing/spacing/punctuation constantly; below the configured ratio
+        // the seen baseline advances silently instead of flooding attention.
+        $titleRatio = $titleDiffers ? self::titleChangeRatio($item->catalog_title_seen, $titleNow) : 0.0;
+        $titleThreshold = (float) config('distributors.title_change_min_ratio', 0.15);
+        if ($titleDiffers && $titleRatio >= $titleThreshold) {
             $this->openFlag(
                 $tenantId, $item, $cat,
                 TenantPricingAttentionFlag::REASON_TITLE_CHANGED, null, $dryRun, $res,
@@ -323,10 +329,18 @@ class TenantDistributorSyncService
                     'old'               => $item->catalog_title_seen,
                     'new'               => $titleNow,
                     'current_item_name' => $item->name,
+                    'change_ratio'      => round($titleRatio * 100),
                     'at'                => now()->toIso8601String(),
                 ]
             );
         } else {
+            if ($titleDiffers && ! $dryRun) {
+                // Trivial drift: adopt the baseline so the same cosmetic diff
+                // is not re-evaluated on every sync. The item's own name is
+                // never touched here.
+                $item->catalog_title_seen = $titleNow;
+                $item->save();
+            }
             $this->resolveFlag($tenantId, $item, TenantPricingAttentionFlag::REASON_TITLE_CHANGED, $dryRun, $res);
         }
 
@@ -398,6 +412,26 @@ class TenantDistributorSyncService
                 'resolved_by' => null,
             ]
         );
+    }
+
+    // MARKER-TITLE-RATIO -- 0.0 (identical) .. 1.0 (entirely different),
+    // measured on case/whitespace-normalized strings so cosmetic feed edits
+    // score near zero. A null or blank baseline counts as a full change,
+    // preserving the pre-ratio behavior for never-seen titles. Public static
+    // so the cleanup command applies the identical measure.
+    public static function titleChangeRatio(?string $old, ?string $new): float
+    {
+        $norm = fn (?string $s) => preg_replace('/\s+/', ' ', trim(mb_strtolower((string) $s)));
+        $a = $norm($old);
+        $b = $norm($new);
+        if ($a === '' || $b === '') {
+            return 1.0;
+        }
+        if ($a === $b) {
+            return 0.0;
+        }
+        similar_text($a, $b, $pct);
+        return max(0.0, min(1.0, 1 - $pct / 100));
     }
 
     private function resolveFlag(string $tenantId, TenantInventoryItem $item, string $reason, bool $dryRun, array &$res): void
