@@ -143,6 +143,67 @@ class RaiseSetup extends Page
         Notification::make()->title('Wire and compliance details saved')->success()->send();
     }
 
+    /**
+     * MARKER-RAISE-HTML — send one template to yourself.
+     *
+     * Rendered against a sample investor that is never saved, so no record is
+     * created and no event is logged against a real person. The wire details
+     * ARE the real ones, because those come from settings and checking them is
+     * most of the reason to send a test at all.
+     */
+    public function sendTest(string $key): void
+    {
+        $to = RaiseSetting::get('notify_email') ?: config('mail.from.address');
+
+        if (! $to) {
+            Notification::make()
+                ->title('Nowhere to send it')
+                ->body('Set an address in the landing section above, or a system from-address.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $sample = new Investor([
+            'name'   => 'Sample Investor',
+            'email'  => $to,
+            'entity' => null,
+            'amount' => 10000,
+        ]);
+        $sample->token = 'sample-link-not-a-real-token';
+
+        $message = \App\Services\InvestorMessenger::render($key, $sample);
+
+        if (! $message) {
+            Notification::make()->title('No such template')->danger()->send();
+
+            return;
+        }
+
+        $html = \App\Services\InvestorMessenger::html($message['subject'], $message['body']);
+
+        try {
+            \Illuminate\Support\Facades\Mail::send([], [], function ($mail) use ($to, $message, $html) {
+                $mail->to($to)
+                     ->subject('[test] ' . $message['subject'])
+                     ->text($message['body']);
+
+                if ($html) { $mail->html($html); }
+            });
+        } catch (\Throwable $e) {
+            Notification::make()->title('Test failed to send')->body($e->getMessage())->danger()->send();
+
+            return;
+        }
+
+        Notification::make()
+            ->title('Test sent to ' . $to)
+            ->body('Rendered against a sample investor — the link in it does not work, everything else is real.')
+            ->success()
+            ->send();
+    }
+
     public function editTemplate(string $key): void
     {
         $template = RaiseMessageTemplate::merged()[$key] ?? null;

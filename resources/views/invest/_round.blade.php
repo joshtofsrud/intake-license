@@ -28,7 +28,13 @@
       <div class="key">
         <span><i class="k1"></i> ${{ number_format($funded) }} signed and funded</span>
         <span><i class="k2"></i> ${{ number_format(max(0, $committed - $funded)) }} committed, not yet funded</span>
-        <span><i class="k3"></i> ${{ number_format(max(0, $target - $committed)) }} open</span>
+        {{-- MARKER-RAISE-HTML — past the target is a real state, not an error.
+             The round closes when it is closed, not when a number is reached. --}}
+        @if($committed > $target)
+          <span><i class="k2"></i> ${{ number_format($committed - $target) }} above target</span>
+        @else
+          <span><i class="k3"></i> ${{ number_format($target - $committed) }} open</span>
+        @endif
       </div>
     </div>
   @endif

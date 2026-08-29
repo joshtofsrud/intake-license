@@ -186,6 +186,10 @@
                     </td>
                     <td class="p-2 text-right">
                         <x-filament::button size="xs" color="gray" wire:click="editTemplate('{{ $key }}')">Edit</x-filament::button>
+                    {{-- MARKER-RAISE-HTML --}}
+                    <x-filament::button size="xs" color="gray"
+                        wire:click="sendTest('{{ $key }}')"
+                        wire:loading.attr="disabled">Send test</x-filament::button>
                     </td>
                 </tr>
             @endforeach

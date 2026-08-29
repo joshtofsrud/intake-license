@@ -86,6 +86,51 @@ class InvestorMessenger
         ];
     }
 
+    /**
+     * MARKER-RAISE-HTML — the body, split into paragraphs and links.
+     *
+     * A line that is nothing but a URL becomes a button; everything else
+     * stays a paragraph of exactly the text that was typed. Nothing is
+     * reworded, reordered or added.
+     */
+    public static function blocks(string $body): array
+    {
+        $out = [];
+
+        foreach (preg_split("/\n[ \t]*\n/", trim($body)) as $para) {
+            $para = trim($para);
+            if ($para === '') { continue; }
+
+            if (preg_match('~^https?://\S+$~', $para)) {
+                $out[] = [
+                    'type'  => 'link',
+                    'url'   => $para,
+                    'label' => str_contains($para, '/invest/i/') ? 'Open your page' : 'Open the link',
+                ];
+                continue;
+            }
+
+            $out[] = ['type' => 'text', 'text' => $para];
+        }
+
+        return $out;
+    }
+
+    /** MARKER-RAISE-HTML — the shell around a message, or null if it can't render. */
+    public static function html(string $subject, string $body): ?string
+    {
+        try {
+            return view('emails.invest', [
+                'subject' => $subject,
+                'blocks'  => static::blocks($body),
+            ])->render();
+        } catch (\Throwable $e) {
+            Log::error('MARKER-RAISE-HTML render failed', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
     /** MARKER-RAISE-COMPOSE — send exactly what the preview showed. */
     public static function sendRaw(Investor $investor, string $subject, string $body): bool
     {
@@ -97,9 +142,18 @@ class InvestorMessenger
 
         $message = static::renderRaw($subject, $body, $investor);
 
+        // MARKER-RAISE-HTML — multipart. The text part is what was typed; an
+        // HTML-only message is a deliverability signal, and some people read
+        // plain text on purpose.
+        $html = static::html($message['subject'], $message['body']);
+
         try {
-            Mail::raw($message['body'], function ($mail) use ($investor, $message) {
-                $mail->to($investor->email, $investor->name)->subject($message['subject']);
+            Mail::send([], [], function ($mail) use ($investor, $message, $html) {
+                $mail->to($investor->email, $investor->name)
+                     ->subject($message['subject'])
+                     ->text($message['body']);
+
+                if ($html) { $mail->html($html); }
             });
         } catch (\Throwable $e) {
             Log::error('MARKER-RAISE-COMPOSE send failed', ['investor' => $investor->id, 'error' => $e->getMessage()]);
@@ -127,9 +181,16 @@ class InvestorMessenger
             return false;
         }
 
+        // MARKER-RAISE-HTML — same shell and same multipart shape as sendRaw.
+        $html = static::html($message['subject'], $message['body']);
+
         try {
-            Mail::raw($message['body'], function ($mail) use ($investor, $message) {
-                $mail->to($investor->email, $investor->name)->subject($message['subject']);
+            Mail::send([], [], function ($mail) use ($investor, $message, $html) {
+                $mail->to($investor->email, $investor->name)
+                     ->subject($message['subject'])
+                     ->text($message['body']);
+
+                if ($html) { $mail->html($html); }
             });
         } catch (\Throwable $e) {
             Log::error('MARKER-RAISE-MESSAGES send failed', ['key' => $key, 'error' => $e->getMessage()]);
