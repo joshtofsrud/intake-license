@@ -48,3 +48,6 @@
   <p class="fine">All of this is set out properly in the proposal above, with the assumptions behind every
     number and a page on what has to go right. This is the short version.</p>
 </div></section>
+
+{{-- MARKER-INVEST-CAPABILITY — the evidence for the packs claim made above. --}}
+@include('invest._capability')

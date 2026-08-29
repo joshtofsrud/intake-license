@@ -110,6 +110,18 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
 .srow.sum b,.srow.sum .amt{color:var(--text);font-weight:700}
 .srow.tot{background:var(--panel2);border-top:1px solid var(--line2)}
 .srow.tot b,.srow.tot .amt{color:var(--lime);font-weight:700}
+/* MARKER-INVEST-CAPABILITY — nine small groups, three across. Deliberately
+   lighter than the proof cards above them: this is coverage, not argument. */
+.cap-core{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
+.cap-grp{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.cap-grp h3{color:var(--lime);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700}
+.cap-grp ul{list-style:none;margin-top:11px}
+.cap-grp li{font-size:13.5px;color:var(--body);padding:4px 0 4px 15px;position:relative;line-height:1.45}
+.cap-grp li::before{content:"";position:absolute;left:0;top:12px;width:5px;height:5px;border-radius:50%;
+  background:var(--line2)}
+@media(max-width:900px){.cap-core{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.cap-core{grid-template-columns:1fr}}
+
 .ctx-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:22px}
 .ctx-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
 .ctx-card .n{font-size:28px;font-weight:800;color:var(--lime);letter-spacing:-1.2px;line-height:1}

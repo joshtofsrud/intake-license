@@ -206,6 +206,9 @@ textarea:focus{border-color:var(--lime-line)}
   </ul>
 </div></section>
 
+{{-- MARKER-INVEST-CAPABILITY --}}
+@include('invest._capability')
+
 <section><div class="wrap">
   <div class="grid2">
 
