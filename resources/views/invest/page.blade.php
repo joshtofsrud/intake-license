@@ -50,9 +50,14 @@
     the same settings the documents are generated from.
   </div>
 
-  <p class="fine">Not an offer to sell or a solicitation of an offer to buy any security. Any offering is
-    made only by delivery of the offering documents to individually qualified persons, and only where
-    lawful. Terms are subject to change until executed. Access to this page may be withdrawn.</p>
+  {{-- MARKER-INVEST-MOBILE --}}
+  <details class="m">
+    <summary>Legal</summary>
+    <div class="inner"><p style="font-size:12.5px">Not an offer to sell or a solicitation of an offer to
+      buy any security. Any offering is made only by delivery of the offering documents to individually
+      qualified persons, and only where lawful. Terms are subject to change until executed. Access to this
+      page may be withdrawn.</p></div>
+  </details>
 </div></section>
 
 <footer><div class="wrap">intake · intake.works</div></footer>

@@ -136,9 +136,14 @@
     the truth and this is a mirror of it.
   </div>
 
-  <p class="fine">Not an offer to sell or a solicitation of an offer to buy any security. Any offering is
-    made only by delivery of the offering documents to individually qualified persons, and only where
-    lawful. Terms are subject to change until executed. This link is personal to you and may be withdrawn.</p>
+  {{-- MARKER-INVEST-MOBILE --}}
+  <details class="m">
+    <summary>Legal</summary>
+    <div class="inner"><p style="font-size:12.5px">Not an offer to sell or a solicitation of an offer to
+      buy any security. Any offering is made only by delivery of the offering documents to individually
+      qualified persons, and only where lawful. Terms are subject to change until executed. This link is
+      personal to you and may be withdrawn.</p></div>
+  </details>
 </div></section>
 
 <footer><div class="wrap">

@@ -90,4 +90,36 @@ input:focus,select:focus{border-color:var(--lime-line)}
 .cerr{color:var(--red);font-size:13px;display:block;margin-top:6px}
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 @media(max-width:640px){.docs .doc{min-width:100%}}
+
+/* MARKER-INVEST-MOBILE — one column, bigger targets, and inputs at 16px so
+   iOS doesn't zoom the whole page the moment someone taps a field. */
+@media(max-width:640px){
+  .wrap{padding:0 20px}
+  nav .wrap{height:56px}
+  section{padding:32px 0}
+  section.hero{padding:34px 0 28px}
+  h1{font-size:29px;letter-spacing:-1.2px;line-height:1.12}
+  h2{font-size:20px}
+  .lede{font-size:15px}
+  .prog{padding:18px}
+  .progtop .big{font-size:27px}
+  .key{gap:10px;font-size:11.5px}
+  .key span{flex:0 0 100%}
+  .steps{padding:2px 16px}
+  .step{gap:13px;padding:18px 0}
+  .stepn{flex:0 0 26px;height:26px;font-size:12px}
+  input,select,textarea{max-width:100%;font-size:16px;padding:12px 13px}
+  .btn{display:block;width:100%;text-align:center;padding:14px 18px;font-size:15.5px}
+  .wire span{display:block;width:auto;margin-bottom:-4px}
+  .who{font-size:11.5px}
+}
+/* Disclosure rows: collapsed detail is still on the page, just not costing
+   scroll before the reader has decided they care. */
+details.m{border-top:1px solid var(--line);padding:13px 0;margin-top:6px}
+details.m summary{list-style:none;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:8px}
+details.m summary::-webkit-details-marker{display:none}
+details.m summary::after{content:"+";margin-left:auto;color:var(--lime);font-size:17px;line-height:1}
+details.m[open] summary::after{content:"\2013"}
+details.m .inner{padding-top:10px}
 </style>

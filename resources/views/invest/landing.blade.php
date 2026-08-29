@@ -50,6 +50,51 @@ textarea:focus{border-color:var(--lime-line)}
 .invite{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
   color:var(--lime);border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:5px;padding:4px 9px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+
+/* MARKER-INVEST-MOBILE — the proof cards as a snap rail below 640. Stacked,
+   they are three screens of scroll for what is one glance. The rail only
+   works if it is obviously a rail, hence the peek, chevrons, dots and count. */
+.railwrap{position:relative}
+.fade,.chev,.railfoot{display:none}
+@media(max-width:640px){
+  .grid3{display:flex;gap:11px;overflow-x:auto;scroll-snap-type:x mandatory;
+    margin:18px -20px 0;padding:0 20px 6px}
+  .grid3::-webkit-scrollbar{height:0}
+  /* 78% of the frame, so the next card is always visibly cut off */
+  .grid3 .card{scroll-snap-align:start;flex:0 0 78%;padding:17px}
+  .grid3 .card .n{font-size:26px}
+  .grid3 .card p{font-size:13px}
+  .fade{display:block;position:absolute;top:0;bottom:6px;width:34px;pointer-events:none}
+  .fade.r{right:-20px;background:linear-gradient(270deg,var(--bg) 15%,transparent)}
+  .fade.l{left:-20px;background:linear-gradient(90deg,var(--bg) 15%,transparent);opacity:0}
+  .chev{display:flex;position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;
+    border-radius:50%;background:rgba(20,20,20,.92);border:1px solid var(--line2);color:var(--text);
+    align-items:center;justify-content:center;font-size:15px;line-height:1;cursor:pointer;z-index:2;
+    transition:opacity .15s}
+  .chev.r{right:-6px}
+  .chev.l{left:-6px;opacity:0;pointer-events:none}
+  .railfoot{display:flex;align-items:center;gap:9px;margin-top:11px}
+  .dots{display:flex;gap:6px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:var(--line2);display:block;transition:all .15s}
+  .dots i.on{background:var(--lime);width:18px;border-radius:3px}
+  .railhint{font-size:11px;color:var(--dim);letter-spacing:.4px;margin:0}
+  .grid2{margin-top:18px}
+  .srow{grid-template-columns:1fr auto}
+  .srow .note{grid-column:1;grid-row:2;margin-top:2px;font-size:12px}
+  .srow .amt{grid-row:1}
+  .srow b{grid-column:1;grid-row:1}
+  h1.big{font-size:31px;letter-spacing:-1.3px;line-height:1.12}
+  /* Room for the docked bar, or it covers the last line of the page. */
+  footer{padding-bottom:84px}
+  .dock{display:flex}
+}
+.dock{display:none;position:sticky;bottom:0;z-index:20;gap:9px;
+  padding:11px 20px calc(11px + env(safe-area-inset-bottom));
+  background:rgba(12,12,12,.94);backdrop-filter:blur(12px);border-top:1px solid var(--line)}
+.dock a{flex:1;text-align:center;text-decoration:none;font-size:14px;font-weight:700;padding:12px 10px;
+  border-radius:10px}
+.dock .a1{background:var(--lime);color:#0a0a0a}
+.dock .a2{border:1px solid var(--line2);color:var(--text)}
 </style>
 </head><body>
 
@@ -75,8 +120,12 @@ textarea:focus{border-color:var(--lime-line)}
     <div class="srow sum"><b>Every month</b><span class="note">Six subscriptions, no shared customer record</span><span class="amt">$2,274–2,474</span></div>
     <div class="srow tot"><b>Intake, same three locations</b><span class="note">Intake does all the services listed above</span><span class="amt">$775</span></div>
   </div>
-  <p class="fine">One shop's own invoices, not list pricing — used because they're verifiable, not because
-    they're typical. The saving isn't a discount on the same stack. It's a stack that isn't there.</p>
+  <details class="m">
+    <summary>Where these numbers come from</summary>
+    <div class="inner"><p style="font-size:13.5px">One shop's own invoices, not list pricing — used because
+      they're verifiable, not because they're typical. The saving isn't a discount on the same stack. It's
+      a stack that isn't there.</p></div>
+  </details>
 </div></section>
 
 <section><div class="wrap">
@@ -86,7 +135,8 @@ textarea:focus{border-color:var(--lime-line)}
     once. A platform that runs a bike shop runs a ski shop, a paddle shop or a fitness studio without
     being rebuilt.</p>
 
-  <div class="grid3">
+  <div class="railwrap">
+  <div class="grid3" id="rail">
     <div class="card"><div class="n">~97k</div><div class="k">Catalog rows, three distributors</div>
       <p>Cross-distributor product matching — months of work and supplier relationships a competitor starts
         from zero on. More distributors are being added, the architecture has no ceiling on how many it
@@ -97,6 +147,14 @@ textarea:focus{border-color:var(--lime-line)}
     <div class="card"><div class="n">Live</div><div class="k">In production</div>
       <p>Not a prototype. A founding shop is signed and converting its full point of sale, and the founder's
         own mobile service business runs on it daily.</p></div>
+  </div>
+    <span class="fade l" id="fadeL"></span><span class="fade r" id="fadeR"></span>
+    <button type="button" class="chev l" id="chevL" aria-label="Previous">&#8249;</button>
+    <button type="button" class="chev r" id="chevR" aria-label="Next">&#8250;</button>
+  </div>
+  <div class="railfoot">
+    <span class="dots" id="dots"><i class="on"></i><i></i><i></i></span>
+    <p class="railhint" id="railhint">1 of 3 &mdash; swipe or tap &#8250;</p>
   </div>
 
   <ul class="tick">
@@ -110,7 +168,7 @@ textarea:focus{border-color:var(--lime-line)}
 <section><div class="wrap">
   <div class="grid2">
 
-    <div class="card hi">
+    <div class="card hi" id="ask">
       <h2>Ask for the proposal</h2>
       @if($isOpen)
         <p>Intake is raising. The terms, the model and the risks are in a proposal I send by hand rather
@@ -149,7 +207,7 @@ textarea:focus{border-color:var(--lime-line)}
       @endif
     </div>
 
-    <div class="card">
+    <div class="card" id="code">
       <h2>Have a code?</h2>
       <p>Open the proposal. Codes are issued to one person and can be withdrawn.</p>
 
@@ -181,4 +239,53 @@ textarea:focus{border-color:var(--lime-line)}
 </div></section>
 
 <footer><div class="wrap">intake · intake.works</div></footer>
+
+{{-- MARKER-INVEST-MOBILE — the two things this page exists for, always one tap
+     away. Hidden above 640 where both cards are already on screen. --}}
+<div class="dock">
+  <a class="a1" href="#ask">Request access</a>
+  <a class="a2" href="#code">I have a code</a>
+</div>
+
+<script>
+(function () {
+  var rail = document.getElementById('rail');
+  if (!rail) { return; }
+
+  var cards = rail.querySelectorAll('.card');
+  var dots  = document.getElementById('dots');
+  var hint  = document.getElementById('railhint');
+  var chevL = document.getElementById('chevL'), chevR = document.getElementById('chevR');
+  var fadeL = document.getElementById('fadeL'), fadeR = document.getElementById('fadeR');
+  if (!cards.length || !dots || !hint || !chevL || !chevR) { return; }
+
+  function step() { return cards[0].offsetWidth + 11; }
+
+  function sync() {
+    var i = Math.round(rail.scrollLeft / step());
+    i = Math.max(0, Math.min(cards.length - 1, i));
+
+    for (var d = 0; d < dots.children.length; d++) {
+      dots.children[d].className = d === i ? 'on' : '';
+    }
+    hint.textContent = (i + 1) + ' of ' + cards.length +
+      (i < cards.length - 1 ? ' \u2014 swipe or tap \u203A' : '');
+
+    var atStart = rail.scrollLeft < 8;
+    var atEnd   = rail.scrollLeft > rail.scrollWidth - rail.clientWidth - 8;
+    chevL.style.opacity = atStart ? 0 : 1;
+    chevL.style.pointerEvents = atStart ? 'none' : 'auto';
+    chevR.style.opacity = atEnd ? 0 : 1;
+    chevR.style.pointerEvents = atEnd ? 'none' : 'auto';
+    fadeL.style.opacity = atStart ? 0 : 1;
+    fadeR.style.opacity = atEnd ? 0 : 1;
+  }
+
+  rail.addEventListener('scroll', sync, {passive: true});
+  chevR.addEventListener('click', function () { rail.scrollBy({left: step(), behavior: 'smooth'}); });
+  chevL.addEventListener('click', function () { rail.scrollBy({left: -step(), behavior: 'smooth'}); });
+  window.addEventListener('resize', sync);
+  sync();
+})();
+</script>
 </body></html>
