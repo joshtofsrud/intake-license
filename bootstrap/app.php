@@ -30,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'email/unsubscribe/*', // MARKER-CAMPAIGN-DELIVERY — Gmail/Yahoo one-click POST; HMAC sig is the auth
             'webhooks/stripe',
             'webhooks/stripe/*',
+            'webhooks/dropbox-sign',   // MARKER-SIGNING-SEND
             'webhooks/cloudflare', // MARKER-PATCH-118
             'webhooks/ses-bounce',  // MARKER-PATCH-146
             'webhooks/postmark',    // MARKER-PATCH-201

@@ -306,6 +306,39 @@ class Raise extends Page
         Notification::make()->title($name . ' removed')->success()->send();
     }
 
+    /**
+     * MARKER-SIGNING-SEND — send the SAFE, filled from this investor's record.
+     *
+     * Sending does NOT mark anything signed. Only the callback does that.
+     */
+    public function sendSafe(int $id): void
+    {
+        $investor = Investor::findOrFail($id);
+        $result   = \App\Services\SigningService::sendSafe($investor);
+
+        if (! $result['ok']) {
+            Notification::make()->title('Not sent')->body($result['message'])->danger()->send();
+
+            return;
+        }
+
+        $investor->forceFill([
+            'signature_request_id' => $result['request_id'],
+            'safe_sent_at'         => now(),
+        ])->save();
+
+        \App\Models\InvestorEvent::log($investor->id, 'safe_sent',
+            'SAFE sent for signature' . (\App\Services\SigningService::isTestMode() ? ' (test mode)' : ''));
+
+        Notification::make()
+            ->title('SAFE sent')
+            ->body($result['message'] . (\App\Services\SigningService::isTestMode()
+                ? ' Test mode — this signature is not binding.'
+                : ''))
+            ->success()
+            ->send();
+    }
+
     public function markSigned(int $id): void
     {
         $investor = Investor::findOrFail($id);

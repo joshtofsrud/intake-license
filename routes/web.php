@@ -253,6 +253,11 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
 
 // MARKER-PATCH-168 - Stripe Connect events (account.updated, etc.). Separate
 // from platform-billing webhooks; different signing secret.
+// MARKER-SIGNING-SEND — Dropbox Sign posts multipart form data, not JSON.
+Route::post('webhooks/dropbox-sign',
+    [\App\Http\Controllers\Webhooks\DropboxSignWebhookController::class, 'handle']
+)->name('webhooks.dropbox-sign');
+
 // MARKER-CONTRIBUTIONS — its own endpoint and its own signing secret.
 Route::post('webhooks/stripe/contributions',
     [\App\Http\Controllers\Webhooks\ContributionWebhookController::class, 'handle']

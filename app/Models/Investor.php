@@ -23,7 +23,7 @@ class Investor extends Model
     }
 
     protected $fillable = [
-        'name', 'email', 'entity', 'token', 'amount', 'amount_received',
+        'name', 'email', 'signature_request_id', 'safe_sent_at', 'entity', 'token', 'amount', 'amount_received',
         'invited_at', 'committed_at', 'signed_at', 'funded_at', 'declined_at',
         'funding_method', 'notes',
     ];
@@ -52,6 +52,7 @@ class Investor extends Model
     }
 
     protected $casts = [
+        'safe_sent_at' => 'datetime',   // MARKER-SIGNING-SEND
         'invited_at'     => 'datetime',
         'opened_at'      => 'datetime',
         'portal_seen_at' => 'datetime',

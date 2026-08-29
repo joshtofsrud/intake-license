@@ -221,7 +221,16 @@
                     @if ($investor->declined_at)
                         <x-filament::button size="xs" color="gray" wire:click="reopen({{ $investor->id }})">Reopen</x-filament::button>
                     @else
+                        {{-- MARKER-SIGNING-SEND — only once there is an amount to put in
+                             the document, and only until it is signed. --}}
                         @unless ($investor->signed_at)
+                            @if ($investor->committed_at && $investor->amount)
+                                <x-filament::button size="xs" color="gray"
+                                    wire:click="sendSafe({{ $investor->id }})"
+                                    wire:loading.attr="disabled">
+                                    {{ $investor->safe_sent_at ? 'Resend SAFE' : 'Send SAFE' }}
+                                </x-filament::button>
+                            @endif
                             <x-filament::button size="xs" color="gray" wire:click="markSigned({{ $investor->id }})">Signed</x-filament::button>
                         @endunless
                         @unless ($investor->funded_at)

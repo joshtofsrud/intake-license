@@ -55,6 +55,7 @@ class RaiseSetup extends Page
     // travel back to the browser and a blank save cannot wipe it.
     public string $signingKey      = '';
     public bool   $signingTestMode = true;
+    public string $signingTemplateId = '';   // MARKER-SIGNING-SEND
 
     // template editor
     public string $templateKey  = '';
@@ -90,6 +91,7 @@ class RaiseSetup extends Page
         $this->showProgress      = RaiseSetting::get('show_progress', '1') === '1';
         $this->contributionPresets = (string) RaiseSetting::get('contribution_presets', '');
         $this->signingTestMode = \App\Services\SigningService::isTestMode();
+        $this->signingTemplateId = (string) RaiseSetting::get('signing_template_id', '');
     }
 
     /** MARKER-INVEST-LANDING */
@@ -120,7 +122,8 @@ class RaiseSetup extends Page
     public function saveSigning(): void
     {
         $this->validate([
-            'signingKey' => ['nullable', 'string', 'max:200'],
+            'signingKey'        => ['nullable', 'string', 'max:200'],
+            'signingTemplateId' => ['nullable', 'string', 'max:120'],
         ]);
 
         $typed = trim($this->signingKey);
@@ -131,6 +134,7 @@ class RaiseSetup extends Page
         }
 
         RaiseSetting::put('signing_test_mode', $this->signingTestMode ? '1' : '0');
+        RaiseSetting::put('signing_template_id', trim($this->signingTemplateId) ?: null);
 
         Notification::make()
             ->title('Signing settings saved')

@@ -96,6 +96,14 @@
                    placeholder="{{ \App\Services\SigningService::hasKey() ? 'A key is saved — type to replace it' : 'Paste your API key' }}"
                    class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
         </label>
+        <label class="block">
+            <span class="text-xs text-gray-500">Template ID</span>
+            <input wire:model="signingTemplateId" placeholder="from the template's URL or detail panel"
+                   class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
+        </label>
+    </div>
+
+    <div class="grid gap-3 md:grid-cols-2 mt-3">
         <label class="flex items-end gap-2 pb-1">
             <input type="checkbox" wire:model="signingTestMode"
                    class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
