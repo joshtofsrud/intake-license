@@ -26,7 +26,10 @@
     </div>
 </div>
 
-<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI -->
+<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI · MARKER-RAISE-COMPOSE-FIX
+     Stock Tailwind utilities only in this file. Filament's CSS is
+     precompiled, so arbitrary values like grid-cols-[1fr,1fr,auto] are
+     never generated and fail silently — use a style attribute instead. -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
 
     <div class="px-5 py-4 border-b border-gray-200 dark:border-white/10">
@@ -47,8 +50,9 @@
 
         <label class="block">
             <span class="text-xs font-medium text-gray-500">Message</span>
-            <textarea wire:model="inviteBody" rows="9"
-                      class="mt-1.5 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 font-mono text-[13px] leading-relaxed"></textarea>
+            <textarea wire:model="inviteBody" rows="10"
+                      style="min-height:240px;font-size:13px;line-height:1.65"
+                      class="mt-1.5 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 font-mono"></textarea>
         </label>
         @error('inviteBody') <p class="text-sm text-danger-600">{{ $message }}</p> @enderror
 
@@ -61,9 +65,9 @@
     </div>
 
     <!-- who it goes to -->
-    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[.02]">
+    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
         <div class="text-xs font-medium text-gray-500 mb-2">Send to one person</div>
-        <div class="grid gap-3 sm:grid-cols-[1fr,1fr,auto]">
+        <div class="grid gap-3 sm:grid-cols-3">
             <input wire:model="inviteName"  placeholder="Name"
                    class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
             <input wire:model="inviteEmail" placeholder="Email"
@@ -311,7 +315,7 @@
      style="background:rgba(0,0,0,.65);backdrop-filter:blur(3px)"
      wire:key="invite-preview">
     <div class="w-full max-w-3xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl
-                border border-gray-200 dark:border-white/10 max-h-[90vh] flex flex-col overflow-hidden">
+                border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden" style="max-height:90vh">
 
         <div class="px-6 py-4 border-b border-gray-200 dark:border-white/10 flex items-start gap-4">
             <div>
@@ -343,10 +347,10 @@
             @endif
         </div>
 
-        <div class="px-6 py-5 overflow-y-auto bg-gray-50 dark:bg-white/[.02]">
+        <div class="px-6 py-5 overflow-y-auto bg-gray-50 dark:bg-white/5">
             <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 p-5">
-                <pre class="font-sans text-[14px] leading-[1.7] text-gray-800 dark:text-gray-200 max-w-[68ch]"
-                     style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0">{{ $previewBody }}</pre>
+                <pre class="font-sans text-gray-800 dark:text-gray-200"
+                     style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0;font-size:14px;line-height:1.7;max-width:68ch">{{ $previewBody }}</pre>
             </div>
         </div>
 
@@ -355,7 +359,7 @@
                 Send {{ $previewOthers ? $previewOthers + 1 : 1 }}
             </x-filament::button>
             <x-filament::button color="gray" wire:click="cancelPreview">Cancel</x-filament::button>
-            <span class="text-xs text-gray-500 basis-full sm:basis-auto sm:ml-auto sm:text-right sm:max-w-xs">
+            <span class="text-xs text-gray-500 sm:ml-auto sm:text-right" style="max-width:22rem">
                 The link is real and already reserved. Cancelling discards it and writes nothing.
             </span>
         </div>
