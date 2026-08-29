@@ -148,6 +148,14 @@
     the truth and this is a mirror of it.
   </div>
 
+  {{-- MARKER-INVEST-RETURNS-FOOT --}}
+  <details class="m">
+    <summary>How this returns — and how it might not</summary>
+    <div class="inner">
+      @include('invest._returns-detail')
+    </div>
+  </details>
+
   {{-- MARKER-INVEST-MOBILE --}}
   <details class="m">
     <summary>Legal</summary>
