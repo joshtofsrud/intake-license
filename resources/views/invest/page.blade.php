@@ -19,6 +19,9 @@
 
 @include('invest._round')
 
+{{-- MARKER-INVEST-CONTEXT --}}
+@include('invest._context')
+
 <section><div class="wrap">
   <p class="sub">Interested?</p>
   <h2>Tell me and I'll set up your own page.</h2>

@@ -97,6 +97,28 @@ input:focus,select:focus{border-color:var(--lime-line)}
   margin-top:16px;font-size:14px;color:var(--text)}
 .cerr{color:var(--red);font-size:13px;display:block;margin-top:6px}
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
+/* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
+   page and the personal page. */
+.stack{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) 110px;gap:18px;padding:13px 18px;
+  border-bottom:1px solid var(--line);font-size:14.5px;align-items:baseline}
+.srow:last-child{border-bottom:0}
+.srow b{color:var(--text);font-weight:550}
+.srow .note{color:var(--dim);font-size:13px}
+.srow .amt{text-align:right;font-variant-numeric:tabular-nums;color:var(--body);white-space:nowrap}
+.srow.sum{border-top:1px solid var(--line2)}
+.srow.sum b,.srow.sum .amt{color:var(--text);font-weight:700}
+.srow.tot{background:var(--panel2);border-top:1px solid var(--line2)}
+.srow.tot b,.srow.tot .amt{color:var(--lime);font-weight:700}
+.ctx-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:22px}
+.ctx-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+.ctx-card .n{font-size:28px;font-weight:800;color:var(--lime);letter-spacing:-1.2px;line-height:1}
+.ctx-card .k{font-size:10.5px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--dim);margin-top:8px}
+.ctx-card p{font-size:13.5px;margin-top:9px}
+@media(max-width:760px){.ctx-cards{grid-template-columns:1fr}}
+@media(max-width:700px){.srow{grid-template-columns:minmax(0,1fr) 100px}.srow .note{display:none}}
+
 @media(max-width:640px){.docs .doc{min-width:100%}}
 
 /* MARKER-INVEST-MOBILE — one column, bigger targets, and inputs at 16px so

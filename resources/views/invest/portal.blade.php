@@ -18,6 +18,9 @@
 
 @include('invest._round')
 
+{{-- MARKER-INVEST-CONTEXT — read first, decide second. --}}
+@include('invest._context')
+
 <section><div class="wrap">
   <p class="sub">Your position</p>
 

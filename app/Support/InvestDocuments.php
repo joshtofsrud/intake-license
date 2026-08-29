@@ -22,6 +22,8 @@ class InvestDocuments
     ];
 
     /** Absolute path for a slug, or null when there is nothing to serve. */
+    // MARKER-INVEST-CONTEXT — any slug the uploader created is servable, not
+    // just the three shipped ones.
     public static function path(string $slug): ?string
     {
         $uploaded = InvestDocument::where('slug', $slug)->where('is_active', true)->first();
@@ -39,24 +41,38 @@ class InvestDocuments
      * actually there — a dead link on this page reads as carelessness at the
      * exact moment carelessness is most expensive.
      */
+    /**
+     * MARKER-INVEST-CONTEXT — everything uploaded and active, in the order set
+     * in Raise setup.
+     *
+     * This used to look for three hardcoded slugs. The uploader derives a slug
+     * from whatever label is typed, so "Full Proposal" became full-proposal and
+     * matched nothing: the documents were there, active, and invisible. Never
+     * whitelist against a field someone else can name freely.
+     */
     public static function listed(): array
     {
         $out = [];
 
+        foreach (InvestDocument::where('is_active', true)->orderBy('sort')->orderBy('id')->get() as $doc) {
+            if (! self::path($doc->slug)) { continue; }   // active but the file is gone
+
+            $out[] = [
+                'slug'  => $doc->slug,
+                'label' => $doc->label ?: $doc->slug,
+                'meta'  => 'PDF',
+            ];
+        }
+
+        if ($out) { return $out; }
+
+        // Nothing uploaded yet — fall back to whatever shipped with the app.
         foreach ([
             ['proposal', 'Full proposal',    'PDF'],
             ['summary',  'One-page summary', '1 page · PDF'],
-            ['safe',     'SAFE, unsigned',   'Y Combinator post-money template'],
         ] as [$slug, $label, $meta]) {
             if (! self::path($slug)) { continue; }
-
-            $uploaded = InvestDocument::where('slug', $slug)->where('is_active', true)->first();
-
-            $out[] = [
-                'slug'  => $slug,
-                'label' => $uploaded->label ?? $label,
-                'meta'  => $meta,
-            ];
+            $out[] = ['slug' => $slug, 'label' => $label, 'meta' => $meta];
         }
 
         return $out;
