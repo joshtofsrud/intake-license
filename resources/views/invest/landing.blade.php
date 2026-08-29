@@ -86,7 +86,6 @@ textarea:focus{border-color:var(--lime-line)}
   h1.big{font-size:31px;letter-spacing:-1.3px;line-height:1.12}
   /* Room for the docked bar, or it covers the last line of the page. */
   footer{padding-bottom:84px}
-  .dock{display:flex}
 }
 .dock{display:none;position:sticky;bottom:0;z-index:20;gap:9px;
   padding:11px 20px calc(11px + env(safe-area-inset-bottom));
@@ -95,6 +94,13 @@ textarea:focus{border-color:var(--lime-line)}
   border-radius:10px}
 .dock .a1{background:var(--lime);color:#0a0a0a}
 .dock .a2{border:1px solid var(--line2);color:var(--text)}
+
+/* MARKER-INVEST-DOCK-FIX — last, on purpose. This has the same specificity as
+   the display:none above it, so it only wins by coming after. Moving it back
+   up among the other narrow-width rules would silently hide the dock again. */
+@media(max-width:640px){
+  .dock{display:flex}
+}
 </style>
 </head><body>
 
