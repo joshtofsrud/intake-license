@@ -44,40 +44,49 @@ textarea:focus{border-color:var(--lime-line)}
 .invite{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
   color:var(--lime);border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:5px;padding:4px 9px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-/* MARKER-CONTRIBUTIONS — deliberately quieter than the two cards above it.
-   This is an aside, not a third way to take part in the round. */
+/* MARKER-CONTRIBUTIONS · MARKER-CONTRIB-UNIFORM — an aside, not a third way to
+   take part in the round, so it stays quieter than the two cards above it.
+
+   EVERY control below is 46px tall with an 8px radius and the page's own
+   border token. Changing one of those three values means changing it for all
+   of them, or the rows stop lining up — which is exactly how this section
+   drifted before. */
 .support{border:1px dashed var(--line2);border-radius:12px;padding:24px;margin-top:34px}
 .support h3{font-size:17px;font-weight:700;letter-spacing:-.4px}
 .support p{font-size:14px;margin-top:9px;max-width:64ch}
-/* MARKER-CONTRIB-UI — presets and fields on the SAME three-column grid, so
-   every edge lines up. Custom amount has its own full-width line: squeezing
-   it in beside three buttons is what broke the alignment before. */
-/* MARKER-CONTRIB-ROW4 — presets and the custom field on one four-column row. */
-.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;align-items:stretch}
-.amt-btn{background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.35);border-radius:10px;
-  color:#f0f0f0;font-family:inherit;font-size:17px;font-weight:700;letter-spacing:-.3px;
-  padding:16px 10px;cursor:pointer;transition:transform .06s,box-shadow .12s,background .12s}
-.amt-btn:hover{background:rgba(255,255,255,.44);box-shadow:0 0 0 3px rgba(255,255,255,.10)}
-.amt-btn:active{transform:translateY(1px)}
-/* Selected keeps dark text: lime is light enough for it to be the readable
-   pairing, which the 35% fill above is not. */
-.amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a;
-  box-shadow:0 0 0 3px rgba(190,242,100,.22)}
-.amt-own{position:relative;display:block}
-.amt-own .cur{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--body);
-  font-size:16px;pointer-events:none;transition:opacity .12s}
-/* The $ hides while the placeholder is showing, so they never overlap. */
-.amt-own input:placeholder-shown + .cur{opacity:0}
-.amt-own input{padding-left:15px;height:100%;font-size:17px;font-weight:600;text-align:center}
-.amt-own input:not(:placeholder-shown){padding-left:28px;text-align:left}
-.support .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
-@media(max-width:760px){.amts{grid-template-columns:1fr 1fr}.support .fields{grid-template-columns:1fr}}
-.support input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:10px;
-  color:var(--text);font-family:inherit;font-size:15px;padding:14px 15px;outline:none}
+
+.support .amts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}
+.support .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+@media(max-width:760px){
+  .support .amts{grid-template-columns:1fr 1fr}
+  .support .fields{grid-template-columns:1fr}
+}
+
+/* the shared control: a preset chip and a text field are the same object */
+.support .amt-btn,
+.support input{height:46px;border-radius:8px;border:1px solid var(--line2);
+  font-family:inherit;font-size:15px;width:100%;outline:none;
+  transition:border-color .12s,background .12s,color .12s}
+
+.support .amt-btn{background:var(--panel);color:var(--text);font-weight:650;cursor:pointer;padding:0}
+.support .amt-btn:hover{border-color:var(--line2);background:var(--panel2)}
+.support .amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a}
+
+.support input{background:var(--bg);color:var(--text);padding:0 14px}
 .support input:focus{border-color:var(--lime-line)}
 .support input::placeholder{color:var(--dim)}
-.support .btn{margin-top:16px}
-.support .fine{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+
+/* the $ sits inside the amount field and hides while the placeholder shows,
+   so the two can never overlap */
+.amt-own{position:relative;display:block;height:46px}
+.amt-own .cur{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--body);
+  font-size:15px;pointer-events:none;transition:opacity .12s}
+.amt-own input:placeholder-shown + .cur{opacity:0}
+.amt-own input{text-align:center}
+.amt-own input:not(:placeholder-shown){padding-left:26px;text-align:left}
+
+.support .btn{height:46px;padding:0 24px;border-radius:8px;font-size:15px;margin-top:14px}
+.support .fine{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 
 /* MARKER-INVEST-MOBILE — the proof cards as a snap rail below 640. Stacked,
    they are three screens of scroll for what is one glance. The rail only
