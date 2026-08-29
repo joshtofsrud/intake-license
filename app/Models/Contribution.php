@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Contribution extends Model
 {
     protected $fillable = [
-        'name', 'email', 'amount_cents', 'currency', 'note',
+        'name', 'email', 'phone', 'amount_cents', 'currency', 'note',
         'status', 'stripe_session_id', 'stripe_payment_intent', 'paid_at', 'ip',
     ];
 

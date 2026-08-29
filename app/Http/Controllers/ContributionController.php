@@ -27,6 +27,7 @@ class ContributionController extends Controller
         $data = $request->validate([
             'name'   => ['required', 'string', 'max:120'],
             'email'  => ['required', 'email', 'max:190'],
+            'phone'  => ['nullable', 'string', 'max:40'],   // MARKER-CONTRIB-UI
             'amount' => ['required', 'numeric', 'min:5', 'max:10000'],
         ], [
             'amount.required' => 'Enter an amount, or pick one of the buttons.',
@@ -43,6 +44,7 @@ class ContributionController extends Controller
                 [
                     'name'         => $data['name'],
                     'email'        => $data['email'],
+                    'phone'        => $data['phone'] ?? null,
                     'amount_cents' => (int) round($data['amount'] * 100),
                     'ip'           => $request->ip(),
                 ],

@@ -54,6 +54,16 @@
             <textarea wire:model="landingFine" rows="3" placeholder="Leave blank to use the built-in wording"
                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
     </div>
+    <!-- MARKER-CONTRIB-UI -->
+    <label class="block mt-4"><span class="text-xs text-gray-500">Contribution buttons — three amounts, comma separated</span>
+        <input wire:model="contributionPresets" placeholder="25, 100, 250"
+               class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
+    <p class="mt-1 text-xs text-gray-500">
+        Shown on the "back it" section of /invest. Anything unusable falls back to 25/100/250 rather than
+        rendering an empty row — a typo here can't leave the public page with no buttons on it. People can
+        always type their own amount instead.
+    </p>
+
     <!-- MARKER-INVEST-LIVE -->
     <label class="mt-3 flex items-center gap-2">
         <input type="checkbox" wire:model="showProgress" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">

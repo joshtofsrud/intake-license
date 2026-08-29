@@ -41,6 +41,8 @@ class InvestController extends Controller
             // MARKER-INVEST-V2 — the public page states no terms, so it is handed
             // none. Only whether the round is open, which changes what it says.
             'isOpen'     => RaiseSetting::get('round_status', 'open') === 'open',
+            // MARKER-CONTRIB-UI — the contribute presets, set in Raise setup.
+            'presets'    => \App\Services\ContributionService::presets(),
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 

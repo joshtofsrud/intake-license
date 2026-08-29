@@ -19,6 +19,30 @@ class ContributionService
     public const MIN_CENTS = 500;        // $5
     public const MAX_CENTS = 1000000;    // $10,000 — above this, talk to a person
 
+    public const DEFAULT_PRESETS = [25, 100, 250];
+
+    /**
+     * MARKER-CONTRIB-UI — the three buttons, from Raise setup.
+     *
+     * Forgiving on purpose and always returns something: a typo in that field
+     * must not leave the public page with no buttons on it. Anything unusable
+     * falls back to the defaults rather than rendering an empty row.
+     */
+    public static function presets(): array
+    {
+        $raw = (string) \App\Models\RaiseSetting::get('contribution_presets', '');
+
+        $values = collect(preg_split('/[,\s]+/', $raw))
+            ->map(fn ($v) => (int) preg_replace('/[^0-9]/', '', (string) $v))
+            ->filter(fn ($v) => $v >= 1 && $v <= 10000)
+            ->unique()
+            ->take(3)
+            ->values()
+            ->all();
+
+        return $values ?: self::DEFAULT_PRESETS;
+    }
+
     public function isConfigured(): bool
     {
         return (bool) BillingSettings::current()->activeSecretKey();
@@ -46,6 +70,7 @@ class ContributionService
         $contribution = Contribution::create([
             'name'         => $data['name'] ?? null,
             'email'        => $data['email'] ?? null,
+            'phone'        => $data['phone'] ?? null,
             'amount_cents' => $data['amount_cents'],
             'note'         => $data['note'] ?? null,
             'status'       => 'pending',

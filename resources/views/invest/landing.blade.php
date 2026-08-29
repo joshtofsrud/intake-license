@@ -49,21 +49,29 @@ textarea:focus{border-color:var(--lime-line)}
 .support{border:1px dashed var(--line2);border-radius:12px;padding:24px;margin-top:34px}
 .support h3{font-size:17px;font-weight:700;letter-spacing:-.4px}
 .support p{font-size:14px;margin-top:9px;max-width:64ch}
-/* MARKER-CONTRIB-AMOUNT — both rows share one grid so the right edges line up. */
-.support .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;align-items:center}
-@media(max-width:600px){.support .row{grid-template-columns:1fr}}
-.amts{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
-.amt-btn{flex:1;background:none;border:1px solid var(--line2);border-radius:8px;color:var(--text);
-  font-family:inherit;font-size:14px;font-weight:600;padding:11px 10px;cursor:pointer;white-space:nowrap}
-.amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a}
-/* The $ lives inside the field so the number is typed without it. */
-.amt-own{position:relative;display:block}
-.amt-own .cur{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--dim);
-  font-size:15px;pointer-events:none}
-.amt-own input{padding-left:26px}
-.support input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:8px;
-  color:var(--text);font-family:inherit;font-size:15px;padding:10px 13px;outline:none}
+/* MARKER-CONTRIB-UI — presets and fields on the SAME three-column grid, so
+   every edge lines up. Custom amount has its own full-width line: squeezing
+   it in beside three buttons is what broke the alignment before. */
+.amts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.amt-btn{background:#f0f0f0;border:1px solid #f0f0f0;border-radius:10px;color:#0a0a0a;
+  font-family:inherit;font-size:19px;font-weight:700;letter-spacing:-.4px;padding:18px 10px;
+  cursor:pointer;transition:transform .06s,box-shadow .12s}
+.amt-btn:hover{box-shadow:0 0 0 3px rgba(240,240,240,.14)}
+.amt-btn:active{transform:translateY(1px)}
+.amt-btn.on{background:var(--lime);border-color:var(--lime);box-shadow:0 0 0 3px rgba(190,242,100,.22)}
+.amt-own{position:relative;display:block;margin-top:12px}
+.amt-own .cur{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--body);
+  font-size:16px;pointer-events:none;transition:opacity .12s}
+/* The $ hides while the placeholder is showing, so they never overlap. */
+.amt-own input:placeholder-shown + .cur{opacity:0}
+.amt-own input{padding-left:15px}
+.amt-own input:not(:placeholder-shown){padding-left:28px}
+.support .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+@media(max-width:760px){.amts{grid-template-columns:1fr}.support .fields{grid-template-columns:1fr}}
+.support input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:10px;
+  color:var(--text);font-family:inherit;font-size:15px;padding:14px 15px;outline:none}
 .support input:focus{border-color:var(--lime-line)}
+.support input::placeholder{color:var(--dim)}
 .support .btn{margin-top:16px}
 .support .fine{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 
@@ -267,27 +275,31 @@ textarea:focus{border-color:var(--lime-line)}
       @csrf
       <div class="hp"><input type="text" name="company_website" tabindex="-1" autocomplete="off"></div>
 
-      <div class="row">
-        <div class="amts">
-          <button type="button" class="amt-btn" data-amt="25">$25</button>
-          <button type="button" class="amt-btn" data-amt="100">$100</button>
-          <button type="button" class="amt-btn" data-amt="250">$250</button>
-        </div>
-        <label class="amt-own">
-          <span class="cur">$</span>
-          <input type="text" name="amount" id="c-amt" value="{{ old('amount') }}"
-                 inputmode="decimal" placeholder="Custom amount" required
-                 autocomplete="off" aria-label="Amount in dollars">
-        </label>
+      {{-- MARKER-CONTRIB-UI — amounts come from Raise setup. --}}
+      <div class="amts">
+        @foreach($presets as $preset)
+          <button type="button" class="amt-btn" data-amt="{{ $preset }}">${{ number_format($preset) }}</button>
+        @endforeach
       </div>
+
+      {{-- The input comes BEFORE the $ so the adjacent-sibling rule can hide
+           the symbol while the placeholder is showing. --}}
+      <label class="amt-own">
+        <input type="text" name="amount" id="c-amt" value="{{ old('amount') }}"
+               inputmode="decimal" placeholder="Or enter another amount" required
+               autocomplete="off" aria-label="Amount in dollars">
+        <span class="cur">$</span>
+      </label>
       @error('amount') <span class="cerr">{{ $message }}</span> @enderror
 
-      <div class="row">
+      <div class="fields">
         <input type="text" name="name" value="{{ old('name') }}" placeholder="Your name" required maxlength="120">
         <input type="email" name="email" value="{{ old('email') }}" placeholder="Email for the receipt" required maxlength="190">
+        <input type="tel" name="phone" value="{{ old('phone') }}" placeholder="Phone (optional)" maxlength="40">
       </div>
       @error('name')  <span class="cerr">{{ $message }}</span> @enderror
       @error('email') <span class="cerr">{{ $message }}</span> @enderror
+      @error('phone') <span class="cerr">{{ $message }}</span> @enderror
 
       <button class="btn" type="submit">Contribute</button>
     </form>
