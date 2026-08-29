@@ -78,15 +78,10 @@ textarea:focus{border-color:var(--lime-line)}
 
 /* the $ sits inside the amount field and hides while the placeholder shows,
    so the two can never overlap */
-/* MARKER-CONTRIB-BASELINE — flex, not block: an inline-block input inside a
-   block label sits on a text baseline and gets pushed down by line-height,
-   which is what made this cell sit lower than the buttons beside it. */
-.amt-own{position:relative;display:flex;align-items:stretch;height:46px}
-.amt-own .cur{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--body);
-  font-size:15px;pointer-events:none;transition:opacity .12s}
-.amt-own input:placeholder-shown + .cur{opacity:0}
-.amt-own input{display:block;text-align:center}
-.amt-own input:not(:placeholder-shown){padding-left:26px;text-align:left}
+/* MARKER-CONTRIB-NOWRAP — the amount field is a grid child like the buttons,
+   with no wrapper of its own. The $ lives in the value, not in an overlay,
+   so there is no positioned parent left to knock it out of line. */
+.support #c-amt{text-align:center;font-weight:650}
 
 .support .btn{height:46px;padding:0 24px;border-radius:8px;font-size:15px;margin-top:14px}
 .support .fine{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
@@ -297,15 +292,10 @@ textarea:focus{border-color:var(--lime-line)}
           <button type="button" class="amt-btn" data-amt="{{ $preset }}">${{ number_format($preset) }}</button>
         @endforeach
 
-        {{-- MARKER-CONTRIB-ROW4 — fourth cell in the same row. The input comes
-             BEFORE the $ so the adjacent-sibling rule can hide the symbol
-             while the placeholder is showing; swapping them breaks it. --}}
-        <label class="amt-own">
+        {{-- MARKER-CONTRIB-NOWRAP — fourth cell, same box as the buttons. --}}
         <input type="text" name="amount" id="c-amt" value="{{ old('amount') }}"
                inputmode="decimal" placeholder="Other" required
                autocomplete="off" aria-label="Amount in dollars">
-          <span class="cur">$</span>
-        </label>
       </div>
       @error('amount') <span class="cerr">{{ $message }}</span> @enderror
 
@@ -348,14 +338,34 @@ textarea:focus{border-color:var(--lime-line)}
     }
   }
 
+  // MARKER-CONTRIB-NOWRAP — the $ is written into the value rather than
+  // floated over the field, so the input needs no wrapper to position it.
+  // The server strips $ and commas before validating.
+  function withSymbol(v) {
+    var digits = String(v).replace(/[^0-9.]/g, '');
+    return digits ? '$' + digits : '';
+  }
+
   for (var i = 0; i < btns.length; i++) {
     btns[i].addEventListener('click', function () {
-      field.value = this.dataset.amt;
+      field.value = withSymbol(this.dataset.amt);
       mark(this.dataset.amt);
     });
   }
 
-  field.addEventListener('input', function () { mark(field.value); });
+  field.addEventListener('input', function () {
+    var caretAtEnd = field.selectionStart === field.value.length;
+    var next = withSymbol(field.value);
+
+    if (next !== field.value) {
+      field.value = next;
+      // Typing normally means the caret was at the end; putting it back there
+      // stops the reformat from throwing the cursor to the start.
+      if (caretAtEnd) { field.setSelectionRange(next.length, next.length); }
+    }
+
+    mark(field.value);
+  });
 })();
 </script>
 
