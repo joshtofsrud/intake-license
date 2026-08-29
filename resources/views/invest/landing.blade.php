@@ -44,6 +44,23 @@ textarea:focus{border-color:var(--lime-line)}
 .invite{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
   color:var(--lime);border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:5px;padding:4px 9px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+/* MARKER-CONTRIBUTIONS — deliberately quieter than the two cards above it.
+   This is an aside, not a third way to take part in the round. */
+.support{border:1px dashed var(--line2);border-radius:12px;padding:24px;margin-top:34px}
+.support h3{font-size:17px;font-weight:700;letter-spacing:-.4px}
+.support p{font-size:14px;margin-top:9px;max-width:64ch}
+.amts{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.amt-btn{background:none;border:1px solid var(--line2);border-radius:8px;color:var(--text);
+  font-family:inherit;font-size:14px;font-weight:600;padding:9px 16px;cursor:pointer}
+.amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a}
+.amt-own{flex:1;min-width:140px}
+.support .who-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+@media(max-width:600px){.support .who-row{grid-template-columns:1fr}}
+.support input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:8px;
+  color:var(--text);font-family:inherit;font-size:15px;padding:10px 13px;outline:none}
+.support input:focus{border-color:var(--lime-line)}
+.support .btn{margin-top:16px}
+.support .fine{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 
 /* MARKER-INVEST-MOBILE — the proof cards as a snap rail below 640. Stacked,
    they are three screens of scroll for what is one glance. The rail only
@@ -235,8 +252,71 @@ textarea:focus{border-color:var(--lime-line)}
 
   </div>
 
+  {{-- MARKER-CONTRIBUTIONS — after the two cards, never beside them. --}}
+  <div class="support" id="support">
+    <h3>Can't invest, but want to back it?</h3>
+    <p>Some people want to put something behind the project without buying into the round. You can, and
+      it's a separate thing entirely — a contribution to the work, not a purchase.</p>
+
+    <form method="POST" action="{{ route('invest.contribute') }}">
+      @csrf
+      <div class="hp"><input type="text" name="company_website" tabindex="-1" autocomplete="off"></div>
+
+      <div class="amts">
+        <button type="button" class="amt-btn" data-amt="25">$25</button>
+        <button type="button" class="amt-btn on" data-amt="100">$100</button>
+        <button type="button" class="amt-btn" data-amt="250">$250</button>
+        <span class="amt-own">
+          <input type="number" name="amount" id="c-amt" value="{{ old('amount', 100) }}"
+                 min="5" max="10000" step="1" required>
+        </span>
+      </div>
+      @error('amount') <span class="cerr">{{ $message }}</span> @enderror
+
+      <div class="who-row">
+        <input type="text" name="name" value="{{ old('name') }}" placeholder="Your name" required maxlength="120">
+        <input type="email" name="email" value="{{ old('email') }}" placeholder="Email for the receipt" required maxlength="190">
+      </div>
+      @error('name')  <span class="cerr">{{ $message }}</span> @enderror
+      @error('email') <span class="cerr">{{ $message }}</span> @enderror
+
+      <button class="btn" type="submit">Contribute</button>
+    </form>
+
+    <p class="fine"><b>This buys nothing, and that's the point.</b> No equity, no SAFE, no share of
+      anything later, and no expectation of a return — it does not convert into the round and never
+      becomes one. Intake Inc is a for-profit company, so this isn't a charitable donation and isn't tax
+      deductible. If you'd rather invest, the round is above and the two are not connected. Card details
+      are handled by Stripe and never touch this site.</p>
+  </div>
+
   <p class="fine">{{ $fine }}</p>
 </div></section>
+
+<script>
+// MARKER-CONTRIBUTIONS — the preset buttons only fill the amount field; the
+// field is what submits, so a typed amount always wins.
+(function () {
+  var field = document.getElementById('c-amt');
+  var btns  = document.querySelectorAll('.amt-btn');
+  if (!field || !btns.length) { return; }
+
+  function mark(val) {
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('on', btns[i].dataset.amt === String(val));
+    }
+  }
+
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener('click', function () {
+      field.value = this.dataset.amt;
+      mark(this.dataset.amt);
+    });
+  }
+
+  field.addEventListener('input', function () { mark(field.value); });
+})();
+</script>
 
 <footer><div class="wrap">intake · intake.works</div></footer>
 

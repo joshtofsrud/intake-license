@@ -61,6 +61,12 @@ Route::domain($domain)->group(function () {
         ->middleware('throttle:6,1')->name('invest.request');
     Route::post('/invest/enter',   [\App\Http\Controllers\InvestController::class, 'enter'])
         ->middleware('throttle:10,1')->name('invest.enter');
+
+    // MARKER-CONTRIBUTIONS — backing the project, which is not investing in it.
+    Route::post('/invest/contribute', [\App\Http\Controllers\ContributionController::class, 'start'])
+        ->middleware('throttle:6,1')->name('invest.contribute');
+    Route::get('/invest/contributed', [\App\Http\Controllers\ContributionController::class, 'thanks'])
+        ->name('invest.contribute.thanks');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
 
     // --- Industry landing pages: /for/bike-shops, /for/massage-therapy, etc. ---
@@ -247,6 +253,11 @@ Route::post('webhooks/cloudflare', [\App\Http\Controllers\Webhooks\CloudflareWeb
 
 // MARKER-PATCH-168 - Stripe Connect events (account.updated, etc.). Separate
 // from platform-billing webhooks; different signing secret.
+// MARKER-CONTRIBUTIONS — its own endpoint and its own signing secret.
+Route::post('webhooks/stripe/contributions',
+    [\App\Http\Controllers\Webhooks\ContributionWebhookController::class, 'handle']
+)->name('webhooks.stripe.contributions');
+
 Route::post('webhooks/stripe-connect',
     [\App\Http\Controllers\Webhooks\StripeConnectWebhookController::class, 'handle']
 )->name('webhooks.stripe-connect');

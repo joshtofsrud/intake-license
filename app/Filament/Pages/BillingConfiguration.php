@@ -40,9 +40,11 @@ class BillingConfiguration extends Page implements HasForms
             'stripe_test_publishable_key' => $settings->stripe_test_publishable_key,
             'stripe_test_secret_key' => $settings->stripe_test_secret_key,
             'stripe_test_webhook_secret' => $settings->stripe_test_webhook_secret,
+            'stripe_test_contrib_webhook_secret' => $settings->stripe_test_contrib_webhook_secret,   // MARKER-CONTRIBUTIONS
             'stripe_live_publishable_key' => $settings->stripe_live_publishable_key,
             'stripe_live_secret_key' => $settings->stripe_live_secret_key,
             'stripe_live_webhook_secret' => $settings->stripe_live_webhook_secret,
+            'stripe_live_contrib_webhook_secret' => $settings->stripe_live_contrib_webhook_secret,
             'stripe_price_starter_monthly' => $settings->stripe_price_starter_monthly,
             'stripe_price_starter_annual' => $settings->stripe_price_starter_annual,
             'stripe_price_branded_monthly' => $settings->stripe_price_branded_monthly,
@@ -88,6 +90,11 @@ class BillingConfiguration extends Page implements HasForms
                             ->password()
                             ->revealable()
                             ->autocomplete('off'),
+                        TextInput::make('stripe_test_contrib_webhook_secret')
+                            ->label('Contributions webhook signing secret')
+                            ->helperText('From the /webhooks/stripe/contributions endpoint — a different secret to the one above.')
+                            ->password()
+                            ->revealable(),
                         TextInput::make('stripe_test_webhook_secret')
                             ->label('Webhook signing secret')
                             ->placeholder('whsec_...')

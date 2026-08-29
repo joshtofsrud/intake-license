@@ -22,10 +22,12 @@ class BillingSettings extends Model
         'stripe_test_secret_key',
         'stripe_test_webhook_secret',
         'stripe_test_connect_webhook_secret',
+        'stripe_test_contrib_webhook_secret',   // MARKER-CONTRIBUTIONS
         'stripe_live_publishable_key',
         'stripe_live_secret_key',
         'stripe_live_webhook_secret',
         'stripe_live_connect_webhook_secret',
+        'stripe_live_contrib_webhook_secret',   // MARKER-CONTRIBUTIONS
         'stripe_mode',
         'stripe_price_starter_monthly',
         'stripe_price_starter_annual',
@@ -44,10 +46,12 @@ class BillingSettings extends Model
         'stripe_test_secret_key' => 'encrypted',
         'stripe_test_webhook_secret' => 'encrypted',
         'stripe_test_connect_webhook_secret' => 'encrypted',
+        'stripe_test_contrib_webhook_secret' => 'encrypted',
         'stripe_live_publishable_key' => 'encrypted',
         'stripe_live_secret_key' => 'encrypted',
         'stripe_live_webhook_secret' => 'encrypted',
         'stripe_live_connect_webhook_secret' => 'encrypted',
+        'stripe_live_contrib_webhook_secret' => 'encrypted',
         'last_verified_at' => 'datetime',
     ];
 
@@ -96,6 +100,14 @@ class BillingSettings extends Model
     /**
      * Get the active webhook secret based on current mode.
      */
+    /** MARKER-CONTRIBUTIONS — contributions have their own Stripe endpoint. */
+    public function activeContribWebhookSecret(): ?string
+    {
+        return $this->isLive()
+            ? $this->stripe_live_contrib_webhook_secret
+            : $this->stripe_test_contrib_webhook_secret;
+    }
+
     public function activeWebhookSecret(): ?string
     {
         return $this->isLive()
