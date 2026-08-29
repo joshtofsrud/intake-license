@@ -46,12 +46,20 @@ class CatalogTitleComposer
         [$resolve, $size, $color] = $this->makeResolver($distributorCode, $parts);
 
         return [
-            'title'    => $this->render($setting->title_template ?: self::FALLBACK_TITLE, $resolve),
-            'subtitle' => $this->render($setting->subtitle_template ?: self::FALLBACK_SUBTITLE, $resolve),
+            'title'    => self::collapseRepeats($this->render($setting->title_template ?: self::FALLBACK_TITLE, $resolve)),
+            'subtitle' => self::collapseRepeats($this->render($setting->subtitle_template ?: self::FALLBACK_SUBTITLE, $resolve)),
             'search'   => $this->render((string) ($setting->search_template ?? ''), $resolve),
             'size'     => $size,
             'color'    => $color,
         ];
+    }
+
+    // MARKER-TITLE-DEDUP -- collapse immediately repeated words ("Silver
+    // Silver EA" -> "Silver EA") after rendering. Case-insensitive, adjacent
+    // repeats only, so legitimate non-adjacent recurrences are untouched.
+    private static function collapseRepeats(string $s): string
+    {
+        return (string) preg_replace('/(\S+)(?:\s+\1)+(?=\s|$)/iu', '$1', $s);
     }
 
     /**
@@ -92,6 +100,17 @@ class CatalogTitleComposer
         $mpn   = trim((string) ($parts['mpn'] ?? ''));
         if ($mpn !== '' && str_ends_with($model, $mpn)) {
             $model = rtrim(substr($model, 0, -strlen($mpn)), " -,");
+        }
+
+        // MARKER-TITLE-DEDUP -- some feeds ship model strings that already
+        // begin with the brand, so a "{brand} {model}" template renders
+        // "RockShox RockShox ...". Strip the duplicate prefix here rather than
+        // per template, so every distributor benefits.
+        if ($brand !== '' && $model !== '' && stripos($model, $brand) === 0) {
+            $stripped = ltrim(substr($model, strlen($brand)), " -,");
+            if ($stripped !== '') {
+                $model = $stripped;
+            }
         }
 
         $type  = trim((string) ($parts['category'] ?? ''));

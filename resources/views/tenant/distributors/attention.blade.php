@@ -10,6 +10,7 @@
 .at-chip{background:var(--ia-surface-2);border:.5px solid var(--ia-border);border-radius:var(--ia-r-md);padding:11px 16px;min-width:120px}
 .at-chip .v{font-size:22px;font-weight:700;font-family:var(--ia-mono)}
 .at-chip .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;margin-top:2px}
+.at-tbl input[type=checkbox],.at-bar input[type=checkbox]{accent-color:var(--ia-accent);width:15px;height:15px;cursor:pointer;vertical-align:middle}
 .at-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .at-tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ia-text-dim);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--ia-border)}
 .at-tbl td{padding:11px 10px;border-bottom:.5px solid var(--ia-border);vertical-align:middle}

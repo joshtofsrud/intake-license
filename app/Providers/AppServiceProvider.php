@@ -37,6 +37,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // MARKER-PATCH-116 — enforce one primary domain per tenant
+        // MARKER-PAGER-DEFAULT -- every bare ->links() renders the themed
+        // paginator (PATCH-364) instead of Laravel's unstyled tailwind default.
+        \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.intake');
+
         TenantDomain::observe(TenantDomainObserver::class);
 
         TenantInventoryReceiveShipmentItem::observe(TenantInventoryReceiveShipmentItemObserver::class);
