@@ -23,25 +23,23 @@ class InvestController extends Controller
      */
     public function landing()
     {
-        $target = (int) RaiseSetting::get('target', (string) Investor::TARGET);
-        $cap    = (int) RaiseSetting::get('cap', (string) Investor::CAP);
-
         return response()->view('invest.landing', [
+            // MARKER-INVEST-V2 — landing_headline_v2: the default changed with the
+            // page, and reusing the old key would have silently kept the old line
+            // for anyone who never edited it.
             'headline'   => RaiseSetting::get('landing_headline',
-                'For businesses that take appointments, sell retail and teach classes.'),
+                'Shops run four systems<br>that don\'t <span class="l">talk to each other</span>.'),
             'lede'       => RaiseSetting::get('landing_lede',
-                'Point of sale, service work orders, scheduling, inventory and customer retention in '
-                . 'one platform, built for independent bike shops first. It is live in production '
-                . 'today, with a founding shop converting its full point of sale.'),
-            'stageLabel' => RaiseSetting::get('landing_stage_label', 'Pre-revenue'),
-            'stageSub'   => RaiseSetting::get('landing_stage_sub', 'Product live in production'),
+                'A bike shop books a repair in one tool, rings the sale in another, tracks the part on a '
+                . "supplier's website, and emails the customer from a third. None of them share a customer "
+                . 'record, and staff reconcile the gaps by hand every evening. Intake is all of it as one '
+                . 'record — and it is running real work today.'),
             'fine'       => RaiseSetting::get('landing_fine',
                 'This page is not an offer to sell or a solicitation of an offer to buy any security. '
                 . 'Any offering is made only to individually qualified persons, by delivery of the '
                 . 'offering documents, and only where lawful. Information provided on request.'),
-            'instrument' => RaiseSetting::get('instrument', 'Post-money SAFE'),
-            'target'     => $target,
-            'cap'        => $cap,
+            // MARKER-INVEST-V2 — the public page states no terms, so it is handed
+            // none. Only whether the round is open, which changes what it says.
             'isOpen'     => RaiseSetting::get('round_status', 'open') === 'open',
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
@@ -133,6 +131,11 @@ class InvestController extends Controller
             'funded'     => (int) $investors->sum('amount_received'),
             'committed'  => (int) $investors->whereNotNull('committed_at')->sum('amount'),
             'showBar'    => RaiseSetting::get('show_progress', '1') === '1',
+            // MARKER-INVEST-V2 — the round block is shared, so it is handed the
+            // documents and a way to build their URLs rather than knowing which
+            // surface it is rendering on.
+            'docs'       => \App\Support\InvestDocuments::listed(),
+            'docUrl'     => fn (string $slug) => route('invest.doc', ['token' => $record->token, 'doc' => $slug]),
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
@@ -141,20 +144,9 @@ class InvestController extends Controller
     {
         $this->resolve($token);
 
-        $files = [
-            'proposal'       => 'invest/Intake-Investment-Opportunity.pdf',
-            'proposal-light' => 'invest/Intake-Investment-Opportunity-Light.pdf',
-            'summary'        => 'invest/Intake-One-Page-Summary.pdf',
-            'summary-light'  => 'invest/Intake-One-Page-Summary-Light.pdf',
-        ];
-
-        // MARKER-RAISE-SETUP — uploaded documents win over the shipped filenames.
-        $uploaded = \App\Models\InvestDocument::where('slug', $doc)->where('is_active', true)->first();
-
-        abort_unless($uploaded || isset($files[$doc]), 404);
-
-        $path = storage_path('app/' . ($uploaded->path ?? $files[$doc]));
-        abort_unless(is_file($path), 404);
+        // MARKER-INVEST-V2 — one map, shared with the portal.
+        $path = \App\Support\InvestDocuments::path($doc);
+        abort_unless($path, 404);
 
         return response()->file($path, [
             'Content-Type'  => 'application/pdf',

@@ -23,11 +23,27 @@ class InvestorPortalController extends Controller
 
         $investor->forceFill(['portal_seen_at' => now()])->save();
 
+        // MARKER-INVEST-V2 — the portal now carries the round as well as the
+        // person, so an investor has one link rather than two.
+        $target = Investor::target();
+        $cap    = Investor::cap();
+        $all    = Investor::whereNull('declined_at')->get();
+
         return response()->view('invest.portal', [
-            'investor'  => $investor,
-            'documents' => $investor->documents()->where('visible_to_investor', true)->get(),
-            'wire'      => RaiseSetting::wireInstructions(),
-            'cap'       => Investor::cap(),
+            'investor'   => $investor,
+            'documents'  => $investor->documents()->where('visible_to_investor', true)->get(),
+            'wire'       => RaiseSetting::wireInstructions(),
+            'cap'        => $cap,
+            'target'     => $target,
+            'instrument' => RaiseSetting::get('instrument', 'Post-money SAFE'),
+            'equity'     => $cap > 0 ? round($target / $cap * 100, 1) : 0,
+            'funded'     => (int) $all->sum('amount_received'),
+            'committed'  => (int) $all->whereNotNull('committed_at')->sum('amount'),
+            'showBar'    => RaiseSetting::get('show_progress', '1') === '1',
+            'docs'       => \App\Support\InvestDocuments::listed(),
+            'docUrl'     => fn (string $slug) => route('invest.portal.proposal', [
+                'token' => $investor->token, 'doc' => $slug,
+            ]),
         ])->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
@@ -74,6 +90,22 @@ class InvestorPortalController extends Controller
         }
 
         return back()->with('commit_ok', true);
+    }
+
+    /** MARKER-INVEST-V2 — the round's shared documents, served on this link too. */
+    public function proposal(string $token, string $doc)
+    {
+        $investor = $this->resolve($token);
+
+        $path = \App\Support\InvestDocuments::path($doc);
+        abort_unless($path, 404);
+
+        InvestorEvent::log($investor->id, 'document_downloaded', 'Opened the ' . $doc);
+
+        return response()->file($path, [
+            'Content-Type' => 'application/pdf',
+            'X-Robots-Tag' => 'noindex, nofollow, noarchive',
+        ]);
     }
 
     public function document(string $token, int $documentId)

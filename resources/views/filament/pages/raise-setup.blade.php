@@ -47,17 +47,9 @@
         <label class="block"><span class="text-xs text-gray-500">Opening paragraph</span>
             <textarea wire:model="landingLede" rows="3" placeholder="Leave blank to use the built-in paragraph"
                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
-        <div class="grid gap-3 md:grid-cols-3">
-            <label class="block"><span class="text-xs text-gray-500">Third stat — label</span>
-                <input wire:model="landingStageLabel" placeholder="Pre-revenue"
-                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
-            <label class="block"><span class="text-xs text-gray-500">Third stat — under it</span>
-                <input wire:model="landingStageSub" placeholder="Product live in production"
-                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
-            <label class="block"><span class="text-xs text-gray-500">Access requests emailed to</span>
-                <input wire:model="notifyEmail" placeholder="falls back to the system from-address"
-                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
-        </div>
+        <label class="block"><span class="text-xs text-gray-500">Access requests emailed to</span>
+            <input wire:model="notifyEmail" placeholder="falls back to the system from-address"
+                   class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></label>
         <label class="block"><span class="text-xs text-gray-500">Fine print</span>
             <textarea wire:model="landingFine" rows="3" placeholder="Leave blank to use the built-in wording"
                       class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
@@ -75,10 +67,10 @@
 
     <div class="mt-3"><x-filament::button wire:click="saveLanding">Save landing copy</x-filament::button></div>
     <p class="mt-3 text-xs text-gray-500">
-        The first two stats on that page are the raise amount and the cap, taken from the round above
-        rather than typed here — so the public page can never quote a different number to the proposal.
-        Only the third stat is free text. Nothing about how much has been committed appears on /invest
-        at all; that stays behind the access code.
+        MARKER-INVEST-V2: /invest states no terms at all — not the raise, not the cap, not progress.
+        Describing the company is not advertising the offering, and only the second is restricted, so
+        everything about the round now lives behind the access code. These fields control the opening
+        headline and paragraph; the headline accepts inline HTML so a word can be highlighted.
     </p>
     @error('notifyEmail') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
 </div>
