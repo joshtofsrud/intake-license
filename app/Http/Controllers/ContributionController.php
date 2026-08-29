@@ -18,10 +18,20 @@ class ContributionController extends Controller
             return redirect()->route('marketing.invest');
         }
 
+        // MARKER-CONTRIB-AMOUNT — the field carries a $ and people type commas.
+        // Strip both before validating, or "$1,000" fails for looking like money.
+        $request->merge([
+            'amount' => preg_replace('/[^0-9.]/', '', (string) $request->input('amount')),
+        ]);
+
         $data = $request->validate([
             'name'   => ['required', 'string', 'max:120'],
             'email'  => ['required', 'email', 'max:190'],
             'amount' => ['required', 'numeric', 'min:5', 'max:10000'],
+        ], [
+            'amount.required' => 'Enter an amount, or pick one of the buttons.',
+            'amount.min'      => 'The smallest contribution is $5.',
+            'amount.max'      => "That's more than this form takes — get in touch and we'll sort it properly.",
         ]);
 
         if (! $this->contributions->isConfigured()) {

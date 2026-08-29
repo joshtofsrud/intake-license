@@ -49,13 +49,18 @@ textarea:focus{border-color:var(--lime-line)}
 .support{border:1px dashed var(--line2);border-radius:12px;padding:24px;margin-top:34px}
 .support h3{font-size:17px;font-weight:700;letter-spacing:-.4px}
 .support p{font-size:14px;margin-top:9px;max-width:64ch}
-.amts{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px;align-items:center}
-.amt-btn{background:none;border:1px solid var(--line2);border-radius:8px;color:var(--text);
-  font-family:inherit;font-size:14px;font-weight:600;padding:9px 16px;cursor:pointer}
+/* MARKER-CONTRIB-AMOUNT — both rows share one grid so the right edges line up. */
+.support .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;align-items:center}
+@media(max-width:600px){.support .row{grid-template-columns:1fr}}
+.amts{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.amt-btn{flex:1;background:none;border:1px solid var(--line2);border-radius:8px;color:var(--text);
+  font-family:inherit;font-size:14px;font-weight:600;padding:11px 10px;cursor:pointer;white-space:nowrap}
 .amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a}
-.amt-own{flex:1;min-width:140px}
-.support .who-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-@media(max-width:600px){.support .who-row{grid-template-columns:1fr}}
+/* The $ lives inside the field so the number is typed without it. */
+.amt-own{position:relative;display:block}
+.amt-own .cur{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--dim);
+  font-size:15px;pointer-events:none}
+.amt-own input{padding-left:26px}
 .support input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:8px;
   color:var(--text);font-family:inherit;font-size:15px;padding:10px 13px;outline:none}
 .support input:focus{border-color:var(--lime-line)}
@@ -262,18 +267,22 @@ textarea:focus{border-color:var(--lime-line)}
       @csrf
       <div class="hp"><input type="text" name="company_website" tabindex="-1" autocomplete="off"></div>
 
-      <div class="amts">
-        <button type="button" class="amt-btn" data-amt="25">$25</button>
-        <button type="button" class="amt-btn on" data-amt="100">$100</button>
-        <button type="button" class="amt-btn" data-amt="250">$250</button>
-        <span class="amt-own">
-          <input type="number" name="amount" id="c-amt" value="{{ old('amount', 100) }}"
-                 min="5" max="10000" step="1" required>
-        </span>
+      <div class="row">
+        <div class="amts">
+          <button type="button" class="amt-btn" data-amt="25">$25</button>
+          <button type="button" class="amt-btn" data-amt="100">$100</button>
+          <button type="button" class="amt-btn" data-amt="250">$250</button>
+        </div>
+        <label class="amt-own">
+          <span class="cur">$</span>
+          <input type="text" name="amount" id="c-amt" value="{{ old('amount') }}"
+                 inputmode="decimal" placeholder="Custom amount" required
+                 autocomplete="off" aria-label="Amount in dollars">
+        </label>
       </div>
       @error('amount') <span class="cerr">{{ $message }}</span> @enderror
 
-      <div class="who-row">
+      <div class="row">
         <input type="text" name="name" value="{{ old('name') }}" placeholder="Your name" required maxlength="120">
         <input type="email" name="email" value="{{ old('email') }}" placeholder="Email for the receipt" required maxlength="190">
       </div>
@@ -301,9 +310,12 @@ textarea:focus{border-color:var(--lime-line)}
   var btns  = document.querySelectorAll('.amt-btn');
   if (!field || !btns.length) { return; }
 
+  // MARKER-CONTRIB-AMOUNT — compare on the number, not the string, so "250",
+  // "$250" and "250.00" all light the same button.
   function mark(val) {
+    var n = parseFloat(String(val).replace(/[^0-9.]/g, ''));
     for (var i = 0; i < btns.length; i++) {
-      btns[i].classList.toggle('on', btns[i].dataset.amt === String(val));
+      btns[i].classList.toggle('on', parseFloat(btns[i].dataset.amt) === n);
     }
   }
 
