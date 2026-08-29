@@ -52,22 +52,26 @@ textarea:focus{border-color:var(--lime-line)}
 /* MARKER-CONTRIB-UI — presets and fields on the SAME three-column grid, so
    every edge lines up. Custom amount has its own full-width line: squeezing
    it in beside three buttons is what broke the alignment before. */
-.amts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
-.amt-btn{background:#f0f0f0;border:1px solid #f0f0f0;border-radius:10px;color:#0a0a0a;
-  font-family:inherit;font-size:19px;font-weight:700;letter-spacing:-.4px;padding:18px 10px;
-  cursor:pointer;transition:transform .06s,box-shadow .12s}
-.amt-btn:hover{box-shadow:0 0 0 3px rgba(240,240,240,.14)}
+/* MARKER-CONTRIB-ROW4 — presets and the custom field on one four-column row. */
+.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;align-items:stretch}
+.amt-btn{background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.35);border-radius:10px;
+  color:#f0f0f0;font-family:inherit;font-size:17px;font-weight:700;letter-spacing:-.3px;
+  padding:16px 10px;cursor:pointer;transition:transform .06s,box-shadow .12s,background .12s}
+.amt-btn:hover{background:rgba(255,255,255,.44);box-shadow:0 0 0 3px rgba(255,255,255,.10)}
 .amt-btn:active{transform:translateY(1px)}
-.amt-btn.on{background:var(--lime);border-color:var(--lime);box-shadow:0 0 0 3px rgba(190,242,100,.22)}
-.amt-own{position:relative;display:block;margin-top:12px}
+/* Selected keeps dark text: lime is light enough for it to be the readable
+   pairing, which the 35% fill above is not. */
+.amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a;
+  box-shadow:0 0 0 3px rgba(190,242,100,.22)}
+.amt-own{position:relative;display:block}
 .amt-own .cur{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--body);
   font-size:16px;pointer-events:none;transition:opacity .12s}
 /* The $ hides while the placeholder is showing, so they never overlap. */
 .amt-own input:placeholder-shown + .cur{opacity:0}
-.amt-own input{padding-left:15px}
-.amt-own input:not(:placeholder-shown){padding-left:28px}
+.amt-own input{padding-left:15px;height:100%;font-size:17px;font-weight:600;text-align:center}
+.amt-own input:not(:placeholder-shown){padding-left:28px;text-align:left}
 .support .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
-@media(max-width:760px){.amts{grid-template-columns:1fr}.support .fields{grid-template-columns:1fr}}
+@media(max-width:760px){.amts{grid-template-columns:1fr 1fr}.support .fields{grid-template-columns:1fr}}
 .support input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:10px;
   color:var(--text);font-family:inherit;font-size:15px;padding:14px 15px;outline:none}
 .support input:focus{border-color:var(--lime-line)}
@@ -280,16 +284,17 @@ textarea:focus{border-color:var(--lime-line)}
         @foreach($presets as $preset)
           <button type="button" class="amt-btn" data-amt="{{ $preset }}">${{ number_format($preset) }}</button>
         @endforeach
-      </div>
 
-      {{-- The input comes BEFORE the $ so the adjacent-sibling rule can hide
-           the symbol while the placeholder is showing. --}}
-      <label class="amt-own">
+        {{-- MARKER-CONTRIB-ROW4 — fourth cell in the same row. The input comes
+             BEFORE the $ so the adjacent-sibling rule can hide the symbol
+             while the placeholder is showing; swapping them breaks it. --}}
+        <label class="amt-own">
         <input type="text" name="amount" id="c-amt" value="{{ old('amount') }}"
-               inputmode="decimal" placeholder="Or enter another amount" required
+               inputmode="decimal" placeholder="Other" required
                autocomplete="off" aria-label="Amount in dollars">
-        <span class="cur">$</span>
-      </label>
+          <span class="cur">$</span>
+        </label>
+      </div>
       @error('amount') <span class="cerr">{{ $message }}</span> @enderror
 
       <div class="fields">
