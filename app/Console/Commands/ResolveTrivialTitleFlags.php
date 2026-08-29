@@ -24,6 +24,7 @@ class ResolveTrivialTitleFlags extends Command
         $apply = (bool) $this->option('apply');
 
         $q = TenantPricingAttentionFlag::query()
+            ->with('item.distributorCatalog')
             ->where('status', 'open')
             ->where('reason', TenantPricingAttentionFlag::REASON_TITLE_CHANGED);
         if ($this->option('tenant')) {
@@ -32,9 +33,36 @@ class ResolveTrivialTitleFlags extends Command
 
         $trivial = 0;
         $kept = 0;
-        $q->lazyById(500)->each(function (TenantPricingAttentionFlag $flag) use ($threshold, $apply, &$trivial, &$kept) {
+        $gone = 0;
+        $unjudgeable = 0;
+        $q->lazyById(500)->each(function (TenantPricingAttentionFlag $flag) use ($threshold, $apply, &$trivial, &$kept, &$gone, &$unjudgeable) {
+            // Prefer the LIVE pair: what the item last accepted vs what the
+            // catalog says now. Legacy flags carry no old/new in detail and
+            // must not default to "fully changed".
+            $item = $flag->item;
+            $catTitle = $item?->distributorCatalog?->display_name;
             $d = $flag->detail ?? [];
-            $ratio = TenantDistributorSyncService::titleChangeRatio($d['old'] ?? null, $d['new'] ?? null);
+
+            if ($item && filled($catTitle)) {
+                if ((string) $item->catalog_title_seen === (string) $catTitle) {
+                    // Drift no longer exists at all — the flag is stale.
+                    $gone++;
+                    if ($apply) {
+                        $flag->update(['status' => 'resolved', 'resolved_at' => now()]);
+                    }
+
+                    return;
+                }
+                $ratio = TenantDistributorSyncService::titleChangeRatio($item->catalog_title_seen, $catTitle);
+            } elseif (filled($d['old'] ?? null) && filled($d['new'] ?? null)) {
+                $ratio = TenantDistributorSyncService::titleChangeRatio($d['old'], $d['new']);
+            } else {
+                // No live pair and no recorded pair: nothing to measure, keep.
+                $unjudgeable++;
+
+                return;
+            }
+
             if ($ratio >= $threshold) {
                 $kept++;
 
@@ -47,7 +75,7 @@ class ResolveTrivialTitleFlags extends Command
         });
 
         $verb = $apply ? 'resolved' : 'would resolve (dry run — pass --apply)';
-        $this->info("Threshold {$threshold}: {$verb} {$trivial} trivial title flags; {$kept} meaningful flags kept open.");
+        $this->info("Threshold {$threshold}: {$verb} {$trivial} trivial + {$gone} already-caught-up title flags; {$kept} meaningful kept open" . ($unjudgeable ? ", {$unjudgeable} unjudgeable kept" : '') . '.');
 
         return self::SUCCESS;
     }

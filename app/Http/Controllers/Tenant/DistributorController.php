@@ -605,6 +605,7 @@ class DistributorController extends Controller
             'in'        => $inCount,
             'out'       => $total - $inCount,
             'title'     => (int) ($allBy['title_changed'] ?? 0),
+            'details'   => (int) ($allBy['details_changed'] ?? 0), // MARKER-ATTENTION-SCALE -- was uncounted, hiding thousands from the header
             'below_map' => (int) ($allBy['below_map'] ?? 0),
             'off_msrp'  => (int) ($allBy['off_msrp'] ?? 0),
             'vanished'  => (int) (($allBy['cost_vanished'] ?? 0) + ($allBy['map_vanished'] ?? 0) + ($allBy['msrp_vanished'] ?? 0)),

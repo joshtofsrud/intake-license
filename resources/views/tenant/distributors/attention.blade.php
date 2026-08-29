@@ -138,6 +138,7 @@
   <div class="at-chips">
     <div class="at-chip"><div class="v">{{ $counts['total'] }}</div><div class="k">Open</div></div>
     <div class="at-chip"><div class="v" style="color:#cde98a">{{ $counts['title'] ?? 0 }}</div><div class="k">Titles</div></div>
+    <div class="at-chip"><div class="v" style="color:#9fd0e8">{{ $counts['details'] ?? 0 }}</div><div class="k">Details</div></div>
     <div class="at-chip"><div class="v" style="color:#f0a3a3">{{ $counts['below_map'] }}</div><div class="k">Below MAP</div></div>
     <div class="at-chip"><div class="v" style="color:#f0c78a">{{ $counts['off_msrp'] }}</div><div class="k">Off MSRP</div></div>
     <div class="at-chip"><div class="v" style="color:#aebbcf">{{ $counts['vanished'] }}</div><div class="k">Vanished</div></div>
