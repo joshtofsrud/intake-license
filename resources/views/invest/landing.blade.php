@@ -55,7 +55,7 @@ textarea:focus{border-color:var(--lime-line)}
 .support h3{font-size:17px;font-weight:700;letter-spacing:-.4px}
 .support p{font-size:14px;margin-top:9px;max-width:64ch}
 
-.support .amts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}
+.support .amts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px;align-items:stretch}
 .support .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
 @media(max-width:760px){
   .support .amts{grid-template-columns:1fr 1fr}
@@ -78,11 +78,14 @@ textarea:focus{border-color:var(--lime-line)}
 
 /* the $ sits inside the amount field and hides while the placeholder shows,
    so the two can never overlap */
-.amt-own{position:relative;display:block;height:46px}
+/* MARKER-CONTRIB-BASELINE — flex, not block: an inline-block input inside a
+   block label sits on a text baseline and gets pushed down by line-height,
+   which is what made this cell sit lower than the buttons beside it. */
+.amt-own{position:relative;display:flex;align-items:stretch;height:46px}
 .amt-own .cur{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--body);
   font-size:15px;pointer-events:none;transition:opacity .12s}
 .amt-own input:placeholder-shown + .cur{opacity:0}
-.amt-own input{text-align:center}
+.amt-own input{display:block;text-align:center}
 .amt-own input:not(:placeholder-shown){padding-left:26px;text-align:left}
 
 .support .btn{height:46px;padding:0 24px;border-radius:8px;font-size:15px;margin-top:14px}
