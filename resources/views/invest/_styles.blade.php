@@ -28,10 +28,18 @@ h3{font-size:15px;font-weight:650}
 p{color:var(--body);line-height:1.65}
 b,strong{color:var(--text);font-weight:600}
 .lede{font-size:16px;max-width:62ch;margin-top:14px}
-section{padding:44px 0;border-top:1px solid var(--line)}
-section.hero{border-top:0;padding:56px 0 40px}
+/* MARKER-INVEST-RULES — no full-bleed dividers. Separation comes from the
+   space between sections; a rule across the whole viewport only slices the
+   page up. The short rule under each .sub label is a different thing and
+   stays — it belongs to the label, not to the page. */
+section{padding:52px 0}
+section.hero{padding:56px 0 44px}
+section + section{padding-top:8px}
 .sub{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--dim);
-  padding-bottom:10px;border-bottom:1px solid var(--line);margin:0 0 20px}
+  padding-bottom:10px;border-bottom:1px solid var(--line);margin:0 0 18px}
+/* The label owns the gap to whatever follows it — the block below must not add
+   a second margin, or the label drifts away from the thing it labels. */
+.sub + *{margin-top:0}
 
 .prog{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:22px;margin-top:26px}
 .progtop{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap}
@@ -115,7 +123,7 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
 }
 /* Disclosure rows: collapsed detail is still on the page, just not costing
    scroll before the reader has decided they care. */
-details.m{border-top:1px solid var(--line);padding:13px 0;margin-top:6px}
+details.m{border-top:1px solid var(--line);padding:14px 0;margin-top:20px}
 details.m summary{list-style:none;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--text);
   display:flex;align-items:center;gap:8px}
 details.m summary::-webkit-details-marker{display:none}

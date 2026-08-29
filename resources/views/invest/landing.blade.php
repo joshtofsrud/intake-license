@@ -13,9 +13,10 @@
 <style>
 h1.big{font-size:clamp(34px,5.4vw,60px);letter-spacing:-2.3px;line-height:1.04}
 h1.big .l{color:var(--lime)}
-section.hero{padding:84px 0 66px}
+/* MARKER-INVEST-RULES */
+section.hero{padding:84px 0 60px}
 .lede.wide{font-size:clamp(16px,1.9vw,19px);margin-top:20px}
-.grid3{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);margin-top:28px}
+.grid3{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);margin-top:22px}
 .grid2{display:grid;gap:14px;grid-template-columns:1fr 1fr;margin-top:26px}
 @media(max-width:860px){.grid3{grid-template-columns:1fr}}
 @media(max-width:760px){.grid2{grid-template-columns:1fr}}
@@ -24,7 +25,7 @@ section.hero{padding:84px 0 66px}
 .card p{font-size:14px;margin-top:9px}
 .card .n{font-size:30px;font-weight:800;color:var(--lime);letter-spacing:-1.3px;line-height:1}
 .card .k{font-size:10.5px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--dim);margin-top:9px}
-.stack{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:24px}
+.stack{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) 110px;gap:18px;padding:13px 18px;
   border-bottom:1px solid var(--line);font-size:14.5px;align-items:baseline}
 .srow:last-child{border-bottom:0}
