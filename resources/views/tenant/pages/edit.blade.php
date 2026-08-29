@@ -28,7 +28,7 @@
     'text_image'             => 'Text + image',
     'cta_banner'             => 'CTA banner',
     'image_gallery'          => 'Image gallery',
-    'image_carousel'         => 'Image carousel', {{-- MARKER-CAROUSEL-SECTION --}}
+    'image_carousel'         => 'Image carousel', // MARKER-CAROUSEL-SECTION
     'contact_form'           => 'Contact form',
     'booking_embed'          => 'Booking form',
     'classes_embed'          => 'Classes schedule',
@@ -61,7 +61,7 @@
     'text_image'     => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.4"/><polyline points="3 17 9 12 21 19"/>',
     'cta_banner'     => '<path d="M3 11l18-5v12L3 14z"/>',
     'image_gallery'  => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="1.2"/><polyline points="3 17 9 12 14 16 21 11"/>',
-    'image_carousel' => '<rect x="7" y="5" width="10" height="14" rx="2"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/>', {{-- MARKER-CAROUSEL-SECTION --}}
+    'image_carousel' => '<rect x="7" y="5" width="10" height="14" rx="2"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/>', // MARKER-CAROUSEL-SECTION
     'contact_form'   => '<path d="M4 4h16v16H4z"/><polyline points="4 7 12 13 20 7"/>',
     'booking_embed'  => '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
     'classes_embed'  => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
@@ -92,7 +92,7 @@
     'text_image'    => 'Side-by-side text and image',
     'cta_banner'    => 'Single call-to-action strip',
     'image_gallery' => 'Photo grid (Instagram-style)',
-    'image_carousel' => 'Sliding photo carousel', {{-- MARKER-CAROUSEL-SECTION --}}
+    'image_carousel' => 'Sliding photo carousel', // MARKER-CAROUSEL-SECTION
     'contact_form'  => 'Inbound contact form',
     'booking_embed' => 'Live booking widget',
     'classes_embed' => 'Class schedule widget',
