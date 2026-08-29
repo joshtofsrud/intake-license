@@ -26,10 +26,14 @@
     </div>
 </div>
 
-<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI · MARKER-RAISE-COMPOSE-FIX
+<!-- MARKER-RAISE-INVITE · MARKER-RAISE-COMPOSE-UI · MARKER-RAISE-COMPOSE-FIX · MARKER-RAISE-PANEL
      Stock Tailwind utilities only in this file. Filament's CSS is
      precompiled, so arbitrary values like grid-cols-[1fr,1fr,auto] are
-     never generated and fail silently — use a style attribute instead. -->
+     never generated and fail silently — use a style attribute instead.
+
+     Five sibling bands, not nested ones: header, message, one person, a list,
+     the note. Nesting a band inside another gave it the wrong tint and a
+     divider that stopped short of the panel edge. -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
 
     <div class="px-5 py-4 border-b border-gray-200 dark:border-white/10">
@@ -39,24 +43,23 @@
         </p>
     </div>
 
-    <!-- the message itself -->
-    <div class="px-5 py-5 space-y-4">
+    <div class="px-5 py-5">
         <label class="block">
             <span class="text-xs font-medium text-gray-500">Subject</span>
             <input wire:model="inviteSubject"
                    class="mt-1.5 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
         </label>
-        @error('inviteSubject') <p class="text-sm text-danger-600">{{ $message }}</p> @enderror
+        @error('inviteSubject') <p class="mt-2 text-sm text-danger-600">{{ $message }}</p> @enderror
 
-        <label class="block">
+        <label class="block mt-4">
             <span class="text-xs font-medium text-gray-500">Message</span>
             <textarea wire:model="inviteBody" rows="10"
                       style="min-height:240px;font-size:13px;line-height:1.65"
                       class="mt-1.5 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 font-mono"></textarea>
         </label>
-        @error('inviteBody') <p class="text-sm text-danger-600">{{ $message }}</p> @enderror
+        @error('inviteBody') <p class="mt-2 text-sm text-danger-600">{{ $message }}</p> @enderror
 
-        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+        <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
             <span><code class="text-gray-700 dark:text-gray-300">{name}</code> their name</span>
             <span><code class="text-gray-700 dark:text-gray-300">{portal}</code> their own link</span>
             <span><code class="text-gray-700 dark:text-gray-300">{sender}</code> your sign-off</span>
@@ -64,25 +67,28 @@
         </div>
     </div>
 
-    <!-- who it goes to -->
-    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
-        <div class="text-xs font-medium text-gray-500 mb-2">Send to one person</div>
-        <div class="grid gap-3 sm:grid-cols-3">
+    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10">
+        <div class="text-xs font-medium text-gray-500">Send to one person</div>
+        <div class="mt-2 grid gap-3 sm:grid-cols-3">
             <input wire:model="inviteName"  placeholder="Name"
                    class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
             <input wire:model="inviteEmail" placeholder="Email"
                    class="rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10">
             <x-filament::button wire:click="inviteOne">Preview &amp; send</x-filament::button>
         </div>
-        @error('inviteName')  <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
-        @error('inviteEmail') <p class="text-sm text-danger-600 mt-2">{{ $message }}</p> @enderror
+        @error('inviteName')  <p class="mt-2 text-sm text-danger-600">{{ $message }}</p> @enderror
+        @error('inviteEmail') <p class="mt-2 text-sm text-danger-600">{{ $message }}</p> @enderror
+    </div>
 
-    <div class="mt-5 pt-5 border-t border-gray-200 dark:border-white/10">
-        <label class="block"><span class="text-xs text-gray-500">Or paste a list — one per line, <code>Name &lt;email&gt;</code></span>
-            <textarea wire:model="inviteList" rows="4"
-                      placeholder="Jane Ellery &lt;jane@example.com&gt;&#10;Marcus Hale, marcus@example.com"
-                      class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea></label>
-        <div class="mt-3 flex items-center gap-3">
+    <div class="px-5 py-5 border-t border-gray-200 dark:border-white/10">
+        <div class="text-xs font-medium text-gray-500">
+            Or paste a list — one per line, <code>Name &lt;email&gt;</code>
+        </div>
+        <textarea wire:model="inviteList" rows="4"
+                  placeholder="Jane Ellery &lt;jane@example.com&gt;&#10;Marcus Hale, marcus@example.com"
+                  class="mt-2 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10"></textarea>
+
+        <div class="mt-3 flex flex-wrap items-center gap-3">
             <x-filament::button wire:click="previewList" color="gray">Preview list</x-filament::button>
             @if ($invitePreview)
                 <x-filament::button wire:click="sendList">
@@ -93,39 +99,40 @@
         </div>
 
         @if ($invitePreview)
-            <div class="mt-3 overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
-                <table class="w-full text-sm">
-                    <thead class="text-xs uppercase tracking-wide text-gray-500">
-                        <tr><th class="text-left p-2">Name</th><th class="text-left p-2">Email</th><th class="text-left p-2">Will send?</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($invitePreview as $row)
-                            <tr class="border-t border-gray-100 dark:border-white/5">
-                                <td class="p-2">{{ $row['name'] ?: '—' }}</td>
-                                <td class="p-2">{{ $row['email'] ?: $row['line'] }}</td>
-                                <td class="p-2">
-                                    @if ($row['problem'])
-                                        <span class="text-danger-600">Skipped — {{ $row['problem'] }}</span>
-                                    @else
-                                        <span class="text-success-600">Yes</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endif
+        <div class="mt-3 overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
+            <table class="w-full text-sm">
+                <thead class="text-xs uppercase tracking-wide text-gray-500">
+                    <tr><th class="text-left p-2">Name</th><th class="text-left p-2">Email</th><th class="text-left p-2">Will send?</th></tr>
+                </thead>
+                <tbody>
+                    @foreach ($invitePreview as $row)
+                        <tr class="border-t border-gray-100 dark:border-white/5">
+                            <td class="p-2">{{ $row['name'] ?: '—' }}</td>
+                            <td class="p-2">{{ $row['email'] ?: $row['line'] }}</td>
+                            <td class="p-2">
+                                @if ($row['problem'])
+                                    <span class="text-danger-600">Skipped — {{ $row['problem'] }}</span>
+                                @else
+                                    <span class="text-success-600">Yes</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
     </div>
 
-    <p class="mt-3 text-xs text-gray-500">
-        Everyone invited gets their <b>own</b> record and their own link, so a pasted list is a batch of
-        individual emails rather than one email to a group — you can see who opened, and withdraw one
-        without touching the rest. An invitation commits nobody to anything: they enter their own entity
-        and amount from their link, and only then does a commitment exist.
-        <b>Nothing is created or sent until you confirm the preview</b> — cancelling leaves no record
-        behind.
-    </p>
+    <div class="px-5 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+        <p class="text-xs text-gray-500 leading-relaxed">
+            Everyone invited gets their <b>own</b> record and their own link, so a pasted list is a batch
+            of individual emails rather than one email to a group — you can see who opened, and withdraw
+            one without touching the rest. An invitation commits nobody to anything: they enter their own
+            entity and amount from their link, and only then does a commitment exist.
+            <b>Nothing is created or sent until you confirm the preview</b> — cancelling leaves no record
+            behind.
+        </p>
     </div>
 </div>
 
