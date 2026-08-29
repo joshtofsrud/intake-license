@@ -636,7 +636,9 @@
       var html = '<div class="rep-diag-sum"><b>'+d.left+'</b> '+word+' reached <b class="s">'+d.label+'</b> and left here</div>';
       html += '<div class="rep-seg-grid">'+seg('By device', d.device, hot)+seg('By source', d.source, false)+seg('New vs returning', d.newret, false)+'</div>';
       if(d.insight){ html += '<div class="rep-ins">'+ICON_WARN+'<span>'+d.insight+'</span></div>'; }
-      html += '<div class="rep-diag-foot"><a href="/recovery">Follow up with people who left contact info →</a></div>';
+      {{-- MARKER-TRAFFIC-RECOVERY-LINK — URL from the router, so re-prefixing
+           the route can't silently break this link again. --}}
+      html += '<div class="rep-diag-foot"><a href="{{ route('tenant.recovery.index') }}">Follow up with people who left contact info →</a></div>';
       box.innerHTML = html;
       document.querySelectorAll('.rep-fn-click').forEach(function(el){ el.classList.toggle('on', (+el.dataset.fi) === i); });
     }
