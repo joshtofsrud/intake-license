@@ -5,7 +5,9 @@
 
 <section class="hero"><div class="wrap">
   <span class="eyebrow">Investment opportunity</span>
-  <h1>${{ number_format($target) }} on a {{ strtolower($instrument) }}
+  {{-- MARKER-INVEST-ACRONYM — lcfirst so it reads mid-sentence without
+       flattening SAFE into safe. --}}
+  <h1>${{ number_format($target) }} on a {{ lcfirst($instrument) }}
       at a ${{ rtrim(rtrim(number_format($cap / 1000000, 1), '0'), '.') }}M cap.</h1>
   <p class="lede">{{ $equity }}% on conversion. The same terms apply to every participant — no side
     letter, and no better price for going first. Everything here is a summary; the proposal is the
