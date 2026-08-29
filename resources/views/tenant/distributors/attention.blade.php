@@ -207,8 +207,7 @@
       <input type="hidden" name="f_reason" value="{{ $filters['reason'] ?? '' }}">
       <input type="hidden" name="f_stock" value="{{ $stock }}">
       <script>function setAct(a){document.getElementById('at-action').value=a;}</script>
-      <div class="at-card" style="padding:6px 14px">
-        <table class="at-tbl">
+      <table class="at-tbl">
           <thead><tr>
             <th style="width:28px"><input type="checkbox" onclick="document.querySelectorAll('.at-cb').forEach(c=>c.checked=this.checked)"></th>
             <th style="width:24%">Item</th><th style="width:13%">What happened</th><th>The change</th><th style="text-align:right">Act on it</th>
@@ -313,8 +312,7 @@
             </tr>
           @endforeach
           </tbody>
-        </table>
-      </div>
+      </table>
 
       <div class="at-bar">
         <span class="at-dim" style="font-size:12px">With selected:</span>
