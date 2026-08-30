@@ -96,6 +96,10 @@ input:focus,select:focus{border-color:var(--lime-line)}
 .ok{border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:10px;padding:14px 16px;
   margin-top:16px;font-size:14px;color:var(--text)}
 .cerr{color:var(--red);font-size:13px;display:block;margin-top:6px}
+/* MARKER-INVEST-NOCODE — the request card stands alone now. Held to a readable
+   measure rather than stretched across the full width. */
+.onecard{max-width:640px}
+
 /* MARKER-INVEST-RAIL — sticky anchor rail. Plain text, no pills; the dot marks
    a section that is OPEN. */
 .rail{position:sticky;top:0;z-index:30;background:rgba(12,12,12,.94);backdrop-filter:blur(12px);

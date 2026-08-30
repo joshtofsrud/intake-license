@@ -59,8 +59,6 @@ Route::domain($domain)->group(function () {
     Route::get('/invest',  [\App\Http\Controllers\InvestController::class, 'landing'])->name('marketing.invest');
     Route::post('/invest/request', [\App\Http\Controllers\InvestController::class, 'requestAccess'])
         ->middleware('throttle:6,1')->name('invest.request');
-    Route::post('/invest/enter',   [\App\Http\Controllers\InvestController::class, 'enter'])
-        ->middleware('throttle:10,1')->name('invest.enter');
 
     // MARKER-CONTRIBUTIONS — backing the project, which is not investing in it.
     Route::post('/invest/contribute', [\App\Http\Controllers\ContributionController::class, 'start'])

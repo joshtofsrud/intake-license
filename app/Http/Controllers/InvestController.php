@@ -107,20 +107,6 @@ class InvestController extends Controller
         return back()->with('invest_request_ok', true);
     }
 
-    /** MARKER-INVEST-LANDING — code entry. Wrong codes say nothing useful. */
-    public function enter(Request $request)
-    {
-        $code = trim((string) $request->input('code'));
-
-        $record = InvestToken::where('token', $code)->first();
-
-        if (! $record || ! $record->is_active) {
-            return back()->withErrors(['code' => 'That code isn\'t recognised, or it has been withdrawn.']);
-        }
-
-        return redirect()->route('invest.show', $record->token);
-    }
-
     public function show(string $token)
     {
         $record = $this->resolve($token);

@@ -152,7 +152,6 @@ textarea:focus{border-color:var(--lime-line)}
     ['#s-bike', 'Why bike first', 's-bike'],
     ['#s-stack', 'What it replaces', 's-stack'],
     ['#ask', 'Ask for the proposal', null],
-    ['#code', 'Have a code?', null],
     ['#support', 'Back the project', null],
   ];
 @endphp
@@ -241,7 +240,8 @@ textarea:focus{border-color:var(--lime-line)}
 
 
 <section><div class="wrap">
-  <div class="grid2">
+  {{-- MARKER-INVEST-NOCODE — one card now, not two. --}}
+  <div class="onecard">
 
     <div class="card hi" id="ask">
       <h2>Ask for the proposal</h2>
@@ -279,34 +279,23 @@ textarea:focus{border-color:var(--lime-line)}
         <p class="fine">That last question isn't a formality. This round is raised under an exemption that
           depends on a pre-existing relationship, so your answer in your own words is part of the record.
           Requests from people I don't know get a polite no rather than a code.</p>
-      @endif
-    </div>
 
-    <div class="card" id="code">
-      <h2>Have a code?</h2>
-      <p>Open the proposal. Codes are issued to one person and can be withdrawn.</p>
-
-      <form method="POST" action="{{ route('invest.enter') }}">
-        @csrf
-        <div class="code">
-          <input type="text" name="code" placeholder="Paste your code" required autocomplete="off">
-          <button class="btn ghost" type="submit">Open</button>
-        </div>
-        @error('code') <span class="cerr">{{ $message }}</span> @enderror
-      </form>
-
+      {{-- MARKER-INVEST-NOCODE — kept from the card that used to sit beside this
+           one; they are the only place saying what is being asked for. --}}
       <div style="margin-top:26px;padding-top:20px;border-top:1px solid var(--line)">
         <h3>What's behind it</h3>
-        <p style="font-size:14px;margin-top:9px">The full proposal and one-page summary, the two-year model
-          and every assumption under it, the risks page, and the unsigned SAFE.</p>
+        <p style="font-size:14px;margin-top:9px">The full proposal and one-page summary, the two-year
+          model and every assumption under it, the risks page, and the unsigned SAFE.</p>
       </div>
 
       <div class="legend">
-        <b>Why the numbers aren't on this page.</b> Terms and progress are the offering, and the exemption
-        this round relies on doesn't allow advertising it. What Intake is, and what it costs a shop, is
-        just a company describing itself — that's everything above.
+        <b>Why the numbers aren't on this page.</b> Terms and progress are the offering, and the
+        exemption this round relies on doesn't allow advertising it. What Intake is, and what it costs a
+        shop, is just a company describing itself — that's everything above.
       </div>
+      @endif
     </div>
+
 
   </div>
 
@@ -407,9 +396,9 @@ textarea:focus{border-color:var(--lime-line)}
 
 {{-- MARKER-INVEST-MOBILE — the two things this page exists for, always one tap
      away. Hidden above 640 where both cards are already on screen. --}}
+{{-- MARKER-INVEST-NOCODE — one action now, so the dock carries one button. --}}
 <div class="dock">
-  <a class="a1" href="#ask">Request access</a>
-  <a class="a2" href="#code">I have a code</a>
+  <a class="a1" href="#ask">Request the proposal</a>
 </div>
 
 <script>
