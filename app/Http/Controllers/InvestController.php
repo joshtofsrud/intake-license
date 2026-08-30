@@ -110,6 +110,8 @@ class InvestController extends Controller
     public function show(string $token)
     {
         $record = $this->resolve($token);
+        
+        if (! $record) { return $this->deadLink(); }
 
         $record->increment('views');
         $record->forceFill(['last_viewed_at' => now()])->save();
@@ -157,6 +159,8 @@ class InvestController extends Controller
     public function lead(Request $request, string $token)
     {
         $record = $this->resolve($token);
+        
+        if (! $record) { return $this->deadLink(); }
 
         // Honeypot: real people never fill this in.
         if (filled($request->input('company_website'))) {
@@ -222,14 +226,29 @@ class InvestController extends Controller
         return back()->with('invest_lead_ok', true);
     }
 
-    private function resolve(string $token): InvestToken
+    /**
+     * MARKER-DEAD-LINK — returns the token, or NULL when the link is dead.
+     *
+     * Null rather than abort() on purpose: a helper that ends the request
+     * hides the decision from every caller, which is how a rotated link came
+     * to 404 without anyone choosing that.
+     */
+    private function resolve(string $token): ?InvestToken
     {
         $record = InvestToken::where('token', $token)->first();
 
         if (! $record || ! $record->is_active) {
-            abort(SymfonyResponse::HTTP_NOT_FOUND);
+            return null;
         }
 
         return $record;
+    }
+
+    /** MARKER-DEAD-LINK — where a dead shared link goes. */
+    private function deadLink()
+    {
+        return redirect()
+            ->route('marketing.invest')
+            ->with('invest_link_dead', true);
     }
 }

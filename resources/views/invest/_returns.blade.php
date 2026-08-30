@@ -12,7 +12,7 @@
     <div class="srow"><b>Gyms and fitness clubs</b><span class="note">107,751 businesses</span><span class="amt">$102.1M</span></div>
     <div class="srow"><b>Motorcycle dealership and repair</b><span class="note">15,147 businesses</span><span class="amt">$50.9M</span></div>
     <div class="srow"><b>Bicycle dealership and repair</b><span class="note">10,004 businesses</span><span class="amt">$33.6M</span></div>
-    <div class="srow tot"><b>Total addressable</b><span class="note">132,902 businesses</span><span class="amt">$186.7M ARR</span></div>
+    <div class="srow tot"><b>Total addressable</b><span class="note">132,902 businesses</span><span class="amt">$186.6M ARR</span></div>
   </div>
   <p class="fine">Business counts are IBISWorld, 2026. Subscription figures are calculated at Intake's own
     published rates, not a category average. Ski, snowboard, paddle and outdoor specialty shops sell on

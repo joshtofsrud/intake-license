@@ -120,6 +120,23 @@ input:focus,select:focus{border-color:var(--lime-line)}
   transition:background .12s}
 .rail a.open i{background:var(--lime)}
 
+/* MARKER-INVEST-CARDCSS — the proof cards and tick list used by _bike. These
+   lived only in landing.blade.php, so the portal and the gated page rendered
+   that section as unstyled text. A shared partial's CSS has to be shared too. */
+.grid3{display:grid;gap:14px;grid-template-columns:repeat(3,1fr);margin-top:22px}
+@media(max-width:860px){.grid3{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+.card.hi{border-color:var(--lime-line)}
+.card p{font-size:14px;margin-top:9px}
+.card .n{font-size:30px;font-weight:800;color:var(--lime);letter-spacing:-1.3px;line-height:1}
+.card .k{font-size:10.5px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;
+  color:var(--dim);margin-top:9px}
+ul.tick{list-style:none;margin-top:18px}
+ul.tick li{font-size:15px;color:var(--body);padding-left:24px;position:relative;margin-bottom:11px;
+  line-height:1.55}
+ul.tick li::before{content:"\2192";position:absolute;left:0;color:var(--lime);font-weight:600}
+ul.tick li b{color:var(--text)}
+
 /* MARKER-INVEST-UNIFY — the bike section's mobile swipe rail. Moved here from
    the landing page so every surface rendering that section gets it. The block
    below closes a media query opened in the source it came from, so it is kept
@@ -149,6 +166,30 @@ input:focus,select:focus{border-color:var(--lime-line)}
   .dots i.on{background:var(--lime);width:18px;border-radius:3px}
   .railhint{font-size:11px;color:var(--dim);letter-spacing:.4px;margin:0}
 }
+
+/* MARKER-INVEST-FULL — inside a panel, a card and a filled table are a box in
+   a box. Rules and alignment carry the structure instead. */
+.rows2{border-top:1px solid var(--line);margin-top:20px}
+.rows2 .r{display:grid;grid-template-columns:160px 1fr;gap:22px;padding:15px 0;
+  border-bottom:1px solid var(--line);align-items:baseline}
+.rows2 .r .k{font-size:15px;font-weight:650;color:var(--lime);line-height:1.3}
+.rows2 .r .k small{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--dim);margin-top:4px}
+.rows2 .r p{font-size:13.5px;margin:0;line-height:1.55}
+@media(max-width:640px){.rows2 .r{grid-template-columns:1fr;gap:5px;padding:13px 0}}
+
+.risk p{font-size:14px;line-height:1.65;margin-top:14px;max-width:74ch}
+.risk p:first-child{margin-top:0}
+.risk p b{color:var(--lime);font-weight:650}
+
+details.sec .stack{background:none;border:0;border-radius:0;overflow:visible}
+details.sec .srow{padding-left:0;padding-right:0}
+details.sec .srow.sum{border-top:1px solid var(--line2);background:none}
+details.sec .srow.tot{background:none;border-top:1px solid var(--line2)}
+details.sec .srow.tot b,details.sec .srow.tot .amt{color:var(--lime)}
+details.sec .cap-grp{background:none;border:0;border-top:1px solid var(--line);border-radius:0;
+  padding:13px 0 4px}
+details.sec .cap-core{gap:0 26px}
 
 details.sec{border-top:1px solid var(--line)}
 details.sec:last-of-type{border-bottom:1px solid var(--line)}

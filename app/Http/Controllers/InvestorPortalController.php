@@ -15,6 +15,8 @@ class InvestorPortalController extends Controller
     public function show(string $token)
     {
         $investor = $this->resolve($token);
+        
+        if (! $investor) { return $this->deadLink(); }
 
         if (! $investor->opened_at) {
             $investor->forceFill(['opened_at' => now()])->save();
@@ -57,6 +59,8 @@ class InvestorPortalController extends Controller
     public function commit(\Illuminate\Http\Request $request, string $token)
     {
         $investor = $this->resolve($token);
+        
+        if (! $investor) { return $this->deadLink(); }
 
         if ($investor->signed_at || $investor->declined_at) {
             return back();
@@ -96,6 +100,8 @@ class InvestorPortalController extends Controller
     public function proposal(string $token, string $doc)
     {
         $investor = $this->resolve($token);
+        
+        if (! $investor) { return $this->deadLink(); }
 
         $path = \App\Support\InvestDocuments::path($doc);
         abort_unless($path, 404);
@@ -111,6 +117,8 @@ class InvestorPortalController extends Controller
     public function document(string $token, int $documentId)
     {
         $investor = $this->resolve($token);
+        
+        if (! $investor) { return $this->deadLink(); }
 
         $doc = InvestorDocument::where('investor_id', $investor->id)
             ->where('visible_to_investor', true)
@@ -121,12 +129,22 @@ class InvestorPortalController extends Controller
         return Storage::disk('local')->download($doc->path, $doc->original_name);
     }
 
-    private function resolve(string $token): Investor
+    /** MARKER-DEAD-LINK — null when the link no longer belongs to anyone. */
+    private function resolve(string $token): ?Investor
     {
-        $investor = Investor::where('token', $token)->first();
+        return Investor::where('token', $token)->first();
+    }
 
-        abort_unless($investor, SymfonyResponse::HTTP_NOT_FOUND);
-
-        return $investor;
+    /**
+     * MARKER-DEAD-LINK — a withdrawn personal link.
+     *
+     * Deliberately NOT the request form: someone whose access was ended should
+     * not be invited to ask again for the thing that was just taken away.
+     */
+    private function deadLink()
+    {
+        return redirect()
+            ->route('marketing.invest')
+            ->with('invest_access_ended', true);
     }
 }

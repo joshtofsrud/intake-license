@@ -158,6 +158,23 @@ textarea:focus{border-color:var(--lime-line)}
 @endphp
 @include('invest._rail')
 
+{{-- MARKER-DEAD-LINK — someone arrived here from a link that no longer works.
+     Say so plainly rather than letting them wonder why they are on a different
+     page than the one they clicked. --}}
+@if(session('invest_link_dead') || session('invest_access_ended'))
+  <section style="padding-bottom:0"><div class="wrap">
+    <div class="ok">
+      @if(session('invest_access_ended'))
+        <b>That link has been closed.</b> If you think that's a mistake, or you'd like to pick the
+        conversation back up, get in touch and I'll sort it out.
+      @else
+        <b>That link has been replaced.</b> It was a shared one and has since been rotated — ask below
+        and I'll send you a current link of your own.
+      @endif
+    </div>
+  </div></section>
+@endif
+
 <section class="hero" id="top"><div class="wrap">
   <span class="eyebrow">Built by a shop owner</span>
   <h1 class="big">{!! $headline !!}</h1>

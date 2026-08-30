@@ -30,7 +30,12 @@
     ['#s-bike', 'Why bike first', 's-bike'],
     ['#s-cap', 'The platform', 's-cap'],
     ['#s-stack', 'What it replaces', 's-stack'],
+    ['#s-rev', 'The model', 's-rev'],
+    ['#s-cost', 'Cost and margin', 's-cost'],
+    ['#s-horiz', 'The horizontal', 's-horiz'],
     ['#s-market', 'The market', 's-market'],
+    ['#s-ask', 'The ask', 's-ask'],
+    ['#s-risk', 'Risks', 's-risk'],
     ['#s-returns', 'How this returns', 's-returns'],
     ['#s-legal', 'Legal', 's-legal'],
     ['#position', 'Your position', null],
@@ -69,9 +74,36 @@
     <div class="body">@include('invest._stack')</div>
   </details>
 
+  {{-- MARKER-INVEST-FULL --}}
+  <details class="sec" id="s-rev">
+    <summary>The model <span class="cap">&mdash; two lines, one set of shops</span></summary>
+    <div class="body">@include('invest._model')</div>
+  </details>
+
+  <details class="sec" id="s-cost">
+    <summary>Cost and margin <span class="cap">&mdash; and the gap this raise does not close</span></summary>
+    <div class="body">@include('invest._cost')</div>
+  </details>
+
+  <details class="sec" id="s-horiz">
+    <summary>The horizontal <span class="cap">&mdash; the same product, sold sideways</span></summary>
+    <div class="body">@include('invest._horizontal')</div>
+  </details>
+
   <details class="sec" id="s-market">
     <summary>The market <span class="cap">&mdash; and the ceiling, which is not the plan</span></summary>
     <div class="body">@include('invest._returns')</div>
+  </details>
+
+
+  <details class="sec" id="s-ask">
+    <summary>The ask <span class="cap">&mdash; where the $100k goes</span></summary>
+    <div class="body">@include('invest._ask')</div>
+  </details>
+
+  <details class="sec" id="s-risk">
+    <summary>What has to go right <span class="cap">&mdash; stated plainly</span></summary>
+    <div class="body">@include('invest._risks')</div>
   </details>
 
   <details class="sec" id="s-returns">

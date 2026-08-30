@@ -22,12 +22,84 @@
   <span class="who">Invitation only</span>
 </div></nav>
 
+{{-- MARKER-INVEST-FULL — same rail and same sections as the personal page. --}}
+@php
+  $rail = [
+    ['#terms', 'Terms', null],
+    ['#docs', 'Documents', null],
+    ['#s-keep', 'Retention', 's-keep'],
+    ['#s-bike', 'Why bike first', 's-bike'],
+    ['#s-cap', 'The platform', 's-cap'],
+    ['#s-stack', 'What it replaces', 's-stack'],
+    ['#s-rev', 'The model', 's-rev'],
+    ['#s-cost', 'Cost and margin', 's-cost'],
+    ['#s-horiz', 'The horizontal', 's-horiz'],
+    ['#s-market', 'The market', 's-market'],
+    ['#s-ask', 'The ask', 's-ask'],
+    ['#s-risk', 'Risks', 's-risk'],
+    ['#interest', 'Commit', null],
+  ];
+@endphp
+@include('invest._rail')
+
 @include('invest._round')
 
 {{-- MARKER-INVEST-CONTEXT --}}
-@include('invest._context')
-
 <section><div class="wrap">
+
+  <details class="sec" id="s-keep">
+    <summary>Most shops don't market at all <span class="cap">&mdash; and why that is the opportunity</span></summary>
+    <div class="body">@include('invest._retention')</div>
+  </details>
+
+  <details class="sec" id="s-bike">
+    <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
+    <div class="body">@include('invest._bike')</div>
+  </details>
+
+  <details class="sec" id="s-cap">
+    <summary>The platform <span class="cap">&mdash; one core, and what sits on top</span></summary>
+    <div class="body">@include('invest._capability')</div>
+  </details>
+
+  <details class="sec" id="s-stack">
+    <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
+    <div class="body">@include('invest._stack')</div>
+  </details>
+
+  <details class="sec" id="s-rev">
+    <summary>The model <span class="cap">&mdash; two lines, one set of shops</span></summary>
+    <div class="body">@include('invest._model')</div>
+  </details>
+
+  <details class="sec" id="s-cost">
+    <summary>Cost and margin <span class="cap">&mdash; and the gap this raise does not close</span></summary>
+    <div class="body">@include('invest._cost')</div>
+  </details>
+
+  <details class="sec" id="s-horiz">
+    <summary>The horizontal <span class="cap">&mdash; the same product, sold sideways</span></summary>
+    <div class="body">@include('invest._horizontal')</div>
+  </details>
+
+  <details class="sec" id="s-market">
+    <summary>The market <span class="cap">&mdash; and the ceiling, which is not the plan</span></summary>
+    <div class="body">@include('invest._returns')</div>
+  </details>
+
+  <details class="sec" id="s-ask">
+    <summary>The ask <span class="cap">&mdash; where the $100k goes</span></summary>
+    <div class="body">@include('invest._ask')</div>
+  </details>
+
+  <details class="sec" id="s-risk">
+    <summary>What has to go right <span class="cap">&mdash; stated plainly</span></summary>
+    <div class="body">@include('invest._risks')</div>
+  </details>
+
+</div></section>
+
+<section id="interest"><div class="wrap">
   {{-- MARKER-SHARED-COMMIT — commit here rather than asking to be set up. --}}
   <p class="sub">Interested?</p>
   <h2>Say what you're thinking, and it's recorded.</h2>
