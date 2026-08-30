@@ -148,8 +148,9 @@ textarea:focus{border-color:var(--lime-line)}
 @php
   $rail = [
     ['#top', 'The problem', null],
-    ['#s-cap', 'The platform', 's-cap'],
+    ['#s-keep', 'Retention', 's-keep'],
     ['#s-bike', 'Why bike first', 's-bike'],
+    ['#s-cap', 'The platform', 's-cap'],
     ['#s-stack', 'What it replaces', 's-stack'],
     ['#ask', 'Ask for the proposal', null],
     ['#support', 'Back the project', null],
@@ -167,9 +168,11 @@ textarea:focus{border-color:var(--lime-line)}
      and the invoice stack reads better as evidence than as the opening. --}}
 <section><div class="wrap">
 
-  <details class="sec" id="s-cap">
-    <summary>The platform <span class="cap">&mdash; one core, and what sits on top</span></summary>
-    <div class="body">@include('invest._capability')</div>
+  {{-- MARKER-INVEST-RETENTION — the retention argument leads; the invoice
+       stack drops to last, where it is evidence rather than the opening. --}}
+  <details class="sec" id="s-keep">
+    <summary>Most shops don't market at all <span class="cap">&mdash; and why that is the opportunity</span></summary>
+    <div class="body">@include('invest._retention')</div>
   </details>
 
   <details class="sec" id="s-bike">
@@ -212,6 +215,11 @@ textarea:focus{border-color:var(--lime-line)}
 </div></section>
 
 {{-- MARKER-INVEST-CAPABILITY --}}</div>
+  </details>
+
+  <details class="sec" id="s-cap">
+    <summary>The platform <span class="cap">&mdash; one core, and what sits on top</span></summary>
+    <div class="body">@include('invest._capability')</div>
   </details>
 
   <details class="sec" id="s-stack">

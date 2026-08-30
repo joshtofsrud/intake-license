@@ -26,9 +26,10 @@
   $rail = [
     ['#terms', 'Terms', null],
     ['#docs', 'Documents', null],
-    ['#s-stack', 'What it replaces', 's-stack'],
+    ['#s-keep', 'Retention', 's-keep'],
     ['#s-bike', 'Why bike first', 's-bike'],
     ['#s-cap', 'The platform', 's-cap'],
+    ['#s-stack', 'What it replaces', 's-stack'],
     ['#s-market', 'The market', 's-market'],
     ['#s-returns', 'How this returns', 's-returns'],
     ['#s-legal', 'Legal', 's-legal'],
@@ -44,10 +45,12 @@
      page; none of it is between the reader and the commitment. --}}
 <section><div class="wrap">
 
-  <details class="sec" id="s-stack">
-    <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
-    <div class="body">@include('invest._context-stack')</div>
+  {{-- MARKER-INVEST-RETENTION --}}
+  <details class="sec" id="s-keep">
+    <summary>Most shops don't market at all <span class="cap">&mdash; and why that is the opportunity</span></summary>
+    <div class="body">@include('invest._retention')</div>
   </details>
+
 
   <details class="sec" id="s-bike">
     <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
@@ -61,6 +64,11 @@
 
   {{-- The growth case and the return mechanics are the offering, so they never
        appear on the public door — only here. --}}
+  <details class="sec" id="s-stack">
+    <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
+    <div class="body">@include('invest._context-stack')</div>
+  </details>
+
   <details class="sec" id="s-market">
     <summary>The market <span class="cap">&mdash; and the ceiling, which is not the plan</span></summary>
     <div class="body">@include('invest._returns')</div>
