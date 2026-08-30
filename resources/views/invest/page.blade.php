@@ -152,5 +152,11 @@
   </details>
 </div></section>
 
+{{-- MARKER-INVEST-CONFIRM --}}
+@include('invest._confirm', [
+  'confirmTitle' => 'Recorded.',
+  'confirmBody'  => 'Your own page is on its way by email — the documents, the signature and the funding details all live there. Nothing is binding yet, and you can change or withdraw it any time before the paperwork is signed.',
+])
+
 <footer><div class="wrap">intake · intake.works</div></footer>
 </body></html>

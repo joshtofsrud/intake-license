@@ -223,6 +223,16 @@ details.sec .body section + section{padding-top:30px}
   details.sec > summary .cap{display:none}
 }
 
+/* MARKER-INVEST-CONFIRM — the success message, where it will actually be read.
+   A banner on a page this long lands below the fold after the reload. */
+.cf-back{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(0,0,0,.68);backdrop-filter:blur(3px)}
+.cf{background:var(--panel);border:1px solid var(--lime-line);border-radius:14px;padding:28px 30px;
+  max-width:480px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.cf h3{font-size:19px;font-weight:750;letter-spacing:-.5px;color:var(--lime)}
+.cf p{font-size:14.5px;line-height:1.65;margin-top:10px}
+.cf .btn{margin-top:20px}
+
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 /* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
    page and the personal page. */

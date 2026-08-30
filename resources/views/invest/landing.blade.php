@@ -368,6 +368,12 @@ textarea:focus{border-color:var(--lime-line)}
 })();
 </script>
 
+{{-- MARKER-INVEST-CONFIRM --}}
+@include('invest._confirm', [
+  'confirmTitle' => 'Thanks — that is with me.',
+  'confirmBody'  => 'I will come back to you directly rather than automatically, so give it a day or so.',
+])
+
 <footer><div class="wrap">intake · intake.works</div></footer>
 
 {{-- MARKER-INVEST-MOBILE — the two things this page exists for, always one tap

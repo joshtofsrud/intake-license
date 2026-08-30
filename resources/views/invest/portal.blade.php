@@ -244,6 +244,12 @@
 
 </div></section>
 
+{{-- MARKER-INVEST-CONFIRM --}}
+@include('invest._confirm', [
+  'confirmTitle' => 'Recorded.',
+  'confirmBody'  => 'Nothing is binding yet — this is a statement of intent, and it is yours to change until the paperwork is signed.',
+])
+
 <footer><div class="wrap">
   intake · intake.works — questions? Just reply to any of my emails.
 </div></footer>
