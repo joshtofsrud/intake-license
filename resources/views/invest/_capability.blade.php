@@ -30,11 +30,15 @@
 @endphp
 
 <section><div class="wrap">
+  {{-- MARKER-CAPABILITY-COPY — the claim is about the platform, not about
+       every account: Starter has no POS, no rentals, no multi-location. Saying
+       "every account gets all of it" would be plainly false to anyone who has
+       seen the pricing. --}}
   <p class="sub">What the platform does</p>
-  <h2>One core. Everything else is a pack.</h2>
-  <p class="lede">The core is what every service business runs on, and it is the same code for all of
-    them. Anything a particular trade needs sits on top as a pack, switched on for one business without
-    touching another.</p>
+  <h2>This is the core of the platform.</h2>
+  <p class="lede">Booking, service, retail, inventory, customers, staff, communication, website and
+    data — one codebase, not nine products stitched together. What a given business turns on depends on
+    what it needs: a solo practitioner runs a fraction of it, a three-location shop runs most of it.</p>
 
   <div class="cap-core">
     <div class="cap-grp"><h3>Booking</h3><ul>
@@ -77,7 +81,7 @@
   @if($packTotal)
     {{-- Collapsed by default: the count is the argument, the names are detail. --}}
     <details class="m">
-      <summary>Every pack, by category — {{ $packTotal }} in the catalogue</summary>
+      <summary>Beyond the core, {{ $packTotal }} packs can be switched on per business</summary>
       <div class="inner">
         <div class="stack" style="margin-top:4px">
           @foreach($categories as $cat)
