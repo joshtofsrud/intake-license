@@ -564,7 +564,7 @@
         </select>
       </form>
       <p style="font-size:11px;opacity:.45;margin-top:8px;line-height:1.4">
-        Attach a code, then put <code>{{ '{{discount_code}}' }}</code> in any text block
+        Attach a code, then put <code>@{{discount_code}}</code> in any text block
         where you want it to appear.
         @if($discounts->isEmpty())
           You have no usable codes yet — <a href="{{ route('tenant.discounts.index') }}">create one</a>.
