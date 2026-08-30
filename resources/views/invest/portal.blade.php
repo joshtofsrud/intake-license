@@ -21,16 +21,70 @@
   <span class="who"><b>{{ $investor->name }}</b> · your link</span>
 </div></nav>
 
+{{-- MARKER-INVEST-RAIL --}}
+@php
+  $rail = [
+    ['#terms', 'Terms', null],
+    ['#docs', 'Documents', null],
+    ['#s-stack', 'What it replaces', 's-stack'],
+    ['#s-bike', 'Why bike first', 's-bike'],
+    ['#s-cap', 'The platform', 's-cap'],
+    ['#s-market', 'The market', 's-market'],
+    ['#s-returns', 'How this returns', 's-returns'],
+    ['#s-legal', 'Legal', 's-legal'],
+    ['#position', 'Your position', null],
+  ];
+@endphp
+@include('invest._rail')
+
 @include('invest._round')
 
 {{-- MARKER-INVEST-CONTEXT — read first, decide second. --}}
-@include('invest._context')
-
-{{-- MARKER-INVEST-RETURNS — invited page only. The growth case and the return
-     mechanics are the offering, so they never appear on the public door. --}}
-@include('invest._returns')
-
+{{-- MARKER-INVEST-RAIL — collapsed by default. Everything is still on the
+     page; none of it is between the reader and the commitment. --}}
 <section><div class="wrap">
+
+  <details class="sec" id="s-stack">
+    <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
+    <div class="body">@include('invest._context-stack')</div>
+  </details>
+
+  <details class="sec" id="s-bike">
+    <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
+    <div class="body">@include('invest._context-bike')</div>
+  </details>
+
+  <details class="sec" id="s-cap">
+    <summary>The platform <span class="cap">&mdash; one core, and what sits on top</span></summary>
+    <div class="body">@include('invest._capability')</div>
+  </details>
+
+  {{-- The growth case and the return mechanics are the offering, so they never
+       appear on the public door — only here. --}}
+  <details class="sec" id="s-market">
+    <summary>The market <span class="cap">&mdash; and the ceiling, which is not the plan</span></summary>
+    <div class="body">@include('invest._returns')</div>
+  </details>
+
+  <details class="sec" id="s-returns">
+    <summary>How this returns <span class="cap">&mdash; and what happens if it doesn&rsquo;t</span></summary>
+    <div class="body">@include('invest._returns-detail')</div>
+  </details>
+
+  <details class="sec" id="s-legal">
+    <summary>Legal</summary>
+    <div class="body">
+      <p class="fine" style="border:0;padding:0;margin:0">Not an offer to sell or a solicitation of an
+        offer to buy any security. Any offering is made only by delivery of the offering documents to
+        individually qualified persons, and only where lawful. Terms are subject to change until
+        executed. This link is personal to you and may be withdrawn.</p>
+    </div>
+  </details>
+
+</div></section>
+
+
+<section id="position"><div class="wrap">
   <p class="sub">Your position</p>
 
   @if(session('commit_ok'))
@@ -148,22 +202,6 @@
     the truth and this is a mirror of it.
   </div>
 
-  {{-- MARKER-INVEST-RETURNS-FOOT --}}
-  <details class="m">
-    <summary>How this returns — and how it might not</summary>
-    <div class="inner">
-      @include('invest._returns-detail')
-    </div>
-  </details>
-
-  {{-- MARKER-INVEST-MOBILE --}}
-  <details class="m">
-    <summary>Legal</summary>
-    <div class="inner"><p style="font-size:12.5px">Not an offer to sell or a solicitation of an offer to
-      buy any security. Any offering is made only by delivery of the offering documents to individually
-      qualified persons, and only where lawful. Terms are subject to change until executed. This link is
-      personal to you and may be withdrawn.</p></div>
-  </details>
 </div></section>
 
 <footer><div class="wrap">

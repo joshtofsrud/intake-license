@@ -96,6 +96,38 @@ input:focus,select:focus{border-color:var(--lime-line)}
 .ok{border:1px solid var(--lime-line);background:var(--lime-soft);border-radius:10px;padding:14px 16px;
   margin-top:16px;font-size:14px;color:var(--text)}
 .cerr{color:var(--red);font-size:13px;display:block;margin-top:6px}
+/* MARKER-INVEST-RAIL — sticky anchor rail. Plain text, no pills; the dot marks
+   a section that is OPEN. */
+.rail{position:sticky;top:0;z-index:30;background:rgba(12,12,12,.94);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line)}
+.rail .wrap{display:flex;align-items:center;gap:22px;padding-top:12px;padding-bottom:12px;
+  overflow-x:auto;scrollbar-width:none}
+.rail .wrap::-webkit-scrollbar{display:none}
+.rail a{flex:0 0 auto;font-size:13px;font-weight:550;color:var(--body);text-decoration:none;
+  white-space:nowrap;display:flex;align-items:center;gap:8px;transition:color .12s}
+.rail a:hover,.rail a.open{color:var(--text)}
+.rail a i{width:6px;height:6px;border-radius:50%;background:var(--line2);display:block;flex:0 0 6px;
+  transition:background .12s}
+.rail a.open i{background:var(--lime)}
+
+details.sec{border-top:1px solid var(--line)}
+details.sec:last-of-type{border-bottom:1px solid var(--line)}
+details.sec > summary{list-style:none;cursor:pointer;padding:20px 0;display:flex;align-items:baseline;
+  gap:12px;font-size:16px;font-weight:650;color:var(--text)}
+details.sec > summary::-webkit-details-marker{display:none}
+details.sec > summary .cap{font-size:13px;font-weight:400;color:var(--dim)}
+details.sec > summary::after{content:"+";margin-left:auto;color:var(--lime);font-size:19px;
+  line-height:1;font-weight:400}
+details.sec[open] > summary::after{content:"\2013"}
+details.sec .body{padding-bottom:34px}
+details.sec .body section{padding:0}
+details.sec .body section + section{padding-top:30px}
+@media(max-width:640px){
+  .rail .wrap{gap:16px}
+  details.sec > summary{font-size:15px;padding:17px 0}
+  details.sec > summary .cap{display:none}
+}
+
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 /* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
    page and the personal page. */

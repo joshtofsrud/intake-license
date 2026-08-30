@@ -3,7 +3,7 @@
      numbers at the same person. Expects: $target $cap $equity $instrument
      $funded $committed $showBar $docs $docUrl (closure taking a slug). --}}
 
-<section class="hero"><div class="wrap">
+<section class="hero" id="terms"><div class="wrap">
   <span class="eyebrow">Investment opportunity</span>
   {{-- MARKER-INVEST-ACRONYM — lcfirst so it reads mid-sentence without
        flattening SAFE into safe. --}}
@@ -43,7 +43,7 @@
 </div></section>
 
 @if($docs)
-<section><div class="wrap">
+<section id="docs"><div class="wrap">
   <p class="sub">Read first</p>
   <div class="docs">
     @foreach($docs as $doc)

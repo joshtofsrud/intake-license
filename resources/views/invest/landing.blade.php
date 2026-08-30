@@ -144,32 +144,38 @@ textarea:focus{border-color:var(--lime-line)}
   <span class="invite">By introduction</span>
 </div></nav>
 
-<section class="hero"><div class="wrap">
+{{-- MARKER-INVEST-RAIL --}}
+@php
+  $rail = [
+    ['#top', 'The problem', null],
+    ['#s-cap', 'The platform', 's-cap'],
+    ['#s-bike', 'Why bike first', 's-bike'],
+    ['#s-stack', 'What it replaces', 's-stack'],
+    ['#ask', 'Ask for the proposal', null],
+    ['#code', 'Have a code?', null],
+    ['#support', 'Back the project', null],
+  ];
+@endphp
+@include('invest._rail')
+
+<section class="hero" id="top"><div class="wrap">
   <span class="eyebrow">Built by a shop owner</span>
   <h1 class="big">{!! $headline !!}</h1>
   <p class="lede wide">{{ $lede }}</p>
 </div></section>
 
+{{-- MARKER-INVEST-RAIL — platform first: it is the strongest of the three,
+     and the invoice stack reads better as evidence than as the opening. --}}
 <section><div class="wrap">
-  <p class="sub">What one three-location shop was actually paying</p>
-  <div class="stack">
-    <div class="srow"><b>Ascend POS · 3 locations</b><span class="note">Retail only</span><span class="amt">$750</span></div>
-    <div class="srow"><b>Shopify + add-ons</b><span class="note">A second catalog to maintain</span><span class="amt">$680–880</span></div>
-    <div class="srow"><b>MasterLinq</b><span class="note">Supplier data the register never saw</span><span class="amt">$550</span></div>
-    <div class="srow"><b>Constant Contact</b><span class="note">Marketing, disconnected</span><span class="amt">$185</span></div>
-    <div class="srow"><b>Booqable · Freshdesk</b><span class="note">Rentals and inbox</span><span class="amt">$109</span></div>
-    <div class="srow sum"><b>Every month</b><span class="note">Six subscriptions, no shared customer record</span><span class="amt">$2,274–2,474</span></div>
-    <div class="srow tot"><b>Intake, same three locations</b><span class="note">Intake does all the services listed above</span><span class="amt">$775</span></div>
-  </div>
-  <details class="m">
-    <summary>Where these numbers come from</summary>
-    <div class="inner"><p style="font-size:13.5px">One shop's own invoices, not list pricing — used because
-      they're verifiable, not because they're typical. The saving isn't a discount on the same stack. It's
-      a stack that isn't there.</p></div>
-  </details>
-</div></section>
 
-<section><div class="wrap">
+  <details class="sec" id="s-cap">
+    <summary>The platform <span class="cap">&mdash; one core, and what sits on top</span></summary>
+    <div class="body">@include('invest._capability')</div>
+  </details>
+
+  <details class="sec" id="s-bike">
+    <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
+    <div class="body"><section><div class="wrap">
   <p class="sub">Why bike first</p>
   <h2 style="font-size:clamp(24px,3.2vw,34px);letter-spacing:-1.1px">The hardest version of the problem.</h2>
   <p class="lede wide">Specialty bike is a service business, a retail business and a rental business at
@@ -206,8 +212,33 @@ textarea:focus{border-color:var(--lime-line)}
   </ul>
 </div></section>
 
-{{-- MARKER-INVEST-CAPABILITY --}}
-@include('invest._capability')
+{{-- MARKER-INVEST-CAPABILITY --}}</div>
+  </details>
+
+  <details class="sec" id="s-stack">
+    <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
+    <div class="body"><section><div class="wrap">
+  <p class="sub">What one three-location shop was actually paying</p>
+  <div class="stack">
+    <div class="srow"><b>Ascend POS · 3 locations</b><span class="note">Retail only</span><span class="amt">$750</span></div>
+    <div class="srow"><b>Shopify + add-ons</b><span class="note">A second catalog to maintain</span><span class="amt">$680–880</span></div>
+    <div class="srow"><b>MasterLinq</b><span class="note">Supplier data the register never saw</span><span class="amt">$550</span></div>
+    <div class="srow"><b>Constant Contact</b><span class="note">Marketing, disconnected</span><span class="amt">$185</span></div>
+    <div class="srow"><b>Booqable · Freshdesk</b><span class="note">Rentals and inbox</span><span class="amt">$109</span></div>
+    <div class="srow sum"><b>Every month</b><span class="note">Six subscriptions, no shared customer record</span><span class="amt">$2,274–2,474</span></div>
+    <div class="srow tot"><b>Intake, same three locations</b><span class="note">Intake does all the services listed above</span><span class="amt">$775</span></div>
+  </div>
+  <details class="m">
+    <summary>Where these numbers come from</summary>
+    <div class="inner"><p style="font-size:13.5px">One shop's own invoices, not list pricing — used because
+      they're verifiable, not because they're typical. The saving isn't a discount on the same stack. It's
+      a stack that isn't there.</p></div>
+  </details>
+</div></section></div>
+  </details>
+
+</div></section>
+
 
 <section><div class="wrap">
   <div class="grid2">
