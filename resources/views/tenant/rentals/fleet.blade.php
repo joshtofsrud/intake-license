@@ -229,7 +229,7 @@
               <div class="fl-fg"><span class="fl-lbl">Hourly</span><div class="fl-money"><input class="fl-inp" value="{{ $model->hourly_rate_cents ? number_format($model->hourly_rate_cents/100,2,'.','') : '' }}" data-mf="hourly_rate" placeholder="—"></div></div>
               <div class="fl-fg"><span class="fl-lbl">Daily</span><div class="fl-money"><input class="fl-inp" value="{{ $model->daily_rate_cents ? number_format($model->daily_rate_cents/100,2,'.','') : '' }}" data-mf="daily_rate" placeholder="—"></div></div>
               <div class="fl-fg"><span class="fl-lbl">Weekend</span><div class="fl-money"><input class="fl-inp" value="{{ $model->weekend_rate_cents ? number_format($model->weekend_rate_cents/100,2,'.','') : '' }}" data-mf="weekend_rate" placeholder="—"></div></div>
-              <div class="fl-fg"><span class="fl-lbl">Season @if(!tenant()->leasing_available)<span style="opacity:.5">(Scale)</span>@endif</span><div class="fl-money"><input class="fl-inp" value="{{ $model->seasonal_rate_cents ? number_format($model->seasonal_rate_cents/100,2,'.','') : '' }}" data-mf="seasonal_rate" placeholder="—" {{ tenant()->leasing_available ? '' : 'disabled' }}></div></div>
+              <div class="fl-fg"><span class="fl-lbl">Entire season / lease @if(!tenant()->leasing_available)<span style="opacity:.5">(Scale)</span>@endif</span><div class="fl-money"><input class="fl-inp" value="{{ $model->seasonal_rate_cents ? number_format($model->seasonal_rate_cents/100,2,'.','') : '' }}" data-mf="seasonal_rate" placeholder="—" {{ tenant()->leasing_available ? '' : 'disabled' }}></div></div>
               <div class="fl-fg"><span class="fl-lbl">Deposit</span><div class="fl-money"><input class="fl-inp" value="{{ number_format($model->deposit_cents/100,2,'.','') }}" data-mf="deposit"></div></div>
               <div class="fl-fg" style="grid-column:2/4"><span class="fl-lbl">Checklist</span>
                 <select class="fl-inp" data-mf="condition_template_id">
@@ -257,8 +257,12 @@
                   <span data-idf-err style="font-size:11px;color:#ff8b8b;display:none"></span>
                 </div>
               </div>
-              <div style="grid-column:1/5;font-size:11px;opacity:.4">Everything in this drawer saves as you type — no save button needed.</div>
               <div class="fl-fg" style="justify-content:end"><button type="button" class="ia-btn" onclick="flArchiveModel('{{ $model->id }}')">Archive model</button></div>
+              {{-- MARKER-FLEET-SAVE — explicit save, the app standard. --}}
+              <div style="grid-column:1/5;display:flex;gap:12px;align-items:center;justify-content:flex-end;border-top:.5px solid var(--ia-border);padding-top:12px">
+                <span data-msave-note style="font-size:11.5px;color:var(--ia-accent,#BEF264);opacity:0;transition:opacity .25s">✓ Saved</span>
+                <button type="button" class="ia-btn ia-btn--primary" data-msave>Save model</button>
+              </div>
             </div>
           </div>
 
@@ -319,7 +323,7 @@
                 @foreach($mIdents as $in)
                   <div class="fl-fg fl-ident-fg" style="width:110px"><span class="fl-lbl">{{ $in }}</span><input type="text" name="ident[{{ $in }}]" placeholder="optional" class="fl-inp"></div>
                 @endforeach
-                <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add units</button>
+                <div class="fl-fg" data-add-submit><span class="fl-lbl">&nbsp;</span><button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="height:33px">Add units</button></div>
               </form>
             </div>
           </div>
@@ -438,7 +442,7 @@
     clearTimeout(toastTimer);
     if (tone !== 'busy') toastTimer = setTimeout(function(){ toast.style.opacity = '0'; toast.style.transform = 'translateY(6px)'; }, tone === 'err' ? 3500 : 1400);
   }
-  function patch(url, field, value, ok){
+  function patch(url, field, value, ok, fail){
     showToast('Saving…', 'busy');
     fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'PATCH'},
       body: JSON.stringify({field:field, value:value})})
@@ -447,11 +451,11 @@
         return r.json();
       })
       .then(function(j){
-        if (j && j.success === false) { showToast(j.message || 'Could not save.', 'err'); return; }
+        if (j && j.success === false) { showToast(j.message || 'Could not save.', 'err'); if (fail) fail(); return; }
         showToast('Saved ✓', 'ok');
         if (ok) ok();
       })
-      .catch(function(){ showToast("Couldn't save — check your connection and retry.", 'err'); });
+      .catch(function(){ showToast("Couldn't save — check your connection and retry.", 'err'); if (fail) fail(); });
   }
   // MARKER-RENTAL-MODEL-PHOTOS — pick file → upload → save URL via the
   // hidden data-mf input (change event rides the existing autosave).
@@ -497,11 +501,26 @@
     }
   });
   // model field edits
+  // MARKER-FLEET-SAVE — the drawer commits on "Save model" (explicit save is
+  // the app standard); fields mark dirty on change instead of auto-saving.
   document.querySelectorAll('.fl-model-body').forEach(function(body){
     var url = '{{ url('admin/rentals/fleet/models') }}/' + body.getAttribute('data-model');
+    var dirty = {};
     body.querySelectorAll('[data-mf]').forEach(function(el){
-      el.addEventListener('change', function(){
-        var f = el.getAttribute('data-mf');
+      el.addEventListener('change', function(){ dirty[el.getAttribute('data-mf')] = el; });
+    });
+    var saveBtn = body.querySelector('[data-msave]');
+    var note = body.querySelector('[data-msave-note]');
+    function flash(msg){ if (!note) return; note.textContent = msg; note.style.opacity = 1; setTimeout(function(){ note.style.opacity = 0; }, 1600); }
+    if (saveBtn) saveBtn.addEventListener('click', function(){
+      var fields = Object.keys(dirty);
+      if (!fields.length) { flash('Nothing to save'); return; }
+      saveBtn.disabled = true;
+      var i = 0;
+      function done(ok){ saveBtn.disabled = false; if (ok) { dirty = {}; flash('\u2713 Saved'); } }
+      function next(){
+        if (i >= fields.length) { done(true); return; }
+        var f = fields[i++]; var el = dirty[f];
         patch(url, f, el.value, function(){
           // MARKER-PATCH-246 — model head name follows the drawer edit.
           if (f === 'name') {
@@ -509,15 +528,17 @@
             var t = head ? head.querySelector('.fl-model-name') : null;
             if (t) t.textContent = el.value;
           }
-          // MARKER-FLEET-IDENT-UX — columns follow live, no reload.
+          // MARKER-FLEET-IDENT-UX — unit columns sync once identifiers save.
           if (f === 'identifiers') {
             var idents = [];
             try { idents = JSON.parse(el.value || '[]') || []; } catch (e) {}
             var card = body.closest('.fl-model');
             if (card) flSyncIdentCols(card, idents);
           }
-        });
-      });
+          next();
+        }, function(){ done(false); });
+      }
+      next();
     });
   });
   // unit field edits
@@ -579,7 +600,7 @@
     var form = units.querySelector('.fl-add-line form');
     if (form) {
       form.querySelectorAll('.fl-ident-fg').forEach(function(f){ f.remove(); });
-      var submit = form.querySelector('button[type="submit"]');
+      var submit = form.querySelector('[data-add-submit]') || form.querySelector('button[type="submit"]');
       idents.forEach(function(name){
         var fg = document.createElement('div'); fg.className = 'fl-fg fl-ident-fg'; fg.style.width = '110px';
         var l = document.createElement('span'); l.className = 'fl-lbl'; l.textContent = name;
