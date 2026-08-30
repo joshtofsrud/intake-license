@@ -292,9 +292,18 @@ class RentalFleetController extends Controller
             ->limit(6)
             ->get();
 
+        // MARKER-UNIT-DETAIL — the model's identifier names and photo set, so
+        // this page edits the same fields the fleet roster does.
+        $mIdents = array_values(array_filter($unit->model?->identifiers ?? [],
+            fn ($n) => ! in_array(mb_strtolower($n), ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'], true)));
+        $mPhotos = array_values(array_filter($unit->model?->photos ?? []));
+        if ($unit->model?->image_url && ! in_array($unit->model->image_url, $mPhotos, true)) {
+            array_unshift($mPhotos, $unit->model->image_url);
+        }
+
         return view('tenant.rentals.units.show', compact(
             'unit', 'derived', 'rentals', 'utilizationPct', 'lifetimeCents',
-            'flaggedReturns', 'photoChecks'
+            'flaggedReturns', 'photoChecks', 'mIdents', 'mPhotos'
         ));
     }
 

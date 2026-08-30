@@ -83,6 +83,12 @@
     {{-- MARKER-PATCH-236 — per-instance fields edit here now (roster rows
          are read-first). Saves field-by-field via the fleet updateUnit
          endpoint. --}}
+    {{-- MARKER-UNIT-DETAIL --}}
+    <style>
+      .up-tile{width:74px;height:56px;border-radius:8px;border:1.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat;cursor:pointer;padding:0}
+      .up-tile.sel{border-color:var(--ia-accent,#BEF264)}
+      .up-none{font-size:11px;color:var(--ia-text-dim,rgba(255,255,255,.55))}
+    </style>
     <div class="ia-card" style="padding:16px;margin-bottom:16px">
       <span class="ia-label">Edit unit</span>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px" id="unit-edit" data-unit="{{ $unit->id }}">
@@ -101,8 +107,31 @@
             <option value="0" {{ $unit->available_for_rent ? '':'selected' }}>Off — hidden from booking</option>
           </select>
         </div>
+        {{-- MARKER-UNIT-DETAIL — the same per-model identifier fields the
+             fleet roster shows for this unit. --}}
+        @foreach($mIdents as $in)
+          <div><div style="font-size:11px;opacity:.5;margin-bottom:4px">{{ $in }}</div><input class="ia-input" style="width:100%" value="{{ ($unit->identifier_values ?? [])[$in] ?? '' }}" data-ui="{{ $in }}" placeholder="—"></div>
+        @endforeach
+        {{-- MARKER-UNIT-DETAIL — photo, picked from this model's set. --}}
+        <div style="grid-column:1/3">
+          <div style="font-size:11px;opacity:.5;margin-bottom:4px">Photo</div>
+          @if(count($mPhotos))
+            <div style="display:flex;gap:8px;flex-wrap:wrap" id="unit-photos">
+              @foreach($mPhotos as $ph)
+                <button type="button" class="up-tile {{ $unit->photo_url === $ph ? 'sel' : '' }}" data-photo="{{ $ph }}" style="background-image:url('{{ $ph }}')" title="Use this photo"></button>
+              @endforeach
+              <button type="button" class="up-tile up-none {{ $unit->photo_url ? '' : 'sel' }}" data-photo="" title="No photo">none</button>
+            </div>
+            <input type="hidden" data-uf="photo_url" value="{{ $unit->photo_url }}">
+          @else
+            <div style="font-size:12px;opacity:.5">No photos on {{ $unit->model?->name ?: 'this model' }} yet — add them in Fleet → Edit → Photos.</div>
+          @endif
+        </div>
       </div>
-      <div style="font-size:11px;opacity:.45;margin-top:8px" id="unit-edit-status">Changes save as you go.</div>
+      <div style="display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:12px">
+        <span id="unit-edit-status" style="font-size:11.5px;opacity:.45"></span>
+        <button type="button" class="ia-btn ia-btn--primary" id="unit-save">Save unit</button>
+      </div>
     </div>
 
     <div class="ia-card" style="padding:16px;margin-bottom:16px">
@@ -139,24 +168,73 @@
 
 {{-- MARKER-PATCH-236 — field-by-field save to the fleet updateUnit endpoint. --}}
 <script>
+// MARKER-UNIT-DETAIL — explicit save, matching the fleet model drawer.
 (function () {
   var wrap = document.getElementById('unit-edit');
   if (!wrap) return;
   var url = '{{ url('admin/rentals/fleet/units') }}/' + wrap.getAttribute('data-unit');
   var csrf = '{{ csrf_token() }}';
   var statusEl = document.getElementById('unit-edit-status');
+  var saveBtn = document.getElementById('unit-save');
+  var dirty = {};
+
+  function say(msg, bad) {
+    statusEl.textContent = msg;
+    statusEl.style.color = bad ? '#ef4444' : 'var(--ia-accent,#BEF264)';
+    if (!bad) setTimeout(function () { statusEl.textContent = ''; }, 1800);
+  }
+  function send(field, value) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-HTTP-Method-Override': 'PATCH' },
+      body: JSON.stringify({ field: field, value: value })
+    }).then(function (r) { return r.json(); });
+  }
+
   wrap.querySelectorAll('[data-uf]').forEach(function (el) {
+    el.addEventListener('change', function () { dirty[el.getAttribute('data-uf')] = el.value; });
+  });
+
+  // Identifier inputs save as one map, like the fleet roster cells.
+  var idEls = wrap.querySelectorAll('[data-ui]');
+  idEls.forEach(function (el) {
     el.addEventListener('change', function () {
-      statusEl.textContent = 'Saving…';
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'X-HTTP-Method-Override': 'PATCH' },
-        body: JSON.stringify({ field: el.getAttribute('data-uf'), value: el.value })
-      }).then(function (r) { return r.json(); }).then(function (j) {
-        if (j && j.success === false) { statusEl.textContent = j.message || 'Could not save.'; statusEl.style.color = '#ef4444'; }
-        else { statusEl.textContent = 'Saved.'; statusEl.style.color = ''; setTimeout(function () { statusEl.textContent = 'Changes save as you go.'; }, 1800); }
-      }).catch(function () { statusEl.textContent = 'Could not save.'; statusEl.style.color = '#ef4444'; });
+      var map = {};
+      idEls.forEach(function (x) { if (x.value.trim() !== '') map[x.getAttribute('data-ui')] = x.value.trim(); });
+      dirty['identifier_values'] = JSON.stringify(map);
     });
+  });
+
+  // Photo tiles set the hidden field (and mark it dirty).
+  var photoWrap = document.getElementById('unit-photos');
+  var photoHidden = wrap.querySelector('[data-uf="photo_url"]');
+  if (photoWrap && photoHidden) {
+    photoWrap.querySelectorAll('.up-tile').forEach(function (t) {
+      t.addEventListener('click', function () {
+        photoWrap.querySelectorAll('.up-tile').forEach(function (x) { x.classList.remove('sel'); });
+        t.classList.add('sel');
+        photoHidden.value = t.getAttribute('data-photo') || '';
+        dirty['photo_url'] = photoHidden.value;
+      });
+    });
+  }
+
+  saveBtn.addEventListener('click', function () {
+    var fields = Object.keys(dirty);
+    if (!fields.length) { say('Nothing to save'); return; }
+    saveBtn.disabled = true;
+    statusEl.style.color = '';
+    statusEl.textContent = 'Saving\u2026';
+    var i = 0;
+    function next() {
+      if (i >= fields.length) { saveBtn.disabled = false; dirty = {}; say('\u2713 Saved'); return; }
+      var f = fields[i++];
+      send(f, dirty[f]).then(function (j) {
+        if (j && j.success === false) { saveBtn.disabled = false; say(j.message || 'Could not save.', true); return; }
+        next();
+      }).catch(function () { saveBtn.disabled = false; say('Could not save.', true); });
+    }
+    next();
   });
 })();
 </script>
