@@ -177,45 +177,9 @@ textarea:focus{border-color:var(--lime-line)}
 
   <details class="sec" id="s-bike">
     <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
-    <div class="body"><section><div class="wrap">
-  <p class="sub">Why bike first</p>
-  {{-- MARKER-BIKE-HEADING — no inline size: this sits inside a collapsed
-       panel now, at the same weight as every other section heading. --}}
-  <h2>The hardest version of the problem.</h2>
-  <p class="lede">Specialty bike is a service business, a retail business and a rental business at
-    once. A platform that runs a bike shop runs a ski shop, a paddle shop or a fitness studio without
-    being rebuilt.</p>
-
-  <div class="railwrap">
-  <div class="grid3" id="rail">
-    <div class="card"><div class="n">~97k</div><div class="k">Catalog rows, three distributors</div>
-      <p>Cross-distributor product matching — months of work and supplier relationships a competitor starts
-        from zero on. More distributors are being added, the architecture has no ceiling on how many it
-        carries, and the same pipes serve industries beyond bike.</p></div>
-    <div class="card"><div class="n">8</div><div class="k">States, founding rep group</div>
-      <p>Sold by reps who already walk into every shop in the territory, rather than cold outbound into an
-        industry that ignores it.</p></div>
-    <div class="card"><div class="n">Live</div><div class="k">In production</div>
-      <p>Not a prototype. A founding shop is signed and converting its full point of sale, and the founder's
-        own mobile service business runs on it daily.</p></div>
-  </div>
-    <span class="fade l" id="fadeL"></span><span class="fade r" id="fadeR"></span>
-    <button type="button" class="chev l" id="chevL" aria-label="Previous">&#8249;</button>
-    <button type="button" class="chev r" id="chevR" aria-label="Next">&#8250;</button>
-  </div>
-  <div class="railfoot">
-    <span class="dots" id="dots"><i class="on"></i><i></i><i></i></span>
-    <p class="railhint" id="railhint">1 of 3 &mdash; swipe or tap &#8250;</p>
-  </div>
-
-  <ul class="tick">
-    <li><b>Owner and GM of a multi-store specialty bicycle retailer</b> — buying, building, hiring,
-      scheduling, opening locations, every vendor relationship</li>
-    <li><b>70+ cycling events produced</b> through Velo Northwest, and a component brand designed and shipped</li>
-    <li><b>Twenty years in the market</b> this is being sold into</li>
-  </ul>
-</div></section>
-
+    <div class="body">
+{{-- MARKER-INVEST-UNIFY --}}
+@include('invest._bike')
 {{-- MARKER-INVEST-CAPABILITY --}}</div>
   </details>
 
@@ -226,24 +190,9 @@ textarea:focus{border-color:var(--lime-line)}
 
   <details class="sec" id="s-stack">
     <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
-    <div class="body"><section><div class="wrap">
-  <p class="sub">What one three-location shop was actually paying</p>
-  <div class="stack">
-    <div class="srow"><b>Ascend POS · 3 locations</b><span class="note">Retail only</span><span class="amt">$750</span></div>
-    <div class="srow"><b>Shopify + add-ons</b><span class="note">A second catalog to maintain</span><span class="amt">$680–880</span></div>
-    <div class="srow"><b>MasterLinq</b><span class="note">Supplier data the register never saw</span><span class="amt">$550</span></div>
-    <div class="srow"><b>Constant Contact</b><span class="note">Marketing, disconnected</span><span class="amt">$185</span></div>
-    <div class="srow"><b>Booqable · Freshdesk</b><span class="note">Rentals and inbox</span><span class="amt">$109</span></div>
-    <div class="srow sum"><b>Every month</b><span class="note">Six subscriptions, no shared customer record</span><span class="amt">$2,274–2,474</span></div>
-    <div class="srow tot"><b>Intake, same three locations</b><span class="note">Intake does all the services listed above</span><span class="amt">$775</span></div>
-  </div>
-  <details class="m">
-    <summary>Where these numbers come from</summary>
-    <div class="inner"><p style="font-size:13.5px">One shop's own invoices, not list pricing — used because
-      they're verifiable, not because they're typical. The saving isn't a discount on the same stack. It's
-      a stack that isn't there.</p></div>
-  </details>
-</div></section></div>
+    <div class="body">
+@include('invest._stack')
+</div>
   </details>
 
 </div></section>
@@ -411,45 +360,4 @@ textarea:focus{border-color:var(--lime-line)}
   <a class="a1" href="#ask">Request the proposal</a>
 </div>
 
-<script>
-(function () {
-  var rail = document.getElementById('rail');
-  if (!rail) { return; }
-
-  var cards = rail.querySelectorAll('.card');
-  var dots  = document.getElementById('dots');
-  var hint  = document.getElementById('railhint');
-  var chevL = document.getElementById('chevL'), chevR = document.getElementById('chevR');
-  var fadeL = document.getElementById('fadeL'), fadeR = document.getElementById('fadeR');
-  if (!cards.length || !dots || !hint || !chevL || !chevR) { return; }
-
-  function step() { return cards[0].offsetWidth + 11; }
-
-  function sync() {
-    var i = Math.round(rail.scrollLeft / step());
-    i = Math.max(0, Math.min(cards.length - 1, i));
-
-    for (var d = 0; d < dots.children.length; d++) {
-      dots.children[d].className = d === i ? 'on' : '';
-    }
-    hint.textContent = (i + 1) + ' of ' + cards.length +
-      (i < cards.length - 1 ? ' \u2014 swipe or tap \u203A' : '');
-
-    var atStart = rail.scrollLeft < 8;
-    var atEnd   = rail.scrollLeft > rail.scrollWidth - rail.clientWidth - 8;
-    chevL.style.opacity = atStart ? 0 : 1;
-    chevL.style.pointerEvents = atStart ? 'none' : 'auto';
-    chevR.style.opacity = atEnd ? 0 : 1;
-    chevR.style.pointerEvents = atEnd ? 'none' : 'auto';
-    fadeL.style.opacity = atStart ? 0 : 1;
-    fadeR.style.opacity = atEnd ? 0 : 1;
-  }
-
-  rail.addEventListener('scroll', sync, {passive: true});
-  chevR.addEventListener('click', function () { rail.scrollBy({left: step(), behavior: 'smooth'}); });
-  chevL.addEventListener('click', function () { rail.scrollBy({left: -step(), behavior: 'smooth'}); });
-  window.addEventListener('resize', sync);
-  sync();
-})();
-</script>
 </body></html>

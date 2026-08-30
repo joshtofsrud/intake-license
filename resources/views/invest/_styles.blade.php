@@ -120,6 +120,36 @@ input:focus,select:focus{border-color:var(--lime-line)}
   transition:background .12s}
 .rail a.open i{background:var(--lime)}
 
+/* MARKER-INVEST-UNIFY — the bike section's mobile swipe rail. Moved here from
+   the landing page so every surface rendering that section gets it. The block
+   below closes a media query opened in the source it came from, so it is kept
+   verbatim rather than reflowed. */
+.railwrap{position:relative}
+.fade,.chev,.railfoot{display:none}
+@media(max-width:640px){
+  .grid3{display:flex;gap:11px;overflow-x:auto;scroll-snap-type:x mandatory;
+    margin:18px -20px 0;padding:0 20px 6px}
+  .grid3::-webkit-scrollbar{height:0}
+  /* 78% of the frame, so the next card is always visibly cut off */
+  .grid3 .card{scroll-snap-align:start;flex:0 0 78%;padding:17px}
+  .grid3 .card .n{font-size:26px}
+  .grid3 .card p{font-size:13px}
+  .fade{display:block;position:absolute;top:0;bottom:6px;width:34px;pointer-events:none}
+  .fade.r{right:-20px;background:linear-gradient(270deg,var(--bg) 15%,transparent)}
+  .fade.l{left:-20px;background:linear-gradient(90deg,var(--bg) 15%,transparent);opacity:0}
+  .chev{display:flex;position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;
+    border-radius:50%;background:rgba(20,20,20,.92);border:1px solid var(--line2);color:var(--text);
+    align-items:center;justify-content:center;font-size:15px;line-height:1;cursor:pointer;z-index:2;
+    transition:opacity .15s}
+  .chev.r{right:-6px}
+  .chev.l{left:-6px;opacity:0;pointer-events:none}
+  .railfoot{display:flex;align-items:center;gap:9px;margin-top:11px}
+  .dots{display:flex;gap:6px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:var(--line2);display:block;transition:all .15s}
+  .dots i.on{background:var(--lime);width:18px;border-radius:3px}
+  .railhint{font-size:11px;color:var(--dim);letter-spacing:.4px;margin:0}
+}
+
 details.sec{border-top:1px solid var(--line)}
 details.sec:last-of-type{border-bottom:1px solid var(--line)}
 details.sec > summary{list-style:none;cursor:pointer;padding:20px 0;display:flex;align-items:baseline;

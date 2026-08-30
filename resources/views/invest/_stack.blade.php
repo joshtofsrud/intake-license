@@ -1,5 +1,5 @@
-{{-- MARKER-INVEST-RAIL — split out of _context so it can be collapsed on
-     its own. Still included by _context, so the gated page is unchanged. --}}
+{{-- MARKER-INVEST-UNIFY — the one copy of this section, including the source
+     disclosure the gated copy was missing. --}}
 <section><div class="wrap">
   <p class="sub">What one three-location shop was actually paying</p>
   <div class="stack">
@@ -11,6 +11,10 @@
     <div class="srow sum"><b>Every month</b><span class="note">Six subscriptions, no shared customer record</span><span class="amt">$2,274–2,474</span></div>
     <div class="srow tot"><b>Intake, same three locations</b><span class="note">Intake does all the services listed above</span><span class="amt">$775</span></div>
   </div>
-  <p class="fine">One shop's own invoices, not list pricing — used because they're verifiable, not because
-    they're typical. The saving isn't a discount on the same stack. It's a stack that isn't there.</p>
+  <details class="m">
+    <summary>Where these numbers come from</summary>
+    <div class="inner"><p style="font-size:13.5px">One shop's own invoices, not list pricing — used because
+      they're verifiable, not because they're typical. The saving isn't a discount on the same stack. It's
+      a stack that isn't there.</p></div>
+  </details>
 </div></section>

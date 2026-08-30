@@ -54,7 +54,7 @@
 
   <details class="sec" id="s-bike">
     <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
-    <div class="body">@include('invest._context-bike')</div>
+    <div class="body">@include('invest._bike')</div>
   </details>
 
   <details class="sec" id="s-cap">
@@ -66,7 +66,7 @@
        appear on the public door — only here. --}}
   <details class="sec" id="s-stack">
     <summary>What it replaces <span class="cap">&mdash; one shop&rsquo;s own invoices</span></summary>
-    <div class="body">@include('invest._context-stack')</div>
+    <div class="body">@include('invest._stack')</div>
   </details>
 
   <details class="sec" id="s-market">
