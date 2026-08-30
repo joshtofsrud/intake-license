@@ -200,9 +200,9 @@
               @if($model->seasonal_rate_cents)<span class="fl-chip season"><b>{{ format_money($model->seasonal_rate_cents) }}</b>/season</span>@endif
               <span class="fl-chip"><b>{{ format_money($model->deposit_cents) }}</b> dep</span>
             </div>
-            <div class="fl-mins">{{ $model->view_units->count() }} unit{{ $model->view_units->count() === 1 ? '' : 's' }}</div>
+            <div class="fl-mins" data-unit-count>{{ $model->view_units->count() }} unit{{ $model->view_units->count() === 1 ? '' : 's' }}</div>
             <span style="display:flex;gap:8px;align-items:center">
-              <span class="pill av">{{ $model->avail_count }} free</span>
+              <span class="pill av" data-avail-count>{{ $model->avail_count }} free</span>
               {{-- MARKER-PATCH-236 — pricing form opens on demand. --}}
               <button type="button" class="fl-editbtn" onclick="event.stopPropagation();this.closest('.fl-model').classList.toggle('editing');this.closest('.fl-model').classList.add('open')">✎ Edit</button>
             </span>
@@ -278,7 +278,7 @@
                   ? '120px 70px ' . str_repeat('minmax(80px,140px) ', count($mIdents)) . '1fr 130px 90px 70px 64px'
                   : null;
             @endphp
-            <div class="fl-uhead" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
+            <div class="fl-uhead" data-uhead @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
             @foreach($model->view_units as $u)
               @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
               <a class="fl-uline" data-unit="{{ $u->id }}" data-uvals="{{ json_encode($u->identifier_values ?? []) }}" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
@@ -313,7 +313,7 @@
               {{-- MARKER-FLEET-IDENT — labeled inputs (the headers above belong
                    to the unit list, not this form) + one input per model
                    identifier, applied to every unit in the batch. --}}
-              <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap">
+              <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" data-add-form style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap">
                 @csrf
                 <input type="hidden" name="model_id" value="{{ $model->id }}">
                 <div class="fl-fg" style="width:64px"><span class="fl-lbl">Qty</span><input type="number" name="count" value="1" min="1" max="200" class="fl-inp"></div>
@@ -645,6 +645,93 @@
       el.addEventListener('change', function(){ patch(url, el.getAttribute('data-ctf'), el.value); });
     });
   });
+  // MARKER-FLEET-ADD-INLINE — add units without losing your place: post by
+  // fetch, prepend the new rows, clear the inputs, keep the form open.
+  document.querySelectorAll('[data-add-form]').forEach(function(form){
+    var units = form.closest('.fl-units');
+    var btn   = form.querySelector('button[type="submit"]');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      if (btn.disabled) return;
+      btn.disabled = true;
+      showToast('Adding\u2026', 'busy');
+      fetch(form.getAttribute('action'), {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          btn.disabled = false;
+          if (!j || j.success === false) { showToast((j && j.message) || 'Could not add units.', 'err'); return; }
+
+          var head  = units.querySelector('[data-uhead]');
+          var grid  = head ? head.style.gridTemplateColumns : '';
+          var names = [];
+          form.querySelectorAll('.fl-ident-fg input').forEach(function(i){
+            var m = /^ident\[(.+)\]$/.exec(i.getAttribute('name') || '');
+            if (m) names.push(m[1]);
+          });
+
+          (j.units || []).slice().reverse().forEach(function(u){
+            var a = document.createElement('a');
+            a.className = 'fl-uline';
+            a.setAttribute('data-unit', u.id);
+            a.setAttribute('data-uvals', JSON.stringify(u.values || {}));
+            a.href = u.url;
+            if (grid) a.style.gridTemplateColumns = grid;
+
+            function span(txt, cls){ var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = txt; a.appendChild(s); return s; }
+            span(u.identifier || '\u2014', 'fl-mono');
+            span(u.size || '\u2014');
+            names.forEach(function(n){
+              var cell = document.createElement('span');
+              cell.className = 'fl-ui-cell';
+              cell.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
+              var i = document.createElement('input');
+              i.setAttribute('data-ui', n);
+              i.placeholder = '\u2014';
+              i.title = n + ' \u2014 saves on change';
+              i.style.minWidth = '0';
+              i.value = (u.values && u.values[n]) || '';
+              cell.appendChild(i);
+              a.appendChild(cell);
+            });
+            var cond = span('', 'fl-cond');
+            var none = document.createElement('span'); none.style.opacity = '.3'; none.textContent = 'no incidents'; cond.appendChild(none);
+            var st = document.createElement('span');
+            var pill = document.createElement('span'); pill.className = 'pill av'; pill.textContent = 'Available'; st.appendChild(pill);
+            a.appendChild(st);
+            span('never').style.opacity = '.55';
+            span('\u2014').style.opacity = '.55';
+            span('History', 'fl-ulink');
+
+            units.insertBefore(a, units.querySelector('.fl-add-line'));
+            flBindIdentCells(a);
+          });
+
+          // Counters follow without a reload.
+          var card = units.closest('.fl-model');
+          var cEl  = card && card.querySelector('[data-unit-count]');
+          var aEl  = card && card.querySelector('[data-avail-count]');
+          if (cEl) cEl.textContent = j.unit_count + ' unit' + (j.unit_count === 1 ? '' : 's');
+          if (aEl) aEl.textContent = j.avail_count + ' free';
+
+          // Ready for the next batch: qty back to 1, numbering continues,
+          // tag prefix and identifier values stay.
+          var qty = form.querySelector('[name="count"]');
+          var st2 = form.querySelector('[name="start_number"]');
+          var sz  = form.querySelector('[name="size"]');
+          if (qty) qty.value = 1;
+          if (st2 && j.next_start != null) st2.value = j.next_start;
+          if (sz) sz.value = '';
+          showToast(j.message || 'Added \u2713', 'ok');
+          if (qty) qty.focus();
+        })
+        .catch(function(){ btn.disabled = false; showToast("Couldn't add units \u2014 check your connection and retry.", 'err'); });
+    });
+  });
+
   // MARKER-FLEET-IDENT — identifier chips in the model drawer (3 max).
   document.querySelectorAll('[data-idf-wrap]').forEach(function(wrap){
     var hidden = wrap.querySelector('[data-mf="identifiers"]');

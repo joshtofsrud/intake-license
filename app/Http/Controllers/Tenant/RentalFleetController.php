@@ -553,7 +553,8 @@ class RentalFleetController extends Controller
             if ($v !== '') $identVals[$iname] = $v;
         }
 
-        DB::transaction(function () use ($tenant, $model, $count, $prefix, $start, $size, $locId, $identVals) {
+        $created = [];
+        DB::transaction(function () use ($tenant, $model, $count, $prefix, $start, $size, $locId, $identVals, &$created) {
             $rows = [];
             for ($i = 0; $i < $count; $i++) {
                 $tag = $prefix !== '' ? $prefix . str_pad((string) ($start + $i), 2, '0', STR_PAD_LEFT) : null;
@@ -579,7 +580,32 @@ class RentalFleetController extends Controller
             foreach (array_chunk($rows, 50) as $chunk) {
                 DB::table('tenant_rental_units')->insert($chunk);
             }
+            $created = $rows;
         });
+
+        // MARKER-FLEET-ADD-INLINE — XHR callers render the new rows in place
+        // instead of reloading the page. Plain form POSTs redirect as before.
+        if ($request->expectsJson() || $request->ajax()) {
+            $totals = TenantRentalUnit::where('tenant_id', $tenant->id)
+                ->where('model_id', $model->id)
+                ->whereNull('archived_at')
+                ->get(['status', 'available_for_rent']);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Added {$count} unit" . ($count === 1 ? '' : 's') . ".",
+                'units'   => array_map(fn ($r) => [
+                    'id'         => $r['id'],
+                    'identifier' => $r['identifier'],
+                    'size'       => $r['size'],
+                    'values'     => $identVals,
+                    'url'        => route('tenant.rentals.fleet.units.show', $r['id']),
+                ], $created),
+                'unit_count'  => $totals->count(),
+                'avail_count' => $totals->where('status', 'available')->where('available_for_rent', true)->count(),
+                'next_start'  => $start + $count,
+            ]);
+        }
 
         return redirect()->route('tenant.rentals.fleet')
             ->with('flash', "Added {$count} units to {$model->name}.");
