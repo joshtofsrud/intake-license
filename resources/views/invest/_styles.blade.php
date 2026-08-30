@@ -177,7 +177,14 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
   color:var(--dim);margin-top:8px}
 .ctx-card p{font-size:13.5px;margin-top:9px}
 @media(max-width:760px){.ctx-cards{grid-template-columns:1fr}}
-@media(max-width:700px){.srow{grid-template-columns:minmax(0,1fr) 100px}.srow .note{display:none}}
+/* MARKER-STACK-MOBILE — the detail column moves to a second line rather than
+   being hidden. Hiding it left rows reading "Retail 5", which says nothing. */
+@media(max-width:700px){
+  .srow{grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:11px 14px}
+  .srow b{grid-column:1;grid-row:1}
+  .srow .amt{grid-column:2;grid-row:1;align-self:baseline}
+  .srow .note{grid-column:1;grid-row:2;font-size:12px;line-height:1.45;color:var(--dim)}
+}
 
 @media(max-width:640px){.docs .doc{min-width:100%}}
 
