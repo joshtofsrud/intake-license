@@ -463,6 +463,9 @@ class RentalFleetController extends Controller
                     fn ($n) => is_string($n) ? trim(mb_substr($n, 0, 30)) : '',
                     $list
                 ), fn ($n) => $n !== '')));
+                // MARKER-FLEET-IDENT-UX — built-in columns can't be identifiers.
+                $reserved = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
+                $list = array_values(array_filter($list, fn ($n) => ! in_array(mb_strtolower($n), $reserved, true)));
                 if (count($list) > 3) {
                     return response()->json(['success' => false, 'message' => 'Three identifiers max.'], 422);
                 }

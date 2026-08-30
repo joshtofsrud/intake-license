@@ -73,6 +73,10 @@
   .fl-idf-chip{display:inline-flex;align-items:center;gap:6px;background:var(--ia-surface-2,#262626);border:.5px solid var(--ia-border);border-radius:999px;padding:4px 6px 4px 12px;font-size:12.5px}
   .fl-idf-x{width:16px;height:16px;border:none;border-radius:50%;background:rgba(255,255,255,.1);color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:10px;line-height:1;cursor:pointer;padding:0}
   .fl-idf-x:hover{background:#E0573E;color:#fff}
+  /* MARKER-FLEET-IDENT-UX — ✓ commit lives inside the input, shown with text */
+  .fl-idf-addwrap{position:relative;display:inline-flex;align-items:center}
+  .fl-idf-ok{position:absolute;right:5px;width:20px;height:20px;border:none;border-radius:50%;background:var(--ia-accent,#BEF264);color:#0a0a0a;font-size:11px;font-weight:700;line-height:1;cursor:pointer;padding:0;display:none;align-items:center;justify-content:center}
+  .fl-idf-addwrap.has-text .fl-idf-ok{display:flex}
   .fl-uline input:focus,.fl-uline select:focus{border-color:var(--ia-accent,#BEF264);outline:none;background:var(--ia-input-bg,rgba(255,255,255,.07))}
   .fl-mono{font-family:var(--ia-font-mono,monospace)}
   .pill{font-size:10px;font-weight:600;border-radius:999px;padding:2px 9px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
@@ -233,17 +237,27 @@
                   @foreach($conditionTemplates as $ct)<option value="{{ $ct->id }}" {{ $model->condition_template_id === $ct->id ? 'selected' : '' }}>{{ $ct->name }}</option>@endforeach
                 </select>
               </div>
-              {{-- MARKER-FLEET-IDENT — up to 3 per-model unit fields (Color, Wheel size…). --}}
+              {{-- MARKER-FLEET-IDENT — up to 3 per-model unit fields (Color, Wheel size…).
+                   MARKER-FLEET-IDENT-UX — ✓ commit in the input, reserved names
+                   filtered at render so built-in columns can't be duplicated. --}}
+              @php
+                $mIdents = array_values(array_filter($model->identifiers ?? [],
+                    fn ($n) => ! in_array(mb_strtolower($n), ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'], true)));
+              @endphp
               <div class="fl-fg" style="grid-column:1/4">
                 <span class="fl-lbl">Identifiers <span style="opacity:.5;text-transform:none;letter-spacing:0">— extra fields on every unit of this model, staff-only</span></span>
                 <div class="fl-idf" data-idf-wrap>
-                  <input type="hidden" data-mf="identifiers" value="{{ json_encode($model->identifiers ?? []) }}">
+                  <input type="hidden" data-mf="identifiers" value="{{ json_encode($mIdents) }}">
                   <span data-idf-chips style="display:contents"></span>
-                  <input class="fl-inp" data-idf-new placeholder="e.g. Color" style="width:110px">
-                  <button type="button" class="ia-btn ia-btn--sm" data-idf-add>+ Add</button>
+                  <span class="fl-idf-addwrap" data-idf-addwrap>
+                    <input class="fl-inp" data-idf-new placeholder="e.g. Color" style="width:130px;padding-right:30px">
+                    <button type="button" class="fl-idf-ok" data-idf-add title="Add identifier">✓</button>
+                  </span>
                   <span data-idf-max style="font-size:11px;opacity:.45;display:none">3 max</span>
+                  <span data-idf-err style="font-size:11px;color:#ff8b8b;display:none"></span>
                 </div>
               </div>
+              <div style="grid-column:1/5;font-size:11px;opacity:.4">Everything in this drawer saves as you type — no save button needed.</div>
               <div class="fl-fg" style="justify-content:end"><button type="button" class="ia-btn" onclick="flArchiveModel('{{ $model->id }}')">Archive model</button></div>
             </div>
           </div>
@@ -254,8 +268,8 @@
                  content; the whole row opens the unit detail page where
                  damage, photos, and per-unit edits live. --}}
             @php
-              // MARKER-FLEET-IDENT — identifier columns slot between Size and Condition.
-              $mIdents = $model->identifiers ?? [];
+              // MARKER-FLEET-IDENT — identifier columns slot between Size and
+              // Condition. $mIdents is set (reserved-filtered) in the drawer above.
               $uGrid = count($mIdents)
                   ? '120px 70px ' . str_repeat('minmax(80px,140px) ', count($mIdents)) . '1fr 130px 90px 70px 64px'
                   : null;
@@ -263,11 +277,11 @@
             <div class="fl-uhead" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
             @foreach($model->view_units as $u)
               @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
-              <a class="fl-uline" data-unit="{{ $u->id }}" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
+              <a class="fl-uline" data-unit="{{ $u->id }}" data-uvals="{{ json_encode($u->identifier_values ?? []) }}" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
                 <span class="fl-mono">{{ $u->identifier ?: '—' }}</span>
                 <span>{{ $u->size ?: '—' }}{{ !$u->available_for_rent ? ' ·off' : '' }}</span>
                 @foreach($mIdents as $in)
-                  <span onclick="event.preventDefault();event.stopPropagation()"><input data-ui="{{ $in }}" value="{{ ($u->identifier_values ?? [])[$in] ?? '' }}" placeholder="—" style="min-width:0" title="{{ $in }} — saves on change"></span>
+                  <span class="fl-ui-cell" onclick="event.preventDefault();event.stopPropagation()"><input data-ui="{{ $in }}" value="{{ ($u->identifier_values ?? [])[$in] ?? '' }}" placeholder="—" style="min-width:0" title="{{ $in }} — saves on change"></span>
                 @endforeach
                 <span class="fl-cond">
                   @if($m['flags'] > 0)<span style="color:#E0A82E;font-weight:600">⚑ {{ $m['flags'] }} flag{{ $m['flags'] === 1 ? '' : 's' }}</span>@endif
@@ -303,7 +317,7 @@
                 <div class="fl-fg" style="width:70px"><span class="fl-lbl">Start #</span><input type="number" name="start_number" value="1" min="0" class="fl-inp"></div>
                 <div class="fl-fg" style="width:120px"><span class="fl-lbl">Size</span><input type="text" name="size" placeholder="optional" class="fl-inp"></div>
                 @foreach($mIdents as $in)
-                  <div class="fl-fg" style="width:110px"><span class="fl-lbl">{{ $in }}</span><input type="text" name="ident[{{ $in }}]" placeholder="optional" class="fl-inp"></div>
+                  <div class="fl-fg fl-ident-fg" style="width:110px"><span class="fl-lbl">{{ $in }}</span><input type="text" name="ident[{{ $in }}]" placeholder="optional" class="fl-inp"></div>
                 @endforeach
                 <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add units</button>
               </form>
@@ -495,34 +509,91 @@
             var t = head ? head.querySelector('.fl-model-name') : null;
             if (t) t.textContent = el.value;
           }
-          // MARKER-FLEET-IDENT — unit columns are server-rendered; reload and
-          // reopen this drawer so the change shows immediately.
+          // MARKER-FLEET-IDENT-UX — columns follow live, no reload.
           if (f === 'identifiers') {
-            try { sessionStorage.setItem('fl-reopen', body.getAttribute('data-model')); } catch (e) {}
-            location.reload();
+            var idents = [];
+            try { idents = JSON.parse(el.value || '[]') || []; } catch (e) {}
+            var card = body.closest('.fl-model');
+            if (card) flSyncIdentCols(card, idents);
           }
         });
       });
     });
   });
   // unit field edits
-  document.querySelectorAll('.fl-uline').forEach(function(line){
-    var url = '{{ url('admin/rentals/fleet/units') }}/' + line.getAttribute('data-unit');
-    line.querySelectorAll('[data-uf]').forEach(function(el){
-      el.addEventListener('change', function(){ patch(url, el.getAttribute('data-uf'), el.value); });
+  // MARKER-FLEET-IDENT-UX — identifier cells save the row's whole map;
+  // rebind-safe so live column rebuilds can call it again.
+  function flUnitUrl(line){ return '{{ url('admin/rentals/fleet/units') }}/' + line.getAttribute('data-unit'); }
+  function flBindIdentCells(line){
+    line.querySelectorAll('[data-ui]').forEach(function(el){
+      if (el.dataset.uiBound) return;
+      el.dataset.uiBound = '1';
+      el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+      el.addEventListener('change', function(){
+        var map = {};
+        line.querySelectorAll('[data-ui]').forEach(function(x){ if (x.value.trim() !== '') map[x.getAttribute('data-ui')] = x.value.trim(); });
+        patch(flUnitUrl(line), 'identifier_values', JSON.stringify(map));
+      });
     });
-    // MARKER-FLEET-IDENT — identifier cells save the row's whole map.
-    var uiEls = line.querySelectorAll('[data-ui]');
-    if (uiEls.length) {
-      uiEls.forEach(function(el){
-        el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
-        el.addEventListener('change', function(){
-          var map = {};
-          uiEls.forEach(function(x){ if (x.value.trim() !== '') map[x.getAttribute('data-ui')] = x.value.trim(); });
-          patch(url, 'identifier_values', JSON.stringify(map));
-        });
+  }
+  // MARKER-FLEET-IDENT-UX — rebuild a model's unit columns + add-form fields
+  // in place when its identifiers change. No reload.
+  function flSyncIdentCols(card, idents){
+    var units = card.querySelector('.fl-units');
+    if (!units) return;
+    var grid = idents.length
+        ? '120px 70px ' + Array(idents.length + 1).join('minmax(80px,140px) ') + '1fr 130px 90px 70px 64px'
+        : '';
+    var head = units.querySelector('.fl-uhead');
+    if (head) {
+      head.style.gridTemplateColumns = grid;
+      head.textContent = '';
+      ['Serial / tag', 'Size'].concat(idents, ['Condition', 'Status', 'Last rented', 'Util 30d', '']).forEach(function(h){
+        var s = document.createElement('span'); s.textContent = h; head.appendChild(s);
       });
     }
+    units.querySelectorAll('.fl-uline').forEach(function(line){
+      var vals = {};
+      try { vals = JSON.parse(line.getAttribute('data-uvals') || '{}') || {}; } catch (e) { vals = {}; }
+      line.querySelectorAll('[data-ui]').forEach(function(x){ vals[x.getAttribute('data-ui')] = x.value; });
+      line.setAttribute('data-uvals', JSON.stringify(vals));
+      line.querySelectorAll('.fl-ui-cell').forEach(function(c){ c.remove(); });
+      line.style.gridTemplateColumns = grid;
+      var after = line.children[1];
+      idents.forEach(function(name){
+        var cell = document.createElement('span');
+        cell.className = 'fl-ui-cell';
+        cell.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); });
+        var i = document.createElement('input');
+        i.setAttribute('data-ui', name);
+        i.placeholder = '\u2014';
+        i.title = name + ' \u2014 saves on change';
+        i.style.minWidth = '0';
+        i.value = typeof vals[name] === 'string' ? vals[name] : '';
+        cell.appendChild(i);
+        after.insertAdjacentElement('afterend', cell);
+        after = cell;
+      });
+      flBindIdentCells(line);
+    });
+    var form = units.querySelector('.fl-add-line form');
+    if (form) {
+      form.querySelectorAll('.fl-ident-fg').forEach(function(f){ f.remove(); });
+      var submit = form.querySelector('button[type="submit"]');
+      idents.forEach(function(name){
+        var fg = document.createElement('div'); fg.className = 'fl-fg fl-ident-fg'; fg.style.width = '110px';
+        var l = document.createElement('span'); l.className = 'fl-lbl'; l.textContent = name;
+        var i = document.createElement('input'); i.type = 'text'; i.name = 'ident[' + name + ']'; i.placeholder = 'optional'; i.className = 'fl-inp';
+        fg.appendChild(l); fg.appendChild(i);
+        form.insertBefore(fg, submit);
+      });
+    }
+  }
+  document.querySelectorAll('.fl-uline').forEach(function(line){
+    line.querySelectorAll('[data-uf]').forEach(function(el){
+      el.addEventListener('change', function(){ patch(flUnitUrl(line), el.getAttribute('data-uf'), el.value); });
+    });
+    flBindIdentCells(line);
   });
   // MARKER-PATCH-243 — category + checklist edit bindings (same patch()
   // contract) and confirmed deletes.
@@ -579,27 +650,30 @@
       addBtn.style.display = full ? 'none' : '';
       maxNote.style.display = full ? '' : 'none';
     }
+    // MARKER-FLEET-IDENT-UX — inline errors + ✓ visibility.
+    var errEl = wrap.querySelector('[data-idf-err]');
+    var addwrapEl = wrap.querySelector('[data-idf-addwrap]');
+    var RESERVED = ['size', 'serial', 'tag', 'serial / tag', 'status', 'condition', 'identifier'];
+    function err(msg){ if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } }
     function commit(){
       var v = newInp.value.trim().slice(0, 30);
       if (!v) return;
       var l = list();
-      if (l.length >= 3 || l.indexOf(v) !== -1) return;
-      l.push(v); newInp.value = ''; save(l);
+      if (RESERVED.indexOf(v.toLowerCase()) !== -1) { err('\u201C' + v + '\u201D is already a built-in column.'); return; }
+      if (l.indexOf(v) !== -1) { err('\u201C' + v + '\u201D is already added.'); return; }
+      if (l.length >= 3) return;
+      l.push(v); newInp.value = '';
+      if (addwrapEl) addwrapEl.classList.remove('has-text');
+      save(l);
     }
     addBtn.addEventListener('click', commit);
     newInp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+    newInp.addEventListener('input', function(){
+      if (addwrapEl) addwrapEl.classList.toggle('has-text', newInp.value.trim() !== '');
+      if (errEl) errEl.style.display = 'none';
+    });
     draw();
   });
-  // Reopen the drawer that triggered the identifiers reload.
-  try {
-    var reopen = sessionStorage.getItem('fl-reopen');
-    if (reopen) {
-      sessionStorage.removeItem('fl-reopen');
-      var rbody = document.querySelector('.fl-model-body[data-model="' + reopen + '"]');
-      var rcard = rbody ? rbody.closest('.fl-model') : null;
-      if (rcard) { rcard.classList.add('editing', 'open'); rcard.scrollIntoView({ block: 'center' }); }
-    }
-  } catch (e) {}
   // MARKER-FLEET-IDENT — size-axis help popovers (click toggles, outside closes).
   document.querySelectorAll('[data-axis-help] .fl-help-dot').forEach(function(dot){
     dot.addEventListener('click', function(e){
