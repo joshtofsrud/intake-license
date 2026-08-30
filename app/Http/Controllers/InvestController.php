@@ -164,9 +164,13 @@ class InvestController extends Controller
         }
 
         $data = $request->validate([
-            'name'  => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email', 'max:190'],
-            'note'  => ['nullable', 'string', 'max:1000'],
+            'name'   => ['required', 'string', 'max:120'],
+            'email'  => ['required', 'email', 'max:190'],
+            'entity' => ['nullable', 'string', 'max:190'],
+            'amount' => ['required', 'numeric', 'min:1', 'max:100000000'],
+            'note'   => ['nullable', 'string', 'max:1000'],
+        ], [
+            'amount.required' => 'How much were you thinking? It is not binding — you can change it.',
         ]);
 
         InvestLead::create([
@@ -177,19 +181,43 @@ class InvestController extends Controller
             'ip'              => $request->ip(),
         ]);
 
-        // MARKER-RAISE-MESSAGES — welcome the lead without creating an investor record
-        try {
-            \Illuminate\Support\Facades\Mail::raw(
-                "Hi " . $data['name'] . ",\n\nThanks for leaving your details. I'll be in touch directly — if you have questions before then, just reply to this message.\n\nJosh",
-                function ($mail) use ($data) {
-                    $mail->to($data['email'], $data['name'])->subject('Thanks for the interest in Intake');
-                }
-            );
-        } catch (\Throwable $e) {
-            Log::error('MARKER-RAISE-MESSAGES lead welcome failed', ['error' => $e->getMessage()]);
+        // MARKER-SHARED-COMMIT — the commitment creates the record, and the
+        // record IS their page. An existing investor on the same email is
+        // updated rather than duplicated, so a second visit does not produce a
+        // second cap-table line.
+        $investor = Investor::firstOrNew(['email' => $data['email']]);
+
+        $isNew = ! $investor->exists;
+
+        $investor->fill([
+            'name'   => $data['name'] ?: $investor->name,
+            'entity' => $data['entity'] ?: $investor->entity,
+            'amount' => (int) $data['amount'],
+        ]);
+
+        if ($isNew) {
+            $investor->self_declared = true;
         }
 
-        Log::info('MARKER-INVEST-SITE lead captured', ['email' => $data['email'], 'token_id' => $record->id]);
+        $investor->committed_at = $investor->committed_at ?: now();
+        $investor->save();
+
+        \App\Models\InvestorEvent::log(
+            $investor->id,
+            $isNew ? 'committed' : 'commitment_changed',
+            'Stated $' . number_format($investor->amount) . ' from the shared link'
+                . ($data['note'] ? ' — "' . $data['note'] . '"' : '')
+        );
+
+        try {
+            \App\Services\InvestorMessenger::send('commitment', $investor);
+        } catch (\Throwable $e) {
+            Log::error('MARKER-SHARED-COMMIT confirmation failed', ['error' => $e->getMessage()]);
+        }
+
+        Log::info('MARKER-SHARED-COMMIT commitment from the shared link', [
+            'email' => $data['email'], 'amount' => $investor->amount, 'new' => $isNew,
+        ]);
 
         return back()->with('invest_lead_ok', true);
     }

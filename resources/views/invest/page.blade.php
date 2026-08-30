@@ -28,13 +28,16 @@
 @include('invest._context')
 
 <section><div class="wrap">
+  {{-- MARKER-SHARED-COMMIT — commit here rather than asking to be set up. --}}
   <p class="sub">Interested?</p>
-  <h2>Tell me and I'll set up your own page.</h2>
-  <p class="lede">This link is shared — it shows the round, not you. Commitments, the SAFE and funding
-    happen on a page that belongs to one person, which I'll send you.</p>
+  <h2>Say what you're thinking, and it's recorded.</h2>
+  <p class="lede">Nothing binding — a statement of intent you can change or withdraw right up until the
+    paperwork is signed. I'll email you your own page, where the documents, the signature and the funding
+    details live.</p>
 
   @if(session('invest_lead_ok'))
-    <div class="ok">Thanks — that's with me. I'll come back to you directly rather than automatically.</div>
+    <div class="ok"><b>Recorded.</b> Your own page is on its way by email — the documents, the
+      signature and the funding details all live there. Nothing is binding yet.</div>
   @else
     <form method="POST" action="{{ route('invest.lead', ['token' => $token->token]) }}" style="margin-top:18px">
       @csrf
@@ -45,10 +48,19 @@
       <input type="text" name="name" value="{{ old('name') }}" required maxlength="120">
       <label>Email</label>
       <input type="email" name="email" value="{{ old('email') }}" required maxlength="190">
+      <label>Investing as</label>
+      <input type="text" name="entity" value="{{ old('entity') }}" maxlength="190"
+             placeholder="Leave blank if personally">
+
+      <label>Amount</label>
+      <input type="number" name="amount" value="{{ old('amount') }}" min="1" step="1" required
+             placeholder="10000">
+      @error('amount') <span class="cerr">{{ $message }}</span> @enderror
+
       <label>Anything you want to ask (optional)</label>
       <input type="text" name="note" value="{{ old('note') }}" maxlength="1000">
       @if($errors->any()) <span class="cerr">{{ $errors->first() }}</span> @endif
-      <br><button class="btn" type="submit">Send</button>
+      <br><button class="btn" type="submit">Record my commitment</button>
     </form>
   @endif
 

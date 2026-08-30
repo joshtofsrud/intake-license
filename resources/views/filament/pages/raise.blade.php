@@ -211,6 +211,12 @@
                 <td class="p-3">
                     <a class="font-medium hover:underline"
                        href="{{ \App\Filament\Pages\InvestorRecord::getUrl() }}?investor={{ $investor->id }}">{{ $investor->name }}</a>
+                        {{-- MARKER-SHARED-COMMIT — a record made from the shared
+                             link, not one you invited. Worth knowing before
+                             anything is signed. --}}
+                        @if ($investor->self_declared)
+                            <span class="ml-2 text-xs text-gray-500">self-declared</span>
+                        @endif
                     <div class="text-xs text-gray-500">{{ $investor->email }}{{ $investor->entity ? ' · ' . $investor->entity : '' }}</div>
                 </td>
                 <td class="p-3">{{ $investor->status }}</td>
