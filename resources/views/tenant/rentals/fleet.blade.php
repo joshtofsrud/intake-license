@@ -81,6 +81,16 @@
   .fl-pset{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .fl-pset-item{position:relative;width:56px;height:42px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
   .fl-pset-x{position:absolute;top:-6px;right:-6px;width:17px;height:17px;border:none;border-radius:50%;background:#E0573E;color:#fff;font-size:10px;line-height:1;cursor:pointer;padding:0}
+  /* MARKER-FLEET-PHOTOLIST — star marks the main photo; tabs in the picker */
+  .fl-pset-item{width:64px;height:48px}
+  .fl-pset-item.is-main{border:1.5px solid var(--ia-accent,#BEF264)}
+  .fl-pset-star{position:absolute;bottom:-6px;left:-6px;width:19px;height:19px;border:none;border-radius:50%;background:var(--ia-surface-2,#262626);color:rgba(255,255,255,.45);font-size:10px;line-height:1;cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .fl-pset-star:hover{color:var(--ia-accent,#BEF264)}
+  .fl-pset-item.is-main .fl-pset-star{background:var(--ia-accent,#BEF264);color:#0a0a0a}
+  .fl-pset-main{position:absolute;top:-7px;left:0;font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--ia-accent,#BEF264);font-weight:700}
+  .fl-ptabs{display:flex;gap:6px;margin-bottom:12px}
+  .fl-ptab{font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;border:.5px solid var(--ia-border);background:none;color:var(--ia-text-dim,rgba(255,255,255,.55));cursor:pointer}
+  .fl-ptab.on{background:var(--ia-accent,#BEF264);color:#0a0a0a;border-color:transparent}
   .fl-pbtn{width:30px;height:24px;border-radius:5px;border:.5px dashed var(--ia-border-strong,rgba(255,255,255,.22));background:rgba(255,255,255,.04) center/cover no-repeat;color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:11px;line-height:1;cursor:pointer;padding:0}
   .fl-pbtn:hover{border-color:var(--ia-accent,#BEF264)}
   .fl-pbtn.has{border-style:solid}
@@ -230,22 +240,22 @@
               {{-- MARKER-RENTAL-MODEL-PHOTOS — one marketing photo per model.
                    Uploads through the tenant uploads endpoint, then saves the
                    URL over the same data-mf autosave rail as every field. --}}
-              {{-- MARKER-FLEET-PHOTOS — the set units pick from. --}}
+              {{-- MARKER-FLEET-PHOTOS — the set units pick from.
+                   MARKER-FLEET-PHOTOLIST — one list; ★ marks the main photo
+                   (saved to image_url, which the public pages read). Any
+                   pre-existing main photo is merged in so nothing is lost. --}}
+              @php
+                $mPhotos = array_values(array_filter($model->photos ?? []));
+                if ($model->image_url && ! in_array($model->image_url, $mPhotos, true)) {
+                    array_unshift($mPhotos, $model->image_url);
+                }
+              @endphp
               <div class="fl-fg" style="grid-column:1/5" data-pset-wrap data-model-photos="{{ $model->id }}">
-                <span class="fl-lbl">Photos <span style="opacity:.5;text-transform:none;letter-spacing:0">— units pick one of these; up to 8</span></span>
-                <input type="hidden" data-mf="photos" value="{{ json_encode($model->photos ?? []) }}">
+                <span class="fl-lbl">Photos <span style="opacity:.5;text-transform:none;letter-spacing:0">— ★ is the main photo on your public pages; units pick any of these. Up to 8</span></span>
+                <input type="hidden" data-mf="photos" value="{{ json_encode($mPhotos) }}">
+                <input type="hidden" data-mf="image_url" data-pset-main value="{{ $model->image_url }}">
                 <div class="fl-pset" data-pset></div>
                 <input type="file" accept="image/jpeg,image/png,image/webp" data-pset-file style="display:none">
-              </div>
-              <div class="fl-fg" style="grid-column:1/5">
-                <span class="fl-lbl">Main photo <span style="opacity:.5;text-transform:none;letter-spacing:0">— shows on your public rental pages</span></span>
-                <div class="fl-photo" data-photo-wrap>
-                  <div class="fl-photo-thumb" data-photo-thumb style="{{ $model->image_url ? 'background-image:url(\'' . $model->image_url . '\')' : '' }}"></div>
-                  <button type="button" class="ia-btn ia-btn--sm" data-photo-pick>{{ $model->image_url ? 'Replace' : 'Upload' }}</button>
-                  <button type="button" class="ia-btn ia-btn--sm" data-photo-remove style="{{ $model->image_url ? '' : 'display:none' }}">Remove</button>
-                  <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" data-photo-file style="display:none">
-                  <input type="hidden" data-mf="image_url" value="{{ $model->image_url }}">
-                </div>
               </div>
               <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" value="{{ $model->name }}" data-mf="name"></div>
               <div class="fl-fg" style="grid-column:3/5"><span class="fl-lbl">Subtitle</span><input class="fl-inp" value="{{ $model->subtitle }}" data-mf="subtitle" placeholder="all-mountain, junior…"></div>
@@ -484,42 +494,6 @@
       })
       .catch(function(){ showToast("Couldn't save — check your connection and retry.", 'err'); if (fail) fail(); });
   }
-  // MARKER-RENTAL-MODEL-PHOTOS — pick file → upload → save URL via the
-  // hidden data-mf input (change event rides the existing autosave).
-  document.querySelectorAll('[data-photo-wrap]').forEach(function(wrap){
-    var pick = wrap.querySelector('[data-photo-pick]');
-    var rm   = wrap.querySelector('[data-photo-remove]');
-    var file = wrap.querySelector('[data-photo-file]');
-    var thumb = wrap.querySelector('[data-photo-thumb]');
-    var hidden = wrap.querySelector('[data-mf="image_url"]');
-    pick.addEventListener('click', function(){ file.click(); });
-    file.addEventListener('change', function(){
-      if (!file.files || !file.files[0]) return;
-      var fd = new FormData();
-      fd.append('file', file.files[0]);
-      fd.append('type', 'general');
-      showToast('Uploading…', 'busy');
-      fetch('{{ route('tenant.uploads.store') }}', {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json'}, body:fd})
-        .then(function(r){ return r.json(); })
-        .then(function(j){
-          if (!j || !j.url) { showToast(j && j.message ? j.message : 'Upload failed.', 'err'); return; }
-          hidden.value = j.url;
-          hidden.dispatchEvent(new Event('change', { bubbles: false }));
-          thumb.style.backgroundImage = "url('" + j.url + "')";
-          pick.textContent = 'Replace';
-          rm.style.display = '';
-        })
-        .catch(function(){ showToast("Upload failed — check your connection.", 'err'); });
-      file.value = '';
-    });
-    rm.addEventListener('click', function(){
-      hidden.value = '';
-      hidden.dispatchEvent(new Event('change', { bubbles: false }));
-      thumb.style.backgroundImage = '';
-      pick.textContent = 'Upload';
-      rm.style.display = 'none';
-    });
-  });
 
   // Enter commits a text field (blur fires change fires save).
   document.querySelectorAll('[data-mf],[data-uf],[data-cf],[data-ctf]').forEach(function(el){
@@ -677,7 +651,9 @@
   pmodal.className = 'fl-pmodal';
   pmodal.innerHTML = '<div class="fl-pmodal-card">'
     + '<div class="fl-pmodal-title">Choose a photo</div>'
-    + '<div class="fl-pmodal-sub">Photos come from this model. Add more in the model editor.</div>'
+    + '<div class="fl-pmodal-sub" data-psub>Photos on this model. Switch to Library to pull one in.</div>'
+    + '<div class="fl-ptabs"><button type="button" class="fl-ptab on" data-ptab="model">This model</button>'
+    + '<button type="button" class="fl-ptab" data-ptab="lib">Library</button></div>'
     + '<div class="fl-pgrid" data-pgrid></div>'
     + '<div class="fl-pmodal-acts">'
     + '<button type="button" class="ia-btn" data-pclear>No photo</button>'
@@ -694,33 +670,60 @@
     try { var l = JSON.parse(wrap.querySelector('[data-mf="photos"]').value || '[]'); return Array.isArray(l) ? l : []; }
     catch (e) { return []; }
   }
+  // MARKER-FLEET-PHOTOLIST — two sources: this model's set, or the media library.
+  var pTab = 'model', pModelId = null, libCache = null;
+  function note(msg){
+    var d = document.createElement('div');
+    d.style.cssText = 'grid-column:1/-1;font-size:12.5px;opacity:.55';
+    d.textContent = msg;
+    pgrid.appendChild(d);
+  }
+  function tile(url){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.style.backgroundImage = "url('" + url + "')";
+    if (url === pChosen) b.classList.add('sel');
+    b.addEventListener('click', function(){
+      pChosen = url;
+      pgrid.querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
+      b.classList.add('sel');
+    });
+    pgrid.appendChild(b);
+  }
+  function drawTab(){
+    pmodal.querySelectorAll('[data-ptab]').forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-ptab') === pTab); });
+    pgrid.textContent = '';
+    if (pTab === 'model') {
+      var list = modelPhotos(pModelId);
+      if (!list.length) note('No photos on this model yet \u2014 add them in the model editor (Edit \u2192 Photos), or pick one from the Library tab.');
+      list.forEach(tile);
+      return;
+    }
+    if (libCache === null) {
+      note('Loading library\u2026');
+      fetch('{{ route('tenant.media.feed') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r){ return r.json(); })
+        .then(function(d){ libCache = (d && d.media) || []; drawTab(); })
+        .catch(function(){ libCache = []; drawTab(); });
+      return;
+    }
+    if (!libCache.length) { note('Nothing in the media library yet.'); return; }
+    libCache.forEach(function(m){ if (m && m.url) tile(m.url); });
+  }
   function closeP(){ pmodal.classList.remove('open'); pTarget = null; pChosen = null; }
   function openP(btn){
     pTarget = btn;
     pChosen = btn.getAttribute('data-photo') || null;
-    var list = modelPhotos(btn.getAttribute('data-upick') || btn.getAttribute('data-apick'));
-    pgrid.textContent = '';
-    if (!list.length) {
-      var empty = document.createElement('div');
-      empty.style.cssText = 'grid-column:1/-1;font-size:12.5px;opacity:.55';
-      empty.textContent = 'No photos on this model yet — add them in the model editor (Edit → Photos).';
-      pgrid.appendChild(empty);
-    }
-    list.forEach(function(url){
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.style.backgroundImage = "url('" + url + "')";
-      if (url === pChosen) b.classList.add('sel');
-      b.addEventListener('click', function(){
-        pChosen = url;
-        pgrid.querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
-        b.classList.add('sel');
-      });
-      pgrid.appendChild(b);
-    });
+    pModelId = btn.getAttribute('data-upick') || btn.getAttribute('data-apick');
+    pTab = 'model';
+    drawTab();
     pmodal.classList.add('open');
   }
+  pmodal.querySelectorAll('[data-ptab]').forEach(function(t){
+    t.addEventListener('click', function(){ pTab = t.getAttribute('data-ptab'); drawTab(); });
+  });
   function applyPhoto(btn, url){
+    if (!btn) return;
     btn.setAttribute('data-photo', url || '');
     if (url) { btn.style.backgroundImage = "url('" + url + "')"; btn.textContent = ''; btn.classList.add('has'); }
     else { btn.style.backgroundImage = ''; btn.textContent = '\u25A3'; btn.classList.remove('has'); }
@@ -730,7 +733,25 @@
     var hid = form && form.querySelector('[name="photo_url"]');
     if (hid) hid.value = url || '';
   }
-  pmodal.querySelector('[data-pok]').addEventListener('click', function(){ if (pTarget) applyPhoto(pTarget, pChosen); closeP(); });
+  pmodal.querySelector('[data-pok]').addEventListener('click', function(){
+    if (pTarget && pChosen) {
+      // A library photo joins this model's set so units can reuse it.
+      var wrap = document.querySelector('[data-model-photos="' + pModelId + '"]');
+      if (wrap && modelPhotos(pModelId).indexOf(pChosen) === -1) {
+        var h = wrap.querySelector('[data-mf="photos"]');
+        var l = modelPhotos(pModelId);
+        if (l.length < 8) {
+          l.push(pChosen);
+          h.value = JSON.stringify(l);
+          h.dispatchEvent(new Event('change', { bubbles: false }));
+          if (wrap.__psetDraw) wrap.__psetDraw();
+          showToast('Added to this model \u2014 Save model to keep it', 'ok');
+        }
+      }
+    }
+    if (pTarget) applyPhoto(pTarget, pChosen);
+    closeP();
+  });
   pmodal.querySelector('[data-pclear]').addEventListener('click', function(){ if (pTarget) applyPhoto(pTarget, ''); closeP(); });
   pmodal.querySelector('[data-pcancel]').addEventListener('click', closeP);
   pmodal.addEventListener('click', function(e){ if (e.target === pmodal) closeP(); });
@@ -746,17 +767,41 @@
   // Model drawer photo set: upload, remove, saved with "Save model".
   document.querySelectorAll('[data-pset-wrap]').forEach(function(wrap){
     var hidden = wrap.querySelector('[data-mf="photos"]');
+    var mainEl = wrap.querySelector('[data-pset-main]');
     var strip  = wrap.querySelector('[data-pset]');
     var file   = wrap.querySelector('[data-pset-file]');
     function list(){ try { var l = JSON.parse(hidden.value || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
-    function save(l){ hidden.value = JSON.stringify(l); draw(); hidden.dispatchEvent(new Event('change', { bubbles: false })); }
+    function setMain(url){
+      mainEl.value = url || '';
+      mainEl.dispatchEvent(new Event('change', { bubbles: false }));
+      draw();
+    }
+    function save(l){
+      hidden.value = JSON.stringify(l);
+      // Main must be one of the photos; fall back to the first.
+      if (l.indexOf(mainEl.value) === -1) {
+        mainEl.value = l.length ? l[0] : '';
+        mainEl.dispatchEvent(new Event('change', { bubbles: false }));
+      }
+      draw();
+      hidden.dispatchEvent(new Event('change', { bubbles: false }));
+    }
     function draw(){
       var l = list();
       strip.textContent = '';
       l.forEach(function(url, i){
         var it = document.createElement('div');
-        it.className = 'fl-pset-item';
+        it.className = 'fl-pset-item' + (url === mainEl.value ? ' is-main' : '');
         it.style.backgroundImage = "url('" + url + "')";
+        if (url === mainEl.value) {
+          var tag = document.createElement('span'); tag.className = 'fl-pset-main'; tag.textContent = 'Main';
+          it.appendChild(tag);
+        }
+        var star = document.createElement('button');
+        star.type = 'button'; star.className = 'fl-pset-star'; star.textContent = '\u2605';
+        star.title = url === mainEl.value ? 'This is the main photo' : 'Make this the main photo';
+        star.addEventListener('click', function(){ setMain(url); });
+        it.appendChild(star);
         var x = document.createElement('button');
         x.type = 'button'; x.className = 'fl-pset-x'; x.textContent = '\u2715';
         x.title = 'Remove from the set (units using it keep their photo until changed)';
@@ -766,15 +811,26 @@
       });
       if (l.length < 8) {
         var add = document.createElement('button');
-        add.type = 'button'; add.className = 'ia-btn ia-btn--sm'; add.textContent = '+ Add photo';
+        add.type = 'button'; add.className = 'ia-btn ia-btn--sm'; add.textContent = '+ Upload';
         add.addEventListener('click', function(){ file.click(); });
         strip.appendChild(add);
+        var lib = document.createElement('button');
+        lib.type = 'button'; lib.className = 'ia-btn ia-btn--sm'; lib.textContent = '+ From library';
+        lib.addEventListener('click', function(){
+          pTarget = null; pChosen = null;
+          pModelId = wrap.getAttribute('data-model-photos');
+          pTab = 'lib';
+          drawTab();
+          pmodal.classList.add('open');
+        });
+        strip.appendChild(lib);
       } else {
         var max = document.createElement('span');
         max.style.cssText = 'font-size:11px;opacity:.45'; max.textContent = '8 max';
         strip.appendChild(max);
       }
     }
+    wrap.__psetDraw = draw;
     file.addEventListener('change', function(){
       if (!file.files || !file.files[0]) return;
       var fd = new FormData();
@@ -785,7 +841,10 @@
         .then(function(r){ return r.json(); })
         .then(function(j){
           if (!j || !j.url) { showToast(j && j.message ? j.message : 'Upload failed.', 'err'); return; }
-          var l = list(); l.push(j.url); save(l);
+          var l = list();
+          l.push(j.url);
+          if (!mainEl.value) mainEl.value = j.url; // first photo becomes main
+          save(l);
           showToast('Added \u2014 Save model to keep it', 'ok');
         })
         .catch(function(){ showToast('Upload failed \u2014 check your connection.', 'err'); });
