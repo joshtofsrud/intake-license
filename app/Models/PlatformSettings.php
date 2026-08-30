@@ -18,6 +18,8 @@ class PlatformSettings extends Model
         'mail_from_name',
         'email_rate',             // MARKER-EMAIL-LEDGER
         'email_broadcast_stream', // MARKER-EMAIL-LEDGER
+        'alert_500_enabled',      // MARKER-500-ALERT
+        'alert_500_email',        // MARKER-500-ALERT
     ];
 
     /** Laravel's framework default when nothing is configured. */

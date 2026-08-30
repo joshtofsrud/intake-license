@@ -86,6 +86,39 @@ return Application::configure(basePath: dirname(__DIR__))
                 'url'       => $request->fullUrl(),
             ]);
 
+            // MARKER-500-ALERT — email each 5xx to the address set on the
+            // master admin dashboard, when the toggle there is on. Throttled
+            // to one email per unique error site (class+file+line) per 15
+            // minutes; sent synchronously (queued mail vanishes exactly when
+            // the queue is what broke); swallowed on any failure so the alert
+            // can never 500 the 500. DB unreachable simply means no email.
+            try {
+                $alertOn = false;
+                $alertTo = null;
+                try {
+                    $ps = \App\Models\PlatformSettings::current();
+                    $alertOn = (bool) ($ps->alert_500_enabled ?? false);
+                    $alertTo = $ps->alert_500_email ?: null;
+                } catch (\Throwable $ignored) {
+                }
+                $sig = 'err500:' . md5(get_class($e) . '|' . $e->getFile() . '|' . $e->getLine());
+                if ($alertOn && $alertTo && \Illuminate\Support\Facades\Cache::add($sig, 1, 900)) {
+                    $body = "Ref: {$refId}\n"
+                        . 'Time: ' . now()->toDateTimeString() . " UTC\n"
+                        . 'URL: ' . $request->fullUrl() . "\n"
+                        . 'Exception: ' . get_class($e) . "\n"
+                        . 'Message: ' . $e->getMessage() . "\n"
+                        . 'At: ' . $e->getFile() . ':' . $e->getLine() . "\n\n"
+                        . "Log line (server):\ngrep \"{$refId}\" /var/www/intake-shared/storage/logs/laravel-" . now()->toDateString() . ".log\n\n"
+                        . '(Repeats of this exact error site are muted for 15 minutes. Switch lives on the master admin dashboard.)';
+                    \Illuminate\Support\Facades\Mail::raw($body, function ($m) use ($alertTo, $refId, $request) {
+                        $m->to($alertTo)->subject('[Intake 500] ' . $refId . ' — ' . $request->getHost() . $request->getPathInfo());
+                    });
+                }
+            } catch (\Throwable $mailFail) {
+                \Illuminate\Support\Facades\Log::warning('500 alert email failed: ' . $mailFail->getMessage());
+            }
+
             // MARKER-JSON-500 — AJAX callers get JSON, not the HTML page.
             // Without this every fetch() in the app treats a server fault as
             // a network failure, because res.json() throws on an HTML body.

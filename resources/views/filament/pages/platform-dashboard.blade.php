@@ -291,6 +291,19 @@
       <div class="pd-section-sub"><a href="/admin/debug-logs">View full system log →</a></div>
     </div>
 
+    {{-- MARKER-500-ALERT — switch + send-to for 5xx alert emails. --}}
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--pd-border);border-radius:var(--pd-r-md);padding:10px 14px;margin-bottom:14px;background:var(--pd-surface-2)">
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer;color:var(--pd-text)">
+        <input type="checkbox" wire:model="alert500Enabled" style="accent-color:var(--pd-accent);width:15px;height:15px">
+        Email me every 500
+      </label>
+      <input type="email" wire:model="alert500Email" placeholder="alerts@intake.works"
+             style="flex:1;min-width:220px;background:var(--pd-surface);border:1px solid var(--pd-border-strong);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--pd-text)">
+      <button type="button" wire:click="saveAlert500"
+              style="background:var(--pd-accent);color:#111;border:none;border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Save</button>
+      <span style="flex-basis:100%;font-size:11px;color:var(--pd-text-dim)">One email per unique error site per 15 minutes, carrying the same refId as the log line. Toggle off or blank address = no emails; errors still log as always.</span>
+    </div>
+
     <div class="pd-health">
       @foreach($health as $row)
         {{-- MARKER-PATCH-137 — href via ternary (was an inline conditional) --}}

@@ -36,6 +36,32 @@ class PlatformDashboard extends Page
 
     protected static string $view = 'filament.pages.platform-dashboard';
 
+    // MARKER-500-ALERT — dashboard switch for 5xx alert emails.
+    public bool $alert500Enabled = false;
+    public ?string $alert500Email = null;
+
+    public function mount(): void
+    {
+        $ps = \App\Models\PlatformSettings::current();
+        $this->alert500Enabled = (bool) ($ps->alert_500_enabled ?? false);
+        $this->alert500Email   = $ps->alert_500_email ?? null;
+    }
+
+    public function saveAlert500(): void
+    {
+        $this->validate(['alert500Email' => ['nullable', 'email']]);
+        $ps = \App\Models\PlatformSettings::current();
+        $ps->alert_500_enabled = $this->alert500Enabled;
+        $ps->alert_500_email   = $this->alert500Email ?: null;
+        $ps->save();
+        \App\Models\PlatformSettings::forget();
+        \Filament\Notifications\Notification::make()
+            ->title($this->alert500Enabled && $this->alert500Email
+                ? '500 alerts on — sending to ' . $this->alert500Email
+                : '500 alerts off')
+            ->success()->send();
+    }
+
     public function getViewData(): array
     {
         return [
