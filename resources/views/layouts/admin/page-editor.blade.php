@@ -18,6 +18,7 @@
 
 
     <link rel="stylesheet" href="{{ asset('css/fonts.css') }}">{{-- MARKER-SELFHOST-FONTS-2 --}}
+    <link rel="stylesheet" href="{{ asset('css/tenant/confirm.css') }}?v={{ filemtime(public_path('css/tenant/confirm.css')) }}">{{-- MARKER-BUILDER-DIALOGS --}}
     <style>
         /* ================================================================
            Minimal admin chrome for the page editor.
@@ -136,6 +137,7 @@
         // Global the editor script expects — CSRF token for auto-save calls.
         window.IntakeAdmin = { csrfToken: '{{ csrf_token() }}' };
     </script>
+    <script src="{{ asset('js/tenant/confirm.js') }}?v={{ filemtime(public_path('js/tenant/confirm.js')) }}" defer></script>{{-- MARKER-BUILDER-DIALOGS --}}
 
     @stack('styles')
 </head>

@@ -2158,9 +2158,17 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         b.className = 'hbtn';
         b.textContent = i === 0 ? 'Restore' : 'Rewind';
         b.addEventListener('click', function () {
-          if (!confirm('Rewind this page to \u201C' + r.label + '\u201D?\n\nYour current draft is saved first, so you can undo this.')) { return; }
-          form.action = restoreTpl.replace('__RID__', r.id);
-          form.submit();
+          // MARKER-BUILDER-DIALOGS — in-app dialog, no browser prompts
+          IntakeConfirm.show({
+            title: 'Rewind this page?',
+            message: 'Rewind to \u201C' + r.label + '\u201D. Your current draft is saved first, so you can undo this.',
+            confirmText: 'Rewind',
+            danger: true
+          }).then(function (ok) {
+            if (!ok) return;
+            form.action = restoreTpl.replace('__RID__', r.id);
+            form.submit();
+          });
         });
         row.appendChild(b);
 
@@ -2507,7 +2515,14 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   if (delBtn) {
     delBtn.addEventListener('click', () => {
       if (!selectedId) return;
-      if (!confirm('Delete this section? This cannot be undone.')) return;
+      // MARKER-BUILDER-DIALOGS — in-app dialog, no browser prompts
+      IntakeConfirm.show({
+        title: 'Delete this section?',
+        message: 'This cannot be undone.',
+        confirmText: 'Delete',
+        danger: true
+      }).then((ok) => {
+        if (!ok) return;
       const fd = new FormData();
       fd.append('_token', getCsrf());
       fd.append('section_op', 'delete');
@@ -2515,7 +2530,8 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       fd.append('section_id', selectedId);
       fetch(STORE_URL, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(() => { location.reload(); })
-        .catch(err => { console.error('delete failed', err); alert('Could not delete section.'); });
+        .catch(err => { console.error('delete failed', err); IntakeConfirm.alert({ title: 'Delete failed', message: 'Could not delete section.' }); });
+      });
     });
   }
 
@@ -3324,10 +3340,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
               tile.querySelector('[data-gimg-field="caption"]')?.focus();
             } else {
               setStatus('Upload failed', 3000);
-              alert((data && data.message) || 'Upload failed.');
+              IntakeConfirm.alert({ title: 'Upload failed', message: (data && data.message) || 'Please try again.' });
             }
           } catch (e) {
-            setStatus('Upload failed', 3000); console.error(e); alert('Upload failed.');
+            setStatus('Upload failed', 3000); console.error(e); IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' });
           }
         });
         input.click();
@@ -3995,12 +4011,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
           }
         } else {
           setStatus('Upload failed', 3000);
-          alert(data?.message || 'Upload failed.');
+          IntakeConfirm.alert({ title: 'Upload failed', message: data?.message || 'Please try again.' });
         }
       } catch (e) {
         setStatus('Upload failed', 3000);
         console.error(e);
-        alert('Upload failed.');
+        IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' });
       }
     });
     input.click();
