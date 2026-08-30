@@ -179,8 +179,10 @@ textarea:focus{border-color:var(--lime-line)}
     <summary>Why bike first <span class="cap">&mdash; the hardest version of the problem</span></summary>
     <div class="body"><section><div class="wrap">
   <p class="sub">Why bike first</p>
-  <h2 style="font-size:clamp(24px,3.2vw,34px);letter-spacing:-1.1px">The hardest version of the problem.</h2>
-  <p class="lede wide">Specialty bike is a service business, a retail business and a rental business at
+  {{-- MARKER-BIKE-HEADING — no inline size: this sits inside a collapsed
+       panel now, at the same weight as every other section heading. --}}
+  <h2>The hardest version of the problem.</h2>
+  <p class="lede">Specialty bike is a service business, a retail business and a rental business at
     once. A platform that runs a bike shop runs a ski shop, a paddle shop or a fitness studio without
     being rebuilt.</p>
 
