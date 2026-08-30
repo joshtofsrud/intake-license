@@ -14,7 +14,7 @@
 
   {{-- MARKER-RETENTION-PARITY — same three cards and the same closing argument
        as the deck's retention page, so the two cannot say different things. --}}
-  <div class="ctx-cards">
+  <div class="ctx-cards three">
     <div class="ctx-card"><div class="n">One record</div><div class="k">Booking to follow-up</div>
       <p>The booking, the work order, the sale and the message are the same customer. No reconciliation,
         because there is nothing to reconcile.</p></div>

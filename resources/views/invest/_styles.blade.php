@@ -123,6 +123,20 @@ details.sec > summary .cap{font-size:13px;font-weight:400;color:var(--dim)}
 details.sec > summary::after{content:"+";margin-left:auto;color:var(--lime);font-size:19px;
   line-height:1;font-weight:400}
 details.sec[open] > summary::after{content:"\2013"}
+/* MARKER-SECTION-HEADINGS — inside a panel the summary is the heading, so the
+   section's own eyebrow would be the same words again. Scoped to details.sec:
+   these partials also render standalone on the gated page, where the eyebrow
+   is the only label present. */
+details.sec .body > section > .wrap > .sub:first-child,
+details.sec .body .sub:first-child{display:none}
+details.sec .body h2{margin-top:0}
+
+/* Three cards want three columns; the two-column default was built for the
+   four-card bike section and left the third one orphaned. */
+.ctx-cards.three{grid-template-columns:repeat(3,1fr)}
+@media(max-width:860px){.ctx-cards.three{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.ctx-cards.three{grid-template-columns:1fr}}
+
 details.sec .body{padding-bottom:34px}
 details.sec .body section{padding:0}
 details.sec .body section + section{padding-top:30px}
