@@ -1,4 +1,13 @@
 <x-filament-panels::page>
+
+{{-- MARKER-RAISE-HEIGHT --}}
+<style>
+  .rz-invite > summary::-webkit-details-marker{display:none}
+  .rz-invite[open] > summary .rz-mark::before{content:"\2013"}
+  .rz-invite:not([open]) > summary .rz-mark::before{content:"+"}
+  .rz-invite > summary .rz-mark{font-size:0}
+  .rz-invite > summary .rz-mark::before{font-size:19px}
+</style>
 <!-- MARKER-RAISE-ADMIN -->
 
 @php
@@ -7,20 +16,22 @@
     $progress = $target > 0 ? min(100, round($committed / $target * 100)) : 0;
 @endphp
 
-<div class="grid gap-4 md:grid-cols-4">
-    <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
+{{-- MARKER-RAISE-HEIGHT — inline grid: md:grid-cols-4 is not in this
+     panel's compiled CSS and rendered as a stack. --}}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+    <div class="rounded-xl border border-gray-200 dark:border-white/10" style="padding:14px 16px">
         <div class="text-2xl font-bold">{{ $usd($committed) }}</div>
         <div class="text-xs uppercase tracking-wide text-gray-500">Committed of {{ $usd($target) }}</div>
     </div>
-    <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
+    <div class="rounded-xl border border-gray-200 dark:border-white/10" style="padding:14px 16px">
         <div class="text-2xl font-bold">{{ $usd($received) }}</div>
         <div class="text-xs uppercase tracking-wide text-gray-500">Funds received</div>
     </div>
-    <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
+    <div class="rounded-xl border border-gray-200 dark:border-white/10" style="padding:14px 16px">
         <div class="text-2xl font-bold">{{ $pct($committed) }}</div>
         <div class="text-xs uppercase tracking-wide text-gray-500">Sold at {{ $usd($cap) }} cap</div>
     </div>
-    <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
+    <div class="rounded-xl border border-gray-200 dark:border-white/10" style="padding:14px 16px">
         <div class="text-2xl font-bold">{{ $progress }}%</div>
         <div class="text-xs uppercase tracking-wide text-gray-500">Of target</div>
     </div>
@@ -39,12 +50,18 @@
      divider that stopped short of the panel edge. -->
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
 
-    <div style="padding:18px 22px;border-bottom:1px solid rgba(255,255,255,.08)">
-        <div class="text-xs uppercase tracking-wide text-gray-500">Invite someone</div>
-        <p class="mt-1 text-sm text-gray-500">
-            Write the email once, then send it to one person or a list. Everyone gets their own link.
-        </p>
-    </div>
+    {{-- MARKER-RAISE-HEIGHT — closed unless you are actually sending, or a
+         preview is waiting to be confirmed. --}}
+    <details class="rz-invite" @if ($invitePreview || $showPreview) open @endif>
+      <summary style="padding:18px 22px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px">
+        <span>
+          <span class="text-xs uppercase tracking-wide text-gray-500">Invite someone</span>
+          <span class="block text-sm text-gray-500 mt-1">Write the email once, then send it to one
+            person or a list. Everyone gets their own link.</span>
+        </span>
+        <span style="margin-left:auto;color:#BEF264;font-size:19px;line-height:1" class="rz-mark">+</span>
+      </summary>
+      <div style="border-top:1px solid rgba(255,255,255,.08)">
 
     <div style="padding:20px 22px">
         <label class="block">
@@ -137,6 +154,8 @@
             behind.
         </p>
     </div>
+      </div>
+    </details>
 </div>
 
 <div class="mt-6 rounded-xl border border-gray-200 dark:border-white/10 p-4">
