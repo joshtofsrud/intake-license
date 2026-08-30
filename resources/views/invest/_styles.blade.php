@@ -98,7 +98,13 @@ input:focus,select:focus{border-color:var(--lime-line)}
 .cerr{color:var(--red);font-size:13px;display:block;margin-top:6px}
 /* MARKER-INVEST-NOCODE — the request card stands alone now. Held to a readable
    measure rather than stretched across the full width. */
-.onecard{max-width:640px}
+/* MARKER-ASK-FULLWIDTH — full width, like every section above it. The inputs
+   inside keep a sane measure; only the card stretches. */
+.onecard{max-width:none}
+.onecard .card{padding:26px 28px}
+.onecard form{max-width:560px}
+.onecard .card > p{max-width:64ch}
+.onecard .fine{max-width:74ch}
 
 /* MARKER-INVEST-RAIL — sticky anchor rail. Plain text, no pills; the dot marks
    a section that is OPEN. */
