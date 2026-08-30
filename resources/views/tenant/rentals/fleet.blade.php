@@ -59,6 +59,20 @@
   .fl-uline:hover{background:var(--ia-hover,rgba(255,255,255,.05))}
   .fl-uline input,.fl-uline select{background:transparent;border:.5px solid transparent;border-radius:var(--ia-r-sm);padding:3px 6px;color:inherit;font:inherit;font-size:12.5px;width:100%}
   .fl-uline input:hover,.fl-uline select:hover{border-color:var(--ia-border)}
+  /* MARKER-FLEET-IDENT — axis help popover + identifier chips */
+  .fl-help{position:relative;display:inline-flex;margin-left:6px}
+  .fl-help-dot{width:15px;height:15px;border-radius:50%;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));color:var(--ia-text-dim,rgba(255,255,255,.55));background:none;font-size:10px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .fl-help-dot:hover,.fl-help.open .fl-help-dot{color:#0a0a0a;background:var(--ia-accent,#BEF264);border-color:transparent}
+  .fl-help-pop{display:none;position:absolute;left:0;top:21px;z-index:40;width:250px;background:#1c1c1c;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));border-radius:var(--ia-r-md);padding:12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.55);font-size:12px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ia-text,#f0f0f0)}
+  .fl-help.open .fl-help-pop{display:block}
+  .fl-help-title{display:block;font-weight:650;margin-bottom:7px}
+  .fl-help-pop dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px}
+  .fl-help-pop dt{color:var(--ia-text-dim,rgba(255,255,255,.55))}
+  .fl-help-pop dd{margin:0}
+  .fl-idf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .fl-idf-chip{display:inline-flex;align-items:center;gap:6px;background:var(--ia-surface-2,#262626);border:.5px solid var(--ia-border);border-radius:999px;padding:4px 6px 4px 12px;font-size:12.5px}
+  .fl-idf-x{width:16px;height:16px;border:none;border-radius:50%;background:rgba(255,255,255,.1);color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:10px;line-height:1;cursor:pointer;padding:0}
+  .fl-idf-x:hover{background:#E0573E;color:#fff}
   .fl-uline input:focus,.fl-uline select:focus{border-color:var(--ia-accent,#BEF264);outline:none;background:var(--ia-input-bg,rgba(255,255,255,.07))}
   .fl-mono{font-family:var(--ia-font-mono,monospace)}
   .pill{font-size:10px;font-weight:600;border-radius:999px;padding:2px 9px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
@@ -166,7 +180,7 @@
          contract as everything else on this page. --}}
     <div class="fl-cat-edit" data-cat="{{ $cat->id }}">
       <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Category name</span><input class="fl-inp" value="{{ $cat->name }}" data-cf="name"></div>
-      <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Size axis (optional)</span><input class="fl-inp" value="{{ $cat->size_axis }}" data-cf="size_axis" placeholder="length (cm), Mondopoint…"></div>
+      <div class="fl-fg" style="min-width:200px;flex:1"><span class="fl-lbl">Size axis (optional) @include('tenant.rentals._size_axis_help')</span><input class="fl-inp" value="{{ $cat->size_axis }}" data-cf="size_axis" placeholder="length (cm), Mondopoint…"></div>
       <button type="button" class="ia-btn ia-btn--sm" style="color:#ff8b8b;border-color:rgba(239,68,68,.35)" onclick="flDeleteCategory('{{ $cat->id }}')">Delete category</button>
       <span style="font-size:11px;opacity:.4;flex-basis:100%">Name and axis save as you type. Delete only works once the category is empty.</span>
     </div>
@@ -219,6 +233,17 @@
                   @foreach($conditionTemplates as $ct)<option value="{{ $ct->id }}" {{ $model->condition_template_id === $ct->id ? 'selected' : '' }}>{{ $ct->name }}</option>@endforeach
                 </select>
               </div>
+              {{-- MARKER-FLEET-IDENT — up to 3 per-model unit fields (Color, Wheel size…). --}}
+              <div class="fl-fg" style="grid-column:1/4">
+                <span class="fl-lbl">Identifiers <span style="opacity:.5;text-transform:none;letter-spacing:0">— extra fields on every unit of this model, staff-only</span></span>
+                <div class="fl-idf" data-idf-wrap>
+                  <input type="hidden" data-mf="identifiers" value="{{ json_encode($model->identifiers ?? []) }}">
+                  <span data-idf-chips style="display:contents"></span>
+                  <input class="fl-inp" data-idf-new placeholder="e.g. Color" style="width:110px">
+                  <button type="button" class="ia-btn ia-btn--sm" data-idf-add>+ Add</button>
+                  <span data-idf-max style="font-size:11px;opacity:.45;display:none">3 max</span>
+                </div>
+              </div>
               <div class="fl-fg" style="justify-content:end"><button type="button" class="ia-btn" onclick="flArchiveModel('{{ $model->id }}')">Archive model</button></div>
             </div>
           </div>
@@ -228,12 +253,22 @@
             {{-- MARKER-PATCH-236 — roster rows: condition and history are the
                  content; the whole row opens the unit detail page where
                  damage, photos, and per-unit edits live. --}}
-            <div class="fl-uhead"><span>Serial / tag</span><span>Size</span><span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
+            @php
+              // MARKER-FLEET-IDENT — identifier columns slot between Size and Condition.
+              $mIdents = $model->identifiers ?? [];
+              $uGrid = count($mIdents)
+                  ? '120px 70px ' . str_repeat('minmax(80px,140px) ', count($mIdents)) . '1fr 130px 90px 70px 64px'
+                  : null;
+            @endphp
+            <div class="fl-uhead" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
             @foreach($model->view_units as $u)
               @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
-              <a class="fl-uline" data-unit="{{ $u->id }}" href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
+              <a class="fl-uline" data-unit="{{ $u->id }}" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
                 <span class="fl-mono">{{ $u->identifier ?: '—' }}</span>
                 <span>{{ $u->size ?: '—' }}{{ !$u->available_for_rent ? ' ·off' : '' }}</span>
+                @foreach($mIdents as $in)
+                  <span onclick="event.preventDefault();event.stopPropagation()"><input data-ui="{{ $in }}" value="{{ ($u->identifier_values ?? [])[$in] ?? '' }}" placeholder="—" style="min-width:0" title="{{ $in }} — saves on change"></span>
+                @endforeach
                 <span class="fl-cond">
                   @if($m['flags'] > 0)<span style="color:#E0A82E;font-weight:600">⚑ {{ $m['flags'] }} flag{{ $m['flags'] === 1 ? '' : 's' }}</span>@endif
                   @if($m['photos'] > 0)<span style="opacity:.55">{{ $m['photos'] }} photo{{ $m['photos'] === 1 ? '' : 's' }}</span>@endif
@@ -256,15 +291,21 @@
               </a>
             @endforeach
             <div class="fl-add-line">
-              <button type="button" class="ia-btn ia-btn--sm" onclick="document.getElementById('bulk-{{ $model->id }}').style.display='flex'">+ Add units</button>
-              <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
+              <button type="button" class="ia-btn ia-btn--sm" onclick="document.getElementById('bulk-{{ $model->id }}').style.display='flex';this.style.display='none'">+ Add units</button>
+              {{-- MARKER-FLEET-IDENT — labeled inputs (the headers above belong
+                   to the unit list, not this form) + one input per model
+                   identifier, applied to every unit in the batch. --}}
+              <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap">
                 @csrf
                 <input type="hidden" name="model_id" value="{{ $model->id }}">
-                <input type="number" name="count" value="1" min="1" max="200" class="fl-inp" style="width:70px" title="How many">
-                <input type="text" name="tag_prefix" placeholder="#SK-" class="fl-inp fl-mono" style="width:90px">
-                <input type="number" name="start_number" value="1" min="0" class="fl-inp" style="width:70px" title="Start #">
-                <input type="text" name="size" placeholder="size (optional)" class="fl-inp" style="width:120px">
-                <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add</button>
+                <div class="fl-fg" style="width:64px"><span class="fl-lbl">Qty</span><input type="number" name="count" value="1" min="1" max="200" class="fl-inp"></div>
+                <div class="fl-fg" style="width:90px"><span class="fl-lbl">Tag prefix</span><input type="text" name="tag_prefix" placeholder="#SK-" class="fl-inp fl-mono"></div>
+                <div class="fl-fg" style="width:70px"><span class="fl-lbl">Start #</span><input type="number" name="start_number" value="1" min="0" class="fl-inp"></div>
+                <div class="fl-fg" style="width:120px"><span class="fl-lbl">Size</span><input type="text" name="size" placeholder="optional" class="fl-inp"></div>
+                @foreach($mIdents as $in)
+                  <div class="fl-fg" style="width:110px"><span class="fl-lbl">{{ $in }}</span><input type="text" name="ident[{{ $in }}]" placeholder="optional" class="fl-inp"></div>
+                @endforeach
+                <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm">Add units</button>
               </form>
             </div>
           </div>
@@ -299,7 +340,7 @@
       @csrf
       <div class="fl-fieldgrid" style="grid-template-columns:1fr 1fr">
         <div class="fl-fg"><span class="fl-lbl">Name</span><input class="fl-inp" name="name" placeholder="e.g. Skis" required></div>
-        <div class="fl-fg"><span class="fl-lbl">Size axis (optional)</span><input class="fl-inp" name="size_axis" placeholder="length (cm), Mondopoint…"></div>
+        <div class="fl-fg"><span class="fl-lbl">Size axis (optional) @include('tenant.rentals._size_axis_help')</span><input class="fl-inp" name="size_axis" placeholder="length (cm), Mondopoint…"></div>
       </div>
       <button type="submit" class="ia-btn ia-btn--primary ia-btn--sm" style="margin-top:12px">Add category</button>
     </form>
@@ -454,6 +495,12 @@
             var t = head ? head.querySelector('.fl-model-name') : null;
             if (t) t.textContent = el.value;
           }
+          // MARKER-FLEET-IDENT — unit columns are server-rendered; reload and
+          // reopen this drawer so the change shows immediately.
+          if (f === 'identifiers') {
+            try { sessionStorage.setItem('fl-reopen', body.getAttribute('data-model')); } catch (e) {}
+            location.reload();
+          }
         });
       });
     });
@@ -464,6 +511,18 @@
     line.querySelectorAll('[data-uf]').forEach(function(el){
       el.addEventListener('change', function(){ patch(url, el.getAttribute('data-uf'), el.value); });
     });
+    // MARKER-FLEET-IDENT — identifier cells save the row's whole map.
+    var uiEls = line.querySelectorAll('[data-ui]');
+    if (uiEls.length) {
+      uiEls.forEach(function(el){
+        el.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+        el.addEventListener('change', function(){
+          var map = {};
+          uiEls.forEach(function(x){ if (x.value.trim() !== '') map[x.getAttribute('data-ui')] = x.value.trim(); });
+          patch(url, 'identifier_values', JSON.stringify(map));
+        });
+      });
+    }
   });
   // MARKER-PATCH-243 — category + checklist edit bindings (same patch()
   // contract) and confirmed deletes.
@@ -494,20 +553,86 @@
       el.addEventListener('change', function(){ patch(url, el.getAttribute('data-ctf'), el.value); });
     });
   });
+  // MARKER-FLEET-IDENT — identifier chips in the model drawer (3 max).
+  document.querySelectorAll('[data-idf-wrap]').forEach(function(wrap){
+    var hidden = wrap.querySelector('[data-mf="identifiers"]');
+    var chipsAt = wrap.querySelector('[data-idf-chips]');
+    var newInp  = wrap.querySelector('[data-idf-new]');
+    var addBtn  = wrap.querySelector('[data-idf-add]');
+    var maxNote = wrap.querySelector('[data-idf-max]');
+    function list(){ try { var l = JSON.parse(hidden.value || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
+    function save(l){ hidden.value = JSON.stringify(l); draw(); hidden.dispatchEvent(new Event('change', { bubbles: false })); }
+    function draw(){
+      var l = list();
+      chipsAt.textContent = '';
+      l.forEach(function(name, i){
+        var c = document.createElement('span'); c.className = 'fl-idf-chip';
+        var t = document.createElement('span'); t.textContent = name; c.appendChild(t);
+        var x = document.createElement('button'); x.type = 'button'; x.className = 'fl-idf-x'; x.textContent = '\u2715';
+        x.title = 'Remove ' + name + ' (unit values are kept, hidden until re-added)';
+        x.addEventListener('click', function(){ var n = list(); n.splice(i, 1); save(n); });
+        c.appendChild(x);
+        chipsAt.appendChild(c);
+      });
+      var full = l.length >= 3;
+      newInp.style.display = full ? 'none' : '';
+      addBtn.style.display = full ? 'none' : '';
+      maxNote.style.display = full ? '' : 'none';
+    }
+    function commit(){
+      var v = newInp.value.trim().slice(0, 30);
+      if (!v) return;
+      var l = list();
+      if (l.length >= 3 || l.indexOf(v) !== -1) return;
+      l.push(v); newInp.value = ''; save(l);
+    }
+    addBtn.addEventListener('click', commit);
+    newInp.addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); commit(); } });
+    draw();
+  });
+  // Reopen the drawer that triggered the identifiers reload.
+  try {
+    var reopen = sessionStorage.getItem('fl-reopen');
+    if (reopen) {
+      sessionStorage.removeItem('fl-reopen');
+      var rbody = document.querySelector('.fl-model-body[data-model="' + reopen + '"]');
+      var rcard = rbody ? rbody.closest('.fl-model') : null;
+      if (rcard) { rcard.classList.add('editing', 'open'); rcard.scrollIntoView({ block: 'center' }); }
+    }
+  } catch (e) {}
+  // MARKER-FLEET-IDENT — size-axis help popovers (click toggles, outside closes).
+  document.querySelectorAll('[data-axis-help] .fl-help-dot').forEach(function(dot){
+    dot.addEventListener('click', function(e){
+      e.stopPropagation();
+      var h = dot.closest('[data-axis-help]');
+      document.querySelectorAll('[data-axis-help].open').forEach(function(o){ if (o !== h) o.classList.remove('open'); });
+      h.classList.toggle('open');
+    });
+  });
+  document.addEventListener('click', function(){
+    document.querySelectorAll('[data-axis-help].open').forEach(function(o){ o.classList.remove('open'); });
+  });
+  // MARKER-FLEET-IDENT — in-app dialogs, no browser prompts.
   window.flDeleteCategory = function(id){
-    if(!confirm('Delete this category? It must be empty (no models) first.')) return;
-    fetch('{{ url('admin/rentals/fleet/categories') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
-      .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else alert(j.message||'Could not delete.'); });
+    IntakeConfirm.show({ title: 'Delete this category?', message: 'It must be empty (no models) first.', confirmText: 'Delete', danger: true }).then(function(ok){
+      if(!ok) return;
+      fetch('{{ url('admin/rentals/fleet/categories') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
+        .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else IntakeConfirm.alert({ title: 'Delete failed', message: j.message||'Could not delete.' }); });
+    });
   };
   window.flDeleteChecklist = function(id){
-    if(!confirm('Delete this checklist? Models using it fall back to no checklist; past condition checks are unaffected.')) return;
-    fetch('{{ url('admin/rentals/fleet/condition-templates') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
-      .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else alert(j.message||'Could not delete.'); });
+    IntakeConfirm.show({ title: 'Delete this checklist?', message: 'Models using it fall back to no checklist; past condition checks are unaffected.', confirmText: 'Delete', danger: true }).then(function(ok){
+      if(!ok) return;
+      fetch('{{ url('admin/rentals/fleet/condition-templates') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
+        .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else IntakeConfirm.alert({ title: 'Delete failed', message: j.message||'Could not delete.' }); });
+    });
   };
   window.flArchiveModel = function(id){
-    if(!confirm('Archive this model? Its units must already be archived.')) return;
-    fetch('{{ url('admin/rentals/fleet/models') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
-      .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else alert(j.message||'Could not archive.'); });
+    IntakeConfirm.show({ title: 'Archive this model?', message: 'Its units must already be archived.', confirmText: 'Archive', danger: true }).then(function(ok){
+      if(!ok) return;
+      fetch('{{ url('admin/rentals/fleet/models') }}/'+id, {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','X-HTTP-Method-Override':'DELETE'}})
+        .then(function(r){return r.json();}).then(function(j){ if(j.success) location.reload(); else IntakeConfirm.alert({ title: 'Archive failed', message: j.message||'Could not archive.' }); });
+    });
   };
 })();
 </script>

@@ -25,6 +25,7 @@ class TenantRentalUnit extends Model
         'tenant_id', 'location_id', 'category_id',
         'model_id', // MARKER-PATCH-226
         'name', 'identifier', 'size', 'status',
+        'identifier_values', // MARKER-FLEET-IDENT
         'available_for_rent', 'online_booking', 'buffer_minutes',
         'condition_template_id',
         'hourly_rate_cents', 'daily_rate_cents',
@@ -36,6 +37,7 @@ class TenantRentalUnit extends Model
         'available_for_rent'           => 'boolean',
         'online_booking'               => 'boolean',
         'buffer_minutes'               => 'integer',
+        'identifier_values'            => 'array', // MARKER-FLEET-IDENT
         'hourly_rate_cents'            => 'integer',
         'daily_rate_cents'             => 'integer',
         'weekend_rate_cents'           => 'integer',

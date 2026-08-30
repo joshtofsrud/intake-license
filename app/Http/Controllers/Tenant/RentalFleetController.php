@@ -456,6 +456,18 @@ class RentalFleetController extends Controller
             case 'condition_template_id':
                 $model->update(['condition_template_id' => $this->verifyTemplate($tenant->id, $value)]);
                 break;
+            case 'identifiers': // MARKER-FLEET-IDENT — up to 3 per-model unit fields
+                $list = json_decode((string) $value, true);
+                if (! is_array($list)) $list = [];
+                $list = array_values(array_unique(array_filter(array_map(
+                    fn ($n) => is_string($n) ? trim(mb_substr($n, 0, 30)) : '',
+                    $list
+                ), fn ($n) => $n !== '')));
+                if (count($list) > 3) {
+                    return response()->json(['success' => false, 'message' => 'Three identifiers max.'], 422);
+                }
+                $model->update(['identifiers' => $list ?: null]);
+                break;
             default:
                 return response()->json(['success' => false, 'message' => 'Unknown field.'], 422);
         }
@@ -518,6 +530,8 @@ class RentalFleetController extends Controller
             'tag_prefix'  => ['nullable', 'string', 'max:40'],
             'start_number'=> ['nullable', 'integer', 'min:0', 'max:100000'],
             'size'        => ['nullable', 'string', 'max:40'],
+            'ident'       => ['nullable', 'array', 'max:3'], // MARKER-FLEET-IDENT
+            'ident.*'     => ['nullable', 'string', 'max:60'],
         ]);
 
         $model = TenantRentalModel::where('tenant_id', $tenant->id)
@@ -529,7 +543,14 @@ class RentalFleetController extends Controller
         $size   = $request->input('size') ?: null;
         $locId  = $request->session()->get('current_location_id');
 
-        DB::transaction(function () use ($tenant, $model, $count, $prefix, $start, $size, $locId) {
+        // MARKER-FLEET-IDENT — one value per model identifier, applied to the batch.
+        $identVals = [];
+        foreach ((array) ($model->identifiers ?? []) as $iname) {
+            $v = trim((string) ($request->input('ident.' . $iname) ?? ''));
+            if ($v !== '') $identVals[$iname] = $v;
+        }
+
+        DB::transaction(function () use ($tenant, $model, $count, $prefix, $start, $size, $locId, $identVals) {
             $rows = [];
             for ($i = 0; $i < $count; $i++) {
                 $tag = $prefix !== '' ? $prefix . str_pad((string) ($start + $i), 2, '0', STR_PAD_LEFT) : null;
@@ -542,6 +563,7 @@ class RentalFleetController extends Controller
                     'name'               => $model->name,
                     'identifier'         => $tag,
                     'size'               => $size,
+                    'identifier_values'  => $identVals ? json_encode($identVals) : null, // MARKER-FLEET-IDENT
                     'status'             => 'available',
                     'available_for_rent' => true,
                     'online_booking'     => true,
@@ -588,6 +610,19 @@ class RentalFleetController extends Controller
             case 'buffer_minutes':
                 $request->validate(['value' => ['nullable', 'integer', 'min:0', 'max:1440']]);
                 $unit->update(['buffer_minutes' => (int) ($value ?: 0)]);
+                break;
+            case 'identifier_values': // MARKER-FLEET-IDENT — whole map per save; keys must be defined on the model
+                $map = json_decode((string) $value, true);
+                if (! is_array($map)) $map = [];
+                $allowed = $unit->model_id
+                    ? (TenantRentalModel::where('tenant_id', $tenant->id)->where('id', $unit->model_id)->value('identifiers') ?? [])
+                    : [];
+                $clean = [];
+                foreach ((array) $allowed as $iname) {
+                    $v = isset($map[$iname]) && is_string($map[$iname]) ? trim(mb_substr($map[$iname], 0, 60)) : '';
+                    if ($v !== '') $clean[$iname] = $v;
+                }
+                $unit->update(['identifier_values' => $clean ?: null]);
                 break;
             default:
                 return response()->json(['success' => false, 'message' => 'Unknown field (rates live on the model).'], 422);

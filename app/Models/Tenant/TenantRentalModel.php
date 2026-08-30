@@ -26,6 +26,7 @@ class TenantRentalModel extends Model
         'hourly_rate_cents', 'daily_rate_cents', 'weekend_rate_cents',
         'seasonal_rate_cents', 'deposit_cents', 'condition_template_id',
         'sort_order', 'archived_at',
+        'identifiers', // MARKER-FLEET-IDENT
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class TenantRentalModel extends Model
         'deposit_cents'       => 'integer',
         'sort_order'          => 'integer',
         'archived_at'         => 'datetime',
+        'identifiers'         => 'array', // MARKER-FLEET-IDENT
     ];
 
     public function tenant(): BelongsTo
