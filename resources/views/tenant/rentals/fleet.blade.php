@@ -77,6 +77,22 @@
   .fl-idf-addwrap{position:relative;display:inline-flex;align-items:center}
   .fl-idf-ok{position:absolute;right:5px;width:20px;height:20px;border:none;border-radius:50%;background:var(--ia-accent,#BEF264);color:#0a0a0a;font-size:11px;font-weight:700;line-height:1;cursor:pointer;padding:0;display:none;align-items:center;justify-content:center}
   .fl-idf-addwrap.has-text .fl-idf-ok{display:flex}
+  /* MARKER-FLEET-PHOTOS — model photo strip, unit photo buttons, picker modal */
+  .fl-pset{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .fl-pset-item{position:relative;width:56px;height:42px;border-radius:8px;border:.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat}
+  .fl-pset-x{position:absolute;top:-6px;right:-6px;width:17px;height:17px;border:none;border-radius:50%;background:#E0573E;color:#fff;font-size:10px;line-height:1;cursor:pointer;padding:0}
+  .fl-pbtn{width:30px;height:24px;border-radius:5px;border:.5px dashed var(--ia-border-strong,rgba(255,255,255,.22));background:rgba(255,255,255,.04) center/cover no-repeat;color:var(--ia-text-dim,rgba(255,255,255,.55));font-size:11px;line-height:1;cursor:pointer;padding:0}
+  .fl-pbtn:hover{border-color:var(--ia-accent,#BEF264)}
+  .fl-pbtn.has{border-style:solid}
+  .fl-pmodal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
+  .fl-pmodal.open{display:flex}
+  .fl-pmodal-card{background:#1c1c1c;border:.5px solid var(--ia-border-strong,rgba(255,255,255,.22));border-radius:var(--ia-r-lg);padding:18px;width:min(560px,100%);max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .fl-pmodal-title{font-weight:650;margin-bottom:4px}
+  .fl-pmodal-sub{font-size:12px;opacity:.5;margin-bottom:14px}
+  .fl-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+  .fl-pgrid button{aspect-ratio:4/3;border-radius:10px;border:1.5px solid var(--ia-border);background:rgba(255,255,255,.05) center/cover no-repeat;cursor:pointer;padding:0}
+  .fl-pgrid button.sel{border-color:var(--ia-accent,#BEF264)}
+  .fl-pmodal-acts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
   .fl-uline input:focus,.fl-uline select:focus{border-color:var(--ia-accent,#BEF264);outline:none;background:var(--ia-input-bg,rgba(255,255,255,.07))}
   .fl-mono{font-family:var(--ia-font-mono,monospace)}
   .pill{font-size:10px;font-weight:600;border-radius:999px;padding:2px 9px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
@@ -214,8 +230,15 @@
               {{-- MARKER-RENTAL-MODEL-PHOTOS — one marketing photo per model.
                    Uploads through the tenant uploads endpoint, then saves the
                    URL over the same data-mf autosave rail as every field. --}}
+              {{-- MARKER-FLEET-PHOTOS — the set units pick from. --}}
+              <div class="fl-fg" style="grid-column:1/5" data-pset-wrap data-model-photos="{{ $model->id }}">
+                <span class="fl-lbl">Photos <span style="opacity:.5;text-transform:none;letter-spacing:0">— units pick one of these; up to 8</span></span>
+                <input type="hidden" data-mf="photos" value="{{ json_encode($model->photos ?? []) }}">
+                <div class="fl-pset" data-pset></div>
+                <input type="file" accept="image/jpeg,image/png,image/webp" data-pset-file style="display:none">
+              </div>
               <div class="fl-fg" style="grid-column:1/5">
-                <span class="fl-lbl">Photo <span style="opacity:.5;text-transform:none;letter-spacing:0">— shows on your public rental pages</span></span>
+                <span class="fl-lbl">Main photo <span style="opacity:.5;text-transform:none;letter-spacing:0">— shows on your public rental pages</span></span>
                 <div class="fl-photo" data-photo-wrap>
                   <div class="fl-photo-thumb" data-photo-thumb style="{{ $model->image_url ? 'background-image:url(\'' . $model->image_url . '\')' : '' }}"></div>
                   <button type="button" class="ia-btn ia-btn--sm" data-photo-pick>{{ $model->image_url ? 'Replace' : 'Upload' }}</button>
@@ -278,10 +301,12 @@
                   ? '120px 70px ' . str_repeat('minmax(80px,140px) ', count($mIdents)) . '1fr 130px 90px 70px 64px'
                   : null;
             @endphp
-            <div class="fl-uhead" data-uhead @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
+            @php $uGrid = $uGrid ? '38px ' . $uGrid : '38px 120px 70px 1fr 130px 90px 70px 64px'; @endphp
+            <div class="fl-uhead" data-uhead style="grid-template-columns:{{ $uGrid }}"><span></span><span>Serial / tag</span><span>Size</span>@foreach($mIdents as $in)<span>{{ $in }}</span>@endforeach<span>Condition</span><span>Status</span><span>Last rented</span><span>Util 30d</span><span></span></div>
             @foreach($model->view_units as $u)
               @php $m = $unitMeta[$u->id] ?? ['last' => null, 'util' => null, 'flags' => 0, 'photos' => 0]; @endphp
-              <a class="fl-uline" data-unit="{{ $u->id }}" data-uvals="{{ json_encode($u->identifier_values ?? []) }}" @if($uGrid) style="grid-template-columns:{{ $uGrid }}" @endif href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
+              <a class="fl-uline" data-unit="{{ $u->id }}" data-uvals="{{ json_encode($u->identifier_values ?? []) }}" style="grid-template-columns:{{ $uGrid }}" href="{{ route('tenant.rentals.fleet.units.show', $u->id) }}">
+                <span onclick="event.preventDefault();event.stopPropagation()"><button type="button" class="fl-pbtn {{ $u->photo_url ? 'has' : '' }}" data-upick="{{ $model->id }}" data-photo="{{ $u->photo_url }}" style="{{ $u->photo_url ? "background-image:url('" . $u->photo_url . "')" : '' }}" title="Photo">{{ $u->photo_url ? '' : '▣' }}</button></span>
                 <span class="fl-mono">{{ $u->identifier ?: '—' }}</span>
                 <span>{{ $u->size ?: '—' }}{{ !$u->available_for_rent ? ' ·off' : '' }}</span>
                 @foreach($mIdents as $in)
@@ -316,6 +341,8 @@
               <form method="POST" action="{{ route('tenant.rentals.fleet.units.bulk') }}" id="bulk-{{ $model->id }}" data-add-form style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap">
                 @csrf
                 <input type="hidden" name="model_id" value="{{ $model->id }}">
+                <input type="hidden" name="photo_url" value="">
+                <div class="fl-fg" style="width:44px"><span class="fl-lbl">Photo</span><button type="button" class="fl-pbtn" data-apick="{{ $model->id }}" style="height:33px;width:38px" title="Pick a photo for this batch">▣</button></div>
                 <div class="fl-fg" style="width:64px"><span class="fl-lbl">Qty</span><input type="number" name="count" value="1" min="1" max="200" class="fl-inp"></div>
                 <div class="fl-fg" style="width:90px"><span class="fl-lbl">Tag prefix</span><input type="text" name="tag_prefix" placeholder="#SK-" class="fl-inp fl-mono"></div>
                 <div class="fl-fg" style="width:70px"><span class="fl-lbl">Start #</span><input type="number" name="start_number" value="1" min="0" class="fl-inp"></div>
@@ -562,14 +589,14 @@
   function flSyncIdentCols(card, idents){
     var units = card.querySelector('.fl-units');
     if (!units) return;
-    var grid = idents.length
-        ? '120px 70px ' + Array(idents.length + 1).join('minmax(80px,140px) ') + '1fr 130px 90px 70px 64px'
-        : '';
+    var grid = '38px 120px 70px '
+        + (idents.length ? Array(idents.length + 1).join('minmax(80px,140px) ') : '')
+        + '1fr 130px 90px 70px 64px';
     var head = units.querySelector('.fl-uhead');
     if (head) {
       head.style.gridTemplateColumns = grid;
       head.textContent = '';
-      ['Serial / tag', 'Size'].concat(idents, ['Condition', 'Status', 'Last rented', 'Util 30d', '']).forEach(function(h){
+      ['', 'Serial / tag', 'Size'].concat(idents, ['Condition', 'Status', 'Last rented', 'Util 30d', '']).forEach(function(h){
         var s = document.createElement('span'); s.textContent = h; head.appendChild(s);
       });
     }
@@ -580,7 +607,7 @@
       line.setAttribute('data-uvals', JSON.stringify(vals));
       line.querySelectorAll('.fl-ui-cell').forEach(function(c){ c.remove(); });
       line.style.gridTemplateColumns = grid;
-      var after = line.children[1];
+      var after = line.children[2]; // photo, tag, size — identifiers follow size
       idents.forEach(function(name){
         var cell = document.createElement('span');
         cell.className = 'fl-ui-cell';
@@ -645,6 +672,128 @@
       el.addEventListener('change', function(){ patch(url, el.getAttribute('data-ctf'), el.value); });
     });
   });
+  // MARKER-FLEET-PHOTOS — photo set editing + the picker modal.
+  var pmodal = document.createElement('div');
+  pmodal.className = 'fl-pmodal';
+  pmodal.innerHTML = '<div class="fl-pmodal-card">'
+    + '<div class="fl-pmodal-title">Choose a photo</div>'
+    + '<div class="fl-pmodal-sub">Photos come from this model. Add more in the model editor.</div>'
+    + '<div class="fl-pgrid" data-pgrid></div>'
+    + '<div class="fl-pmodal-acts">'
+    + '<button type="button" class="ia-btn" data-pclear>No photo</button>'
+    + '<button type="button" class="ia-btn" data-pcancel>Cancel</button>'
+    + '<button type="button" class="ia-btn ia-btn--primary" data-pok>Use photo</button>'
+    + '</div></div>';
+  document.body.appendChild(pmodal);
+  var pgrid = pmodal.querySelector('[data-pgrid]');
+  var pTarget = null, pChosen = null;
+
+  function modelPhotos(modelId){
+    var wrap = document.querySelector('[data-model-photos="' + modelId + '"]');
+    if (!wrap) return [];
+    try { var l = JSON.parse(wrap.querySelector('[data-mf="photos"]').value || '[]'); return Array.isArray(l) ? l : []; }
+    catch (e) { return []; }
+  }
+  function closeP(){ pmodal.classList.remove('open'); pTarget = null; pChosen = null; }
+  function openP(btn){
+    pTarget = btn;
+    pChosen = btn.getAttribute('data-photo') || null;
+    var list = modelPhotos(btn.getAttribute('data-upick') || btn.getAttribute('data-apick'));
+    pgrid.textContent = '';
+    if (!list.length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'grid-column:1/-1;font-size:12.5px;opacity:.55';
+      empty.textContent = 'No photos on this model yet — add them in the model editor (Edit → Photos).';
+      pgrid.appendChild(empty);
+    }
+    list.forEach(function(url){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.style.backgroundImage = "url('" + url + "')";
+      if (url === pChosen) b.classList.add('sel');
+      b.addEventListener('click', function(){
+        pChosen = url;
+        pgrid.querySelectorAll('button').forEach(function(x){ x.classList.remove('sel'); });
+        b.classList.add('sel');
+      });
+      pgrid.appendChild(b);
+    });
+    pmodal.classList.add('open');
+  }
+  function applyPhoto(btn, url){
+    btn.setAttribute('data-photo', url || '');
+    if (url) { btn.style.backgroundImage = "url('" + url + "')"; btn.textContent = ''; btn.classList.add('has'); }
+    else { btn.style.backgroundImage = ''; btn.textContent = '\u25A3'; btn.classList.remove('has'); }
+    var line = btn.closest('.fl-uline');
+    if (line) { patch(flUnitUrl(line), 'photo_url', url || ''); return; }
+    var form = btn.closest('form');
+    var hid = form && form.querySelector('[name="photo_url"]');
+    if (hid) hid.value = url || '';
+  }
+  pmodal.querySelector('[data-pok]').addEventListener('click', function(){ if (pTarget) applyPhoto(pTarget, pChosen); closeP(); });
+  pmodal.querySelector('[data-pclear]').addEventListener('click', function(){ if (pTarget) applyPhoto(pTarget, ''); closeP(); });
+  pmodal.querySelector('[data-pcancel]').addEventListener('click', closeP);
+  pmodal.addEventListener('click', function(e){ if (e.target === pmodal) closeP(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && pmodal.classList.contains('open')) closeP(); });
+
+  function flBindPhotoBtn(btn){
+    if (btn.dataset.pBound) return;
+    btn.dataset.pBound = '1';
+    btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); openP(btn); });
+  }
+  document.querySelectorAll('[data-upick],[data-apick]').forEach(flBindPhotoBtn);
+
+  // Model drawer photo set: upload, remove, saved with "Save model".
+  document.querySelectorAll('[data-pset-wrap]').forEach(function(wrap){
+    var hidden = wrap.querySelector('[data-mf="photos"]');
+    var strip  = wrap.querySelector('[data-pset]');
+    var file   = wrap.querySelector('[data-pset-file]');
+    function list(){ try { var l = JSON.parse(hidden.value || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; } }
+    function save(l){ hidden.value = JSON.stringify(l); draw(); hidden.dispatchEvent(new Event('change', { bubbles: false })); }
+    function draw(){
+      var l = list();
+      strip.textContent = '';
+      l.forEach(function(url, i){
+        var it = document.createElement('div');
+        it.className = 'fl-pset-item';
+        it.style.backgroundImage = "url('" + url + "')";
+        var x = document.createElement('button');
+        x.type = 'button'; x.className = 'fl-pset-x'; x.textContent = '\u2715';
+        x.title = 'Remove from the set (units using it keep their photo until changed)';
+        x.addEventListener('click', function(){ var n = list(); n.splice(i, 1); save(n); });
+        it.appendChild(x);
+        strip.appendChild(it);
+      });
+      if (l.length < 8) {
+        var add = document.createElement('button');
+        add.type = 'button'; add.className = 'ia-btn ia-btn--sm'; add.textContent = '+ Add photo';
+        add.addEventListener('click', function(){ file.click(); });
+        strip.appendChild(add);
+      } else {
+        var max = document.createElement('span');
+        max.style.cssText = 'font-size:11px;opacity:.45'; max.textContent = '8 max';
+        strip.appendChild(max);
+      }
+    }
+    file.addEventListener('change', function(){
+      if (!file.files || !file.files[0]) return;
+      var fd = new FormData();
+      fd.append('file', file.files[0]);
+      fd.append('type', 'general');
+      showToast('Uploading\u2026', 'busy');
+      fetch('{{ route('tenant.uploads.store') }}', {method:'POST', headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json'}, body:fd})
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if (!j || !j.url) { showToast(j && j.message ? j.message : 'Upload failed.', 'err'); return; }
+          var l = list(); l.push(j.url); save(l);
+          showToast('Added \u2014 Save model to keep it', 'ok');
+        })
+        .catch(function(){ showToast('Upload failed \u2014 check your connection.', 'err'); });
+      file.value = '';
+    });
+    draw();
+  });
+
   // MARKER-FLEET-ADD-INLINE — add units without losing your place: post by
   // fetch, prepend the new rows, clear the inputs, keep the form open.
   document.querySelectorAll('[data-add-form]').forEach(function(form){
@@ -682,6 +831,16 @@
             if (grid) a.style.gridTemplateColumns = grid;
 
             function span(txt, cls){ var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = txt; a.appendChild(s); return s; }
+            var pcell = document.createElement('span');
+            pcell.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); });
+            var pb = document.createElement('button');
+            pb.type = 'button'; pb.className = 'fl-pbtn' + (u.photo ? ' has' : '');
+            pb.setAttribute('data-upick', form.querySelector('[data-apick]').getAttribute('data-apick'));
+            pb.setAttribute('data-photo', u.photo || '');
+            pb.title = 'Photo';
+            if (u.photo) pb.style.backgroundImage = "url('" + u.photo + "')"; else pb.textContent = '\u25A3';
+            pcell.appendChild(pb); a.appendChild(pcell);
+            flBindPhotoBtn(pb);
             span(u.identifier || '\u2014', 'fl-mono');
             span(u.size || '\u2014');
             names.forEach(function(n){

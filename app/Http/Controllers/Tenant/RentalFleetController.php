@@ -456,6 +456,16 @@ class RentalFleetController extends Controller
             case 'condition_template_id':
                 $model->update(['condition_template_id' => $this->verifyTemplate($tenant->id, $value)]);
                 break;
+            case 'photos': // MARKER-FLEET-PHOTOS — the model's photo set (max 8)
+                $urls = json_decode((string) $value, true);
+                if (! is_array($urls)) $urls = [];
+                $urls = array_values(array_unique(array_filter(array_map(
+                    fn ($u) => is_string($u) ? trim(mb_substr($u, 0, 500)) : '',
+                    $urls
+                ), fn ($u) => $u !== '')));
+                if (count($urls) > 8) $urls = array_slice($urls, 0, 8);
+                $model->update(['photos' => $urls ?: null]);
+                break;
             case 'identifiers': // MARKER-FLEET-IDENT — up to 3 per-model unit fields
                 $list = json_decode((string) $value, true);
                 if (! is_array($list)) $list = [];
@@ -534,6 +544,7 @@ class RentalFleetController extends Controller
             'start_number'=> ['nullable', 'integer', 'min:0', 'max:100000'],
             'size'        => ['nullable', 'string', 'max:40'],
             'ident'       => ['nullable', 'array', 'max:3'], // MARKER-FLEET-IDENT
+            'photo_url'   => ['nullable', 'string', 'max:500'],  // MARKER-FLEET-PHOTOS
             'ident.*'     => ['nullable', 'string', 'max:60'],
         ]);
 
@@ -546,6 +557,10 @@ class RentalFleetController extends Controller
         $size   = $request->input('size') ?: null;
         $locId  = $request->session()->get('current_location_id');
 
+        // MARKER-FLEET-PHOTOS — batch photo, only if it's one of this model's.
+        $photo = trim((string) $request->input('photo_url'));
+        if ($photo !== '' && ! in_array($photo, (array) ($model->photos ?? []), true)) $photo = '';
+
         // MARKER-FLEET-IDENT — one value per model identifier, applied to the batch.
         $identVals = [];
         foreach ((array) ($model->identifiers ?? []) as $iname) {
@@ -554,7 +569,7 @@ class RentalFleetController extends Controller
         }
 
         $created = [];
-        DB::transaction(function () use ($tenant, $model, $count, $prefix, $start, $size, $locId, $identVals, &$created) {
+        DB::transaction(function () use ($tenant, $model, $count, $prefix, $start, $size, $locId, $identVals, $photo, &$created) {
             $rows = [];
             for ($i = 0; $i < $count; $i++) {
                 $tag = $prefix !== '' ? $prefix . str_pad((string) ($start + $i), 2, '0', STR_PAD_LEFT) : null;
@@ -568,6 +583,7 @@ class RentalFleetController extends Controller
                     'identifier'         => $tag,
                     'size'               => $size,
                     'identifier_values'  => $identVals ? json_encode($identVals) : null, // MARKER-FLEET-IDENT
+                    'photo_url'          => $photo !== '' ? $photo : null, // MARKER-FLEET-PHOTOS
                     'status'             => 'available',
                     'available_for_rent' => true,
                     'online_booking'     => true,
@@ -599,6 +615,7 @@ class RentalFleetController extends Controller
                     'identifier' => $r['identifier'],
                     'size'       => $r['size'],
                     'values'     => $identVals,
+                    'photo'      => $photo !== '' ? $photo : null,
                     'url'        => route('tenant.rentals.fleet.units.show', $r['id']),
                 ], $created),
                 'unit_count'  => $totals->count(),
@@ -639,6 +656,17 @@ class RentalFleetController extends Controller
             case 'buffer_minutes':
                 $request->validate(['value' => ['nullable', 'integer', 'min:0', 'max:1440']]);
                 $unit->update(['buffer_minutes' => (int) ($value ?: 0)]);
+                break;
+            case 'photo_url': // MARKER-FLEET-PHOTOS — must be one of the model's photos
+                $val = trim((string) $value);
+                if ($val === '') { $unit->update(['photo_url' => null]); break; }
+                $pool = $unit->model_id
+                    ? (TenantRentalModel::where('tenant_id', $tenant->id)->where('id', $unit->model_id)->value('photos') ?? [])
+                    : [];
+                if (! in_array($val, (array) $pool, true)) {
+                    return response()->json(['success' => false, 'message' => 'Pick a photo from this model.'], 422);
+                }
+                $unit->update(['photo_url' => $val]);
                 break;
             case 'identifier_values': // MARKER-FLEET-IDENT — whole map per save; keys must be defined on the model
                 $map = json_decode((string) $value, true);

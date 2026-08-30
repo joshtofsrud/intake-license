@@ -27,6 +27,7 @@ class TenantRentalModel extends Model
         'seasonal_rate_cents', 'deposit_cents', 'condition_template_id',
         'sort_order', 'archived_at',
         'identifiers', // MARKER-FLEET-IDENT
+        'photos',      // MARKER-FLEET-PHOTOS
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class TenantRentalModel extends Model
         'sort_order'          => 'integer',
         'archived_at'         => 'datetime',
         'identifiers'         => 'array', // MARKER-FLEET-IDENT
+        'photos'              => 'array', // MARKER-FLEET-PHOTOS
     ];
 
     public function tenant(): BelongsTo

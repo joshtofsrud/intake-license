@@ -26,6 +26,7 @@ class TenantRentalUnit extends Model
         'model_id', // MARKER-PATCH-226
         'name', 'identifier', 'size', 'status',
         'identifier_values', // MARKER-FLEET-IDENT
+        'photo_url',         // MARKER-FLEET-PHOTOS
         'available_for_rent', 'online_booking', 'buffer_minutes',
         'condition_template_id',
         'hourly_rate_cents', 'daily_rate_cents',
