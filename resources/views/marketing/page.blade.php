@@ -160,6 +160,71 @@
 {{-- Nav (shell — always present) --}}
 @include('marketing.sections._shell_nav', ['navItems' => $navItems])
 
+{{-- MARKER-MKT-PARITY — hover highlight + click-to-select, and the scroll-to
+     handler the builder calls. Builder preview only; port of the tenant
+     MARKER-BUILDER-SYNC block in public/layout.blade.php. --}}
+@if(!empty($builderPreview))
+<style>
+  [data-pb-section] { position: relative; }
+  [data-pb-section]::after {
+    content: ''; position: absolute; inset: 0; z-index: 2147483000;
+    pointer-events: none; opacity: 0;
+    outline: 2px solid #BEF264; outline-offset: -2px;
+    background: rgba(190,242,100,.06);
+    transition: opacity .12s;
+  }
+  [data-pb-section].pb-hover::after,
+  [data-pb-section].pb-flash::after { opacity: 1; }
+  [data-pb-section].pb-flash::after { transition: opacity .35s; }
+  [data-pb-section] { cursor: pointer; }
+</style>
+<script>
+(function () {
+  function boot() {
+  var wraps = Array.prototype.slice.call(document.querySelectorAll('[data-pb-section]'));
+  if (!wraps.length) return;
+
+  function post(msg) {
+    try { parent.postMessage(msg, window.location.origin); } catch (e) {}
+  }
+
+  wraps.forEach(function (w) {
+    w.addEventListener('mouseenter', function () {
+      wraps.forEach(function (o) { o.classList.remove('pb-hover'); });
+      w.classList.add('pb-hover');
+    });
+    w.addEventListener('mouseleave', function () { w.classList.remove('pb-hover'); });
+
+    w.addEventListener('click', function (e) {
+      if (e.target.closest('a, button, input, select, textarea, label')) return;
+      e.preventDefault();
+      post({ source: 'pb-preview', type: 'select', id: w.dataset.pbSection, sectionType: w.dataset.pbType });
+    }, true);
+  });
+
+  window.addEventListener('message', function (e) {
+    if (e.origin !== window.location.origin) return;
+    var d = e.data || {};
+    if (d.source !== 'pb-builder' || d.type !== 'scrollTo') return;
+    var el = document.querySelector('[data-pb-section="' + d.id + '"]');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('pb-flash');
+    setTimeout(function () { el.classList.remove('pb-flash'); }, 900);
+  });
+
+  post({ source: 'pb-preview', type: 'ready' });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+@endif
+
 {{-- Page content --}}
 @foreach($sections as $section)
     @php
@@ -208,6 +273,7 @@
     @endphp
 
     @if(view()->exists($partial))
+        @if(!empty($builderPreview))<div data-pb-section="{{ $section->id }}" data-pb-type="{{ $section->section_type }}">@endif
         @include($partial, [
             'c' => $c,
             'section' => $section,
@@ -218,6 +284,7 @@
             'tenant' => $tenant,
             'industry' => $industry,
         ])
+        @if(!empty($builderPreview))</div>@endif
     @else
         <div style="background:#3b1d0b;color:#ffcc80;padding:12px 24px;font-size:13px;text-align:center;border-top:0.5px solid rgba(255,255,255,.08)">
             No renderer for section type: <code>{{ $type }}</code>
@@ -234,6 +301,8 @@
     }
 </script>
 @include('marketing._plan-quiz')
-@include('marketing._funnel_tracker') {{-- MARKER-MKTTRAFFIC --}}
+@if(empty($builderPreview))
+@include('marketing._funnel_tracker') {{-- MARKER-MKTTRAFFIC — skipped in builder previews (MARKER-MKT-PARITY) --}}
+@endif
 </body>
 </html>

@@ -13,12 +13,27 @@
       : tenant_url($page->is_home ? '' : $page->slug);
   // MARKER-PATCH-267 — iframe/live-reload use an authenticated same-origin
   // route that renders drafts too; "Open live" keeps the public $previewUrl.
+  // MARKER-MKT-PARITY — marketing preview is a draft-capable routed page.
   $previewSrc  = $isMarketing
-      ? $previewUrl
+      ? url('/admin/marketing-pages/' . $page->id . '/preview')
       : route('tenant.pages.preview', $page->id);
   $storeUrl    = $isMarketing
       ? url('/admin/marketing-pages/store')
       : route('tenant.pages.store');
+  // MARKER-MKT-PARITY — endpoints that used to hardcode tenant routes, which
+  // don't bind a tenant on the apex host. url() literals, matching G19A.
+  $updateUrl = $isMarketing
+      ? url('/admin/marketing-pages/' . $page->id . '/builder')
+      : route('tenant.pages.update', $page->id);
+  $mediaFeedUrl = $isMarketing
+      ? url('/admin/marketing-media/feed')
+      : route('tenant.media.feed');
+  $historyListUrl = $isMarketing
+      ? url('/admin/marketing-pages/' . $page->id . '/history')
+      : route('tenant.pages.history', $page->id);
+  $historyRestoreTpl = $isMarketing
+      ? url('/admin/marketing-pages/' . $page->id . '/history/__RID__/restore')
+      : route('tenant.pages.history.restore', [$page->id, '__RID__']);
 
   // Section type labels + icon classes (Tabler-style line icons via inline SVG below).
   $typeLabels = [
@@ -1840,14 +1855,14 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       <div class="pb2-status-acts">
         @if($page->is_published)
           <a class="pb2-status-btn" href="{{ rtrim($previewUrl ?? '', '/') . $pubUrl }}" target="_blank" rel="noopener">View live ↗</a>
-          <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" style="flex:1">
+          <form method="POST" action="{{ $updateUrl }}" style="flex:1">
             @csrf @method('PATCH')
             <input type="hidden" name="op" value="set_published">
             <input type="hidden" name="is_published" value="0">
             <button type="submit" class="pb2-status-btn pb2-status-btn--off" style="width:100%">Unpublish</button>
           </form>
         @else
-          <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" style="flex:1">
+          <form method="POST" action="{{ $updateUrl }}" style="flex:1">
             @csrf @method('PATCH')
             <input type="hidden" name="op" value="set_published">
             <input type="hidden" name="is_published" value="1">
@@ -1862,7 +1877,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       @endif
 
       @if(!$page->is_home)
-        <form method="POST" action="{{ route('tenant.pages.update', $page->id) }}" class="pb2-status-nav">
+        <form method="POST" action="{{ $updateUrl }}" class="pb2-status-nav">
           @csrf @method('PATCH')
           <input type="hidden" name="op" value="set_in_nav">
           <input type="hidden" name="is_in_nav" value="{{ $page->is_in_nav ? 0 : 1 }}">
@@ -1916,7 +1931,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
             $allowed = $isBookingExtras
               ? ['hero','cta_banner','feature_grid','custom_html','text_image','image_gallery','image_carousel','stats_row','testimonial_carousel','faq_accordion','logo_bar','step_timeline','pricing_table'] // MARKER-PATCH-603 — content sections; chrome/shop/nav excluded
               : ($isMarketing
-              ? ['nav','hero','text_image','cta_banner','image_gallery','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','custom_html']
+              ? ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','feature_grid','step_timeline','faq_accordion','footer','pricing_table','testimonial_carousel','logo_bar','stats_row','comparison_table','industry_pack_showcase','custom_html']
               : ['nav','hero','text_image','cta_banner','image_gallery','image_carousel','contact_form','booking_embed','classes_embed','feature_grid','step_timeline','faq_accordion','footer','testimonial_carousel','logo_bar','stats_row','pricing_table','rentals_showcase','rental_spotlight','rental_categories','rental_browse','products_showcase','custom_html']);
           @endphp
 
@@ -2074,9 +2089,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     var form  = document.getElementById('pb2-hist-form');
     if (!btn || !panel) { return; }
 
-    var listUrl = @json(route('tenant.pages.history', $page->id));
+    var listUrl = @json($historyListUrl); {{-- MARKER-MKT-PARITY --}}
     // Built from the named route so any group prefix is honoured.
-    var restoreTpl = @json(route('tenant.pages.history.restore', [$page->id, '__RID__']));
+    var restoreTpl = @json($historyRestoreTpl);
 
     function close() { panel.hidden = true; }
 
@@ -2162,7 +2177,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 (function() {
   const PAGE_ID    = @json($page->id);
   const UPDATE_URL = @json($isMarketing
-      ? url('/admin/marketing-pages/' . $page->id)
+      ? url('/admin/marketing-pages/' . $page->id . '/builder')
       : route('tenant.pages.update', $page->id));
   const SECTION_URL = (sid) => @json($isMarketing
       ? url('/admin/marketing-pages/' . $page->id . '/sections/')
@@ -2178,7 +2193,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   // instead of route() to avoid RouteNotFoundException if the route cache
   // is stale post-deploy. The endpoint path is stable and tenant-scoped.
   const UPLOAD_URL = @json($isMarketing
-      ? url('/admin/uploads')
+      ? url('/admin/marketing-uploads')
       : url('/admin/uploads'));
   const TYPE_LABELS = @json($typeLabels);
 
@@ -3902,7 +3917,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
     modal.style.display = 'block';
     renderMediaGrid();
     if (__mediaCache === null) {
-      fetch('{{ route('tenant.media.feed') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      fetch('{{ $mediaFeedUrl }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => { __mediaCache = (d && d.media) || []; renderMediaGrid(); })
         .catch(() => { __mediaCache = []; renderMediaGrid(); });

@@ -92,6 +92,37 @@ Route::domain($domain)->group(function () {
         Route::post('/admin/marketing-pages/store',
             [\App\Http\Controllers\Admin\MarketingPageController::class, 'store']
         )->name('admin.marketing-pages.store');
+
+        // MARKER-MKT-PARITY — full builder parity for the marketing context.
+        // /builder (not bare {pageId}) so the Filament resource's own
+        // /marketing-pages/{record}/... routes can never be shadowed.
+        Route::get('/admin/marketing-pages/{pageId}/builder',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'edit']
+        )->name('admin.marketing-pages.builder');
+
+        Route::patch('/admin/marketing-pages/{pageId}/builder',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'update']
+        )->name('admin.marketing-pages.builder.update');
+
+        Route::get('/admin/marketing-pages/{pageId}/preview',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'preview']
+        )->name('admin.marketing-pages.preview');
+
+        Route::get('/admin/marketing-pages/{pageId}/history',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'history']
+        )->name('admin.marketing-pages.history');
+
+        Route::post('/admin/marketing-pages/{pageId}/history/{revisionId}/restore',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'historyRestore']
+        )->name('admin.marketing-pages.history.restore');
+
+        Route::get('/admin/marketing-media/feed',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'mediaFeed']
+        )->name('admin.marketing-media.feed');
+
+        Route::post('/admin/marketing-uploads',
+            [\App\Http\Controllers\Admin\MarketingPageController::class, 'upload']
+        )->name('admin.marketing-uploads.store');
     });
 
     // --- Generic slug fallback: /{slug} → custom marketing pages ---
