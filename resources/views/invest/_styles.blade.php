@@ -152,7 +152,23 @@ footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(
 .cap-grp li::before{content:"";position:absolute;left:0;top:12px;width:5px;height:5px;border-radius:50%;
   background:var(--line2)}
 @media(max-width:900px){.cap-core{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.cap-core{grid-template-columns:1fr}}
+/* MARKER-CAPABILITY-MOBILE — stays at two columns on a phone. One column meant
+   nine full-width cards, which is most of a minute of scrolling for something
+   that is meant to be a glance. Type and padding tighten to suit the narrower
+   card; no group and no item is dropped. */
+@media(max-width:600px){
+  .cap-core{grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+  .cap-grp{padding:13px 12px;border-radius:10px}
+  .cap-grp h3{font-size:10.5px;letter-spacing:1.2px}
+  .cap-grp ul{margin-top:8px}
+  .cap-grp li{font-size:11.5px;line-height:1.38;padding:2.5px 0 2.5px 11px}
+  .cap-grp li::before{top:9px;width:4px;height:4px}
+}
+/* Below about 380 two columns would be too tight, so one column is right there
+   — but with the same compact type rather than the full-size version. */
+@media(max-width:380px){
+  .cap-core{grid-template-columns:1fr}
+}
 
 .ctx-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:22px}
 .ctx-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
