@@ -57,6 +57,7 @@ class BlockRenderer
         $fragment   = (bool) ($options['fragment'] ?? false);
         // MARKER-CAMPAIGN-CHROME — draw the branded header/footer in preview.
         $chrome     = (bool) ($options['chrome'] ?? false);
+        $chromeHead = (bool) ($options['chromeHeader'] ?? true); // MARKER-CAMPAIGN-HDR
 
         $inner = '';
         foreach ($blocks as $block) {
@@ -84,7 +85,7 @@ class BlockRenderer
         }
 
         if ($chrome) {
-            $inner = self::chromeHeader() . $inner . self::chromeFooter();
+            $inner = ($chromeHead ? self::chromeHeader() : '') . $inner . self::chromeFooter();
         }
 
         $html = $fragment

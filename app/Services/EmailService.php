@@ -286,8 +286,10 @@ class EmailService
     // ----------------------------------------------------------------
     // Render a template body as full HTML email
     // ----------------------------------------------------------------
-    public function renderHtml(string $body): string
+    public function renderHtml(string $body, bool $withHeader = true): string
     {
+        // MARKER-CAMPAIGN-HDR — a campaign can drop the shop header so it can
+        // lead with its own hero instead of stacking one under a logo.
         $accent     = $this->tenant->accent_color     ?? '#BEF264';
         $accentText = \App\Support\ColorHelper::accentTextColor($accent);
         $name       = htmlspecialchars($this->tenant->name);
@@ -298,6 +300,17 @@ class EmailService
         $header = $logo
             ? "<img src=\"{$logo}\" alt=\"{$name}\" width=\"150\" style=\"width:auto;max-width:150px;height:36px;display:block;margin:0 auto 8px;border:0\">"
             : "<div style=\"font-family:-apple-system,sans-serif;font-size:20px;font-weight:700;color:#f0f0f0\">{$name}</div>";
+
+        $headerRow = '';
+        if ($withHeader) {
+            $headerRow = <<<HDR
+            <tr>
+              <td style="background:#111111;padding:24px 32px;text-align:center;border-radius:8px 8px 0 0">
+                {$header}
+              </td>
+            </tr>
+            HDR;
+        }
 
         return <<<HTML
 <!DOCTYPE html>
@@ -312,11 +325,7 @@ class EmailService
     <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
 
       <!-- Header -->
-      <tr>
-        <td style="background:#111111;padding:24px 32px;text-align:center;border-radius:8px 8px 0 0">
-          {$header}
-        </td>
-      </tr>
+      {$headerRow}
 
       <!-- Body -->
       <tr>
@@ -541,7 +550,8 @@ HTML;
         string $bodyHtml,
         string $campaignId,
         string $unsubscribeUrl,
-        ?string $sendId = null // MARKER-CAMPAIGN-RESULTS — recipient row id
+        ?string $sendId = null, // MARKER-CAMPAIGN-RESULTS — recipient row id
+        bool $withHeader = true // MARKER-CAMPAIGN-HDR
     ): bool {
         $stream = \App\Services\EmailLedger::broadcastStream();
         if ($stream === null) {
@@ -570,7 +580,7 @@ HTML;
             . '<a href="' . e($unsubscribeUrl) . '" style="color:#8a8a8e">Unsubscribe</a> from marketing email — '
             . 'receipts and booking confirmations are unaffected.</p>';
 
-        $html = $this->renderHtml($bodyHtml . $footer);
+        $html = $this->renderHtml($bodyHtml . $footer, $withHeader);
 
         $fromName  = $this->tenant->emailFromName();
         $fromEmail = $this->tenant->emailFromAddress();

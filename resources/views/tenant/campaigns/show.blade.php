@@ -152,6 +152,14 @@
   font-size: 11px;
   opacity: .5;
 }
+/* MARKER-CAMPAIGN-HDR */
+.cb-hdr-toggle {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  background: var(--ia-surface-2); border: 0.5px solid var(--ia-border);
+  border-radius: var(--ia-r-sm); padding: 8px 10px; margin-bottom: 10px; font-size: 12px;
+}
+.cb-hdr-toggle input { accent-color: var(--ia-accent); cursor: pointer; }
+.cb-hdr-hint { margin-left: auto; font-size: 10.5px; opacity: .45; }
 /* MARKER-CAMPAIGN-V2A — viewport toggle + merge-tag chips */
 .cb-preview-stage { background: #f4f4f2; display: flex; justify-content: center; overflow: hidden; }
 /* MARKER-CAMPAIGN-MOBILEFIX — the email's inner table is a fixed 600px, so
@@ -556,6 +564,18 @@
 
     {{-- LEFT: blocks list + add palette --}}
     <div class="cb-col">
+      {{-- MARKER-CAMPAIGN-HDR — pinned above the blocks: the shop header is
+           added by the system, so its switch belongs with the blocks, not
+           buried in settings. --}}
+      <label class="cb-hdr-toggle">
+        <input type="checkbox" name="show_header" value="1" id="cb-show-header"
+          {{ old('show_header', $campaign->show_header ?? true) ? 'checked' : '' }}
+          {{ $campaign->status !== 'draft' ? 'disabled' : '' }}
+          onchange="CB.toggleHeader(this.checked)">
+        <span>Include shop header</span>
+        <span class="cb-hdr-hint">Logo bar at the top</span>
+      </label>
+
       <div class="cb-col-title">Blocks</div>
       <div class="cb-blocks" id="cb-blocks"></div>
 
@@ -1313,6 +1333,8 @@ window.CB = (function() {
             blocks: blocks,
             // MARKER-CAMPAIGN-V2A — preview the preheader as typed.
             preheader: (document.getElementById('cb-preheader') || {}).value || '',
+            // MARKER-CAMPAIGN-HDR
+            show_header: (document.getElementById('cb-show-header') || {}).checked ? 1 : 0,
             campaign_id: campaignId,
           }),
         });
@@ -1445,6 +1467,7 @@ window.CB = (function() {
   return {
     // MARKER-CAMPAIGN-V2A
     insertTag, setViewport, testSend,
+    toggleHeader() { requestPreview(); }, // MARKER-CAMPAIGN-HDR
     renderSettingsPublic: renderSettings, // MARKER-CAMPAIGN-V2E — bg clear redraw
 
     // MARKER-CAMPAIGN-V2F — gallery images reuse the existing image picker.

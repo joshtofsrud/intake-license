@@ -112,7 +112,8 @@ class ProcessCampaignSends extends Command
                     $html,
                     (string) $campaign->id,
                     ConsentService::unsubscribeUrl($tenant, $customer),
-                    (string) $row->id // MARKER-CAMPAIGN-RESULTS
+                    (string) $row->id, // MARKER-CAMPAIGN-RESULTS
+                    (bool) ($campaign->show_header ?? true) // MARKER-CAMPAIGN-HDR
                 );
 
                 $row->update($ok

@@ -214,9 +214,10 @@ class CampaignController extends Controller
         ]);
 
         $campaign->update([
-            'name'      => $name,
-            'subject'   => $subject,
-            'preheader' => $preheader !== '' ? $preheader : null,
+            'name'        => $name,
+            'subject'     => $subject,
+            'preheader'   => $preheader !== '' ? $preheader : null,
+            'show_header' => (bool) $request->boolean('show_header', true), // MARKER-CAMPAIGN-HDR
             'blocks'    => $blocks,
             'body_html' => $bodyHtml,
             'targeting' => ['segment' => $segment],
@@ -368,7 +369,9 @@ class CampaignController extends Controller
             'preview'       => true,
             'preheader'     => trim((string) $request->input('preheader', '')),
             'resolveTokens' => true,
+            // MARKER-CAMPAIGN-HDR — preview follows the toggle as typed.
             'chrome'        => true,
+            'chromeHeader'  => $request->boolean('show_header', true),
         ]);
 
         return response($html)->header('Content-Type', 'text/html');
@@ -480,7 +483,9 @@ class CampaignController extends Controller
             '[TEST] ' . (string) $campaign->subject,
             $html,
             (string) $campaign->id,
-            rtrim((string) $tenant->publicUrl(), '/') . '/email/unsubscribe/test'
+            rtrim((string) $tenant->publicUrl(), '/') . '/email/unsubscribe/test',
+            null,
+            (bool) ($campaign->show_header ?? true) // MARKER-CAMPAIGN-HDR
         );
 
         return back()->with(
