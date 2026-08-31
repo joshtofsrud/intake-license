@@ -79,6 +79,24 @@
   color: inherit;
 }
 .cb-block-remove:hover { opacity: .8; color: #ff6b6b; }
+/* MARKER-CAMPAIGN-V2D — reorder handle, move/duplicate buttons */
+.cb-block-row.dragging { opacity: .45; }
+.cb-block-row.drop-target { border-color: var(--ia-accent); border-style: dashed; }
+.cb-block-handle {
+  cursor: grab; opacity: .35; font-size: 11px; letter-spacing: -1px;
+  flex: 0 0 auto; user-select: none;
+}
+.cb-block-handle:active { cursor: grabbing; }
+.cb-block-row:hover .cb-block-handle { opacity: .7; }
+.cb-block-acts { display: flex; gap: 2px; flex: 0 0 auto; opacity: 0; transition: opacity .1s; }
+.cb-block-row:hover .cb-block-acts,
+.cb-block-row.selected .cb-block-acts { opacity: 1; }
+.cb-block-act {
+  background: none; border: none; cursor: pointer; padding: 1px 4px;
+  color: var(--ia-text-dim, rgba(255,255,255,.55)); font-size: 11px; line-height: 1;
+}
+.cb-block-act:hover { color: var(--ia-accent); }
+.cb-block-act[disabled] { opacity: .2; cursor: default; }
 
 .cb-add-heading {
   font-size: 11px;
@@ -805,17 +823,28 @@ window.CB = (function() {
       container.innerHTML = '<div style="font-size:11px;opacity:.4;padding:8px;text-align:center">No blocks yet. Add one below.</div>';
       return;
     }
-    container.innerHTML = blocks.map(function(b) {
+    container.innerHTML = blocks.map(function(b, i) {
       const type = TYPES[b.type] || { label: b.type, icon: '?' };
       const selected = (b.id === selectedId) ? ' selected' : '';
+      // MARKER-CAMPAIGN-V2D — handle, move up/down, duplicate.
+      const first = i === 0, last = i === blocks.length - 1;
+      const acts = readOnly ? '' : `
+          <span class="cb-block-acts">
+            <button type="button" class="cb-block-act" ${first ? 'disabled' : ''} onclick="event.stopPropagation();CB.move('${b.id}',-1)" title="Move up">↑</button>
+            <button type="button" class="cb-block-act" ${last ? 'disabled' : ''} onclick="event.stopPropagation();CB.move('${b.id}',1)" title="Move down">↓</button>
+            <button type="button" class="cb-block-act" onclick="event.stopPropagation();CB.duplicate('${b.id}')" title="Duplicate">⧉</button>
+          </span>
+          <button type="button" class="cb-block-remove" onclick="event.stopPropagation();CB.remove('${b.id}')" title="Remove">×</button>`;
       return `
-        <div class="cb-block-row${selected}" onclick="CB.select('${b.id}')">
+        <div class="cb-block-row${selected}" data-block-id="${b.id}" ${readOnly ? '' : 'draggable="true"'} onclick="CB.select('${b.id}')">
+          ${readOnly ? '' : '<span class="cb-block-handle" title="Drag to reorder">⋮⋮</span>'}
           <span class="cb-block-icon">${type.icon}</span>
           <span class="cb-block-label">${type.label}</span>
-          ${readOnly ? '' : `<button type="button" class="cb-block-remove" onclick="event.stopPropagation();CB.remove('${b.id}')" title="Remove">×</button>`}
+          ${acts}
         </div>
       `;
     }).join('');
+    if (!readOnly) wireBlockDrag();
   }
 
   function renderSettings() {
@@ -1036,6 +1065,83 @@ window.CB = (function() {
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 
+  // MARKER-CAMPAIGN-V2D — drag to reorder the block list.
+  let dragId = null;
+  function wireBlockDrag() {
+    document.querySelectorAll('#cb-blocks .cb-block-row').forEach(function (row) {
+      row.addEventListener('dragstart', function (e) {
+        dragId = row.getAttribute('data-block-id');
+        row.classList.add('dragging');
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); } catch (err) {}
+      });
+      row.addEventListener('dragend', function () {
+        dragId = null;
+        document.querySelectorAll('#cb-blocks .cb-block-row').forEach(function (r) {
+          r.classList.remove('dragging', 'drop-target');
+        });
+      });
+      row.addEventListener('dragover', function (e) {
+        if (!dragId) return;
+        e.preventDefault();
+        if (row.getAttribute('data-block-id') !== dragId) row.classList.add('drop-target');
+      });
+      row.addEventListener('dragleave', function () { row.classList.remove('drop-target'); });
+      row.addEventListener('drop', function (e) {
+        e.preventDefault();
+        row.classList.remove('drop-target');
+        const targetId = row.getAttribute('data-block-id');
+        if (!dragId || dragId === targetId) return;
+        const from = blocks.findIndex(b => b.id === dragId);
+        const to   = blocks.findIndex(b => b.id === targetId);
+        if (from < 0 || to < 0) return;
+        const [moved] = blocks.splice(from, 1);
+        blocks.splice(to, 0, moved);
+        selectedId = moved.id;
+        renderBlocksList(); renderSettings(); syncHiddenInput(); requestPreview();
+      });
+    });
+  }
+
+  // MARKER-CAMPAIGN-V2D — preview ↔ builder highlighting. The iframe is
+  // same-origin, so listeners attach straight to its document; nothing is
+  // injected into the email itself.
+  function wirePreviewHighlight() {
+    const iframe = document.getElementById('cb-preview-iframe');
+    const doc = iframe && (iframe.contentDocument || iframe.contentWindow.document);
+    if (!doc) return;
+    doc.querySelectorAll('tr[data-cb-block]').forEach(function (tr) {
+      const id = tr.getAttribute('data-cb-block');
+      const type = TYPES[tr.getAttribute('data-cb-type')] || { label: tr.getAttribute('data-cb-type') };
+      const cell = tr.querySelector('td');
+      if (cell) cell.setAttribute('data-cb-label', type.label || '');
+      tr.addEventListener('mouseenter', function () {
+        doc.querySelectorAll('tr[data-cb-block]').forEach(t => t.classList.remove('cb-hover'));
+        tr.classList.add('cb-hover');
+      });
+      tr.addEventListener('mouseleave', function () { tr.classList.remove('cb-hover'); });
+      tr.addEventListener('click', function (e) {
+        e.preventDefault();
+        CB.select(id);
+      });
+      if (id === selectedId) tr.classList.add('cb-active');
+    });
+  }
+
+  // Scroll the preview to a block and flash it (list → preview direction).
+  function revealInPreview(id) {
+    const iframe = document.getElementById('cb-preview-iframe');
+    const doc = iframe && (iframe.contentDocument || iframe.contentWindow.document);
+    if (!doc) return;
+    doc.querySelectorAll('tr[data-cb-block]').forEach(function (t) {
+      t.classList.toggle('cb-active', t.getAttribute('data-cb-block') === id);
+    });
+    const el = doc.querySelector('tr[data-cb-block="' + id + '"]');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('cb-flash');
+    setTimeout(function () { el.classList.remove('cb-flash'); }, 900);
+  }
+
   // MARKER-CAMPAIGN-V2A — preheader changes refresh the preview too.
   document.addEventListener('DOMContentLoaded', function () {
     var ph = document.getElementById('cb-preheader');
@@ -1070,6 +1176,7 @@ window.CB = (function() {
           const doc = iframe.contentDocument || iframe.contentWindow.document;
           doc.open(); doc.write(html); doc.close();
         }
+        wirePreviewHighlight(); // MARKER-CAMPAIGN-V2D
         if (status) status.textContent = 'Ready';
       } catch (err) {
         if (status) status.textContent = 'Preview failed';
@@ -1283,7 +1390,13 @@ window.CB = (function() {
     addBlock(type) {
       if (readOnly) return;
       const block = { id: uuid(), type: type, data: Object.assign({}, DEFAULTS[type] || {}) };
-      blocks.push(block);
+      // MARKER-CAMPAIGN-V2D — drop it after the selected block, not always last.
+      const at = blocks.findIndex(b => b.id === selectedId);
+      if (at >= 0) {
+        blocks.splice(at + 1, 0, block);
+      } else {
+        blocks.push(block);
+      }
       selectedId = block.id;
       renderBlocksList();
       renderSettings();
@@ -1306,6 +1419,29 @@ window.CB = (function() {
       selectedId = id;
       renderBlocksList();
       renderSettings();
+      revealInPreview(id); // MARKER-CAMPAIGN-V2D
+    },
+
+    // MARKER-CAMPAIGN-V2D — reorder + duplicate.
+    move(id, delta) {
+      if (readOnly) return;
+      const i = blocks.findIndex(b => b.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= blocks.length) return;
+      const [moved] = blocks.splice(i, 1);
+      blocks.splice(j, 0, moved);
+      selectedId = id;
+      renderBlocksList(); renderSettings(); syncHiddenInput(); requestPreview();
+    },
+    duplicate(id) {
+      if (readOnly) return;
+      const i = blocks.findIndex(b => b.id === id);
+      if (i < 0) return;
+      const copy = JSON.parse(JSON.stringify(blocks[i]));
+      copy.id = uuid();
+      blocks.splice(i + 1, 0, copy);
+      selectedId = copy.id;
+      renderBlocksList(); renderSettings(); syncHiddenInput(); requestPreview();
     },
 
     updateData(key, value) {

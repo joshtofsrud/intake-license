@@ -55,7 +55,22 @@ class BlockRenderer
 
         $inner = '';
         foreach ($blocks as $block) {
-            $inner .= self::renderBlock($block, $variables, $accent, $accentText);
+            $one = self::renderBlock($block, $variables, $accent, $accentText);
+
+            // MARKER-CAMPAIGN-V2D — in the composer only, tag the row so the
+            // builder can hover/select it. Never present in a sent email.
+            if ($preview && $one !== '' && ($block['id'] ?? '') !== '') {
+                $bid  = self::escape((string) $block['id']);
+                $type = self::escape((string) ($block['type'] ?? ''));
+                $one  = preg_replace(
+                    '/^(\s*)<tr>/',
+                    '$1<tr data-cb-block="' . $bid . '" data-cb-type="' . $type . '">',
+                    $one,
+                    1
+                );
+            }
+
+            $inner .= $one;
         }
 
         // If preview and no blocks, show placeholder
@@ -63,7 +78,7 @@ class BlockRenderer
             $inner = '<tr><td style="padding:40px 20px;text-align:center;color:#aaa;font-size:13px;font-style:italic">Add blocks to see a preview.</td></tr>';
         }
 
-        $html = self::wrapDocument($inner, $preheader);
+        $html = self::wrapDocument($inner, $preheader, $preview);
 
         // Send and preview resolve leftover tokens to their fallback so a
         // missing value can never ship as "Hi ,". Save-time rendering leaves
@@ -544,8 +559,41 @@ class BlockRenderer
     // ----------------------------------------------------------------
 
     /** Wrap block output in 600px centered email table. */
-    private static function wrapDocument(string $inner, string $preheader = ''): string
+    private static function wrapDocument(string $inner, string $preheader = '', bool $preview = false): string
     {
+        // MARKER-CAMPAIGN-V2D — builder-only chrome. Kept inside the preview
+        // document so a sent email carries none of it.
+        $previewCss = '';
+        if ($preview) {
+            $previewCss = <<<'CSS'
+            <style>
+              tr[data-cb-block] > td { position: relative; }
+              tr[data-cb-block] { cursor: pointer; }
+              tr[data-cb-block].cb-hover > td::after,
+              tr[data-cb-block].cb-active > td::after {
+                content: ''; position: absolute; inset: 2px; pointer-events: none;
+                border: 2px solid #7BA428; border-radius: 4px;
+              }
+              tr[data-cb-block].cb-active > td::after { border-color: #4F7A12; }
+              tr[data-cb-block].cb-hover > td::before {
+                content: attr(data-cb-label); position: absolute; top: 2px; left: 2px; z-index: 5;
+                background: #4F7A12; color: #fff; font-size: 10px; line-height: 1;
+                padding: 3px 6px; border-radius: 0 0 4px 0; pointer-events: none;
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+              }
+              tr[data-cb-block].cb-flash > td::after {
+                content: ''; position: absolute; inset: 2px; pointer-events: none;
+                border: 2px solid #4F7A12; border-radius: 4px;
+                animation: cbflash .9s ease-out;
+              }
+              @keyframes cbflash {
+                0%   { background: rgba(190,242,100,.55); }
+                100% { background: rgba(190,242,100,0); }
+              }
+            </style>
+            CSS;
+        }
+
         // MARKER-CAMPAIGN-V2A — the hidden preview line inboxes show beside
         // the subject. Zero-size and colour-matched so it never renders, with
         // trailing entities so the client doesn't pad it with body copy.
@@ -557,7 +605,7 @@ class BlockRenderer
         }
 
         return <<<HTML
-            <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+            <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">{$previewCss}</head>
             <body style="margin:0;padding:0;background:#f4f4f2;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
               {$pre}
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f2">
