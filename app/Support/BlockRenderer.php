@@ -128,8 +128,10 @@ class BlockRenderer
         ];
         [$style, $tag] = $sizes[$size] ?? $sizes['h1'];
 
+        $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
+
         return <<<HTML
-            <tr><td style="padding:16px 24px 8px;text-align:{$align}">
+            <tr><td style="padding:16px 24px 8px;{$bg}text-align:{$align}">
               <{$tag} style="{$style};color:#111;margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif">{$text}</{$tag}>
             </td></tr>
             HTML;
@@ -236,9 +238,37 @@ class BlockRenderer
         // Basic URL safety — must start with http(s) or /
         $url = filter_var($url, FILTER_SANITIZE_URL);
 
+        // MARKER-CAMPAIGN-V2E — size, alignment, link, rounding.
+        $align  = self::safeAlign($data['align'] ?? 'left');
+        [$wAttr, $wCss] = self::imageWidth((string) ($data['width'] ?? '100'));
+        $radius = (string) ($data['radius'] ?? '4');
+        $radius = preg_match('/^\d{1,2}$/', $radius) ? $radius : '4';
+        $bg     = self::bgStyle($data);
+
+        // Outlook ignores max-width, so the width ATTRIBUTE has to be there
+        // too or the image renders at its native pixel size.
+        $wa  = $wAttr > 0 ? ' width="' . $wAttr . '"' : '';
+        $img = '<img src="' . $url . '" alt="' . $alt . '"' . $wa
+             . ' style="width:' . $wCss . ';max-width:100%;height:auto;display:block;border:0;border-radius:' . $radius . 'px" />';
+
+        $link = trim((string) ($data['link'] ?? ''));
+        if ($link !== '' && preg_match('/^(https?:\/\/|mailto:)/i', $link)) {
+            $img = '<a href="' . self::escape($link) . '" style="text-decoration:none;display:inline-block">' . $img . '</a>';
+        }
+
+        // A block-level image can't be centred by text-align alone in every
+        // client, so it sits in its own aligned wrapper table.
+        $margin = match ($align) {
+            'center' => 'margin:0 auto',
+            'right'  => 'margin:0 0 0 auto',
+            default  => 'margin:0',
+        };
+
         return <<<HTML
-            <tr><td style="padding:12px 24px">
-              <img src="{$url}" alt="{$alt}" style="max-width:100%;height:auto;display:block;border-radius:4px" />
+            <tr><td style="padding:12px 24px;{$bg}text-align:{$align}">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{$margin}">
+                <tr><td style="padding:0">{$img}</td></tr>
+              </table>
             </td></tr>
             HTML;
     }
@@ -249,12 +279,19 @@ class BlockRenderer
         $url   = self::escape($data['url']  ?? '#');
         $align = self::safeAlign($data['align'] ?? 'left');
 
+        // MARKER-CAMPAIGN-V2E — optional full-width button + block background.
+        $bg   = self::bgStyle($data);
+        $full = ($data['full_width'] ?? '0') === '1';
+        $tblW = $full ? ' width="100%"' : '';
+        $tblS = $full ? 'width:100%' : 'display:inline-block';
+        $aS   = $full ? 'display:block;text-align:center' : 'display:inline-block';
+
         // Bulletproof email button — table-in-table pattern for Outlook compat
         return <<<HTML
-            <tr><td style="padding:16px 24px;text-align:{$align}">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-block">
-                <tr><td style="background:{$accent};border-radius:6px;padding:12px 22px">
-                  <a href="{$url}" style="color:{$accentText};text-decoration:none;font-weight:600;font-size:14px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:inline-block">{$text}</a>
+            <tr><td style="padding:16px 24px;{$bg}text-align:{$align}">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0"{$tblW} style="{$tblS}">
+                <tr><td style="background:{$accent};border-radius:6px;padding:12px 22px;text-align:center">
+                  <a href="{$url}" style="color:{$accentText};text-decoration:none;font-weight:600;font-size:14px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;{$aS}">{$text}</a>
                 </td></tr>
               </table>
             </td></tr>
@@ -290,8 +327,10 @@ class BlockRenderer
         $left  = self::inlineText($data['left']  ?? '');
         $right = self::inlineText($data['right'] ?? '');
 
+        $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
+
         return <<<HTML
-            <tr><td style="padding:8px 24px">
+            <tr><td style="padding:8px 24px;{$bg}">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
                   <td width="50%" valign="top" style="padding:8px 10px 8px 0;font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">{$left}</td>
@@ -309,8 +348,19 @@ class BlockRenderer
         $text = self::inlineText($data['text'] ?? '');
         $side = ($data['side'] ?? 'left') === 'right' ? 'right' : 'left';
 
+        // MARKER-CAMPAIGN-V2E — split ratio drives both cell widths and the
+        // image's own width attribute (Outlook needs the attribute).
+        $ratio = (string) ($data['ratio'] ?? '45');
+        [$imgPct, $txtPct] = match ($ratio) {
+            '40' => ['40%', '60%'],
+            '60' => ['60%', '40%'],
+            '50' => ['50%', '50%'],
+            default => ['45%', '55%'],
+        };
+        $imgPx = (int) round(552 * ((int) rtrim($imgPct, '%')) / 100) - 14;
+
         $imgCell = $url !== ''
-            ? '<img src="' . self::escape($url) . '" alt="' . $alt . '" width="240" style="width:100%;max-width:240px;display:block;border:0;border-radius:6px">'
+            ? '<img src="' . self::escape($url) . '" alt="' . $alt . '" width="' . $imgPx . '" style="width:100%;max-width:' . $imgPx . 'px;display:block;border:0;border-radius:6px">'
             : '<div style="border:1px dashed #ccc;padding:30px;text-align:center;color:#aaa;font-size:12px">No image selected</div>';
 
         $textCell = '<div style="font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">' . $text . '</div>';
@@ -319,12 +369,15 @@ class BlockRenderer
         $padA = $side === 'left' ? '0 14px 0 0' : '0 14px 0 0';
         $padB = '0';
 
+        $bg = self::bgStyle($data);
+        [$wA, $wB] = $side === 'left' ? [$imgPct, $txtPct] : [$txtPct, $imgPct];
+
         return <<<HTML
-            <tr><td style="padding:12px 24px">
+            <tr><td style="padding:12px 24px;{$bg}">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
-                  <td width="45%" valign="middle" style="padding:{$padA}">{$a}</td>
-                  <td width="55%" valign="middle" style="padding:{$padB}">{$b}</td>
+                  <td width="{$wA}" valign="middle" style="padding:{$padA}">{$a}</td>
+                  <td width="{$wB}" valign="middle" style="padding:{$padB}">{$b}</td>
                 </tr>
               </table>
             </td></tr>
@@ -430,8 +483,10 @@ class BlockRenderer
             $rows .= '<tr>' . $tds . '</tr>';
         }
 
+        $bg = self::bgStyle($data); // MARKER-CAMPAIGN-V2E
+
         return <<<HTML
-            <tr><td style="padding:10px 18px">
+            <tr><td style="padding:10px 18px;{$bg}">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 {$rows}
               </table>
@@ -661,6 +716,33 @@ class BlockRenderer
             fn ($m) => isset($m[2]) ? trim($m[2]) : '',
             $html
         ) ?? $html;
+    }
+
+    /**
+     * MARKER-CAMPAIGN-V2E — a validated background colour for a block's
+     * wrapper cell, as an inline style fragment (empty when unset).
+     */
+    private static function bgStyle(array $data): string
+    {
+        $c = trim((string) ($data['bg_color'] ?? ''));
+        if ($c === '' || ! preg_match('/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i', $c)) {
+            return '';
+        }
+        return 'background:' . $c . ';';
+    }
+
+    /** MARKER-CAMPAIGN-V2E — image width as [attributePx, cssWidth]. */
+    private static function imageWidth(string $choice): array
+    {
+        // 600px content column minus 24px padding each side.
+        $inner = 552;
+        return match ($choice) {
+            '25'  => [(int) round($inner * .25), '25%'],
+            '50'  => [(int) round($inner * .50), '50%'],
+            '75'  => [(int) round($inner * .75), '75%'],
+            'orig' => [0, 'auto'],
+            default => [$inner, '100%'],
+        };
     }
 
     private static function escape(string $value): string

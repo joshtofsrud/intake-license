@@ -795,14 +795,14 @@ window.CB = (function() {
   const DEFAULTS = {
     heading:   { text: 'Your headline here', size: 'h1', align: 'left' },
     paragraph: { text: '', align: 'left' },
-    image:     { url: '', alt: '' },
-    button:    { text: 'Click here', url: 'https://', align: 'left' },
+    image:     { url: '', alt: '', width: '100', align: 'left', link: '', radius: '4' }, // MARKER-CAMPAIGN-V2E
+    button:    { text: 'Click here', url: 'https://', align: 'left', full_width: '0' },
     divider:   {},
     footer:    { text: 'You received this because you are a customer. Reply STOP to unsubscribe.' },
     // MARKER-CAMPAIGN-V2B
     spacer:     { height: '24' },
     two_column: { left: '', right: '' },
-    image_text: { url: '', alt: '', text: '', side: 'left' },
+    image_text: { url: '', alt: '', text: '', side: 'left', ratio: '45' }, // MARKER-CAMPAIGN-V2E
     social:     { links: [] },
     // MARKER-CAMPAIGN-V2C
     catalog:    { items: [], show_price: '1', show_photo: '1', cta_text: 'Book now', per_row: '2' },
@@ -874,6 +874,7 @@ window.CB = (function() {
           <option value="h3" ${d.size==='h3'?'selected':''}>Small (H3)</option>
         </select>`);
       html += alignField(d.align);
+      html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips(); // MARKER-CAMPAIGN-V2A
     } else if (t === 'paragraph') {
       // Rich text editor — mount TipTap into this container after settings render.
@@ -887,6 +888,7 @@ window.CB = (function() {
         <div class="cb-tt-editor" id="cb-tt-editor" data-tt-html="${escapeAttr(initialHtml)}"></div>
       </div>`;
       html += alignField(d.align);
+      html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips(); // MARKER-CAMPAIGN-V2A
       // Defer the mount so the DOM nodes exist first
       setTimeout(mountTipTapEditor, 0);
@@ -902,6 +904,7 @@ window.CB = (function() {
     } else if (t === 'two_column') {
       html += field('left', 'Left column', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('left', this.value)">${escapeHtml(d.left || '')}</textarea>`);
       html += field('right', 'Right column', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('right', this.value)">${escapeHtml(d.right || '')}</textarea>`);
+      html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips();
       html += '<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Columns sit side by side on desktop and stack on narrow phones.</p>';
     } else if (t === 'image_text') {
@@ -923,6 +926,15 @@ window.CB = (function() {
           <option value="left"  ${d.side!=='right'?'selected':''}>Left</option>
           <option value="right" ${d.side==='right'?'selected':''}>Right</option>
         </select>`);
+      // MARKER-CAMPAIGN-V2E
+      html += field('ratio', 'Split', `
+        <select class="cb-field-select" onchange="CB.updateData('ratio', this.value)">
+          <option value="40" ${String(d.ratio)==='40'?'selected':''}>40 / 60 — image smaller</option>
+          <option value="45" ${String(d.ratio || '45')==='45'?'selected':''}>45 / 55</option>
+          <option value="50" ${String(d.ratio)==='50'?'selected':''}>50 / 50</option>
+          <option value="60" ${String(d.ratio)==='60'?'selected':''}>60 / 40 — image larger</option>
+        </select>`);
+      html += bgField(d);
       html += mergeChips();
     } else if (t === 'social') {
       const links = Array.isArray(d.links) ? d.links : [];
@@ -970,6 +982,7 @@ window.CB = (function() {
           <option value="0" ${String(d.show_photo)==='0'?'selected':''}>No</option>
         </select>`);
       html += field('cta_text', 'Button text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.cta_text || '')}" placeholder="Leave empty for no button" oninput="CB.updateData('cta_text', this.value)">`);
+      html += bgField(d); // MARKER-CAMPAIGN-V2E
     } else if (t === 'image') {
       const hasImage = !!(d.url && d.url.length > 0);
       if (hasImage) {
@@ -984,10 +997,40 @@ window.CB = (function() {
         </button>`;
       }
       html += field('alt', 'Alt text (for screen readers)', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" placeholder="Describe the image" oninput="CB.updateData('alt', this.value)">`);
+      // MARKER-CAMPAIGN-V2E — size and placement.
+      html += field('width', 'Width', `
+        <select class="cb-field-select" onchange="CB.updateData('width', this.value)">
+          <option value="100"  ${String(d.width || '100')==='100'?'selected':''}>Full width</option>
+          <option value="75"   ${String(d.width)==='75'?'selected':''}>Three quarters</option>
+          <option value="50"   ${String(d.width)==='50'?'selected':''}>Half</option>
+          <option value="25"   ${String(d.width)==='25'?'selected':''}>Quarter</option>
+          <option value="orig" ${String(d.width)==='orig'?'selected':''}>Original size</option>
+        </select>`);
+      html += field('align', 'Align', `
+        <select class="cb-field-select" onchange="CB.updateData('align', this.value)">
+          <option value="left"   ${(d.align||'left')==='left'?'selected':''}>Left</option>
+          <option value="center" ${d.align==='center'?'selected':''}>Center</option>
+          <option value="right"  ${d.align==='right'?'selected':''}>Right</option>
+        </select>`);
+      html += field('link', 'Links to', `<input type="text" class="cb-field-input" value="${escapeAttr(d.link || '')}" placeholder="https:// (optional)" oninput="CB.updateData('link', this.value)">`);
+      html += field('radius', 'Corners', `
+        <select class="cb-field-select" onchange="CB.updateData('radius', this.value)">
+          <option value="0"  ${String(d.radius)==='0'?'selected':''}>Square</option>
+          <option value="4"  ${String(d.radius || '4')==='4'?'selected':''}>Slightly round</option>
+          <option value="12" ${String(d.radius)==='12'?'selected':''}>Round</option>
+        </select>`);
+      html += bgField(d);
     } else if (t === 'button') {
       html += field('text', 'Button label', `<input type="text" class="cb-field-input" value="${escapeAttr(d.text || '')}" oninput="CB.updateData('text', this.value)">`);
       html += field('url', 'Link URL', `<input type="text" class="cb-field-input" value="${escapeAttr(d.url || '')}" placeholder="https://..." oninput="CB.updateData('url', this.value)">`);
       html += alignField(d.align);
+      // MARKER-CAMPAIGN-V2E
+      html += field('full_width', 'Width', `
+        <select class="cb-field-select" onchange="CB.updateData('full_width', this.value)">
+          <option value="0" ${String(d.full_width || '0')==='0'?'selected':''}>Fit to text</option>
+          <option value="1" ${String(d.full_width)==='1'?'selected':''}>Full width</option>
+        </select>`);
+      html += bgField(d);
     } else if (t === 'divider') {
       html += '<p style="font-size:12px;opacity:.5;line-height:1.5">A horizontal line. No settings.</p>';
     } else if (t === 'footer') {
@@ -1007,6 +1050,19 @@ window.CB = (function() {
       <label class="cb-field-label">Align</label>
       <div class="cb-align-group">
         ${opts.map(a => `<button type="button" class="cb-align-btn${current===a?' active':''}" onclick="CB.updateData('align', '${a}')">${a}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // MARKER-CAMPAIGN-V2E — background colour, shared by most block types.
+  function bgField(d) {
+    const v = d.bg_color || '';
+    return `<div class="cb-field">
+      <label class="cb-field-label">Background</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="color" value="${escapeAttr(v || '#ffffff')}" style="width:34px;height:28px;padding:0;border:none;background:none;cursor:pointer" oninput="CB.updateData('bg_color', this.value)">
+        <input type="text" class="cb-field-input" style="flex:1" value="${escapeAttr(v)}" placeholder="none" oninput="CB.updateData('bg_color', this.value)">
+        <button type="button" class="cb-block-act" title="Clear" onclick="CB.updateData('bg_color',''); CB.renderSettingsPublic();">×</button>
       </div>
     </div>`;
   }
@@ -1299,6 +1355,7 @@ window.CB = (function() {
   return {
     // MARKER-CAMPAIGN-V2A
     insertTag, setViewport, testSend,
+    renderSettingsPublic: renderSettings, // MARKER-CAMPAIGN-V2E — bg clear redraw
 
     // MARKER-CAMPAIGN-V2C — catalog picker.
     openCatalogPicker() {

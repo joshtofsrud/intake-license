@@ -487,18 +487,19 @@ class CampaignController extends Controller
     private static function sanitizeBlocks(array $blocks): array
     {
         $allowed = [
-            'heading'   => ['text', 'size', 'align'],
-            'paragraph' => ['html', 'text', 'align'],
-            'image'     => ['url', 'alt'],
-            'button'    => ['text', 'url', 'align'],
+            // MARKER-CAMPAIGN-V2E — styling fields added to the existing shapes.
+            'heading'   => ['text', 'size', 'align', 'bg_color'],
+            'paragraph' => ['html', 'text', 'align', 'bg_color'],
+            'image'     => ['url', 'alt', 'width', 'align', 'link', 'radius', 'bg_color'],
+            'button'    => ['text', 'url', 'align', 'full_width', 'bg_color'],
             'divider'   => [],
             'footer'    => ['text'],
             // MARKER-CAMPAIGN-V2B
             'spacer'     => ['height'],
-            'two_column' => ['left', 'right'],
-            'image_text' => ['url', 'alt', 'text', 'side'],
+            'two_column' => ['left', 'right', 'bg_color'],
+            'image_text' => ['url', 'alt', 'text', 'side', 'ratio', 'bg_color'],
             'social'     => [], // links handled separately — it's an array
-            'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row'], // MARKER-CAMPAIGN-V2C
+            'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row', 'bg_color'], // MARKER-CAMPAIGN-V2C
         ];
 
         $clean = [];
