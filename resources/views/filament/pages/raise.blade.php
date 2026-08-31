@@ -5,7 +5,6 @@
   .rz-invite > summary::-webkit-details-marker{display:none}
   .rz-invite[open] > summary .rz-mark::before{content:"\2013"}
   .rz-invite:not([open]) > summary .rz-mark::before{content:"+"}
-  .rz-invite > summary .rz-mark{font-size:0}
   .rz-invite > summary .rz-mark::before{font-size:19px}
 </style>
 <!-- MARKER-RAISE-ADMIN -->
@@ -59,7 +58,9 @@
           <span class="block text-sm text-gray-500 mt-1">Write the email once, then send it to one
             person or a list. Everyone gets their own link.</span>
         </span>
-        <span style="margin-left:auto;color:#BEF264;font-size:19px;line-height:1" class="rz-mark">+</span>
+        {{-- MARKER-RAISE-MARKER — empty on purpose: the character comes from
+             ::before so it can flip on open. A literal here shows twice. --}}
+        <span style="margin-left:auto;color:#BEF264;line-height:1" class="rz-mark"></span>
       </summary>
       <div style="border-top:1px solid rgba(255,255,255,.08)">
 
