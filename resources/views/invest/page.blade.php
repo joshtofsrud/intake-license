@@ -38,6 +38,7 @@
     ['#s-ask', 'The ask', 's-ask'],
     ['#s-risk', 'Risks', 's-risk'],
     ['#interest', 'Commit', null],
+    ['#s-back', 'Back the project', 's-back'],
   ];
 @endphp
 @include('invest._rail')
@@ -157,6 +158,13 @@
   'confirmTitle' => 'Recorded.',
   'confirmBody'  => 'Your own page is on its way by email — the documents, the signature and the funding details all live there. Nothing is binding yet, and you can change or withdraw it any time before the paperwork is signed.',
 ])
+
+{{-- MARKER-CONTRIBUTE-SHARED — below the commit form, collapsed, never beside
+     it: someone weighing a commitment should not meet a cheaper option in the
+     same eyeline. --}}
+<section><div class="wrap">
+@include('invest._contribute')
+</div></section>
 
 <footer><div class="wrap">intake · intake.works</div></footer>
 </body></html>

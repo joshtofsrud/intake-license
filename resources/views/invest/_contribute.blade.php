@@ -29,9 +29,9 @@
         @error('amount') <span class="cerr">{{ $message }}</span> @enderror
 
         <div class="fields">
-          <input type="text" name="name" value="{{ old('name', $investor->name) }}"
+          <input type="text" name="name" value="{{ old('name', $investor->name ?? '') }}"
                  placeholder="Your name" required maxlength="120">
-          <input type="email" name="email" value="{{ old('email', $investor->email) }}"
+          <input type="email" name="email" value="{{ old('email', $investor->email ?? '') }}"
                  placeholder="Email for the receipt" required maxlength="190">
           <input type="tel" name="phone" value="{{ old('phone') }}" placeholder="Phone (optional)" maxlength="40">
         </div>
