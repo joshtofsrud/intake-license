@@ -47,6 +47,9 @@ class BlockRenderer
         $accent     = $options['accent']     ?? '#BEF264';
         $accentText = $options['accentText'] ?? '#0a0a0a';
         $preview    = $options['preview']    ?? false;
+        // MARKER-CAMPAIGN-V2A — preheader + token resolution.
+        $preheader  = trim((string) ($options['preheader'] ?? ''));
+        $resolve    = (bool) ($options['resolveTokens'] ?? false);
 
         $inner = '';
         foreach ($blocks as $block) {
@@ -58,7 +61,12 @@ class BlockRenderer
             $inner = '<tr><td style="padding:40px 20px;text-align:center;color:#aaa;font-size:13px;font-style:italic">Add blocks to see a preview.</td></tr>';
         }
 
-        return self::wrapDocument($inner);
+        $html = self::wrapDocument($inner, $preheader);
+
+        // Send and preview resolve leftover tokens to their fallback so a
+        // missing value can never ship as "Hi ,". Save-time rendering leaves
+        // them raw — the worker re-renders per recipient from the blocks.
+        return $resolve ? self::resolveLeftoverTokens($html) : $html;
     }
 
     /** Dispatch to per-type renderer, then substitute variables in the output. */
@@ -255,11 +263,22 @@ class BlockRenderer
     // ----------------------------------------------------------------
 
     /** Wrap block output in 600px centered email table. */
-    private static function wrapDocument(string $inner): string
+    private static function wrapDocument(string $inner, string $preheader = ''): string
     {
+        // MARKER-CAMPAIGN-V2A — the hidden preview line inboxes show beside
+        // the subject. Zero-size and colour-matched so it never renders, with
+        // trailing entities so the client doesn't pad it with body copy.
+        $pre = '';
+        if ($preheader !== '') {
+            $safe = self::escape($preheader);
+            $pre  = '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4f4f2;opacity:0">'
+                  . $safe . str_repeat('&#847;&zwnj;&nbsp;', 30) . '</div>';
+        }
+
         return <<<HTML
             <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
             <body style="margin:0;padding:0;background:#f4f4f2;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
+              {$pre}
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f2">
                 <tr><td align="center" style="padding:24px 0">
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden">
@@ -271,16 +290,48 @@ class BlockRenderer
             HTML;
     }
 
-    /** Replace {{token}} with corresponding variable value. */
+    /**
+     * Replace {{token}} — and {{token|fallback}} — with the variable value.
+     * MARKER-CAMPAIGN-V2A: a token with a value wins; an empty or missing one
+     * falls back. Tokens with no match are left alone here so save-time
+     * rendering keeps them raw; resolveLeftoverTokens() clears them at send.
+     */
     private static function substituteVariables(string $html, array $variables): string
     {
         if (empty($variables)) {
             return $html;
         }
-        foreach ($variables as $key => $value) {
-            $html = str_replace('{{' . $key . '}}', (string) $value, $html);
-        }
-        return $html;
+
+        return preg_replace_callback(
+            '/\{\{\s*([a-z0-9_]+)\s*(?:\|([^}]*))?\}\}/i',
+            function ($m) use ($variables) {
+                $key = $m[1];
+                if (! array_key_exists($key, $variables)) {
+                    return $m[0]; // not ours — leave it for a later pass
+                }
+                $val = $variables[$key];
+                $val = (is_string($val) || is_numeric($val)) ? trim((string) $val) : '';
+                if ($val !== '') {
+                    return $val;
+                }
+                return isset($m[2]) ? trim($m[2]) : '';
+            },
+            $html
+        ) ?? $html;
+    }
+
+    /**
+     * MARKER-CAMPAIGN-V2A — anything still in {{token}} form at send time has
+     * no value behind it: use its fallback, or drop it. Prevents literal
+     * "{{first_name}}" and "Hi ," from reaching an inbox.
+     */
+    private static function resolveLeftoverTokens(string $html): string
+    {
+        return preg_replace_callback(
+            '/\{\{\s*([a-z0-9_]+)\s*(?:\|([^}]*))?\}\}/i',
+            fn ($m) => isset($m[2]) ? trim($m[2]) : '',
+            $html
+        ) ?? $html;
     }
 
     private static function escape(string $value): string

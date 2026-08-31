@@ -201,15 +201,22 @@ class CampaignController extends Controller
                 ->withInput();
         }
 
-        // Render blocks to final HTML once at save time (also used by future send worker)
+        // MARKER-CAMPAIGN-V2A — tokens stay RAW here on purpose: the worker
+        // re-renders per recipient, so a stored copy with one person's name
+        // baked in would be wrong for everyone else.
+        $preheader = trim((string) $request->input('preheader', ''));
+        $preheader = mb_substr($preheader, 0, 200);
+
         $bodyHtml = BlockRenderer::render($blocks, [], [
             'accent'     => $tenant->accent_color ?? '#BEF264',
             'accentText' => '#0a0a0a',
+            'preheader'  => $preheader,
         ]);
 
         $campaign->update([
             'name'      => $name,
             'subject'   => $subject,
+            'preheader' => $preheader !== '' ? $preheader : null,
             'blocks'    => $blocks,
             'body_html' => $bodyHtml,
             'targeting' => ['segment' => $segment],
@@ -339,13 +346,84 @@ class CampaignController extends Controller
         }
         $blocks = self::sanitizeBlocks($blocks);
 
-        $html = BlockRenderer::render($blocks, BlockRenderer::SAMPLE_VARS, [
-            'accent'     => $tenant->accent_color ?? '#BEF264',
-            'accentText' => '#0a0a0a',
-            'preview'    => true,
+        // MARKER-CAMPAIGN-V2A — preview shows the preheader as typed (unsaved)
+        // and resolves tokens, so what you see is what recipients get.
+        $sample = BlockRenderer::SAMPLE_VARS;
+        if ($campaign = TenantCampaign::where('tenant_id', $tenant->id)->find($request->input('campaign_id'))) {
+            if ($campaign->discount_id) {
+                $d = \App\Models\Tenant\TenantDiscount::find($campaign->discount_id);
+                if ($d) {
+                    $sample['discount_code'] = $d->code;
+                }
+            }
+        }
+        $sample['shop_name'] = (string) $tenant->name;
+
+        $html = BlockRenderer::render($blocks, $sample, [
+            'accent'        => $tenant->accent_color ?? '#BEF264',
+            'accentText'    => '#0a0a0a',
+            'preview'       => true,
+            'preheader'     => trim((string) $request->input('preheader', '')),
+            'resolveTokens' => true,
         ]);
 
         return response($html)->header('Content-Type', 'text/html');
+    }
+
+    /**
+     * MARKER-CAMPAIGN-V2A — send this campaign to the signed-in user, so a
+     * draft can be checked in a real inbox before it goes to customers.
+     * Goes through the normal ledger: it costs one email, like any send.
+     */
+    public function testSend(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $campaign = TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $user  = auth('tenant')->user();
+        $email = trim((string) ($user->email ?? ''));
+        if ($email === '') {
+            return back()->with('error', 'Your account has no email address to send a test to.');
+        }
+
+        if (empty($campaign->blocks)) {
+            return back()->with('error', 'Add at least one content block first.');
+        }
+
+        if (\App\Services\EmailLedger::broadcastStream() === null) {
+            return back()->with('error', 'Campaign sending isn\'t switched on for the platform yet, so a test can\'t go out either.');
+        }
+
+        $vars = BlockRenderer::SAMPLE_VARS;
+        $vars['shop_name'] = (string) $tenant->name;
+        if ($campaign->discount_id) {
+            $d = \App\Models\Tenant\TenantDiscount::find($campaign->discount_id);
+            if ($d) {
+                $vars['discount_code'] = $d->code;
+            }
+        }
+
+        $html = BlockRenderer::render($campaign->blocks ?? [], $vars, [
+            'accent'        => $tenant->accent_color ?? '#BEF264',
+            'accentText'    => '#0a0a0a',
+            'preheader'     => (string) ($campaign->preheader ?? ''),
+            'resolveTokens' => true,
+        ]);
+
+        $ok = \App\Services\EmailService::forTenant($tenant)->sendCampaign(
+            $email,
+            '[TEST] ' . (string) $campaign->subject,
+            $html,
+            (string) $campaign->id,
+            rtrim((string) $tenant->publicUrl(), '/') . '/email/unsubscribe/test'
+        );
+
+        return back()->with(
+            $ok ? 'success' : 'error',
+            $ok
+                ? "Test sent to {$email} with sample values. It counts as one email against your plan."
+                : 'Test send failed — check the application log.'
+        );
     }
 
     /**

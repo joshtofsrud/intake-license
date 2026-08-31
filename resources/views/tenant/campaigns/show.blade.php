@@ -134,6 +134,21 @@
   font-size: 11px;
   opacity: .5;
 }
+/* MARKER-CAMPAIGN-V2A — viewport toggle + merge-tag chips */
+.cb-preview-stage { background: #f4f4f2; display: flex; justify-content: center; }
+.cb-preview-stage.mobile .cb-preview-iframe { width: 390px; }
+.cb-vp { display: inline-flex; border: .5px solid var(--ia-border); border-radius: 6px; overflow: hidden; }
+.cb-vp-btn {
+  font-size: 10px; padding: 3px 9px; background: none; border: none; cursor: pointer;
+  color: var(--ia-text-dim, rgba(255,255,255,.55)); text-transform: uppercase; letter-spacing: .06em;
+}
+.cb-vp-btn.on { background: var(--ia-accent); color: #0a0a0a; font-weight: 700; }
+.cb-merge { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.cb-merge-chip {
+  font-size: 10.5px; padding: 3px 8px; border-radius: 999px; cursor: pointer;
+  border: .5px solid var(--ia-border); background: none; color: var(--ia-text-dim, rgba(255,255,255,.55));
+}
+.cb-merge-chip:hover { color: var(--ia-accent); border-color: var(--ia-accent); }
 
 /* =============== RIGHT: Settings panel =============== */
 .cb-settings-empty {
@@ -482,6 +497,16 @@
     </div>
   </div>
 
+  {{-- MARKER-CAMPAIGN-V2A — inbox preview line. --}}
+  <div class="ia-form-group" style="margin-bottom:14px">
+    <label class="ia-form-label">Preheader</label>
+    <input type="text" name="preheader" class="ia-input" id="cb-preheader" maxlength="200"
+      value="{{ old('preheader', $campaign->preheader) }}"
+      placeholder="Book before Oct 15 and save 20%"
+      {{ $campaign->status !== 'draft' ? 'readonly' : '' }}>
+    <p style="font-size:11px;opacity:.45;margin-top:5px">The grey line beside the subject in the inbox. Leave it empty and most clients scrape your first sentence instead.</p>
+  </div>
+
   {{-- 3-column builder --}}
   <div class="cb-shell">
 
@@ -505,9 +530,16 @@
     <div class="cb-col cb-preview-wrap">
       <div class="cb-preview-bar">
         <span>Live preview · sample data</span>
+        {{-- MARKER-CAMPAIGN-V2A --}}
+        <span class="cb-vp">
+          <button type="button" class="cb-vp-btn on" data-vp="desktop" onclick="CB.setViewport('desktop')">Desktop</button>
+          <button type="button" class="cb-vp-btn" data-vp="mobile" onclick="CB.setViewport('mobile')">Mobile</button>
+        </span>
         <span class="cb-preview-status" id="cb-preview-status">Ready</span>
       </div>
-      <iframe class="cb-preview-iframe" id="cb-preview-iframe" sandbox="allow-same-origin"></iframe>
+      <div class="cb-preview-stage" id="cb-preview-stage">
+        <iframe class="cb-preview-iframe" id="cb-preview-iframe" sandbox="allow-same-origin"></iframe>
+      </div>
     </div>
 
     {{-- RIGHT: settings panel --}}
@@ -527,6 +559,9 @@
   @if($campaign->status === 'draft')
     <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
       <button type="submit" class="ia-btn ia-btn--primary">Save draft</button>
+      {{-- MARKER-CAMPAIGN-V2A — test send posts on its own, so save first. --}}
+      <button type="button" class="ia-btn" onclick="CB.testSend()">Send test to me</button>
+      <span style="font-size:11px;opacity:.45">Test uses the last saved draft and counts as one email.</span>
     </div>
   @endif
 </form>
@@ -681,6 +716,8 @@ window.CB = (function() {
   // ---- State ----
   const initialBlocks = @json($blocks);
   const previewUrl    = @js(route('tenant.campaigns.preview', $campaign->id));
+  const testUrl       = @js(route('tenant.campaigns.test', $campaign->id)); // MARKER-CAMPAIGN-V2A
+  const campaignId    = @js($campaign->id);
   const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   const readOnly      = @json($campaign->status !== 'draft');
 
@@ -762,6 +799,7 @@ window.CB = (function() {
           <option value="h3" ${d.size==='h3'?'selected':''}>Small (H3)</option>
         </select>`);
       html += alignField(d.align);
+      html += mergeChips(); // MARKER-CAMPAIGN-V2A
     } else if (t === 'paragraph') {
       // Rich text editor — mount TipTap into this container after settings render.
       // data-tt-html holds initial content; we read it during mount.
@@ -774,6 +812,7 @@ window.CB = (function() {
         <div class="cb-tt-editor" id="cb-tt-editor" data-tt-html="${escapeAttr(initialHtml)}"></div>
       </div>`;
       html += alignField(d.align);
+      html += mergeChips(); // MARKER-CAMPAIGN-V2A
       // Defer the mount so the DOM nodes exist first
       setTimeout(mountTipTapEditor, 0);
     } else if (t === 'image') {
@@ -817,8 +856,65 @@ window.CB = (function() {
     </div>`;
   }
 
+  // MARKER-CAMPAIGN-V2A — merge tags, viewport, test send.
+  const MERGE_TAGS = [
+    ['first_name', 'there'],
+    ['last_name', ''],
+    ['name', 'there'],
+    ['shop_name', ''],
+    ['discount_code', ''],
+  ];
+
+  function mergeChips() {
+    const chips = MERGE_TAGS.map(function (t) {
+      const tok = t[1] ? '{{' + t[0] + '|' + t[1] + '}}' : '{{' + t[0] + '}}';
+      return '<button type="button" class="cb-merge-chip" onclick="CB.insertTag(' + JSON.stringify(tok).replace(/"/g, '&quot;') + ')">' + t[0] + '</button>';
+    }).join('');
+    return '<div class="cb-field"><label class="cb-field-label">Insert merge tag</label>'
+      + '<div class="cb-merge">' + chips + '</div>'
+      + '<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">A tag with a fallback — <b>first_name|there</b> — never leaves a blank behind.</p></div>';
+  }
+
+  function insertTag(token) {
+    // TipTap paragraph editor first, then a plain text input (heading).
+    if (activeEditor) {
+      activeEditor.chain().focus().insertContent(token).run();
+      return;
+    }
+    const input = document.querySelector('#cb-settings input.cb-field-input');
+    if (!input) return;
+    const at = input.selectionStart != null ? input.selectionStart : input.value.length;
+    input.value = input.value.slice(0, at) + token + input.value.slice(at);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    input.setSelectionRange(at + token.length, at + token.length);
+  }
+
+  function setViewport(mode) {
+    const stage = document.getElementById('cb-preview-stage');
+    if (stage) stage.classList.toggle('mobile', mode === 'mobile');
+    document.querySelectorAll('.cb-vp-btn').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-vp') === mode);
+    });
+  }
+
+  function testSend() {
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = testUrl;
+    f.innerHTML = '<input type="hidden" name="_token" value="' + csrfToken + '">';
+    document.body.appendChild(f);
+    f.submit();
+  }
+
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
+
+  // MARKER-CAMPAIGN-V2A — preheader changes refresh the preview too.
+  document.addEventListener('DOMContentLoaded', function () {
+    var ph = document.getElementById('cb-preheader');
+    if (ph) ph.addEventListener('input', requestPreview);
+  });
 
   // ---- Preview ----
   function requestPreview() {
@@ -835,7 +931,12 @@ window.CB = (function() {
             'X-CSRF-TOKEN': csrfToken,
             'Accept': 'text/html',
           },
-          body: JSON.stringify({ blocks: blocks }),
+          body: JSON.stringify({
+            blocks: blocks,
+            // MARKER-CAMPAIGN-V2A — preview the preheader as typed.
+            preheader: (document.getElementById('cb-preheader') || {}).value || '',
+            campaign_id: campaignId,
+          }),
         });
         const html = await res.text();
         const iframe = document.getElementById('cb-preview-iframe');
@@ -963,6 +1064,8 @@ window.CB = (function() {
 
   // ---- Public API ----
   return {
+    // MARKER-CAMPAIGN-V2A
+    insertTag, setViewport, testSend,
     init() {
       renderBlocksList();
       renderSettings();

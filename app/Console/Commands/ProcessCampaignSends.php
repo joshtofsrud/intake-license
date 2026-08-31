@@ -57,18 +57,24 @@ class ProcessCampaignSends extends Command
             $svc = EmailService::forTenant($tenant);
 
             // MARKER-CAMPAIGN-ATTRIBUTION — {{discount_code}} in any block is
-            // replaced with the campaign's attached code. Rendered once per
-            // campaign rather than per recipient: the code is the same for
-            // everyone, so there is nothing per-person to substitute.
-            $vars = [];
+            // replaced with the campaign's attached code; the same for everyone.
+            $baseVars = ['shop_name' => (string) $tenant->name];
             if ($campaign->discount_id) {
                 $d = \App\Models\Tenant\TenantDiscount::find($campaign->discount_id);
                 if ($d) {
-                    $vars['discount_code'] = $d->code;
+                    $baseVars['discount_code'] = $d->code;
                 }
             }
 
-            $html = BlockRenderer::render($campaign->blocks ?? [], $vars);
+            // MARKER-CAMPAIGN-V2A — rendering moved INSIDE the recipient loop.
+            // It used to happen once here, so {{first_name}} could never be
+            // personalised: every inbox got the literal token.
+            $renderOpts = [
+                'accent'        => $tenant->accent_color ?? '#BEF264',
+                'accentText'    => '#0a0a0a',
+                'preheader'     => (string) ($campaign->preheader ?? ''),
+                'resolveTokens' => true,
+            ];
 
             $rows = TenantCampaignSend::where('campaign_id', $campaign->id)
                 ->where('status', 'pending')
@@ -90,6 +96,14 @@ class ProcessCampaignSends extends Command
                     $row->update(['status' => 'skipped', 'error_message' => 'suppressed at send time']);
                     continue;
                 }
+
+                // MARKER-CAMPAIGN-V2A — this recipient's own values.
+                $vars = $baseVars + [
+                    'first_name' => (string) $customer->first_name,
+                    'last_name'  => (string) $customer->last_name,
+                    'name'       => trim($customer->first_name . ' ' . $customer->last_name),
+                ];
+                $html = BlockRenderer::render($campaign->blocks ?? [], $vars, $renderOpts);
 
                 $ok = $svc->sendCampaign(
                     $row->email,
