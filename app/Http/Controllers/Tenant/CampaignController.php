@@ -434,10 +434,16 @@ class CampaignController extends Controller
         $tenant   = tenant();
         $campaign = TenantCampaign::where('tenant_id', $tenant->id)->findOrFail($id);
 
+        // MARKER-CAMPAIGN-V2F — send the test wherever you like (a phone, a
+        // colleague), defaulting to the signed-in user.
         $user  = auth('tenant')->user();
-        $email = trim((string) ($user->email ?? ''));
+        $email = trim((string) ($request->input('to') ?: ($user->email ?? '')));
+
         if ($email === '') {
-            return back()->with('error', 'Your account has no email address to send a test to.');
+            return back()->with('error', 'Enter an address to send the test to.');
+        }
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return back()->with('error', 'That doesn\'t look like a valid email address.');
         }
 
         if (empty($campaign->blocks)) {
@@ -489,7 +495,7 @@ class CampaignController extends Controller
         $allowed = [
             // MARKER-CAMPAIGN-V2E — styling fields added to the existing shapes.
             'heading'   => ['text', 'size', 'align', 'bg_color'],
-            'paragraph' => ['html', 'text', 'align', 'bg_color'],
+            'paragraph' => ['html', 'text', 'align', 'bg_color', 'size'], // MARKER-CAMPAIGN-V2F
             'image'     => ['url', 'alt', 'width', 'align', 'link', 'radius', 'bg_color'],
             'button'    => ['text', 'url', 'align', 'full_width', 'bg_color'],
             'divider'   => [],
@@ -500,6 +506,7 @@ class CampaignController extends Controller
             'image_text' => ['url', 'alt', 'text', 'side', 'ratio', 'bg_color'],
             'social'     => [], // links handled separately — it's an array
             'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row', 'bg_color'], // MARKER-CAMPAIGN-V2C
+            'gallery'    => ['layout', 'bg_color'], // MARKER-CAMPAIGN-V2F — images is an array
         ];
 
         $clean = [];
@@ -523,6 +530,35 @@ class CampaignController extends Controller
                     $data[$field] = $value;
                 }
             }
+            // MARKER-CAMPAIGN-V2F — gallery keeps an array of {url,alt,link}.
+            if ($type === 'gallery') {
+                $imgs = $block['data']['images'] ?? [];
+                if (is_string($imgs)) {
+                    $decoded = json_decode($imgs, true);
+                    $imgs = is_array($decoded) ? $decoded : [];
+                }
+                $out = [];
+                foreach ((array) $imgs as $i) {
+                    if (! is_array($i)) {
+                        continue;
+                    }
+                    $u = trim(mb_substr((string) ($i['url'] ?? ''), 0, 500));
+                    if ($u === '') {
+                        continue;
+                    }
+                    $row = ['url' => $u, 'alt' => trim(mb_substr((string) ($i['alt'] ?? ''), 0, 160))];
+                    $l = trim(mb_substr((string) ($i['link'] ?? ''), 0, 300));
+                    if ($l !== '' && preg_match('/^(https?:\/\/|mailto:)/i', $l)) {
+                        $row['link'] = $l;
+                    }
+                    $out[] = $row;
+                    if (count($out) >= 6) {
+                        break;
+                    }
+                }
+                $data['images'] = $out;
+            }
+
             // MARKER-CAMPAIGN-V2C — catalog keeps an array of picked items.
             // Only kind + id + optional overrides are stored: name, price and
             // photo are resolved at render time from the live catalog.

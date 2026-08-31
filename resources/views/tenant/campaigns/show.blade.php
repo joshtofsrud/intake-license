@@ -563,6 +563,7 @@
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('image_text')">Image + text</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('social')">Social links</button>
         {{-- MARKER-CAMPAIGN-V2C --}}
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('gallery')">Image gallery</button>{{-- MARKER-CAMPAIGN-V2F --}}
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('catalog')">Service / product</button>
       </div>
     </div>
@@ -601,7 +602,7 @@
     <div style="display:flex;gap:10px;align-items:center;margin-top:16px">
       <button type="submit" class="ia-btn ia-btn--primary">Save draft</button>
       {{-- MARKER-CAMPAIGN-V2A — test send posts on its own, so save first. --}}
-      <button type="button" class="ia-btn" onclick="CB.testSend()">Send test to me</button>
+      <button type="button" class="ia-btn" onclick="CB.testSend()">Send test…</button>
       <span style="font-size:11px;opacity:.45">Test uses the last saved draft and counts as one email.</span>
     </div>
   @endif
@@ -781,6 +782,7 @@ window.CB = (function() {
   const testUrl       = @js(route('tenant.campaigns.test', $campaign->id)); // MARKER-CAMPAIGN-V2A
   const campaignId    = @js($campaign->id);
   const catalogSearchUrl = @js(route('tenant.campaigns.catalog-search')); // MARKER-CAMPAIGN-V2C
+  const defaultTestTo    = @js(optional(auth('tenant')->user())->email ?? ''); // MARKER-CAMPAIGN-V2F
   const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   const readOnly      = @json($campaign->status !== 'draft');
 
@@ -802,6 +804,7 @@ window.CB = (function() {
     image_text: { label: 'Image + text', icon: '▤' },
     social:     { label: 'Social links', icon: '◎' },
     catalog:    { label: 'Service / product', icon: '▤' }, // MARKER-CAMPAIGN-V2C
+    gallery:    { label: 'Image gallery', icon: '⊞' }, // MARKER-CAMPAIGN-V2F
   };
 
   const DEFAULTS = {
@@ -818,6 +821,7 @@ window.CB = (function() {
     social:     { links: [] },
     // MARKER-CAMPAIGN-V2C
     catalog:    { items: [], show_price: '1', show_photo: '1', cta_text: 'Book now', per_row: '2' },
+    gallery:    { images: [], layout: '2' }, // MARKER-CAMPAIGN-V2F
   };
 
   function uuid() {
@@ -900,6 +904,14 @@ window.CB = (function() {
         <div class="cb-tt-editor" id="cb-tt-editor" data-tt-html="${escapeAttr(initialHtml)}"></div>
       </div>`;
       html += alignField(d.align);
+      // MARKER-CAMPAIGN-V2F — text size.
+      html += field('size', 'Text size', `
+        <select class="cb-field-select" onchange="CB.updateData('size', this.value)">
+          <option value="small"  ${d.size==='small'?'selected':''}>Small (14px)</option>
+          <option value="normal" ${(d.size||'normal')==='normal'?'selected':''}>Normal (16px)</option>
+          <option value="large"  ${d.size==='large'?'selected':''}>Large (18px)</option>
+          <option value="xlarge" ${d.size==='xlarge'?'selected':''}>Extra large (20px)</option>
+        </select>`);
       html += bgField(d); // MARKER-CAMPAIGN-V2E
       html += mergeChips(); // MARKER-CAMPAIGN-V2A
       // Defer the mount so the DOM nodes exist first
@@ -963,6 +975,31 @@ window.CB = (function() {
         html += `<button type="button" class="cb-add-btn" style="width:100%;margin-top:4px" onclick="CB.addSocial()">+ Add link</button>`;
       }
       html += `<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Links need a full URL (https://…) or they're dropped when saved.</p></div>`;
+    } else if (t === 'gallery') { // MARKER-CAMPAIGN-V2F
+      const imgs = Array.isArray(d.images) ? d.images : [];
+      let rows = '';
+      imgs.forEach(function (im, i) {
+        rows += `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <div style="width:44px;height:34px;flex:0 0 auto;border-radius:4px;background:#000 center/cover no-repeat;background-image:url('${escapeAttr(im.url)}')"></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <input type="text" class="cb-field-input" value="${escapeAttr(im.alt || '')}" placeholder="Alt text" oninput="CB.updateGalleryImage(${i}, 'alt', this.value)">
+            <input type="text" class="cb-field-input" value="${escapeAttr(im.link || '')}" placeholder="Links to (optional)" oninput="CB.updateGalleryImage(${i}, 'link', this.value)">
+          </div>
+          <button type="button" class="cb-block-remove" onclick="CB.removeGalleryImage(${i})" title="Remove">×</button>
+        </div>`;
+      });
+      html += `<div class="cb-field"><label class="cb-field-label">Images (6 max)</label>${rows}`;
+      if (imgs.length < 6) {
+        html += `<button type="button" class="cb-add-btn" style="width:100%;margin-top:4px" onclick="CB.addGalleryImage()">+ Add image</button>`;
+      }
+      html += `</div>`;
+      html += field('layout', 'Layout', `
+        <select class="cb-field-select" onchange="CB.updateData('layout', this.value)">
+          <option value="2"      ${(d.layout||'2')==='2'?'selected':''}>Two across</option>
+          <option value="3"      ${d.layout==='3'?'selected':''}>Three across</option>
+          <option value="mosaic" ${d.layout==='mosaic'?'selected':''}>Mosaic — one large, rest beneath</option>
+        </select>`);
+      html += bgField(d);
     } else if (t === 'catalog') { // MARKER-CAMPAIGN-V2C
       const items = Array.isArray(d.items) ? d.items : [];
       let rows = '';
@@ -1121,11 +1158,37 @@ window.CB = (function() {
     });
   }
 
+  // MARKER-CAMPAIGN-V2F — choose where the test goes; defaults to you, and
+  // remembers the last address used on this device.
   function testSend() {
+    let last = '';
+    try { last = window.localStorage.getItem('cb-test-to') || ''; } catch (e) {}
+    const to = last || defaultTestTo;
+
+    IntakeConfirm.prompt
+      ? IntakeConfirm.prompt({
+          title: 'Send a test of this campaign',
+          message: 'It uses the last saved draft, with sample values in place of merge tags, and counts as one email.',
+          value: to,
+          placeholder: 'name@example.com',
+          confirmText: 'Send test',
+        }).then(submitTest)
+      : submitTest(window.prompt('Send the test to which address?', to));
+  }
+
+  function submitTest(address) {
+    if (!address) return;
+    address = String(address).trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) {
+      IntakeConfirm.alert({ title: 'Check the address', message: 'That doesn\'t look like a valid email address.' });
+      return;
+    }
+    try { window.localStorage.setItem('cb-test-to', address); } catch (e) {}
     const f = document.createElement('form');
     f.method = 'POST';
     f.action = testUrl;
-    f.innerHTML = '<input type="hidden" name="_token" value="' + csrfToken + '">';
+    f.innerHTML = '<input type="hidden" name="_token" value="' + csrfToken + '">'
+                + '<input type="hidden" name="to" value="' + address.replace(/"/g, '&quot;') + '">';
     document.body.appendChild(f);
     f.submit();
   }
@@ -1135,6 +1198,7 @@ window.CB = (function() {
 
   // MARKER-CAMPAIGN-V2D — drag to reorder the block list.
   let dragId = null;
+  let galleryPending = false; // MARKER-CAMPAIGN-V2F
   function wireBlockDrag() {
     document.querySelectorAll('#cb-blocks .cb-block-row').forEach(function (row) {
       row.addEventListener('dragstart', function (e) {
@@ -1310,7 +1374,7 @@ window.CB = (function() {
     toolbar.innerHTML = `
       <button type="button" class="cb-tt-btn" data-cmd="bold"    title="Bold"><b>B</b></button>
       <button type="button" class="cb-tt-btn" data-cmd="italic"  title="Italic"><i>I</i></button>
-      <button type="button" class="cb-tt-btn" data-cmd="link"    title="Link">↗</button>
+      <button type="button" class="cb-tt-btn" data-cmd="link"    title="Link">🔗</button>{{-- MARKER-CAMPAIGN-V2F --}}
       <button type="button" class="cb-tt-btn" data-cmd="bullet"  title="Bullet list">•</button>
       <button type="button" class="cb-tt-btn" data-cmd="ordered" title="Numbered list">1.</button>
     `;
@@ -1368,6 +1432,29 @@ window.CB = (function() {
     // MARKER-CAMPAIGN-V2A
     insertTag, setViewport, testSend,
     renderSettingsPublic: renderSettings, // MARKER-CAMPAIGN-V2E — bg clear redraw
+
+    // MARKER-CAMPAIGN-V2F — gallery images reuse the existing image picker.
+    addGalleryImage() {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || block.type !== 'gallery') return;
+      block.data = block.data || {};
+      if (!Array.isArray(block.data.images)) block.data.images = [];
+      if (block.data.images.length >= 6) return;
+      galleryPending = true;
+      CB.openImagePicker();
+    },
+    updateGalleryImage(i, key, value) {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || !Array.isArray(block.data?.images) || !block.data.images[i]) return;
+      block.data.images[i][key] = value;
+      syncHiddenInput(); requestPreview();
+    },
+    removeGalleryImage(i) {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || !Array.isArray(block.data?.images)) return;
+      block.data.images.splice(i, 1);
+      renderSettings(); syncHiddenInput(); requestPreview();
+    },
 
     // MARKER-CAMPAIGN-V2C — catalog picker.
     openCatalogPicker() {
@@ -1539,6 +1626,16 @@ window.CB = (function() {
 
     selectImage(url) {
       const block = blocks.find(b => b.id === selectedId);
+      // MARKER-CAMPAIGN-V2F — a gallery pick appends instead of replacing.
+      if (block && block.type === 'gallery' && galleryPending) {
+        galleryPending = false;
+        block.data = block.data || {};
+        if (!Array.isArray(block.data.images)) block.data.images = [];
+        if (block.data.images.length < 6) block.data.images.push({ url: url, alt: '', link: '' });
+        CB.closeImagePicker();
+        renderSettings(); syncHiddenInput(); requestPreview();
+        return;
+      }
       // MARKER-CAMPAIGN-V2B — image_text uses the same picker.
       if (!block || (block.type !== 'image' && block.type !== 'image_text')) return;
       block.data = block.data || {};

@@ -146,3 +146,53 @@
 
   window.IntakeConfirm = { show: show, alert: alert };
 }());
+
+// MARKER-CAMPAIGN-V2F — a one-field prompt in the app's own dialog styling,
+// so nothing here has to fall back to window.prompt().
+window.IntakeConfirm = window.IntakeConfirm || {};
+window.IntakeConfirm.prompt = function (opts) {
+  opts = opts || {};
+  return new Promise(function (resolve) {
+    var back = document.createElement('div');
+    back.className = 'ia-confirm-backdrop';
+    back.innerHTML =
+      '<div class="ia-confirm-card" role="dialog" aria-modal="true">' +
+        '<div class="ia-confirm-title"></div>' +
+        '<div class="ia-confirm-message"></div>' +
+        '<input type="text" class="ia-confirm-input" style="width:100%;margin:0 0 20px;padding:8px 10px;border-radius:var(--ia-r-md);border:0.5px solid var(--ia-border);background:rgba(255,255,255,.06);color:var(--ia-text);font:inherit;font-size:13px">' +
+        '<div class="ia-confirm-actions">' +
+          '<button type="button" class="ia-confirm-btn ia-confirm-cancel"></button>' +
+          '<button type="button" class="ia-confirm-btn ia-confirm-btn--primary ia-confirm-ok"></button>' +
+        '</div>' +
+      '</div>';
+    back.querySelector('.ia-confirm-title').textContent   = opts.title || 'Enter a value';
+    back.querySelector('.ia-confirm-message').textContent = opts.message || '';
+    back.querySelector('.ia-confirm-cancel').textContent  = opts.cancelText || 'Cancel';
+    back.querySelector('.ia-confirm-ok').textContent      = opts.confirmText || 'OK';
+
+    var input = back.querySelector('.ia-confirm-input');
+    input.value = opts.value || '';
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+
+    function close(val) {
+      back.classList.remove('is-shown');
+      document.removeEventListener('keydown', onKey);
+      setTimeout(function () { back.remove(); }, 150);
+      resolve(val);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') close(null);
+      if (e.key === 'Enter' && document.activeElement === input) close(input.value);
+    }
+
+    back.querySelector('.ia-confirm-cancel').addEventListener('click', function () { close(null); });
+    back.querySelector('.ia-confirm-ok').addEventListener('click', function () { close(input.value); });
+    back.addEventListener('click', function (e) { if (e.target === back) close(null); });
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(back);
+    requestAnimationFrame(function () { back.classList.add('is-shown'); });
+    input.focus();
+    input.select();
+  });
+};

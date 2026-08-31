@@ -105,6 +105,7 @@ class BlockRenderer
             'image_text' => self::renderImageText($data, $accent),
             'social'     => self::renderSocial($data),
             'catalog'    => self::renderCatalog($data, $accent, $accentText), // MARKER-CAMPAIGN-V2C
+            'gallery'    => self::renderGallery($data), // MARKER-CAMPAIGN-V2F
             default     => '',
         };
 
@@ -161,8 +162,18 @@ class BlockRenderer
             $body
         );
 
+        // MARKER-CAMPAIGN-V2F — text size was hardcoded at 15px. 16 is the
+        // default now; 15 read small at normal reading distance.
+        $sizePx = match ((string) ($data['size'] ?? 'normal')) {
+            'small'  => '14px',
+            'large'  => '18px',
+            'xlarge' => '20px',
+            default  => '16px',
+        };
+        $bg = self::bgStyle($data);
+
         return <<<HTML
-            <tr><td style="padding:8px 24px;text-align:{$align};font-size:15px;line-height:1.65;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
+            <tr><td style="padding:8px 24px;{$bg}text-align:{$align};font-size:{$sizePx};line-height:1.65;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
               {$body}
             </td></tr>
             HTML;
@@ -245,11 +256,13 @@ class BlockRenderer
         $radius = preg_match('/^\d{1,2}$/', $radius) ? $radius : '4';
         $bg     = self::bgStyle($data);
 
-        // Outlook ignores max-width, so the width ATTRIBUTE has to be there
-        // too or the image renders at its native pixel size.
-        $wa  = $wAttr > 0 ? ' width="' . $wAttr . '"' : '';
-        $img = '<img src="' . $url . '" alt="' . $alt . '"' . $wa
-             . ' style="width:' . $wCss . ';max-width:100%;height:auto;display:block;border:0;border-radius:' . $radius . 'px" />';
+        // MARKER-CAMPAIGN-V2F — the width belongs on the WRAPPER TABLE, not the
+        // image. A percentage on the <img> resolved against a shrink-to-fit
+        // table, so it collapsed to the image's natural size and alignment had
+        // nothing left to move.
+        $img = '<img src="' . $url . '" alt="' . $alt . '"'
+             . ($wAttr > 0 ? ' width="' . $wAttr . '"' : '')
+             . ' style="width:100%;max-width:100%;height:auto;display:block;border:0;border-radius:' . $radius . 'px" />';
 
         $link = trim((string) ($data['link'] ?? ''));
         if ($link !== '' && preg_match('/^(https?:\/\/|mailto:)/i', $link)) {
@@ -257,16 +270,22 @@ class BlockRenderer
         }
 
         // A block-level image can't be centred by text-align alone in every
-        // client, so it sits in its own aligned wrapper table.
+        // client, so it sits in its own aligned wrapper table. Outlook honours
+        // the align ATTRIBUTE; everything else uses the auto margins.
         $margin = match ($align) {
             'center' => 'margin:0 auto',
             'right'  => 'margin:0 0 0 auto',
             default  => 'margin:0',
         };
 
+        // 'orig' means no width at all — the table shrinks to the image.
+        $tw = $wAttr > 0
+            ? ' width="' . $wAttr . '" style="width:' . $wCss . ';' . $margin . '"'
+            : ' style="' . $margin . '"';
+
         return <<<HTML
             <tr><td style="padding:12px 24px;{$bg}text-align:{$align}">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="{$margin}">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="{$align}"{$tw}>
                 <tr><td style="padding:0">{$img}</td></tr>
               </table>
             </td></tr>
@@ -590,6 +609,91 @@ class BlockRenderer
         }
 
         return null;
+    }
+
+    /**
+     * MARKER-CAMPAIGN-V2F — 2–6 images, side by side or as a mosaic.
+     * Fixed-width table cells rather than media queries, because Outlook
+     * ignores the latter.
+     */
+    private static function renderGallery(array $data): string
+    {
+        $imgs = $data['images'] ?? [];
+        if (is_string($imgs)) {
+            $decoded = json_decode($imgs, true);
+            $imgs = is_array($decoded) ? $decoded : [];
+        }
+        $imgs = array_values(array_filter((array) $imgs, function ($i) {
+            return is_array($i) && trim((string) ($i['url'] ?? '')) !== '';
+        }));
+
+        if (empty($imgs)) {
+            return <<<HTML
+                <tr><td style="padding:16px 24px">
+                  <div style="border:1px dashed #ccc;padding:34px;text-align:center;color:#aaa;font-size:13px">
+                    No images added yet
+                  </div>
+                </td></tr>
+                HTML;
+        }
+
+        $imgs   = array_slice($imgs, 0, 6);
+        $layout = (string) ($data['layout'] ?? '2');
+        $gap    = 8;
+        $inner  = 552;
+        $bg     = self::bgStyle($data);
+
+        $cell = function (array $i, int $w) {
+            $u   = self::escape(trim((string) $i['url']));
+            $alt = self::escape((string) ($i['alt'] ?? ''));
+            $img = '<img src="' . $u . '" alt="' . $alt . '" width="' . $w . '" style="width:100%;max-width:100%;height:auto;display:block;border:0;border-radius:5px">';
+            $lnk = trim((string) ($i['link'] ?? ''));
+            if ($lnk !== '' && preg_match('/^(https?:\/\/|mailto:)/i', $lnk)) {
+                $img = '<a href="' . self::escape($lnk) . '" style="text-decoration:none;display:block">' . $img . '</a>';
+            }
+            return $img;
+        };
+
+        $rows = '';
+
+        if ($layout === 'mosaic') {
+            // One large image, the rest in a row beneath it.
+            $lead = array_shift($imgs);
+            $rows .= '<tr><td colspan="3" style="padding:0 0 ' . $gap . 'px">' . $cell($lead, $inner) . '</td></tr>';
+            if (! empty($imgs)) {
+                $n = count($imgs);
+                $w = (int) floor(($inner - $gap * ($n - 1)) / $n);
+                $tds = '';
+                foreach ($imgs as $k => $i) {
+                    $pad = $k === $n - 1 ? '0' : '0 ' . $gap . 'px 0 0';
+                    $tds .= '<td valign="top" style="padding:' . $pad . '">' . $cell($i, $w) . '</td>';
+                }
+                $rows .= '<tr>' . $tds . '</tr>';
+            }
+        } else {
+            $per = $layout === '3' ? 3 : 2;
+            $w   = (int) floor(($inner - $gap * ($per - 1)) / $per);
+            foreach (array_chunk($imgs, $per) as $chunk) {
+                $tds = '';
+                foreach ($chunk as $k => $i) {
+                    $pad = $k === count($chunk) - 1 ? '0 0 ' . $gap . 'px' : '0 ' . $gap . 'px ' . $gap . 'px 0';
+                    $tds .= '<td width="' . $w . '" valign="top" style="padding:' . $pad . '">' . $cell($i, $w) . '</td>';
+                }
+                // Keep the grid square when the last row is short.
+                for ($k = count($chunk); $k < $per; $k++) {
+                    $tds .= '<td width="' . $w . '"></td>';
+                }
+                $rows .= '<tr>' . $tds . '</tr>';
+            }
+        }
+
+        return <<<HTML
+            <tr><td style="padding:12px 24px;{$bg}">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                {$rows}
+              </table>
+            </td></tr>
+            HTML;
     }
 
     /** Escaped text with newlines as <br>, for the simple text fields above. */
