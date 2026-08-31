@@ -293,8 +293,10 @@ class EmailService
         $name       = htmlspecialchars($this->tenant->name);
         $logo       = $this->tenant->emailLogoUrl(); // MARKER-PATCH-411
 
+        // MARKER-CAMPAIGN-CHROME — a width attribute too: Outlook ignores
+        // height-only sizing and falls back to the image's native size.
         $header = $logo
-            ? "<img src=\"{$logo}\" alt=\"{$name}\" style=\"height:36px;display:block;margin:0 auto 8px\">"
+            ? "<img src=\"{$logo}\" alt=\"{$name}\" width=\"150\" style=\"width:auto;max-width:150px;height:36px;display:block;margin:0 auto 8px;border:0\">"
             : "<div style=\"font-family:-apple-system,sans-serif;font-size:20px;font-weight:700;color:#f0f0f0\">{$name}</div>";
 
         return <<<HTML

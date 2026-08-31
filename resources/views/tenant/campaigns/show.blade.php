@@ -527,6 +527,20 @@
     </div>
   </div>
 
+  {{-- MARKER-CAMPAIGN-CHROME — the header bar is near-black, so a dark logo
+       disappears into it. This is exactly how WMM's went out invisible. --}}
+  @php
+    $emailLogo  = tenant()->emailLogoUrl();
+    $logoChoice = tenant()->settings['email_logo_choice'] ?? 'light';
+    $noLightLogo = $emailLogo && $logoChoice === 'light' && empty(tenant()->logo_light_url);
+  @endphp
+  @if($noLightLogo)
+    <div style="border:1px solid #E0A82E;background:rgba(224,168,46,.08);color:#E0A82E;border-radius:8px;padding:10px 13px;font-size:12.5px;margin-bottom:14px">
+      Your email header is dark and no light logo is set, so your main logo is being used and may be hard to see.
+      Upload a light version under Settings → Branding, or set the email logo there.
+    </div>
+  @endif
+
   {{-- MARKER-CAMPAIGN-V2A — inbox preview line. --}}
   <div class="ia-form-group" style="margin-bottom:14px">
     <label class="ia-form-label">Preheader</label>

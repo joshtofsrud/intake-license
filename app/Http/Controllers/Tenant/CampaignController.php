@@ -359,12 +359,16 @@ class CampaignController extends Controller
         }
         $sample['shop_name'] = (string) $tenant->name;
 
+        // MARKER-CAMPAIGN-CHROME — the preview used to show blocks alone on
+        // white while the real email carries a branded header and footer, so
+        // nothing in the builder revealed how the finished email looked.
         $html = BlockRenderer::render($blocks, $sample, [
             'accent'        => $tenant->accent_color ?? '#BEF264',
             'accentText'    => '#0a0a0a',
             'preview'       => true,
             'preheader'     => trim((string) $request->input('preheader', '')),
             'resolveTokens' => true,
+            'chrome'        => true,
         ]);
 
         return response($html)->header('Content-Type', 'text/html');
@@ -468,6 +472,7 @@ class CampaignController extends Controller
             'accentText'    => '#0a0a0a',
             'preheader'     => (string) ($campaign->preheader ?? ''),
             'resolveTokens' => true,
+            'fragment'      => true, // MARKER-CAMPAIGN-CHROME
         ]);
 
         $ok = \App\Services\EmailService::forTenant($tenant)->sendCampaign(

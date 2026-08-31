@@ -52,6 +52,11 @@ class BlockRenderer
         // MARKER-CAMPAIGN-V2A — preheader + token resolution.
         $preheader  = trim((string) ($options['preheader'] ?? ''));
         $resolve    = (bool) ($options['resolveTokens'] ?? false);
+        // MARKER-CAMPAIGN-CHROME — the send path wraps this in the branded
+        // shell, so it must NOT get a second document of its own.
+        $fragment   = (bool) ($options['fragment'] ?? false);
+        // MARKER-CAMPAIGN-CHROME — draw the branded header/footer in preview.
+        $chrome     = (bool) ($options['chrome'] ?? false);
 
         $inner = '';
         foreach ($blocks as $block) {
@@ -78,7 +83,13 @@ class BlockRenderer
             $inner = '<tr><td style="padding:40px 20px;text-align:center;color:#aaa;font-size:13px;font-style:italic">Add blocks to see a preview.</td></tr>';
         }
 
-        $html = self::wrapDocument($inner, $preheader, $preview);
+        if ($chrome) {
+            $inner = self::chromeHeader() . $inner . self::chromeFooter();
+        }
+
+        $html = $fragment
+            ? self::wrapFragment($inner, $preheader)
+            : self::wrapDocument($inner, $preheader, $preview);
 
         // Send and preview resolve leftover tokens to their fallback so a
         // missing value can never ship as "Hi ,". Save-time rendering leaves
@@ -718,6 +729,70 @@ class BlockRenderer
     // ----------------------------------------------------------------
 
     /** Wrap block output in 600px centered email table. */
+    /**
+     * MARKER-CAMPAIGN-CHROME — the header EmailService::renderHtml puts on
+     * every send, reproduced here so the builder shows the finished email.
+     * Labelled and non-selectable: it isn't a block and can't be edited here.
+     */
+    private static function chromeHeader(): string
+    {
+        $tenant = function_exists('tenant') ? tenant() : null;
+        if (! $tenant) {
+            return '';
+        }
+
+        $name = self::escape((string) $tenant->name);
+        $logo = method_exists($tenant, 'emailLogoUrl') ? $tenant->emailLogoUrl() : null;
+
+        // Outlook ignores height-only sizing, so give it a width too.
+        $head = $logo
+            ? '<img src="' . self::escape($logo) . '" alt="' . $name . '" width="150" style="width:auto;max-width:150px;height:36px;display:block;margin:0 auto;border:0">'
+            : '<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:20px;font-weight:700;color:#f0f0f0">' . $name . '</div>';
+
+        return <<<HTML
+            <tr><td style="background:#111111;padding:24px 32px;text-align:center" data-cb-chrome="header">
+              {$head}
+            </td></tr>
+            HTML;
+    }
+
+    private static function chromeFooter(): string
+    {
+        $tenant = function_exists('tenant') ? tenant() : null;
+        $name   = $tenant ? self::escape((string) $tenant->name) : '';
+
+        return <<<HTML
+            <tr><td style="background:#f8f8f6;padding:20px 32px;text-align:center" data-cb-chrome="footer">
+              <p style="font-size:12px;color:#888;margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
+                This email was sent by {$name}. If you have questions, reply to this email.<br>
+                <span style="opacity:.75">Unsubscribe link is added automatically.</span>
+              </p>
+            </td></tr>
+            HTML;
+    }
+
+    /**
+     * MARKER-CAMPAIGN-CHROME — just the rows, for embedding in the branded
+     * shell EmailService::renderHtml builds. No doctype, no page background,
+     * no second 600px card.
+     */
+    private static function wrapFragment(string $inner, string $preheader = ''): string
+    {
+        $pre = '';
+        if ($preheader !== '') {
+            $safe = self::escape($preheader);
+            $pre  = '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#ffffff;opacity:0">'
+                  . $safe . str_repeat('&#847;&zwnj;&nbsp;', 30) . '</div>';
+        }
+
+        return <<<HTML
+            {$pre}
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              {$inner}
+            </table>
+            HTML;
+    }
+
     private static function wrapDocument(string $inner, string $preheader = '', bool $preview = false): string
     {
         // MARKER-CAMPAIGN-V2D — builder-only chrome. Kept inside the preview
@@ -738,6 +813,15 @@ class BlockRenderer
                 content: attr(data-cb-label); position: absolute; top: 2px; left: 2px; z-index: 5;
                 background: #4F7A12; color: #fff; font-size: 10px; line-height: 1;
                 padding: 3px 6px; border-radius: 0 0 4px 0; pointer-events: none;
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+              }
+              /* MARKER-CAMPAIGN-CHROME — system rows: not blocks, not editable */
+              tr[data-cb-chrome] > td { position: relative; }
+              tr[data-cb-chrome] > td::before {
+                content: 'Added automatically'; position: absolute; top: 3px; right: 4px;
+                font-size: 9px; letter-spacing: .04em; text-transform: uppercase;
+                color: #999; background: rgba(255,255,255,.14); padding: 2px 6px;
+                border-radius: 3px; pointer-events: none;
                 font-family: -apple-system, BlinkMacSystemFont, sans-serif;
               }
               tr[data-cb-block].cb-flash > td::after {

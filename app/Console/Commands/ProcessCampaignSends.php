@@ -74,6 +74,7 @@ class ProcessCampaignSends extends Command
                 'accentText'    => '#0a0a0a',
                 'preheader'     => (string) ($campaign->preheader ?? ''),
                 'resolveTokens' => true,
+                'fragment'      => true, // MARKER-CAMPAIGN-CHROME
             ];
 
             $rows = TenantCampaignSend::where('campaign_id', $campaign->id)
