@@ -532,6 +532,8 @@
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('two_column')">Two column</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('image_text')">Image + text</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('social')">Social links</button>
+        {{-- MARKER-CAMPAIGN-V2C --}}
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('catalog')">Service / product</button>
       </div>
     </div>
 
@@ -674,6 +676,27 @@
 </div>
 
 {{-- Image picker modal --}}
+{{-- MARKER-CAMPAIGN-V2C — catalog picker (services + products in one list) --}}
+<div class="cb-modal" id="cb-catalog-modal" style="display:none">
+  <div class="cb-modal-backdrop" onclick="CB.closeCatalogPicker()"></div>
+  <div class="cb-modal-panel">
+    <div class="cb-modal-head">
+      <div>
+        <h3 style="margin:0;font-size:15px;font-weight:600">Choose a service or product</h3>
+        <p style="margin:4px 0 0;font-size:11px;opacity:.5">Live from your catalog. Price and photo refresh when the campaign sends.</p>
+      </div>
+      <button type="button" class="cb-modal-close" onclick="CB.closeCatalogPicker()" aria-label="Close">×</button>
+    </div>
+
+    <div class="cb-modal-body">
+      <div class="cb-modal-actions">
+        <input type="text" class="cb-field-input" id="cb-catalog-q" placeholder="Search services and products…" oninput="CB.searchCatalog(this.value)">
+      </div>
+      <div id="cb-catalog-grid" class="cb-picker-grid"></div>
+    </div>
+  </div>
+</div>
+
 <div class="cb-modal" id="cb-picker-modal" style="display:none">
   <div class="cb-modal-backdrop" onclick="CB.closeImagePicker()"></div>
   <div class="cb-modal-panel">
@@ -727,6 +750,7 @@ window.CB = (function() {
   const previewUrl    = @js(route('tenant.campaigns.preview', $campaign->id));
   const testUrl       = @js(route('tenant.campaigns.test', $campaign->id)); // MARKER-CAMPAIGN-V2A
   const campaignId    = @js($campaign->id);
+  const catalogSearchUrl = @js(route('tenant.campaigns.catalog-search')); // MARKER-CAMPAIGN-V2C
   const csrfToken     = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   const readOnly      = @json($campaign->status !== 'draft');
 
@@ -747,6 +771,7 @@ window.CB = (function() {
     two_column: { label: 'Two column',   icon: '▥' },
     image_text: { label: 'Image + text', icon: '▤' },
     social:     { label: 'Social links', icon: '◎' },
+    catalog:    { label: 'Service / product', icon: '▤' }, // MARKER-CAMPAIGN-V2C
   };
 
   const DEFAULTS = {
@@ -761,6 +786,8 @@ window.CB = (function() {
     two_column: { left: '', right: '' },
     image_text: { url: '', alt: '', text: '', side: 'left' },
     social:     { links: [] },
+    // MARKER-CAMPAIGN-V2C
+    catalog:    { items: [], show_price: '1', show_photo: '1', cta_text: 'Book now', per_row: '2' },
   };
 
   function uuid() {
@@ -883,6 +910,37 @@ window.CB = (function() {
         html += `<button type="button" class="cb-add-btn" style="width:100%;margin-top:4px" onclick="CB.addSocial()">+ Add link</button>`;
       }
       html += `<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Links need a full URL (https://…) or they're dropped when saved.</p></div>`;
+    } else if (t === 'catalog') { // MARKER-CAMPAIGN-V2C
+      const items = Array.isArray(d.items) ? d.items : [];
+      let rows = '';
+      items.forEach(function (it, i) {
+        rows += `<div style="display:flex;gap:6px;align-items:center;margin-bottom:5px;background:var(--ia-surface-2);border-radius:5px;padding:5px 7px">
+          <span style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;opacity:.5;flex:0 0 auto">${it.kind === 'product' ? 'Prod' : 'Svc'}</span>
+          <span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(it._label || it.name || it.id)}</span>
+          <button type="button" class="cb-block-remove" onclick="CB.removeCatalogItem(${i})" title="Remove">×</button>
+        </div>`;
+      });
+      html += `<div class="cb-field"><label class="cb-field-label">Items (4 max)</label>${rows}`;
+      if (items.length < 4) {
+        html += `<button type="button" class="cb-add-btn" style="width:100%;margin-top:4px" onclick="CB.openCatalogPicker()">+ Choose service or product</button>`;
+      }
+      html += `<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Name, price and photo are pulled fresh when the email sends, so a price change before then is picked up.</p></div>`;
+      html += field('per_row', 'Per row', `
+        <select class="cb-field-select" onchange="CB.updateData('per_row', this.value)">
+          <option value="2" ${String(d.per_row)!=='1'?'selected':''}>Two across</option>
+          <option value="1" ${String(d.per_row)==='1'?'selected':''}>One across</option>
+        </select>`);
+      html += field('show_price', 'Show price', `
+        <select class="cb-field-select" onchange="CB.updateData('show_price', this.value)">
+          <option value="1" ${String(d.show_price)!=='0'?'selected':''}>Yes</option>
+          <option value="0" ${String(d.show_price)==='0'?'selected':''}>No</option>
+        </select>`);
+      html += field('show_photo', 'Show photo', `
+        <select class="cb-field-select" onchange="CB.updateData('show_photo', this.value)">
+          <option value="1" ${String(d.show_photo)!=='0'?'selected':''}>Yes</option>
+          <option value="0" ${String(d.show_photo)==='0'?'selected':''}>No</option>
+        </select>`);
+      html += field('cta_text', 'Button text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.cta_text || '')}" placeholder="Leave empty for no button" oninput="CB.updateData('cta_text', this.value)">`);
     } else if (t === 'image') {
       const hasImage = !!(d.url && d.url.length > 0);
       if (hasImage) {
@@ -1134,6 +1192,64 @@ window.CB = (function() {
   return {
     // MARKER-CAMPAIGN-V2A
     insertTag, setViewport, testSend,
+
+    // MARKER-CAMPAIGN-V2C — catalog picker.
+    openCatalogPicker() {
+      const m = document.getElementById('cb-catalog-modal');
+      if (m) m.style.display = 'flex';
+      CB.searchCatalog(document.getElementById('cb-catalog-q')?.value || '');
+    },
+    closeCatalogPicker() {
+      const m = document.getElementById('cb-catalog-modal');
+      if (m) m.style.display = 'none';
+    },
+    async searchCatalog(q) {
+      const grid = document.getElementById('cb-catalog-grid');
+      if (!grid) return;
+      grid.innerHTML = '<div class="cb-picker-empty">Searching…</div>';
+      try {
+        const res  = await fetch(catalogSearchUrl + '?q=' + encodeURIComponent(q || ''), { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        const list = data.items || [];
+        if (!list.length) {
+          grid.innerHTML = '<div class="cb-picker-empty">Nothing matched. Try another word.</div>';
+          return;
+        }
+        grid.innerHTML = list.map(function (it) {
+          const payload = escapeAttr(JSON.stringify(it));
+          const photo = it.photo
+            ? `<img src="${escapeAttr(it.photo)}" alt="" loading="lazy" style="width:100%;height:70px;object-fit:contain;background:#fff;border-radius:4px">`
+            : `<div style="height:70px;background:var(--ia-surface-2);border-radius:4px"></div>`;
+          return `<div class="cb-picker-item" style="cursor:pointer;padding:6px" onclick="CB.pickCatalogItem('${payload}')">
+            ${photo}
+            <div style="font-size:11.5px;margin-top:5px;line-height:1.3">${escapeHtml(it.name)}</div>
+            <div style="font-size:10.5px;opacity:.5">${it.kind === 'product' ? 'Product' : 'Service'}${it.price ? ' · ' + escapeHtml(it.price) : ''}</div>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        grid.innerHTML = '<div class="cb-picker-empty">Search failed.</div>';
+      }
+    },
+    pickCatalogItem(payload) {
+      let it;
+      try { it = JSON.parse(payload); } catch (e) { return; }
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || block.type !== 'catalog') return;
+      block.data = block.data || {};
+      if (!Array.isArray(block.data.items)) block.data.items = [];
+      if (block.data.items.length >= 4) return;
+      // Store kind + id; the name rides along only so the settings list is
+      // readable. Rendering always re-reads the catalog.
+      block.data.items.push({ kind: it.kind, id: it.id, _label: it.name });
+      CB.closeCatalogPicker();
+      renderSettings(); syncHiddenInput(); requestPreview();
+    },
+    removeCatalogItem(i) {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || !Array.isArray(block.data?.items)) return;
+      block.data.items.splice(i, 1);
+      renderSettings(); syncHiddenInput(); requestPreview();
+    },
 
     // MARKER-CAMPAIGN-V2B — social link repeater.
     addSocial() {

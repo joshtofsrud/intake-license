@@ -371,6 +371,60 @@ class CampaignController extends Controller
     }
 
     /**
+     * MARKER-CAMPAIGN-V2C — one search across both catalogs for the block's
+     * picker. Returns the display fields so the composer can show a preview
+     * without re-implementing either lookup.
+     */
+    public function catalogSearch(Request $request)
+    {
+        $tenant = tenant();
+        $q      = trim((string) $request->query('q', ''));
+
+        $services = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->when($q !== '', fn ($b) => $b->where('name', 'like', '%' . $q . '%'))
+            ->orderBy('name')->limit(20)
+            ->get(['id', 'name', 'price_cents', 'image_url']);
+
+        $products = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->when($q !== '', fn ($b) => $b->where('name', 'like', '%' . $q . '%'))
+            ->with('distributorCatalog:id,images')
+            ->orderBy('name')->limit(20)
+            ->get();
+
+        $out = [];
+        foreach ($services as $s) {
+            $out[] = [
+                'kind'  => 'service',
+                'id'    => (string) $s->id,
+                'name'  => (string) $s->name,
+                'price' => $s->price_cents !== null ? '$' . number_format($s->price_cents / 100, 2) : null,
+                'photo' => $s->image_url ?: null,
+            ];
+        }
+        foreach ($products as $pI) {
+            $ims   = (array) ($pI->distributorCatalog->images ?? []);
+            $first = $ims[0] ?? null;
+            $photo = is_array($first)
+                ? ($first['Url'] ?? $first['url'] ?? $first['src'] ?? null)
+                : (is_string($first) ? $first : null);
+            $cents = $pI->effectiveSellPriceCents();
+            $out[] = [
+                'kind'  => 'product',
+                'id'    => (string) $pI->id,
+                'name'  => (string) $pI->name,
+                'price' => $cents !== null ? '$' . number_format($cents / 100, 2) : null,
+                'photo' => $photo,
+            ];
+        }
+
+        usort($out, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+
+        return response()->json(['items' => array_slice($out, 0, 30)]);
+    }
+
+    /**
      * MARKER-CAMPAIGN-V2A — send this campaign to the signed-in user, so a
      * draft can be checked in a real inbox before it goes to customers.
      * Goes through the normal ledger: it costs one email, like any send.
@@ -444,6 +498,7 @@ class CampaignController extends Controller
             'two_column' => ['left', 'right'],
             'image_text' => ['url', 'alt', 'text', 'side'],
             'social'     => [], // links handled separately — it's an array
+            'catalog'    => ['show_price', 'show_photo', 'cta_text', 'per_row'], // MARKER-CAMPAIGN-V2C
         ];
 
         $clean = [];
@@ -467,6 +522,38 @@ class CampaignController extends Controller
                     $data[$field] = $value;
                 }
             }
+            // MARKER-CAMPAIGN-V2C — catalog keeps an array of picked items.
+            // Only kind + id + optional overrides are stored: name, price and
+            // photo are resolved at render time from the live catalog.
+            if ($type === 'catalog') {
+                $items = $block['data']['items'] ?? [];
+                if (is_string($items)) {
+                    $decoded = json_decode($items, true);
+                    $items = is_array($decoded) ? $decoded : [];
+                }
+                $out = [];
+                foreach ((array) $items as $i) {
+                    if (! is_array($i)) {
+                        continue;
+                    }
+                    $kind = ($i['kind'] ?? '') === 'product' ? 'product' : 'service';
+                    $id   = trim((string) ($i['id'] ?? ''));
+                    if ($id === '') {
+                        continue;
+                    }
+                    $row = ['kind' => $kind, 'id' => $id];
+                    $n = trim(mb_substr((string) ($i['name']  ?? ''), 0, 120));
+                    $pr = trim(mb_substr((string) ($i['price'] ?? ''), 0, 30));
+                    if ($n !== '')  $row['name']  = $n;
+                    if ($pr !== '') $row['price'] = $pr;
+                    $out[] = $row;
+                    if (count($out) >= 4) {
+                        break;
+                    }
+                }
+                $data['items'] = $out;
+            }
+
             // MARKER-CAMPAIGN-V2B — social keeps an array of {label,url};
             // the loop above only handles scalar fields.
             if ($type === 'social') {

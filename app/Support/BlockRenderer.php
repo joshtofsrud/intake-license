@@ -15,6 +15,7 @@ namespace App\Support;
  * Supported block types:
  *   paragraph, heading, image, button, divider, footer,
  *   spacer, two_column, image_text, social  (MARKER-CAMPAIGN-V2B)
+ *   catalog  (MARKER-CAMPAIGN-V2C — live service/product cards)
  *
  * All blocks render inside a 600px-wide table layout for email client compatibility.
  */
@@ -88,6 +89,7 @@ class BlockRenderer
             'two_column' => self::renderTwoColumn($data),
             'image_text' => self::renderImageText($data, $accent),
             'social'     => self::renderSocial($data),
+            'catalog'    => self::renderCatalog($data, $accent, $accentText), // MARKER-CAMPAIGN-V2C
             default     => '',
         };
 
@@ -353,6 +355,171 @@ class BlockRenderer
               </table>
             </td></tr>
             HTML;
+    }
+
+    /**
+     * MARKER-CAMPAIGN-V2C — service/product cards.
+     * The block stores kind + id only; name, price and photo are resolved
+     * HERE, at render time, so the email reflects the catalog as it stands
+     * when the send actually goes out. Per-block overrides win when set.
+     */
+    private static function renderCatalog(array $data, string $accent, string $accentText): string
+    {
+        $items = $data['items'] ?? [];
+        if (is_string($items)) {
+            $decoded = json_decode($items, true);
+            $items = is_array($decoded) ? $decoded : [];
+        }
+        if (! is_array($items) || empty($items)) {
+            return <<<HTML
+                <tr><td style="padding:16px 24px">
+                  <div style="border:1px dashed #ccc;padding:30px;text-align:center;color:#aaa;font-size:13px">
+                    No service or product chosen yet
+                  </div>
+                </td></tr>
+                HTML;
+        }
+
+        $showPrice = ($data['show_price'] ?? '1') !== '0';
+        $showPhoto = ($data['show_photo'] ?? '1') !== '0';
+        $ctaText   = trim((string) ($data['cta_text'] ?? ''));
+        $perRow    = ((int) ($data['per_row'] ?? 2)) === 1 ? 1 : 2;
+
+        $cards = [];
+        foreach (array_slice($items, 0, 4) as $it) {
+            $resolved = self::resolveCatalogItem($it);
+            if ($resolved === null) {
+                continue; // deleted or archived since it was picked
+            }
+            $cards[] = self::catalogCard($resolved, $showPrice, $showPhoto, $ctaText, $accent, $accentText);
+        }
+
+        if (empty($cards)) {
+            return <<<HTML
+                <tr><td style="padding:16px 24px;text-align:center;color:#aaa;font-size:12px;font-style:italic">
+                  The chosen items are no longer available
+                </td></tr>
+                HTML;
+        }
+
+        $rows = '';
+        foreach (array_chunk($cards, $perRow) as $chunk) {
+            $tds = '';
+            foreach ($chunk as $card) {
+                $w = $perRow === 1 ? '100%' : '50%';
+                $tds .= '<td width="' . $w . '" valign="top" style="padding:6px">' . $card . '</td>';
+            }
+            if ($perRow === 2 && count($chunk) === 1) {
+                $tds .= '<td width="50%"></td>';
+            }
+            $rows .= '<tr>' . $tds . '</tr>';
+        }
+
+        return <<<HTML
+            <tr><td style="padding:10px 18px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                {$rows}
+              </table>
+            </td></tr>
+            HTML;
+    }
+
+    /** One card's markup. */
+    private static function catalogCard(array $r, bool $showPrice, bool $showPhoto, string $ctaText, string $accent, string $accentText): string
+    {
+        $name  = self::escape($r['name']);
+        $price = $r['price'] !== null ? self::escape($r['price']) : '';
+        $photo = $r['photo'];
+
+        $img = '';
+        if ($showPhoto && $photo) {
+            $img = '<tr><td style="padding:0"><img src="' . self::escape($photo) . '" alt="' . $name . '" width="260" style="width:100%;max-width:260px;display:block;border:0"></td></tr>';
+        }
+
+        $priceRow = ($showPrice && $price !== '')
+            ? '<div style="font-size:13px;color:#666;margin-top:3px">' . $price . '</div>'
+            : '';
+
+        $cta = '';
+        if ($ctaText !== '' && $r['url'] !== null) {
+            $cta = '<div style="margin-top:9px"><a href="' . self::escape($r['url']) . '" style="background:' . $accent . ';color:' . $accentText . ';text-decoration:none;font-size:12px;font-weight:600;padding:8px 14px;border-radius:5px;display:inline-block">' . self::escape($ctaText) . '</a></div>';
+        }
+
+        return <<<HTML
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e8e8e4;border-radius:6px;overflow:hidden">
+              {$img}
+              <tr><td style="padding:11px 13px;font-family:-apple-system,BlinkMacSystemFont,sans-serif">
+                <div style="font-size:14px;font-weight:600;color:#222;line-height:1.35">{$name}</div>
+                {$priceRow}
+                {$cta}
+              </td></tr>
+            </table>
+            HTML;
+    }
+
+    /**
+     * Look up one picked item. Returns null when it has been deleted,
+     * archived or switched off since — a dead card is worse than no card.
+     */
+    private static function resolveCatalogItem(array $it): ?array
+    {
+        $kind = $it['kind'] ?? '';
+        $id   = $it['id'] ?? '';
+        if ($id === '') {
+            return null;
+        }
+
+        $tenant = function_exists('tenant') ? tenant() : null;
+        if (! $tenant) {
+            return null;
+        }
+
+        $overrideName  = trim((string) ($it['name']  ?? ''));
+        $overridePrice = trim((string) ($it['price'] ?? ''));
+
+        if ($kind === 'service') {
+            $m = \App\Models\Tenant\TenantServiceItem::where('tenant_id', $tenant->id)
+                ->where('id', $id)->where('is_active', true)->first();
+            if (! $m) {
+                return null;
+            }
+            return [
+                'name'  => $overrideName !== '' ? $overrideName : (string) $m->name,
+                'price' => $overridePrice !== ''
+                    ? $overridePrice
+                    : ($m->price_cents !== null ? '$' . number_format($m->price_cents / 100, 2) : null),
+                'photo' => $m->image_url ?: null,
+                'url'   => rtrim((string) $tenant->publicUrl(), '/') . '/book',
+            ];
+        }
+
+        if ($kind === 'product') {
+            $m = \App\Models\Tenant\TenantInventoryItem::where('tenant_id', $tenant->id)
+                ->where('id', $id)->where('is_active', true)
+                ->with('distributorCatalog:id,images')->first();
+            if (! $m) {
+                return null;
+            }
+            // Same image resolution the storefront's product showcase uses.
+            $ims   = (array) ($m->distributorCatalog->images ?? []);
+            $first = $ims[0] ?? null;
+            $photo = is_array($first)
+                ? ($first['Url'] ?? $first['url'] ?? $first['src'] ?? null)
+                : (is_string($first) ? $first : null);
+
+            $cents = $m->effectiveSellPriceCents();
+
+            return [
+                'name'  => $overrideName !== '' ? $overrideName : (string) $m->name,
+                'price' => $overridePrice !== ''
+                    ? $overridePrice
+                    : ($cents !== null ? '$' . number_format($cents / 100, 2) : null),
+                'photo' => $photo,
+                'url'   => rtrim((string) $tenant->publicUrl(), '/') . '/shop',
+            ];
+        }
+
+        return null;
     }
 
     /** Escaped text with newlines as <br>, for the simple text fields above. */

@@ -1060,6 +1060,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/campaigns/{id}/send', [TenantControllers\CampaignController::class, 'send'])->name('campaigns.send');
             Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
             Route::post('/campaigns/{id}/test', [TenantControllers\CampaignController::class, 'testSend'])->name('campaigns.test'); // MARKER-CAMPAIGN-V2A
+            Route::get('/campaign-catalog-search', [TenantControllers\CampaignController::class, 'catalogSearch'])->name('campaigns.catalog-search'); // MARKER-CAMPAIGN-V2C
 
             // MARKER-PATCH-450 — Engage -> Recovery (abandoned-booking worklist + funnel)
             Route::get('/recovery',         [TenantControllers\RecoveryController::class, 'index'])->name('recovery.index');
