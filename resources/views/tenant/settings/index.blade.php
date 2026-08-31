@@ -1511,7 +1511,7 @@
           <option value="xl"     {{ $wls === 'xl'     ? 'selected' : '' }}>Extra large</option>
         </select>
       </div>
-      <input type="file" name="wot_logo" accept="image/png,image/jpeg,image/webp" class="ia-input">
+      <input type="file" name="wot_logo" accept="image/png,image/jpeg,image/webp,image/avif" class="ia-input">
       <div class="ia-form-hint" style="font-size:11.5px;color:var(--ia-muted);margin-top:6px">High-contrast black-on-white prints best on thermal. Shown at the top of each tag in place of the shop name.</div>
     </div>
 

@@ -26,7 +26,7 @@ class BackfillTenantMedia extends Command
             ? Tenant::where('id', $this->option('tenant'))->get()
             : Tenant::all();
 
-        $imageExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
+        $imageExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico']; // MARKER-LOGOBAR-POLISH
         $created = 0;
 
         foreach ($tenants as $tenant) {

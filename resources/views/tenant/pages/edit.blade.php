@@ -1371,14 +1371,22 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   margin-bottom: 6px;
 }
 .pb2-insp-body .pb2-logorow {
-  grid-template-columns: 14px 46px 1fr auto; /* MARKER-LOGOBAR-PICKER — thumb column */
+  /* MARKER-LOGOBAR-POLISH — fields stack so Name/Link aren't slivers. */
+  grid-template-columns: 14px 46px 1fr auto;
+  align-items: start;
 }
 .pb2-insp-body .pb2-logorow-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  align-items: center;
+  min-width: 0;
 }
+.pb2-insp-body .pb2-logo-scale {
+  display: flex; align-items: center; gap: 6px; margin-left: auto;
+  font-size: 10.5px; color: var(--pb2-text-dim, rgba(255,255,255,.6));
+}
+.pb2-insp-body .pb2-logo-scale input[type=range] { width: 76px; accent-color: var(--pb2-accent, #BEF264); }
+.pb2-insp-body .pb2-logo-acts { flex-wrap: wrap; align-items: center; }
 /* MARKER-LOGOBAR-PICKER */
 .pb2-insp-body .pb2-logo-thumb {
   width: 46px; height: 32px; border-radius: 4px;
@@ -3071,9 +3079,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         const name     = row.querySelector('[data-logo-field="name"]')?.value || '';
         const logoUrl  = row.querySelector('[data-logo-field="logo_url"]')?.value || '';
         const linkUrl  = row.querySelector('[data-logo-field="link_url"]')?.value || '';
+        const scale    = parseInt(row.querySelector('[data-logo-field="scale"]')?.value || '100', 10); // MARKER-LOGOBAR-POLISH
         // Skip totally empty rows
         if (name.trim() === '' && logoUrl.trim() === '') return;
-        out.push({ name, logo_url: logoUrl, link_url: linkUrl });
+        out.push({ name, logo_url: logoUrl, link_url: linkUrl, scale: scale });
       });
       json.value = JSON.stringify(out);
       json.dispatchEvent(new Event('change', { bubbles: true }));
@@ -3087,6 +3096,11 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       });
       const rm = row.querySelector('[data-logo-remove]');
       if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+
+      // MARKER-LOGOBAR-POLISH — live % readout beside the scale slider.
+      const sc  = row.querySelector('[data-logo-field="scale"]');
+      const out = row.querySelector('[data-logo-scale-out]');
+      if (sc && out) sc.addEventListener('input', () => { out.textContent = sc.value + '%'; });
 
       // MARKER-LOGOBAR-PICKER — image comes from an upload or the library,
       // like every other image field in the builder.
@@ -3103,7 +3117,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       if (up) up.addEventListener('click', () => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/avif,image/svg+xml';
         input.style.display = 'none';
         document.body.appendChild(input);
         input.addEventListener('change', async () => {
@@ -3155,6 +3169,10 @@ body.ia-theme-b .pb2-preview-frame-wrap {
               <button type="button" class="pb2-logo-btn" data-logo-upload>Upload</button>
               <button type="button" class="pb2-logo-btn" data-logo-lib>Library</button>
               <button type="button" class="pb2-logo-btn" data-logo-clear style="display:none">Clear</button>
+              <span class="pb2-logo-scale">
+                <input type="range" min="60" max="140" step="5" data-logo-field="scale" value="100" title="Scale this logo">
+                <span data-logo-scale-out>100%</span>
+              </span>
             </div>
             <input type="hidden" data-logo-field="logo_url">
           </div>
@@ -3385,7 +3403,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         if (root.querySelectorAll('.pb2-gimg').length >= MAX_IMG) { setStatus('Max ' + MAX_IMG + ' images', 2000); return; }
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/avif,image/svg+xml';
         input.style.display = 'none';
         document.body.appendChild(input);
         input.addEventListener('change', async () => {
@@ -4058,7 +4076,7 @@ body.ia-theme-b .pb2-preview-frame-wrap {
 
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
+    input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/avif,image/svg+xml';
     input.style.display = 'none';
     document.body.appendChild(input);
     input.addEventListener('change', async () => {

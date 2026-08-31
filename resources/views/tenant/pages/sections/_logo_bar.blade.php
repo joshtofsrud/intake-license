@@ -70,7 +70,7 @@
     </div>
 
     <div class="pb2-field-hint" style="text-align:left;margin-bottom:8px;display:block">
-      Name is required. Add an image with Upload or From library — without one, the name shows as a text pill. Link URL is optional — makes the logo clickable.
+      Name is required. Add an image with Upload or From library — without one, the name shows as a text pill. Link URL is optional — makes the logo clickable. Scale nudges one logo bigger or smaller than the rest.
     </div>
 
     <div id="pb2-logo-list">
@@ -86,6 +86,10 @@
               <button type="button" class="pb2-logo-btn" data-logo-upload>Upload</button>
               <button type="button" class="pb2-logo-btn" data-logo-lib>Library</button>
               <button type="button" class="pb2-logo-btn" data-logo-clear style="{{ ($lg['logo_url'] ?? '') ? '' : 'display:none' }}">Clear</button>
+              <span class="pb2-logo-scale">
+                <input type="range" min="60" max="140" step="5" data-logo-field="scale" value="{{ $lg['scale'] ?? 100 }}" title="Scale this logo">
+                <span data-logo-scale-out>{{ $lg['scale'] ?? 100 }}%</span>
+              </span>
             </div>
             <input type="hidden" data-logo-field="logo_url" value="{{ $lg['logo_url'] ?? '' }}">
           </div>

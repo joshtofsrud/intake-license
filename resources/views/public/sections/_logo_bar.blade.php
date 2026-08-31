@@ -26,7 +26,10 @@
           $name    = trim($lg['name'] ?? '');
           $logoUrl = trim($lg['logo_url'] ?? '');
           if ($name === '' && $logoUrl === '') continue;
-          $logos[] = ['name' => $name, 'logo_url' => $logoUrl, 'link_url' => trim($lg['link_url'] ?? '')];
+          // MARKER-LOGOBAR-POLISH — per-logo scale, 60–140%, default 100.
+          $sc = (int) ($lg['scale'] ?? 100);
+          if ($sc < 60 || $sc > 140) $sc = 100;
+          $logos[] = ['name' => $name, 'logo_url' => $logoUrl, 'link_url' => trim($lg['link_url'] ?? ''), 'scale' => $sc];
       }
   }
 
@@ -261,7 +264,7 @@
             @if(!empty($lg['link_url']))
               <a href="{{ $lg['link_url'] }}" class="p-lb-logo" target="_blank" rel="noopener noreferrer" aria-label="{{ $lg['name'] ?: 'Partner' }}">
                 @if(!empty($lg['logo_url']))
-                  <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}">
+                  <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}" @if(($lg['scale'] ?? 100) !== 100) style="height:calc({{ $logoH }} * {{ $lg['scale'] / 100 }})" @endif>
                 @else
                   <span class="p-lb-logo-text">{{ $lg['name'] }}</span>
                 @endif
@@ -269,7 +272,7 @@
             @else
               <div class="p-lb-logo">
                 @if(!empty($lg['logo_url']))
-                  <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}">
+                  <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}" @if(($lg['scale'] ?? 100) !== 100) style="height:calc({{ $logoH }} * {{ $lg['scale'] / 100 }})" @endif>
                 @else
                   <span class="p-lb-logo-text">{{ $lg['name'] }}</span>
                 @endif
@@ -286,7 +289,7 @@
                 @if(!empty($lg['link_url']))
                   <a href="{{ $lg['link_url'] }}" class="p-lb-logo" target="_blank" rel="noopener noreferrer" aria-label="{{ $lg['name'] ?: 'Partner' }}" @if($pass === 1) aria-hidden="true" @endif>
                     @if(!empty($lg['logo_url']))
-                      <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}">
+                      <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}" @if(($lg['scale'] ?? 100) !== 100) style="height:calc({{ $logoH }} * {{ $lg['scale'] / 100 }})" @endif>
                     @else
                       <span class="p-lb-logo-text">{{ $lg['name'] }}</span>
                     @endif
@@ -294,7 +297,7 @@
                 @else
                   <div class="p-lb-logo" @if($pass === 1) aria-hidden="true" @endif>
                     @if(!empty($lg['logo_url']))
-                      <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}">
+                      <img src="{{ $lg['logo_url'] }}" alt="{{ $lg['name'] ?: 'Logo' }}" @if(($lg['scale'] ?? 100) !== 100) style="height:calc({{ $logoH }} * {{ $lg['scale'] / 100 }})" @endif>
                     @else
                       <span class="p-lb-logo-text">{{ $lg['name'] }}</span>
                     @endif

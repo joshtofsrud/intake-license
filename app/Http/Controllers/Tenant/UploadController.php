@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 class UploadController extends Controller
 {
     private const MAX_SIZE_KB = 5120; // 5MB
-    private const ALLOWED = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico'];
+    private const ALLOWED = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico']; // MARKER-LOGOBAR-POLISH — avif
 
     public function store(Request $request)
     {

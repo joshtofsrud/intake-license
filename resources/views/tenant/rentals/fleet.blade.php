@@ -255,7 +255,7 @@
                 <input type="hidden" data-mf="photos" value="{{ json_encode($mPhotos) }}">
                 <input type="hidden" data-mf="image_url" data-pset-main value="{{ $model->image_url }}">
                 <div class="fl-pset" data-pset></div>
-                <input type="file" accept="image/jpeg,image/png,image/webp" data-pset-file style="display:none">
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-pset-file style="display:none">
               </div>
               <div class="fl-fg" style="grid-column:1/3"><span class="fl-lbl">Model name</span><input class="fl-inp" value="{{ $model->name }}" data-mf="name"></div>
               <div class="fl-fg" style="grid-column:3/5"><span class="fl-lbl">Subtitle</span><input class="fl-inp" value="{{ $model->subtitle }}" data-mf="subtitle" placeholder="all-mountain, junior…"></div>

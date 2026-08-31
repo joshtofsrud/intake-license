@@ -644,7 +644,7 @@
     <div class="cb-modal-body">
       <div class="cb-modal-actions">
         <label class="cb-upload-btn">
-          <input type="file" id="cb-upload-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" onchange="CB.handleUpload(this.files[0])">
+          <input type="file" id="cb-upload-input" accept="image/jpeg,image/png,image/gif,image/webp,image/avif" style="display:none" onchange="CB.handleUpload(this.files[0])">
           <span>Upload new image</span>
         </label>
         <span id="cb-upload-status" style="font-size:12px;opacity:.6;margin-left:12px"></span>
