@@ -255,6 +255,19 @@
   </div>
 @else
   {{-- ========== DESKTOP TABLE ========== --}}
+  {{-- MARKER-CONSENT-CLEANUP — say plainly which way the switch works today,
+       since "on" and "off" have different rules. --}}
+  @if(tenant()->consentCleanupOpen())
+    <div style="border:1px solid var(--ia-accent);background:var(--ia-accent-soft);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px">
+      Consent cleanup is open until {{ \Carbon\Carbon::parse(tenant()->consent_cleanup_until)->format('M j, g:ia') }}.
+      You can switch marketing consent on or off here; each change is recorded against your account.
+    </div>
+  @else
+    <div style="font-size:11.5px;opacity:.45;margin-bottom:10px">
+      Marketing consent can be switched off here at any time. Switching it on needs an attestation — ask Intake to open a cleanup window.
+    </div>
+  @endif
+
   <div class="ia-table-wrap cust-desktop-only">
     <table class="ia-table">
       <thead>
@@ -265,6 +278,7 @@
           <th>Last service</th>
           <th class="ia-num">Total spend</th>
           <th>Added</th>
+          <th title="Accepts marketing email">Marketing</th>{{-- MARKER-CONSENT-CLEANUP --}}
         </tr>
       </thead>
       <tbody>
@@ -289,6 +303,17 @@
             </td>
             <td class="ia-num">{{ format_money((int)($stat?->total_spend_cents ?? 0)) }}</td>
             <td class="ia-muted-cell">{{ $c->created_at->format('M j, Y') }}</td>
+            {{-- MARKER-CONSENT-CLEANUP — the row is a link, so this cell swallows
+                 its own clicks. --}}
+            <td onclick="event.stopPropagation()">
+              @php $accepts = $c->emailMarketingMailable(); @endphp
+              <label class="cm-toggle" title="{{ $accepts ? 'Accepts marketing email' : 'Not opted in' }}">
+                <input type="checkbox" {{ $accepts ? 'checked' : '' }}
+                  {{ $c->email ? '' : 'disabled' }}
+                  onchange="cmToggle(this, '{{ $c->id }}')">
+                <span></span>
+              </label>
+            </td>
           </tr>
         @endforeach
       </tbody>
@@ -697,3 +722,52 @@ body.ia-theme-b .cust-sort-row:active { background: rgba(0,0,0,.04); }
 </style>
 
 @endsection
+
+
+{{-- MARKER-CONSENT-CLEANUP --}}
+<style>
+  .cm-toggle { display:inline-flex; cursor:pointer; }
+  .cm-toggle input { display:none; }
+  .cm-toggle span {
+    width:34px; height:19px; border-radius:999px; background:rgba(255,255,255,.14);
+    position:relative; transition:background .12s; display:block;
+  }
+  .cm-toggle span::after {
+    content:''; position:absolute; top:2px; left:2px; width:15px; height:15px;
+    border-radius:50%; background:#fff; transition:transform .12s;
+  }
+  .cm-toggle input:checked + span { background: var(--ia-accent); }
+  .cm-toggle input:checked + span::after { transform: translateX(15px); }
+  .cm-toggle input:disabled + span { opacity:.3; cursor:not-allowed; }
+</style>
+<script>
+function cmToggle(el, id) {
+  var on = el.checked;
+  el.disabled = true;
+  fetch('{{ url('admin/customers') }}/' + id + '/marketing-toggle', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': '{{ csrf_token() }}',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({ on: on ? 1 : 0 })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      el.disabled = false;
+      if (!j || j.success === false) {
+        el.checked = !on; // put it back — nothing was saved
+        IntakeConfirm.alert({
+          title: 'Not changed',
+          message: (j && j.message) || 'Could not update marketing consent.'
+        });
+      }
+    })
+    .catch(function () {
+      el.disabled = false;
+      el.checked = !on;
+      IntakeConfirm.alert({ title: 'Not changed', message: "Couldn't reach the server — check your connection." });
+    });
+}
+</script>

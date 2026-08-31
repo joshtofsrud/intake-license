@@ -145,6 +145,36 @@ class CustomerController extends Controller
      * Empty query returns the 12 most-recent customers as a "default browse"
      * convenience for clicking through without typing.
      */
+    /**
+     * MARKER-CONSENT-CLEANUP — flip one customer's marketing consent.
+     * OFF always works: someone asking to stop is never gated on a setting.
+     * ON needs the onboarding window open, otherwise consent would be set
+     * with nothing recorded about why.
+     */
+    public function toggleMarketing(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
+        $on       = $request->boolean('on');
+        $consent  = app(\App\Services\Tenant\ConsentService::class);
+
+        if (! $on) {
+            $consent->optOut($customer);
+            return response()->json(['success' => true, 'on' => false]);
+        }
+
+        if (! $tenant->consentCleanupOpen()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Turning consent on needs an attestation. Ask Intake to open a consent cleanup window, or use the bulk attestation flow.',
+            ], 422);
+        }
+
+        $consent->cleanupOptIn($customer, auth('tenant')->user(), $request->ip());
+
+        return response()->json(['success' => true, 'on' => true]);
+    }
+
     public function search(Request $request)
     {
         $tenant = tenant();

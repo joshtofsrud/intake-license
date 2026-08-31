@@ -92,6 +92,33 @@ class ConsentService
     // and (learned the hard way) never live in the cache.
     // ------------------------------------------------------------------
 
+    /**
+     * MARKER-CONSENT-CLEANUP — mark one customer consented during the
+     * onboarding window. Deliberately still writes an attestation row: the
+     * ceremony is lighter, the evidence is not.
+     */
+    public function cleanupOptIn(TenantCustomer $customer, ?TenantUser $by, ?string $ip): void
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($customer, $by, $ip) {
+            $customer->forceFill([
+                'email_marketing_consent_at'     => now(),
+                'email_marketing_consent_source' => 'onboarding-cleanup',
+                'email_marketing_opt_out_at'     => null,
+            ])->save();
+
+            TenantConsentAttestation::create([
+                'tenant_id'            => $customer->tenant_id,
+                'contact_count'        => 1,
+                'wording'              => 'Marked during onboarding consent cleanup by shop staff.',
+                'confirmed_by_user_id' => $by?->id,
+                'confirmed_by_name'    => (string) ($by?->name ?? 'Unknown'),
+                'confirmed_by_role'    => $by?->role,
+                'ip'                   => $ip,
+                'context'              => ['mode' => 'onboarding-cleanup', 'customer_id' => $customer->id],
+            ]);
+        });
+    }
+
     public static function unsubscribeSignature(string $customerId): string
     {
         return hash_hmac('sha256', 'email-unsub:' . $customerId, (string) config('app.key'));

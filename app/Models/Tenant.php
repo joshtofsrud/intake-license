@@ -19,6 +19,7 @@ class Tenant extends Model
         'past_due_since', 'suspended_at', 'suspended_reason',
         'license_id', 'subdomain', 'custom_domain', 'plan_tier', 'licensed_locations', 'name',
         'is_active', 'settings',
+        'consent_cleanup_until', // MARKER-CONSENT-CLEANUP
         'logo_url', 'logo_light_url', 'favicon_url', 'accent_color', 'text_color', 'bg_color',
         'logo_size_admin', 'logo_size_booking',
         'font_heading', 'font_body', 'tagline',
@@ -50,6 +51,7 @@ class Tenant extends Model
     ];
 
     protected $casts = [
+        'consent_cleanup_until' => 'datetime', // MARKER-CONSENT-CLEANUP
         'past_due_since' => 'datetime', // MARKER-TENANT-STANDING
         'suspended_at'   => 'datetime',
         'last_booking_mode_switch_at' => 'datetime',
@@ -292,6 +294,19 @@ class Tenant extends Model
      * emails/layout Blade). Defaults to the light logo (the header is dark),
      * falling back to the main logo, then to null (the text shop name renders).
      */
+    /**
+     * MARKER-CONSENT-CLEANUP — is the onboarding consent window open?
+     * Expiry is checked at read time, so it lapses on its own with no job.
+     */
+    public function consentCleanupOpen(): bool
+    {
+        $until = $this->consent_cleanup_until;
+        if (! $until) {
+            return false;
+        }
+        return \Carbon\Carbon::parse($until)->isFuture();
+    }
+
     public function emailLogoUrl(): ?string
     {
         $choice = $this->settings['email_logo_choice'] ?? 'light';

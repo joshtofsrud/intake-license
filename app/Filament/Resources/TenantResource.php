@@ -64,6 +64,27 @@ class TenantResource extends Resource
                 ])
                 ->collapsed(),
 
+            // MARKER-CONSENT-CLEANUP — onboarding window. Time-boxed on purpose:
+            // a permanent free-toggle would let consent be set with no record of
+            // why, which is the one thing the attestation trail exists to stop.
+            Forms\Components\Section::make('Marketing consent cleanup')
+                ->description('Opens a temporary window where this shop can flip marketing consent per customer from the customer list, without an attestation modal each time. Every flip is still recorded with the staff member, time and source. It expires on its own.')
+                ->schema([
+                    Forms\Components\DateTimePicker::make('consent_cleanup_until')
+                        ->label('Cleanup window open until')
+                        ->helperText('Leave empty for off — the normal state. Use the button to open a 10-day window.')
+                        ->seconds(false),
+                    Forms\Components\Actions::make([
+                        Forms\Components\Actions\Action::make('open10')
+                            ->label('Open for 10 days')
+                            ->action(fn ($set) => $set('consent_cleanup_until', now()->addDays(10))),
+                        Forms\Components\Actions\Action::make('closeNow')
+                            ->label('Close now')->color('gray')
+                            ->action(fn ($set) => $set('consent_cleanup_until', null)),
+                    ]),
+                ])
+                ->collapsed(),
+
             // MARKER-OWNER-FIELDS-SAVE — these write to the owner's tenant_users
             // row in EditTenant::afterSave, not to the tenants table.
             Forms\Components\Section::make('Owner account')
