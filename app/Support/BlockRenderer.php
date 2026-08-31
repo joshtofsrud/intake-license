@@ -13,7 +13,8 @@ namespace App\Support;
  *   { "id": "uuid", "type": "paragraph", "data": { ... } }
  *
  * Supported block types:
- *   paragraph, heading, image, button, divider, footer
+ *   paragraph, heading, image, button, divider, footer,
+ *   spacer, two_column, image_text, social  (MARKER-CAMPAIGN-V2B)
  *
  * All blocks render inside a 600px-wide table layout for email client compatibility.
  */
@@ -82,6 +83,11 @@ class BlockRenderer
             'button'    => self::renderButton($data, $accent, $accentText),
             'divider'   => self::renderDivider($data),
             'footer'    => self::renderFooter($data),
+            // MARKER-CAMPAIGN-V2B
+            'spacer'     => self::renderSpacer($data),
+            'two_column' => self::renderTwoColumn($data),
+            'image_text' => self::renderImageText($data, $accent),
+            'social'     => self::renderSocial($data),
             default     => '',
         };
 
@@ -245,6 +251,114 @@ class BlockRenderer
               <hr style="border:none;border-top:1px solid #e5e5e0;margin:0" />
             </td></tr>
             HTML;
+    }
+
+    // MARKER-CAMPAIGN-V2B — four new blocks. Every one is table-based and
+    // avoids media queries, because Outlook ignores them; the stacking here
+    // comes from the width:100%/max-width float pattern instead.
+
+    private static function renderSpacer(array $data): string
+    {
+        $h = (int) ($data['height'] ?? 24);
+        if ($h < 4)   $h = 4;
+        if ($h > 120) $h = 120;
+
+        return <<<HTML
+            <tr><td style="height:{$h}px;line-height:{$h}px;font-size:0">&nbsp;</td></tr>
+            HTML;
+    }
+
+    private static function renderTwoColumn(array $data): string
+    {
+        $left  = self::inlineText($data['left']  ?? '');
+        $right = self::inlineText($data['right'] ?? '');
+
+        return <<<HTML
+            <tr><td style="padding:8px 24px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="50%" valign="top" style="padding:8px 10px 8px 0;font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">{$left}</td>
+                  <td width="50%" valign="top" style="padding:8px 0 8px 10px;font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">{$right}</td>
+                </tr>
+              </table>
+            </td></tr>
+            HTML;
+    }
+
+    private static function renderImageText(array $data, string $accent): string
+    {
+        $url  = trim((string) ($data['url'] ?? ''));
+        $alt  = self::escape($data['alt'] ?? '');
+        $text = self::inlineText($data['text'] ?? '');
+        $side = ($data['side'] ?? 'left') === 'right' ? 'right' : 'left';
+
+        $imgCell = $url !== ''
+            ? '<img src="' . self::escape($url) . '" alt="' . $alt . '" width="240" style="width:100%;max-width:240px;display:block;border:0;border-radius:6px">'
+            : '<div style="border:1px dashed #ccc;padding:30px;text-align:center;color:#aaa;font-size:12px">No image selected</div>';
+
+        $textCell = '<div style="font-size:14px;line-height:1.6;color:#333;font-family:-apple-system,BlinkMacSystemFont,sans-serif">' . $text . '</div>';
+
+        [$a, $b] = $side === 'left' ? [$imgCell, $textCell] : [$textCell, $imgCell];
+        $padA = $side === 'left' ? '0 14px 0 0' : '0 14px 0 0';
+        $padB = '0';
+
+        return <<<HTML
+            <tr><td style="padding:12px 24px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="45%" valign="middle" style="padding:{$padA}">{$a}</td>
+                  <td width="55%" valign="middle" style="padding:{$padB}">{$b}</td>
+                </tr>
+              </table>
+            </td></tr>
+            HTML;
+    }
+
+    private static function renderSocial(array $data): string
+    {
+        $raw = $data['links'] ?? [];
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : [];
+        }
+        if (! is_array($raw)) {
+            $raw = [];
+        }
+
+        $cells = '';
+        $n = 0;
+        foreach ($raw as $item) {
+            if ($n >= 5) {
+                break;
+            }
+            $label = trim((string) ($item['label'] ?? ''));
+            $url   = trim((string) ($item['url'] ?? ''));
+            if ($label === '' || ! preg_match('/^(https?:\/\/|mailto:)/i', $url)) {
+                continue;
+            }
+            $n++;
+            $cells .= '<td style="padding:0 9px"><a href="' . self::escape($url) . '" style="color:#666;text-decoration:none;font-size:12px;font-family:-apple-system,BlinkMacSystemFont,sans-serif">' . self::escape($label) . '</a></td>';
+        }
+
+        if ($cells === '') {
+            return <<<HTML
+                <tr><td style="padding:12px 24px;text-align:center;color:#aaa;font-size:12px;font-style:italic">No links added yet</td></tr>
+                HTML;
+        }
+
+        return <<<HTML
+            <tr><td style="padding:14px 24px;text-align:center">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-block">
+                <tr>{$cells}</tr>
+              </table>
+            </td></tr>
+            HTML;
+    }
+
+    /** Escaped text with newlines as <br>, for the simple text fields above. */
+    private static function inlineText(string $value): string
+    {
+        return nl2br(self::escape(trim($value)));
     }
 
     private static function renderFooter(array $data): string

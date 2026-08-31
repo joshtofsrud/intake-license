@@ -439,6 +439,11 @@ class CampaignController extends Controller
             'button'    => ['text', 'url', 'align'],
             'divider'   => [],
             'footer'    => ['text'],
+            // MARKER-CAMPAIGN-V2B
+            'spacer'     => ['height'],
+            'two_column' => ['left', 'right'],
+            'image_text' => ['url', 'alt', 'text', 'side'],
+            'social'     => [], // links handled separately — it's an array
         ];
 
         $clean = [];
@@ -462,6 +467,32 @@ class CampaignController extends Controller
                     $data[$field] = $value;
                 }
             }
+            // MARKER-CAMPAIGN-V2B — social keeps an array of {label,url};
+            // the loop above only handles scalar fields.
+            if ($type === 'social') {
+                $links = $block['data']['links'] ?? [];
+                if (is_string($links)) {
+                    $decoded = json_decode($links, true);
+                    $links = is_array($decoded) ? $decoded : [];
+                }
+                $out = [];
+                foreach ((array) $links as $l) {
+                    if (! is_array($l)) {
+                        continue;
+                    }
+                    $label = trim(mb_substr((string) ($l['label'] ?? ''), 0, 40));
+                    $url   = trim(mb_substr((string) ($l['url'] ?? ''), 0, 300));
+                    if ($label === '' || ! preg_match('/^(https?:\/\/|mailto:)/i', $url)) {
+                        continue;
+                    }
+                    $out[] = ['label' => $label, 'url' => $url];
+                    if (count($out) >= 5) {
+                        break;
+                    }
+                }
+                $data['links'] = $out;
+            }
+
             $clean[] = [
                 'id'   => $block['id'] ?? (string) Str::uuid(),
                 'type' => $type,

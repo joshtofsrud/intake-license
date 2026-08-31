@@ -524,6 +524,15 @@
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('divider')">Divider</button>
         <button type="button" class="cb-add-btn" onclick="CB.addBlock('footer')">Footer</button>
       </div>
+
+      {{-- MARKER-CAMPAIGN-V2B --}}
+      <div class="cb-add-heading">Layout</div>
+      <div class="cb-add-grid">
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('spacer')">Spacer</button>
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('two_column')">Two column</button>
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('image_text')">Image + text</button>
+        <button type="button" class="cb-add-btn" onclick="CB.addBlock('social')">Social links</button>
+      </div>
     </div>
 
     {{-- CENTER: live preview --}}
@@ -733,6 +742,11 @@ window.CB = (function() {
     button:    { label: 'Button',    icon: '▭' },
     divider:   { label: 'Divider',   icon: '—' },
     footer:    { label: 'Footer',    icon: '⨮' },
+    // MARKER-CAMPAIGN-V2B
+    spacer:     { label: 'Spacer',       icon: '↕' },
+    two_column: { label: 'Two column',   icon: '▥' },
+    image_text: { label: 'Image + text', icon: '▤' },
+    social:     { label: 'Social links', icon: '◎' },
   };
 
   const DEFAULTS = {
@@ -742,6 +756,11 @@ window.CB = (function() {
     button:    { text: 'Click here', url: 'https://', align: 'left' },
     divider:   {},
     footer:    { text: 'You received this because you are a customer. Reply STOP to unsubscribe.' },
+    // MARKER-CAMPAIGN-V2B
+    spacer:     { height: '24' },
+    two_column: { left: '', right: '' },
+    image_text: { url: '', alt: '', text: '', side: 'left' },
+    social:     { links: [] },
   };
 
   function uuid() {
@@ -815,6 +834,55 @@ window.CB = (function() {
       html += mergeChips(); // MARKER-CAMPAIGN-V2A
       // Defer the mount so the DOM nodes exist first
       setTimeout(mountTipTapEditor, 0);
+    } else if (t === 'spacer') { // MARKER-CAMPAIGN-V2B
+      html += field('height', 'Height', `
+        <select class="cb-field-select" onchange="CB.updateData('height', this.value)">
+          <option value="8"  ${String(d.height)==='8' ?'selected':''}>Tiny (8px)</option>
+          <option value="16" ${String(d.height)==='16'?'selected':''}>Small (16px)</option>
+          <option value="24" ${String(d.height)==='24'?'selected':''}>Medium (24px)</option>
+          <option value="40" ${String(d.height)==='40'?'selected':''}>Large (40px)</option>
+          <option value="64" ${String(d.height)==='64'?'selected':''}>Huge (64px)</option>
+        </select>`);
+    } else if (t === 'two_column') {
+      html += field('left', 'Left column', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('left', this.value)">${escapeHtml(d.left || '')}</textarea>`);
+      html += field('right', 'Right column', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('right', this.value)">${escapeHtml(d.right || '')}</textarea>`);
+      html += mergeChips();
+      html += '<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Columns sit side by side on desktop and stack on narrow phones.</p>';
+    } else if (t === 'image_text') {
+      if (d.url) {
+        html += `<div class="cb-img-preview">
+          <img src="${escapeAttr(d.url)}" alt="" style="max-width:100%;max-height:120px;display:block;margin:0 auto;border-radius:4px">
+          <button type="button" class="cb-img-change" onclick="CB.openImagePicker()">Change image</button>
+        </div>`;
+      } else {
+        html += `<button type="button" class="cb-img-picker-btn" onclick="CB.openImagePicker()">
+          <span style="font-size:22px;opacity:.4">+</span>
+          <span style="display:block;font-size:12px;margin-top:4px">Choose or upload image</span>
+        </button>`;
+      }
+      html += field('alt', 'Alt text', `<input type="text" class="cb-field-input" value="${escapeAttr(d.alt || '')}" oninput="CB.updateData('alt', this.value)">`);
+      html += field('text', 'Text', `<textarea class="cb-field-textarea" rows="4" oninput="CB.updateData('text', this.value)">${escapeHtml(d.text || '')}</textarea>`);
+      html += field('side', 'Image on', `
+        <select class="cb-field-select" onchange="CB.updateData('side', this.value)">
+          <option value="left"  ${d.side!=='right'?'selected':''}>Left</option>
+          <option value="right" ${d.side==='right'?'selected':''}>Right</option>
+        </select>`);
+      html += mergeChips();
+    } else if (t === 'social') {
+      const links = Array.isArray(d.links) ? d.links : [];
+      let rows = '';
+      links.forEach(function (l, i) {
+        rows += `<div style="display:flex;gap:5px;margin-bottom:5px">
+          <input type="text" class="cb-field-input" style="flex:0 0 88px" value="${escapeAttr(l.label || '')}" placeholder="Label" oninput="CB.updateSocial(${i}, 'label', this.value)">
+          <input type="text" class="cb-field-input" style="flex:1;min-width:0" value="${escapeAttr(l.url || '')}" placeholder="https://" oninput="CB.updateSocial(${i}, 'url', this.value)">
+          <button type="button" class="cb-block-remove" onclick="CB.removeSocial(${i})" title="Remove">×</button>
+        </div>`;
+      });
+      html += `<div class="cb-field"><label class="cb-field-label">Links (5 max)</label>${rows}`;
+      if (links.length < 5) {
+        html += `<button type="button" class="cb-add-btn" style="width:100%;margin-top:4px" onclick="CB.addSocial()">+ Add link</button>`;
+      }
+      html += `<p style="font-size:10.5px;opacity:.45;margin:6px 0 0">Links need a full URL (https://…) or they're dropped when saved.</p></div>`;
     } else if (t === 'image') {
       const hasImage = !!(d.url && d.url.length > 0);
       if (hasImage) {
@@ -1066,6 +1134,29 @@ window.CB = (function() {
   return {
     // MARKER-CAMPAIGN-V2A
     insertTag, setViewport, testSend,
+
+    // MARKER-CAMPAIGN-V2B — social link repeater.
+    addSocial() {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || block.type !== 'social') return;
+      block.data = block.data || {};
+      if (!Array.isArray(block.data.links)) block.data.links = [];
+      if (block.data.links.length >= 5) return;
+      block.data.links.push({ label: '', url: '' });
+      renderSettings(); syncHiddenInput(); requestPreview();
+    },
+    updateSocial(i, key, value) {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || !Array.isArray(block.data?.links) || !block.data.links[i]) return;
+      block.data.links[i][key] = value;
+      syncHiddenInput(); requestPreview();
+    },
+    removeSocial(i) {
+      const block = blocks.find(b => b.id === selectedId);
+      if (!block || !Array.isArray(block.data?.links)) return;
+      block.data.links.splice(i, 1);
+      renderSettings(); syncHiddenInput(); requestPreview();
+    },
     init() {
       renderBlocksList();
       renderSettings();
@@ -1127,7 +1218,8 @@ window.CB = (function() {
 
     selectImage(url) {
       const block = blocks.find(b => b.id === selectedId);
-      if (!block || block.type !== 'image') return;
+      // MARKER-CAMPAIGN-V2B — image_text uses the same picker.
+      if (!block || (block.type !== 'image' && block.type !== 'image_text')) return;
       block.data = block.data || {};
       block.data.url = url;
       CB.closeImagePicker();
