@@ -50,7 +50,7 @@
     </div>
     <div class="pb2-field">
       <label class="pb2-field-label">Body</label>
-      <textarea class="pb2-textarea" data-field="body" rows="3" placeholder="Why rent this one?">{{ $get('body') }}</textarea>
+      <textarea class="pb2-input pb2-textarea" data-field="body" rows="3" placeholder="Why rent this one?">{{ $get('body') }}</textarea>
     </div>
   </div>
 

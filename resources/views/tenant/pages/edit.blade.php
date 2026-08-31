@@ -1559,6 +1559,9 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   background: rgba(255,255,255,.07);
   border: .5px solid var(--pb2-border);
   border-radius: 8px;
+  /* MARKER-INSP-TEXTAREA-COLOR — form controls don't inherit colour, so a
+     bare .pb2-textarea rendered black text on this dark panel. */
+  color: var(--pb2-text);
 }
 .pb2-insp-body .pb2-input:focus,
 .pb2-insp-body .pb2-textarea:focus {
