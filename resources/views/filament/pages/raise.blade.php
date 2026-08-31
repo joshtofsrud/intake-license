@@ -251,18 +251,21 @@
                              the document, and only until it is signed. --}}
                         @unless ($investor->signed_at)
                             @if ($investor->committed_at && $investor->amount)
-                                <x-filament::button size="xs" color="gray"
-                                    {{-- MARKER-MANUAL-SAFE — the API needs a paid tier, so this
-                                         offers the details to send by hand unless automatic is on. --}}
-                                    @if (\App\Services\SigningService::isAutomatic())
+                                {{-- MARKER-RAISE-BUTTON-FIX — the conditional wraps the whole
+                                     tag. Blade parses a component's attribute area separately, so
+                                     control flow between attributes does not compile. --}}
+                                @if (\App\Services\SigningService::isAutomatic())
+                                    <x-filament::button size="xs" color="gray"
                                         wire:click="sendSafe({{ $investor->id }})"
                                         wire:loading.attr="disabled">
                                         {{ $investor->safe_sent_at ? 'Resend SAFE' : 'Send SAFE' }}
-                                    @else
+                                    </x-filament::button>
+                                @else
+                                    <x-filament::button size="xs" color="gray"
                                         wire:click="showManual({{ $investor->id }})">
                                         SAFE details
-                                    @endif
-                                </x-filament::button>
+                                    </x-filament::button>
+                                @endif
                             @endif
                             <x-filament::button size="xs" color="gray" wire:click="markSigned({{ $investor->id }})">Signed</x-filament::button>
                         @endunless
