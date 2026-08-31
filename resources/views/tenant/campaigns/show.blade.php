@@ -153,8 +153,20 @@
   opacity: .5;
 }
 /* MARKER-CAMPAIGN-V2A — viewport toggle + merge-tag chips */
-.cb-preview-stage { background: #f4f4f2; display: flex; justify-content: center; }
-.cb-preview-stage.mobile .cb-preview-iframe { width: 390px; }
+.cb-preview-stage { background: #f4f4f2; display: flex; justify-content: center; overflow: hidden; }
+/* MARKER-CAMPAIGN-MOBILEFIX — the email's inner table is a fixed 600px, so
+   narrowing the iframe clipped it. Scale the whole thing down instead. */
+.cb-preview-stage.mobile { padding: 10px 0; }
+.cb-preview-stage.mobile .cb-preview-iframe {
+  width: 600px;
+  flex: 0 0 600px;
+  transform: scale(.65);
+  transform-origin: top center;
+  height: 923px;          /* 600 / .65 — keeps the visible height at ~600 */
+  margin-bottom: -323px;  /* reclaim the space the scale leaves behind */
+  box-shadow: 0 0 0 1px rgba(0,0,0,.12);
+  border-radius: 10px;
+}
 .cb-vp { display: inline-flex; border: .5px solid var(--ia-border); border-radius: 6px; overflow: hidden; }
 .cb-vp-btn {
   font-size: 10px; padding: 3px 9px; background: none; border: none; cursor: pointer;
