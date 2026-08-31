@@ -263,6 +263,12 @@ details.sec .body section + section{padding-top:30px}
   #s-back .fields{grid-template-columns:1fr}
 }
 
+/* MARKER-HONEYPOT-FIX — the spam trap, off screen. Lived only in the landing
+   page's own styles, so every other surface rendering the contribute form
+   showed it as an empty input. A visible honeypot gets filled in, and a filled
+   one throws the submission away. */
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 /* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
    page and the personal page. */
