@@ -39,6 +39,7 @@
     ['#s-returns', 'How this returns', 's-returns'],
     ['#s-legal', 'Legal', 's-legal'],
     ['#position', 'Your position', null],
+    ['#s-back', 'Back the project', 's-back'],
   ];
 @endphp
 @include('invest._rail')
@@ -242,6 +243,11 @@
     the truth and this is a mirror of it.
   </div>
 
+</div></section>
+
+{{-- MARKER-MANUAL-SAFE — after the commitment, never beside it. --}}
+<section><div class="wrap">
+@include('invest._contribute')
 </div></section>
 
 {{-- MARKER-INVEST-CONFIRM --}}

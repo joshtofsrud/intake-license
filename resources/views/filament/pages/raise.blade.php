@@ -252,9 +252,16 @@
                         @unless ($investor->signed_at)
                             @if ($investor->committed_at && $investor->amount)
                                 <x-filament::button size="xs" color="gray"
-                                    wire:click="sendSafe({{ $investor->id }})"
-                                    wire:loading.attr="disabled">
-                                    {{ $investor->safe_sent_at ? 'Resend SAFE' : 'Send SAFE' }}
+                                    {{-- MARKER-MANUAL-SAFE — the API needs a paid tier, so this
+                                         offers the details to send by hand unless automatic is on. --}}
+                                    @if (\App\Services\SigningService::isAutomatic())
+                                        wire:click="sendSafe({{ $investor->id }})"
+                                        wire:loading.attr="disabled">
+                                        {{ $investor->safe_sent_at ? 'Resend SAFE' : 'Send SAFE' }}
+                                    @else
+                                        wire:click="showManual({{ $investor->id }})">
+                                        SAFE details
+                                    @endif
                                 </x-filament::button>
                             @endif
                             <x-filament::button size="xs" color="gray" wire:click="markSigned({{ $investor->id }})">Signed</x-filament::button>
@@ -410,6 +417,51 @@
         </div>
     </div>
 </div>
+@endif
+
+
+{{-- MARKER-MANUAL-SAFE — everything needed to send the document by hand, read
+     off the record. The amount especially: typing it from memory is how a
+     signed SAFE ends up disagreeing with what was committed. --}}
+@if ($manualFor)
+    @php $m = \App\Models\Investor::find($manualFor); @endphp
+    @if ($m)
+        <div style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+                    padding:24px;background:rgba(0,0,0,.6)" wire:click.self="closeManual">
+            <div class="rounded-xl border border-gray-200 dark:border-white/10"
+                 style="background:#141414;max-width:520px;width:100%;padding:24px 26px">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Send this SAFE by hand</div>
+                <p class="mt-1 text-sm text-gray-500">In Dropbox Sign, use the saved template and fill the
+                    three sender fields with exactly these values.</p>
+
+                <div style="margin-top:16px;border:1px solid rgba(255,255,255,.1);border-radius:10px;overflow:hidden">
+                    <div style="display:flex;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.08)">
+                        <span class="text-xs text-gray-500" style="flex:0 0 140px">investor_name</span>
+                        <span class="text-sm">{{ $m->entity ?: $m->name }}</span></div>
+                    <div style="display:flex;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.08)">
+                        <span class="text-xs text-gray-500" style="flex:0 0 140px">purchase_amount</span>
+                        <span class="text-sm" style="color:#BEF264;font-weight:700">{{ number_format((int) $m->amount) }}</span></div>
+                    <div style="display:flex;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.08)">
+                        <span class="text-xs text-gray-500" style="flex:0 0 140px">safe_date</span>
+                        <span class="text-sm">{{ now()->format('F j, Y') }}</span></div>
+                    <div style="display:flex;padding:11px 14px">
+                        <span class="text-xs text-gray-500" style="flex:0 0 140px">Send to</span>
+                        <span class="text-sm">{{ $m->email }}</span></div>
+                </div>
+
+                <p class="mt-3 text-xs text-gray-500">
+                    The amount above is what they committed. If it differs from what you are about to
+                    type, stop and check the record rather than the document.
+                    Once they have signed and you have countersigned, upload the executed PDF to their
+                    record and mark them signed here.
+                </p>
+
+                <div class="mt-4 flex gap-3">
+                    <x-filament::button wire:click="closeManual">Done</x-filament::button>
+                </div>
+            </div>
+        </div>
+    @endif
 @endif
 
 </x-filament-panels::page>

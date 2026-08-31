@@ -56,6 +56,7 @@ class RaiseSetup extends Page
     public string $signingKey      = '';
     public bool   $signingTestMode = true;
     public string $signingTemplateId = '';   // MARKER-SIGNING-SEND
+    public bool   $signingAutomatic  = false;   // MARKER-MANUAL-SAFE
 
     // template editor
     public string $templateKey  = '';
@@ -92,6 +93,7 @@ class RaiseSetup extends Page
         $this->contributionPresets = (string) RaiseSetting::get('contribution_presets', '');
         $this->signingTestMode = \App\Services\SigningService::isTestMode();
         $this->signingTemplateId = (string) RaiseSetting::get('signing_template_id', '');
+        $this->signingAutomatic = \App\Services\SigningService::isAutomatic();
     }
 
     /** MARKER-INVEST-LANDING */
@@ -135,6 +137,7 @@ class RaiseSetup extends Page
 
         RaiseSetting::put('signing_test_mode', $this->signingTestMode ? '1' : '0');
         RaiseSetting::put('signing_template_id', trim($this->signingTemplateId) ?: null);
+        RaiseSetting::put('signing_automatic', $this->signingAutomatic ? '1' : '0');
 
         Notification::make()
             ->title('Signing settings saved')

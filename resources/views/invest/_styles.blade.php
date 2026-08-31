@@ -243,6 +243,26 @@ details.sec .body section + section{padding-top:30px}
 .lede.founder{color:var(--text);font-size:17px;font-weight:600;letter-spacing:-.3px;
   border-left:2px solid var(--lime-line);padding-left:15px;margin-top:22px}
 
+/* MARKER-MANUAL-SAFE — the contribute block on the invited page. Quieter than
+   the public one: it sits under a commitment form, so it must not read as an
+   easier version of the thing above it. */
+#s-back .support{border:0;padding:0;margin:0}
+#s-back .amts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px;max-width:560px}
+#s-back .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;max-width:560px}
+#s-back .amt-btn,#s-back input{height:46px;border-radius:8px;border:1px solid var(--line2);
+  font-family:inherit;font-size:15px;width:100%;outline:none}
+#s-back .amt-btn{background:var(--panel);color:var(--text);font-weight:650;cursor:pointer;padding:0}
+#s-back .amt-btn.on{background:var(--lime);border-color:var(--lime);color:#0a0a0a}
+#s-back input{background:var(--bg);color:var(--text);padding:0 14px}
+#s-back #c-amt{text-align:center}
+#s-back input:focus{border-color:var(--lime-line)}
+#s-back .btn{height:46px;padding:0 24px;border-radius:8px;font-size:15px;margin-top:14px}
+#s-back .fine{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+@media(max-width:640px){
+  #s-back .amts{grid-template-columns:1fr 1fr}
+  #s-back .fields{grid-template-columns:1fr}
+}
+
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 /* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
    page and the personal page. */

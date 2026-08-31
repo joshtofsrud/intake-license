@@ -105,6 +105,20 @@
 
     <div class="grid gap-3 md:grid-cols-2 mt-3">
         <label class="flex items-end gap-2 pb-1">
+            {{-- MARKER-MANUAL-SAFE --}}
+            <input type="checkbox" wire:model="signingAutomatic"
+                   class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
+            <span class="text-sm">Send SAFEs automatically</span>
+        </label>
+    </div>
+
+    <p class="mt-2 text-xs text-gray-500">
+        Automatic sending needs a paid Dropbox Sign API plan. With it off, the investor row offers the
+        details to send the document by hand instead — nothing about the round is blocked either way.
+    </p>
+
+    <div class="grid gap-3 md:grid-cols-2 mt-3">
+        <label class="flex items-end gap-2 pb-1">
             <input type="checkbox" wire:model="signingTestMode"
                    class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">
             <span class="text-sm">Send documents in test mode</span>

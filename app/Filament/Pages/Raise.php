@@ -306,6 +306,21 @@ class Raise extends Page
         Notification::make()->title($name . ' removed')->success()->send();
     }
 
+    // MARKER-MANUAL-SAFE — which investor's send-by-hand details are open.
+    public ?int $manualFor = null;
+
+    /** MARKER-MANUAL-SAFE */
+    public function showManual(int $id): void
+    {
+        $this->manualFor = $id;
+    }
+
+    /** MARKER-MANUAL-SAFE */
+    public function closeManual(): void
+    {
+        $this->manualFor = null;
+    }
+
     /**
      * MARKER-SIGNING-SEND — send the SAFE, filled from this investor's record.
      *

@@ -57,6 +57,18 @@ class SigningService
         return (bool) self::key();
     }
 
+    /**
+     * MARKER-MANUAL-SAFE — whether Intake sends the SAFE itself.
+     *
+     * Off by default: sending through the API needs a paid Dropbox Sign tier,
+     * and a button that always fails is worse than no button. With it off, the
+     * same row offers the details needed to send it by hand.
+     */
+    public static function isAutomatic(): bool
+    {
+        return RaiseSetting::get('signing_automatic', '0') === '1';
+    }
+
     /** Test mode is per-request at Dropbox Sign, so this is just the default. */
     public static function isTestMode(): bool
     {
