@@ -287,9 +287,14 @@
           @endif
           <div class="ia-media-cap">{{ $imgSrcs->count() }} image{{ $imgSrcs->count() === 1 ? '' : 's' }} from {{ $item->distributorCatalog?->distributor_name ?? 'distributor' }}</div>
         @elseif($imagesNeedCls)
+          {{-- MARKER-QBP-CLS-AUTO — this used to blame a missing CLS key, which
+               sent people to a field that was already filled. The key is
+               platform-wide; what's missing here is THIS shop's image URL
+               prefix, which is fetched from QBP, not typed in. --}}
           <div class="ia-media-empty">
-            {{ count($catImages) }} QBP image{{ count($catImages) === 1 ? '' : 's' }} available — add your QBP
-            Content License Service key under Connection &amp; sync to display them.
+            {{ count($catImages) }} QBP image{{ count($catImages) === 1 ? '' : 's' }} available, but this shop's
+            QBP image address hasn't been fetched yet. It refreshes automatically every few days,
+            or an admin can run it now with <code>php artisan qbp:cls-refresh</code>.
           </div>
         @else
           <div class="ia-media-empty">No image from the distributor catalog.</div>

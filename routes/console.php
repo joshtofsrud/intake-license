@@ -20,6 +20,14 @@ Schedule::command('campaigns:process-sends')
     ->everyMinute()
     ->withoutOverlapping();
 
+// MARKER-QBP-CLS-AUTO — keep each QBP subscription's image service prefix
+// fresh. Without it the catalog still syncs and only images go missing, which
+// is exactly why it went unnoticed until a shop asked where their photos were.
+Schedule::command('qbp:cls-refresh')
+    ->cron('10 4 */3 * *')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 Schedule::command('rentals:extension-offer-scan')
     ->everyFifteenMinutes(); // MARKER-RENTAL-EXT
 

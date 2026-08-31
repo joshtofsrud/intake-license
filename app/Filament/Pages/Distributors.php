@@ -268,6 +268,25 @@ class Distributors extends Page implements HasForms
 
         Notification::make()->success()
             ->title($this->currentCode() . ' connection saved')->send();
+
+        // MARKER-QBP-CLS-AUTO — the image service prefix is per subscription
+        // and fetched from CLS, not typed. Refresh it now so a shop never sits
+        // with images it cannot display, which is what happened to Oakridge.
+        if (strtoupper($this->currentCode()) === 'QBP') {
+            try {
+                \Illuminate\Support\Facades\Artisan::call('qbp:cls-refresh');
+                Notification::make()->success()
+                    ->title('QBP image service refreshed')
+                    ->body('Product images should display for subscribed shops.')
+                    ->send();
+            } catch (\Throwable $e) {
+                report($e);
+                Notification::make()->warning()
+                    ->title('Connection saved, image service not refreshed')
+                    ->body('Run "php artisan qbp:cls-refresh" to retry — images stay hidden until it succeeds.')
+                    ->send();
+            }
+        }
     }
 
 
