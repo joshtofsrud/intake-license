@@ -1,30 +1,40 @@
-{{-- MARKER-INVEST-RETENTION — the revenue argument, not the cost one. --}}
+{{-- MARKER-INVEST-RETENTION · MARKER-RETENTION-MECH — the mechanism first, the
+     evidence after. The pad is the smallest of four tools, not the headline. --}}
 <section><div class="wrap">
-  <p class="sub">Why the customer record matters</p>
+  <p class="sub">Retention and recovery</p>
   <h2>Most shops don't market at all.</h2>
 
   <p class="lede">Not because they don't want to. The customer record lives in the register, the email
     tool has a different list, and reconciling them is a half-day job that drops down the priority list
     every week. It comes around so rarely that you relearn the process each time.</p>
 
-  <p class="lede">The same gap shows up on the counter. Every shop runs on paper somewhere — a notepad by
-    the register, a whiteboard of who's waiting on a part — because the software couldn't hold it. Intake
-    was built from those workarounds. The dashboard has a pad, reachable from anywhere, and a note
-    attaches to the customer so it's there the next time they come in.</p>
-
-  {{-- MARKER-RETENTION-PARITY — same three cards and the same closing argument
-       as the deck's retention page, so the two cannot say different things. --}}
-  <div class="ctx-cards three">
-    <div class="ctx-card"><div class="n">One record</div><div class="k">Booking to follow-up</div>
-      <p>The booking, the work order, the sale and the message are the same customer. No reconciliation,
-        because there is nothing to reconcile.</p></div>
-    <div class="ctx-card"><div class="n">Signals</div><div class="k">Who stopped coming</div>
-      <p>Lapsed-customer detection, segmentation and campaigns run off that record — so a shop can act on
-        it without exporting anything.</p></div>
-    <div class="ctx-card"><div class="n">The point</div><div class="k">Not a feature list</div>
-      <p>Intake is the only one of the four systems that could do this, because it is the only one
-        holding the whole customer.</p></div>
+  <div class="mech">
+    <p><b>Intake's answer is structural.</b> Every booking, work order, sale, note and message lands on
+      one customer record — and the marketing tools read from that record rather than from a copy of it.
+      There is nothing to reconcile, so the half-day job doesn't exist.</p>
   </div>
+
+  <div class="rows2">
+    <div class="r"><div class="k">Who stopped coming<small>Lapsed-customer signals</small></div>
+      <p>Intake watches for the customer who used to come every spring and didn't this year, and surfaces
+        them while there is still time to do something about it.</p></div>
+    <div class="r"><div class="k">Who to talk to<small>Segments</small></div>
+      <p>Built from what people actually bought and booked — not a list typed into a separate tool and
+        stale by the following week.</p></div>
+    <div class="r"><div class="k">Saying it<small>Campaigns and the inbox</small></div>
+      <p>Email and messaging that send from the same record, with consent and replies in one place rather
+        than in a marketing tool nobody in the shop opens.</p></div>
+    <div class="r"><div class="k">The counter<small>The pad</small></div>
+      <p>Every shop runs on paper somewhere, because the software couldn't hold it. The dashboard has a
+        pad reachable from anywhere, and a note attaches to the customer so it's there next time.</p></div>
+  </div>
+
+  <p class="lede">All of it points the same way: remove friction from the sale, and make it easy for
+    someone to be a customer. And alongside the retention and recovery tools, we've tried to address
+    every tool a business needs to run, in one place.</p>
+
+  <p class="lede founder">Intake was built by a shop owner who felt these frustrations and knew he could
+    patch the holes in the ship.</p>
 
   <div class="legend">
     <b>This is why the software gets kept.</b> A tool that saves money is the first thing cut when money

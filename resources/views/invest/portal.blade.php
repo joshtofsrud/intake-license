@@ -52,7 +52,7 @@
 
   {{-- MARKER-INVEST-RETENTION --}}
   <details class="sec" id="s-keep">
-    <summary>Most shops don't market at all <span class="cap">&mdash; and why that is the opportunity</span></summary>
+    <summary>Retention and recovery <span class="cap">&mdash; most shops don't market at all</span></summary>
     <div class="body">@include('invest._retention')</div>
   </details>
 

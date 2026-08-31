@@ -233,6 +233,16 @@ details.sec .body section + section{padding-top:30px}
 .cf p{font-size:14.5px;line-height:1.65;margin-top:10px}
 .cf .btn{margin-top:20px}
 
+/* MARKER-RETENTION-MECH — the answer, set apart from the evidence for it. */
+.mech{background:var(--panel);border:1px solid var(--lime-line);border-radius:12px;padding:22px 24px;
+  margin-top:20px}
+.mech p{font-size:16px;line-height:1.6;color:var(--text);margin:0;max-width:70ch}
+.mech p b{color:var(--lime)}
+
+/* The founder line closes the section and reads as a statement, not body copy. */
+.lede.founder{color:var(--text);font-size:17px;font-weight:600;letter-spacing:-.3px;
+  border-left:2px solid var(--lime-line);padding-left:15px;margin-top:22px}
+
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 /* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
    page and the personal page. */
