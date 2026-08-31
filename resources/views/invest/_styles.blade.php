@@ -269,6 +269,24 @@ details.sec .body section + section{padding-top:30px}
    one throws the submission away. */
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 
+/* MARKER-MARKET-FIVEPCT — four columns for the market table only. The five per
+   cent column carries the lime, because it is the number that matters; the
+   whole-market column is context beside it. */
+.stack.mkt .srow{grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 110px 100px}
+.stack.mkt .srow .five{color:var(--lime);font-weight:650}
+.stack.mkt .srow.head{padding-top:10px;padding-bottom:10px}
+.stack.mkt .srow.head b,.stack.mkt .srow.head .note,.stack.mkt .srow.head .amt{
+  font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim)}
+.stack.mkt .srow.sum .five{color:var(--lime);font-weight:700}
+@media(max-width:700px){
+  .stack.mkt .srow{grid-template-columns:minmax(0,1fr) auto auto;gap:4px 12px}
+  .stack.mkt .srow b{grid-column:1;grid-row:1}
+  .stack.mkt .srow .note{grid-column:1;grid-row:2}
+  .stack.mkt .srow .amt{grid-column:2;grid-row:1}
+  .stack.mkt .srow .five{grid-column:3;grid-row:1}
+  .stack.mkt .srow.head{display:none}
+}
+
 footer{border-top:1px solid var(--line);padding:28px 0;font-size:12px;color:var(--dim)}
 /* MARKER-INVEST-CONTEXT — cost stack and proof cards, shared by the gated
    page and the personal page. */
