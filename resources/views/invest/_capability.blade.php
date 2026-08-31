@@ -101,7 +101,9 @@
 
         <p class="fine">The number matters more than the names: every one of these is switched on or off
           for a single business without a branch, a build or a migration. That is the claim — not that
-          the list is long, but that adding to it costs one pack rather than one fork. Counts are read
+          the list is long, but that adding to it costs one pack rather than one fork.
+          {{-- MARKER-INVEST-PARITY2 --}}Bike is first because it is hardest; each trade after
+          it lands as a proper fit rather than a generic tool bent into shape. Counts are read
           from the live catalogue, not maintained by hand on this page.</p>
       </div>
     </details>
