@@ -17,7 +17,9 @@ class UploadController extends Controller
     {
         $request->validate([
             'file' => ['required', 'file', 'max:' . self::MAX_SIZE_KB, 'mimes:' . implode(',', self::ALLOWED)],
-            'type' => ['nullable', 'string', 'in:logo,logo_light,favicon,hero,gallery,general'],
+            // MARKER-LOGOBAR-PICKER — partner_logo keeps logo-bar art out of
+            // the 'logo' folder, which overwrites the tenant's own brand logo.
+            'type' => ['nullable', 'string', 'in:logo,logo_light,favicon,hero,gallery,general,partner_logo'],
         ]);
 
         $tenant = tenant();

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 class MediaLibraryController extends Controller
 {
     /** Folders surfaced as filters (matches UploadController::ALLOWED types). */
-    private const FOLDERS = ['general', 'hero', 'gallery', 'logo', 'logo_light', 'favicon'];
+    private const FOLDERS = ['general', 'hero', 'gallery', 'logo', 'logo_light', 'favicon', 'partner_logo']; // MARKER-LOGOBAR-PICKER
 
     public function index(Request $request)
     {

@@ -1370,11 +1370,28 @@ body.ia-theme-b .pb2-preview-frame-wrap {
   padding: 8px 8px 8px 10px;
   margin-bottom: 6px;
 }
+.pb2-insp-body .pb2-logorow {
+  grid-template-columns: 14px 46px 1fr auto; /* MARKER-LOGOBAR-PICKER — thumb column */
+}
 .pb2-insp-body .pb2-logorow-fields {
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1.2fr;
+  grid-template-columns: 1fr 1fr auto;
   gap: 6px;
+  align-items: center;
 }
+/* MARKER-LOGOBAR-PICKER */
+.pb2-insp-body .pb2-logo-thumb {
+  width: 46px; height: 32px; border-radius: 4px;
+  background: var(--pb2-surface-3, rgba(255,255,255,.06)) center/contain no-repeat;
+  border: 1px solid var(--pb2-border, rgba(255,255,255,.12));
+}
+.pb2-insp-body .pb2-logo-acts { display: flex; gap: 4px; }
+.pb2-insp-body .pb2-logo-btn {
+  font-size: 10.5px; padding: 4px 7px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--pb2-border, rgba(255,255,255,.12));
+  background: none; color: var(--pb2-text-dim, rgba(255,255,255,.6));
+}
+.pb2-insp-body .pb2-logo-btn:hover { color: var(--pb2-text, #f0f0f0); background: rgba(255,255,255,.06); }
 
 /* MARKER-PATCH-158-G33 — FAQ accordion items list editor */
 .pb2-insp-body .pb2-faqrow {
@@ -3070,6 +3087,55 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       });
       const rm = row.querySelector('[data-logo-remove]');
       if (rm) rm.addEventListener('click', () => { row.remove(); serialize(); });
+
+      // MARKER-LOGOBAR-PICKER — image comes from an upload or the library,
+      // like every other image field in the builder.
+      const hidden = row.querySelector('[data-logo-field="logo_url"]');
+      const thumb  = row.querySelector('[data-logo-thumb]');
+      const clear  = row.querySelector('[data-logo-clear]');
+      function setUrl(url) {
+        hidden.value = url || '';
+        if (thumb) thumb.style.backgroundImage = url ? `url('${url}')` : '';
+        if (clear) clear.style.display = url ? '' : 'none';
+        serialize();
+      }
+      const up = row.querySelector('[data-logo-upload]');
+      if (up) up.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', async () => {
+          const file = input.files?.[0];
+          input.remove();
+          if (!file) return;
+          setStatus('Uploading\u2026');
+          const fd = new FormData();
+          fd.append('_token', getCsrf());
+          fd.append('file', file);
+          fd.append('type', 'partner_logo'); // never 'logo' — that is the brand logo
+          try {
+            const resp = await fetch(UPLOAD_URL, {
+              method: 'POST', body: fd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            });
+            const data = await resp.json();
+            if (data && data.ok && data.url) { setUrl(data.url); setStatus('Uploaded \u2713', 1500); }
+            else { setStatus('Upload failed', 3000); IntakeConfirm.alert({ title: 'Upload failed', message: (data && data.message) || 'Please try again.' }); }
+          } catch (e) {
+            setStatus('Upload failed', 3000); console.error(e);
+            IntakeConfirm.alert({ title: 'Upload failed', message: 'Please try again.' });
+          }
+        });
+        input.click();
+      });
+      const lib = row.querySelector('[data-logo-lib]');
+      if (lib) lib.addEventListener('click', () => {
+        window.__logoPick = setUrl;
+        openMediaPicker('__logo_pick');
+      });
+      if (clear) clear.addEventListener('click', () => setUrl(''));
     }
 
     root.querySelectorAll('.pb2-logorow').forEach(wireRow);
@@ -3081,10 +3147,16 @@ body.ia-theme-b .pb2-preview-frame-wrap {
         row.className = 'pb2-logorow';
         row.innerHTML = `
           <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-logo-thumb" data-logo-thumb></div>
           <div class="pb2-logorow-fields">
             <input type="text" class="pb2-input pb2-input-sm" data-logo-field="name" placeholder="Name (e.g. Acme Co)">
-            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-logo-field="logo_url" placeholder="Logo image URL (optional)">
             <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-logo-field="link_url" placeholder="Link URL (optional)">
+            <div class="pb2-logo-acts">
+              <button type="button" class="pb2-logo-btn" data-logo-upload>Upload</button>
+              <button type="button" class="pb2-logo-btn" data-logo-lib>Library</button>
+              <button type="button" class="pb2-logo-btn" data-logo-clear style="display:none">Clear</button>
+            </div>
+            <input type="hidden" data-logo-field="logo_url">
           </div>
           <button type="button" class="pb2-navlist-remove" data-logo-remove title="Remove">×</button>
         `;
@@ -3961,6 +4033,12 @@ body.ia-theme-b .pb2-preview-frame-wrap {
       cell.addEventListener('click', () => {
         // MARKER-CAROUSEL-SECTION -- append mode hands the pick to the image
         // repeater and keeps the modal open so several can be added at once.
+        if (field === '__logo_pick' && window.__logoPick) { // MARKER-LOGOBAR-PICKER
+          window.__logoPick(cell.dataset.url);
+          window.__logoPick = null;
+          closeMediaPicker();
+          return;
+        }
         if (field === '__gimg_append' && window.__gimgAppend) {
           window.__gimgAppend(cell.dataset.url);
           setStatus('Added \u2713', 1200);

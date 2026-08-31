@@ -70,17 +70,24 @@
     </div>
 
     <div class="pb2-field-hint" style="text-align:left;margin-bottom:8px;display:block">
-      Name is required. Logo URL renders the actual image; without one, the name shows as a text pill. Link URL is optional — makes the logo clickable.
+      Name is required. Add an image with Upload or From library — without one, the name shows as a text pill. Link URL is optional — makes the logo clickable.
     </div>
 
     <div id="pb2-logo-list">
       @foreach($logos as $i => $lg)
+        {{-- MARKER-LOGOBAR-PICKER — image via thumbnail + Upload / library. --}}
         <div class="pb2-logorow" data-logo-idx="{{ $i }}">
           <span class="pb2-navlist-handle">⋮⋮</span>
+          <div class="pb2-logo-thumb" data-logo-thumb style="{{ ($lg['logo_url'] ?? '') ? "background-image:url('" . $lg['logo_url'] . "')" : '' }}"></div>
           <div class="pb2-logorow-fields">
             <input type="text" class="pb2-input pb2-input-sm" data-logo-field="name" value="{{ $lg['name'] ?? '' }}" placeholder="Name (e.g. Acme Co)">
-            <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-logo-field="logo_url" value="{{ $lg['logo_url'] ?? '' }}" placeholder="Logo image URL (optional)">
             <input type="text" class="pb2-input pb2-input-sm pb2-input-mono" data-logo-field="link_url" value="{{ $lg['link_url'] ?? '' }}" placeholder="Link URL (optional)">
+            <div class="pb2-logo-acts">
+              <button type="button" class="pb2-logo-btn" data-logo-upload>Upload</button>
+              <button type="button" class="pb2-logo-btn" data-logo-lib>Library</button>
+              <button type="button" class="pb2-logo-btn" data-logo-clear style="{{ ($lg['logo_url'] ?? '') ? '' : 'display:none' }}">Clear</button>
+            </div>
+            <input type="hidden" data-logo-field="logo_url" value="{{ $lg['logo_url'] ?? '' }}">
           </div>
           <button type="button" class="pb2-navlist-remove" data-logo-remove title="Remove">×</button>
         </div>
