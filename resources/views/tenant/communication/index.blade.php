@@ -239,6 +239,8 @@
     <button class="cc-tab on" data-tab="messages" type="button">Messages</button>
     <button class="cc-tab" data-tab="inbound" type="button">Inbound</button>
     <button class="cc-tab" data-tab="activity" type="button">Activity</button>
+    {{-- MARKER-COMMS-ONE-HOME --}}
+    <button class="cc-tab" data-tab="suppressions" type="button">Suppressions {{ $suppressionCount ? '(' . $suppressionCount . ')' : '' }}</button>
     {{-- MARKER-CAMPAIGNS-MERGE — link, not a panel: campaigns live on their
          own page and this tab navigates there. No data-tab on purpose. --}}
     <a class="cc-tab" href="{{ route('tenant.campaigns.index') }}" style="text-decoration:none;display:inline-block">Campaigns</a>
@@ -312,14 +314,6 @@
             </tr>
           @endforeach
 
-          <tr class="cc-grp"><td colspan="5">System</td></tr>
-          <tr>
-            <td><div class="cc-mname">Password reset</div><div class="cc-mdesc">Staff requests a reset</div></td>
-            <td class="c"><span class="cc-always">Always</span></td>
-            <td class="c"><span class="cc-dash">—</span></td>
-            <td class="cc-fires">Staff clicks “forgot password”</td>
-            <td><a class="cc-edit" href="{{ route('tenant.emails.index') }}">Edit</a></td>
-          </tr>
         </tbody>
       </table>
 
@@ -412,6 +406,35 @@
   </div>
 
   {{-- ================= ACTIVITY ================= --}}
+  {{-- MARKER-COMMS-ONE-HOME — bounces and complaints. These addresses are
+       refused at send time; the list is evidence, not a preference. --}}
+  <div class="cc-view" id="cc-suppressions">
+    <p style="font-size:13px;opacity:.6;margin:0 0 16px;max-width:70ch">
+      Addresses that bounced or reported spam. Nothing is sent to them — removing one here
+      only lets a future send try again, so remove only when you know the address is good.
+    </p>
+    @if($suppressions->isEmpty())
+      <p style="font-size:13px;opacity:.45">Nothing suppressed. That's the healthy state.</p>
+    @else
+      <table class="cc-table" style="width:100%">
+        <tr><th style="text-align:left">Address</th><th style="text-align:left">Reason</th><th style="text-align:left">Added</th><th></th></tr>
+        @foreach($suppressions as $s)
+          <tr>
+            <td>{{ $s->email }}</td>
+            <td style="opacity:.6">{{ $s->reason ?: '—' }}</td>
+            <td style="opacity:.6">{{ $s->created_at?->format('M j, Y') }}</td>
+            <td style="text-align:right">
+              <form method="POST" action="{{ route('tenant.suppressions.destroy', $s->id) }}" onsubmit="return false" data-supp-remove>
+                @csrf @method('DELETE')
+                <button type="button" class="ia-btn ia-btn--sm" onclick="ccRemoveSuppression(this)">Remove</button>
+              </form>
+            </td>
+          </tr>
+        @endforeach
+      </table>
+    @endif
+  </div>
+
   <div class="cc-view" id="cc-activity">
     @if($logs->isEmpty())
       <div class="cc-log"><div class="cc-empty">No messages sent yet. Once a receipt or notification goes out, it shows up here.</div></div>
@@ -648,3 +671,21 @@
   ccLogoPrev();
 </script>
 @endpush
+
+
+{{-- MARKER-COMMS-ONE-HOME --}}
+<script>
+function ccRemoveSuppression(btn) {
+  var form = btn.closest('[data-supp-remove]');
+  var row  = btn.closest('tr');
+  var addr = row ? row.querySelector('td').textContent.trim() : 'this address';
+  IntakeConfirm.show({
+    title: 'Allow email to ' + addr + ' again?',
+    message: 'It was suppressed because a message bounced or was reported as spam. Sending to a bad address again can hurt delivery for everyone in your shop.',
+    confirmText: 'Remove from list',
+    danger: true
+  }).then(function (ok) {
+    if (ok) { form.onsubmit = null; form.submit(); }
+  });
+}
+</script>

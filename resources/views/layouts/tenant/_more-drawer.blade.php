@@ -177,12 +177,6 @@
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h11M5 5v7.5" stroke="currentColor" stroke-width="1.2"/></svg>',
       'group'  => 'engage',
     ],
-    [
-      'route'  => 'tenant.emails.index',
-      'label'  => 'Email',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 4l5.5 4 5.5-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-      'group'  => 'engage',
-    ],
     // MARKER-PATCH-147 — tenant-facing suppression list
     [
       'route'  => 'tenant.suppressions.index',
@@ -267,7 +261,7 @@
       'tenant.help.index', 'tenant.locations.index', 'tenant.storefront.settings', 'tenant.booking_modes.index',
       'tenant.capacity.index', 'tenant.settings.index', 'tenant.feature_addons.index',
     ];
-    $navDrop547  = ['tenant.emails.index', 'tenant.suppressions.index', 'tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
+    $navDrop547  = ['tenant.suppressions.index', 'tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
     $gw547       = ['manage' => 1, 'engage' => 2, 'settings' => 3];
     $navItems = collect($navItems)
         ->reject(fn ($i) => in_array($i['route'], $navDrop547))

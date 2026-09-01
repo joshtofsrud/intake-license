@@ -1026,13 +1026,11 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/website/templates/customize',    [TenantControllers\SiteTemplateController::class, 'customize'])->name('templates.customize'); // MARKER-CUSTOMIZER
             Route::post('/website/templates/{key}/apply',  [TenantControllers\SiteTemplateController::class, 'apply'])->where('key', '[a-z]+')->name('templates.apply');
 
-            Route::get('/emails',               [TenantControllers\EmailController::class, 'index'])->name('emails.index');
             // MARKER-PATCH-404 — Communication Center (unified comms surface)
             Route::get('/communication',        [TenantControllers\CommunicationController::class, 'index'])->name('communication.index');
             Route::patch('/communication',      [TenantControllers\CommunicationController::class, 'updateToggles'])->name('communication.toggles');
             Route::patch('/communication/template/{type}', [TenantControllers\CommunicationController::class, 'saveTemplate'])->name('communication.template'); // MARKER-PATCH-405
             Route::post('/communication/test/{type}', [TenantControllers\CommunicationController::class, 'sendTest'])->name('communication.test'); // MARKER-PATCH-409
-            Route::patch('/emails/{type}',      [TenantControllers\EmailController::class, 'update'])->name('emails.update');
             // MARKER-PATCH-160 — re-send a receipt from sale-detail (also accepts ?email= for "send to another")
             Route::post('/sales/{id}/resend-receipt',
                 [TenantControllers\RegisterController::class, 'resendReceipt'])
@@ -1179,7 +1177,6 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/team/{id}/resend-invite',        [TenantControllers\TeamController::class, 'resendInvite'])->name('team.resend-invite'); // MARKER-INVITE-RESEND
 
             // MARKER-PATCH-143 — Test email send endpoint (settings card)
-            Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
             // MARKER-PATCH-150 — Web analytics settings (GA-4 etc)
             Route::post('/settings/analytics', [TenantControllers\AnalyticsSettingsController::class, 'update'])->name('settings.analytics.update');
 

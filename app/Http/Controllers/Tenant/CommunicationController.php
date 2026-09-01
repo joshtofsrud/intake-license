@@ -37,6 +37,12 @@ class CommunicationController extends Controller
             ['group'=>'Lifecycle','key'=>'delivery_scheduled','label'=>'Delivery scheduled','desc'=>'Tells the customer your pickup or dropoff window','fires'=>'You schedule a pickup or dropoff','channels'=>['email','sms'],'template'=>'delivery_scheduled','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'{{shop_name}}: your pickup or dropoff is scheduled','def_body'=>'Hi {{first_name}}, your {{shop_name}} pickup or dropoff is scheduled for {{date}}. Reply to this email if you need to change anything.'],
             ['group'=>'Lifecycle','key'=>'appointment_reminder','label'=>'Appointment reminder','desc'=>'24 hours before the appointment','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'appointment_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: your {{shop_name}} appointment is tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your appointment with {{shop_name}} is tomorrow, {{date}}.'],
             ['group'=>'Lifecycle','key'=>'delivery_reminder','label'=>'Delivery reminder','desc'=>'24 hours before a pickup or dropoff','fires'=>'Daily — 24h before','channels'=>['email','sms'],'template'=>'delivery_reminder','editor'=>'body','vars'=>['first_name','shop_name','date'],'def_subject'=>'Reminder: {{shop_name}} pickup or dropoff tomorrow','def_body'=>'Hi {{first_name}}, a reminder that your {{shop_name}} pickup or dropoff is tomorrow, {{date}}.'],
+
+            // MARKER-COMMS-ONE-HOME — these two lived ONLY on /admin/emails,
+            // which was hidden from the nav. They still send from saved rows,
+            // so until now a shop could not word them at all.
+            ['group'=>'Staff & status','key'=>'status_update','label'=>'Work-order status update','desc'=>'Tells the customer their work order moved','fires'=>'You change a work order status','channels'=>['email'],'template'=>'status_update','editor'=>'body','vars'=>['first_name','ra_number','status','status_note','shop_name'],'def_subject'=>'Your work order {{ra_number}} has been updated','def_body'=>'Hi {{first_name}}, your work order {{ra_number}} has been updated. New status: {{status}}. {{status_note}}'],
+            ['group'=>'Staff & status','key'=>'password_reset','label'=>'Staff password reset','desc'=>'Goes to your own team, not customers','fires'=>'A staff member requests a reset','channels'=>['email'],'template'=>'password_reset','editor'=>'body','vars'=>['name','reset_url','shop_name'],'def_subject'=>'Reset your password — {{shop_name}}','def_body'=>'Hi {{name}}, you requested a password reset for your {{shop_name}} staff account. The button below expires in 60 minutes.'],
         ];
     }
 
@@ -90,6 +96,11 @@ class CommunicationController extends Controller
             'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
             'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
             'testEmail'     => optional(auth()->user())->email ?? '',
+            // MARKER-COMMS-ONE-HOME — suppressions belong with the rest of
+            // the email surface, not on their own hidden page.
+            'suppressions'       => \App\Models\Tenant\TenantEmailSuppression::where('tenant_id', $tenant->id)
+                                        ->orderByDesc('created_at')->limit(200)->get(),
+            'suppressionCount'   => \App\Models\Tenant\TenantEmailSuppression::where('tenant_id', $tenant->id)->count(),
             'emailLogoChoice'    => $tenant->settings['email_logo_choice'] ?? 'light',
             'emailLogoCustomUrl' => $tenant->settings['email_logo_custom_url'] ?? '',
             'logoLight'          => $tenant->logo_light_url ?? '',
@@ -228,6 +239,15 @@ class CommunicationController extends Controller
                     'delivery_scheduled'   => 'delivery_pickup_scheduled',
                     'delivery_reminder'    => 'delivery_pickup_reminder',
                 ][$type] ?? $type;
+
+                // MARKER-COMMS-ONE-HOME — a test reset would need a real,
+                // working token; issuing one by email button is not something
+                // a preview should do.
+                if ($type === 'password_reset') {
+                    return response()->json([
+                        'message' => 'Password reset can be edited here, but not test-sent — it needs a real reset link. Use "Forgot password" on the staff sign-in page to see it.',
+                    ], 422);
+                }
 
                 \App\Services\EmailService::forTenant($tenant)->send($renderKey, $email, $this->sampleVars($tenant));
             }

@@ -46,7 +46,6 @@ class SectionRegistry
             'pages'             => ['label' => 'Pages',              'group' => 'engage',   'prefixes' => ['tenant.pages'],                                'gate' => null],
             'templates'         => ['label' => 'Templates',          'group' => 'engage',   'prefixes' => ['tenant.templates'],                            'gate' => null],
             'communication'     => ['label' => 'Communication',      'group' => 'engage',   'prefixes' => ['tenant.communication'],                        'gate' => null],
-            'email'             => ['label' => 'Email',              'group' => 'engage',   'prefixes' => ['tenant.emails'],                               'gate' => null],
             'suppressions'      => ['label' => 'Suppressions',       'group' => 'engage',   'prefixes' => ['tenant.suppressions'],                         'gate' => null],
             'waitlist'          => ['label' => 'Waitlist',           'group' => 'engage',   'prefixes' => ['tenant.waitlist'],                             'gate' => null],
             'campaigns'         => ['label' => 'Campaigns',          'group' => 'engage',   'prefixes' => ['tenant.campaigns'],                            'gate' => null],
