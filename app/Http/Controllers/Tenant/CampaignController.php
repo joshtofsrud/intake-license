@@ -213,7 +213,13 @@ class CampaignController extends Controller
             'preheader'  => $preheader,
         ]);
 
+        // MARKER-CAMPAIGN-SCHED — editing something already aimed at customers
+        // returns it to draft rather than quietly changing what will go out.
+        $wasScheduled = $campaign->status === 'scheduled';
+
         $campaign->update([
+            'status'       => $wasScheduled ? 'draft' : $campaign->status,
+            'scheduled_at' => $wasScheduled ? null : $campaign->scheduled_at,
             'name'        => $name,
             'subject'     => $subject,
             'preheader'   => $preheader !== '' ? $preheader : null,
@@ -223,7 +229,9 @@ class CampaignController extends Controller
             'targeting' => ['segment' => $segment],
         ]);
 
-        return back()->with('success', 'Campaign saved.');
+        return back()->with('success', $wasScheduled
+            ? 'Saved — and the schedule was cleared, because the campaign changed. Schedule it again when you are ready.'
+            : 'Campaign saved.');
     }
 
     /**
@@ -327,6 +335,69 @@ class CampaignController extends Controller
             : '';
 
         return back()->with('success', "Sending to {$mailable->count()} recipient(s){$note}. Emails go out in batches over the next minutes.");
+    }
+
+    /**
+     * MARKER-CAMPAIGN-SCHED — arm a campaign for later.
+     *
+     * Deliberately does NOT queue recipient rows now. The worker builds the
+     * list when it fires, so a customer who unsubscribes between scheduling
+     * and sending is excluded — queueing early would mail them anyway.
+     */
+    public function schedule(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $campaign = TenantCampaign::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        if ($campaign->status !== 'draft') {
+            return back()->with('error', 'Only a draft can be scheduled.');
+        }
+
+        if (trim((string) $campaign->subject) === '' || empty($campaign->blocks)) {
+            return back()->with('error', 'Add a subject and at least one content block first.');
+        }
+
+        if (\App\Services\EmailLedger::broadcastStream() === null) {
+            return back()->with('error', 'Campaign sending isn\'t switched on for the platform yet, so it can\'t be scheduled either. Your draft is safe.');
+        }
+
+        $raw = trim((string) $request->input('scheduled_at'));
+        if ($raw === '') {
+            return back()->with('error', 'Pick a date and time to send.');
+        }
+
+        // Entered in the shop's timezone; stored UTC.
+        try {
+            $when = \Carbon\Carbon::parse($raw, $tenant->timezone())->utc();
+        } catch (\Throwable $e) {
+            return back()->with('error', 'That date and time could not be read.');
+        }
+
+        if ($when->lessThan(now()->addMinutes(5))) {
+            return back()->with('error', 'Schedule at least 5 minutes out, so there is time to cancel. Use Send now if you mean immediately.');
+        }
+
+        $campaign->update([
+            'status'       => 'scheduled',
+            'scheduled_at' => $when,
+        ]);
+
+        return back()->with('success', 'Scheduled for ' . $when->copy()->setTimezone($tenant->timezone())->format('M j, Y \a\t g:ia') . '. You can cancel any time before then.');
+    }
+
+    /** MARKER-CAMPAIGN-SCHED — disarm, back to draft. */
+    public function unschedule(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $campaign = TenantCampaign::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        if ($campaign->status !== 'scheduled') {
+            return back()->with('error', 'That campaign is not scheduled.');
+        }
+
+        $campaign->update(['status' => 'draft', 'scheduled_at' => null]);
+
+        return back()->with('success', 'Schedule cancelled — it is a draft again.');
     }
 
     /**

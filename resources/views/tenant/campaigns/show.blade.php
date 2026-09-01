@@ -504,6 +504,10 @@
     <p class="ia-page-subtitle">
       @if($campaign->status === 'draft')
         Draft — not yet sent
+      @elseif($campaign->status === 'scheduled')
+        {{-- MARKER-CAMPAIGN-SCHED — shown in the shop's timezone, since that
+             is the clock the person scheduling it is reading. --}}
+        Scheduled for {{ $campaign->scheduled_at?->setTimezone(tenant()->timezone())->format('M j, Y \a\t g:ia') }}
       @elseif($campaign->status === 'sending')
         Sending now…
       @elseif($campaign->status === 'sent')
@@ -699,11 +703,44 @@
         Goes only to customers with marketing permission, in batches, with an
         unsubscribe link in every email. Once sent, content cannot be edited.
       </p>
-      <form method="POST" action="{{ route('tenant.campaigns.send', $campaign->id) }}"
-        onsubmit="return confirm('Send this campaign now? This cannot be undone.');">
+      {{-- MARKER-CAMPAIGN-SCHED — house rule: no native dialogs. --}}
+      <form method="POST" action="{{ route('tenant.campaigns.send', $campaign->id) }}" id="cb-send-form">
         @csrf
-        <button type="submit" class="ia-btn ia-btn--primary" style="width:100%">Send now</button>
+        <button type="button" class="ia-btn ia-btn--primary" style="width:100%" onclick="cbConfirmSend()">Send now</button>
       </form>
+
+      <div style="margin-top:12px;padding-top:12px;border-top:.5px solid var(--ia-border)">
+        <form method="POST" action="{{ route('tenant.campaigns.schedule', $campaign->id) }}">
+          @csrf
+          <label style="font-size:11px;opacity:.5;display:block;margin-bottom:5px">Or schedule it</label>
+          <input type="datetime-local" name="scheduled_at" class="ia-input" style="width:100%"
+            min="{{ now()->setTimezone(tenant()->timezone())->addMinutes(5)->format('Y-m-d\TH:i') }}"
+            value="{{ now()->setTimezone(tenant()->timezone())->addDay()->setTime(9, 0)->format('Y-m-d\TH:i') }}">
+          <button type="submit" class="ia-btn" style="width:100%;margin-top:8px">Schedule</button>
+          <p style="font-size:10.5px;opacity:.45;margin:6px 0 0;line-height:1.45">
+            Times are your shop's ({{ tenant()->timezone() }}). At least 5 minutes out.
+            Recipients are worked out when it sends, so anyone who opts out before then is skipped.
+          </p>
+        </form>
+      </div>
+    </div>
+  @elseif($campaign->status === 'scheduled')
+    {{-- MARKER-CAMPAIGN-SCHED --}}
+    <div class="cb-col">
+      <div class="cb-col-title">Scheduled</div>
+      <p style="font-size:13px;margin:0 0 4px">
+        {{ $campaign->scheduled_at?->setTimezone(tenant()->timezone())->format('M j, Y \a\t g:ia') }}
+      </p>
+      <p style="font-size:11px;opacity:.45;margin:0 0 12px;line-height:1.45">
+        {{ $campaign->scheduled_at?->diffForHumans() }} · recipients are worked out when it sends.
+      </p>
+      <form method="POST" action="{{ route('tenant.campaigns.unschedule', $campaign->id) }}">
+        @csrf
+        <button type="submit" class="ia-btn" style="width:100%">Cancel schedule</button>
+      </form>
+      <p style="font-size:10.5px;opacity:.45;margin:8px 0 0;line-height:1.45">
+        Editing the campaign also cancels the schedule, so nothing changes underneath it.
+      </p>
     </div>
   @else
     <div class="cb-col">
@@ -1599,13 +1636,21 @@ window.CB = (function() {
 
     remove(id) {
       if (readOnly) return;
-      if (!confirm('Remove this block?')) return;
+      // MARKER-CAMPAIGN-SCHED — in-app dialog, no browser prompts.
+      IntakeConfirm.show({
+        title: 'Remove this block?',
+        message: 'It comes out of the email. You can add it again from the palette.',
+        confirmText: 'Remove',
+        danger: true
+      }).then((ok) => {
+        if (!ok) return;
       blocks = blocks.filter(b => b.id !== id);
       if (selectedId === id) selectedId = blocks.length > 0 ? blocks[0].id : null;
       renderBlocksList();
       renderSettings();
       syncHiddenInput();
       requestPreview();
+      });
     },
 
     select(id) {
@@ -1711,7 +1756,14 @@ window.CB = (function() {
 
     async deleteImage(id, ev) {
       if (ev) ev.stopPropagation();
-      if (!confirm('Delete this image? This cannot be undone.')) return;
+      // MARKER-CAMPAIGN-SCHED — in-app dialog, no browser prompts.
+      const ok = await IntakeConfirm.show({
+        title: 'Delete this image?',
+        message: 'It is removed from your campaign library. Emails already sent keep it; drafts using it will show a gap.',
+        confirmText: 'Delete',
+        danger: true
+      });
+      if (!ok) return;
       try {
         await fetch('/admin/campaign-images/' + id, {
           method: 'DELETE',
@@ -1764,3 +1816,18 @@ window.CB = (function() {
 document.addEventListener('DOMContentLoaded', CB.init);
 </script>
 @endpush
+
+
+{{-- MARKER-CAMPAIGN-SCHED --}}
+<script>
+function cbConfirmSend() {
+  IntakeConfirm.show({
+    title: 'Send this campaign now?',
+    message: 'It goes out to everyone in the segment with marketing permission. This cannot be undone.',
+    confirmText: 'Send now',
+    danger: true
+  }).then(function (ok) {
+    if (ok) document.getElementById('cb-send-form').submit();
+  });
+}
+</script>

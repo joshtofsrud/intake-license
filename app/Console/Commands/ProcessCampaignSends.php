@@ -23,6 +23,70 @@ class ProcessCampaignSends extends Command
     protected $signature   = 'campaigns:process-sends {--limit=120}';
     protected $description = 'Send pending campaign emails (throttled, consent-checked)';
 
+    /**
+     * MARKER-CAMPAIGN-SCHED — scheduled campaigns whose time has passed.
+     * The recipient list is built here, at fire time, for the same reason
+     * send() builds it at click time: consent as it stands when the mail
+     * actually goes out.
+     */
+    private function fireDueCampaigns(): void
+    {
+        $due = TenantCampaign::where('status', 'scheduled')
+            ->whereNotNull('scheduled_at')
+            ->where('scheduled_at', '<=', now())
+            ->get();
+
+        foreach ($due as $campaign) {
+            $tenant = Tenant::find($campaign->tenant_id);
+            if (! $tenant) {
+                continue;
+            }
+
+            // A month can turn over between scheduling and firing.
+            $capState = \App\Services\EmailLedger::capState($tenant);
+            if ($capState['capped'] && $capState['reached']) {
+                $campaign->update(['status' => 'draft', 'scheduled_at' => null]);
+                logger()->warning('scheduled campaign returned to draft: email cap reached', [
+                    'campaign_id' => $campaign->id, 'tenant_id' => $tenant->id,
+                ]);
+                continue;
+            }
+
+            $segment = $campaign->targeting['segment'] ?? 'all';
+            $base = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id);
+            if ($segment === 'has_appointment') {
+                $base->whereHas('appointments');
+            }
+            $mailable = (clone $base)->emailMailable()->get(['id', 'email']);
+
+            if ($mailable->isEmpty()) {
+                $campaign->update(['status' => 'draft', 'scheduled_at' => null]);
+                logger()->warning('scheduled campaign returned to draft: no recipients with permission', [
+                    'campaign_id' => $campaign->id, 'tenant_id' => $tenant->id,
+                ]);
+                continue;
+            }
+
+            foreach ($mailable as $customer) {
+                \App\Models\Tenant\TenantCampaignSend::create([
+                    'campaign_id'    => $campaign->id,
+                    'customer_id'    => $customer->id,
+                    'email'          => $customer->email,
+                    'status'         => 'pending',
+                    'tracking_token' => \Illuminate\Support\Str::random(32),
+                    'created_at'     => now(),
+                ]);
+            }
+
+            $campaign->update([
+                'status'           => 'sending',
+                'total_recipients' => $mailable->count(),
+            ]);
+
+            $this->info("Fired scheduled campaign {$campaign->id} to {$mailable->count()} recipients");
+        }
+    }
+
     public function handle(): int
     {
         $limit = max(1, (int) $this->option('limit'));
@@ -32,6 +96,10 @@ class ProcessCampaignSends extends Command
             // configures the Postmark broadcast stream.
             return self::SUCCESS;
         }
+
+        // MARKER-CAMPAIGN-SCHED — arm anything whose time has come, building
+        // the recipient list NOW so opt-outs since scheduling are respected.
+        $this->fireDueCampaigns();
 
         $campaigns = TenantCampaign::where('status', 'sending')->orderBy('sent_at')->get();
         if ($campaigns->isEmpty()) {
