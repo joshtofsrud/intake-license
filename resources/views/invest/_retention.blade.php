@@ -37,9 +37,13 @@
     patch the holes in the ship.</p>
 
   <div class="legend">
-    <b>This is why the software gets kept.</b> A tool that saves money is the first thing cut when money
-    is tight. A tool that brings customers back is the last. Switching a point of sale is a real
-    undertaking and the product has to earn it — but a shop that has built its customer relationships
-    inside Intake is not going to unpick them, and that is what makes the revenue worth something.
+    {{-- MARKER-PAYS-FOR-ITSELF --}}
+    <b>Intake pays for itself.</b> Recovery signals bring back customers who stopped
+    coming. Rental extensions fill slots that would have been empty. Waitlists put someone in the spot a
+    cancellation left. Each of those is money the shop wouldn't otherwise have taken — which is why
+    software that generates income survives a tight month and software that only saves money doesn't.
+    Switching a point of sale is a real undertaking and the product has to earn it — but a shop that has
+    built its customer relationships inside Intake is not going to unpick them, and that is what makes
+    the revenue worth something.
   </div>
 </div></section>
