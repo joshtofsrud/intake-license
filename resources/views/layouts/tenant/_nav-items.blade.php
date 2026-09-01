@@ -340,10 +340,10 @@
     @continue
   @endif
 
+  {{-- MARKER-NAV-SPACING — the uppercase header already separates groups;
+       a divider on top of it stacked ~36px of dead space per boundary, and
+       with five groups that reads as gappy rather than organised. --}}
   @if($item['group'] !== $lastGroup && $item['group'])
-    @if($lastGroup !== null)
-      <div class="ia-sidebar-divider"></div>
-    @endif
     <div class="ia-nav-section">{{ $groups[$item['group']] }}</div>
     @php $lastGroup = $item['group']; @endphp
   @endif

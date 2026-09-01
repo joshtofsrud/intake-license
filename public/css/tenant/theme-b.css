@@ -100,7 +100,7 @@ body.ia-theme-b {
 }
 
 .ia-nav-section {
-  padding: 16px 20px 4px;
+  padding: 14px 20px 4px; /* MARKER-NAV-SPACING */
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: .09em;
@@ -144,12 +144,6 @@ body.ia-theme-b {
   height: 18px;
   border-radius: 2px;
   background: var(--ia-accent);
-}
-
-.ia-sidebar-divider {
-  height: 0.5px;
-  background: var(--ia-side-border);
-  margin: 10px 20px;
 }
 
 .ia-sidebar-bottom {
@@ -243,7 +237,7 @@ body.ia-theme-b {
     overflow: visible;
   }
   .ia-sidebar-logo { border-bottom: none; margin-bottom: 0; padding: 12px 16px; }
-  .ia-sidebar-shop, .ia-nav-section, .ia-sidebar-divider { display: none; }
+  .ia-sidebar-shop, .ia-nav-section { display: none; }
   .ia-nav-item {
     margin: 4px 4px;
     padding: 6px 12px;

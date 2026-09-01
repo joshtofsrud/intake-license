@@ -1337,7 +1337,6 @@ html.ia-sb-collapsed .ia-nav-item {
 html.ia-sb-collapsed .ia-nav-item svg { opacity: .8; }
 html.ia-sb-collapsed .ia-sidebar-identity { padding-left: 0; padding-right: 0; }
 html.ia-sb-collapsed .ia-sb-user-row { justify-content: center; padding-left: 0; padding-right: 0; }
-html.ia-sb-collapsed .ia-sidebar-divider { margin-left: 10px; margin-right: 10px; }
 
 /* The account menu is absolutely positioned; float it clear of the rail. */
 html.ia-sb-collapsed .ia-sb-user-menu { left: 62px; right: auto; min-width: 210px; }
