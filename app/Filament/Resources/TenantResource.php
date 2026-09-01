@@ -70,17 +70,44 @@ class TenantResource extends Resource
             Forms\Components\Section::make('Customer admin mode')
                 ->description('Opens a temporary onboarding window: the shop can flip marketing consent per customer from the customer list without an attestation modal each time, and remove customers. Removal deletes outright only when nothing references the customer; otherwise it erases their personal data and hides them, because sales and bookings still need the row. Everything is recorded. It expires on its own.')
                 ->schema([
+                    Forms\Components\Placeholder::make('cleanup_state')
+                        ->label('Currently')
+                        ->content(fn ($record) => $record && $record->customerAdminOpen()
+                            ? 'OPEN until ' . $record->consent_cleanup_until->format('M j, Y g:ia')
+                            : 'Closed'),
                     Forms\Components\DateTimePicker::make('consent_cleanup_until')
-                        ->label('Cleanup window open until')
-                        ->helperText('Leave empty for off — the normal state. Use the button to open a 10-day window.')
+                        ->label('Window open until')
+                        ->helperText('Empty means off — the normal state. The buttons below save immediately.')
                         ->seconds(false),
+                    // MARKER-CUST-ADMIN-FIX — these used to only $set() the form,
+                    // so the window looked open in master admin while the column
+                    // stayed null and the shop saw nothing. Write it now.
                     Forms\Components\Actions::make([
                         Forms\Components\Actions\Action::make('open10')
                             ->label('Open for 10 days')
-                            ->action(fn ($set) => $set('consent_cleanup_until', now()->addDays(10))),
+                            ->action(function ($record, $set) {
+                                if (! $record) {
+                                    return;
+                                }
+                                $until = now()->addDays(10);
+                                $record->forceFill(['consent_cleanup_until' => $until])->save();
+                                $set('consent_cleanup_until', $until);
+                                \Filament\Notifications\Notification::make()->success()
+                                    ->title('Customer admin mode opened')
+                                    ->body('Closes on its own ' . $until->format('M j, Y g:ia') . '.')
+                                    ->send();
+                            }),
                         Forms\Components\Actions\Action::make('closeNow')
                             ->label('Close now')->color('gray')
-                            ->action(fn ($set) => $set('consent_cleanup_until', null)),
+                            ->action(function ($record, $set) {
+                                if (! $record) {
+                                    return;
+                                }
+                                $record->forceFill(['consent_cleanup_until' => null])->save();
+                                $set('consent_cleanup_until', null);
+                                \Filament\Notifications\Notification::make()->success()
+                                    ->title('Customer admin mode closed')->send();
+                            }),
                     ]),
                 ])
                 ->collapsed(),

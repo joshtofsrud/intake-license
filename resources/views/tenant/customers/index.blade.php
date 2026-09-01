@@ -356,6 +356,21 @@
           @if($c->password) · Account @endif{{-- MARKER-CUST-ACCOUNT --}}
         </div>
       </button>
+      {{-- MARKER-CUST-ADMIN-FIX — these were desktop-only, with nothing on
+           mobile saying so. Outside the card button: it navigates on click. --}}
+      <div class="cust-card-admin">
+        <label class="cm-toggle" title="{{ $c->emailMarketingMailable() ? 'Accepts marketing email' : 'Not opted in' }}">
+          <input type="checkbox" {{ $c->emailMarketingMailable() ? 'checked' : '' }}
+            {{ $c->email ? '' : 'disabled' }}
+            onchange="cmToggle(this, '{{ $c->id }}')">
+          <span></span>
+        </label>
+        <span class="cust-card-admin-lbl">Marketing</span>
+        @if(tenant()->customerAdminOpen())
+          <button type="button" class="cm-remove" style="margin-left:auto"
+            onclick="cmRemove('{{ $c->id }}')">Remove</button>
+        @endif
+      </div>
     @endforeach
   </div>
 
@@ -846,3 +861,13 @@ function cmRemove(id) {
     });
 }
 </script>
+
+
+{{-- MARKER-CUST-ADMIN-FIX --}}
+<style>
+  .cust-card-admin {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px 12px; margin-top: -6px;
+  }
+  .cust-card-admin-lbl { font-size: 11.5px; opacity: .5; }
+</style>
