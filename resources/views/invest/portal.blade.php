@@ -40,11 +40,14 @@
     ['#s-legal', 'Legal', 's-legal'],
     ['#position', 'Your position', null],
     ['#s-back', 'Back the project', 's-back'],
+    [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
   ];
 @endphp
 @include('invest._rail')
 
 @include('invest._round')
+
+@include('invest._talk-bar') {{-- MARKER-SCHED-TALK-ALL --}}
 
 {{-- MARKER-INVEST-CONTEXT — read first, decide second. --}}
 {{-- MARKER-INVEST-RAIL — collapsed by default. Everything is still on the

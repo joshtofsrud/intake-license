@@ -20,8 +20,10 @@
   <h1>That means a lot.</h1>
   <p class="lede">Stripe will email you a receipt. Your contribution backs the work and buys nothing —
     no equity, no ownership, no return — which is exactly what you chose, and I'm grateful for it.</p>
+  {{-- MARKER-SCHED-TALK-ALL --}}
+  @php $talkBarType = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
   <p class="fine">Questions, or want to talk about the round instead?
-    <a href="{{ route('marketing.invest') }}" style="color:var(--lime)">Back to the page</a>.</p>
+    @if($talkBarType && $talkBarType->isBookable())<a href="{{ $talkBarType->publicUrl() }}" style="color:var(--lime)">Book a 30-minute call</a> or @endif<a href="{{ route('marketing.invest') }}" style="color:var(--lime)">head back to the page</a>.</p>
 </div></section>
 
 <footer><div class="wrap">intake · intake.works</div></footer>

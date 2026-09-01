@@ -39,11 +39,14 @@
     ['#s-risk', 'Risks', 's-risk'],
     ['#interest', 'Commit', null],
     ['#s-back', 'Back the project', 's-back'],
+    [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
   ];
 @endphp
 @include('invest._rail')
 
 @include('invest._round')
+
+@include('invest._talk-bar') {{-- MARKER-SCHED-TALK-ALL --}}
 
 {{-- MARKER-INVEST-CONTEXT --}}
 <section><div class="wrap">
