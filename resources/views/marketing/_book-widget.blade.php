@@ -18,7 +18,7 @@
         'in_person' => 'In person',
         default     => 'Google Meet — link in your confirmation',
     };
-    $oldStart = old('start');
+    $oldStart = old('start') ?: (string) request()->query('start', ''); // MARKER-SCHED-SECTION — ?start= from the next-slots pills
     $widgetId = 'bw' . substr(md5($action), 0, 6);
 @endphp
 

@@ -255,6 +255,11 @@ textarea:focus{border-color:var(--lime-line)}
         <p class="fine">That last question isn't a formality. This round is raised under an exemption that
           depends on a pre-existing relationship, so your answer in your own words is part of the record.
           Requests from people I don't know get a polite no rather than a code.</p>
+        {{-- MARKER-SCHED-SECTION — a conversation first, if that's easier --}}
+        @php $investCall = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
+        @if($investCall && $investCall->isBookable())
+          <p class="fine" style="margin-top:10px">Prefer to talk first? <a href="{{ $investCall->publicUrl() }}" style="color:var(--lime)">Book a {{ $investCall->length_min }}-minute call</a> — no proposal, no code, just questions.</p>
+        @endif
 
       {{-- MARKER-INVEST-NOCODE — kept from the card that used to sit beside this
            one; they are the only place saying what is being asked for. --}}
