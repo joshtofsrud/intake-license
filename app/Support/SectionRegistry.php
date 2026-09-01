@@ -45,6 +45,8 @@ class SectionRegistry
             'media'             => ['label' => 'Media',              'group' => 'website',   'prefixes' => ['tenant.media'],                                'gate' => null],
             'pages'             => ['label' => 'Pages',              'group' => 'website',   'prefixes' => ['tenant.pages'],                                'gate' => null],
             'templates'         => ['label' => 'Templates',          'group' => 'website',   'prefixes' => ['tenant.templates'],                            'gate' => null],
+            // MARKER-NAV-MESSAGES
+            'inbox'             => ['label' => 'Inbox',              'group' => 'messages', 'prefixes' => ['tenant.inbox'],                                'gate' => 'unified_inbox_enabled'],
             'communication'     => ['label' => 'Communication',      'group' => 'messages',   'prefixes' => ['tenant.communication'],                        'gate' => null],
             'suppressions'      => ['label' => 'Suppressions',       'group' => 'messages',   'prefixes' => ['tenant.suppressions'],                         'gate' => null],
             'waitlist'          => ['label' => 'Waitlist',           'group' => 'marketing',   'prefixes' => ['tenant.waitlist'],                             'gate' => null],
@@ -55,7 +57,7 @@ class SectionRegistry
             'whats_new'         => ['label' => "What's New / Coming",'group' => 'settings', 'prefixes' => ['tenant.whats_new'],                            'gate' => null],
             'locations'         => ['label' => 'Locations',          'group' => 'settings', 'prefixes' => ['tenant.locations'],                            'gate' => null],
             'booking_mode'      => ['label' => 'Booking Mode',       'group' => 'website',  'prefixes' => ['tenant.booking_modes'],                        'gate' => null],
-            'settings'          => ['label' => 'Settings',           'group' => 'settings', 'prefixes' => ['tenant.settings'],                             'gate' => null],
+            'settings'          => ['label' => 'Business',           'group' => 'settings', 'prefixes' => ['tenant.settings'],                             'gate' => null],
             'addons'            => ['label' => 'Add-ons',            'group' => 'settings', 'prefixes' => ['tenant.feature_addons'],                       'gate' => null],
         ];
     }

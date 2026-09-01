@@ -181,8 +181,25 @@
     ],
     // MARKER-PATCH-404 — Communication Center
     [
+      // MARKER-NAV-MESSAGES — the real message work, where people look for
+      // it. Same destinations and same counts as the top attention row.
+      'route'  => 'tenant.inbox.index',
+      'label'  => 'Inbox',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 5h16v11H12l-3.5 3v-3H4z"/></svg>',
+      'group'  => 'messages',
+      'gate'   => 'unified_inbox_enabled',
+      'badge'  => 'inbox',
+    ],
+    [
+      'route'  => 'tenant.notifications',
+      'label'  => 'Alerts',
+      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.8a3.2 3.2 0 0 0-3.2 3.2c0 3-1.3 3.9-1.3 3.9h9c0 0-1.3-.9-1.3-3.9A3.2 3.2 0 0 0 7 1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M6 11.2a1.2 1.2 0 0 0 2 0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+      'group'  => 'messages',
+      'badge'  => 'alerts',
+    ],
+    [
       'route'  => 'tenant.communication.index',
-      'label'  => 'Communication',
+      'label'  => 'Settings',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10a1 1 0 0 1 1 1V9a1 1 0 0 1-1 1H6l-3 2.5V10H2a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 6h5M4.5 7.8h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
       'group'  => 'messages',
     ],
@@ -260,7 +277,7 @@
     ],
     [
       'route'  => 'tenant.settings.index',
-      'label'  => 'Settings',
+      'label'  => 'Business',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.9 2.9l1.1 1.1M10 10l1.1 1.1M2.9 11.1l1.1-1.1M10 4l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
       'group'  => 'settings',
     ],
@@ -289,7 +306,7 @@
       'tenant.storefront.settings', 'tenant.booking_modes.index', // MARKER-NAV-WEBSITE-MOVES
       'tenant.campaigns.index', 'tenant.discounts.index', 'tenant.recovery.index',
       'tenant.waitlist.index',
-      'tenant.communication.index',
+      'tenant.inbox.index', 'tenant.notifications', 'tenant.communication.index',
       // settings
       'tenant.help.index', 'tenant.locations.index', 'tenant.storefront.settings', 'tenant.booking_modes.index',
       'tenant.capacity.index', 'tenant.settings.index', 'tenant.feature_addons.index',
@@ -311,6 +328,14 @@
         ->values()->all();
 
   // MARKER-NAV-REGROUP — Engage split into the three jobs it was doing.
+  // MARKER-NAV-MESSAGES — identical to _attention-row, so the sidebar count
+  // and the top-row count are the same number, not two guesses.
+  $navInboxUnread = 0;
+  if (tenant()->unified_inbox_enabled) {
+      $navInboxUnread = (int) \App\Models\Tenant\TenantThread::where('tenant_id', tenant()->id)
+          ->where('status', '!=', 'closed')->sum('unread_count');
+  }
+
   $groups = [
     'manage'    => 'Manage',
     'website'   => 'Website',
@@ -355,7 +380,48 @@
   <a href="{{ $url }}" class="ia-nav-item {{ $isActive ? 'active' : '' }}" title="{{ $item['label'] }}">
     {!! $item['icon'] !!}
     <span class="ia-nav-label">{{ $item['label'] }}</span>
+    {{-- MARKER-NAV-MESSAGES — inbox count is server-rendered; alerts is filled
+         by the same feed the bell polls, so the two never disagree. --}}
+    @if(($item['badge'] ?? null) === 'inbox' && $navInboxUnread > 0)
+      <span class="ia-nav-badge">{{ $navInboxUnread > 99 ? '99+' : $navInboxUnread }}</span>
+    @elseif(($item['badge'] ?? null) === 'alerts')
+      <span class="ia-nav-badge" data-nav-alert-badge hidden></span>
+    @endif
   </a>
 
 @endforeach
 
+
+
+{{-- MARKER-NAV-MESSAGES --}}
+<style>
+  .ia-nav-item { position: relative; }
+  .ia-nav-badge {
+    margin-left: auto;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 999px; background: #5BA3D0; color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  html.ia-sb-collapsed .ia-nav-badge {
+    position: absolute; top: 4px; right: 6px; margin-left: 0;
+  }
+</style>
+<script>
+(function () {
+  var el = document.querySelector('[data-nav-alert-badge]');
+  if (!el) return;
+  function paint(n) {
+    if (n > 0) { el.hidden = false; el.textContent = n > 99 ? '99+' : n; }
+    else { el.hidden = true; }
+  }
+  function load() {
+    fetch('{{ route('tenant.alerts.feed') }}', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { paint((d && d.unread) || 0); })
+      .catch(function () {});
+  }
+  load();
+  setInterval(load, 60000);
+})();
+</script>
