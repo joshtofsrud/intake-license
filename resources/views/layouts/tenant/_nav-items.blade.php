@@ -249,14 +249,14 @@
       'route'  => 'tenant.storefront.settings',
       'label'  => 'Storefront',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5.5L2.8 2.5h8.4L12 5.5M2 5.5v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-6M2 5.5h10M5.5 12.5V9h3v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
-      'group'  => 'settings',
+      'group'  => 'website',
       'gate'   => 'online_store_enabled',
     ],
     [
       'route'  => 'tenant.booking_modes.index',
       'label'  => 'Booking Mode',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 2v3a2 2 0 0 0 2 2h6M11 4.5L8.5 7 11 9.5M3 12V7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-      'group'  => 'settings',
+      'group'  => 'website',
     ],
     [
       'route'  => 'tenant.settings.index',
@@ -286,6 +286,7 @@
       'tenant.work-order-fields.index', 'tenant.booking-editor.index',
       // MARKER-NAV-REGROUP — website, then marketing, then messages
       'tenant.pages.index', 'tenant.templates.index', 'tenant.media.index',
+      'tenant.storefront.settings', 'tenant.booking_modes.index', // MARKER-NAV-WEBSITE-MOVES
       'tenant.campaigns.index', 'tenant.discounts.index', 'tenant.recovery.index',
       'tenant.waitlist.index',
       'tenant.communication.index',

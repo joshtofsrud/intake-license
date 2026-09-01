@@ -54,7 +54,7 @@ class SectionRegistry
             'help'              => ['label' => 'Help & Guides',      'group' => 'settings', 'prefixes' => ['tenant.help'],                                 'gate' => null],
             'whats_new'         => ['label' => "What's New / Coming",'group' => 'settings', 'prefixes' => ['tenant.whats_new'],                            'gate' => null],
             'locations'         => ['label' => 'Locations',          'group' => 'settings', 'prefixes' => ['tenant.locations'],                            'gate' => null],
-            'booking_mode'      => ['label' => 'Booking Mode',       'group' => 'settings', 'prefixes' => ['tenant.booking_modes'],                        'gate' => null],
+            'booking_mode'      => ['label' => 'Booking Mode',       'group' => 'website',  'prefixes' => ['tenant.booking_modes'],                        'gate' => null],
             'settings'          => ['label' => 'Settings',           'group' => 'settings', 'prefixes' => ['tenant.settings'],                             'gate' => null],
             'addons'            => ['label' => 'Add-ons',            'group' => 'settings', 'prefixes' => ['tenant.feature_addons'],                       'gate' => null],
         ];

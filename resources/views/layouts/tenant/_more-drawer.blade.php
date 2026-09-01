@@ -89,7 +89,7 @@
       'route'  => 'tenant.storefront.settings',
       'label'  => 'Storefront',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 5.5L2.8 2.5h8.4L12 5.5M2 5.5v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-6M2 5.5h10M5.5 12.5V9h3v3.5" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
-      'group'  => 'settings',
+      'group'  => 'website',
       'gate'   => 'online_store_enabled',
     ],
     [
