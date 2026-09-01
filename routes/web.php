@@ -1181,7 +1181,8 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/settings/analytics', [TenantControllers\AnalyticsSettingsController::class, 'update'])->name('settings.analytics.update');
 
             // MARKER-PATCH-147 — Tenant suppression list
-            Route::get('/email/suppressions',         [TenantControllers\SuppressionController::class, 'index'])->name('suppressions.index');
+            // MARKER-NAV-REGROUP — it lives in the Communication Center now.
+            Route::get('/email/suppressions', fn () => redirect()->route('tenant.communication.index', ['tab' => 'suppressions']))->name('suppressions.index');
             Route::post('/email/suppressions',        [TenantControllers\SuppressionController::class, 'store'])->name('suppressions.store');
             Route::delete('/email/suppressions/{id}', [TenantControllers\SuppressionController::class, 'destroy'])->name('suppressions.destroy');
 

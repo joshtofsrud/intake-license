@@ -162,46 +162,40 @@
       'route'  => 'tenant.media.index',
       'label'  => 'Media',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="4.5" cy="5.5" r="1.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 10l3-2.5 2.5 2 2-1.5L12 10" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
-      'group'  => 'engage',
+      'group'  => 'website',
     ],
     [
       'route'  => 'tenant.pages.index',
       'label'  => 'Pages',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 6h6M4 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-      'group'  => 'engage',
+      'group'  => 'website',
     ],
     // MARKER-PATCH-261 — site template gallery
     [
       'route'  => 'tenant.templates.index',
       'label'  => 'Templates',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h11M5 5v7.5" stroke="currentColor" stroke-width="1.2"/></svg>',
-      'group'  => 'engage',
+      'group'  => 'website',
     ],
     // MARKER-PATCH-147 — tenant-facing suppression list
-    [
-      'route'  => 'tenant.suppressions.index',
-      'label'  => 'Suppressions',
-      'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 3.5l7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-      'group'  => 'engage',
-    ],
     [
       'route'  => 'tenant.waitlist.index',
       'label'  => 'Waitlist',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2v2l-2 2v5h10V6l-2-2V2" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4 2h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M6 7.5h2M5 9.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-      'group'  => 'engage',
+      'group'  => 'marketing',
     ],
         [
       // MARKER-DISCOUNTS-ADMIN
       'route'  => 'tenant.discounts.index',
       'label'  => 'Discounts',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5l-7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="4.75" cy="4.75" r="1.4" stroke="currentColor" stroke-width="1.2"/><circle cx="9.25" cy="9.25" r="1.4" stroke="currentColor" stroke-width="1.2"/></svg>',
-      'group'  => 'engage',
+      'group'  => 'marketing',
     ],
         [
       'route'  => 'tenant.campaigns.index',
       'label'  => 'Campaigns',
       'icon'   => '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M9 4l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-      'group'  => 'engage',
+      'group'  => 'marketing',
     ],
     [
       'route'  => 'tenant.help.index',
@@ -261,8 +255,8 @@
       'tenant.help.index', 'tenant.locations.index', 'tenant.storefront.settings', 'tenant.booking_modes.index',
       'tenant.capacity.index', 'tenant.settings.index', 'tenant.feature_addons.index',
     ];
-    $navDrop547  = ['tenant.suppressions.index', 'tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
-    $gw547       = ['manage' => 1, 'engage' => 2, 'settings' => 3];
+    $navDrop547  = ['tenant.whats_new.changelog', 'tenant.whats_new.roadmap'];
+    $gw547       = ['manage' => 1, 'website' => 2, 'marketing' => 3, 'messages' => 4, 'settings' => 5]; // MARKER-NAV-REGROUP
     $navItems = collect($navItems)
         ->reject(fn ($i) => in_array($i['route'], $navDrop547))
         ->map(function ($i) {
@@ -276,7 +270,8 @@
         })
         ->values()->all();
 
-  $drawerSections = ['workspace' => 'Workspace', 'manage' => 'Manage', 'engage' => 'Engage', 'settings' => 'Settings'];
+  // MARKER-NAV-REGROUP
+  $drawerSections = ['workspace' => 'Workspace', 'manage' => 'Manage', 'website' => 'Website', 'marketing' => 'Marketing', 'messages' => 'Messages', 'settings' => 'Settings'];
   // Already in the bottom tab bar — don't repeat them in the drawer:
   $drawerSkip = ['tenant.dashboard', 'tenant.calendar.index', 'tenant.customers.index', 'tenant.inbox.index'];
   $lastSect = null;

@@ -42,14 +42,14 @@ class SectionRegistry
             'intake_form_editor'=> ['label' => 'Intake Form Editor', 'group' => 'manage',   'prefixes' => ['tenant.booking-editor'],                       'gate' => null],
             'capacity'          => ['label' => 'Capacity',           'group' => 'manage',   'prefixes' => ['tenant.capacity'],                             'gate' => null],
 
-            'media'             => ['label' => 'Media',              'group' => 'engage',   'prefixes' => ['tenant.media'],                                'gate' => null],
-            'pages'             => ['label' => 'Pages',              'group' => 'engage',   'prefixes' => ['tenant.pages'],                                'gate' => null],
-            'templates'         => ['label' => 'Templates',          'group' => 'engage',   'prefixes' => ['tenant.templates'],                            'gate' => null],
-            'communication'     => ['label' => 'Communication',      'group' => 'engage',   'prefixes' => ['tenant.communication'],                        'gate' => null],
-            'suppressions'      => ['label' => 'Suppressions',       'group' => 'engage',   'prefixes' => ['tenant.suppressions'],                         'gate' => null],
-            'waitlist'          => ['label' => 'Waitlist',           'group' => 'engage',   'prefixes' => ['tenant.waitlist'],                             'gate' => null],
-            'campaigns'         => ['label' => 'Campaigns',          'group' => 'engage',   'prefixes' => ['tenant.campaigns'],                            'gate' => null],
-            'recovery'          => ['label' => 'Recovery',           'group' => 'engage',   'prefixes' => ['tenant.recovery'],                             'gate' => null],
+            'media'             => ['label' => 'Media',              'group' => 'website',   'prefixes' => ['tenant.media'],                                'gate' => null],
+            'pages'             => ['label' => 'Pages',              'group' => 'website',   'prefixes' => ['tenant.pages'],                                'gate' => null],
+            'templates'         => ['label' => 'Templates',          'group' => 'website',   'prefixes' => ['tenant.templates'],                            'gate' => null],
+            'communication'     => ['label' => 'Communication',      'group' => 'messages',   'prefixes' => ['tenant.communication'],                        'gate' => null],
+            'suppressions'      => ['label' => 'Suppressions',       'group' => 'messages',   'prefixes' => ['tenant.suppressions'],                         'gate' => null],
+            'waitlist'          => ['label' => 'Waitlist',           'group' => 'marketing',   'prefixes' => ['tenant.waitlist'],                             'gate' => null],
+            'campaigns'         => ['label' => 'Campaigns',          'group' => 'marketing',   'prefixes' => ['tenant.campaigns'],                            'gate' => null],
+            'recovery'          => ['label' => 'Recovery',           'group' => 'marketing',   'prefixes' => ['tenant.recovery'],                             'gate' => null],
 
             'help'              => ['label' => 'Help & Guides',      'group' => 'settings', 'prefixes' => ['tenant.help'],                                 'gate' => null],
             'whats_new'         => ['label' => "What's New / Coming",'group' => 'settings', 'prefixes' => ['tenant.whats_new'],                            'gate' => null],
@@ -62,7 +62,9 @@ class SectionRegistry
 
     public static function groups(): array
     {
-        return ['main' => 'Main', 'manage' => 'Manage', 'engage' => 'Engage', 'settings' => 'Settings'];
+        // MARKER-NAV-REGROUP — must match the sidebar, or editing a role shows
+        // groupings that no longer exist in the nav.
+        return ['main' => 'Main', 'manage' => 'Manage', 'website' => 'Website', 'marketing' => 'Marketing', 'messages' => 'Messages', 'settings' => 'Settings'];
     }
 
     /**

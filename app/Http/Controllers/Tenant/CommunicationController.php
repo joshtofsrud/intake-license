@@ -43,6 +43,12 @@ class CommunicationController extends Controller
             // so until now a shop could not word them at all.
             ['group'=>'Staff & status','key'=>'status_update','label'=>'Work-order status update','desc'=>'Tells the customer their work order moved','fires'=>'You change a work order status','channels'=>['email'],'template'=>'status_update','editor'=>'body','vars'=>['first_name','ra_number','status','status_note','shop_name'],'def_subject'=>'Your work order {{ra_number}} has been updated','def_body'=>'Hi {{first_name}}, your work order {{ra_number}} has been updated. New status: {{status}}. {{status_note}}'],
             ['group'=>'Staff & status','key'=>'password_reset','label'=>'Staff password reset','desc'=>'Goes to your own team, not customers','fires'=>'A staff member requests a reset','channels'=>['email'],'template'=>'password_reset','editor'=>'body','vars'=>['name','reset_url','shop_name'],'def_subject'=>'Reset your password — {{shop_name}}','def_body'=>'Hi {{name}}, you requested a password reset for your {{shop_name}} staff account. The button below expires in 60 minutes.'],
+
+            // MARKER-COMMS-ONE-HOME — these two lived ONLY on /admin/emails,
+            // which was hidden from the nav. They still send from saved rows,
+            // so until now a shop could not word them at all.
+            ['group'=>'Staff & status','key'=>'status_update','label'=>'Work-order status update','desc'=>'Tells the customer their work order moved','fires'=>'You change a work order status','channels'=>['email'],'template'=>'status_update','editor'=>'body','vars'=>['first_name','ra_number','status','status_note','shop_name'],'def_subject'=>'Your work order {{ra_number}} has been updated','def_body'=>'Hi {{first_name}}, your work order {{ra_number}} has been updated. New status: {{status}}. {{status_note}}'],
+            ['group'=>'Staff & status','key'=>'password_reset','label'=>'Staff password reset','desc'=>'Goes to your own team, not customers','fires'=>'A staff member requests a reset','channels'=>['email'],'template'=>'password_reset','editor'=>'body','vars'=>['name','reset_url','shop_name'],'def_subject'=>'Reset your password — {{shop_name}}','def_body'=>'Hi {{name}}, you requested a password reset for your {{shop_name}} staff account. The button below expires in 60 minutes.'],
         ];
     }
 
@@ -96,6 +102,11 @@ class CommunicationController extends Controller
             'trackOpens'    => (bool) ($tenant->settings['email_track_opens'] ?? true),
             'triggerStates' => (array) ($tenant->settings['receipt_appointment_trigger_states'] ?? ['completed']),
             'testEmail'     => optional(auth()->user())->email ?? '',
+            // MARKER-COMMS-ONE-HOME — suppressions belong with the rest of
+            // the email surface, not on their own hidden page.
+            'suppressions'       => \App\Models\Tenant\TenantEmailSuppression::where('tenant_id', $tenant->id)
+                                        ->orderByDesc('created_at')->limit(200)->get(),
+            'suppressionCount'   => \App\Models\Tenant\TenantEmailSuppression::where('tenant_id', $tenant->id)->count(),
             // MARKER-COMMS-ONE-HOME — suppressions belong with the rest of
             // the email surface, not on their own hidden page.
             'suppressions'       => \App\Models\Tenant\TenantEmailSuppression::where('tenant_id', $tenant->id)
@@ -239,6 +250,15 @@ class CommunicationController extends Controller
                     'delivery_scheduled'   => 'delivery_pickup_scheduled',
                     'delivery_reminder'    => 'delivery_pickup_reminder',
                 ][$type] ?? $type;
+
+                // MARKER-COMMS-ONE-HOME — a test reset would need a real,
+                // working token; issuing one by email button is not something
+                // a preview should do.
+                if ($type === 'password_reset') {
+                    return response()->json([
+                        'message' => 'Password reset can be edited here, but not test-sent — it needs a real reset link. Use "Forgot password" on the staff sign-in page to see it.',
+                    ], 422);
+                }
 
                 // MARKER-COMMS-ONE-HOME — a test reset would need a real,
                 // working token; issuing one by email button is not something
