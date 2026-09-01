@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Carbon\CarbonInterface; // MARKER-SCHED-CARBON-FIX
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -85,7 +86,7 @@ class PlatformBooking extends Model
     }
 
     /** Bookings overlapping [$from, $to) in UTC. */
-    public function scopeBetween(Builder $q, Carbon $from, Carbon $to): Builder
+    public function scopeBetween(Builder $q, CarbonInterface $from, CarbonInterface $to): Builder
     {
         return $q->where('starts_at', '<', $to)->where('ends_at', '>', $from);
     }
@@ -131,7 +132,7 @@ class PlatformBooking extends Model
 
     // ---- transitions (record only — mail is the public patch's job) ----
 
-    public function reschedule(Carbon $newStartUtc, string $actor = 'admin'): void
+    public function reschedule(CarbonInterface $newStartUtc, string $actor = 'admin'): void
     {
         $length = (int) abs($this->starts_at->diffInMinutes($this->ends_at));
         $this->logEvent('rescheduled', $actor, [
