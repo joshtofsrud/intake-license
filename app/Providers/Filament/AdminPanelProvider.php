@@ -111,6 +111,9 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\RaiseSetup::class, // MARKER-RAISE-SETUP
                 \App\Filament\Pages\TeamRoles::class, // MARKER-TEAM-ROLES — pages are EXPLICIT here, no auto-discovery
                 \App\Filament\Pages\RolesAccess::class, // MARKER-ADMIN-NAV-GATE
+                \App\Filament\Pages\Scheduling::class,             // MARKER-SCHED-ADMIN — explicit, no auto-discovery
+                \App\Filament\Pages\SchedulingAvailability::class, // MARKER-SCHED-ADMIN
+                \App\Filament\Pages\SchedulingTypes::class,        // MARKER-SCHED-ADMIN
             ])
             ->widgets([
                 ServerHealthWidget::class,

@@ -18,6 +18,7 @@ class AdminAccess
             'crm' => 'full', 'reps' => 'full', 'marketing' => 'full',
             'analytics' => 'full', 'logs' => 'full', 'config' => 'full',
             'raise' => 'full', 'team' => 'full',
+            'scheduling' => 'full', // MARKER-SCHED-ADMIN
         ],
         'admin' => [
             'dashboard' => 'full', 'tenants' => 'full', 'impersonation' => 'full',
@@ -25,6 +26,7 @@ class AdminAccess
             'crm' => 'full', 'reps' => 'full', 'marketing' => 'full',
             'analytics' => 'full', 'logs' => 'full', 'config' => 'full',
             'team' => 'view',
+            'scheduling' => 'full', // MARKER-SCHED-ADMIN
         ],
         'support' => [
             'dashboard' => 'view', 'tenants' => 'full', 'impersonation' => 'full',
@@ -34,6 +36,7 @@ class AdminAccess
         'sales' => [
             'dashboard' => 'view', 'tenants' => 'view',
             'crm' => 'full', 'reps' => 'full', 'analytics' => 'view',
+            'scheduling' => 'full', // MARKER-SCHED-ADMIN
         ],
     ];
 
@@ -82,6 +85,8 @@ class AdminAccess
             'customers', 'licenses', 'activations'           => 'config',
             'raise', 'raise-setup', 'investor-record'        => 'raise',
             'team-roles'                                     => 'team',
+            'scheduling', 'scheduling-availability',
+            'scheduling-types'                               => 'scheduling', // MARKER-SCHED-ADMIN
             // roles-access is a read-only reference every staff role may
             // open; dashboard is the one area all four roles hold.
             'roles-access'                                   => 'dashboard',

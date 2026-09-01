@@ -43,6 +43,7 @@ class RolesAccess extends Page
                 'config'        => 'Platform config — Stripe, email, theme',
                 'raise'         => 'Raise',
                 'team'          => 'Team & roles',
+                'scheduling'    => 'Scheduling — calls with prospects', // MARKER-SCHED-ADMIN
             ],
             'myRole' => Auth::guard('web')->user()?->roleName(),
         ];
