@@ -126,8 +126,7 @@
              placeholder="Leave blank if personally">
 
       <label>Amount</label>
-      <input type="number" name="amount" value="{{ old('amount') }}" min="1" step="1" required
-             placeholder="10000">
+      <input type="number" name="amount" value="{{ old('amount') }}" min="1" step="1" required>
       @error('amount') <span class="cerr">{{ $message }}</span> @enderror
 
       <label>Anything you want to ask (optional)</label>

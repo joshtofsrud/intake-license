@@ -161,7 +161,7 @@
                    placeholder="Leave blank if personally">
             <label>Amount</label>
             <input type="number" name="amount" value="{{ old('amount', $investor->amount ?: '') }}"
-                   min="1" step="1" required placeholder="10000">
+                   min="1" step="1" required>
             @error('amount') <span class="cerr">{{ $message }}</span> @enderror
             <br><button class="btn ghost" type="submit">
               {{ $investor->committed_at ? 'Update' : 'Record my commitment' }}</button>
