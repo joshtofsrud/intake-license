@@ -603,6 +603,9 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/alerts/broadcasts/{id}/dismiss', [TenantControllers\StaffAlertController::class, 'dismissBroadcast'])->name('alerts.broadcasts.dismiss');
             Route::get('/settings/alerts',       [TenantControllers\StaffAlertController::class, 'prefs'])->name('alerts.prefs');
             Route::post('/settings/alerts',      [TenantControllers\StaffAlertController::class, 'savePrefs'])->name('alerts.prefs.save');
+            // MARKER-HOTFIX-K4Q6HGCC — restored: a substring match while
+            // removing the EmailController routes deleted this one too.
+            Route::post('/settings/email/test', [TenantControllers\TestEmailController::class, 'sendSettingsTest'])->name('settings.email.test');
 
             // MARKER-PATCH-221 — unified inbox. Gated in the controller on
             // the unified_inbox addon (403 + nav hidden when absent).
