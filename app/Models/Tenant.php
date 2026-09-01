@@ -298,6 +298,12 @@ class Tenant extends Model
      * MARKER-CONSENT-CLEANUP — is the onboarding consent window open?
      * Expiry is checked at read time, so it lapses on its own with no job.
      */
+    /** MARKER-CUST-ADMIN — the window now covers removal too. */
+    public function customerAdminOpen(): bool
+    {
+        return $this->consentCleanupOpen();
+    }
+
     public function consentCleanupOpen(): bool
     {
         $until = $this->consent_cleanup_until;

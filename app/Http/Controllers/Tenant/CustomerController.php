@@ -28,7 +28,7 @@ class CustomerController extends Controller
         $page          = max(1, (int) $request->input('page', 1));
         $perPage       = 25;
 
-        $q = TenantCustomer::where('tenant_id', $tenant->id);
+        $q = TenantCustomer::where('tenant_id', $tenant->id)->notErased(); // MARKER-CUST-ADMIN
         if ($createdAfter) {
             try {
                 $q->where('created_at', '>=', \Carbon\Carbon::parse($createdAfter)->startOfDay());
@@ -175,13 +175,136 @@ class CustomerController extends Controller
         return response()->json(['success' => true, 'on' => true]);
     }
 
+    /**
+     * MARKER-CUST-ADMIN — what would removing this customer actually do?
+     * Answered BEFORE the confirm, because the two outcomes are different
+     * enough that a generic "are you sure" would be misleading.
+     */
+    public function removalPreview(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
+
+        $links = $this->customerLinkCounts($customer->id);
+        $total = array_sum($links);
+
+        return response()->json([
+            'success' => true,
+            'name'    => $customer->fullName(),
+            'links'   => array_filter($links),
+            'total'   => $total,
+            'mode'    => $total === 0 ? 'delete' : 'erase',
+        ]);
+    }
+
+    /** Rows that would break if the customer row disappeared. */
+    private function customerLinkCounts(string $customerId): array
+    {
+        $tables = [
+            'sales'          => 'tenant_sales',
+            'appointments'   => 'tenant_appointments',
+            'rentals'        => 'tenant_rentals',
+            'orders'         => 'tenant_orders',
+            'gift cards'     => 'tenant_gift_cards',
+            'special orders' => 'tenant_special_orders',
+            'assets'         => 'tenant_customer_assets',
+        ];
+
+        $out = [];
+        foreach ($tables as $label => $table) {
+            if (! \Illuminate\Support\Facades\Schema::hasTable($table)
+                || ! \Illuminate\Support\Facades\Schema::hasColumn($table, 'customer_id')) {
+                continue;
+            }
+            $out[$label] = (int) \Illuminate\Support\Facades\DB::table($table)
+                ->where('customer_id', $customerId)->count();
+        }
+
+        return $out;
+    }
+
+    /**
+     * MARKER-CUST-ADMIN — delete outright when nothing references the
+     * customer; otherwise erase the personal data and hide the row, because
+     * deleting it would break sales and bookings that must stay intact.
+     */
+    public function remove(Request $request, string $id)
+    {
+        $tenant = tenant();
+
+        if (! $tenant->customerAdminOpen()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer admin mode is closed. Ask Intake to open a window.',
+            ], 422);
+        }
+
+        $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
+        $links    = $this->customerLinkCounts($customer->id);
+        $total    = array_sum($links);
+        $by       = auth('tenant')->user();
+
+        if ($total === 0) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($customer) {
+                \Illuminate\Support\Facades\DB::table('tenant_customer_contacts')
+                    ->where('customer_id', $customer->id)->delete();
+                $customer->delete();
+            });
+
+            logger()->info('customer deleted', [
+                'tenant_id' => $tenant->id, 'customer_id' => $id, 'by' => $by?->id,
+            ]);
+
+            return response()->json(['success' => true, 'mode' => 'delete']);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($customer) {
+            // Blank everything that identifies a person. The id, its links and
+            // the business records (stripe id, tax terms) stay: removing those
+            // orphans refunds and breaks the books.
+            $customer->forceFill([
+                'first_name'                 => 'Erased',
+                'last_name'                  => 'customer',
+                'business_name'              => null,
+                'email'                      => null,
+                'phone'                      => null,
+                'address_line1'              => null,
+                'address_line2'              => null,
+                'city'                       => null,
+                'state'                      => null,
+                'postcode'                   => null,
+                'country'                    => null,
+                'notes'                      => null,
+                'wp_source_url'              => null,
+                'password'                   => null,
+                'remember_token'             => null,
+                'email_verified_at'          => null,
+                'password_reset_token'       => null,
+                'password_reset_sent_at'     => null,
+                'email_marketing_consent_at' => null,
+                'email_marketing_opt_out_at' => now(),
+                'erased_at'                  => now(),
+            ])->save();
+
+            // Business contacts are people too.
+            \Illuminate\Support\Facades\DB::table('tenant_customer_contacts')
+                ->where('customer_id', $customer->id)->delete();
+        });
+
+        logger()->info('customer erased', [
+            'tenant_id' => $tenant->id, 'customer_id' => $id, 'by' => $by?->id, 'links' => $links,
+        ]);
+
+        return response()->json(['success' => true, 'mode' => 'erase', 'links' => array_filter($links)]);
+    }
+
     public function search(Request $request)
     {
         $tenant = tenant();
         $q      = trim((string) $request->input('q', ''));
         $limit  = 12;
 
-        $query = TenantCustomer::where('tenant_id', $tenant->id);
+        $query = TenantCustomer::where('tenant_id', $tenant->id)->notErased(); // MARKER-CUST-ADMIN
 
         if ($q !== '') {
             $query->where(function ($qb) use ($q) {

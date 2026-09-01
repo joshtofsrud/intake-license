@@ -260,7 +260,8 @@
   @if(tenant()->consentCleanupOpen())
     <div style="border:1px solid var(--ia-accent);background:var(--ia-accent-soft);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:12px">
       Consent cleanup is open until {{ \Carbon\Carbon::parse(tenant()->consent_cleanup_until)->format('M j, g:ia') }}.
-      You can switch marketing consent on or off here; each change is recorded against your account.
+      You can switch marketing consent on or off here and remove customers; each change is recorded against your account.
+      Removing deletes a customer outright only when nothing references them — otherwise their personal details are erased and they're hidden, because sales and bookings still need the record.
     </div>
   @else
     <div style="font-size:11.5px;opacity:.45;margin-bottom:10px">
@@ -279,6 +280,7 @@
           <th class="ia-num">Total spend</th>
           <th>Added</th>
           <th title="Accepts marketing email">Marketing</th>{{-- MARKER-CONSENT-CLEANUP --}}
+          @if(tenant()->customerAdminOpen())<th></th>@endif{{-- MARKER-CUST-ADMIN --}}
         </tr>
       </thead>
       <tbody>
@@ -314,6 +316,13 @@
                 <span></span>
               </label>
             </td>
+            {{-- MARKER-CUST-ADMIN --}}
+            @if(tenant()->customerAdminOpen())
+              <td onclick="event.stopPropagation()">
+                <button type="button" class="cm-remove" title="Remove customer"
+                  onclick="cmRemove('{{ $c->id }}')">Remove</button>
+              </td>
+            @endif
           </tr>
         @endforeach
       </tbody>
@@ -768,6 +777,72 @@ function cmToggle(el, id) {
       el.disabled = false;
       el.checked = !on;
       IntakeConfirm.alert({ title: 'Not changed', message: "Couldn't reach the server — check your connection." });
+    });
+}
+</script>
+
+
+{{-- MARKER-CUST-ADMIN --}}
+<style>
+  .cm-remove {
+    font-size: 11px; padding: 3px 9px; border-radius: 5px; cursor: pointer;
+    border: 0.5px solid var(--ia-border); background: none; color: var(--ia-text-dim, rgba(255,255,255,.55));
+  }
+  .cm-remove:hover { border-color: #E0573E; color: #E0573E; }
+</style>
+<script>
+// Ask the server what removal would actually do, then say so plainly before
+// anything happens — delete and erase are different enough to spell out.
+function cmRemove(id) {
+  fetch('{{ url('admin/customers') }}/' + id + '/removal-preview', {
+    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j || !j.success) {
+        IntakeConfirm.alert({ title: 'Could not check', message: 'Please try again.' });
+        return;
+      }
+
+      var msg;
+      if (j.mode === 'delete') {
+        msg = 'Nothing references ' + j.name + ', so they will be deleted outright. This cannot be undone.';
+      } else {
+        var parts = [];
+        for (var k in j.links) { parts.push(j.links[k] + ' ' + k); }
+        msg = j.name + ' is referenced by ' + parts.join(', ') + '. Those records need the customer row, so instead '
+            + 'their personal details are erased and they are hidden from your customer list, search and campaigns. '
+            + 'This cannot be undone.';
+      }
+
+      IntakeConfirm.show({
+        title: j.mode === 'delete' ? 'Delete this customer?' : 'Erase and hide this customer?',
+        message: msg,
+        confirmText: j.mode === 'delete' ? 'Delete' : 'Erase',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        fetch('{{ url('admin/customers') }}/' + id + '/remove', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+          },
+          body: '{}'
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (res && res.success) { window.location.reload(); return; }
+            IntakeConfirm.alert({ title: 'Not removed', message: (res && res.message) || 'Please try again.' });
+          })
+          .catch(function () {
+            IntakeConfirm.alert({ title: 'Not removed', message: "Couldn't reach the server." });
+          });
+      });
+    })
+    .catch(function () {
+      IntakeConfirm.alert({ title: 'Could not check', message: "Couldn't reach the server." });
     });
 }
 </script>

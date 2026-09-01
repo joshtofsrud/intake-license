@@ -67,8 +67,8 @@ class TenantResource extends Resource
             // MARKER-CONSENT-CLEANUP — onboarding window. Time-boxed on purpose:
             // a permanent free-toggle would let consent be set with no record of
             // why, which is the one thing the attestation trail exists to stop.
-            Forms\Components\Section::make('Marketing consent cleanup')
-                ->description('Opens a temporary window where this shop can flip marketing consent per customer from the customer list, without an attestation modal each time. Every flip is still recorded with the staff member, time and source. It expires on its own.')
+            Forms\Components\Section::make('Customer admin mode')
+                ->description('Opens a temporary onboarding window: the shop can flip marketing consent per customer from the customer list without an attestation modal each time, and remove customers. Removal deletes outright only when nothing references the customer; otherwise it erases their personal data and hides them, because sales and bookings still need the row. Everything is recorded. It expires on its own.')
                 ->schema([
                     Forms\Components\DateTimePicker::make('consent_cleanup_until')
                         ->label('Cleanup window open until')

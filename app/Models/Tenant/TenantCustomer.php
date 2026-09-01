@@ -22,6 +22,7 @@ class TenantCustomer extends Authenticatable
         'password','remember_token','email_verified_at',
         'password_reset_token','password_reset_sent_at',
         'is_vip',
+        'erased_at', // MARKER-CUST-ADMIN
         // MARKER-BIZ-CUSTOMER
         'customer_type', 'business_name',
         'tax_exempt', 'tax_exempt_certificate',
@@ -46,7 +47,23 @@ class TenantCustomer extends Authenticatable
     public function emailMarketingMailable(): bool
     {
         return $this->email_marketing_consent_at !== null
-            && $this->email_marketing_opt_out_at === null;
+            && $this->email_marketing_opt_out_at === null
+            && $this->erased_at === null; // MARKER-CUST-ADMIN
+    }
+
+    /**
+     * MARKER-CUST-ADMIN — erased customers stay in the table so their sales
+     * and bookings still resolve, but they are not people any more: keep them
+     * out of every list, search, picker and audience.
+     */
+    public function scopeNotErased($query)
+    {
+        return $query->whereNull('erased_at');
+    }
+
+    public function isErased(): bool
+    {
+        return $this->erased_at !== null;
     }
 
     public function scopeEmailMailable($query)
