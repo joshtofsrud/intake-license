@@ -72,12 +72,39 @@
 
         <div class="rounded-xl border border-gray-200 dark:border-white/10 p-4">
             <div class="text-xs uppercase tracking-wide text-gray-500 mb-2">Google Calendar</div>
-            <div class="text-sm">Not connected.</div>
-            <p class="mt-1 text-xs text-gray-500">Busy time and Meet links come with the Google update. Until then, anything that should block a slot goes in as a blocked date, and Meet links are set per booking type.</p>
+            {{-- MARKER-SCHED-GOOGLE --}}
+            @if(session('google_error'))<div class="mb-2 text-sm text-danger-600">{{ session('google_error') }}</div>@endif
+            @if(session('google_ok'))<div class="mb-2 text-sm text-success-600">{{ session('google_ok') }}</div>@endif
+            @if(!$google['configured'])
+                <div class="text-sm">Not set up.</div>
+                <p class="mt-1 text-xs text-gray-500">Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to the server .env, then deploy. Until then, anything that should block a slot goes in as a blocked date.</p>
+            @elseif(!$google['connected'])
+                <div class="text-sm">Not connected.</div>
+                <p class="mt-1 mb-3 text-xs text-gray-500">Connect the Google account whose calendar should block slots and receive events.</p>
+                <a href="{{ route('admin.scheduling.google.connect') }}" class="fi-btn inline-flex items-center rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white">Connect Google Calendar</a>
+            @else
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-sm">{{ $google['email'] ?: 'Connected' }}</div>
+                        <div class="text-xs text-gray-500">Connected {{ $google['connected_at'] ? \Carbon\Carbon::parse($google['connected_at'])->setTimezone($timezone)->format('M j') : '' }} · busy time synced {{ $google['last_sync_at'] ? \Carbon\Carbon::parse($google['last_sync_at'])->diffForHumans() : 'never' }}</div>
+                        @if($google['last_error'])<div class="mt-1 text-xs text-danger-600">Last problem: {{ $google['last_error'] }}</div>@endif
+                    </div>
+                    <div class="flex gap-2">
+                        <x-filament::button size="sm" color="gray" wire:click="syncGoogle">Sync now</x-filament::button>
+                        <form method="POST" action="{{ route('admin.scheduling.google.disconnect') }}">@csrf<x-filament::button size="sm" color="gray" type="submit">Disconnect</x-filament::button></form>
+                    </div>
+                </div>
+                <div class="mt-3 space-y-1">
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="googleBlock" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">Busy events on this calendar block slots</label>
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="googleWrite" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">Write each booking to this calendar</label>
+                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="googleMeet" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">Create a Google Meet link for video calls</label>
+                </div>
+                <p class="mt-2 text-xs text-gray-500">Toggles save with the Save button below. Busy time refreshes every 15 minutes and right after a sync.</p>
+            @endif
         </div>
 
         <div class="rounded-lg border border-dashed border-gray-300 dark:border-white/15 px-3 py-2 text-xs text-gray-500 space-y-1">
-            <div><span class="font-medium text-gray-700 dark:text-gray-300">What prospects see:</span> open times only — never these settings, what's blocking a slot, or the labels on blocked dates.</div>
+            <div><span class="font-medium text-gray-700 dark:text-gray-300">What prospects see:</span> open times only — never these settings, what's blocking a slot, the labels on blocked dates, or anything from your Google Calendar.</div>
             <div><span class="font-medium text-gray-700 dark:text-gray-300">Not affected by these rules:</span> appointments you add by hand on the Calendar. Those can sit anywhere, including outside hours and inside buffers.</div>
         </div>
 

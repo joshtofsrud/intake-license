@@ -44,6 +44,9 @@ class SchedulingAvailability extends Page
     public string $notifyEmail = ''; // MARKER-SCHED-PUBLIC
     public string $hostName    = ''; // MARKER-SCHED-PUBLIC
     public string $hostTitle   = ''; // MARKER-SCHED-PUBLIC
+    public bool   $googleBlock = true;  // MARKER-SCHED-GOOGLE
+    public bool   $googleWrite = true;  // MARKER-SCHED-GOOGLE
+    public bool   $googleMeet  = true;  // MARKER-SCHED-GOOGLE
 
     public function mount(): void
     {
@@ -65,6 +68,9 @@ class SchedulingAvailability extends Page
         $this->notifyEmail = (string) PlatformBookingSetting::get('notify_email', ''); // MARKER-SCHED-PUBLIC
         $this->hostName    = (string) PlatformBookingSetting::get('host_name', '');
         $this->hostTitle   = (string) PlatformBookingSetting::get('host_title', '');
+        $this->googleBlock = PlatformBookingSetting::get('google_block_busy', '1') === '1';   // MARKER-SCHED-GOOGLE
+        $this->googleWrite = PlatformBookingSetting::get('google_write_events', '1') === '1';
+        $this->googleMeet  = PlatformBookingSetting::get('google_create_meet', '1') === '1';
     }
 
     public function save(): void
@@ -101,9 +107,29 @@ class SchedulingAvailability extends Page
         PlatformBookingSetting::put('notify_email', trim($this->notifyEmail)); // MARKER-SCHED-PUBLIC
         PlatformBookingSetting::put('host_name', trim($this->hostName));
         PlatformBookingSetting::put('host_title', trim($this->hostTitle));
+        PlatformBookingSetting::put('google_block_busy', $this->googleBlock ? '1' : '0');   // MARKER-SCHED-GOOGLE
+        PlatformBookingSetting::put('google_write_events', $this->googleWrite ? '1' : '0');
+        PlatformBookingSetting::put('google_create_meet', $this->googleMeet ? '1' : '0');
         PlatformBookingSetting::putJson('blocked_dates', array_values($this->blocked));
 
         Notification::make()->title('Availability saved')->success()->send();
+    }
+
+    // MARKER-SCHED-GOOGLE
+    public function syncGoogle(): void
+    {
+        $g = app(\App\Services\Platform\GoogleCalendarService::class);
+        if ($g->syncBusy()) {
+            $n = $g->backfillEvents();
+            Notification::make()->title('Google Calendar synced')->body($n ? "{$n} booking(s) added to your calendar." : null)->success()->send();
+        } else {
+            Notification::make()->title('Sync failed')->body(PlatformBookingSetting::get('google_last_error', '') ?: 'See the log.')->danger()->send();
+        }
+    }
+
+    protected function getViewData(): array
+    {
+        return ['google' => app(\App\Services\Platform\GoogleCalendarService::class)->status()];
     }
 
     public function addBlocked(): void

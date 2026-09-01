@@ -36,7 +36,7 @@ class PlatformBooking extends Model
     protected $fillable = [
         'booking_type_id', 'name', 'email', 'phone', 'company', 'answers',
         'starts_at', 'ends_at', 'timezone', 'location_mode', 'location_detail',
-        'status', 'source_kind', 'source_url', 'created_by',
+        'status', 'source_kind', 'source_url', 'created_by', 'google_event_id',
         'message_to_them', 'notes_internal',
     ];
 
@@ -54,6 +54,19 @@ class PlatformBooking extends Model
         static::creating(function (self $b) {
             if (empty($b->token)) {
                 $b->token = Str::random(48);
+            }
+        });
+        // MARKER-SCHED-GOOGLE — mirror to the connected calendar. Runs inline
+        // so a Meet link exists before the confirmation email is built.
+        static::created(function (self $b) {
+            try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingCreated($b); } catch (\Throwable $e) { \Illuminate\Support\Facades\Log::warning('MARKER-SCHED-GOOGLE created hook: ' . $e->getMessage()); }
+        });
+        static::deleted(function (self $b) {
+            if ($b->google_event_id) { try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingUpdated($b->forceFill(['status' => 'cancelled'])); } catch (\Throwable) {} }
+        });
+        static::updated(function (self $b) {
+            if ($b->wasChanged(['starts_at', 'ends_at', 'status'])) {
+                try { app(\App\Services\Platform\GoogleCalendarService::class)->onBookingUpdated($b); } catch (\Throwable $e) { \Illuminate\Support\Facades\Log::warning('MARKER-SCHED-GOOGLE updated hook: ' . $e->getMessage()); }
             }
         });
     }

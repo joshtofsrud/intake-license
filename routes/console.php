@@ -220,3 +220,8 @@ Schedule::command('gift-cards:reap-pending')
 Schedule::command('bookings:send-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+// MARKER-SCHED-GOOGLE — pull Google busy time for the booking window.
+Schedule::command('bookings:sync-google')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();

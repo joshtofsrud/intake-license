@@ -22,6 +22,8 @@
     .sch-ev.is-done { opacity:.55; }
     .sch-ev.is-moved { border-style:dashed; }
     .sch-now { position:absolute; left:0; right:0; height:0; border-top:2px solid #D4FF3F; z-index:2; pointer-events:none; }
+    .sch-busy { position:absolute; left:3px; right:3px; border-radius:6px; border:1px solid rgba(127,127,127,.2); border-left:3px solid rgba(127,127,127,.5);
+                background:repeating-linear-gradient(135deg, rgba(127,127,127,.14) 0 6px, transparent 6px 12px); pointer-events:none; } /* MARKER-SCHED-GOOGLE */
     .sch-time { height:60px; font-size:10.5px; color:rgb(107 114 128); text-align:right; padding-right:6px; transform:translateY(-6px); }
     .sch-k { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:5px; }
 </style>
@@ -62,6 +64,9 @@
                 @if($nowTop !== null && $nowDayIndex === $i)
                     <div class="sch-now" style="top: {{ $nowTop }}px"></div>
                 @endif
+                @foreach($d['busy'] ?? [] as $bz)
+                    <div class="sch-busy" style="top: {{ $bz['top'] }}px; height: {{ $bz['height'] }}px" title="Busy on your Google Calendar"></div>
+                @endforeach
                 @foreach($d['events'] as $ev)
                     @php $b = $ev['b']; @endphp
                     <button type="button" wire:click="select({{ $b->id }})"
@@ -85,7 +90,9 @@
         <span class="sch-k ml-3" style="background:#d8b4fe"></span>Added by hand
         <span class="ml-3">Dashed border = they have rescheduled at least once. Faded = completed or no-show.</span>
     </div>
-    <div>Times are {{ $tz }} (set on Availability). Google Calendar busy time is not shown yet — it arrives with the Google patch. Reminders go out automatically per booking type.</div>
+    <div>Times are {{ $tz }} (set on Availability). Reminders go out automatically per booking type.
+        @if($googleOn)<span class="sch-k" style="background:repeating-linear-gradient(135deg,#555 0 3px,transparent 3px 6px);border:1px solid #555"></span>Hatched = busy on your Google Calendar (blocks public slots; not shown to anyone else; titles never leave Google).@else Google Calendar is not connected — connect it on Availability to block slots around your other commitments.@endif
+    </div>
 </div>
 
 {{-- ============ list ============ --}}

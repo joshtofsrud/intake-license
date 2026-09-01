@@ -90,6 +90,13 @@ Route::domain($domain)->group(function () {
         Route::get('/admin/impersonate/stop',         [\App\Http\Controllers\Admin\ImpersonationController::class, 'stop'])->name('admin.impersonate.stop');
     });
 
+    // MARKER-SCHED-GOOGLE — Google Calendar OAuth for scheduling (scheduling area).
+    Route::middleware(['auth', \App\Http\Middleware\EnforceAdminArea::class . ':scheduling'])->group(function () {
+        Route::get('/admin/scheduling-google/connect',     [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'connect'])->name('admin.scheduling.google.connect');
+        Route::get('/admin/scheduling-google/callback',    [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'callback'])->name('admin.scheduling.google.callback');
+        Route::post('/admin/scheduling-google/disconnect', [\App\Http\Controllers\Admin\SchedulingGoogleController::class, 'disconnect'])->name('admin.scheduling.google.disconnect');
+    });
+
     // --- Marketing page editor bridge (admin only) ---
     // GET hands off to the tenant page builder view with platform tenant bound.
     // POST handles auto-save (section content, nav, page meta).

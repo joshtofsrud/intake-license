@@ -257,6 +257,7 @@ class Scheduling extends Page
         $gridStart = max(0, $gridStart - 1);
         $gridEnd   = min(24, $gridEnd);
 
+        $busyRows = app(\App\Services\Platform\BookingAvailabilityService::class)->busy($start->utc(), $end->utc()); // MARKER-SCHED-GOOGLE
         $days = [];
         for ($i = 0; $i < 7; $i++) {
             $d = $start->addDays($i);
@@ -266,7 +267,16 @@ class Scheduling extends Page
                 $len = max(20, (int) abs($s->diffInMinutes($e)));
                 return ['b' => $b, 'top' => $top, 'height' => $len];
             })->values();
-            $days[] = ['date' => $d, 'isToday' => $d->isSameDay($now), 'events' => $events, 'count' => $events->count()];
+            // MARKER-SCHED-GOOGLE — synced busy blocks, clipped to the grid
+            $busy = collect($busyRows)->filter(fn ($r) => $r[0]->copy()->setTimezone($tz)->isSameDay($d) || $r[1]->copy()->setTimezone($tz)->isSameDay($d))
+                ->map(function ($r) use ($d, $tz, $gridStart, $gridEnd) {
+                    $s = $r[0]->copy()->setTimezone($tz); $e = $r[1]->copy()->setTimezone($tz);
+                    $sMin = $s->isSameDay($d) ? ((int) $s->format('G') - $gridStart) * 60 + (int) $s->format('i') : 0;
+                    $eMin = $e->isSameDay($d) ? ((int) $e->format('G') - $gridStart) * 60 + (int) $e->format('i') : ($gridEnd - $gridStart) * 60;
+                    $sMin = max(0, $sMin); $eMin = min(($gridEnd - $gridStart) * 60, $eMin);
+                    return $eMin > $sMin ? ['top' => $sMin, 'height' => $eMin - $sMin] : null;
+                })->filter()->values();
+            $days[] = ['date' => $d, 'isToday' => $d->isSameDay($now), 'events' => $events, 'count' => $events->count(), 'busy' => $busy];
         }
 
         $list = $this->visibleQuery();
@@ -286,6 +296,7 @@ class Scheduling extends Page
             'upcoming'    => $list->get(),
             'types'       => PlatformBookingType::orderBy('sort_order')->get(),
             'booking'     => $this->current(),
+            'googleOn'    => app(\App\Services\Platform\GoogleCalendarService::class)->connected(), // MARKER-SCHED-GOOGLE
             'nowTop'      => ($now->gte($start) && $now->lt($end)) ? (((int) $now->format('G') - $gridStart) * 60 + (int) $now->format('i')) : null,
             'nowDayIndex' => (int) $now->diffInDays($start, true) < 7 && $now->gte($start) ? (int) $start->diffInDays($now) : null,
         ];

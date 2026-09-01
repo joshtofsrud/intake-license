@@ -18,6 +18,12 @@ return [
         'inbound_address' => env('POSTMARK_INBOUND_ADDRESS'),
     ],
 
+    // MARKER-SCHED-GOOGLE — OAuth client for master-admin scheduling's calendar sync.
+    'google' => [
+        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+    ],
+
     // MARKER-PATCH-224B
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),

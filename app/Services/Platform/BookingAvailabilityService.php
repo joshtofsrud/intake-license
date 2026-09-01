@@ -176,7 +176,15 @@ class BookingAvailabilityService
      */
     public function busy(CarbonInterface $fromUtc, CarbonInterface $toUtc): array
     {
-        return [];
+        // MARKER-SCHED-GOOGLE — synced blocks from the connected calendar.
+        if (\App\Models\PlatformBookingSetting::get('google_block_busy', '1') !== '1') {
+            return [];
+        }
+        return \Illuminate\Support\Facades\DB::table('platform_booking_busy')
+            ->where('starts_at', '<', $toUtc)->where('ends_at', '>', $fromUtc)
+            ->get(['starts_at', 'ends_at'])
+            ->map(fn ($r) => [Carbon::parse($r->starts_at, 'UTC'), Carbon::parse($r->ends_at, 'UTC')])
+            ->all();
     }
 
     private function isBlocked(CarbonImmutable $day, array $blocked): bool
