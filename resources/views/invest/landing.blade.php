@@ -154,6 +154,7 @@ textarea:focus{border-color:var(--lime-line)}
     ['#s-stack', 'What it replaces', 's-stack'],
     ['#ask', 'Ask for the proposal', null],
     ['#support', 'Back the project', null],
+    ['#talk', 'Talk to Josh', null], // MARKER-SCHED-TALK-ENTRY — rendered lime in _rail
   ];
 @endphp
 @include('invest._rail')
@@ -179,6 +180,16 @@ textarea:focus{border-color:var(--lime-line)}
   <span class="eyebrow">Built by a shop owner</span>
   <h1 class="big">{!! $headline !!}</h1>
   <p class="lede wide">{{ $lede }}</p>
+  {{-- MARKER-SCHED-TALK-ENTRY — a conversation is the lowest-friction ask on the
+       page; offer it before the form. Renders only while the type is bookable. --}}
+  @php $talkType = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
+  @if($talkType && $talkType->isBookable())
+  <div class="ok" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:26px">
+    <div style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
+    <p style="margin:0;font-size:14px"><b>Questions first? Talk to Josh.</b><br>{{ $talkType->length_min }} minutes, one on one — no proposal, no code, no commitment.</p>
+    <a class="btn" href="#talk" style="margin:0 0 0 auto;padding:10px 18px">Book a call</a>
+  </div>
+  @endif
 </div></section>
 
 {{-- MARKER-INVEST-RAIL — platform first: it is the strongest of the three,

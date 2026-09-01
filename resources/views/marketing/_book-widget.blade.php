@@ -28,7 +28,7 @@
 .mk-bc.no-host{grid-template-columns:1fr}
 .mk-bc-about{padding:26px;border-right:.5px solid var(--mk-border,rgba(255,255,255,.08))}
 .mk-bc-who{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-.mk-bc-who .av{width:38px;height:38px;border-radius:50%;background:var(--mk-bg3,#1a1a1a);display:grid;place-items:center;font-weight:600;color:var(--mk-muted,rgba(255,255,255,.45))}
+.mk-bc-who .mk-bc-av{width:38px;height:38px;border-radius:50%;background:var(--mk-bg3,#1a1a1a);display:grid;place-items:center;font-weight:600;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-who b{display:block;font-size:14px}.mk-bc-who span{font-size:12.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-about h3{font-size:20px;margin:0 0 6px;letter-spacing:-.02em;line-height:1.2}
 .mk-bc-about p{color:var(--mk-muted,rgba(255,255,255,.45));margin:0 0 14px;font-size:14.5px;line-height:1.55}
@@ -39,11 +39,15 @@
 .mk-bc-mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:14px;font-weight:600}
 .mk-bc-mh button{width:28px;height:28px;border-radius:6px;border:.5px solid var(--mk-border2,rgba(255,255,255,.14));background:none;color:var(--mk-muted,rgba(255,255,255,.45));cursor:pointer;font:inherit}
 .mk-bc-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
-.mk-bc-days .dow{font-size:11px;color:var(--mk-dim,rgba(255,255,255,.2));padding:4px 0}
-.mk-bc-days .d{height:36px;border-radius:6px;display:grid;place-items:center;color:var(--mk-dim,rgba(255,255,255,.2));font-size:13.5px;border:0;background:none;font:inherit}
-.mk-bc-days .d.ok{color:var(--mk-text,#f0f0f0);background:var(--mk-bg3,#1a1a1a);cursor:pointer;font-weight:500}
-.mk-bc-days .d.ok:hover{filter:brightness(1.25)}
-.mk-bc-days .d.sel{background:var(--mk-accent,#BEF264);color:var(--mk-accent-text,#0a0a0a);font-weight:600}
+/* MARKER-SCHED-TALK-ENTRY — fully prefixed day classes: this partial embeds in
+   foreign pages (the invest site has its own global .ok), so generic state
+   classes WILL collide. Cells are identical fixed boxes; open/selected differ
+   only in color, never geometry, so a collision can't reflow the grid. */
+.mk-bc-days .mk-bc-dow{font-size:11px;color:var(--mk-dim,rgba(255,255,255,.2));padding:4px 0}
+.mk-bc-days .mk-bc-d{display:block;width:100%;height:36px;line-height:36px;padding:0;text-align:center;border-radius:6px;color:var(--mk-dim,rgba(255,255,255,.2));font-size:13.5px;border:0;background:none;font:inherit}
+.mk-bc-days .mk-bc-d--open{color:var(--mk-text,#f0f0f0);background:var(--mk-bg3,#1a1a1a);cursor:pointer;font-weight:500}
+.mk-bc-days .mk-bc-d--open:hover{filter:brightness(1.25)}
+.mk-bc-days .mk-bc-d--sel{background:var(--mk-accent,#BEF264);color:var(--mk-accent-text,#0a0a0a);font-weight:600}
 .mk-bc-slots h4{font-size:13px;margin:0 0 10px;color:var(--mk-muted,rgba(255,255,255,.45));font-weight:500}
 .mk-bc-slot{display:block;width:100%;padding:9px;border:.5px solid var(--mk-border2,rgba(255,255,255,.14));background:none;color:var(--mk-text,#f0f0f0);border-radius:var(--mk-r,8px);margin-bottom:8px;text-align:center;font-weight:500;font:inherit;font-size:14px;cursor:pointer}
 .mk-bc-slot:hover{border-color:var(--mk-accent,#BEF264)}
@@ -76,7 +80,7 @@
      data-preselect="{{ $oldStart }}" data-move="{{ $isMove ? '1' : '0' }}">
     @if($showHost)
     <aside class="mk-bc-about">
-        <div class="mk-bc-who"><div class="av">{{ strtoupper(substr($hostName, 0, 1)) }}</div><div><b>{{ $hostName }}</b><span>{{ $hostTitle }}</span></div></div>
+        <div class="mk-bc-who"><div class="mk-bc-av">{{ strtoupper(substr($hostName, 0, 1)) }}</div><div><b>{{ $hostName }}</b><span>{{ $hostTitle }}</span></div></div>
         <h3>{{ $heading ?? ($isMove ? 'Pick a new time' : $type->name) }}</h3>
         @if(!empty($intro ?? $type->description))<p>{{ $intro ?? $type->description }}</p>@endif
         <div class="mk-bc-facts">
@@ -228,19 +232,19 @@
     function renderMonth() {
       monthLabel.textContent = MONTHS[ym.m - 1] + ' ' + ym.y;
       daysEl.innerHTML = '';
-      DOW.forEach(function (d) { var e = document.createElement('div'); e.className = 'dow'; e.textContent = d; daysEl.appendChild(e); });
+      DOW.forEach(function (d) { var e = document.createElement('div'); e.className = 'mk-bc-dow'; e.textContent = d; daysEl.appendChild(e); });
       var firstDow = new Date(Date.UTC(ym.y, ym.m - 1, 1)).getUTCDay();
       var dim = new Date(Date.UTC(ym.y, ym.m, 0)).getUTCDate();
-      for (var i = 0; i < firstDow; i++) { var b = document.createElement('div'); b.className = 'd'; daysEl.appendChild(b); }
+      for (var i = 0; i < firstDow; i++) { var b = document.createElement('div'); b.className = 'mk-bc-d'; daysEl.appendChild(b); }
       var firstOk = null;
       for (var day = 1; day <= dim; day++) {
         var key = ym.y + '-' + pad(ym.m) + '-' + pad(day);
-        var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'd'; btn.textContent = day;
+        var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'mk-bc-d'; btn.textContent = day;
         if (byDay[key]) {
-          btn.classList.add('ok'); if (!firstOk) firstOk = key;
+          btn.classList.add('mk-bc-d--open'); if (!firstOk) firstOk = key;
           btn.addEventListener('click', (function (k) { return function () { selectedDay = k; renderMonth(); renderSlots(); }; })(key));
         }
-        if (key === selectedDay) btn.classList.add('sel');
+        if (key === selectedDay) btn.classList.add('mk-bc-d--sel');
         daysEl.appendChild(btn);
       }
       if (!selectedDay && firstOk) { selectedDay = firstOk; renderMonth(); renderSlots(); }
