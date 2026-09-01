@@ -28,10 +28,10 @@ use Carbon\CarbonInterface;
  */
 class BookingAvailabilityService
 {
-    /** Minutes between candidate starts. Short calls step by 15. */
+    /** Minutes between candidate starts — clean half-hours unless the call itself is tiny. MARKER-SCHED-INVEST */
     private function step(PlatformBookingType $type): int
     {
-        return $type->length_min < 30 ? 15 : 30;
+        return $type->length_min <= 15 ? 15 : 30;
     }
 
     private array $rulesCache = [];

@@ -258,7 +258,7 @@ textarea:focus{border-color:var(--lime-line)}
         {{-- MARKER-SCHED-SECTION — a conversation first, if that's easier --}}
         @php $investCall = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
         @if($investCall && $investCall->isBookable())
-          <p class="fine" style="margin-top:10px">Prefer to talk first? <a href="{{ $investCall->publicUrl() }}" style="color:var(--lime)">Book a {{ $investCall->length_min }}-minute call</a> — no proposal, no code, just questions.</p>
+          <p class="fine" style="margin-top:10px">Prefer to talk first? <a href="#talk" style="color:var(--lime)">Book a {{ $investCall->length_min }}-minute call below</a> — no proposal, no code, just questions.</p>
         @endif
 
       {{-- MARKER-INVEST-NOCODE — kept from the card that used to sit beside this
@@ -324,6 +324,18 @@ textarea:focus{border-color:var(--lime-line)}
 
   <p class="fine">{{ $fine }}</p>
 </div></section>
+
+{{-- MARKER-SCHED-INVEST — talk first: the scheduling calendar, investor type. The
+     widget styles itself from --mk-* vars, mapped here onto the invest palette. --}}
+@php $investCall = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
+@if($investCall && $investCall->isBookable())
+<section id="talk"><div class="wrap" style="--mk-accent:var(--lime);--mk-accent-text:#0a0a0a;--mk-bg2:var(--panel);--mk-bg3:var(--panel2);--mk-text:var(--text);--mk-muted:var(--body);--mk-dim:var(--dim);--mk-border:var(--line);--mk-border2:var(--line2);--mk-r:8px;--mk-r-lg:12px">
+  <div class="eyebrow">Talk first</div>
+  <h2 style="margin:8px 0 6px">A conversation before a proposal</h2>
+  <p style="color:var(--body);max-width:64ch;margin:0 0 18px">{{ $investCall->length_min }} minutes, one on one, no code needed. Ask about the business, the numbers or the terms — booking a call isn't a commitment and nothing here is an offer to sell securities.</p>
+  @include('marketing._book-widget', ['type' => $investCall, 'booking' => null, 'showHost' => true])
+</div></section>
+@endif
 
 <script>
 // MARKER-CONTRIBUTIONS — the preset buttons only fill the amount field; the

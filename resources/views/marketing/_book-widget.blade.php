@@ -47,6 +47,7 @@
 .mk-bc-slots h4{font-size:13px;margin:0 0 10px;color:var(--mk-muted,rgba(255,255,255,.45));font-weight:500}
 .mk-bc-slot{display:block;width:100%;padding:9px;border:.5px solid var(--mk-border2,rgba(255,255,255,.14));background:none;color:var(--mk-text,#f0f0f0);border-radius:var(--mk-r,8px);margin-bottom:8px;text-align:center;font-weight:500;font:inherit;font-size:14px;cursor:pointer}
 .mk-bc-slot:hover{border-color:var(--mk-accent,#BEF264)}
+.mk-bc-slots [data-slots]{max-height:372px;overflow-y:auto;padding-right:2px} /* MARKER-SCHED-INVEST */
 .mk-bc-empty{font-size:13.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-tz{margin-top:12px;font-size:12.5px;color:var(--mk-muted,rgba(255,255,255,.45))}
 .mk-bc-tz select{background:var(--mk-bg3,#1a1a1a);color:var(--mk-text,#f0f0f0);border:.5px solid var(--mk-border2,rgba(255,255,255,.14));border-radius:6px;padding:4px 8px;font:inherit;font-size:12.5px;margin-left:6px;max-width:100%}
