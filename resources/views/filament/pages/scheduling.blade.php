@@ -85,7 +85,7 @@
         <span class="sch-k ml-3" style="background:#d8b4fe"></span>Added by hand
         <span class="ml-3">Dashed border = they have rescheduled at least once. Faded = completed or no-show.</span>
     </div>
-    <div>Times are {{ $tz }} (set on Availability). Google Calendar busy time is not shown yet — it arrives with the Google patch.</div>
+    <div>Times are {{ $tz }} (set on Availability). Google Calendar busy time is not shown yet — it arrives with the Google patch. Reminders go out automatically per booking type.</div>
 </div>
 
 {{-- ============ list ============ --}}
@@ -188,7 +188,7 @@
     <x-slot name="description">The slot opens up again on the booking page.</x-slot>
     <label class="block"><span class="text-xs text-gray-500">Reason (kept on the record)</span>
         <textarea wire:model="cancelMessage" rows="2" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></textarea></label>
-    <p class="mt-2 text-xs text-gray-500">No email goes out from here yet — tell them yourself for now. Notifications arrive with the public booking update.</p>
+    <label class="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" wire:model="cancelNotify" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">Email them that it's cancelled (includes the reason above)</label>
     <x-slot name="footerActions">
         <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'booking-cancel' })">Keep it</x-filament::button>
         <x-filament::button color="danger" wire:click="cancelBooking">Cancel call</x-filament::button>
@@ -207,6 +207,7 @@
     @error('rsDate')<p class="text-sm text-danger-600 mt-2">{{ $message }}</p>@enderror
     @error('rsTime')<p class="text-sm text-danger-600 mt-2">{{ $message }}</p>@enderror
     <p class="mt-2 text-xs text-gray-500">Moves the call and keeps its length. Manual moves ignore your public hours and buffers.</p>
+    <label class="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" wire:model="rsNotify" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">Email them the new time</label>
     <x-slot name="footerActions">
         <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'booking-reschedule' })">Back</x-filament::button>
         <x-filament::button wire:click="rescheduleBooking">Move it</x-filament::button>
@@ -248,11 +249,12 @@
             <label class="block"><span class="text-xs text-gray-500">{{ $nMode === 'meet' ? 'Meet link (blank = the type\'s link)' : ($nMode === 'phone' ? 'Number to call' : 'Address') }}</span>
                 <input wire:model="nDetail" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></label>
         </div>
-        <label class="block"><span class="text-xs text-gray-500">Note to them (saved with the booking; goes in the confirmation once emails exist)</span>
+        <label class="block"><span class="text-xs text-gray-500">Note to them (goes in the confirmation email)</span>
             <textarea wire:model="nMessage" rows="2" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></textarea></label>
         <label class="block"><span class="text-xs text-gray-500">Your notes (never shown to them)</span>
             <textarea wire:model="nNotes" rows="2" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></textarea></label>
     </div>
+    <label class="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" wire:model="nNotify" class="rounded border-gray-300 dark:bg-white/5 dark:border-white/10">Email them a confirmation (needs an email address)</label>
     @if($errors->any())
         <div class="mt-3 text-sm text-danger-600">{{ $errors->first() }}</div>
     @endif

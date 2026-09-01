@@ -214,3 +214,9 @@ Schedule::command('gift-cards:reap-pending')
     ->dailyAt('03:25')
     ->withoutOverlapping()
     ->runInBackground();
+
+// MARKER-SCHED-PUBLIC — reminder emails for booked calls. The command stamps
+// before sending, so overlap can't double-send.
+Schedule::command('bookings:send-reminders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();

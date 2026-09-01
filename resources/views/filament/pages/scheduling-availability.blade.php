@@ -55,7 +55,17 @@
                 <label class="block"><span class="text-xs text-gray-500">How far out people can book (weeks)</span>
                     <input type="number" min="1" max="26" wire:model="windowWeeks" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></label>
             </div>
-            @foreach(['minNoticeHours','bufferMinutes','maxPerDay','windowWeeks','timezone'] as $f)
+            <div class="text-xs uppercase tracking-wide text-gray-500 mt-5 mb-3">Emails</div>
+            <div class="grid gap-3 md:grid-cols-2">
+                <label class="block md:col-span-2"><span class="text-xs text-gray-500">Tell me about new, moved and cancelled bookings at</span>
+                    <input type="email" wire:model="notifyEmail" placeholder="blank = the platform from-address" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></label>
+                <label class="block"><span class="text-xs text-gray-500">Who they're meeting — name</span>
+                    <input wire:model="hostName" placeholder="Josh Tofsrud" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></label>
+                <label class="block"><span class="text-xs text-gray-500">— and title</span>
+                    <input wire:model="hostTitle" placeholder="Founder, Intake" class="mt-1 w-full rounded-lg border-gray-300 dark:bg-white/5 dark:border-white/10 text-sm"></label>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Name and title show on the booking pages and in every email to the person booking.</p>
+            @foreach(['minNoticeHours','bufferMinutes','maxPerDay','windowWeeks','timezone','notifyEmail','hostName','hostTitle'] as $f)
                 @error($f)<p class="text-sm text-danger-600 mt-2">{{ $message }}</p>@enderror
             @endforeach
         </div>

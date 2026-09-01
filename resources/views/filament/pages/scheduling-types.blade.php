@@ -40,7 +40,7 @@
 </div>
 
 <div class="mt-3 rounded-lg border border-dashed border-gray-300 dark:border-white/15 px-3 py-2 text-xs text-gray-500">
-    Public links only work once the public booking pages are deployed (next update). Until then the links resolve to nothing — the types are ready, the pages aren't.
+    Public links are live. A type that is off shows "not taking bookings right now" at its link instead of a calendar. Who they're meeting (name + title) is set on Availability.
 </div>
 
 <x-filament::modal id="type-edit" width="2xl">

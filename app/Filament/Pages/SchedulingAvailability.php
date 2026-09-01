@@ -41,6 +41,9 @@ class SchedulingAvailability extends Page
     public string $newFrom = '';
     public string $newTo   = '';
     public string $newLabel = '';
+    public string $notifyEmail = ''; // MARKER-SCHED-PUBLIC
+    public string $hostName    = ''; // MARKER-SCHED-PUBLIC
+    public string $hostTitle   = ''; // MARKER-SCHED-PUBLIC
 
     public function mount(): void
     {
@@ -59,6 +62,9 @@ class SchedulingAvailability extends Page
             ];
         }
         $this->blocked = array_values($r['blocked_dates']);
+        $this->notifyEmail = (string) PlatformBookingSetting::get('notify_email', ''); // MARKER-SCHED-PUBLIC
+        $this->hostName    = (string) PlatformBookingSetting::get('host_name', '');
+        $this->hostTitle   = (string) PlatformBookingSetting::get('host_title', '');
     }
 
     public function save(): void
@@ -69,6 +75,9 @@ class SchedulingAvailability extends Page
             'bufferMinutes'  => 'required|integer|min:0|max:180',
             'maxPerDay'      => 'required|integer|min:0|max:50',
             'windowWeeks'    => 'required|integer|min:1|max:26',
+            'notifyEmail'    => 'nullable|email|max:191', // MARKER-SCHED-PUBLIC
+            'hostName'       => 'nullable|string|max:80',
+            'hostTitle'      => 'nullable|string|max:80',
             'hours.*.from'   => 'required|date_format:H:i',
             'hours.*.to'     => 'required|date_format:H:i',
         ]);
@@ -89,6 +98,9 @@ class SchedulingAvailability extends Page
         PlatformBookingSetting::put('buffer_minutes', (string) $this->bufferMinutes);
         PlatformBookingSetting::put('max_per_day', (string) $this->maxPerDay);
         PlatformBookingSetting::put('window_weeks', (string) $this->windowWeeks);
+        PlatformBookingSetting::put('notify_email', trim($this->notifyEmail)); // MARKER-SCHED-PUBLIC
+        PlatformBookingSetting::put('host_name', trim($this->hostName));
+        PlatformBookingSetting::put('host_title', trim($this->hostTitle));
         PlatformBookingSetting::putJson('blocked_dates', array_values($this->blocked));
 
         Notification::make()->title('Availability saved')->success()->send();

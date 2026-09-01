@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\PlatformBooking;
 use App\Models\PlatformBookingSetting;
 use App\Models\PlatformBookingType;
+use App\Services\Platform\BookingMailer; // MARKER-SCHED-PUBLIC
 use App\Support\AdminAccess;
 use Carbon\CarbonImmutable;
 use Filament\Notifications\Notification;
@@ -36,10 +37,12 @@ class Scheduling extends Page
 
     // cancel modal
     public string $cancelMessage = '';
+    public bool   $cancelNotify  = true; // MARKER-SCHED-PUBLIC
 
     // reschedule modal
     public string $rsDate = '';
     public string $rsTime = '';
+    public bool   $rsNotify = true; // MARKER-SCHED-PUBLIC
 
     // new appointment modal
     public string $nType    = '';
@@ -54,6 +57,7 @@ class Scheduling extends Page
     public string $nDetail  = '';
     public string $nMessage = '';
     public string $nNotes   = '';
+    public bool   $nNotify  = true; // MARKER-SCHED-PUBLIC
 
     public function mount(): void
     {
@@ -133,6 +137,7 @@ class Scheduling extends Page
     {
         if ($b = $this->current()) {
             $b->cancel('admin', trim($this->cancelMessage) ?: null);
+            if ($this->cancelNotify && $b->email) { app(BookingMailer::class)->cancelled($b, 'admin'); } // MARKER-SCHED-PUBLIC
             Notification::make()->title('Call cancelled')->body('The slot is open again.')->success()->send();
             $this->dispatch('close-modal', id: 'booking-cancel');
             $this->dispatch('close-modal', id: 'booking-detail');
@@ -149,6 +154,7 @@ class Scheduling extends Page
         $tz    = PlatformBookingSetting::get('timezone');
         $start = CarbonImmutable::createFromFormat('Y-m-d H:i', $this->rsDate . ' ' . $this->rsTime, $tz)->utc();
         $b->reschedule($start, 'admin');
+        if ($this->rsNotify && $b->email) { app(BookingMailer::class)->rescheduled($b->fresh('type'), 'admin'); } // MARKER-SCHED-PUBLIC
         Notification::make()->title('Moved to ' . $start->setTimezone($tz)->format('D M j, g:i a'))->success()->send();
         $this->dispatch('close-modal', id: 'booking-reschedule');
         $this->dispatch('close-modal', id: 'booking-detail');
@@ -199,6 +205,7 @@ class Scheduling extends Page
             'notes_internal'  => trim($this->nNotes) ?: null,
         ]);
         $b->logEvent('created', 'admin', ['manual' => true]);
+        if ($this->nNotify && $b->email) { app(BookingMailer::class)->confirmation($b->fresh('type')); } // MARKER-SCHED-PUBLIC
 
         Notification::make()->title('Appointment saved')->success()->send();
         $this->dispatch('close-modal', id: 'booking-new');

@@ -67,6 +67,16 @@ Route::domain($domain)->group(function () {
         ->name('invest.contribute.thanks');
     Route::post('/contact', [Platform\MarketingController::class, 'contact'])->name('marketing.contact.submit');
 
+    // MARKER-SCHED-PUBLIC — booking a call with Intake (master-admin scheduling).
+    Route::get('/book/manage/{token}',              [Platform\BookController::class, 'manage'])->name('book.manage');
+    Route::post('/book/manage/{token}/cancel',      [Platform\BookController::class, 'cancel'])->middleware('throttle:10,1')->name('book.cancel');
+    Route::get('/book/manage/{token}/reschedule',   [Platform\BookController::class, 'rescheduleForm'])->name('book.reschedule.form');
+    Route::post('/book/manage/{token}/reschedule',  [Platform\BookController::class, 'reschedule'])->middleware('throttle:10,1')->name('book.reschedule');
+    Route::get('/book/manage/{token}/calendar.ics', [Platform\BookController::class, 'ics'])->name('book.ics');
+    Route::get('/book/{slug}',        [Platform\BookController::class, 'show'])->where('slug', '[a-z0-9-]+')->name('book.show');
+    Route::get('/book/{slug}/slots',  [Platform\BookController::class, 'slots'])->where('slug', '[a-z0-9-]+')->middleware('throttle:60,1')->name('book.slots');
+    Route::post('/book/{slug}',       [Platform\BookController::class, 'store'])->where('slug', '[a-z0-9-]+')->middleware('throttle:10,1')->name('book.store');
+
     // --- Industry landing pages: /for/bike-shops, /for/massage-therapy, etc. ---
     Route::get('/for/{industry}', [Platform\MarketingController::class, 'forIndustry'])
         ->where('industry', '[a-z0-9-]+')
