@@ -703,6 +703,11 @@
         Goes only to customers with marketing permission, in batches, with an
         unsubscribe link in every email. Once sent, content cannot be edited.
       </p>
+      {{-- MARKER-CAMPAIGN-CHECKS — what's wrong, before it goes out. --}}
+      <div id="cb-checks" style="margin-bottom:14px">
+        <div style="font-size:11px;opacity:.45">Checking…</div>
+      </div>
+
       {{-- MARKER-CAMPAIGN-SCHED — house rule: no native dialogs. --}}
       <form method="POST" action="{{ route('tenant.campaigns.send', $campaign->id) }}" id="cb-send-form">
         @csrf
@@ -1830,4 +1835,62 @@ function cbConfirmSend() {
     if (ok) document.getElementById('cb-send-form').submit();
   });
 }
+</script>
+
+
+{{-- MARKER-CAMPAIGN-CHECKS --}}
+<style>
+  .cbk-row { display:flex; gap:8px; align-items:flex-start; font-size:12px; padding:5px 0; }
+  .cbk-dot { width:6px; height:6px; border-radius:50%; margin-top:6px; flex:0 0 auto; }
+  .cbk-ok   .cbk-dot { background:#7BC96F; }
+  .cbk-warn .cbk-dot { background:#E0A82E; }
+  .cbk-fail .cbk-dot { background:#E0573E; }
+  .cbk-label { font-weight:600; flex:0 0 auto; }
+  .cbk-detail { opacity:.55; min-width:0; }
+  .cbk-cost { font-size:12px; padding-top:8px; margin-top:6px; border-top:.5px solid var(--ia-border); }
+  .cbk-blocked { font-size:11.5px; color:#E0573E; margin-top:8px; line-height:1.45; }
+</style>
+<script>
+(function () {
+  var box = document.getElementById('cb-checks');
+  if (!box) return;
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  fetch('{{ route('tenant.campaigns.checks', $campaign->id) }}', { headers: { 'Accept': 'application/json' } })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j || !j.success) { box.innerHTML = ''; return; }
+
+      var html = (j.rows || []).map(function (r) {
+        return '<div class="cbk-row cbk-' + r.level + '"><span class="cbk-dot"></span>'
+             + '<span class="cbk-label">' + esc(r.label) + '</span>'
+             + '<span class="cbk-detail">' + esc(r.detail) + '</span></div>';
+      }).join('');
+
+      var a = j.audience || {};
+      var skipped = (a.withEmail || 0) - (a.mailable || 0);
+      html += '<div class="cbk-cost">'
+            + '<strong>' + (a.mailable || 0) + '</strong> recipient' + ((a.mailable === 1) ? '' : 's')
+            + ' · about $' + (a.cost || 0).toFixed(2)
+            + (skipped > 0 ? '<div style="opacity:.5;font-size:11px;margin-top:3px">' + skipped + ' more have an address but no marketing permission.</div>' : '')
+            + '</div>';
+
+      if (j.blocking && j.blocking.length) {
+        html += '<div class="cbk-blocked">Sending is blocked until these are fixed: ' + esc(j.blocking.join(', ')) + '.</div>';
+      }
+
+      box.innerHTML = html;
+
+      // A blocked campaign shouldn't offer buttons that will only refuse.
+      if (j.blocking && j.blocking.length) {
+        document.querySelectorAll('#cb-send-form button, form[action*="/schedule"] button').forEach(function (b) {
+          b.disabled = true;
+          b.style.opacity = .45;
+          b.title = 'Fix the blocking items above first';
+        });
+      }
+    })
+    .catch(function () { box.innerHTML = ''; });
+})();
 </script>

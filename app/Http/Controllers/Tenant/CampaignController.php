@@ -281,8 +281,11 @@ class CampaignController extends Controller
             return back()->with('error', 'This campaign has already been sent or is in progress.');
         }
 
-        if (trim($campaign->subject) === '' || empty($campaign->blocks)) {
-            return back()->with('error', 'Please add a subject and at least one content block before sending.');
+        // MARKER-CAMPAIGN-CHECKS — the same checks the panel shows, enforced
+        // here too so posting the form directly can't skip them.
+        $failed = collect($this->preSendChecks($campaign, $tenant))->where('level', 'fail');
+        if ($failed->isNotEmpty()) {
+            return back()->with('error', 'Not sent — ' . $failed->map(fn ($r) => strtolower($r['label']) . ': ' . $r['detail'])->implode(' '));
         }
 
         // MARKER-CAMPAIGN-DELIVERY — sending, for real this time.
@@ -338,6 +341,159 @@ class CampaignController extends Controller
     }
 
     /**
+     * MARKER-CAMPAIGN-CHECKS — what's wrong with this campaign, before it
+     * goes out. Returns rows of ['level' => ok|warn|fail, 'label', 'detail'].
+     *
+     * Blocking faults are the ones that reach every recipient and can't be
+     * undone: no subject, no content, or a link that was never filled in.
+     * Everything else is a warning — annoying, not damaging.
+     */
+    private function preSendChecks(TenantCampaign $campaign, $tenant): array
+    {
+        $rows   = [];
+        $blocks = $campaign->blocks ?? [];
+
+        $subject = trim((string) $campaign->subject);
+        $rows[] = $subject === ''
+            ? ['level' => 'fail', 'label' => 'Subject line', 'detail' => 'Empty — an email without one usually goes to spam.']
+            : ['level' => 'ok', 'label' => 'Subject line', 'detail' => $subject];
+
+        $rows[] = empty($blocks)
+            ? ['level' => 'fail', 'label' => 'Content', 'detail' => 'No blocks yet.']
+            : ['level' => 'ok', 'label' => 'Content', 'detail' => count($blocks) . ' block' . (count($blocks) === 1 ? '' : 's')];
+
+        $pre = trim((string) ($campaign->preheader ?? ''));
+        $rows[] = $pre === ''
+            ? ['level' => 'warn', 'label' => 'Preheader', 'detail' => 'Empty — inboxes will show your first sentence instead.']
+            : ['level' => 'ok', 'label' => 'Preheader', 'detail' => $pre];
+
+        // Walk the blocks once, gathering links, images and merge tags.
+        $badLinks = [];
+        $noAlt    = 0;
+        $bareTags = [];
+        $bodyText = '';
+
+        $walk = function ($value) use (&$walk, &$badLinks, &$bareTags, &$bodyText) {
+            if (is_array($value)) {
+                foreach ($value as $v) { $walk($v); }
+                return;
+            }
+            if (! is_string($value)) {
+                return;
+            }
+            $bodyText .= ' ' . $value;
+            // {{tag}} with no |fallback
+            if (preg_match_all('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', $value, $m)) {
+                foreach ($m[1] as $tag) {
+                    if ($tag !== 'discount_code' && ! in_array($tag, $bareTags, true)) {
+                        $bareTags[] = $tag;
+                    }
+                }
+            }
+        };
+
+        foreach ($blocks as $b) {
+            $data = $b['data'] ?? [];
+            $walk($data);
+
+            $type = $b['type'] ?? '';
+
+            foreach (['url', 'link'] as $k) {
+                // 'url' on an image block is the image itself, not a link.
+                if ($k === 'url' && in_array($type, ['image', 'image_text', 'gallery'], true)) {
+                    continue;
+                }
+                $u = trim((string) ($data[$k] ?? ''));
+                if ($u === '') {
+                    continue;
+                }
+                if (in_array($u, ['#', 'https://', 'http://'], true) || ! parse_url($u, PHP_URL_HOST)) {
+                    if (! str_starts_with($u, '/') && ! str_starts_with($u, 'mailto:')) {
+                        $badLinks[] = $u;
+                    }
+                }
+            }
+
+            if (in_array($type, ['image', 'image_text'], true)) {
+                if (trim((string) ($data['url'] ?? '')) !== '' && trim((string) ($data['alt'] ?? '')) === '') {
+                    $noAlt++;
+                }
+            }
+            if ($type === 'gallery') {
+                foreach ((array) ($data['images'] ?? []) as $img) {
+                    if (is_array($img) && trim((string) ($img['alt'] ?? '')) === '') {
+                        $noAlt++;
+                    }
+                }
+            }
+            if ($type === 'social') {
+                foreach ((array) ($data['links'] ?? []) as $l) {
+                    $u = trim((string) ($l['url'] ?? ''));
+                    if ($u !== '' && ! parse_url($u, PHP_URL_HOST) && ! str_starts_with($u, 'mailto:')) {
+                        $badLinks[] = $u;
+                    }
+                }
+            }
+        }
+
+        $rows[] = $badLinks
+            ? ['level' => 'fail', 'label' => 'Links', 'detail' => count($badLinks) . ' unfinished: ' . implode(', ', array_slice(array_unique($badLinks), 0, 3))]
+            : ['level' => 'ok', 'label' => 'Links', 'detail' => 'All look complete.'];
+
+        $rows[] = $noAlt > 0
+            ? ['level' => 'warn', 'label' => 'Image alt text', 'detail' => $noAlt . ' image' . ($noAlt === 1 ? '' : 's') . ' with none — screen readers and blocked-image inboxes see nothing.']
+            : ['level' => 'ok', 'label' => 'Image alt text', 'detail' => 'Present where needed.'];
+
+        $rows[] = $bareTags
+            ? ['level' => 'warn', 'label' => 'Merge tags', 'detail' => 'No fallback on ' . implode(', ', array_slice($bareTags, 0, 3)) . ' — a blank sends as "Hi ,".']
+            : ['level' => 'ok', 'label' => 'Merge tags', 'detail' => 'Fallbacks in place.'];
+
+        $rows[] = stripos($bodyText, 'unsubscribe') !== false
+            ? ['level' => 'ok', 'label' => 'Unsubscribe', 'detail' => 'Mentioned in your content, and the footer link is added automatically.']
+            : ['level' => 'warn', 'label' => 'Unsubscribe', 'detail' => 'The footer link is added automatically; some shops prefer to mention it in the copy too.'];
+
+        return $rows;
+    }
+
+    /** MARKER-CAMPAIGN-CHECKS — recipients and what the send will cost. */
+    private function preSendAudience($campaign, $tenant): array
+    {
+        $segment = $campaign->targeting['segment'] ?? 'all';
+
+        $base = TenantCustomer::where('tenant_id', $tenant->id);
+        if ($segment === 'has_appointment') {
+            $base->whereHas('appointments');
+        }
+
+        $withEmail = (clone $base)->whereNotNull('email')->where('email', '!=', '')->count();
+        $mailable  = (clone $base)->emailMailable()->count();
+        $rate      = \App\Services\EmailLedger::rate();
+
+        return [
+            'mailable'  => $mailable,
+            'withEmail' => $withEmail,
+            'cost'      => $mailable * $rate,
+        ];
+    }
+
+    /** MARKER-CAMPAIGN-CHECKS — the checks panel, fetched by the composer. */
+    public function checks(Request $request, string $id)
+    {
+        $tenant   = tenant();
+        $campaign = TenantCampaign::where('tenant_id', $tenant->id)->where('id', $id)->firstOrFail();
+
+        $rows     = $this->preSendChecks($campaign, $tenant);
+        $audience = $this->preSendAudience($campaign, $tenant);
+
+        return response()->json([
+            'success'  => true,
+            'rows'     => $rows,
+            'blocking' => collect($rows)->where('level', 'fail')->pluck('label')->values(),
+            'audience' => $audience,
+        ]);
+    }
+
+    /**
      * MARKER-CAMPAIGN-SCHED — arm a campaign for later.
      *
      * Deliberately does NOT queue recipient rows now. The worker builds the
@@ -353,8 +509,11 @@ class CampaignController extends Controller
             return back()->with('error', 'Only a draft can be scheduled.');
         }
 
-        if (trim((string) $campaign->subject) === '' || empty($campaign->blocks)) {
-            return back()->with('error', 'Add a subject and at least one content block first.');
+        // MARKER-CAMPAIGN-CHECKS — a scheduled send is one nobody is watching,
+        // so the same faults block here.
+        $failed = collect($this->preSendChecks($campaign, $tenant))->where('level', 'fail');
+        if ($failed->isNotEmpty()) {
+            return back()->with('error', 'Not scheduled — ' . $failed->map(fn ($r) => strtolower($r['label']) . ': ' . $r['detail'])->implode(' '));
         }
 
         if (\App\Services\EmailLedger::broadcastStream() === null) {

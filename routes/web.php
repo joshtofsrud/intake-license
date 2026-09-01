@@ -1066,6 +1066,7 @@ Route::post('webhooks/twilio/inbound', [\App\Http\Controllers\Webhooks\TwilioInb
             Route::post('/campaigns/{id}/preview', [TenantControllers\CampaignController::class, 'preview'])->name('campaigns.preview');
             Route::post('/campaigns/{id}/test', [TenantControllers\CampaignController::class, 'testSend'])->name('campaigns.test'); // MARKER-CAMPAIGN-V2A
             // MARKER-CAMPAIGN-SCHED
+            Route::get('/campaigns/{id}/checks',      [TenantControllers\CampaignController::class, 'checks'])->name('campaigns.checks'); // MARKER-CAMPAIGN-CHECKS
             Route::post('/campaigns/{id}/schedule',   [TenantControllers\CampaignController::class, 'schedule'])->name('campaigns.schedule');
             Route::post('/campaigns/{id}/unschedule', [TenantControllers\CampaignController::class, 'unschedule'])->name('campaigns.unschedule');
             Route::get('/campaign-catalog-search', [TenantControllers\CampaignController::class, 'catalogSearch'])->name('campaigns.catalog-search'); // MARKER-CAMPAIGN-V2C
