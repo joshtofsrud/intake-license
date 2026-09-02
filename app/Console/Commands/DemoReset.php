@@ -61,7 +61,11 @@ class DemoReset extends Command
         try {
             // wipe: child tables first is unnecessary with checks off, and the
             // manifest order is the copy order anyway
+            // MARKER-DEMO-RESET-TENANTS — the manifest lists 'tenants' too (the
+            // freeze records the tenant row under that name), but it has no
+            // tenant_id column and is removed by id just below.
             foreach (array_reverse($tables) as $t) {
+                if ($t === 'tenants') continue;
                 DB::table($t)->where('tenant_id', $tenantId)->delete();
             }
             DB::table('tenants')->where('id', $tenantId)->delete();
