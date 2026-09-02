@@ -2,7 +2,7 @@
      A third value means the item opens a collapsible section and carries a dot. --}}
 <div class="rail"><div class="wrap">
   @foreach($rail as [$href, $label, $sec])
-    <a href="{{ $href }}"@if($sec) data-sec="{{ $sec }}"@endif @if($href === '#talk' || str_contains($href, '/book/')) style="color:var(--lime)"@endif>@if($sec)<i></i>@endif{{ $label }}</a> {{-- MARKER-SCHED-TALK-ENTRY --}}
+    <a href="{{ $href }}"@if($sec) data-sec="{{ $sec }}"@endif @if($href === '#talk' || str_contains($href, '/book/') || str_contains($href, '/demo')) {{-- MARKER-INVEST-DEMO --}} style="color:var(--lime)"@endif>@if($sec)<i></i>@endif{{ $label }}</a> {{-- MARKER-SCHED-TALK-ENTRY --}}
   @endforeach
 </div></div>
 

@@ -155,6 +155,7 @@ textarea:focus{border-color:var(--lime-line)}
     ['#ask', 'Ask for the proposal', null],
     ['#support', 'Back the project', null],
     ['#talk', 'Talk to Josh', null], // MARKER-SCHED-TALK-ENTRY — rendered lime in _rail
+    [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
   ];
 @endphp
 @include('invest._rail')
@@ -182,12 +183,23 @@ textarea:focus{border-color:var(--lime-line)}
   <p class="lede wide">{{ $lede }}</p>
   {{-- MARKER-SCHED-TALK-ENTRY — a conversation is the lowest-friction ask on the
        page; offer it before the form. Renders only while the type is bookable. --}}
-  @php $talkType = \App\Models\PlatformBookingType::where('slug', 'investor')->first(); @endphp
+  @php
+    $talkType = \App\Models\PlatformBookingType::where('slug', 'investor')->first();
+    // MARKER-INVEST-DEMO
+    $investDemo   = \App\Models\Tenant::where('subdomain', 'demo')->where('is_demo', true)->first();
+    $investDemoOn = $investDemo && \App\Models\DemoSetting::get('offline:demo') !== '1';
+  @endphp
   @if($talkType && $talkType->isBookable())
   <div class="ok" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:26px">
     <div style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
     <p style="margin:0;font-size:14px"><b>Questions first? Talk to Josh.</b><br>{{ $talkType->length_min }} minutes, one on one — no proposal, no code, no commitment.</p>
-    <a class="btn" href="#talk" style="margin:0 0 0 auto;padding:10px 18px">Book a call</a>
+    <div style="margin:0 0 0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      @if($investDemoOn)
+        {{-- MARKER-INVEST-DEMO — the product itself, one click, no account --}}
+        <a href="{{ url('/demo') }}" style="color:var(--lime);font-size:14px;text-decoration:underline">See the demo</a>
+      @endif
+      <a class="btn" href="#talk" style="margin:0;padding:10px 18px">Book a call</a>
+    </div>
   </div>
   @endif
 </div></section>

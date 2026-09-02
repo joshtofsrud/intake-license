@@ -40,6 +40,7 @@
     ['#interest', 'Commit', null],
     ['#s-back', 'Back the project', 's-back'],
     [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
+    [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
   ];
 @endphp
 @include('invest._rail')
