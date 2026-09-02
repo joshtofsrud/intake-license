@@ -58,11 +58,31 @@ class AudienceService
     {
         $q = TenantCustomer::where('tenant_id', $tenant->id);
 
+        // MARKER-AUDIENCE-EMPTY — an unresolved saved audience must select
+        // NOBODY. Falling through to "no rules" means everyone, which is how a
+        // deleted list turns into a send to the entire customer base.
+        if ($this->isUnresolvedSaved($tenant, $targeting)) {
+            return $q->whereRaw('1 = 0');
+        }
+
         foreach ($this->rulesFor($tenant, $targeting) as $rule) {
             $this->applyRule($q, $tenant, $rule);
         }
 
         return $q;
+    }
+
+    /** MARKER-AUDIENCE-EMPTY — saved mode pointing at nothing we can find. */
+    public function isUnresolvedSaved(Tenant $tenant, ?array $targeting): bool
+    {
+        if (! is_array($targeting) || ($targeting['mode'] ?? null) !== 'saved') {
+            return false;
+        }
+        $id = $targeting['audience_id'] ?? '';
+        if ($id === '' || $id === null) {
+            return true;
+        }
+        return ! TenantAudience::where('tenant_id', $tenant->id)->where('id', $id)->exists();
     }
 
     /** Those who will actually receive it: the rules, then permission. */
@@ -108,9 +128,14 @@ class AudienceService
         $mode = $targeting['mode'] ?? null;
 
         if ($mode === 'saved') {
-            $a = TenantAudience::where('tenant_id', $tenant->id)
-                ->where('id', $targeting['audience_id'] ?? '')->first();
-            return $a ? $a->name : 'Saved audience (deleted — everyone with permission)';
+            // MARKER-AUDIENCE-EMPTY — never describe an unresolved list as
+            // everyone; nobody is what it now selects.
+            $id = $targeting['audience_id'] ?? '';
+            if ($id === '' || $id === null) {
+                return 'No audience chosen yet — nobody will receive this';
+            }
+            $a = TenantAudience::where('tenant_id', $tenant->id)->where('id', $id)->first();
+            return $a ? $a->name : 'That saved audience was deleted — nobody will receive this';
         }
 
         $rules = $this->rulesFor($tenant, $targeting);

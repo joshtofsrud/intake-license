@@ -2084,10 +2084,25 @@ function cbConfirmSend() {
     return { mode: 'all' };
   }
 
+  // MARKER-AUDIENCE-EMPTY — with nothing chosen there is no number to show, and
+  // leaving the previous mode's count on screen reads as if it still applies.
+  function unresolvedSaved() {
+    return mode === 'saved' && !document.querySelector('input[name="aud_saved"]:checked');
+  }
+
   var timer = null, sampleOpen = false;
   function refresh(withSample) {
     var payload = targeting();
     if (hidden) hidden.value = JSON.stringify(payload);
+
+    // MARKER-AUDIENCE-EMPTY
+    var sampleBox = document.querySelector('[data-aud-sample]');
+    if (unresolvedSaved()) {
+      root.hidden = true;
+      if (sampleBox) sampleBox.hidden = true;
+      return;
+    }
+    root.hidden = false;
     clearTimeout(timer);
     timer = setTimeout(function () { fetchCount(payload, withSample || sampleOpen); }, 250);
   }
