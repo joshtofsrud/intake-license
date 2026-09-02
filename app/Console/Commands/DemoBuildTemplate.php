@@ -124,6 +124,8 @@ class DemoBuildTemplate extends Command
             }
             // sms stays off however the columns are named
             if (array_key_exists('sms_enabled', $row)) $row['sms_enabled'] = 0;
+            // MARKER-DEMO-TEMPLATE-UNIQUE — globally unique, not credential-shaped
+            if (array_key_exists('sms_from_number', $row)) $row['sms_from_number'] = null;
             // MARKER-DEMO-TEMPLATE-FIX — live Stripe keys were found inside this
             // JSON; strip every credential-keyed value before the row exists.
             foreach ($row as $col => $v) {
@@ -144,6 +146,20 @@ class DemoBuildTemplate extends Command
             // ---- 3. copy ----------------------------------------------
             $meta = [];
             $cap  = (int) $this->option('max-rows');
+
+            // MARKER-DEMO-TEMPLATE-UNIQUE — every new uuid is known BEFORE the
+            // first insert, so FK columns can be rewritten inline and composite
+            // uniques over FK pairs never collide with the source's rows.
+            $this->line('Mapping ids…');
+            foreach ($tables as $t) {
+                $m = $this->tableMeta($t);
+                if ($m['pk'] === 'id' && $m['pkIsUuid']) {
+                    foreach (DB::table($t)->where('tenant_id', $src->id)->pluck('id') as $oldId) {
+                        $this->uuidMap[strtolower((string) $oldId)] = (string) Str::uuid();
+                    }
+                }
+            }
+            $this->line('  ' . count($this->uuidMap) . ' ids mapped');
             foreach ($tables as $t) {
                 $meta[$t] = $this->tableMeta($t);
                 // MARKER-DEMO-TEMPLATE-BULK — count first: the operator sees which
@@ -224,6 +240,45 @@ class DemoBuildTemplate extends Command
         return array_values(array_filter($all, fn ($t) => ! preg_match(self::BULK, $t)));
     }
 
+    /** MARKER-DEMO-TEMPLATE-UNIQUE — uuid-shaped FK columns on this table. */
+    private function uuidFkCols(array $meta): array
+    {
+        $out = [];
+        foreach ($meta['cols'] as $col => $type) {
+            if ($col === 'tenant_id' || $col === 'id') continue;
+            if (preg_match(self::SECRET_COLS, $col)) continue;
+            if (! in_array($type, ['char', 'varchar'], true)) continue;
+            if (isset($meta['fks'][$col]) || preg_match('/_id$|_uuid$/', $col)) $out[] = $col;
+        }
+        return $out;
+    }
+
+    /**
+     * MARKER-DEMO-TEMPLATE-UNIQUE — single-column UNIQUE string columns whose
+     * index does not include tenant_id: copying them verbatim collides with
+     * the tenant we copied from. Tokens, codes, public slugs.
+     */
+    private function unscopedUniqueCols(string $table, array $meta): array
+    {
+        $rows = DB::select(
+            "SELECT INDEX_NAME i, COLUMN_NAME c FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND NON_UNIQUE = 0
+             ORDER BY INDEX_NAME, SEQ_IN_INDEX", [DB::getDatabaseName(), $table]);
+        $byIndex = [];
+        foreach ($rows as $r) $byIndex[$r->i][] = $r->c;
+
+        $out = [];
+        foreach ($byIndex as $index => $cols) {
+            if (count($cols) !== 1) continue;              // composites are handled by inline FK remap
+            $col = $cols[0];
+            if ($col === 'id' || $col === $meta['pk'] || $index === 'PRIMARY') continue;
+            if ($col === 'tenant_id') continue;
+            if (! in_array($meta['cols'][$col] ?? '', ['char', 'varchar'], true)) continue;
+            $out[] = $col;
+        }
+        return $out;
+    }
+
     /**
      * MARKER-DEMO-TEMPLATE-BULK — does anything actually point at this table's
      * ids? If not, the per-row insertGetId map is dead weight and the copy can
@@ -276,6 +331,8 @@ class DemoBuildTemplate extends Command
         // cursor(), not chunk(): offset pagination without a unique order
         // (pivot tables have none) can skip or repeat rows.
         $n = 0; $insert = [];
+        $uuidCols   = $this->uuidFkCols($meta);            // MARKER-DEMO-TEMPLATE-UNIQUE
+        $uniqueCols = $this->unscopedUniqueCols($table, $meta);
         foreach (DB::table($table)->where('tenant_id', $srcId)->cursor() as $r) {
             $row = (array) $r;
             $row['tenant_id'] = $demoId;
@@ -288,10 +345,23 @@ class DemoBuildTemplate extends Command
                     if (is_array($decoded)) $row[$col] = json_encode($this->stripJsonSecrets($decoded));
                 }
             }
+            // MARKER-DEMO-TEMPLATE-UNIQUE — rewrite FK uuids inline, then any
+            // tenant-unscoped unique string, before this row reaches an index
+            foreach ($uuidCols as $col) {
+                $v = $row[$col] ?? null;
+                if ($v !== null && isset($this->uuidMap[strtolower((string) $v)])) {
+                    $row[$col] = $this->uuidMap[strtolower((string) $v)];
+                }
+            }
+            foreach ($uniqueCols as $col) {
+                $v = $row[$col] ?? null;
+                if ($v !== null && $v !== '') {
+                    $len = max(8, min(64, mb_strlen((string) $v)));
+                    $row[$col] = substr(Str::random($len), 0, $len);
+                }
+            }
             if ($meta['pk'] === 'id' && $meta['pkIsUuid']) {
-                $new = (string) Str::uuid();
-                $this->uuidMap[strtolower($row['id'])] = $new;
-                $row['id'] = $new;
+                $row['id'] = $this->uuidMap[strtolower($row['id'])] ?? (string) Str::uuid();
                 $insert[] = $row;
             } elseif ($meta['pk'] === 'id' && $this->isReferenced($table)) {
                 // something FKs to these ids, so the map has to be built row by row
@@ -315,31 +385,18 @@ class DemoBuildTemplate extends Command
         return $n;
     }
 
+    /**
+     * MARKER-DEMO-TEMPLATE-UNIQUE — uuid FKs are rewritten inline during the
+     * copy now, so only int FKs (whose ids don't exist until insert time) need
+     * a second pass.
+     */
     private function remapTable(string $table, string $demoId, array $meta): void
     {
-        $uuidCols = [];
         foreach ($meta['cols'] as $col => $type) {
             if ($col === 'tenant_id' || $col === 'id') continue;
-            if (preg_match(self::SECRET_COLS, $col)) continue;
-            // constraint-declared FKs and convention *_id / *_uuid columns
-            if (isset($meta['fks'][$col]) || preg_match('/_id$|_uuid$/', $col)) {
-                if (in_array($type, ['char', 'varchar'], true)) $uuidCols[] = $col;
-                elseif (isset($meta['fks'][$col])) $this->remapIntFk($table, $demoId, $col, $meta['fks'][$col]);
-            }
-        }
-        if (! $uuidCols) return;
-
-        // per-value updates: no row targeting needed, so PK-less pivots work,
-        // and FK columns are indexed so each update is cheap
-        foreach ($uuidCols as $col) {
-            $values = DB::table($table)->where('tenant_id', $demoId)
-                ->whereNotNull($col)->distinct()->pluck($col);
-            foreach ($values as $old) {
-                $k = strtolower((string) $old);
-                if (isset($this->uuidMap[$k])) {
-                    DB::table($table)->where('tenant_id', $demoId)->where($col, $old)
-                        ->update([$col => $this->uuidMap[$k]]);
-                }
+            if (in_array($type, ['char', 'varchar'], true)) continue;
+            if (isset($meta['fks'][$col])) {
+                $this->remapIntFk($table, $demoId, $col, $meta['fks'][$col]);
             }
         }
     }
@@ -362,12 +419,18 @@ class DemoBuildTemplate extends Command
     private const FIRST = ['Avery','Jordan','Riley','Casey','Morgan','Quinn','Rowan','Skyler','Emerson','Finley','Harper','Kendall','Logan','Marlow','Nico','Parker','Reese','Sawyer','Tatum','Wren','Blake','Charlie','Dakota','Ellis','Frankie','Hayden','Indigo','Jules','Kai','Lennon','Mica','Noel','Oakley','Peyton','Remy','Shiloh','Teagan','Vesper','Winter','Zephyr'];
     private const LAST  = ['Alder','Birchwood','Cardinal','Driftwood','Eastman','Fernhill','Granite','Hollis','Ironwood','Juniper','Kestrel','Larkspur','Merritt','Northgate','Oakhurst','Pinecrest','Quarry','Ridgeway','Sandpoint','Timberline','Underhill','Vantage','Westbrook','Yarrow','Ashford','Bristlecone','Cascade','Deerfield','Elkhorn','Foxglove','Glacier','Harborview','Inlet','Jetty','Kettle','Lakeshore','Meridian','Nightingale','Overlook','Palisade'];
 
+    /** MARKER-DEMO-TEMPLATE-CUSTOMERS — the shop's customers are tenant_customers. */
+    private function customersTable(): string
+    {
+        return (new \App\Models\Customer)->getTable();
+    }
+
     private function anonymiseCustomers(string $demoId): void
     {
-        mt_srand(42);
+        $table = $this->customersTable();
         $i = 0; $seen = 0;
-        DB::table('customers')->where('tenant_id', $demoId)->orderBy('id')
-            ->chunkById(500, function ($rows) use (&$i, &$seen) {
+        DB::table($table)->where('tenant_id', $demoId)->orderBy('id')
+            ->chunkById(500, function ($rows) use (&$i, &$seen, $table) {
                 foreach ($rows as $c) {
                     $first = self::FIRST[$i % count(self::FIRST)];
                     $last  = self::LAST[intdiv($i, count(self::FIRST)) % count(self::LAST)] . ($i >= 1600 ? ' ' . chr(65 + ($i % 26)) : '');
@@ -394,7 +457,7 @@ class DemoBuildTemplate extends Command
                         if (array_key_exists($col, $old)) $upd[$col] = $old[$col]; // swept later
                     }
                     unset($upd['notes']);
-                    DB::table('customers')->where('id', $c->id)->update($upd);
+                    DB::table($table)->where('id', $c->id)->update($upd);
                     $i++;
                 }
             });
@@ -578,7 +641,17 @@ class DemoBuildTemplate extends Command
 
     private function leakCheck(string $demoId, array $tables): int
     {
-        if (! $this->leakSamples) return 0;
+        // MARKER-DEMO-TEMPLATE-CUSTOMERS — no samples means the anonymiser never
+        // saw a customer with an email. That is a broken run, not a clean one.
+        if (! $this->leakSamples) {
+            $count = DB::table($this->customersTable())->where('tenant_id', $demoId)->count();
+            if ($count > 0) {
+                $this->error("Leak check cannot run: {$count} customers copied but none were anonymised.");
+                return $count;
+            }
+            $this->warn('Leak check skipped: the source tenant has no customers with email addresses.');
+            return 0;
+        }
         $hits = 0;
         foreach ($tables as $t) {
             $meta = $this->tableMeta($t);
