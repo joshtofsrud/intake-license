@@ -47,7 +47,8 @@
         <div class="mk-footer-inner">
             <div>
                 <div class="mk-footer-brand-name">
-                    <div class="mk-logo-mark" style="width:22px;height:22px;font-size:10px">I</div>
+                    {{-- MARKER-BRAND-CANON — was a letter "I", not the mark --}}
+                    <img src="{{ asset('icon.svg') }}" alt="" width="22" height="22" style="display:block">
                     intake
                 </div>
                 <p class="mk-footer-tagline">Online booking, work orders, and customer management for service shops.</p>
