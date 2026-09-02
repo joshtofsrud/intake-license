@@ -269,8 +269,15 @@
     </div>
   @endif
 
-  <div class="ia-table-wrap cust-desktop-only">
-    <table class="ia-table">
+  {{-- MARKER-TABLE-RESIZE — drag the border between any two headings to resize.
+       The wrapper scrolls, so a column dragged past the screen edge is still
+       reachable — before this, the right-hand columns were simply clipped. --}}
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+    <span style="font-size:11px;opacity:.4">Drag between column headings to resize</span>
+    <a href="#" data-reset-columns hidden style="font-size:11px;opacity:.6;text-decoration:underline">Reset columns</a>
+  </div>
+  <div class="ia-table-wrap cust-desktop-only cust-table-scroll" data-resizable-wrap>
+    <table class="ia-table" data-resizable-table="customers-v1">
       <thead>
         <tr>
           <th>Name</th>
@@ -415,6 +422,21 @@
 @endif
 
 @push('scripts')
+{{-- MARKER-TABLE-RESIZE --}}
+<style>
+  .cust-table-scroll{overflow-x:auto;overflow-y:visible}
+  .cust-table-scroll .ia-table th{position:relative}
+  .ia-col-resize{position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;
+    z-index:2;background:none;border:0;display:block}
+  .ia-col-resize:hover::after,.ia-col-resize:focus::after{content:"";position:absolute;top:6px;bottom:6px;
+    left:3px;width:2px;border-radius:1px;background:var(--ia-accent)}
+  .ia-col-resize:focus{outline:none}
+  /* the name column stays put while the rest scrolls */
+  .cust-table-scroll .ia-table th:first-child,
+  .cust-table-scroll .ia-table td:first-child{position:sticky;left:0;z-index:1;background:var(--ia-surface)}
+  .cust-table-scroll .ia-table thead th:first-child{z-index:3}
+</style>
+<script src="{{ asset('js/tenant/table-resize.js') }}?v={{ filemtime(public_path('js/tenant/table-resize.js')) }}" defer></script>
 <script>
 (function () {
   // ── Sort sheet open/close + pick ─────────────────────────────────────────
