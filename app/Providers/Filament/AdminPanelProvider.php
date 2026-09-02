@@ -114,7 +114,8 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\Scheduling::class,             // MARKER-SCHED-ADMIN — explicit, no auto-discovery
                 \App\Filament\Pages\SchedulingAvailability::class, // MARKER-SCHED-ADMIN
                 \App\Filament\Pages\SchedulingTypes::class,        // MARKER-SCHED-ADMIN
-                \App\Filament\Pages\Demo::class,                   // MARKER-DEMO-ENTRY
+                \App\Filament\Pages\Demo::class,
+                \App\Filament\Pages\CustomerCleanup::class,   // MARKER-CUST-CLEANUP                   // MARKER-DEMO-ENTRY
             ])
             ->widgets([
                 ServerHealthWidget::class,

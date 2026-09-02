@@ -70,7 +70,8 @@ class AdminAccess
             return 'catalog';
         }
         return match ($segment) {
-            'tenants', 'password-editor'                     => 'tenants',
+            'tenants', 'password-editor',
+            'customer-cleanup'                               => 'tenants', // MARKER-CUST-CLEANUP
             'tenant-domains'                                 => 'domains',
             'sales-channels', 'sales-prospects'              => 'crm',
             'sales-agencies'                                 => 'reps',

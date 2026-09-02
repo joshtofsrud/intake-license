@@ -197,30 +197,13 @@ class CustomerController extends Controller
         ]);
     }
 
-    /** Rows that would break if the customer row disappeared. */
+    /**
+     * MARKER-CUST-CLEANUP — delegated. The master-admin cleanup page removes
+     * customers too, and two copies of these rules would eventually disagree.
+     */
     private function customerLinkCounts(string $customerId): array
     {
-        $tables = [
-            'sales'          => 'tenant_sales',
-            'appointments'   => 'tenant_appointments',
-            'rentals'        => 'tenant_rentals',
-            'orders'         => 'tenant_orders',
-            'gift cards'     => 'tenant_gift_cards',
-            'special orders' => 'tenant_special_orders',
-            'assets'         => 'tenant_customer_assets',
-        ];
-
-        $out = [];
-        foreach ($tables as $label => $table) {
-            if (! \Illuminate\Support\Facades\Schema::hasTable($table)
-                || ! \Illuminate\Support\Facades\Schema::hasColumn($table, 'customer_id')) {
-                continue;
-            }
-            $out[$label] = (int) \Illuminate\Support\Facades\DB::table($table)
-                ->where('customer_id', $customerId)->count();
-        }
-
-        return $out;
+        return app(\App\Services\Tenant\CustomerRemovalService::class)->linkCounts($customerId);
     }
 
     /**
@@ -240,62 +223,17 @@ class CustomerController extends Controller
         }
 
         $customer = \App\Models\Tenant\TenantCustomer::where('tenant_id', $tenant->id)->findOrFail($id);
-        $links    = $this->customerLinkCounts($customer->id);
-        $total    = array_sum($links);
         $by       = auth('tenant')->user();
 
-        if ($total === 0) {
-            \Illuminate\Support\Facades\DB::transaction(function () use ($customer) {
-                \Illuminate\Support\Facades\DB::table('tenant_customer_contacts')
-                    ->where('customer_id', $customer->id)->delete();
-                $customer->delete();
-            });
+        // MARKER-CUST-CLEANUP — same service the master-admin sweep uses.
+        $result = app(\App\Services\Tenant\CustomerRemovalService::class)
+            ->remove($customer, $by?->id, 'shop');
 
-            logger()->info('customer deleted', [
-                'tenant_id' => $tenant->id, 'customer_id' => $id, 'by' => $by?->id,
-            ]);
-
-            return response()->json(['success' => true, 'mode' => 'delete']);
-        }
-
-        \Illuminate\Support\Facades\DB::transaction(function () use ($customer) {
-            // Blank everything that identifies a person. The id, its links and
-            // the business records (stripe id, tax terms) stay: removing those
-            // orphans refunds and breaks the books.
-            $customer->forceFill([
-                'first_name'                 => 'Erased',
-                'last_name'                  => 'customer',
-                'business_name'              => null,
-                'email'                      => null,
-                'phone'                      => null,
-                'address_line1'              => null,
-                'address_line2'              => null,
-                'city'                       => null,
-                'state'                      => null,
-                'postcode'                   => null,
-                'country'                    => null,
-                'notes'                      => null,
-                'wp_source_url'              => null,
-                'password'                   => null,
-                'remember_token'             => null,
-                'email_verified_at'          => null,
-                'password_reset_token'       => null,
-                'password_reset_sent_at'     => null,
-                'email_marketing_consent_at' => null,
-                'email_marketing_opt_out_at' => now(),
-                'erased_at'                  => now(),
-            ])->save();
-
-            // Business contacts are people too.
-            \Illuminate\Support\Facades\DB::table('tenant_customer_contacts')
-                ->where('customer_id', $customer->id)->delete();
-        });
-
-        logger()->info('customer erased', [
-            'tenant_id' => $tenant->id, 'customer_id' => $id, 'by' => $by?->id, 'links' => $links,
+        return response()->json([
+            'success' => true,
+            'mode'    => $result['mode'],
+            'links'   => $result['links'],
         ]);
-
-        return response()->json(['success' => true, 'mode' => 'erase', 'links' => array_filter($links)]);
     }
 
     public function search(Request $request)
