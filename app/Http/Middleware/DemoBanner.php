@@ -60,6 +60,7 @@ class DemoBanner
 
         return <<<HTML
 <style>
+  /* MARKER-DEMO-BAR-MOBILE — desktop: bottom, where nothing else sits. */
   .demo-bar{position:fixed;left:0;right:0;bottom:0;z-index:2147483000;background:#111;color:#f0f0f0;
     border-top:2px solid #BEF264;font:13px/1.4 Inter,system-ui,sans-serif;padding:9px 14px;
     display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -6px 24px rgba(0,0,0,.35)}
@@ -67,8 +68,17 @@ class DemoBanner
   .demo-bar .tag{background:#BEF264;color:#0a0a0a;font-weight:700;border-radius:5px;padding:2px 8px;font-size:11.5px;flex:none}
   .demo-bar .cd{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.85;flex:none}
   .demo-bar .cd.soon{color:#ffb4b4}
-  body{padding-bottom:52px}
-  @media (max-width:640px){.demo-bar{font-size:12px}.demo-bar .cd{margin-left:0;width:100%}}
+  @media (min-width:1024px){ body{padding-bottom:52px} }
+  /* Phones and tablets: the bottom belongs to the app's own tab bar
+     (fixed, bottom:0, z-index:100, with 72px of body padding reserved for it),
+     so the bar goes to the top and reserves its own room there instead. */
+  @media (max-width:1023px){
+    .demo-bar{top:0;bottom:auto;border-top:0;border-bottom:2px solid #BEF264;
+      box-shadow:0 6px 24px rgba(0,0,0,.35);padding-top:calc(9px + env(safe-area-inset-top, 0px))}
+    body{padding-top:calc(46px + env(safe-area-inset-top, 0px))}
+  }
+  @media (max-width:640px){.demo-bar{font-size:12px}.demo-bar .cd{margin-left:0;width:100%}
+    body{padding-top:calc(66px + env(safe-area-inset-top, 0px))}}
 </style>
 <div class="demo-bar" role="status">
   <span class="tag">{$label}</span>
