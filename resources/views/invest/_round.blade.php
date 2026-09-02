@@ -51,9 +51,22 @@
         <b>{{ $doc['label'] }} &rarr;</b><span>{{ $doc['meta'] }}</span>
       </a>
     @endforeach
+    {{-- MARKER-INVEST-DEMO-DOC — the product itself, sitting with the papers
+         about it. Lime border so it reads as the one thing that is not a PDF. --}}
+    @php
+        $roundDemo   = \App\Models\Tenant::where('subdomain', 'demo')->where('is_demo', true)->first();
+        $roundDemoOn = $roundDemo && \App\Models\DemoSetting::get('offline:demo') !== '1';
+    @endphp
+    @if($roundDemoOn)
+      <a class="doc" href="{{ url('/demo') }}" style="border-color:var(--lime-line)">
+        <b>Intake — the working app &rarr;</b><span>LIVE DEMO · no account</span>
+      </a>
+    @endif
   </div>
   <p class="fine">Streamed to you, not linked publicly — these URLs won't work for anyone else, and stop
     working if your link is withdrawn. The proposal carries the problem, the model, the market, the use
-    of funds and the risks; this page deliberately doesn't repeat them.</p>
+    of funds and the risks; this page deliberately doesn't repeat them.@if($roundDemoOn) The demo is a
+    real shop's data with every customer anonymised; it resets every hour, and nothing you do in there
+    sends an email or a text.@endif</p>
 </div></section>
 @endif
