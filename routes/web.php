@@ -69,8 +69,8 @@ Route::domain($domain)->group(function () {
 
     // MARKER-DEMO-ENTRY — the public way in. Two steps because session cookies
     // are per-subdomain: this hop is signed, the sign-in happens on the demo host.
-    Route::get('/demo', [\App\Http\Controllers\DemoEntryController::class, 'start'])
-        ->middleware('throttle:30,1')->name('demo.start');
+    Route::get('/demo/{slug?}', [\App\Http\Controllers\DemoEntryController::class, 'start'])
+        ->where('slug', '[a-z0-9-]+')->middleware('throttle:30,1')->name('demo.start'); // MARKER-DEMO-SECTION
 
     // MARKER-SCHED-PUBLIC — booking a call with Intake (master-admin scheduling).
     Route::get('/book/manage/{token}',              [Platform\BookController::class, 'manage'])->name('book.manage');
@@ -1249,6 +1249,8 @@ Route::middleware([
         'App\Http\Middleware\ResolveTenant',
         // MARKER-WELCOME — after tenant resolution, before anything renders.
         'App\Http\Middleware\ShowWelcomePage',
+        // MARKER-DEMO-SECTION — after ResolveTenant, so tenant() is available.
+        'App\Http\Middleware\DemoBanner',
     ])
     ->group($tenantRoutes);
 

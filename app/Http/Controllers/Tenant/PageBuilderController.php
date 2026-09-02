@@ -542,6 +542,8 @@ class PageBuilderController extends Controller
         'industry_pack_showcase' => ['eyebrow'=>'','heading'=>'Built for your industry','subheading'=>'Pick your industry, get pre-configured services, pricing, and content.','limit'=>12,'show_all_link'=>true],
         // MARKER-SCHED-SECTION — marketing-only; heading/subheading blank = the booking type's own name/description
         'book_call' => ['eyebrow'=>'Book a call','heading'=>'','subheading'=>'','booking_type'=>'demo','layout'=>'calendar','button_label'=>'Book a call','slot_count'=>5,'show_host'=>1],
+        // MARKER-DEMO-SECTION — marketing-only; the reset/no-send line is fixed copy
+        'try_demo' => ['eyebrow'=>'See it working','heading'=>'','subheading'=>'','demo_slug'=>'demo','layout'=>'card','button_label'=>'Try the demo'],
         // MARKER-PATCH-158-G27 — stats_row v2 fields (Phase 2)
         'stats_row'        => [
             // Content

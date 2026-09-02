@@ -22,10 +22,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // routes so it also covers every portal page, present and future.
         $middleware->append(\App\Http\Middleware\EnsureCustomerTenant::class);
 
-        // MARKER-DEMO-RESET — the demo countdown bar and stale-session eject.
-        // Appended globally: the staff side, the tenant's public site and the
-        // booking flow are three different layouts, one middleware.
-        $middleware->append(\App\Http\Middleware\DemoBanner::class);
+        // MARKER-DEMO-SECTION — DemoBanner used to be appended here, but global
+        // middleware runs BEFORE route middleware, so ResolveTenant had not run
+        // and tenant() was always null. It lives in the tenant route group now.
 
         // Exclude Stripe webhook from CSRF — Stripe signs the request body.
         // Tenant booking webhook (/webhooks/stripe) and addon subscription

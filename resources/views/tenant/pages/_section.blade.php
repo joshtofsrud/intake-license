@@ -21,6 +21,7 @@
     'comparison_table'       => 'Comparison table',
     'industry_pack_showcase' => 'Industry showcase',
     'book_call'              => 'Book a call', // MARKER-SCHED-SECTION
+    'try_demo'               => 'Try the demo', // MARKER-DEMO-SECTION
     'stats_row'              => 'Stats row',
     'custom_html'            => 'Custom HTML',
   ];
@@ -30,7 +31,7 @@
     'booking_embed'=>'📅','classes_embed'=>'🎯','footer'=>'⬇',
     'feature_grid'=>'▦','step_timeline'=>'🔢','pricing_table'=>'💲',
     'faq_accordion'=>'❓','testimonial_carousel'=>'💬','logo_bar'=>'⚑',
-    'comparison_table'=>'📊','industry_pack_showcase'=>'🏷','book_call'=>'📅','stats_row'=>'📈',
+    'comparison_table'=>'📊','industry_pack_showcase'=>'🏷','book_call'=>'📅','try_demo'=>'▶️','stats_row'=>'📈',
     'custom_html'=>'</>',
   ];
 

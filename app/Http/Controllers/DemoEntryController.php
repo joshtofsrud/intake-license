@@ -22,18 +22,20 @@ class DemoEntryController extends Controller
 {
     private const SLUG = 'demo';
 
-    /** GET /demo — from the marketing site, an email, anywhere. */
-    public function start(Request $request)
+    /** GET /demo/{slug?} — from the marketing site, an email, anywhere. */
+    public function start(Request $request, ?string $slug = null)
     {
-        $tenant = $this->tenantOrNull();
+        // MARKER-DEMO-SECTION — one route for every demo vertical.
+        $slug   = $slug ?: self::SLUG;
+        $tenant = Tenant::where('subdomain', $slug)->where('is_demo', true)->first();
         if (! $tenant) {
             return response()->view('platform.demo-unavailable', [
                 'reason' => 'The demo is being rebuilt right now.',
             ], 503);
         }
-        if (DemoSetting::get('offline:' . self::SLUG) === '1') {
+        if (DemoSetting::get('offline:' . $slug) === '1') {
             return response()->view('platform.demo-unavailable', [
-                'reason' => DemoSetting::get('offline_reason:' . self::SLUG) ?: 'The demo is temporarily switched off.',
+                'reason' => DemoSetting::get('offline_reason:' . $slug) ?: 'The demo is temporarily switched off.',
             ], 503);
         }
 
@@ -52,9 +54,10 @@ class DemoEntryController extends Controller
         if (! $tenant || ! $tenant->is_demo) {
             abort(404);
         }
-        if (DemoSetting::get('offline:' . self::SLUG) === '1') {
+        $slug = $tenant->subdomain ?: self::SLUG; // MARKER-DEMO-SECTION
+        if (DemoSetting::get('offline:' . $slug) === '1') {
             return response()->view('platform.demo-unavailable', [
-                'reason' => DemoSetting::get('offline_reason:' . self::SLUG) ?: 'The demo is temporarily switched off.',
+                'reason' => DemoSetting::get('offline_reason:' . $slug) ?: 'The demo is temporarily switched off.',
             ], 503);
         }
 
@@ -71,14 +74,14 @@ class DemoEntryController extends Controller
         $request->session()->regenerate();
         // a demo visitor must never meet a PIN prompt or a location picker
         $request->session()->put('last_pin_activity_at', now()->toIso8601String());
-        $request->session()->put('demo_epoch', (int) DemoSetting::get('epoch:' . self::SLUG, '0'));
+        $request->session()->put('demo_epoch', (int) DemoSetting::get('epoch:' . $slug, '0'));
         $location = $user->activeLocations()->orderBy('is_default', 'desc')->orderBy('name')->first();
         if ($location) {
             $request->session()->put('current_location_id', $location->id);
         }
 
-        DemoSetting::put('last_entry_at:' . self::SLUG, now()->toIso8601String());
-        DemoSetting::put('entries:' . self::SLUG, (string) (((int) DemoSetting::get('entries:' . self::SLUG, '0')) + 1));
+        DemoSetting::put('last_entry_at:' . $slug, now()->toIso8601String());
+        DemoSetting::put('entries:' . $slug, (string) (((int) DemoSetting::get('entries:' . $slug, '0')) + 1));
 
         return redirect()->route('tenant.dashboard');
     }
