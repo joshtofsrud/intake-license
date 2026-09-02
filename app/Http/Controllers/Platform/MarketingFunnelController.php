@@ -32,7 +32,7 @@ class MarketingFunnelController extends Controller
         // (demo_entered, booking_completed) are the honest ones; cta_click
         // and page_exit come from the browser and can be blocked.
         'demo_entered',
-        'booking_viewed',
+        'booking_started', // MARKER-MKTTILES — matches the tile the service already counts
         'booking_completed',
         'cta_click',
         'page_exit',

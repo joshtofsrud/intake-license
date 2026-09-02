@@ -59,8 +59,11 @@
 </div>
 
 <div class="mkt-panel" data-mkt-panel="overview">
+{{-- MARKER-MKTTILES — by key: topStats() also returns a 'sessions' entry that
+     is explorer data, not a tile, and looping the array rendered it as a
+     blank 0. --}}
 <div class="mt-grid">
-  @foreach($stats as $tile)
+  @foreach(collect($stats)->only(['visitors', 'page_views', 'started', 'completed']) as $tile)
     <div class="mt-tile">
       <div class="mt-tile-k">{{ $tile['label'] ?? '' }}</div>
       <div class="mt-tile-v">{{ number_format((float) ($tile['value'] ?? 0)) }}</div>

@@ -77,7 +77,7 @@ class MarketingTraffic extends Page
 
         $rows = \Illuminate\Support\Facades\DB::table('tenant_funnel_events')
             ->where('tenant_id', $tenant->id)
-            ->whereIn('event_type', ['demo_entered', 'booking_viewed', 'booking_completed', 'cta_click'])
+            ->whereIn('event_type', ['demo_entered', 'booking_started', 'booking_completed', 'cta_click'])
             ->where('created_at', '>=', now()->subDays((int) rtrim((string) $this->window, 'd') ?: 30))
             ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
             ->get(['event_type', 'session_id', 'step', 'path', 'created_at']);
@@ -94,7 +94,7 @@ class MarketingTraffic extends Page
         return [
             'demo_entries'      => $bucket('demo_entered')->count(),
             'demo_sessions'     => $bucket('demo_entered')->pluck('session_id')->unique()->count(),
-            'booking_views'     => $bucket('booking_viewed')->pluck('session_id')->unique()->count(),
+            'booking_views'     => $bucket('booking_started')->pluck('session_id')->unique()->count(),
             'bookings'          => $bucket('booking_completed')->count(),
             'clicks'            => $clicks,
             'recent'            => $rows->whereIn('event_type', ['demo_entered', 'booking_completed'])

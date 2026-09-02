@@ -32,7 +32,7 @@ class BookController extends Controller
     public function show(string $slug)
     {
         $type = $this->type($slug);
-        MarketingFunnelController::record('booking_viewed', ['step' => $slug]); // MARKER-MKTCONV
+        MarketingFunnelController::record('booking_started', ['step' => $slug]); // MARKER-MKTCONV / MARKER-MKTTILES
         return view('marketing.book', [
             'type'   => $type,
             'closed' => ! $type->is_active,
