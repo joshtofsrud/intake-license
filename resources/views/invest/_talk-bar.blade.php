@@ -10,15 +10,15 @@
 @if($talkBarType && $talkBarType->isBookable())
 {{-- MARKER-INVEST-SHARE — was flush against the first accordion --}}
 <section style="padding:18px 0 34px"><div class="wrap">
-  <div class="ok" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px">
-    <div class="talkbar-av" style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
-    <p style="margin:0;font-size:14px"><b>Questions? Talk to Josh.</b><br>{{ $talkBarType->length_min }} minutes, one on one — often quicker than email.</p>
+  <div class="ok talkbar">
+    <div class="talkbar-av">J</div>
+    <p class="talkbar-copy"><b>Questions? Talk to Josh.</b><br>{{ $talkBarType->length_min }} minutes, one on one — often quicker than email.</p>
     {{-- MARKER-INVEST-BAR-ALIGN — two actions, one line, same height --}}
-    <div class="talkbar-actions" style="margin:0 0 0 auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="talkbar-actions">
       @if($investDemoOn)
-        <a href="{{ url('/demo') }}" style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border:1px solid var(--lime-line);border-radius:8px;color:var(--lime);font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap">See the demo</a>
+        <a class="talkbar-btn talkbar-btn--ghost" href="{{ url('/demo') }}">See the demo</a>
       @endif
-      <a class="btn" href="{{ $talkBarType->publicUrl() }}" style="margin:0;padding:0 22px;height:42px;display:inline-flex;align-items:center;white-space:nowrap">Book a call</a>
+      <a class="talkbar-btn" href="{{ $talkBarType->publicUrl() }}">Book a call</a>
     </div>
   </div>
 </div></section>

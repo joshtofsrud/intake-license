@@ -228,14 +228,28 @@ details.sec .body section + section{padding-top:30px}
   details.sec > summary::after{grid-column:2;grid-row:1;margin-left:0}
 }
 
-/* MARKER-INVEST-MOBILE-PASS — the talk bar on a phone. Avatar inline with the
-   heading; the two actions share one row as equal halves instead of stacking
-   at different widths. */
+/* MARKER-INVEST-BAR-CLASSES — the talk bar, in CSS rather than inline styles.
+   Built inline first, which meant the narrow-width rules below could never win;
+   this is the same bar with the styling where it belongs. */
+.talkbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px}
+.talkbar-av{width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;
+  place-items:center;font-weight:700;color:var(--body);flex:none}
+.talkbar-copy{margin:0;font-size:14px}
+.talkbar-actions{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.talkbar-btn{display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 22px;
+  border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap;
+  background:var(--lime);color:#0a0a0a;border:1px solid var(--lime)}
+.talkbar-btn--ghost{background:none;color:var(--lime);border-color:var(--lime-line);font-weight:600;
+  padding:0 18px}
+
+/* MARKER-INVEST-MOBILE-PASS — on a phone the avatar sits inline with the
+   heading and the two actions share one row as equal halves. */
 @media(max-width:640px){
-  .talkbar-actions{width:100%;margin:12px 0 0 !important;display:flex;gap:9px}
-  .talkbar-actions > a{flex:1 1 0;min-width:0;padding:0 12px !important;height:44px !important;
-    display:inline-flex;align-items:center;justify-content:center;text-align:center}
-  .talkbar-av{width:28px !important;height:28px !important;font-size:12px}
+  .talkbar{padding:14px}
+  .talkbar-av{width:28px;height:28px;font-size:12px}
+  .talkbar-copy{flex:1 1 0;min-width:0}
+  .talkbar-actions{width:100%;margin:12px 0 0;gap:9px;flex-wrap:nowrap}
+  .talkbar-actions > .talkbar-btn{flex:1 1 0;min-width:0;padding:0 10px;height:44px;text-align:center}
 }
 
 /* MARKER-INVEST-MOBILE-PASS — the rail scrolls; without a scrollbar nothing

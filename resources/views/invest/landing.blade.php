@@ -196,15 +196,15 @@ textarea:focus{border-color:var(--lime-line)}
     $investDemoOn = $investDemo && \App\Models\DemoSetting::get('offline:demo') !== '1';
   @endphp
   @if($talkType && $talkType->isBookable())
-  <div class="ok" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:26px">
-    <div class="talkbar-av" style="width:34px;height:34px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-weight:700;color:var(--body);flex:none">J</div>
-    <p style="margin:0;font-size:14px"><b>Questions first? Talk to Josh.</b><br>{{ $talkType->length_min }} minutes, one on one — no proposal, no code, no commitment.</p>
+  <div class="ok talkbar" style="margin-top:26px">
+    <div class="talkbar-av">J</div>
+    <p class="talkbar-copy"><b>Questions first? Talk to Josh.</b><br>{{ $talkType->length_min }} minutes, one on one — no proposal, no code, no commitment.</p>
     {{-- MARKER-INVEST-BAR-ALIGN — matches the shared bar on the other pages --}}
-    <div class="talkbar-actions" style="margin:0 0 0 auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="talkbar-actions">
       @if($investDemoOn)
-        <a href="{{ url('/demo') }}" style="display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border:1px solid var(--lime-line);border-radius:8px;color:var(--lime);font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap">See the demo</a>
+        <a class="talkbar-btn talkbar-btn--ghost" href="{{ url('/demo') }}">See the demo</a>
       @endif
-      <a class="btn" href="#talk" style="margin:0;padding:0 22px;height:42px;display:inline-flex;align-items:center;white-space:nowrap">Book a call</a>
+      <a class="talkbar-btn" href="#talk">Book a call</a>
     </div>
   </div>
   @endif
