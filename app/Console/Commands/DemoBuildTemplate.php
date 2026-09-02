@@ -19,7 +19,8 @@ class DemoBuildTemplate extends Command
 {
     protected $signature = 'demo:build-template
         {--from= : Source tenant subdomain (required)}
-        {--force : Skip the confirmation prompt}';
+        {--force : Skip the confirmation prompt}
+        {--max-rows=50000 : Abort if any single table exceeds this many rows}';
 
     protected $description = 'Copy + anonymise a tenant into the frozen Intake Bike Works demo template';
 
@@ -30,6 +31,14 @@ class DemoBuildTemplate extends Command
 
     /** Tables with tenant_id that must never be copied. */
     private const EXCLUDE = '/session|debug_log|password_reset|failed_job|webhook|_export|telescope/i';
+
+    /**
+     * MARKER-DEMO-TEMPLATE-BULK — bulk derived data: enormous, regenerable, and
+     * of no demo value. Distributor availability alone is six figures for a
+     * shop with live syncs, and it would bloat the frozen template past what
+     * the hourly restore can finish.
+     */
+    private const BULK = '/availability_snapshot|distributor_sync|brand_sync|sync_state|_audit_log|audit_log|email_ledger|email_send|message_ledger|traffic|search_quer|search_log|analytics|page_view|activity_log|import_row|catalog_match|catalog_identifier/i';
 
     /** Columns never swept or copied verbatim into the freeze log output. */
     private const SECRET_COLS = '/password|pin_hash|remember_token|secret|api_key|_token$/i';
@@ -45,6 +54,7 @@ class DemoBuildTemplate extends Command
     private array $intMap  = [];   // "table:oldId" => newId (rare bigint-PK tables)
     private array $sweep   = [];   // literal string => replacement (identities, brand)
     private array $leakSamples = []; // real emails that must NOT survive
+    private ?array $referencedTables = null; // MARKER-DEMO-TEMPLATE-BULK
 
     public function handle(): int
     {
@@ -133,10 +143,21 @@ class DemoBuildTemplate extends Command
 
             // ---- 3. copy ----------------------------------------------
             $meta = [];
+            $cap  = (int) $this->option('max-rows');
             foreach ($tables as $t) {
                 $meta[$t] = $this->tableMeta($t);
+                // MARKER-DEMO-TEMPLATE-BULK — count first: the operator sees which
+                // table is running BEFORE the wait, not after it.
+                $expect = DB::table($t)->where('tenant_id', $src->id)->count();
+                if ($expect === 0) continue;
+                if ($expect > $cap) {
+                    throw new \RuntimeException(
+                        "{$t} has {$expect} rows for this tenant, over the {$cap} cap. " .
+                        "Add it to the BULK pattern if it's derived data, or raise --max-rows deliberately.");
+                }
+                $this->output->write(sprintf('  %-42s %6d rows … ', $t, $expect));
                 $n = $this->copyTable($t, $src->id, $demoId, $meta[$t]);
-                if ($n) $this->line(sprintf('  %-42s %5d rows', $t, $n));
+                $this->line('done');
             }
 
             // ---- 4. remap FKs + uuid sweep ----------------------------
@@ -190,10 +211,33 @@ class DemoBuildTemplate extends Command
             "SELECT TABLE_NAME t FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = ? AND COLUMN_NAME = 'tenant_id'
              GROUP BY TABLE_NAME ORDER BY TABLE_NAME", [$db]);
-        return array_values(array_filter(
+        $all = array_values(array_filter(
             array_map(fn ($r) => $r->t, $rows),
             fn ($t) => ! preg_match(self::EXCLUDE, $t) && $t !== 'tenants'
         ));
+        // MARKER-DEMO-TEMPLATE-BULK — say out loud what is being left behind
+        $skipped = array_values(array_filter($all, fn ($t) => preg_match(self::BULK, $t)));
+        if ($skipped) {
+            $this->line('Skipping bulk/derived tables (regenerable, not demo data):');
+            foreach ($skipped as $t) $this->line('  - ' . $t);
+        }
+        return array_values(array_filter($all, fn ($t) => ! preg_match(self::BULK, $t)));
+    }
+
+    /**
+     * MARKER-DEMO-TEMPLATE-BULK — does anything actually point at this table's
+     * ids? If not, the per-row insertGetId map is dead weight and the copy can
+     * batch like every other table.
+     */
+    private function isReferenced(string $table): bool
+    {
+        if (! isset($this->referencedTables)) {
+            $rows = DB::select(
+                "SELECT DISTINCT REFERENCED_TABLE_NAME t FROM information_schema.KEY_COLUMN_USAGE
+                 WHERE TABLE_SCHEMA = ? AND REFERENCED_TABLE_NAME IS NOT NULL", [DB::getDatabaseName()]);
+            $this->referencedTables = array_flip(array_map(fn ($r) => $r->t, $rows));
+        }
+        return isset($this->referencedTables[$table]);
     }
 
     /** @return array{cols: array<string,string>, pk: ?string, pkIsUuid: bool, fks: array<string,string>} */
@@ -249,11 +293,15 @@ class DemoBuildTemplate extends Command
                 $this->uuidMap[strtolower($row['id'])] = $new;
                 $row['id'] = $new;
                 $insert[] = $row;
-            } elseif ($meta['pk'] === 'id') {
+            } elseif ($meta['pk'] === 'id' && $this->isReferenced($table)) {
+                // something FKs to these ids, so the map has to be built row by row
                 $old = $row['id'];
                 unset($row['id']);
                 $newId = DB::table($table)->insertGetId($row);
                 $this->intMap["{$table}:{$old}"] = $newId;
+            } elseif ($meta['pk'] === 'id') {
+                unset($row['id']); // MARKER-DEMO-TEMPLATE-BULK — nothing points here; batch it
+                $insert[] = $row;
             } else {
                 $insert[] = $row;
             }
