@@ -34,6 +34,13 @@ class DemoBuildTemplate extends Command
     /** Columns never swept or copied verbatim into the freeze log output. */
     private const SECRET_COLS = '/password|pin_hash|remember_token|secret|api_key|_token$/i';
 
+    /**
+     * MARKER-DEMO-TEMPLATE-FIX — anything credential-shaped, by column name or
+     * by key inside a JSON blob. Live Stripe keys were found riding inside
+     * tenants.settings; nothing matching this may reach the demo copy.
+     */
+    private const CREDENTIAL = '/stripe|twilio|paypal|square|secret|api_key|access_token|auth_token|webhook|signature|_sk$|_pk$|credential|private_key/i';
+
     private array $uuidMap = [];   // old uuid => new uuid (every copied row, all tables)
     private array $intMap  = [];   // "table:oldId" => newId (rare bigint-PK tables)
     private array $sweep   = [];   // literal string => replacement (identities, brand)
@@ -97,15 +104,26 @@ class DemoBuildTemplate extends Command
             $row['deleted_at']    = null;
             $row['created_at']    = now();
             $row['updated_at']    = now();
+            $tenantsMeta = $this->tableMeta('tenants'); // MARKER-DEMO-TEMPLATE-FIX
             foreach ($row as $col => $v) {
-                if (preg_match('/stripe|twilio|secret|api_key|webhook/i', $col)) {
-                    $row[$col] = null;
+                if (preg_match(self::CREDENTIAL, $col)) {
+                    $row[$col] = $this->blankSecret($col, $tenantsMeta);
                 }
                 if (preg_match('/^logo_url$|^logo_light_url$/', $col)) $row[$col] = '/icon.svg';
                 if ($col === 'favicon_url') $row[$col] = '/favicon.svg';
             }
             // sms stays off however the columns are named
             if (array_key_exists('sms_enabled', $row)) $row['sms_enabled'] = 0;
+            // MARKER-DEMO-TEMPLATE-FIX — live Stripe keys were found inside this
+            // JSON; strip every credential-keyed value before the row exists.
+            foreach ($row as $col => $v) {
+                if (is_string($v) && ($tenantsMeta['cols'][$col] ?? '') === 'json') {
+                    $decoded = json_decode($v, true);
+                    if (is_array($decoded)) {
+                        $row[$col] = json_encode($this->stripJsonSecrets($decoded));
+                    }
+                }
+            }
             DB::table('tenants')->insert($row);
             $this->info("demo tenant: {$demoId}");
 
@@ -182,11 +200,13 @@ class DemoBuildTemplate extends Command
     private function tableMeta(string $table): array
     {
         $db = DB::getDatabaseName();
-        $cols = [];
+        $cols = []; $nullable = []; $defaults = [];
         foreach (DB::select(
-            "SELECT COLUMN_NAME c, DATA_TYPE d, COLUMN_KEY k, EXTRA e
+            "SELECT COLUMN_NAME c, DATA_TYPE d, IS_NULLABLE n, COLUMN_DEFAULT df
              FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?", [$db, $table]) as $r) {
-            $cols[$r->c] = $r->d;
+            $cols[$r->c]     = $r->d;
+            $nullable[$r->c] = ($r->n === 'YES');
+            $defaults[$r->c] = $r->df;
         }
         $pk = null; $pkIsUuid = false;
         foreach (DB::select(
@@ -202,7 +222,7 @@ class DemoBuildTemplate extends Command
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL", [$db, $table]) as $r) {
             $fks[$r->c] = $r->rt;
         }
-        return ['cols' => $cols, 'pk' => $pk, 'pkIsUuid' => $pkIsUuid, 'fks' => $fks];
+        return ['cols' => $cols, 'nullable' => $nullable, 'defaults' => $defaults, 'pk' => $pk, 'pkIsUuid' => $pkIsUuid, 'fks' => $fks];
     }
 
     // ================= copy =================
@@ -215,6 +235,15 @@ class DemoBuildTemplate extends Command
         foreach (DB::table($table)->where('tenant_id', $srcId)->cursor() as $r) {
             $row = (array) $r;
             $row['tenant_id'] = $demoId;
+            // MARKER-DEMO-TEMPLATE-FIX — credentials never cross into the copy
+            foreach ($row as $col => $v) {
+                if ($v !== null && $col !== 'tenant_id' && $col !== 'id' && preg_match(self::CREDENTIAL, $col)) {
+                    $row[$col] = $this->blankSecret($col, $meta);
+                } elseif (is_string($v) && ($meta['cols'][$col] ?? '') === 'json') {
+                    $decoded = json_decode($v, true);
+                    if (is_array($decoded)) $row[$col] = json_encode($this->stripJsonSecrets($decoded));
+                }
+            }
             if ($meta['pk'] === 'id' && $meta['pkIsUuid']) {
                 $new = (string) Str::uuid();
                 $this->uuidMap[strtolower($row['id'])] = $new;
@@ -401,6 +430,33 @@ class DemoBuildTemplate extends Command
      * lookups for uuids and emails, and the small identity strtr only where
      * prose can hide a name.
      */
+    /**
+     * MARKER-DEMO-TEMPLATE-FIX — null a flat value that lives in a
+     * credential-looking column, honoring NOT NULL via the schema default.
+     */
+    private function blankSecret(string $col, array $meta): mixed
+    {
+        if ($meta['nullable'][$col] ?? true) return null;
+        $default = $meta['defaults'][$col] ?? null;
+        if ($default !== null && strcasecmp($default, 'NULL') !== 0) return trim((string) $default, "'");
+        $type = $meta['cols'][$col] ?? 'varchar';
+        return in_array($type, ['int', 'bigint', 'smallint', 'tinyint', 'decimal', 'double', 'float'], true) ? 0 : '';
+    }
+
+    /** Recursively null values under credential-looking keys in decoded JSON. */
+    private function stripJsonSecrets(mixed $node): mixed
+    {
+        if (! is_array($node)) return $node;
+        foreach ($node as $k => $v) {
+            if (is_string($k) && preg_match(self::CREDENTIAL, $k) && (is_string($v) || is_numeric($v))) {
+                $node[$k] = null;
+            } elseif (is_array($v)) {
+                $node[$k] = $this->stripJsonSecrets($v);
+            }
+        }
+        return $node;
+    }
+
     private function scrub(string $v, bool $prose = false): string
     {
         // row uuids (fk stragglers, media paths/urls, page-builder json refs)
