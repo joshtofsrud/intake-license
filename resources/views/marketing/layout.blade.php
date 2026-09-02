@@ -331,5 +331,11 @@ function toggleMobileNav() {
 @include('marketing._plan-quiz')
 
 @stack('scripts')
+{{-- MARKER-MKTCONV — one include for the whole marketing site: any page that
+     extends this layout is tracked, including pages added later. Builder
+     previews still skip it (MARKER-MKT-PARITY). --}}
+@if(empty($builderPreview))
+@include('marketing._funnel_tracker')
+@endif
 </body>
 </html>

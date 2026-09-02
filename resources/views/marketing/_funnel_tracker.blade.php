@@ -64,6 +64,38 @@
 
   send('page_view');
 
+  // MARKER-MKTCONV — clicks on the things worth knowing about. Delegated, so
+  // it covers markup added later; label comes from data-track when set, and
+  // otherwise from the destination, which keeps builder sections working
+  // without anyone remembering to annotate them.
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a,button[data-track]') : null;
+    if (!a) { return; }
+    var label = a.getAttribute('data-track');
+    if (!label) {
+      var href = a.getAttribute('href') || '';
+      if (/^\/demo(\/|$)/.test(href))        { label = 'demo'; }
+      else if (/^\/book(\/|$)/.test(href))   { label = 'book'; }
+      else if (/^\/pricing/.test(href))      { label = 'pricing'; }
+      else if (/^\/invest/.test(href))       { label = 'invest'; }
+      else { return; } // everything else is ordinary navigation
+    }
+    send('cta_click', label);
+  }, true);
+
+  // MARKER-MKTCONV — without an end event every single-page session reads 0:00
+  // however long it was actually read. One beacon on the way out fixes it.
+  var exited = false;
+  function exit() {
+    if (exited) { return; }
+    exited = true;
+    send('page_exit');
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') { exit(); }
+  });
+  window.addEventListener('pagehide', exit);
+
   // Pricing is the clearest intent signal the marketing site has today.
   if (/^\/pricing/.test(window.location.pathname)) {
     send('pricing_viewed');

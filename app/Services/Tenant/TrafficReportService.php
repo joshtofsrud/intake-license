@@ -130,6 +130,31 @@ class TrafficReportService
      * Build the 4 top-stat tiles with current value, prior value, and
      * % change. Each tile returns: [label, value, prev, delta_pct].
      */
+    /**
+     * MARKER-MKTCONV — opt-in, and off by default so tenant reports are
+     * untouched. Tenant events never contained bots (FunnelTrackController
+     * drops them server-side), but the marketing endpoint did until
+     * MARKER-MKTBOTFIX, so the platform tenant still carries historical
+     * crawler rows that inflate its visitor counts.
+     */
+    protected bool $excludeBots = false;
+
+    public function excludeBots(bool $on = true): static
+    {
+        $this->excludeBots = $on;
+        return $this;
+    }
+
+    protected function applyBotFilter($query)
+    {
+        if ($this->excludeBots) {
+            $query->where(function ($w) {
+                $w->whereNull('device')->orWhere('device', '!=', 'bot');
+            });
+        }
+        return $query;
+    }
+
     public function topStats(): array
     {
         // Unique visitors = distinct sessions in the window. We use
@@ -231,6 +256,7 @@ class TrafficReportService
     protected function hourlySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
     {
         $rows = TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)
@@ -253,6 +279,7 @@ class TrafficReportService
     protected function distinctSessions(CarbonImmutable $start, CarbonImmutable $end): int
     {
         return (int) TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)
@@ -275,6 +302,7 @@ class TrafficReportService
     protected function eventCount(string $eventType, CarbonImmutable $start, CarbonImmutable $end): int
     {
         return (int) TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
             ->where('tenant_id', $this->tenant->id)
             ->where('event_type', $eventType)
             ->where('created_at', '>=', $start)
@@ -292,6 +320,7 @@ class TrafficReportService
     protected function dailySessionSeries(CarbonImmutable $start, CarbonImmutable $end): array
     {
         $rows = TenantFunnelEvent::query()
+            ->tap(fn ($q) => $this->applyBotFilter($q)) // MARKER-MKTCONV
             ->where('tenant_id', $this->tenant->id)
             ->where('created_at', '>=', $start)
             ->where('created_at', '<',  $end)

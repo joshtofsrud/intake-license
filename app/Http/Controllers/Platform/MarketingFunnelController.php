@@ -28,6 +28,14 @@ class MarketingFunnelController extends Controller
         'contact_submitted',
         'signup_started',    // reserved — self-serve signup not built yet
         'signup_completed',  // reserved
+        // MARKER-MKTCONV — demo and booking. The two recorded server-side
+        // (demo_entered, booking_completed) are the honest ones; cta_click
+        // and page_exit come from the browser and can be blocked.
+        'demo_entered',
+        'booking_viewed',
+        'booking_completed',
+        'cta_click',
+        'page_exit',
     ];
 
     public function store(Request $request)
@@ -132,6 +140,17 @@ class MarketingFunnelController extends Controller
     public static function record(string $eventType, array $data = []): void
     {
         try {
+            // MARKER-MKTCONV — join server-side conversions to the browsing
+            // that led to them. The tracker writes mkt_sid as a 90-day cookie.
+            if (empty($data['session_id']) && request()) {
+                $cookie = request()->cookie('mkt_sid');
+                if (is_string($cookie) && $cookie !== '') {
+                    $data['session_id'] = $cookie;
+                }
+                $data['path']         = $data['path'] ?? request()->path();
+                $data['referrer_url'] = $data['referrer_url'] ?? request()->headers->get('referer');
+                $data['device']       = $data['device'] ?? self::deviceFromUserAgent((string) request()->userAgent());
+            }
             $tenant = Tenant::where('is_platform', true)->first();
             if (! $tenant) {
                 return;

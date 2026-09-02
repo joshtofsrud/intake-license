@@ -80,6 +80,10 @@ class DemoEntryController extends Controller
             $request->session()->put('current_location_id', $location->id);
         }
 
+        // MARKER-MKTCONV — recorded here, not from a click: this is the moment
+        // someone actually got into the demo.
+        \App\Http\Controllers\Platform\MarketingFunnelController::record('demo_entered', ['step' => $slug]);
+
         DemoSetting::put('last_entry_at:' . $slug, now()->toIso8601String());
         DemoSetting::put('entries:' . $slug, (string) (((int) DemoSetting::get('entries:' . $slug, '0')) + 1));
 

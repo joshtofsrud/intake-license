@@ -301,8 +301,7 @@
     }
 </script>
 @include('marketing._plan-quiz')
-@if(empty($builderPreview))
-@include('marketing._funnel_tracker') {{-- MARKER-MKTTRAFFIC — skipped in builder previews (MARKER-MKT-PARITY) --}}
-@endif
+{{-- MARKER-MKTCONV — the tracker now lives in marketing/layout.blade.php so
+     EVERY marketing page reports, not only builder-rendered ones. --}}
 </body>
 </html>

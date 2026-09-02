@@ -11,6 +11,7 @@ use App\Services\Platform\BookingMailer;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Platform\MarketingFunnelController; // MARKER-MKTCONV
 use Illuminate\Support\Facades\Log;
 
 // MARKER-SCHED-PUBLIC — public booking on intake.works.
@@ -31,6 +32,7 @@ class BookController extends Controller
     public function show(string $slug)
     {
         $type = $this->type($slug);
+        MarketingFunnelController::record('booking_viewed', ['step' => $slug]); // MARKER-MKTCONV
         return view('marketing.book', [
             'type'   => $type,
             'closed' => ! $type->is_active,
@@ -159,6 +161,7 @@ class BookController extends Controller
 
         $this->mailer->confirmation($booking);
         $this->mailer->notifyAdmin($booking, 'created');
+        MarketingFunnelController::record('booking_completed', ['step' => $type->slug]); // MARKER-MKTCONV
         Log::info('MARKER-SCHED-PUBLIC booked', ['id' => $booking->id, 'type' => $type->slug]);
 
         return redirect()->route('book.manage', ['token' => $booking->token, 'new' => 1]);

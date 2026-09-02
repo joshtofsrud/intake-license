@@ -45,7 +45,7 @@ class MarketingTraffic extends Page
             return ['platform' => null, 'window' => $this->window];
         }
 
-        $report = new TrafficReportService($platform, $this->window);
+        $report = (new TrafficReportService($platform, $this->window))->excludeBots();
         $funnel = new SignupFunnelService(
             CarbonImmutable::instance($report->curStart()),
             CarbonImmutable::instance($report->curEnd())
@@ -63,6 +63,47 @@ class MarketingTraffic extends Page
                 CarbonImmutable::instance($report->curStart()),
                 CarbonImmutable::instance($report->curEnd())
             ))->recent(200), // MARKER-MKTSESSTYLE — the scroll box bounds height now
+        ];
+    }
+
+    /**
+     * MARKER-MKTCONV — what the window actually converted. Sessions, not raw
+     * events, so a page reloaded five times counts once.
+     */
+    public function conversions(): array
+    {
+        $tenant = \App\Models\Tenant::where('is_platform', true)->first();
+        if (! $tenant) return [];
+
+        $rows = \Illuminate\Support\Facades\DB::table('tenant_funnel_events')
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('event_type', ['demo_entered', 'booking_viewed', 'booking_completed', 'cta_click'])
+            ->where('created_at', '>=', now()->subDays((int) rtrim((string) $this->window, 'd') ?: 30))
+            ->where(function ($w) { $w->whereNull('device')->orWhere('device', '!=', 'bot'); })
+            ->get(['event_type', 'session_id', 'step', 'path', 'created_at']);
+
+        $bucket = fn ($type) => $rows->where('event_type', $type);
+
+        $clicks = [];
+        foreach ($bucket('cta_click') as $r) {
+            $k = $r->step ?: 'other';
+            $clicks[$k] = ($clicks[$k] ?? 0) + 1;
+        }
+        arsort($clicks);
+
+        return [
+            'demo_entries'      => $bucket('demo_entered')->count(),
+            'demo_sessions'     => $bucket('demo_entered')->pluck('session_id')->unique()->count(),
+            'booking_views'     => $bucket('booking_viewed')->pluck('session_id')->unique()->count(),
+            'bookings'          => $bucket('booking_completed')->count(),
+            'clicks'            => $clicks,
+            'recent'            => $rows->whereIn('event_type', ['demo_entered', 'booking_completed'])
+                ->sortByDesc('created_at')->take(15)
+                ->map(fn ($r) => [
+                    'what' => $r->event_type === 'demo_entered' ? 'Demo entry' : 'Call booked',
+                    'step' => $r->step,
+                    'at'   => $r->created_at,
+                ])->values()->all(),
         ];
     }
 }

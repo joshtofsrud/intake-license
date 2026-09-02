@@ -1,5 +1,21 @@
 {{-- MARKER-MKTTRAFFIC --}}
 <x-filament-panels::page>
+{{-- MARKER-MKTCONV — tabs instead of one growing column. Panels are the
+     existing blocks, wrapped; Conversions is new. Plain JS, no Livewire round
+     trip, so switching tabs never refetches. --}}
+<style>
+  .mkt-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;border-bottom:1px solid rgba(127,127,127,.2);padding-bottom:8px}
+  .mkt-tab{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;background:none;color:inherit;opacity:.6}
+  .mkt-tab.on{opacity:1;border-color:rgba(127,127,127,.3);background:rgba(127,127,127,.1)}
+  .mkt-panel[hidden]{display:none}
+</style>
+<div class="mkt-tabs">
+  <button type="button" class="mkt-tab on" data-mkt-tab="overview">Overview</button>
+  <button type="button" class="mkt-tab" data-mkt-tab="pages">Pages &amp; sources</button>
+  <button type="button" class="mkt-tab" data-mkt-tab="sessions">Sessions</button>
+  <button type="button" class="mkt-tab" data-mkt-tab="conversions">Conversions</button>
+</div>
+
 @if(! $platform)
   <div style="padding:20px;border-radius:12px;background:rgba(255,255,255,.04)">
     No platform tenant found (<code>tenants.is_platform</code>), so there is nothing to report on yet.
@@ -42,6 +58,7 @@
   <span style="margin-left:auto;font-size:12px;opacity:.45;align-self:center">{{ $rangeLabel }}</span>
 </div>
 
+<div class="mkt-panel" data-mkt-panel="overview">
 <div class="mt-grid">
   @foreach($stats as $tile)
     <div class="mt-tile">
@@ -54,6 +71,8 @@
   @endforeach
 </div>
 
+</div>
+<div class="mkt-panel" data-mkt-panel="pages" hidden>
 <div class="mt-sec">Signup funnel</div>
 @php $mtTop = collect($stages)->max('count') ?: 1; @endphp
 <div class="mt-funnel">
@@ -91,6 +110,8 @@
   </div>
 </div>
 
+{{-- MARKER-MKTCONV — chart sits in Pages & sources; it reads with the
+     page/source tables it sits beside. --}}
 <div class="mt-sec">Daily visitors</div>
 {{-- dailyVisitors() returns ['current' => int[], 'prior' => int[], 'hourly' => bool]
      — a flat series of counts, one per bucket, NOT a list of rows. --}}
@@ -112,6 +133,8 @@
      (resources/views/tenant/reports/traffic.blade.php, .rse-* block). Same
      class names and values, so the two surfaces stay comparable. The scroll
      box is what keeps this section from running away as traffic grows. --}}
+</div>
+<div class="mkt-panel" data-mkt-panel="sessions" hidden>
 <style>
 .rse-zone{margin-top:26px}
 .rse-zone-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
@@ -207,4 +230,71 @@
 </script>
 
 @endif
+</div>
+
+{{-- MARKER-MKTCONV — the two conversions that matter, plus click intent --}}
+<div class="mkt-panel" data-mkt-panel="conversions" hidden>
+    @php $cv = $this->conversions(); @endphp
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+        <div style="border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:16px 18px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55">Demo entries</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">{{ $cv['demo_entries'] ?? 0 }}</div>
+            <div style="font-size:12.5px;opacity:.6">{{ $cv['demo_sessions'] ?? 0 }} distinct visitors</div>
+        </div>
+        <div style="border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:16px 18px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55">Booking page</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">{{ $cv['booking_views'] ?? 0 }}</div>
+            <div style="font-size:12.5px;opacity:.6">visitors who opened it</div>
+        </div>
+        <div style="border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:16px 18px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55">Calls booked</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">{{ $cv['bookings'] ?? 0 }}</div>
+            <div style="font-size:12.5px;opacity:.6">recorded when the booking saved</div>
+        </div>
+    </div>
+
+    <div style="border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:16px 18px;margin-top:16px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55;margin-bottom:8px">Clicks by destination</div>
+        @if(!empty($cv['clicks']))
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                @foreach($cv['clicks'] as $label => $count)
+                    <span style="border:1px solid rgba(127,127,127,.25);border-radius:999px;padding:4px 12px;font-size:13px">{{ $label }} · {{ $count }}</span>
+                @endforeach
+            </div>
+        @else
+            <div style="font-size:13px;opacity:.6">No clicks recorded in this window.</div>
+        @endif
+        <div style="font-size:12px;opacity:.5;margin-top:10px">
+            Clicks come from the browser and can be blocked or missed. Demo entries and booked calls are recorded on the server when they happen, so trust those two.
+        </div>
+    </div>
+
+    <div style="border:1px solid rgba(127,127,127,.22);border-radius:12px;padding:16px 18px;margin-top:16px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.55;margin-bottom:8px">Most recent</div>
+        @forelse($cv['recent'] ?? [] as $r)
+            <div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid rgba(127,127,127,.12);font-size:13.5px">
+                <span style="font-weight:600;min-width:110px">{{ $r['what'] }}</span>
+                <span style="opacity:.6">{{ $r['step'] }}</span>
+                <span style="margin-left:auto;opacity:.55;font-size:12px">{{ \Carbon\Carbon::parse($r['at'])->diffForHumans() }}</span>
+            </div>
+        @empty
+            <div style="font-size:13px;opacity:.6">Nothing yet in this window.</div>
+        @endforelse
+    </div>
+</div>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('[data-mkt-tab]');
+  var panels = document.querySelectorAll('[data-mkt-panel]');
+  function show(name) {
+    tabs.forEach(function (t) { t.classList.toggle('on', t.dataset.mktTab === name); });
+    panels.forEach(function (p) { p.hidden = (p.dataset.mktPanel !== name); });
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { show(t.dataset.mktTab); });
+  });
+  show('overview');
+})();
+</script>
 </x-filament-panels::page>
