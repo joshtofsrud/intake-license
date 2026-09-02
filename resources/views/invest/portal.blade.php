@@ -23,25 +23,38 @@
 
 {{-- MARKER-INVEST-RAIL --}}
 @php
+  // MARKER-INVEST-RAILMENU — same menu as the proposal page, plus the two
+  // sections only an investor who is already in sees.
   $rail = [
     ['#terms', 'Terms', null],
     ['#docs', 'Documents', null],
-    ['#s-keep', 'Retention', 's-keep'],
-    ['#s-bike', 'Why bike first', 's-bike'],
-    ['#s-cap', 'The platform', 's-cap'],
-    ['#s-stack', 'What it replaces', 's-stack'],
-    ['#s-rev', 'The model', 's-rev'],
-    ['#s-cost', 'Cost and margin', 's-cost'],
-    ['#s-horiz', 'The horizontal', 's-horiz'],
-    ['#s-market', 'The market', 's-market'],
-    ['#s-ask', 'The ask', 's-ask'],
-    ['#s-risk', 'Risks', 's-risk'],
-    ['#s-returns', 'How this returns', 's-returns'],
-    ['#s-legal', 'Legal', 's-legal'],
+    ['menu', 'The case', null],
     ['#position', 'Your position', null],
     ['#s-back', 'Back the project', 's-back'],
     [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
     [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
+  ];
+  $railMenu = [
+    ['The problem', [
+      ['#s-keep',    'Retention and recovery', 's-keep'],
+      ['#s-bike',    'Why bike first',         's-bike'],
+    ]],
+    ['The product', [
+      ['#s-cap',     'The platform',           's-cap'],
+      ['#s-stack',   'What it replaces',       's-stack'],
+    ]],
+    ['The business', [
+      ['#s-rev',     'The model',              's-rev'],
+      ['#s-cost',    'Cost and margin',        's-cost'],
+      ['#s-horiz',   'The horizontal',         's-horiz'],
+      ['#s-market',  'The market',             's-market'],
+    ]],
+    ['The raise', [
+      ['#s-ask',     'The ask',                's-ask'],
+      ['#s-risk',    'Risks',                  's-risk'],
+      ['#s-returns', 'How this returns',       's-returns'],
+      ['#s-legal',   'Legal',                  's-legal'],
+    ]],
   ];
 @endphp
 @include('invest._rail')

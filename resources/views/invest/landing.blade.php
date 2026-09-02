@@ -146,16 +146,22 @@ textarea:focus{border-color:var(--lime-line)}
 
 {{-- MARKER-INVEST-RAIL --}}
 @php
+  // MARKER-INVEST-RAILMENU — only four sections here, so one flat menu.
   $rail = [
     ['#top', 'The problem', null],
-    ['#s-keep', 'Retention', 's-keep'],
-    ['#s-bike', 'Why bike first', 's-bike'],
-    ['#s-cap', 'The platform', 's-cap'],
-    ['#s-stack', 'What it replaces', 's-stack'],
+    ['menu', 'The case', null],
     ['#ask', 'Ask for the proposal', null],
     ['#support', 'Back the project', null],
     ['#talk', 'Talk to Josh', null], // MARKER-SCHED-TALK-ENTRY — rendered lime in _rail
     [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
+  ];
+  $railMenu = [
+    [null, [
+      ['#s-keep',  'Retention and recovery', 's-keep'],
+      ['#s-bike',  'Why bike first',         's-bike'],
+      ['#s-cap',   'The platform',           's-cap'],
+      ['#s-stack', 'What it replaces',       's-stack'],
+    ]],
   ];
 @endphp
 @include('invest._rail')

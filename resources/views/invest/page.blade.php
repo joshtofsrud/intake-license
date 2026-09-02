@@ -24,23 +24,36 @@
 
 {{-- MARKER-INVEST-FULL — same rail and same sections as the personal page. --}}
 @php
+  // MARKER-INVEST-RAILMENU — the sections move into one grouped menu so the
+  // rail stops clipping and the argument reads in order.
   $rail = [
     ['#terms', 'Terms', null],
     ['#docs', 'Documents', null],
-    ['#s-keep', 'Retention', 's-keep'],
-    ['#s-bike', 'Why bike first', 's-bike'],
-    ['#s-cap', 'The platform', 's-cap'],
-    ['#s-stack', 'What it replaces', 's-stack'],
-    ['#s-rev', 'The model', 's-rev'],
-    ['#s-cost', 'Cost and margin', 's-cost'],
-    ['#s-horiz', 'The horizontal', 's-horiz'],
-    ['#s-market', 'The market', 's-market'],
-    ['#s-ask', 'The ask', 's-ask'],
-    ['#s-risk', 'Risks', 's-risk'],
+    ['menu', 'The case', null],
     ['#interest', 'Commit', null],
     ['#s-back', 'Back the project', 's-back'],
     [url('/book/investor'), 'Talk to Josh', null], // MARKER-SCHED-TALK-ALL
     [url('/demo'), 'See the demo', null], // MARKER-INVEST-DEMO
+  ];
+  $railMenu = [
+    ['The problem', [
+      ['#s-keep',   'Retention and recovery', 's-keep'],
+      ['#s-bike',   'Why bike first',         's-bike'],
+    ]],
+    ['The product', [
+      ['#s-cap',    'The platform',           's-cap'],
+      ['#s-stack',  'What it replaces',       's-stack'],
+    ]],
+    ['The business', [
+      ['#s-rev',    'The model',              's-rev'],
+      ['#s-cost',   'Cost and margin',        's-cost'],
+      ['#s-horiz',  'The horizontal',         's-horiz'],
+      ['#s-market', 'The market',             's-market'],
+    ]],
+    ['The raise', [
+      ['#s-ask',    'The ask',                's-ask'],
+      ['#s-risk',   'Risks',                  's-risk'],
+    ]],
   ];
 @endphp
 @include('invest._rail')
