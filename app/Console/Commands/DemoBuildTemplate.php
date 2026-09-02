@@ -121,8 +121,15 @@ class DemoBuildTemplate extends Command
                 if (preg_match(self::CREDENTIAL, $col)) {
                     $row[$col] = $this->blankSecret($col, $tenantsMeta);
                 }
-                if (preg_match('/^logo_url$|^logo_light_url$/', $col)) $row[$col] = '/icon.svg';
-                if ($col === 'favicon_url') $row[$col] = '/favicon.svg';
+                // MARKER-DEMO-WORDMARK — the wordmark, and the right one per surface:
+                // logo.svg has light text (dark backgrounds), logo-dark.svg is its twin.
+                if ($col === 'logo_url')       $row[$col] = '/logo-dark.svg';
+                if ($col === 'logo_light_url') $row[$col] = '/logo.svg';
+                if ($col === 'favicon_url')    $row[$col] = '/favicon.svg';
+                // sizes are pixel heights tuned for a square mark; a 168x36
+                // wordmark at 80px would be ~370px wide
+                if ($col === 'logo_size_admin')   $row[$col] = 26;
+                if ($col === 'logo_size_booking') $row[$col] = 28;
             }
             // sms stays off however the columns are named
             if (array_key_exists('sms_enabled', $row)) $row['sms_enabled'] = 0;
