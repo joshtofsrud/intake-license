@@ -52,7 +52,8 @@ class DemoBuildTemplate extends Command
 
     private array $uuidMap = [];   // old uuid => new uuid (every copied row, all tables)
     private array $intMap  = [];   // "table:oldId" => newId (rare bigint-PK tables)
-    private array $sweep   = [];   // literal string => replacement (identities, brand)
+    private array $sweep     = []; // exact-match map: emails, phone forms, brand
+    private array $nameSweep = []; // MARKER-DEMO-TEMPLATE-NAMES — people's names, whole words only
     private array $leakSamples = []; // real emails that must NOT survive
     private ?array $referencedTables = null; // MARKER-DEMO-TEMPLATE-BULK
 
@@ -195,7 +196,7 @@ class DemoBuildTemplate extends Command
             foreach ($tRow as $col => $v) {
                 if (is_string($v) && $v !== '' && ! preg_match(self::SECRET_COLS, $col)
                     && ! in_array($col, ['id', 'subdomain', 'name'], true)) {
-                    $new = $this->scrub($v, true);
+                    $new = $this->scrub($v, true, null);
                     if ($new !== $v) $tUpd[$col] = $new;
                 }
             }
@@ -300,11 +301,12 @@ class DemoBuildTemplate extends Command
     private function tableMeta(string $table): array
     {
         $db = DB::getDatabaseName();
-        $cols = []; $nullable = []; $defaults = [];
+        $cols = []; $nullable = []; $defaults = []; $lengths = []; // MARKER-DEMO-TEMPLATE-NAMES
         foreach (DB::select(
-            "SELECT COLUMN_NAME c, DATA_TYPE d, IS_NULLABLE n, COLUMN_DEFAULT df
+            "SELECT COLUMN_NAME c, DATA_TYPE d, IS_NULLABLE n, COLUMN_DEFAULT df, CHARACTER_MAXIMUM_LENGTH len
              FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?", [$db, $table]) as $r) {
             $cols[$r->c]     = $r->d;
+            $lengths[$r->c]  = $r->len ? (int) $r->len : null;
             $nullable[$r->c] = ($r->n === 'YES');
             $defaults[$r->c] = $r->df;
         }
@@ -322,7 +324,7 @@ class DemoBuildTemplate extends Command
              WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL", [$db, $table]) as $r) {
             $fks[$r->c] = $r->rt;
         }
-        return ['cols' => $cols, 'nullable' => $nullable, 'defaults' => $defaults, 'pk' => $pk, 'pkIsUuid' => $pkIsUuid, 'fks' => $fks];
+        return ['cols' => $cols, 'lengths' => $lengths, 'nullable' => $nullable, 'defaults' => $defaults, 'pk' => $pk, 'pkIsUuid' => $pkIsUuid, 'fks' => $fks];
     }
 
     // ================= copy =================
@@ -452,7 +454,7 @@ class DemoBuildTemplate extends Command
                     foreach (['first_name' => $first, 'last_name' => $last, 'name' => trim($first . ' ' . $last)] as $col => $new) {
                         if (array_key_exists($col, $old)) {
                             $v = trim((string) $old[$col]);
-                            if (mb_strlen($v) >= 4) $this->sweep[$v] = $new;
+                            if (mb_strlen($v) >= 4) $this->nameSweep[$v] = $new; // MARKER-DEMO-TEMPLATE-NAMES
                             $upd[$col] = $new;
                         }
                     }
@@ -506,7 +508,7 @@ class DemoBuildTemplate extends Command
         foreach (DB::table('tenant_users')->where('tenant_id', $demoId)->orderBy('created_at')->get() as $u) {
             $name  = $names[$i % count($names)] . ($i >= count($names) ? ' ' . ($i + 1) : '');
             $email = 'staff' . ($i + 1) . '@intakebikeworks.example';
-            if (mb_strlen(trim((string) $u->name)) >= 4) $this->sweep[trim($u->name)] = $name;
+            if (mb_strlen(trim((string) $u->name)) >= 4) $this->nameSweep[trim($u->name)] = $name; // MARKER-DEMO-TEMPLATE-NAMES
             if (! empty($u->email)) { $this->sweep[$u->email] = $email; }
             DB::table('tenant_users')->where('id', $u->id)->update([
                 'name'           => $name,
@@ -534,6 +536,9 @@ class DemoBuildTemplate extends Command
         }
         if (! $textCols) return;
 
+        // MARKER-DEMO-TEMPLATE-NAMES — catalog/product text: people's names do not
+        // belong there, and a false hit corrupts the demo's most visible data
+        $namesHere = ! preg_match('/inventory|catalog|order_item|sale_item|product|vendor|distributor|pricing/i', $table);
         // prose-ish columns additionally get the names sweep; every text column
         // gets the uuid + contact scrub (cheap regex, O(1) map lookups)
         $proseCols = array_values(array_filter($textCols, function ($col) use ($meta) {
@@ -548,7 +553,7 @@ class DemoBuildTemplate extends Command
                 foreach ($textCols as $col) {
                     $v = $r->{$col} ?? null;
                     if ($v === null || $v === '') continue;
-                    $new = $this->scrub((string) $v, in_array($col, $proseCols, true));
+                    $new = $this->scrub((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null);
                     if ($new !== $v) $upd[$col] = $new;
                 }
                 if ($upd) DB::table($table)->where($pk, $r->{$pk})->update($upd);
@@ -560,7 +565,7 @@ class DemoBuildTemplate extends Command
                     ->whereNotNull($col)->distinct()->pluck($col);
                 foreach ($values as $v) {
                     if ($v === '') continue;
-                    $new = $this->scrub((string) $v, in_array($col, $proseCols, true));
+                    $new = $this->scrub((string) $v, $namesHere && in_array($col, $proseCols, true), $meta['lengths'][$col] ?? null);
                     if ($new !== $v) {
                         DB::table($table)->where('tenant_id', $demoId)->where($col, $v)
                             ->update([$col => $new]);
@@ -603,9 +608,8 @@ class DemoBuildTemplate extends Command
         return $node;
     }
 
-    private function scrub(string $v, bool $prose = false): string
+    private function scrub(string $v, bool $names = true, ?int $maxLen = null): string
     {
-        unset($prose); // MARKER-DEMO-TEMPLATE-PHONE — identity sweep now applies everywhere
         // row uuids (fk stragglers, media paths/urls, page-builder json refs)
         $new = preg_replace_callback(
             '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i',
@@ -619,6 +623,14 @@ class DemoBuildTemplate extends Command
                 return preg_match('/@(example\.com|intakebikeworks\.example|intake\.works)$/i', $m[0]) ? $m[0] : 'visitor@example.com';
             },
             $new);
+        // MARKER-DEMO-TEMPLATE-NAMES — whole words only: a name that sits inside
+        // a product word ("Maxx" in "Maxxis") must never be rewritten.
+        if ($names && $this->nameSweep) {
+            $new = preg_replace_callback(
+                '/[\p{L}][\p{L}\'.-]*/u',
+                fn ($m) => $this->nameSweep[$m[0]] ?? $m[0],
+                $new);
+        }
         // MARKER-DEMO-TEMPLATE-PHONE — identities BEFORE the catch-all, or each
         // customer's own fake number gets flattened into the fallback. Cheap on
         // short columns too, so it is no longer gated on $prose.
@@ -631,6 +643,8 @@ class DemoBuildTemplate extends Command
             '/(?<!\d)\(?\+?1?[\s.\-)]{0,2}\d{3}[\s.\-)]{1,2}\d{3}[\s.\-]\d{4}(?!\d)/',
             fn ($m) => str_contains(preg_replace('/[^0-9]/', '', $m[0]), '509555') ? $m[0] : self::DEMO_PHONE,
             $new);
+        // MARKER-DEMO-TEMPLATE-NAMES — a replacement never overflows its column
+        if ($maxLen !== null && mb_strlen($new) > $maxLen) $new = mb_substr($new, 0, $maxLen);
         return $new;
     }
 
