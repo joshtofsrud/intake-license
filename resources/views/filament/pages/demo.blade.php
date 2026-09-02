@@ -67,18 +67,37 @@
             whole demo, not just one week.
         </p>
         @if($weeks)
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {{-- MARKER-DEMO-WEEKCARDS — explicit widths: Filament's build does not
+                 carry the responsive grid utilities, so class-based columns were
+                 silently doing nothing. --}}
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+                @php $busiest = collect($weeks)->keys()->first(); @endphp
                 @foreach($weeks as $monday => $count)
-                    <label class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer
-                        {{ $anchorWeek === $monday ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10' : 'border-gray-200 dark:border-white/10' }}">
-                        <input type="radio" wire:model="anchorWeek" value="{{ $monday }}" class="text-primary-600">
-                        <span>
-                            Week of {{ \Carbon\Carbon::parse($monday)->format('M j, Y') }}
-                            <span class="block text-xs text-gray-500">{{ $count }} appointments, sales &amp; deliveries</span>
-                        </span>
+                    @php $on = $anchorWeek === $monday; @endphp
+                    <label style="cursor:pointer;display:block;border-radius:10px;padding:10px 12px;
+                        border:1px solid {{ $on ? 'rgb(var(--primary-500))' : 'rgba(127,127,127,.25)' }};
+                        background:{{ $on ? 'rgba(var(--primary-500),.08)' : 'transparent' }}">
+                        <input type="radio" wire:model.live="anchorWeek" value="{{ $monday }}" class="sr-only">
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-weight:600;font-size:13.5px">{{ \Carbon\Carbon::parse($monday)->format('M j') }}</span>
+                            <span style="font-size:11px;opacity:.5">{{ \Carbon\Carbon::parse($monday)->format('Y') }}</span>
+                            @if($monday === $busiest)
+                                <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:.6">Busiest</span>
+                            @elseif($on)
+                                <span style="margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgb(var(--primary-500))">Anchor</span>
+                            @endif
+                        </div>
+                        <div style="font-size:12px;opacity:.6;margin-top:2px">{{ $count }} appointments, sales &amp; deliveries</div>
                     </label>
                 @endforeach
             </div>
+            @if($anchorWeek)
+                <p style="font-size:12px;opacity:.6;margin-top:10px">
+                    Week of {{ \Carbon\Carbon::parse($anchorWeek)->format('M j, Y') }} becomes this week
+                    ({{ (int) \Carbon\Carbon::parse($anchorWeek)->startOfWeek()->diffInDays(now()->startOfWeek(), false) }} days forward)
+                    at the next reset.
+                </p>
+            @endif
             <div class="mt-3 flex gap-2">
                 <x-filament::button wire:click="saveAnchor" size="sm">Save anchor week</x-filament::button>
                 <x-filament::button wire:click="resetNow" color="gray" size="sm">Reset now</x-filament::button>
